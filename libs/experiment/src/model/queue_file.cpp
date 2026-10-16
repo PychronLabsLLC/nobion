@@ -2,66 +2,23 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cmath>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 
 #include "pychron/experiment/model/positions.hpp"
 #include "pychron/experiment/model/queue_toml.hpp"
+#include "model/toml_text.hpp"
 
 namespace pychron::experiment {
 namespace {
 
-// Canonical scalar text: basic (double-quoted) strings and the shortest float
-// that parses back to the same double, so dumps are stable and diff cleanly.
-std::string fmt(const std::string& s) {
-  std::string out = "\"";
-  for (char ch : s) {
-    const auto c = static_cast<unsigned char>(ch);
-    switch (ch) {
-      case '"': out += "\\\""; break;
-      case '\\': out += "\\\\"; break;
-      case '\n': out += "\\n"; break;
-      case '\t': out += "\\t"; break;
-      case '\r': out += "\\r"; break;
-      case '\b': out += "\\b"; break;
-      case '\f': out += "\\f"; break;
-      default:
-        if (c < 0x20 || c == 0x7f) {
-          char buf[8];
-          std::snprintf(buf, sizeof buf, "\\u%04X", c);
-          out += buf;
-        } else {
-          out += ch;
-        }
-    }
-  }
-  return out + "\"";
-}
+std::string fmt(const std::string& s) { return detail::toml_string(s); }
 
 std::string fmt(std::int64_t v) { return std::to_string(v); }
 std::string fmt(bool v) { return v ? "true" : "false"; }
 
-std::string fmt(double v) {
-  if (std::isnan(v)) return "nan";
-  if (std::isinf(v)) return v < 0 ? "-inf" : "inf";
-  // Exponent form only for very large or small magnitudes ("30.0", not "3e+01").
-  const double mag = std::fabs(v);
-  const bool plain = mag == 0 || (mag >= 1e-5 && mag < 1e16);
-  char buf[32];
-  for (int precision = 1; precision <= 17; ++precision) {
-    std::snprintf(buf, sizeof buf, "%.*g", precision, v);
-    if (std::strtod(buf, nullptr) == v && !(plain && std::strchr(buf, 'e'))) break;
-  }
-  std::string s = buf;
-  std::replace(s.begin(), s.end(), ',', '.');  // decimal-comma locales
-  if (s.find_first_of(".e") == std::string::npos) s += ".0";  // keep it a TOML float
-  return s;
-}
+std::string fmt(double v) { return detail::toml_float(v); }
 
 std::string key(std::string_view k) {
   bool bare = !k.empty();

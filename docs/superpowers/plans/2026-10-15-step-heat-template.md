@@ -131,7 +131,7 @@ git commit -m "feat(experiment): step heat template type and reader"
   - `std::string to_toml(const StepHeatTemplate& t);`
 - Consumes: Task 1's `parse_step_heat`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```cpp
 TEST(StepHeatWrite, RoundTripsTheSpecExample) {
@@ -153,9 +153,9 @@ TEST(StepHeatWrite, KeysInSpecOrder);
 TEST(StepHeatWrite, FloatsAreWrittenAsTheQueueWriterWritesThem);  // value 0.1 -> "value = 0.1"; 30 -> "duration = 30.0"
 ```
 
-- [ ] **Step 2: Run to verify they fail** (`to_toml` / `normalized` undeclared).
+- [x] **Step 2: Run to verify they fail** (`to_toml` / `normalized` undeclared).
 
-- [ ] **Step 3: Move the scalar formatters, then write `to_toml`**
+- [x] **Step 3: Move the scalar formatters, then write `to_toml`**
 
 `queue_file.cpp` calls `detail::toml_string` / `detail::toml_float` from its `fmt` overloads (or replaces them). Output layout:
 
@@ -173,9 +173,9 @@ value = 0.5
 
 Empty `description` and absent optionals omitted; `name` written when non-empty; units written with `to_string(Unit)`. Write `normalized(t)`, not `t`.
 
-- [ ] **Step 4: Run** `build/dev/tests/experiment/pychron_experiment_tests --gtest_filter='StepHeat*:QueueFile*'` — Expected: PASS, queue file tests unchanged.
+- [x] **Step 4: Run** `build/dev/tests/experiment/pychron_experiment_tests --gtest_filter='StepHeat*:QueueFile*'` — Expected: PASS, queue file tests unchanged.
 
-- [ ] **Step 5: Checks and commit**
+- [x] **Step 5: Checks and commit**
 
 ```bash
 git commit -m "feat(experiment): canonical step heat template writer"

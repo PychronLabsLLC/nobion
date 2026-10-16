@@ -65,4 +65,16 @@ inline constexpr std::size_t kMaxStepHeatSteps = 1000;
 // Io error when the file cannot be read.
 [[nodiscard]] Result<StepHeatTemplate> load_step_heat(const std::filesystem::path& path);
 
+// `t` with each step's units, duration and cleanup cleared where equal to the
+// template's own default for that key (a default that is absent clears
+// nothing). Reading `to_toml(t)` back gives `normalized(t)`.
+[[nodiscard]] StepHeatTemplate normalized(StepHeatTemplate t);
+
+// Canonical text of `normalized(t)`: a [template] table (left out when it
+// would be empty), then one [[steps]] table per step, keys in the order of
+// the format above, absent optionals and an empty name or description left
+// out, numbers written as the queue writer writes them. Writing what this
+// text reads back as gives the same bytes. Does not check `t`.
+[[nodiscard]] std::string to_toml(const StepHeatTemplate& t);
+
 }  // namespace pychron::experiment

@@ -11,6 +11,7 @@
 
 #include <toml++/toml.hpp>
 
+#include "model/toml_text.hpp"
 #include "pychron/experiment/factory/increments.hpp"
 
 namespace pychron::experiment {
@@ -209,6 +210,66 @@ Result<StepHeatTemplate> load_step_heat(const std::filesystem::path& path) {
   const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
   if (in.bad()) return fail(ErrorKind::Io, path.string() + ": cannot be read");
   return parse(text, path.stem().string(), path.string());
+}
+
+StepHeatTemplate normalized(StepHeatTemplate t) {
+  for (auto& s : t.steps) {
+    if (t.units && s.units == t.units) s.units.reset();
+    if (t.duration && s.duration == t.duration) s.duration.reset();
+    if (t.cleanup && s.cleanup == t.cleanup) s.cleanup.reset();
+  }
+  return t;
+}
+
+std::string to_toml(const StepHeatTemplate& t) {
+  const StepHeatTemplate n = normalized(t);
+  std::string out;
+  const auto header = [&out](std::string_view h) {
+    if (!out.empty()) out += '\n';
+    out += h;
+    out += '\n';
+  };
+  const auto raw = [&out](std::string_view key, const std::string& value) {
+    out += key;
+    out += " = ";
+    out += value;
+    out += '\n';
+  };
+  const auto str = [&raw](std::string_view key, const std::string& v) {
+    if (!v.empty()) raw(key, detail::toml_string(v));
+  };
+  const auto units = [&raw](const std::optional<Unit>& u) {
+    if (u) raw("units", detail::toml_string(to_string(*u)));
+  };
+  const auto num = [&raw](std::string_view key, const std::optional<double>& v) {
+    if (v) raw(key, detail::toml_float(*v));
+  };
+  const auto dur = [&raw](std::string_view key, const std::optional<Duration>& d) {
+    if (d) raw(key, detail::toml_float(d->count()));
+  };
+
+  if (!n.name.empty() || !n.description.empty() || n.units || n.duration || n.cleanup) {
+    header("[template]");
+    str("name", n.name);
+    str("description", n.description);
+    units(n.units);
+    dur("duration", n.duration);
+    dur("cleanup", n.cleanup);
+  }
+  for (const auto& s : n.steps) {
+    header("[[steps]]");
+    raw("value", detail::toml_float(s.value));
+    units(s.units);
+    dur("duration", s.duration);
+    dur("cleanup", s.cleanup);
+    dur("pre_cleanup", s.pre_cleanup);
+    dur("post_cleanup", s.post_cleanup);
+    num("beam_diameter", s.beam_diameter);
+    num("ramp_rate", s.ramp_rate);
+    dur("ramp", s.ramp);
+    num("cryo_temp", s.cryo_temp);
+  }
+  return out;
 }
 
 }  // namespace pychron::experiment

@@ -206,3 +206,170 @@ TEST(StepHeatLoad, NamesTheFileAndTakesTheStem) {
 
   std::filesystem::remove_all(dir);
 }
+
+namespace {
+
+// Position of `needle` in `text` at or after `from`; fails the test when absent.
+std::size_t at(const std::string& text, const std::string& needle, std::size_t from = 0) {
+  const auto pos = text.find(needle, from);
+  EXPECT_NE(pos, std::string::npos) << "'" << needle << "' not in:\n" << text;
+  return pos;
+}
+
+StepHeatStep every_key_step() {
+  StepHeatStep s;
+  s.value = 800;
+  s.units = Unit::Temp;
+  s.duration = Duration(1);
+  s.cleanup = Duration(2);
+  s.pre_cleanup = Duration(3);
+  s.post_cleanup = Duration(4);
+  s.beam_diameter = 5;
+  s.ramp_rate = 6;
+  s.ramp = Duration(7);
+  s.cryo_temp = 8;
+  return s;
+}
+
+}  // namespace
+
+TEST(StepHeatWrite, RoundTripsTheSpecExample) {
+  auto t = parse_step_heat(kSpecExample, "laser-12");
+  ASSERT_TRUE(t) << t.error().what;
+  auto back = parse_step_heat(to_toml(*t), "laser-12");
+  ASSERT_TRUE(back) << back.error().what;
+  EXPECT_EQ(*back, *t);
+}
+
+TEST(StepHeatWrite, RoundTripsEveryStepKey) {
+  StepHeatTemplate t;
+  t.name = "furnace";
+  t.description = "quote \" and\nnewline";
+  t.steps = {every_key_step()};
+  auto back = parse_step_heat(to_toml(t), "furnace");
+  ASSERT_TRUE(back) << back.error().what;
+  EXPECT_EQ(*back, t);
+}
+
+TEST(StepHeatWrite, WritingTwiceIsByteIdentical) {
+  auto t = parse_step_heat(kSpecExample, "laser-12");
+  ASSERT_TRUE(t) << t.error().what;
+  const std::string once = to_toml(*t);
+  auto back = parse_step_heat(once, "laser-12");
+  ASSERT_TRUE(back) << back.error().what;
+  EXPECT_EQ(to_toml(*back), once);
+}
+
+TEST(StepHeatWrite, AStepEqualToTheDefaultIsLeftOut) {
+  StepHeatTemplate t;
+  t.name = "laser-12";
+  t.units = Unit::Watts;
+  t.duration = Duration(30);
+  t.cleanup = Duration(15);
+  StepHeatStep a;
+  a.value = 0.5;
+  a.duration = Duration(30);
+  a.units = Unit::Watts;
+  a.cleanup = Duration(15);
+  StepHeatStep b;
+  b.value = 1.0;
+  b.duration = Duration(45);
+  b.units = Unit::Percent;
+  b.cleanup = Duration(10);
+  t.steps = {a, b};
+
+  const std::string text = to_toml(t);
+  const auto step_a = at(text, "[[steps]]");
+  const auto step_b = at(text, "[[steps]]", step_a + 1);
+  const std::string a_text = text.substr(step_a, step_b - step_a);
+  const std::string b_text = text.substr(step_b);
+  EXPECT_EQ(a_text, "[[steps]]\nvalue = 0.5\n\n");
+  EXPECT_NE(b_text.find("duration = 45.0"), std::string::npos) << text;
+  EXPECT_NE(b_text.find("units = \"percent\""), std::string::npos) << text;
+  EXPECT_NE(b_text.find("cleanup = 10.0"), std::string::npos) << text;
+
+  const auto n = normalized(t);
+  EXPECT_EQ(n.steps[0].duration, std::nullopt);
+  EXPECT_EQ(n.steps[0].units, std::nullopt);
+  EXPECT_EQ(n.steps[0].cleanup, std::nullopt);
+  EXPECT_EQ(n.steps[1], b);
+  auto back = parse_step_heat(text, "laser-12");
+  ASSERT_TRUE(back) << back.error().what;
+  EXPECT_EQ(*back, n);
+}
+
+TEST(StepHeatWrite, NothingIsClearedWithoutATemplateDefault) {
+  StepHeatTemplate t;
+  t.steps = {every_key_step()};
+  EXPECT_EQ(normalized(t), t);
+}
+
+TEST(StepHeatWrite, KeysInSpecOrder) {
+  StepHeatTemplate t;
+  t.name = "furnace";
+  t.description = "d";
+  t.units = Unit::Watts;
+  t.duration = Duration(30);
+  t.cleanup = Duration(15);
+  t.steps = {every_key_step()};
+  const std::string text = to_toml(t);
+
+  std::size_t pos = at(text, "[template]");
+  for (const char* k : {"name = ", "description = ", "units = ", "duration = ", "cleanup = "}) {
+    const auto next = at(text, std::string("\n") + k, pos);
+    EXPECT_GT(next, pos) << k;
+    pos = next;
+  }
+  pos = at(text, "[[steps]]");
+  EXPECT_GT(pos, at(text, "\ncleanup = "));
+  for (const char* k : {"value = ", "units = ", "duration = ", "cleanup = ", "pre_cleanup = ", "post_cleanup = ",
+                        "beam_diameter = ", "ramp_rate = ", "ramp = ", "cryo_temp = "}) {
+    const auto next = at(text, std::string("\n") + k, pos);
+    EXPECT_GT(next, pos) << k;
+    pos = next;
+  }
+}
+
+TEST(StepHeatWrite, TemplateTableLayout) {
+  auto t = parse_step_heat(kSpecExample, "laser-12");
+  ASSERT_TRUE(t) << t.error().what;
+  EXPECT_EQ(to_toml(*t),
+            "[template]\n"
+            "name = \"laser-12\"\n"
+            "description = \"CO2, 12 steps, sanidine\"\n"
+            "units = \"watts\"\n"
+            "duration = 30.0\n"
+            "cleanup = 15.0\n"
+            "\n"
+            "[[steps]]\n"
+            "value = 0.5\n"
+            "\n"
+            "[[steps]]\n"
+            "value = 1.0\n"
+            "duration = 45.0\n"
+            "\n"
+            "[[steps]]\n"
+            "value = 1.5\n"
+            "beam_diameter = 2.0\n"
+            "ramp_rate = 0.1\n");
+}
+
+TEST(StepHeatWrite, EmptyNameAndDescriptionAreLeftOut) {
+  StepHeatTemplate t;
+  StepHeatStep s;
+  s.value = 2;
+  t.steps = {s};
+  EXPECT_EQ(to_toml(t), "[[steps]]\nvalue = 2.0\n");
+}
+
+TEST(StepHeatWrite, FloatsAreWrittenAsTheQueueWriterWritesThem) {
+  StepHeatTemplate t;
+  t.name = "x";
+  t.duration = Duration(30);
+  StepHeatStep s;
+  s.value = 0.1;
+  t.steps = {s};
+  const std::string text = to_toml(t);
+  EXPECT_NE(text.find("\nvalue = 0.1\n"), std::string::npos) << text;
+  EXPECT_NE(text.find("\nduration = 30.0\n"), std::string::npos) << text;
+}

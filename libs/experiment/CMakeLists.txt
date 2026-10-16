@@ -15,6 +15,9 @@ target_include_directories(pychron_experiment PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
+# Headers shared between units of the library but not part of its interface
+# (model/toml_text.hpp), included as "model/<name>.hpp".
+target_include_directories(pychron_experiment PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 target_compile_features(pychron_experiment PUBLIC cxx_std_20)
 target_link_libraries(pychron_experiment PUBLIC pychron::systems pychron::scripting pychron::reduction pychron::laser pychron::devices pychron::core)
