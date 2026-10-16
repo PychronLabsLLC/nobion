@@ -170,7 +170,9 @@ StepHeatTemplate template_from_values(const std::vector<double>& values, const F
   clears and disables the text; text typed clears the combo.
 - Preview line, as today, says what Add makes: "12 runs, steps A to L,
   0.5 to 6 W, 21 min extraction".
-- Save as template... (in the Edit menu of the editor and as a panel action
+- Save as template... (editor's File menu, "New Step Heat Template from
+  Run Factory Text": app's shared menu bar (`MenuHub`) has no Edit menu;
+  and as a panel action
   when the text field has values): makes a template from the text and the
   form's units, duration, cleanup; opens it in the editor.
 - `form_from_run` (From Row) does not guess a template from rows.

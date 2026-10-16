@@ -25,6 +25,7 @@
 #include "pychron/experiment/conditionals/validate.hpp"
 #include "pychron/experiment/model/identifiers.hpp"
 #include "theme.hpp"
+#include "toml_comments.hpp"
 
 namespace pychron::ui {
 
@@ -46,23 +47,6 @@ QStringList analysis_type_names() {
                     A::DetectorIC, A::Degas})
     out.append(QString::fromUtf8(to_string(a)));
   return out;
-}
-
-// A '#' outside a string: a comment the canonical file would not have.
-bool has_comment(const std::string& text) {
-  char quote = 0;
-  for (std::size_t i = 0; i < text.size(); ++i) {
-    const char ch = text[i];
-    if (quote != 0) {
-      if (ch == '\\' && quote == '"') ++i;
-      else if (ch == quote || ch == '\n') quote = 0;
-    } else if (ch == '"' || ch == '\'') {
-      quote = ch;
-    } else if (ch == '#') {
-      return true;
-    }
-  }
-  return false;
 }
 
 QToolButton* tool(const QString& text, const QString& tip) {
@@ -316,7 +300,7 @@ void ConditionalsEditorWindow::load(const QString& name) {
                        : Result<ConditionalSet>(fail(text.error()));
     if (parsed) {
       set = std::move(*parsed);
-      has_comments_ = has_comment(*text);
+      has_comments_ = has_toml_comment(*text);
     } else {
       ok = false;
       load_error_ = QString::fromStdString(parsed.error().what);

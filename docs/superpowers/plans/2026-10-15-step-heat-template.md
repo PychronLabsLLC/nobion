@@ -426,12 +426,12 @@ git commit -m "feat(ui): step heat table model"
 - Produces: `class StepHeatEditorWindow : public QMainWindow` in `pychron::ui`, API shaped as `ConditionalsEditorWindow`'s:
   - `StepHeatEditorWindow(const experiment::lab::Lab& lab, std::unique_ptr<QSettings> settings = nullptr, QWidget* parent = nullptr);` files from `StepHeatFiles(lab.paths.step_heats())`.
   - `enum class Unsaved { Save, Discard, Cancel };`
-  - `QStringList file_names() const;` `bool open(const QString& name);` `bool new_file(const QString& name, QString* error = nullptr);` `bool new_from(experiment::StepHeatTemplate t, const QString& name, QString* error = nullptr);` (an unsaved file holding `t`, for Save as template) `bool duplicate(const QString& name, const QString& as, QString* error = nullptr);` `bool delete_file(const QString& name, QString* error = nullptr);` (asks first) `bool save(QString* error = nullptr);` `bool save_as(const QString& name, QString* error = nullptr);` (rename = save as; old file kept) `void revert();` `bool modified() const;` `QString current_name() const;` `StepHeatTableModel& model();` `QStringList diagnostic_lines() const;` `QString totals_text() const;` (`"12 steps, 21 min extraction"`, through `extraction_time`) `void set_form_extraction(std::function<experiment::ExtractionSpec()> f);` `void set_from_factory(std::function<std::optional<experiment::StepHeatTemplate>()> f);` (Edit > New from Run Factory Text; disabled when null or it answers nullopt).
+  - `QStringList file_names() const;` `bool open(const QString& name);` `bool new_file(const QString& name, QString* error = nullptr);` `bool new_from(experiment::StepHeatTemplate t, const QString& name, QString* error = nullptr);` (an unsaved file holding `t`, for Save as template) `bool duplicate(const QString& name, const QString& as, QString* error = nullptr);` `bool delete_file(const QString& name, QString* error = nullptr);` (asks first) `bool save(QString* error = nullptr);` `bool save_as(const QString& name, QString* error = nullptr);` (rename = save as; old file kept) `void revert();` `bool modified() const;` `const QString& current_name() const;` `StepHeatTableModel& model();` `QStringList diagnostic_lines() const;` `QString totals_text() const;` (`"12 steps, 21 min extraction"`, through `extraction_time`) `void set_form_extraction(std::function<experiment::ExtractionSpec()> f);` `void set_from_factory(std::function<std::optional<experiment::StepHeatTemplate>()> f);` (File > New Step Heat Template from Run Factory Text, `bool new_from_factory(QString* error = nullptr)`: the shared menu bar has no Edit menu; disabled when null or it answers nullopt).
   - Dialog hooks for tests: `set_ask_unsaved`, `set_confirm`, `set_ask_name(std::function<std::optional<QString>()>)`.
   - Signals: `void saved(const QString& name);` `void filesChanged();`
   - Diagnostics are `check_step_heat`'s lines; non-empty disables Save and Save As. A file whose text has comments asks before the first save (`has_toml_comment`). Close and switching file ask about unsaved changes.
 
-- [ ] **Step 1: Write the failing QtTest slots** (lab: example lab copied to a `QTemporaryDir`, as `test_conditionals_editor.cpp` does)
+- [x] **Step 1: Write the failing QtTest slots** (lab: example lab copied to a `QTemporaryDir`, as `test_conditionals_editor.cpp` does)
 
 ```cpp
 void listsTheLabTemplatesSorted();
@@ -446,10 +446,10 @@ void totalsSayCountAndTime();             // laser-12: "12 steps, ..."
 void newFromFactoryText();                // set_from_factory returns template_from_values({5,10}) -> unsaved file with 2 steps
 ```
 
-- [ ] **Step 2: Run** — FAIL (no header).
-- [ ] **Step 3: Implement**: left list with +, duplicate, − buttons; right top name (read-only label), description, units combo (with "(form)"), duration and cleanup boxes (with an empty "(form)" state); table; row buttons Add, Insert, Delete, Up, Down, Fill..., Fill from text...; totals label; diagnostics list; File menu Save, Save As..., Revert; Edit menu New from Run Factory Text.
-- [ ] **Step 4: Run** `pychron_ui_test_step_heat_editor` and `pychron_ui_test_conditionals_editor` — PASS.
-- [ ] **Step 5: Checks and commit**
+- [x] **Step 2: Run** — FAIL (no header).
+- [x] **Step 3: Implement**: left list with +, duplicate, − buttons; right top name (read-only label), description, units combo (with "(form)"), duration and cleanup boxes (with an empty "(form)" state); table; row buttons Add, Insert, Delete, Up, Down, Fill..., Fill from text...; totals label; diagnostics list; File menu Save, Save As..., Revert, New Step Heat Template from Run Factory Text.
+- [x] **Step 4: Run** `pychron_ui_test_step_heat_editor` and `pychron_ui_test_conditionals_editor` — PASS.
+- [x] **Step 5: Checks and commit**
 
 ```bash
 git commit -m "feat(ui): step heat template editor window"

@@ -1,17 +1,34 @@
-// The step heat template editor: the table model over one template's steps.
+// The step heat template editor: the table model over one template's steps,
+// and the window against a scratch copy of the example lab.
 
+#include <filesystem>
+#include <fstream>
+#include <map>
+#include <memory>
 #include <optional>
+#include <sstream>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include <QGuiApplication>
 #include <QPalette>
+#include <QSettings>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QtTest/QtTest>
 
+#include "experiment_fixture.hpp"
+#include "pychron/experiment/factory/form.hpp"
+#include "settings_guard.hpp"
+#include "step_heat_editor_window.hpp"
 #include "step_heat_table_model.hpp"
 
+using pychron::ui::StepHeatEditorWindow;
 using pychron::ui::StepHeatTableModel;
 namespace ex = pychron::experiment;
+namespace fs = std::filesystem;
+namespace lab = pychron::experiment::lab;
 
 namespace {
 
@@ -36,12 +53,70 @@ QString text(const StepHeatTableModel& m, int row, int column, int role = Qt::Di
   return m.data(m.index(row, column), role).toString();
 }
 
+std::string slurp(const fs::path& p) {
+  std::ifstream in(p, std::ios::binary);
+  std::ostringstream out;
+  out << in.rdbuf();
+  return out.str();
+}
+
+void spit(const fs::path& p, const std::string& text) {
+  fs::create_directories(p.parent_path());
+  std::ofstream(p, std::ios::binary) << text;
+}
+
+// Every regular file under `dir` with its bytes: what a test compares to say
+// nothing else was written.
+std::map<std::string, std::string> snapshot(const fs::path& dir) {
+  std::map<std::string, std::string> out;
+  for (const auto& e : fs::recursive_directory_iterator(dir))
+    if (e.is_regular_file()) out[fs::relative(e.path(), dir).generic_string()] = slurp(e.path());
+  return out;
+}
+
 }  // namespace
 
 class TestStepHeatEditor : public QObject {
   Q_OBJECT
 
+  // The window tests: a fresh scratch lab per test; the lab outlives the window.
+  QTemporaryDir tmp_;
+  pychron::ui::test::ApplicationSettingsGuard app_settings_;
+  fs::path dir_;
+  std::unique_ptr<lab::Lab> lab_;
+  int settings_n_ = 0;
+
+  fs::path file(const std::string& name) const { return dir_ / "queues" / "step_heats" / (name + ".toml"); }
+  void make_lab() {
+    dir_ = pychron::ui::test::scratch_lab();
+    lab_ = std::make_unique<lab::Lab>(lab::load_lab(pychron::ui::test::lab_paths(dir_)));
+  }
+  std::unique_ptr<StepHeatEditorWindow> window() {
+    if (!lab_) make_lab();
+    ++settings_n_;
+    auto w = std::make_unique<StepHeatEditorWindow>(
+        *lab_, std::make_unique<QSettings>(tmp_.filePath(QStringLiteral("settings%1.ini").arg(settings_n_)),
+                                           QSettings::IniFormat));
+    w->set_ask_unsaved([](const QString&) { return StepHeatEditorWindow::Unsaved::Discard; });
+    w->set_confirm([](const QString&) { return true; });
+    w->set_ask_name([]() -> std::optional<QString> { return std::nullopt; });
+    return w;
+  }
+  static void set_value(StepHeatEditorWindow& w, int row, const QString& text) {
+    QVERIFY(w.model().setData(w.model().index(row, StepHeatTableModel::Value), text));
+  }
+
  private slots:
+  void cleanup() {
+    lab_.reset();
+    if (!dir_.empty()) {
+      std::error_code ec;
+      fs::remove_all(dir_, ec);
+      dir_.clear();
+    }
+  }
+  void cleanupTestCase() { QCOMPARE(app_settings_.keys(), QStringList()); }
+
   void stepColumnIsLettersAndReadOnly() {
     StepHeatTableModel m;
     m.set_template(with_values({1, 2, 3}));
@@ -189,6 +264,217 @@ class TestStepHeatEditor : public QObject {
     QCOMPARE(m.tmpl().description, std::string("sanidine"));
     QCOMPARE(text(m, 0, StepHeatTableModel::Duration), QStringLiteral("30"));
     QCOMPARE(edited.count(), 1);
+  }
+
+  // ---- StepHeatEditorWindow ----
+
+  void listsTheLabTemplatesSorted() {
+    make_lab();
+    spit(file("b-two"), "[[steps]]\nvalue = 1\n");
+    spit(file("a-one"), "[[steps]]\nvalue = 2\n");
+    auto w = window();
+    QCOMPARE(w->file_names(), (QStringList{"a-one", "b-two", "laser-12"}));
+    QCOMPARE(w->current_name(), QStringLiteral("a-one"));
+    QVERIFY(!w->modified());
+  }
+
+  void newSaveWritesOnlyUnderStepHeats() {
+    auto w = window();
+    const auto before = snapshot(dir_);
+    QSignalSpy files(w.get(), &StepHeatEditorWindow::filesChanged);
+    QSignalSpy saved(w.get(), &StepHeatEditorWindow::saved);
+    QVERIFY(w->new_file(QStringLiteral("x")));
+    QCOMPARE(w->current_name(), QStringLiteral("x"));
+    QVERIFY(w->modified());
+    QVERIFY(w->file_names().contains(QStringLiteral("x")));
+    QVERIFY(!fs::exists(file("x")));
+    QCOMPARE(w->model().add_step(std::nullopt), 0);
+    QCOMPARE(w->model().add_step(std::nullopt), 1);
+    QString error;
+    QVERIFY2(w->save(&error), qPrintable(error));
+    QVERIFY(!w->modified());
+    QCOMPARE(saved.count(), 1);
+    QCOMPARE(files.count(), 1);
+
+    auto after = snapshot(dir_);
+    QVERIFY(after.erase("queues/step_heats/x.toml") == 1);
+    QVERIFY(after == before);
+    auto back = ex::load_step_heat(file("x"));
+    QVERIFY(back.has_value());
+    QCOMPARE(back->steps.size(), std::size_t{2});
+    QCOMPARE(back->steps[1].value, 1.0);  // a copy: no step before the first to step by
+
+    QString bad;
+    QVERIFY(!w->new_file(QStringLiteral("x"), &bad));
+    QVERIFY(bad.contains(QStringLiteral("exists")));
+    QVERIFY(!w->new_file(QStringLiteral("Bad Name"), &bad));
+  }
+
+  void aBadValueBlocksSave() {
+    auto w = window();
+    QVERIFY(w->open(QStringLiteral("laser-12")));
+    const std::string bytes = slurp(file("laser-12"));
+    QVERIFY(w->diagnostic_lines().isEmpty());
+    set_value(*w, 0, QStringLiteral("0"));
+    QVERIFY(w->diagnostic_lines().contains(QStringLiteral("step 1 (A): value must be greater than 0")));
+    QString error;
+    QVERIFY(!w->save(&error));
+    QVERIFY(!error.isEmpty());
+    QVERIFY(!w->save_as(QStringLiteral("other"), &error));
+    QVERIFY(!fs::exists(file("other")));
+    QCOMPARE(slurp(file("laser-12")), bytes);
+    set_value(*w, 0, QStringLiteral("0.5"));
+    QVERIFY(w->diagnostic_lines().isEmpty());
+  }
+
+  void revertRestoresTheFile() {
+    auto w = window();
+    QVERIFY(w->open(QStringLiteral("laser-12")));
+    const auto original = w->model().tmpl();
+    set_value(*w, 0, QStringLiteral("9"));
+    w->model().remove_rows({3});
+    QVERIFY(w->modified());
+    w->revert();
+    QVERIFY(!w->modified());
+    QVERIFY(w->model().tmpl() == original);
+    QCOMPARE(w->model().rowCount(), 12);
+  }
+
+  void saveAsCopiesAndOpensTheCopy() {
+    auto w = window();
+    QVERIFY(w->open(QStringLiteral("laser-12")));
+    const std::string bytes = slurp(file("laser-12"));
+    set_value(*w, 0, QStringLiteral("0.25"));
+    QSignalSpy files(w.get(), &StepHeatEditorWindow::filesChanged);
+    QString error;
+    QVERIFY(!w->save_as(QStringLiteral("laser-12"), &error));  // exists
+    QVERIFY2(w->save_as(QStringLiteral("laser-12b"), &error), qPrintable(error));
+    QCOMPARE(w->current_name(), QStringLiteral("laser-12b"));
+    QVERIFY(!w->modified());
+    QCOMPARE(files.count(), 1);
+    QCOMPARE(slurp(file("laser-12")), bytes);  // the old file is kept as it was
+    auto copy = ex::load_step_heat(file("laser-12b"));
+    QVERIFY(copy.has_value());
+    QCOMPARE(copy->name, std::string("laser-12b"));
+    QCOMPARE(copy->steps[0].value, 0.25);
+    QCOMPARE(copy->description, std::string("CO2, 12 steps, sanidine"));
+  }
+
+  void duplicateAndDeleteAskFirst() {
+    auto w = window();
+    QSignalSpy files(w.get(), &StepHeatEditorWindow::filesChanged);
+    QString error;
+    QVERIFY2(w->duplicate(QStringLiteral("laser-12"), QStringLiteral("copy"), &error), qPrintable(error));
+    QCOMPARE(w->current_name(), QStringLiteral("copy"));
+    QVERIFY(fs::exists(file("copy")));
+    QCOMPARE(files.count(), 1);
+    QVERIFY(!w->duplicate(QStringLiteral("laser-12"), QStringLiteral("copy"), &error));  // exists
+
+    int asked = 0;
+    w->set_confirm([&](const QString& q) {
+      ++asked;
+      return !q.contains(QStringLiteral("copy"));
+    });
+    QVERIFY(!w->delete_file(QStringLiteral("copy")));
+    QCOMPARE(asked, 1);
+    QVERIFY(fs::exists(file("copy")));
+    QCOMPARE(files.count(), 1);
+
+    w->set_confirm([&](const QString&) {
+      ++asked;
+      return true;
+    });
+    QVERIFY(w->delete_file(QStringLiteral("copy"), &error));
+    QCOMPARE(asked, 2);
+    QVERIFY(!fs::exists(file("copy")));
+    QCOMPARE(files.count(), 2);
+    QVERIFY(!w->file_names().contains(QStringLiteral("copy")));
+    QCOMPARE(w->current_name(), QStringLiteral("laser-12"));
+  }
+
+  void unsavedChangesAskedOnSwitch() {
+    make_lab();
+    spit(file("b"), "[[steps]]\nvalue = 1\n");
+    auto w = window();
+    QVERIFY(w->open(QStringLiteral("laser-12")));
+    set_value(*w, 0, QStringLiteral("9"));
+    int asked = 0;
+    w->set_ask_unsaved([&](const QString&) {
+      ++asked;
+      return StepHeatEditorWindow::Unsaved::Cancel;
+    });
+    QVERIFY(!w->open(QStringLiteral("b")));
+    QCOMPARE(asked, 1);
+    QCOMPARE(w->current_name(), QStringLiteral("laser-12"));
+    QVERIFY(w->modified());
+    QCOMPARE(w->model().tmpl().steps[0].value, 9.0);
+
+    w->set_ask_unsaved([&](const QString&) {
+      ++asked;
+      return StepHeatEditorWindow::Unsaved::Discard;
+    });
+    QVERIFY(w->open(QStringLiteral("b")));
+    QCOMPARE(asked, 2);
+    QCOMPARE(w->current_name(), QStringLiteral("b"));
+    QVERIFY(!w->modified());
+    QCOMPARE(ex::load_step_heat(file("laser-12"))->steps[0].value, 0.5);  // discarded
+  }
+
+  void commentsAskedBeforeSave() {
+    make_lab();
+    spit(file("c"), "# note\n[[steps]]\nvalue = 1 # watts\n");
+    auto w = window();
+    QVERIFY(w->open(QStringLiteral("c")));
+    int asked = 0;
+    w->set_confirm([&](const QString&) {
+      ++asked;
+      return true;
+    });
+    set_value(*w, 0, QStringLiteral("2"));
+    QVERIFY(w->save());
+    QCOMPARE(asked, 1);
+    QVERIFY(slurp(file("c")).find('#') == std::string::npos);
+    set_value(*w, 0, QStringLiteral("3"));
+    QVERIFY(w->save());
+    QCOMPARE(asked, 1);  // the comments are gone: nothing to ask
+  }
+
+  void totalsSayCountAndTime() {
+    auto w = window();
+    ex::ExtractionSpec form;
+    form.duration = ex::Duration{10};
+    w->set_form_extraction([form] { return form; });
+    QVERIFY(w->open(QStringLiteral("laser-12")));
+    const QString totals = w->totals_text();
+    QVERIFY2(totals.startsWith(QStringLiteral("12 steps, ")), qPrintable(totals));
+    QVERIFY2(totals.endsWith(QStringLiteral(" extraction")), qPrintable(totals));
+    // 12 steps of 30 s duration and 15 s cleanup at least: 9 min.
+    const double seconds = ex::extraction_time(form, w->model().tmpl()).count();
+    QVERIFY(seconds >= 12 * 45);
+    QVERIFY2(totals.contains(QStringLiteral("%1 min").arg(std::llround(seconds / 60))), qPrintable(totals));
+    w->model().remove_rows({0});
+    QVERIFY(w->totals_text().startsWith(QStringLiteral("11 steps, ")));
+  }
+
+  void newFromFactoryText() {
+    auto w = window();
+    QVERIFY(!w->new_from_factory());  // no hook
+    w->set_from_factory([]() -> std::optional<ex::StepHeatTemplate> { return std::nullopt; });
+    QVERIFY(!w->new_from_factory());
+    w->set_from_factory([]() -> std::optional<ex::StepHeatTemplate> {
+      return ex::template_from_values({5, 10}, ex::FactoryForm{});
+    });
+    QVERIFY(!w->new_from_factory());  // the name dialog cancelled
+    w->set_ask_name([]() -> std::optional<QString> { return QStringLiteral("fromtext"); });
+    QVERIFY(w->new_from_factory());
+    QCOMPARE(w->current_name(), QStringLiteral("fromtext"));
+    QCOMPARE(w->model().rowCount(), 2);
+    QCOMPARE(w->model().tmpl().steps[1].value, 10.0);
+    QCOMPARE(w->model().tmpl().name, std::string("fromtext"));
+    QVERIFY(w->modified());
+    QVERIFY(!fs::exists(file("fromtext")));
+    QVERIFY(w->save());
+    QVERIFY(fs::exists(file("fromtext")));
   }
 };
 
