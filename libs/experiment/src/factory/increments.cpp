@@ -4,6 +4,7 @@
 #include <charconv>
 #include <cstdint>
 
+#include "pychron/experiment/factory/step_heat_template.hpp"
 #include "pychron/experiment/model/positions.hpp"
 
 namespace pychron::experiment {
@@ -116,14 +117,15 @@ Result<std::vector<RunSpec>> expand_positions(const RunSpec& tmpl, const Positio
 }
 
 std::vector<RunSpec> make_step_heat(const RunSpec& tmpl, const std::vector<double>& values) {
-  std::vector<RunSpec> out;
-  out.reserve(values.size());
-  for (std::size_t i = 0; i < values.size(); ++i) {
-    out.push_back(tmpl);
-    out.back().id.step = step_name(static_cast<int>(i));
-    out.back().extraction.value = values[i];
+  // Steps that carry only a value: every other field is the template run's.
+  StepHeatTemplate t;
+  t.steps.reserve(values.size());
+  for (const double v : values) {
+    StepHeatStep s;
+    s.value = v;
+    t.steps.push_back(s);
   }
-  return out;
+  return make_step_heat(tmpl, t);
 }
 
 std::vector<double> step_values(double start, double increment, int n) {

@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include "pychron/experiment/factory/form.hpp"
+#include "pychron/experiment/factory/increments.hpp"
 #include "pychron/experiment/factory/step_heat_template.hpp"
 
 using namespace pychron;
@@ -372,4 +374,152 @@ TEST(StepHeatWrite, FloatsAreWrittenAsTheQueueWriterWritesThem) {
   const std::string text = to_toml(t);
   EXPECT_NE(text.find("\nvalue = 0.1\n"), std::string::npos) << text;
   EXPECT_NE(text.find("\nduration = 30.0\n"), std::string::npos) << text;
+}
+
+// Spec 8: the precedence step > template > form, tested once with a table.
+TEST(StepHeatPrecedence, StepThenTemplateThenForm) {
+  ExtractionSpec form;
+  form.units = Unit::Watts;
+  form.duration = Duration(10);
+  form.cleanup = Duration(5);
+  form.pre_cleanup = Duration(1);
+  form.beam_diameter = 1.0;
+  form.device = "co2";
+  form.script = "x";
+  StepHeatTemplate t;
+  t.units = Unit::Temp;
+  t.duration = Duration(30);
+
+  StepHeatStep a;
+  a.value = 2;
+  StepHeatStep b;
+  b.value = 3;
+  b.duration = Duration(45);
+  b.cleanup = Duration(7);
+  b.units = Unit::Percent;
+  b.beam_diameter = 2.0;
+  b.ramp = Duration(4);
+  b.ramp_rate = 0.1;
+  b.cryo_temp = 20;
+  b.pre_cleanup = Duration(2);
+  b.post_cleanup = Duration(3);
+
+  struct Row {
+    const char* name;
+    const StepHeatStep* step;
+    double value;
+    Unit units;
+    double duration, cleanup, pre_cleanup, post_cleanup, ramp;
+    std::optional<double> beam_diameter, ramp_rate, cryo_temp;
+  };
+  const std::vector<Row> rows = {
+      {"A", &a, 2, Unit::Temp, 30, 5, 1, 0, 0, 1.0, std::nullopt, std::nullopt},
+      {"B", &b, 3, Unit::Percent, 45, 7, 2, 3, 4, 2.0, 0.1, 20.0},
+  };
+  for (const auto& row : rows) {
+    SCOPED_TRACE(row.name);
+    const ExtractionSpec e = resolve_step(form, t, *row.step);
+    EXPECT_EQ(e.value, row.value);
+    EXPECT_EQ(e.units, row.units);
+    EXPECT_EQ(e.duration, Duration(row.duration));
+    EXPECT_EQ(e.cleanup, Duration(row.cleanup));
+    EXPECT_EQ(e.pre_cleanup, Duration(row.pre_cleanup));
+    EXPECT_EQ(e.post_cleanup, Duration(row.post_cleanup));
+    EXPECT_EQ(e.ramp, Duration(row.ramp));
+    EXPECT_EQ(e.beam_diameter, row.beam_diameter);
+    EXPECT_EQ(e.ramp_rate, row.ramp_rate);
+    EXPECT_EQ(e.cryo_temp, row.cryo_temp);
+    EXPECT_EQ(e.device, "co2");
+    EXPECT_EQ(e.script, "x");
+  }
+}
+
+TEST(StepHeatMake, GivesLettersValuesAndPerStepDurations) {
+  auto t = parse_step_heat(kSpecExample, "laser-12");
+  ASSERT_TRUE(t) << t.error().what;
+  RunSpec tmpl;
+  tmpl.id.identifier = "20001";
+  const auto runs = make_step_heat(tmpl, *t);
+  ASSERT_EQ(runs.size(), 3U);
+  const std::vector<std::string> steps = {"A", "B", "C"};
+  const std::vector<double> values = {0.5, 1.0, 1.5}, durations = {30, 45, 30};
+  for (std::size_t i = 0; i < runs.size(); ++i) {
+    SCOPED_TRACE(i);
+    EXPECT_EQ(runs[i].id.identifier, "20001");
+    EXPECT_EQ(runs[i].id.step, steps[i]);
+    EXPECT_EQ(runs[i].extraction.value, values[i]);
+    EXPECT_EQ(runs[i].extraction.duration, Duration(durations[i]));
+  }
+  EXPECT_EQ(runs[2].extraction.beam_diameter, 2.0);
+  EXPECT_EQ(runs[0].extraction.beam_diameter, std::nullopt);
+}
+
+TEST(StepHeatMake, TwentySevenStepsGoPastZ) {
+  StepHeatTemplate t;
+  for (int i = 0; i < 27; ++i) {
+    StepHeatStep s;
+    s.value = i + 1;
+    t.steps.push_back(s);
+  }
+  const auto runs = make_step_heat(RunSpec{}, t);
+  ASSERT_EQ(runs.size(), 27U);
+  EXPECT_EQ(runs[25].id.step, "Z");
+  EXPECT_EQ(runs[26].id.step, "AA");
+}
+
+TEST(StepHeatMake, TextPathGivesTodaysRuns) {
+  FactoryForm form;
+  form.identifier = "20001";
+  form.units = Unit::Temp;
+  form.duration_s = 20;
+  form.cleanup_s = 8;
+  RunSpec tmpl;
+  tmpl.id.identifier = "20001";
+  tmpl.extraction.units = Unit::Temp;
+  tmpl.extraction.duration = Duration(20);
+  tmpl.extraction.cleanup = Duration(8);
+  tmpl.extraction.pre_cleanup = Duration(3);
+  const std::vector<double> values = {5, 10, 15};
+
+  const StepHeatTemplate t = template_from_values(values, form);
+  EXPECT_TRUE(t.name.empty());
+  EXPECT_EQ(t.units, Unit::Temp);
+  EXPECT_EQ(t.duration, Duration(20));
+  EXPECT_EQ(t.cleanup, Duration(8));
+  ASSERT_EQ(t.steps.size(), 3U);
+  StepHeatStep only_value;
+  only_value.value = 10;
+  EXPECT_EQ(t.steps[1], only_value);
+  EXPECT_EQ(make_step_heat(tmpl, values), make_step_heat(tmpl, t));
+}
+
+TEST(StepHeatMake, ExtractionOfTakesTheFormsHeatingFields) {
+  FactoryForm form;
+  form.value = 4;
+  form.units = Unit::Percent;
+  form.duration_s = 12;
+  form.cleanup_s = 6;
+  form.extract_device = "co2";
+  form.script = "x";
+  ExtractionSpec want;
+  want.value = 4;
+  want.units = Unit::Percent;
+  want.duration = Duration(12);
+  want.cleanup = Duration(6);
+  EXPECT_EQ(extraction_of(form), want);
+}
+
+TEST(StepHeatMake, ExtractionTimeSumsTheSteps) {
+  ExtractionSpec form;
+  form.pre_cleanup = Duration(0);
+  StepHeatTemplate t;
+  t.duration = Duration(30);
+  t.cleanup = Duration(15);
+  StepHeatStep s1;
+  s1.value = 1;
+  StepHeatStep s2;
+  s2.value = 2;
+  s2.duration = Duration(60);
+  t.steps = {s1, s2};
+  EXPECT_EQ(extraction_time(form, t), Duration(120));
 }

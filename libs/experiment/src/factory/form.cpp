@@ -119,7 +119,7 @@ Result<std::vector<RunSpec>> build_runs(const FactoryForm& form, const Identifie
   if (!values->empty()) {
     if (!rules.heating)
       return form_error("a step heat needs an analysis type that heats ('" + std::string(to_string(tmpl->id.type)) + "' does not)");
-    runs = make_step_heat(*tmpl, *values);
+    runs = make_step_heat(*tmpl, template_from_values(*values, form));
   } else if (form.one_run_per_hole && tmpl->extraction.position && tmpl->extraction.position->holes.size() > 1) {
     if (form.identifier_step != 0 && !ids.is_special(tmpl->id.identifier)) {
       auto expanded = expand_positions(*tmpl, *tmpl->extraction.position, form.identifier_step);
@@ -132,6 +132,29 @@ Result<std::vector<RunSpec>> build_runs(const FactoryForm& form, const Identifie
     runs.push_back(std::move(*tmpl));
   }
   return runs;
+}
+
+StepHeatTemplate template_from_values(const std::vector<double>& values, const FactoryForm& form) {
+  StepHeatTemplate t;
+  t.units = form.units;
+  t.duration = Duration(form.duration_s);
+  t.cleanup = Duration(form.cleanup_s);
+  t.steps.reserve(values.size());
+  for (const double v : values) {
+    StepHeatStep s;
+    s.value = v;
+    t.steps.push_back(s);
+  }
+  return t;
+}
+
+ExtractionSpec extraction_of(const FactoryForm& form) {
+  ExtractionSpec e;
+  e.value = form.value;
+  e.units = form.units;
+  e.duration = Duration(form.duration_s);
+  e.cleanup = Duration(form.cleanup_s);
+  return e;
 }
 
 FactoryForm form_from_run(const RunSpec& run) {

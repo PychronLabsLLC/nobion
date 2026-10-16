@@ -19,6 +19,7 @@
 #include "pychron/core/error.hpp"
 #include "pychron/experiment/factory/defaults.hpp"
 #include "pychron/experiment/factory/increments.hpp"
+#include "pychron/experiment/factory/step_heat_template.hpp"
 #include "pychron/experiment/model/identifiers.hpp"
 #include "pychron/experiment/model/rules.hpp"
 #include "pychron/experiment/model/run_spec.hpp"
@@ -57,6 +58,14 @@ FieldRules form_rules(const FactoryForm& form, const IdentifierRules& ids);
 Result<std::vector<RunSpec>> build_runs(const FactoryForm& form, const IdentifierRules& ids);
 
 FactoryForm form_from_run(const RunSpec& run);
+
+// The step heat text field's values as a template: [template] units, duration
+// and cleanup are the form's, steps carry a value only, name empty.
+[[nodiscard]] StepHeatTemplate template_from_values(const std::vector<double>& values, const FactoryForm& form);
+
+// The form's value, units, duration and cleanup as an extraction, every other
+// field default: what the template editor greys its cells against.
+[[nodiscard]] ExtractionSpec extraction_of(const FactoryForm& form);
 
 // The defaults for the form's (type, device) applied over its plan, scripts,
 // overrides and the extraction fields the entry sets. nullopt when the table

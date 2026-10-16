@@ -272,4 +272,38 @@ std::string to_toml(const StepHeatTemplate& t) {
   return out;
 }
 
+ExtractionSpec resolve_step(const ExtractionSpec& form, const StepHeatTemplate& t, const StepHeatStep& s) {
+  ExtractionSpec e = form;
+  e.value = s.value;
+  e.units = s.units.value_or(t.units.value_or(form.units));
+  e.duration = s.duration.value_or(t.duration.value_or(form.duration));
+  e.cleanup = s.cleanup.value_or(t.cleanup.value_or(form.cleanup));
+  e.pre_cleanup = s.pre_cleanup.value_or(form.pre_cleanup);
+  e.post_cleanup = s.post_cleanup.value_or(form.post_cleanup);
+  e.ramp = s.ramp.value_or(form.ramp);
+  if (s.beam_diameter) e.beam_diameter = s.beam_diameter;
+  if (s.ramp_rate) e.ramp_rate = s.ramp_rate;
+  if (s.cryo_temp) e.cryo_temp = s.cryo_temp;
+  return e;
+}
+
+std::vector<RunSpec> make_step_heat(const RunSpec& tmpl, const StepHeatTemplate& t) {
+  std::vector<RunSpec> out;
+  out.reserve(t.steps.size());
+  for (std::size_t i = 0; i < t.steps.size(); ++i) {
+    out.push_back(tmpl);
+    out.back().id.step = step_name(static_cast<int>(i));
+    out.back().extraction = resolve_step(tmpl.extraction, t, t.steps[i]);
+  }
+  return out;
+}
+
+Duration extraction_time(const ExtractionSpec& form, const StepHeatTemplate& t) {
+  RunSpec run;
+  run.extraction = form;
+  Duration total{0};
+  for (const auto& r : make_step_heat(run, t)) total += estimate_run(r, Duration(0));
+  return total;
+}
+
 }  // namespace pychron::experiment

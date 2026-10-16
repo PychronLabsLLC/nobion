@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "pychron/core/error.hpp"
+#include "pychron/experiment/model/run_spec.hpp"
 #include "pychron/experiment/model/types.hpp"
 
 namespace pychron::experiment {
@@ -76,5 +77,21 @@ inline constexpr std::size_t kMaxStepHeatSteps = 1000;
 // out, numbers written as the queue writer writes them. Writing what this
 // text reads back as gives the same bytes. Does not check `t`.
 [[nodiscard]] std::string to_toml(const StepHeatTemplate& t);
+
+// The one precedence function (spec 8), used by Add and by the editor's
+// greyed cells: `form` with value = s.value; units, duration and cleanup from
+// the step, else the template, else the form; pre_cleanup, post_cleanup, ramp,
+// beam_diameter, ramp_rate and cryo_temp from the step, else the form.
+// Device, position, pattern, script and options are always the form's.
+[[nodiscard]] ExtractionSpec resolve_step(const ExtractionSpec& form, const StepHeatTemplate& t,
+                                          const StepHeatStep& s);
+
+// One run per step of `t`, steps A, B, ... (past Z: AA, AB, ...), each a copy
+// of `tmpl` with extraction = resolve_step(tmpl.extraction, t, step).
+[[nodiscard]] std::vector<RunSpec> make_step_heat(const RunSpec& tmpl, const StepHeatTemplate& t);
+
+// Extraction time of the whole schedule: sum of estimate_run (measurement 0)
+// over make_step_heat of a run whose extraction is `form`.
+[[nodiscard]] Duration extraction_time(const ExtractionSpec& form, const StepHeatTemplate& t);
 
 }  // namespace pychron::experiment

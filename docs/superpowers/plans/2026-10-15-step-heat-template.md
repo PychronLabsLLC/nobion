@@ -198,7 +198,7 @@ git commit -m "feat(experiment): canonical step heat template writer"
   - `Duration extraction_time(const ExtractionSpec& form, const StepHeatTemplate& t);` sum of `estimate_run` (measurement `Duration(0)`) over `make_step_heat` of a run with `extraction = form`.
 - Consumes: Task 1 types.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```cpp
 // One table, every field, each of the three sources (spec 8: "tested once with a table").
@@ -219,13 +219,13 @@ TEST(StepHeatMake, ExtractionTimeSumsTheSteps);
 //   form pre_cleanup 0; template duration 30 cleanup 15; steps {1},{2, duration 60}: 45 + 75 = 120 s
 ```
 
-- [ ] **Step 2: Run to verify they fail.**
+- [x] **Step 2: Run to verify they fail.**
 
-- [ ] **Step 3: Implement**; old `make_step_heat(tmpl, values)` builds a `StepHeatTemplate` whose steps carry only `value` and calls the new one; `build_runs` text branch calls `make_step_heat(*tmpl, template_from_values(*values, form))`.
+- [x] **Step 3: Implement**; old `make_step_heat(tmpl, values)` builds a `StepHeatTemplate` whose steps carry only `value` and calls the new one; `build_runs` text branch calls `make_step_heat(*tmpl, template_from_values(*values, form))`.
 
-- [ ] **Step 4: Run** `build/dev/tests/experiment/pychron_experiment_tests --gtest_filter='StepHeat*:RunFactory*:FactoryForm*'` — Expected: PASS.
+- [x] **Step 4: Run** `build/dev/tests/experiment/pychron_experiment_tests --gtest_filter='StepHeat*:RunFactory*:FactoryForm*'` — Expected: PASS.
 
-- [ ] **Step 5: Checks and commit**
+- [x] **Step 5: Checks and commit**
 
 ```bash
 git commit -m "feat(experiment): make a step heat from a template, step over template over form"
