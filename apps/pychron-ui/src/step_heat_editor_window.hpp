@@ -119,7 +119,6 @@ class StepHeatEditorWindow : public QMainWindow {
   void fill_dialog();
   void fill_text_dialog();
 
-  const experiment::lab::Lab& lab_;
   experiment::StepHeatFiles files_;
   std::unique_ptr<QSettings> settings_;
   StepHeatTableModel model_;

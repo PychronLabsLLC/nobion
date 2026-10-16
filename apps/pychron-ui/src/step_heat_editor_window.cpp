@@ -86,7 +86,6 @@ QToolButton* tool(const QString& text, const QString& tip, const char* name) {
 StepHeatEditorWindow::StepHeatEditorWindow(const experiment::lab::Lab& lab, std::unique_ptr<QSettings> settings,
                                            QWidget* parent)
     : QMainWindow(parent),
-      lab_(lab),
       files_(lab.paths.step_heats()),
       settings_(settings ? std::move(settings) : std::make_unique<QSettings>()),
       file_list_(new QListWidget),
