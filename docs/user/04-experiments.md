@@ -31,6 +31,7 @@ directory**, a folder of plain files that every program in the package reads:
   identifiers.toml           special identifiers such as "bu" (optional)
   defaults.toml              what the run factory starts a new run with (optional)
   queues/blocks/*.toml       reusable run sequences for the run factory (optional)
+  queues/step_heats/*.toml   step heat templates for the run factory (optional)
   notifications.toml         email / webhook / command messages (optional)
   tray_maps/*.txt            laser sample trays (see the laser chapter)
   patterns/*.toml            laser patterns
@@ -534,9 +535,16 @@ again tries again. Without `--db` they are never shown.
 optional "id step" to advance the identifier for each), Value and its units,
 Duration, Cleanup, Script, and **Step heat**.
 
-*Step heat* makes one run per heating value, with steps A, B, C...: type the
-values (`5, 10, 15`) or `start:increment:count` (`5:2.5:4` gives 5, 7.5, 10,
-12.5). It needs a type that heats.
+*Step heat* makes one run per heating step, with steps A, B, C... Either pick
+a **Template** (one of the lab's step heat templates, section 5.2), or type
+the **Values** (`5, 10, 15`) or `start:increment:count` (`5:2.5:4` gives 5,
+7.5, 10, 12.5). Never both: picking a template clears the values and disables
+the field; typing values sets the template back to "none". Typed values all
+get the form's units, duration and cleanup. **Edit...** opens the step heat
+template editor, and **Save as template...** turns the typed values into a
+new template there. A step heat needs a type that heats; for other types the
+group is disabled. The line above the buttons says what Add will make, for
+example "12 runs, steps A to L, 0.5 to 6 W, 21 min extraction".
 
 **Measurement.** Plan, Post-equilibration, Post-measurement scripts,
 Conditionals (files every added run gets) and Comment.
@@ -583,6 +591,101 @@ Allowed keys are `template`, `script`, `post_equilibration`,
 `value`, `duration`, `cleanup`, `pre_cleanup`, `post_cleanup`. A mistyped key
 makes the whole file fail to load, and the problem is shown in the Executor
 banner.
+
+### 5.2 Step heat templates
+
+A **step heat template** is a lab's named heating schedule: the steps of a
+step heat, each with its own value and, when it needs them, its own
+duration, cleanup, beam diameter and so on. Templates are files in
+`<lab>/queues/step_heats/`, one per template; the template's name is the file
+name without `.toml` and may use `a-z`, `0-9`, `_` and `-`. The folder is
+optional. `configs/examples/queues/step_heats/laser-12.toml` is an example.
+
+```toml
+[template]
+name = "laser-12"            # optional; must equal the file name when given
+description = "CO2, 12 steps, sanidine"
+units = "watts"              # default for steps: watts | temp | percent
+duration = 30                # s, default for steps
+cleanup = 15                 # s, default for steps
+
+[[steps]]
+value = 0.5
+
+[[steps]]
+value = 1.0
+duration = 45
+
+[[steps]]
+value = 1.5
+beam_diameter = 2.0
+ramp_rate = 0.1
+```
+
+The steps are taken in the order written: the first is step A, the next B,
+and so on, 1 to 1000 steps. A step must have a `value` above 0 and may have
+`units`, `duration`, `cleanup`, `pre_cleanup`, `post_cleanup`,
+`beam_diameter`, `ramp_rate`, `ramp` and `cryo_temp`, with the same meaning
+and units as in a queue run's `extraction` (section 2.3). A template holds
+only a heating schedule: device, position, pattern, script, plan, identifier
+and aliquot come from the run factory's form.
+
+Where a step leaves a setting out, the run gets it from the `[template]`
+table when that has it, and from the run factory's form when not. In short,
+the step wins over the template, and the template wins over the form.
+
+An unknown key, a value of 0 or less, an unknown unit, or a template with no
+steps makes the file unusable; the problem is listed as a lab problem naming
+the file and the step (`step 3 (C): ...`), and the other templates still
+load.
+
+**Using a template.** In the run factory, pick the template, fill in the rest
+of the form and press **Add**: one run per step is inserted, steps A, B, C...
+With **One run per hole** on and a position of several holes, Add makes the
+whole schedule for each hole in turn (hole 1 steps A to L, then hole 2 steps
+A to L), advancing the identifier by "id step" per hole as usual. With it
+off, every step runs on the whole position.
+
+Templates are used by Add only: there is no way to apply one to rows already
+in the queue. Once added, the rows are ordinary rows; the queue file does not
+say which template made them, and changing or deleting the template later
+does not change a queue already made.
+
+**The editor.** Experiment > Scripts > **Step Heat Templates...**, or
+**Edit...** beside the template in the run factory, opens the editor. One
+template is open at a time.
+
+- Left: the lab's templates, with **+** (new, asks for a name),
+  **Duplicate** (a copy under a new name) and **−** (delete the file, after
+  asking).
+- Top right: the name (read only: to rename, Save As under the new name),
+  the description, and the template's default units, duration and cleanup.
+- The table: Step (the letter), Value, Units, Duration (s), Cleanup (s),
+  Beam diameter and Ramp rate. An empty cell inherits: it shows in grey the
+  value the run will get from the template or the form.
+- **Add** adds a step after the selected (or last) one, copying it; with two
+  or more steps the value goes up by the last increment. **Insert** puts a
+  copy before the selected step. **Delete**, **Up** and **Down** delete and
+  move the selected steps.
+- **Fill...** sets one column on the selected steps (every step when none is
+  selected); an empty entry makes them inherit again. **Fill from text...**
+  takes `5:2.5:4` or `1, 2, 3` and puts those values on the selected steps,
+  or appends them as new steps when none is selected.
+- Under the table: the number of steps and the total extraction time.
+- Diagnostics lists every problem at once; a template with problems cannot
+  be saved.
+- File > Save, Save As and Revert Step Heat Template. File > **New Step Heat Template from Run
+  Factory Text** makes a template from the values typed in the run factory
+  with the form's units, duration and cleanup (the run factory's **Save as
+  template...** does the same).
+
+Saving writes the file in a fixed layout and leaves out a step's setting
+that equals the template's default. Comments typed into the file by hand are
+lost on save; the editor asks first when the file has any. You are asked
+about unsaved changes when you close the editor or open another template.
+Saving updates the run factory's template list at once. The editor only
+writes files under `<lab>/queues/step_heats/`, and may be used while a queue
+runs: a running queue already holds its rows.
 
 ## 6. Blocks
 

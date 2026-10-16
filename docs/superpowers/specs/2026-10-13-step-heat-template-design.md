@@ -1,7 +1,8 @@
 # Step heat templates: named heating schedules and their editor
 
-Status: agreed 2026-10-15 (owner answered section 9). Written by unattended
-run for T022 ("need a step heat template editor"). Nothing built.
+Status: built 2026-10-16 (branch `feat/exp-t022`). Agreed 2026-10-15 (owner
+answered section 9). Written by unattended run for T022 ("need a step heat
+template editor").
 
 ## 1. Problem
 
@@ -213,7 +214,7 @@ at a time.
 - Template and text field never both feed one Add.
 - Writer then reader gives an equal `StepHeatTemplate`; canonical file
   written twice is byte-identical.
-- No file outside `<lab>/step_heats/` written by the editor.
+- No file outside `<lab>/queues/step_heats/` written by the editor.
 - Rows made from a template are indistinguishable from rows made by hand:
   queue file format unchanged, `schema_version` unchanged.
 

@@ -505,10 +505,10 @@ git commit -m "feat(ui): step heat templates in the run factory"
 - Modify: `docs/user/04-experiments.md` (run factory section: the template combo, the editor, file location and format with the spec 4.2 example; precedence step > template > form; Add only, no apply to existing rows)
 - Modify: `docs/superpowers/specs/2026-10-13-step-heat-template-design.md` only if code departed from it (Status line: built)
 
-- [ ] **Step 1: Write the docs section.**
-- [ ] **Step 2: Full build and tests**: `cmake --build --preset dev-ui` then `ctest --preset dev-ui` (covers `dev` and `tests/ui`) — all pass. With persistence configured, `pychron_install_e2e_tests` is in that run.
-- [ ] **Step 3: Whole-tree checks**: `python3 tools/quality_check.py` (exit 0), `python3 tools/compiler_sweep.py --build-dir build/dev-ui` (no warnings).
-- [ ] **Step 4: Commit**
+- [x] **Step 1: Write the docs section.**
+- [x] **Step 2: Full build and tests**: `cmake --build --preset dev-ui` then `ctest --preset dev-ui` (covers `dev` and `tests/ui`) — all pass. With persistence configured, `pychron_install_e2e_tests` is in that run.
+- [x] **Step 3: Whole-tree checks**: `python3 tools/quality_check.py` (exit 0), `python3 tools/compiler_sweep.py --build-dir build/dev-ui` (no warnings).
+- [x] **Step 4: Commit**
 
 ```bash
 git commit -m "docs(experiment): step heat templates in the user guide"
