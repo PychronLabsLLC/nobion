@@ -90,6 +90,9 @@ class StepHeatEditorWindow : public QMainWindow {
   void set_ask_unsaved(std::function<Unsaved(const QString& name)> ask) { ask_unsaved_ = std::move(ask); }
   void set_confirm(std::function<bool(const QString& question)> confirm) { confirm_ = std::move(confirm); }
   void set_ask_name(std::function<std::optional<QString>()> ask) { ask_name_ = std::move(ask); }
+  // The name dialog (or what replaced it): the experiment window's Save as
+  // template asks it before new_from.
+  [[nodiscard]] std::optional<QString> ask_name() const { return ask_name_ ? ask_name_() : std::nullopt; }
 
  signals:
   void saved(const QString& name);

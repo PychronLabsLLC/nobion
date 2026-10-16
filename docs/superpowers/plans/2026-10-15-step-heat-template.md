@@ -474,7 +474,7 @@ git commit -m "feat(ui): step heat template editor window"
   - For tests: `QStringList step_heat_choices() const;` `void choose_step_heat(const QString& name);`
 - On `ExperimentWindow`: `StepHeatEditorWindow* open_step_heat_editor(const QString& name = {});` built like `open_conditionals_editor` (own `QSettings` on the same store); menu `Menu::Scripts` "Step &Heat Templates..." beside "Conditionals Editor..."; `saved` and `filesChanged` call `factory_->refresh_step_heats()`; panel's `editStepHeatRequested` opens it on the name; `saveStepHeatRequested` opens it and calls `new_from` with a name from its name dialog; `set_form_extraction` and `set_from_factory` hooks wired to the panel's form. The menu action and Edit... stay enabled while a queue runs (the editor edits files only; spec 7); `set_locked` does not touch them.
 
-- [ ] **Step 1: Write the failing QtTest slots**
+- [x] **Step 1: Write the failing QtTest slots**
 
 ```cpp
 // test_run_factory_panel.cpp (lab with templates "b-two" and "a-one" written to queues/step_heats before the panel is made)
@@ -490,10 +490,10 @@ void editStaysEnabledWhenLocked();          // set_locked(true): field_enabled("
 void stepHeatEditorOpensFromMenuAndRefreshesFactory(); // save a new template in the editor -> factory choices include it
 ```
 
-- [ ] **Step 2: Run** — FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** `pychron_ui_test_run_factory_panel`, `pychron_ui_test_experiment_window`, `pychron_ui_test_step_heat_editor` — PASS.
-- [ ] **Step 5: Checks and commit**
+- [x] **Step 2: Run** — FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** `pychron_ui_test_run_factory_panel`, `pychron_ui_test_experiment_window`, `pychron_ui_test_step_heat_editor` — PASS.
+- [x] **Step 5: Checks and commit**
 
 ```bash
 git commit -m "feat(ui): step heat templates in the run factory"

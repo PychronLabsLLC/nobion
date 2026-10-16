@@ -9,6 +9,12 @@
 // lab's defaults.toml entry when there is one. A preview line says what Add
 // will insert or why it cannot.
 //
+// A step heat comes from the step heat text or from one of the lab's named
+// templates (step heat template design 6), never both: picking a template
+// clears the text, typing text puts the template back on "none". Edit...
+// asks for the template editor; Save as template... hands the text over as a
+// template for it.
+//
 // Add inserts after the selected rows (or appends), then advances the form by
 // the auto-increment settings. Frequency inserts a special run every N
 // unknowns (and/or before and after); Block inserts one of the lab's blocks.
@@ -75,6 +81,10 @@ class RunFactoryPanel : public QWidget {
   void set_locked(bool locked);
   // The lab's conditionals files changed (the editor made or deleted one).
   void refresh_conditionals();
+  // The lab's step heat templates changed (the editor saved, made or deleted
+  // one): read again from <lab>/queues/step_heats. The picked template stays
+  // picked while it is still there, else "none" is.
+  void refresh_step_heats();
   void set_conditional_checked(const QString& name, bool on);
   // Null: no selects (the default). The panel does not own it; a source
   // destroyed first hides the selects.
@@ -99,6 +109,8 @@ class RunFactoryPanel : public QWidget {
   QStringList block_choices() const;
   QStringList conditional_choices() const;
   QString conditionals_text() const;  // the button: the ticked files or "(none)"
+  QStringList step_heat_choices() const;  // "none", then the templates by name
+  void choose_step_heat(const QString& name);  // as the operator's pick; "none" or a name
 
  protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -107,10 +119,15 @@ class RunFactoryPanel : public QWidget {
  signals:
   // Rows the panel just inserted (sorted), for the window to select.
   void inserted(const std::vector<std::size_t>& rows);
+  // Edit...: the picked template's name, empty for "none".
+  void editStepHeatRequested(const QString& name);
+  // Save as template...: the step heat text as a template (template_from_values).
+  void saveStepHeatRequested(const experiment::StepHeatTemplate& t);
 
  private:
   QWidget* build_run();
   QWidget* build_extraction();
+  QWidget* build_step_heat();
   QWidget* build_measurement();
   QWidget* build_add();
   QWidget* build_frequency();
@@ -129,6 +146,9 @@ class RunFactoryPanel : public QWidget {
   void show_selects(bool on);
   void fill_levels();
   void fill_identifiers();  // the dropdown, for the chosen level; the typed text stays
+  void fill_step_heats(const std::string& keep);  // the combo; `keep` picked when listed
+  void pick_step_heat(int index);  // the combo's row: clears the text for a template
+  void request_save_step_heat();
 
   const experiment::lab::Lab& lab_;
   QueueTableModel& model_;
@@ -138,6 +158,7 @@ class RunFactoryPanel : public QWidget {
   experiment::AnalysisType last_type_ = experiment::AnalysisType::Unknown;
   experiment::FactoryForm overrides_carrier_;  // keeps overrides from defaults or a row
   std::vector<std::string> conditionals_;      // the ticked conditionals files, in the order ticked
+  experiment::StepHeatLibrary step_heats_;     // the lab's templates, as last read
 
   QPointer<IdentifierSource> source_;
   std::vector<PackageChoice> packages_;
@@ -165,6 +186,9 @@ class RunFactoryPanel : public QWidget {
   QDoubleSpinBox* cleanup_ = nullptr;
   QComboBox* script_ = nullptr;
   QLineEdit* step_heat_ = nullptr;
+  QComboBox* step_heat_template_ = nullptr;
+  QPushButton* edit_step_heat_ = nullptr;
+  QPushButton* save_step_heat_ = nullptr;
   QComboBox* plan_ = nullptr;
   QComboBox* post_equilibration_ = nullptr;
   QComboBox* post_measurement_ = nullptr;

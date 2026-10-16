@@ -18,9 +18,11 @@
 #include <vector>
 
 #include <QAction>
+#include <QActionGroup>
 #include <QComboBox>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPushButton>
 #include <QTabBar>
 #include <QLabel>
 #include <QSortFilterProxyModel>
@@ -33,6 +35,7 @@
 #include <QtTest/QtTest>
 
 #include "conditionals_editor_window.hpp"
+#include "step_heat_editor_window.hpp"
 #include "processing_bridge.hpp"
 #include "pychron/arar/domain.hpp"
 #include "pychron/processing/domain.hpp"
@@ -1892,6 +1895,57 @@ class TestExperimentWindow : public QObject {
     QVERIFY2(asked.contains(QStringLiteral("queue")), qPrintable(asked));
     QVERIFY(window.model().row_has_error(1));
     QVERIFY(window.queue_conditionals_combo()->findText(QStringLiteral("run_x")) < 0);
+    editor->close();
+  }
+
+  void stepHeatEditorOpensFromMenuAndRefreshesFactory() {
+    pychron::ui::test::SimLab sim;
+    ExperimentBridge bridge(*sim.session, sim.line->bus());
+    ExperimentWindow window(bridge, true, settings());
+    QVERIFY(window.step_heat_editor() == nullptr);
+    QAction* menu = nullptr;
+    for (QAction* a : window.findChildren<QAction*>())
+      if (a->text() == QStringLiteral("Step &Heat Templates...")) menu = a;
+    QVERIFY(menu != nullptr);
+    // Enabled as while the window is active (MenuHub's Window scope gates it).
+    QVERIFY(menu->actionGroup() != nullptr);
+    menu->actionGroup()->setEnabled(true);
+    menu->trigger();
+    auto* editor = window.step_heat_editor();
+    QVERIFY(editor != nullptr);
+    QCOMPARE(window.open_step_heat_editor(QStringLiteral("laser-12")), editor);
+    QCOMPARE(editor->current_name(), QStringLiteral("laser-12"));
+    QVERIFY(!window.factory()->step_heat_choices().contains(QStringLiteral("zz")));
+
+    // Saved in the editor: the factory can pick it at once.
+    const auto t = pychron::experiment::template_from_values({5, 10}, window.factory()->form());
+    QString error;
+    QVERIFY2(editor->new_from(t, QStringLiteral("zz"), &error), qPrintable(error));
+    QVERIFY2(editor->save(&error), qPrintable(error));
+    QVERIFY(window.factory()->step_heat_choices().contains(QStringLiteral("zz")));
+
+    // The factory's Save as template...: the editor holds the text, under the name asked.
+    editor->set_ask_name([] { return std::optional<QString>(QStringLiteral("from_text")); });
+    pychron::experiment::FactoryForm f = window.factory()->form();
+    f.identifier = "20010";
+    f.position = "7";
+    f.step_heat = "3, 6, 9";
+    window.factory()->set_form(f);
+    window.factory()->findChild<QPushButton*>(QStringLiteral("save_step_heat"))->click();
+    QCOMPARE(editor->current_name(), QStringLiteral("from_text"));
+    QVERIFY(editor->modified());
+    QCOMPARE(editor->model().rowCount(), 3);
+
+    // Its File menu's "from Run Factory Text" asks the factory too.
+    editor->set_ask_unsaved([](const QString&) { return pychron::ui::StepHeatEditorWindow::Unsaved::Discard; });
+    editor->set_ask_name([] { return std::optional<QString>(QStringLiteral("again")); });
+    QVERIFY2(editor->new_from_factory(&error), qPrintable(error));
+    QCOMPARE(editor->model().rowCount(), 3);
+
+    // Delete it again: the factory's list follows.
+    editor->set_confirm([](const QString&) { return true; });
+    QVERIFY(editor->delete_file(QStringLiteral("zz")));
+    QVERIFY(!window.factory()->step_heat_choices().contains(QStringLiteral("zz")));
     editor->close();
   }
 

@@ -74,12 +74,17 @@ QDoubleSpinBox* seconds_box() {
 
 RunFactoryPanel::RunFactoryPanel(const experiment::lab::Lab& lab, QueueTableModel& model, Selection selection,
                                  QWidget* parent)
-    : QWidget(parent), lab_(lab), model_(model), selection_(std::move(selection)) {
+    : QWidget(parent), lab_(lab), model_(model), selection_(std::move(selection)), step_heats_(lab.step_heats) {
   auto* inner = new QWidget;
   auto* column = new QVBoxLayout(inner);
-  for (QWidget* g : {build_run(), build_extraction(), build_measurement(), build_frequency(), build_block()}) {
+  const std::array<QWidget*, 6> boxes{build_run(),         build_extraction(), build_step_heat(),
+                                      build_measurement(), build_frequency(),  build_block()};
+  QWidget* const step_heat_box = boxes[2];
+  for (QWidget* g : boxes) {
     column->addWidget(g);
-    groups_.push_back(g);
+    // The step heat box stays enabled while locked: Edit... edits files only
+    // (step heat template design 7). refresh() locks its other widgets.
+    if (g != step_heat_box) groups_.push_back(g);
   }
   column->addStretch(1);
   auto* scroll = new QScrollArea;
@@ -183,10 +188,6 @@ QWidget* RunFactoryPanel::build_extraction() {
   cleanup_->setObjectName(QStringLiteral("cleanup"));
   script_ = name_combo(lab_.scripts->names(ScriptKind::Extraction), true);
   script_->setObjectName(QStringLiteral("script"));
-  step_heat_ = new QLineEdit;
-  step_heat_->setObjectName(QStringLiteral("step_heat"));
-  step_heat_->setPlaceholderText(tr("e.g. 5, 10, 15 or 5:2.5:4"));
-  step_heat_->setToolTip(tr("One run per value with steps A, B, C ...; start:increment:count also works"));
   auto* hole_row = new QHBoxLayout;
   hole_row->addWidget(per_hole_);
   hole_row->addWidget(new QLabel(tr("id step")));
@@ -198,15 +199,101 @@ QWidget* RunFactoryPanel::build_extraction() {
   form->addRow(tr("Duration"), duration_);
   form->addRow(tr("Cleanup"), cleanup_);
   form->addRow(tr("Script"), script_);
-  form->addRow(tr("Step heat"), step_heat_);
 
-  for (auto* e : {device_, position_, step_heat_}) connect(e, &QLineEdit::textEdited, this, [this] { refresh(); });
+  for (auto* e : {device_, position_}) connect(e, &QLineEdit::textEdited, this, [this] { refresh(); });
   connect(per_hole_, &QCheckBox::toggled, this, [this] { refresh(); });
   connect(identifier_step_, &QSpinBox::valueChanged, this, [this] { refresh(); });
   for (auto* b : {value_, duration_, cleanup_}) connect(b, &QDoubleSpinBox::valueChanged, this, [this] { refresh(); });
   connect(units_, &QComboBox::currentIndexChanged, this, [this] { refresh(); });
   connect(script_, &QComboBox::currentTextChanged, this, [this] { refresh(); });
   return box;
+}
+
+QWidget* RunFactoryPanel::build_step_heat() {
+  auto* box = new QGroupBox(tr("Step heat"));
+  auto* form = new QFormLayout(box);
+  step_heat_template_ = new QComboBox;
+  step_heat_template_->setObjectName(QStringLiteral("step_heat_template"));
+  step_heat_template_->setToolTip(tr("One of the lab's step heat templates: one run per step"));
+  edit_step_heat_ = new QPushButton(tr("Edit..."));
+  edit_step_heat_->setObjectName(QStringLiteral("edit_step_heat"));
+  edit_step_heat_->setToolTip(tr("Open the step heat template editor"));
+  step_heat_ = new QLineEdit;
+  step_heat_->setObjectName(QStringLiteral("step_heat"));
+  step_heat_->setPlaceholderText(tr("e.g. 5, 10, 15 or 5:2.5:4"));
+  step_heat_->setToolTip(tr("One run per value with steps A, B, C ...; start:increment:count also works"));
+  save_step_heat_ = new QPushButton(tr("Save as template..."));
+  save_step_heat_->setObjectName(QStringLiteral("save_step_heat"));
+  save_step_heat_->setToolTip(tr("Make a step heat template of these values in the template editor"));
+  auto* template_row = new QHBoxLayout;
+  template_row->addWidget(step_heat_template_, 1);
+  template_row->addWidget(edit_step_heat_);
+  auto* values_row = new QHBoxLayout;
+  values_row->addWidget(step_heat_, 1);
+  values_row->addWidget(save_step_heat_);
+  form->addRow(tr("Template"), template_row);
+  form->addRow(tr("Values"), values_row);
+  fill_step_heats({});
+
+  // Any change of pick, a wheel over the combo included, clears the text;
+  // set_form picks without touching it (and build_runs refuses both).
+  connect(step_heat_template_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (!updating_) pick_step_heat(index);
+  });
+  connect(step_heat_, &QLineEdit::textEdited, this, [this] {
+    if (!step_heat_->text().trimmed().isEmpty() && step_heat_template_->currentIndex() > 0) {
+      const QSignalBlocker block(step_heat_template_);
+      step_heat_template_->setCurrentIndex(0);
+    }
+    refresh();
+  });
+  connect(edit_step_heat_, &QPushButton::clicked, this,
+          [this] { emit editStepHeatRequested(step_heat_template_->currentData().toString()); });
+  connect(save_step_heat_, &QPushButton::clicked, this, [this] { request_save_step_heat(); });
+  return box;
+}
+
+void RunFactoryPanel::fill_step_heats(const std::string& keep) {
+  const QSignalBlocker block(step_heat_template_);
+  step_heat_template_->clear();
+  step_heat_template_->addItem(tr("none"), QString());
+  for (const auto& [name, t] : step_heats_) {  // the map's order: by name
+    step_heat_template_->addItem(q(name), q(name));
+    if (!t.description.empty())
+      step_heat_template_->setItemData(step_heat_template_->count() - 1, q(t.description), Qt::ToolTipRole);
+  }
+  step_heat_template_->setCurrentIndex(keep.empty() ? 0 : std::max(0, step_heat_template_->findData(q(keep))));
+}
+
+void RunFactoryPanel::pick_step_heat(int index) {
+  if (index < 0 || index >= step_heat_template_->count()) return;
+  {
+    const QSignalBlocker block(step_heat_template_);
+    step_heat_template_->setCurrentIndex(index);
+  }
+  // A template and the text never both feed one Add.
+  if (index > 0) step_heat_->clear();
+  refresh();
+}
+
+void RunFactoryPanel::choose_step_heat(const QString& name) {
+  int index = step_heat_template_->findData(name);
+  if (index < 0 && name == tr("none")) index = 0;
+  pick_step_heat(index);
+}
+
+void RunFactoryPanel::refresh_step_heats() {
+  const std::string keep = step_heat_template_->currentData().toString().toStdString();
+  step_heats_ = experiment::load_step_heats(lab_.paths.step_heats()).templates;
+  fill_step_heats(keep);
+  refresh();
+}
+
+void RunFactoryPanel::request_save_step_heat() {
+  const FactoryForm f = form();
+  const auto values = experiment::parse_step_values(f.step_heat);
+  if (!values || values->empty()) return;
+  emit saveStepHeatRequested(experiment::template_from_values(*values, f));
 }
 
 QWidget* RunFactoryPanel::build_measurement() {
@@ -338,6 +425,7 @@ FactoryForm RunFactoryPanel::form() const {
   f.duration_s = duration_->value();
   f.cleanup_s = cleanup_->value();
   f.step_heat = s(step_heat_->text());
+  f.step_heat_template = step_heat_template_->currentData().toString().toStdString();
   f.script = s(script_->currentText());
   f.plan = s(plan_->currentText());
   f.post_equilibration = s(post_equilibration_->currentText());
@@ -362,6 +450,8 @@ void RunFactoryPanel::set_form(const FactoryForm& f) {
   duration_->setValue(f.duration_s);
   cleanup_->setValue(f.cleanup_s);
   step_heat_->setText(q(f.step_heat));
+  step_heat_template_->setCurrentIndex(
+      f.step_heat_template.empty() ? 0 : std::max(0, step_heat_template_->findData(q(f.step_heat_template))));
   set_combo_text(script_, f.script);
   set_combo_text(plan_, f.plan);
   set_combo_text(post_equilibration_, f.post_equilibration);
@@ -401,8 +491,14 @@ void RunFactoryPanel::refresh() {
   for (QWidget* w : {static_cast<QWidget*>(device_), static_cast<QWidget*>(duration_), static_cast<QWidget*>(cleanup_),
                      static_cast<QWidget*>(script_)})
     w->setEnabled(rules.extraction);
-  for (QWidget* w : {static_cast<QWidget*>(value_), static_cast<QWidget*>(units_), static_cast<QWidget*>(step_heat_)})
-    w->setEnabled(rules.heating);
+  for (QWidget* w : {static_cast<QWidget*>(value_), static_cast<QWidget*>(units_)}) w->setEnabled(rules.heating);
+  // The step heat box is not locked with the groups (Edit... stays usable).
+  const bool picked = !f.step_heat_template.empty();
+  const auto values = experiment::parse_step_values(f.step_heat);
+  step_heat_template_->setEnabled(rules.heating && !locked_);
+  step_heat_->setEnabled(rules.heating && !locked_ && !picked);
+  save_step_heat_->setEnabled(rules.heating && !locked_ && !picked && values && !values->empty());
+  edit_step_heat_->setEnabled(rules.heating);
   for (QWidget* w : {static_cast<QWidget*>(position_), static_cast<QWidget*>(per_hole_),
                      static_cast<QWidget*>(identifier_step_)})
     w->setEnabled(rules.position);
@@ -410,7 +506,7 @@ void RunFactoryPanel::refresh() {
                      static_cast<QWidget*>(post_measurement_)})
     w->setEnabled(rules.measurement);
 
-  auto runs = experiment::build_runs(f, lab_.ids);
+  auto runs = experiment::build_runs(f, lab_.ids, step_heats_);
   QString text;
   bool ok = runs.has_value();
   if (!ok) {
@@ -430,6 +526,8 @@ void RunFactoryPanel::refresh() {
     if (!problems.isEmpty()) {
       ok = false;
       text = problems.join(QLatin1Char('\n'));
+    } else if (!f.step_heat.empty() || picked) {
+      text = q(experiment::step_heat_summary(*runs));
     } else {
       const auto& first = runs->front();
       const auto& last = runs->back();
@@ -464,14 +562,14 @@ void RunFactoryPanel::report_inserted(std::size_t at, std::size_t count) {
 bool RunFactoryPanel::add() {
   if (!add_enabled()) return false;
   const FactoryForm f = form();
-  auto runs = experiment::build_runs(f, lab_.ids);
+  auto runs = experiment::build_runs(f, lab_.ids, step_heats_);
   if (!runs) return false;
   const std::size_t at = insert_at();
   if (!model_.insert_runs(at, *runs)) return false;
   report_inserted(at, runs->size());
   const experiment::IncrementOptions inc{inc_identifier_->value(), inc_position_->value()};
   if (inc.identifier != 0 || inc.position != 0) {
-    if (auto next = experiment::next_form(f, inc, lab_.ids)) set_form(*next);
+    if (auto next = experiment::next_form(f, inc, lab_.ids, step_heats_)) set_form(*next);
   }
   refresh();
   return true;
@@ -741,6 +839,7 @@ QStringList item_texts(const QComboBox* c) {
 }  // namespace
 
 QStringList RunFactoryPanel::package_choices() const { return item_texts(package_); }
+QStringList RunFactoryPanel::step_heat_choices() const { return item_texts(step_heat_template_); }
 QStringList RunFactoryPanel::level_choices() const { return item_texts(level_); }
 QStringList RunFactoryPanel::identifier_choices() const { return item_texts(identifier_select_); }
 bool RunFactoryPanel::selects_visible() const { return run_form_->isRowVisible(package_); }

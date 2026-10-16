@@ -45,6 +45,7 @@
 #include "recent_queues.hpp"
 #include "measurement_panel.hpp"
 #include "run_factory_panel.hpp"
+#include "step_heat_editor_window.hpp"
 #include "script_editor_window.hpp"
 
 class QAction;
@@ -118,6 +119,11 @@ class ExperimentWindow : public QMainWindow {
   // opened; `file` is opened when named and present.
   ConditionalsEditorWindow* conditionals_editor() const noexcept { return conditionals_editor_; }
   ConditionalsEditorWindow* open_conditionals_editor(const QString& file = {});
+  // The step heat template editor (step heat template design 7). Null until
+  // first opened; `name` is opened when named and present. Its saves refresh
+  // the run factory's templates. It edits files only: usable while a queue runs.
+  StepHeatEditorWindow* step_heat_editor() const noexcept { return step_heat_editor_; }
+  StepHeatEditorWindow* open_step_heat_editor(const QString& name = {});
   // The queue's conditionals file: "(none)" and the lab's files.
   QComboBox* queue_conditionals_combo() const noexcept { return queue_conditionals_; }
   // Asks which conditionals files the selected rows get and applies the
@@ -282,6 +288,7 @@ class ExperimentWindow : public QMainWindow {
   MeasurementPanel* measurement_;
   ScriptEditorWindow* script_editor_ = nullptr;
   ConditionalsEditorWindow* conditionals_editor_ = nullptr;
+  StepHeatEditorWindow* step_heat_editor_ = nullptr;
   QComboBox* queue_conditionals_ = nullptr;
   PickConditionals pick_conditionals_;
   std::optional<std::filesystem::path> path_;

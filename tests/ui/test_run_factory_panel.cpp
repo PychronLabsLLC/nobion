@@ -7,6 +7,7 @@
 
 #include <QComboBox>
 #include <QLineEdit>
+#include <QPushButton>
 #include <QWheelEvent>
 #include <QtTest/QtTest>
 
@@ -17,6 +18,7 @@
 
 using pychron::experiment::AnalysisType;
 using pychron::experiment::FactoryForm;
+using pychron::experiment::StepHeatTemplate;
 using pychron::ui::QueueTableModel;
 using pychron::ui::RunFactoryPanel;
 using pychron::ui::PackageChoice;
@@ -71,6 +73,17 @@ class TestRunFactoryPanel : public QObject {
     f.position = position;
     return f;
   }
+  static constexpr const char* kAOne =
+      "[template]\nunits = \"watts\"\nduration = 10\ncleanup = 5\n\n"
+      "[[steps]]\nvalue = 2\n\n[[steps]]\nvalue = 4\nduration = 20\n\n[[steps]]\nvalue = 6\n";
+  static constexpr const char* kBTwo = "[[steps]]\nvalue = 1\n\n[[steps]]\nvalue = 2\n";
+  void write_template(const char* name, const char* text) const {
+    const auto d = dir_ / "queues" / "step_heats";
+    std::filesystem::create_directories(d);
+    std::ofstream(d / (std::string(name) + ".toml")) << text;
+  }
+  QLineEdit* step_heat_text() const { return panel_->findChild<QLineEdit*>(QStringLiteral("step_heat")); }
+  QPushButton* button(const char* name) const { return panel_->findChild<QPushButton*>(QString::fromLatin1(name)); }
   QComboBox* combo(const char* name) const { return panel_->findChild<QComboBox*>(QString::fromLatin1(name)); }
   QLineEdit* edit() const { return panel_->findChild<QLineEdit*>(QStringLiteral("identifier")); }
   // The source set and its packages answered.
@@ -87,6 +100,9 @@ class TestRunFactoryPanel : public QObject {
  private slots:
   void initTestCase() {
     dir_ = pychron::ui::test::scratch_lab();
+    // Written out of order: the combo sorts them.
+    write_template("b-two", kBTwo);
+    write_template("a-one", kAOne);
     lab_ = std::make_unique<lab::Lab>(lab::load_lab(pychron::ui::test::lab_paths(dir_)));
     QVERIFY(lab_->problems.empty());
   }
@@ -164,7 +180,11 @@ class TestRunFactoryPanel : public QObject {
     f = with_identifier("20010", "7");
     f.step_heat = "2:2:4";
     panel_->set_form(f);
-    QVERIFY(panel_->preview_text().startsWith(QStringLiteral("Adds 4 run(s): 20010A @7")));
+    // A step heat's preview says what the schedule is.
+    const auto heat = pychron::experiment::build_runs(panel_->form(), lab_->ids);
+    QVERIFY(heat.has_value());
+    QCOMPARE(panel_->preview_text(), QString::fromStdString(pychron::experiment::step_heat_summary(*heat)));
+    QVERIFY(panel_->preview_text().startsWith(QStringLiteral("4 runs, steps A to D")));
     f.step_heat = "2, warm";
     panel_->set_form(f);
     QVERIFY(!panel_->add_enabled());
@@ -279,6 +299,142 @@ class TestRunFactoryPanel : public QObject {
     QCOMPARE(f.overrides.size(), std::size_t{1});  // "main.cycles" = 1
     QVERIFY(panel_->add());
     QCOMPARE(model_->queue().runs[3].measurement.overrides, model_->queue().runs[2].measurement.overrides);
+  }
+
+  void stepHeatCombosListsAlphabetically() {
+    QCOMPARE(panel_->step_heat_choices(), (QStringList{QStringLiteral("none"), QStringLiteral("a-one"),
+                                                       QStringLiteral("b-two"), QStringLiteral("laser-12")}));
+    QCOMPARE(panel_->form().step_heat_template, std::string());
+  }
+
+  void pickingATemplateDisablesTheText() {
+    FactoryForm f = with_identifier("20010", "7");
+    f.step_heat = "5, 10";
+    panel_->set_form(f);
+    QVERIFY(panel_->field_enabled("step_heat"));
+    panel_->choose_step_heat(QStringLiteral("a-one"));
+    QVERIFY(!panel_->field_enabled("step_heat"));
+    QCOMPARE(step_heat_text()->text(), QString());
+    QCOMPARE(panel_->form().step_heat_template, std::string("a-one"));
+    QCOMPARE(panel_->form().step_heat, std::string());
+    QVERIFY(panel_->add_enabled());
+    // Text typed puts the combo back on "none".
+    step_heat_text()->setText(QStringLiteral("5, 10"));
+    Q_EMIT step_heat_text()->textEdited(QStringLiteral("5, 10"));
+    QCOMPARE(combo("step_heat_template")->currentText(), QStringLiteral("none"));
+    QCOMPARE(panel_->form().step_heat_template, std::string());
+    QCOMPARE(panel_->form().step_heat, std::string("5, 10"));
+    QVERIFY(panel_->field_enabled("step_heat"));
+    // A pick any other way (a wheel over the combo) clears the text too.
+    combo("step_heat_template")->setCurrentIndex(2);
+    QCOMPARE(panel_->form().step_heat, std::string());
+    QCOMPARE(panel_->form().step_heat_template, std::string("b-two"));
+    QVERIFY(!panel_->field_enabled("step_heat"));
+    // set_form carries the name both ways.
+    f.step_heat.clear();
+    f.step_heat_template = "b-two";
+    panel_->set_form(f);
+    QCOMPARE(combo("step_heat_template")->currentText(), QStringLiteral("b-two"));
+    QCOMPARE(panel_->form().step_heat_template, std::string("b-two"));
+  }
+
+  void previewSaysCountAndTime() {
+    FactoryForm f = with_identifier("20010", "7");
+    f.step_heat_template = "a-one";
+    panel_->set_form(f);
+    const auto runs = pychron::experiment::build_runs(panel_->form(), lab_->ids, lab_->step_heats);
+    QVERIFY(runs.has_value());
+    QCOMPARE(runs->size(), std::size_t{3});
+    QCOMPARE(panel_->preview_text(), QString::fromStdString(pychron::experiment::step_heat_summary(*runs)));
+    QVERIFY2(panel_->preview_text().startsWith(QStringLiteral("3 runs, steps A to C, 2 to 6")),
+             qPrintable(panel_->preview_text()));
+  }
+
+  void addInsertsOneRowPerStep() {
+    FactoryForm f = with_identifier("20010", "7");
+    f.step_heat_template = "a-one";
+    panel_->set_form(f);
+    const int before = model_->rowCount();
+    QVERIFY(panel_->add());
+    QCOMPARE(model_->rowCount(), before + 3);
+    const auto& runs = model_->queue().runs;
+    const auto at = static_cast<std::size_t>(before);
+    const std::vector<std::string> steps{"A", "B", "C"};
+    const std::vector<double> values{2, 4, 6};
+    for (std::size_t i = 0; i < 3; ++i) {
+      QCOMPARE(runs[at + i].id.step, steps[i]);
+      QCOMPARE(runs[at + i].extraction.value, values[i]);
+    }
+    QCOMPARE(runs[at + 1].extraction.duration, pychron::experiment::Duration(20));
+    QCOMPARE(runs[at + 2].extraction.duration, pychron::experiment::Duration(10));
+    QCOMPARE(panel_->form().step_heat_template, std::string("a-one"));  // kept for the next Add
+  }
+
+  void deletedTemplateLeavesCombo() {
+    panel_->set_form(with_identifier("20010", "7"));
+    panel_->choose_step_heat(QStringLiteral("a-one"));
+    panel_->refresh_step_heats();  // still there: kept
+    QCOMPARE(panel_->form().step_heat_template, std::string("a-one"));
+    panel_->choose_step_heat(QStringLiteral("b-two"));
+    const auto file = dir_ / "queues" / "step_heats" / "b-two.toml";
+    std::filesystem::remove(file);
+    panel_->refresh_step_heats();
+    write_template("b-two", kBTwo);  // for the tests after this one
+    QVERIFY(!panel_->step_heat_choices().contains(QStringLiteral("b-two")));
+    QCOMPARE(combo("step_heat_template")->currentText(), QStringLiteral("none"));
+    QCOMPARE(panel_->form().step_heat_template, std::string());
+    QVERIFY(panel_->field_enabled("step_heat"));
+  }
+
+  void saveAsTemplateEmitsTheTextAsATemplate() {
+    std::vector<StepHeatTemplate> asked;
+    connect(panel_.get(), &RunFactoryPanel::saveStepHeatRequested, this,
+            [&](const StepHeatTemplate& t) { asked.push_back(t); });
+    FactoryForm f = with_identifier("20010", "7");
+    f.step_heat = "warm";
+    panel_->set_form(f);
+    QVERIFY(!panel_->field_enabled("save_step_heat"));
+    f.step_heat = "5,10";
+    panel_->set_form(f);
+    QVERIFY(panel_->field_enabled("save_step_heat"));
+    button("save_step_heat")->click();
+    QCOMPARE(asked.size(), std::size_t{1});
+    QVERIFY(asked.front() == pychron::experiment::template_from_values({5, 10}, panel_->form()));
+    // A picked template has no text to save.
+    panel_->choose_step_heat(QStringLiteral("a-one"));
+    QVERIFY(!panel_->field_enabled("save_step_heat"));
+  }
+
+  void editOpensThePickedTemplate() {
+    QStringList asked;
+    connect(panel_.get(), &RunFactoryPanel::editStepHeatRequested, this,
+            [&](const QString& name) { asked.append(name); });
+    panel_->set_form(with_identifier("20010", "7"));
+    button("edit_step_heat")->click();
+    panel_->choose_step_heat(QStringLiteral("b-two"));
+    button("edit_step_heat")->click();
+    QCOMPARE(asked, (QStringList{QString(), QStringLiteral("b-two")}));
+  }
+
+  void typeThatDoesNotHeatDisablesTheRow() {
+    FactoryForm f = with_identifier("a");
+    f.step_heat = "5,10";
+    panel_->set_form(f);
+    for (const char* name : {"step_heat_template", "edit_step_heat", "save_step_heat", "step_heat"})
+      QVERIFY2(!panel_->field_enabled(name), name);
+    panel_->set_form(with_identifier("bu"));
+    for (const char* name : {"step_heat_template", "edit_step_heat", "step_heat"})
+      QVERIFY2(panel_->field_enabled(name), name);
+  }
+
+  void editStaysEnabledWhenLocked() {
+    panel_->set_form(with_identifier("20001", "1"));
+    panel_->set_locked(true);
+    QVERIFY(panel_->field_enabled("edit_step_heat"));
+    QVERIFY(!panel_->field_enabled("step_heat_template"));
+    QVERIFY(!panel_->field_enabled("step_heat"));
+    panel_->set_locked(false);
+    QVERIFY(panel_->field_enabled("step_heat_template"));
   }
 
   void frequencyAndBlocks() {

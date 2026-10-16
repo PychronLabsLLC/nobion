@@ -246,6 +246,16 @@ ExperimentWindow::ExperimentWindow(ExperimentBridge& bridge, bool simulation, st
   connect(&model_, &QueueTableModel::executedChanged, this, [this] { on_executed_changed(); });
   connect(queue_table_->selectionModel(), &QItemSelectionModel::selectionChanged, measurement_,
           [this] { measurement_->refresh(); });
+  connect(factory_, &RunFactoryPanel::editStepHeatRequested, this,
+          [this](const QString& name) { open_step_heat_editor(name); });
+  connect(factory_, &RunFactoryPanel::saveStepHeatRequested, this, [this](const experiment::StepHeatTemplate& t) {
+    StepHeatEditorWindow* editor = open_step_heat_editor();
+    const auto name = editor->ask_name();
+    if (!name) return;
+    QString error;
+    if (!editor->new_from(t, *name, &error) && !error.isEmpty())
+      QMessageBox::warning(editor, tr("Save as template"), error);
+  });
   connect(factory_, &RunFactoryPanel::inserted, this, [this](const std::vector<std::size_t>& rows) {
     select_rows(rows);
     if (rows.empty()) return;
@@ -498,6 +508,7 @@ void ExperimentWindow::build_actions() {
 
   add(Menu::Scripts, tr("Script &Editor..."), [this] { open_script_editor(); }, key(Shortcut::ScriptEditor));
   add(Menu::Scripts, tr("&Conditionals Editor..."), [this] { open_conditionals_editor(); });
+  add(Menu::Scripts, tr("Step &Heat Templates..."), [this] { open_step_heat_editor(); });
 
   const Menu run = Menu::Executor;
   add(run, tr("Start"), [this] { pane_->request_start(); }, key(Shortcut::StartQueue));
@@ -730,6 +741,31 @@ ConditionalsEditorWindow* ExperimentWindow::open_conditionals_editor(const QStri
   conditionals_editor_->raise();
   conditionals_editor_->activateWindow();
   return conditionals_editor_;
+}
+
+StepHeatEditorWindow* ExperimentWindow::open_step_heat_editor(const QString& name) {
+  if (step_heat_editor_ == nullptr) {
+    // Its own settings object on the same store as this window's.
+    step_heat_editor_ = new StepHeatEditorWindow(
+        bridge_.lab(), std::make_unique<QSettings>(settings_->fileName(), settings_->format()), this);
+    step_heat_editor_->setWindowFlag(Qt::Window);
+    // Inherited values are the factory's; New from Run Factory Text is its text.
+    step_heat_editor_->set_form_extraction([this] { return experiment::extraction_of(factory_->form()); });
+    step_heat_editor_->set_from_factory([this]() -> std::optional<experiment::StepHeatTemplate> {
+      const experiment::FactoryForm f = factory_->form();
+      const auto values = experiment::parse_step_values(f.step_heat);
+      if (!values || values->empty()) return std::nullopt;
+      return experiment::template_from_values(*values, f);
+    });
+    auto changed = [this] { factory_->refresh_step_heats(); };
+    connect(step_heat_editor_, &StepHeatEditorWindow::saved, this, changed);
+    connect(step_heat_editor_, &StepHeatEditorWindow::filesChanged, this, changed);
+  }
+  if (!name.isEmpty()) step_heat_editor_->open(name);
+  step_heat_editor_->show();
+  step_heat_editor_->raise();
+  step_heat_editor_->activateWindow();
+  return step_heat_editor_;
 }
 
 void ExperimentWindow::sync_queue_conditionals() {
