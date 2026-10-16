@@ -1,0 +1,42 @@
+[template]
+name = "laser-12"
+description = "CO2, 12 steps, sanidine"
+units = "watts"
+duration = 30.0
+cleanup = 15.0
+
+[[steps]]
+value = 0.5
+
+[[steps]]
+value = 1.0
+
+[[steps]]
+value = 1.5
+
+[[steps]]
+value = 2.0
+
+[[steps]]
+value = 2.5
+
+[[steps]]
+value = 3.0
+
+[[steps]]
+value = 3.5
+
+[[steps]]
+value = 4.0
+
+[[steps]]
+value = 4.5
+
+[[steps]]
+value = 5.0
+
+[[steps]]
+value = 5.5
+
+[[steps]]
+value = 6.0

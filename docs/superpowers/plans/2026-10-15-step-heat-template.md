@@ -355,7 +355,7 @@ Read `libs/setup/AGENTS.md` first.
 - Modify: `profiles/instrument-common/profile.toml` (a `[[files]]` entry `template = "queues/step_heats/laser-12.toml"`, `to = "queues/step_heats/laser-12.toml"`, after the block's entry)
 - Test: `tests/experiment/test_lab.cpp`, `tests/integration/test_install_e2e.cpp`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```cpp
 // test_lab.cpp, in TheExampleLabLoadsAndItsQueueChecks:
@@ -367,10 +367,10 @@ TEST_F(LabTest, TheExampleTemplateIsCanonical);  // file bytes == to_toml(load_s
 ASSERT_TRUE(lab_.step_heats.contains("laser-12"));
 ```
 
-- [ ] **Step 2: Run** `build/dev/tests/experiment/pychron_experiment_tests --gtest_filter='LabTest.*'` — FAIL (no file).
-- [ ] **Step 3: Add the files and the profile entry.**
-- [ ] **Step 4: Run** `LabTest.*`, `pychron_setup_tests` (filtered to the profile suites), and `cmake --build --preset dev --target pychron_install_e2e_tests && build/dev/tests/integration/pychron_install_e2e_tests` — PASS.
-- [ ] **Step 5: Commit**
+- [x] **Step 2: Run** `build/dev/tests/experiment/pychron_experiment_tests --gtest_filter='LabTest.*'` — FAIL (no file).
+- [x] **Step 3: Add the files and the profile entry.**
+- [x] **Step 4: Run** `LabTest.*`, `pychron_setup_tests` (filtered to the profile suites), and `cmake --build --preset dev --target pychron_install_e2e_tests && build/dev/tests/integration/pychron_install_e2e_tests` — PASS.
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(setup): ship an example step heat template"

@@ -10,6 +10,7 @@
 #include "example_lab.hpp"
 #include "pychron/experiment/lab/lab.hpp"
 #include "pychron/experiment/model/queue_file.hpp"
+#include "pychron/experiment/factory/step_heat_template.hpp"
 #include "temp_path.hpp"
 
 namespace pychron::experiment::lab {
@@ -49,6 +50,10 @@ TEST_F(LabTest, TheExampleLabLoadsAndItsQueueChecks) {
   EXPECT_TRUE(lab.scripts->has_script("sim_extract"));
   EXPECT_TRUE(lab.peak_centers.contains("default"));
   EXPECT_TRUE(lab.metric_catalog().detectors.contains("H1"));
+  EXPECT_TRUE(lab.step_heats.contains("laser-12"));
+  if (lab.step_heats.contains("laser-12")) {
+    EXPECT_EQ(lab.step_heats.at("laser-12").steps.size(), 12u);
+  }
 
   const auto q = example(lab);
   const auto check = check_lab_queue(lab, q);
@@ -237,7 +242,8 @@ TEST_F(LabTest, ABadStepHeatFileIsALabProblem) {
   const Lab lab = load_lab(paths());
   ASSERT_EQ(lab.problems.size(), 1u);
   EXPECT_NE(lab.problems.front().find(bad.string()), std::string::npos) << lab.problems.front();
-  EXPECT_TRUE(lab.step_heats.empty());
+  EXPECT_FALSE(lab.step_heats.contains("bad"));
+  EXPECT_TRUE(lab.step_heats.contains("laser-12"));  // the other templates still load
   EXPECT_TRUE(lab.plans->find("sim_multicollect"));  // the rest of the lab still loads
 }
 
@@ -249,5 +255,21 @@ TEST_F(LabTest, AStepHeatsDirectoryIsNotAQueueDirectory) {
   EXPECT_FALSE(lab.step_heats.contains("q"));
   ASSERT_EQ(lab.problems.size(), 1u);
   EXPECT_NE(lab.problems.front().find(q.string()), std::string::npos) << lab.problems.front();
+}
+
+// The shipped example template is written as the editor would write it.
+TEST_F(LabTest, TheExampleTemplateIsCanonical) {
+  const auto path = paths().step_heats() / "laser-12.toml";
+  std::ifstream in(path, std::ios::binary);
+  ASSERT_TRUE(in) << path;
+  const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  const auto t = load_step_heat(path);
+  ASSERT_TRUE(t) << t.error().what;
+  EXPECT_EQ(text, to_toml(*t));
+  EXPECT_EQ(t->description, "CO2, 12 steps, sanidine");
+  ASSERT_EQ(t->steps.size(), 12u);
+  for (std::size_t i = 0; i < t->steps.size(); ++i) {
+    EXPECT_DOUBLE_EQ(t->steps[i].value, 0.5 * static_cast<double>(i + 1)) << i;
+  }
 }
 }  // namespace pychron::experiment::lab
