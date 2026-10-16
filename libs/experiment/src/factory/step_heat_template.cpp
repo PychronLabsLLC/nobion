@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <fstream>
 #include <iterator>
 #include <set>
@@ -304,6 +305,91 @@ Duration extraction_time(const ExtractionSpec& form, const StepHeatTemplate& t) 
   Duration total{0};
   for (const auto& r : make_step_heat(run, t)) total += estimate_run(r, Duration(0));
   return total;
+}
+
+StepHeatStep step_after(const StepHeatTemplate& t, std::size_t source) {
+  if (t.steps.empty()) {
+    StepHeatStep first;
+    first.value = 1;
+    return first;
+  }
+  StepHeatStep s = t.steps.at(source);
+  if (source >= 1) s.value += t.steps[source].value - t.steps[source - 1].value;
+  return s;
+}
+
+Result<void> fill_values(StepHeatTemplate& t, const std::vector<std::size_t>& rows,
+                         const std::vector<double>& values) {
+  if (!rows.empty()) {
+    if (values.size() != rows.size())
+      return fail(ErrorKind::Config, std::to_string(values.size()) + " values for " + std::to_string(rows.size()) +
+                                         " selected steps");
+    for (std::size_t i = 0; i < rows.size(); ++i) t.steps.at(rows[i]).value = values[i];
+    return {};
+  }
+  if (t.steps.size() + values.size() > kMaxStepHeatSteps)
+    return fail(ErrorKind::Config, std::to_string(t.steps.size() + values.size()) + " steps: at most " +
+                                       std::to_string(kMaxStepHeatSteps));
+  for (const double v : values) {
+    StepHeatStep s = step_after(t, t.steps.empty() ? 0 : t.steps.size() - 1);
+    s.value = v;
+    t.steps.push_back(s);
+  }
+  return {};
+}
+
+std::string step_heat_summary(const std::vector<RunSpec>& runs) {
+  if (runs.empty()) return {};
+  const auto count = runs.size();
+  std::string out = std::to_string(count) + (count == 1 ? " run" : " runs");
+
+  int first = -1, last = -1;
+  for (const auto& r : runs) {
+    const int i = step_index(r.id.step);
+    if (i < 0) continue;
+    if (first < 0 || i < first) first = i;
+    last = std::max(last, i);
+  }
+  if (first >= 0) {
+    out += first == last ? ", step " + step_name(first) : ", steps " + step_name(first) + " to " + step_name(last);
+  }
+
+  const auto g = [](double v) {
+    std::array<char, 32> buf{};
+    std::snprintf(buf.data(), buf.size(), "%g", v);
+    return std::string(buf.data());
+  };
+  const auto [lo, hi] = std::ranges::minmax_element(runs, {}, [](const RunSpec& r) { return r.extraction.value; });
+  const auto symbol = [](Unit u) -> std::string_view {
+    switch (u) {
+      case Unit::Watts: return "W";
+      case Unit::Temp: return "°C";
+      case Unit::Percent: return "%";
+      case Unit::Amps: return "A";
+      case Unit::Volts: return "V";
+    }
+    return "";
+  };
+  out += ", " + g(lo->extraction.value);
+  if (hi->extraction.value != lo->extraction.value) out += " to " + g(hi->extraction.value);
+  out += ' ';
+  out += symbol(runs.front().extraction.units);
+
+  Duration total{0};
+  for (const auto& r : runs) total += estimate_run(r, Duration(0));
+  const double seconds = total.count();
+  const auto whole_seconds = static_cast<long long>(std::llround(seconds));
+  const auto minutes = static_cast<long long>(std::llround(seconds / 60));
+  if (whole_seconds < 60) {
+    out += ", " + std::to_string(whole_seconds) + " s";
+  } else if (minutes < 60) {
+    out += ", " + std::to_string(minutes) + " min";
+  } else {
+    out += ", " + std::to_string(minutes / 60) + " h";
+    if (minutes % 60 != 0) out += " " + std::to_string(minutes % 60) + " min";
+  }
+  out += " extraction";
+  return out;
 }
 
 }  // namespace pychron::experiment

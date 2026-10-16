@@ -94,4 +94,24 @@ inline constexpr std::size_t kMaxStepHeatSteps = 1000;
 // over make_step_heat of a run whose extraction is `form`.
 [[nodiscard]] Duration extraction_time(const ExtractionSpec& form, const StepHeatTemplate& t);
 
+// The step the editor's Add puts after `steps[source]`: a copy of it, with
+// value raised by the increment from the step before when `source >= 1`.
+// With no steps, StepHeatStep{.value = 1} (`source` ignored). `source` must
+// otherwise be a row of `t.steps`.
+[[nodiscard]] StepHeatStep step_after(const StepHeatTemplate& t, std::size_t source);
+
+// The editor's Fill from text. With `rows` given, `values` (same count, else a
+// Config error "3 values for 2 selected steps") are set on those rows in
+// order; with none, each value is appended as step_after the last step with
+// that value. A result over kMaxStepHeatSteps is refused. `t` is unchanged on
+// any error. Every row must be a row of `t.steps`.
+[[nodiscard]] Result<void> fill_values(StepHeatTemplate& t, const std::vector<std::size_t>& rows,
+                                       const std::vector<double>& values);
+
+// One line for the step heat panel's preview, e.g.
+// "12 runs, steps A to L, 0.5 to 6 W, 21 min extraction": run count, first to
+// last step letter, value range in the first run's units, summed extraction
+// time (estimate_run, no measurement). Empty for no runs.
+[[nodiscard]] std::string step_heat_summary(const std::vector<RunSpec>& runs);
+
 }  // namespace pychron::experiment

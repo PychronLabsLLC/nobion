@@ -245,7 +245,7 @@ Qt-free so the editor's buttons and the panel's preview are tested with GoogleTe
   - `Result<void> fill_values(StepHeatTemplate& t, const std::vector<std::size_t>& rows, const std::vector<double>& values);` rows non-empty: `values.size()` must equal `rows.size()`, else `Config` error `"3 values for 2 selected steps"`, `t` unchanged; values set in row order. Rows empty: each value appended as `step_after(t, last)` with that value. Result over 1000 steps: `Config` error, `t` unchanged.
   - `std::string step_heat_summary(const std::vector<RunSpec>& runs);` `"12 runs, steps A to L, 0.5 to 6 W, 21 min extraction"`. Steps: first and last distinct step letters by `step_index`; values: min to max of `extraction.value` written with `%g`, unit of the first run (`W`, `°C`, `%`, `A`, `V`); one value: `"5 W"`. Time: `estimate_run(r, 0s)` summed; under 60 s `"45 s"`, under 1 h whole minutes rounded `"21 min"`, else `"1 h 5 min"`. Empty runs: `""`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```cpp
 TEST(StepHeatEdit, StepAfterAddsTheLastIncrement);   // steps 1,2.5: step_after(t,1).value == 4.0; other fields copied
@@ -260,9 +260,9 @@ TEST(StepHeatSummary, OneRunAndLongSchedules);      // 1 run 5 W 45 s -> "1 run,
 ```
 
 - [ ] **Step 2: Run to verify they fail.**
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** `--gtest_filter='StepHeat*'` — PASS.
-- [ ] **Step 5: Checks and commit**
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** `--gtest_filter='StepHeat*'` — PASS.
+- [x] **Step 5: Checks and commit**
 
 ```bash
 git commit -m "feat(experiment): step heat editing helpers and summary"

@@ -523,3 +523,115 @@ TEST(StepHeatMake, ExtractionTimeSumsTheSteps) {
   t.steps = {s1, s2};
   EXPECT_EQ(extraction_time(form, t), Duration(120));
 }
+
+namespace {
+
+StepHeatTemplate steps_of(const std::vector<double>& values) {
+  StepHeatTemplate t;
+  t.name = "edit";
+  for (const double v : values) {
+    StepHeatStep s;
+    s.value = v;
+    t.steps.push_back(s);
+  }
+  return t;
+}
+
+// `n` runs A, B, ... with values spread evenly from `lo` to `hi`, each `seconds` of extraction.
+std::vector<RunSpec> summary_runs(std::size_t n, double lo, double hi, double seconds) {
+  std::vector<RunSpec> runs(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    runs[i].id.step = step_name(static_cast<int>(i));
+    runs[i].extraction.value = n == 1 ? lo : lo + (hi - lo) * static_cast<double>(i) / static_cast<double>(n - 1);
+    runs[i].extraction.units = Unit::Watts;
+    runs[i].extraction.duration = Duration(seconds);
+  }
+  return runs;
+}
+
+}  // namespace
+
+TEST(StepHeatEdit, StepAfterAddsTheLastIncrement) {
+  StepHeatTemplate t = steps_of({1.0, 2.5});
+  t.steps[1].duration = Duration(45);
+  t.steps[1].beam_diameter = 2.0;
+  const StepHeatStep s = step_after(t, 1);
+  EXPECT_DOUBLE_EQ(s.value, 4.0);
+  EXPECT_EQ(s.duration, Duration(45));
+  EXPECT_EQ(s.beam_diameter, 2.0);
+  StepHeatStep expected = t.steps[1];
+  expected.value = s.value;
+  EXPECT_EQ(s, expected);
+}
+
+TEST(StepHeatEdit, StepAfterOneStepCopiesIt) {
+  StepHeatTemplate t = steps_of({3.0});
+  t.steps[0].duration = Duration(45);
+  const StepHeatStep s = step_after(t, 0);
+  EXPECT_DOUBLE_EQ(s.value, 3.0);
+  EXPECT_EQ(s.duration, Duration(45));
+}
+
+TEST(StepHeatEdit, StepAfterNothingIsOneWatt) {
+  const StepHeatStep s = step_after(StepHeatTemplate{}, 7);
+  StepHeatStep one_watt;
+  one_watt.value = 1;
+  EXPECT_EQ(s, one_watt);
+}
+
+TEST(StepHeatEdit, FillValuesSetsSelectedRows) {
+  StepHeatTemplate t = steps_of({1, 2, 3});
+  ASSERT_TRUE(fill_values(t, {0, 2}, {7, 9}));
+  ASSERT_EQ(t.steps.size(), 3u);
+  EXPECT_DOUBLE_EQ(t.steps[0].value, 7);
+  EXPECT_DOUBLE_EQ(t.steps[1].value, 2);
+  EXPECT_DOUBLE_EQ(t.steps[2].value, 9);
+}
+
+TEST(StepHeatEdit, FillValuesAppendsWithoutSelection) {
+  StepHeatTemplate t = steps_of({1, 2});
+  t.steps[1].cleanup = Duration(20);
+  ASSERT_TRUE(fill_values(t, {}, {5, 6}));
+  ASSERT_EQ(t.steps.size(), 4u);
+  EXPECT_DOUBLE_EQ(t.steps[2].value, 5);
+  EXPECT_DOUBLE_EQ(t.steps[3].value, 6);
+  EXPECT_EQ(t.steps[3].cleanup, Duration(20));  // copied from the step before, as Add does
+}
+
+TEST(StepHeatEdit, FillValuesRefusesACountMismatch) {
+  StepHeatTemplate t = steps_of({1, 2, 3});
+  const StepHeatTemplate before = t;
+  const auto r = fill_values(t, {0, 1}, {4, 5, 6});
+  ASSERT_FALSE(r);
+  EXPECT_EQ(r.error().kind, ErrorKind::Config);
+  EXPECT_EQ(r.error().what, "3 values for 2 selected steps");
+  EXPECT_EQ(t, before);
+}
+
+TEST(StepHeatEdit, FillValuesRefusesMoreThan1000Steps) {
+  StepHeatTemplate t = steps_of(std::vector<double>(999, 1.0));
+  const StepHeatTemplate before = t;
+  const auto r = fill_values(t, {}, {2, 3});
+  ASSERT_FALSE(r);
+  EXPECT_EQ(r.error().kind, ErrorKind::Config);
+  EXPECT_EQ(t, before);
+  ASSERT_TRUE(fill_values(t, {}, {2}));
+  EXPECT_EQ(t.steps.size(), kMaxStepHeatSteps);
+}
+
+TEST(StepHeatSummary, SaysCountStepsRangeAndTime) {
+  EXPECT_EQ(step_heat_summary(summary_runs(12, 0.5, 6, 105)),
+            "12 runs, steps A to L, 0.5 to 6 W, 21 min extraction");
+}
+
+TEST(StepHeatSummary, OneRunAndLongSchedules) {
+  EXPECT_EQ(step_heat_summary(summary_runs(1, 5, 5, 45)), "1 run, step A, 5 W, 45 s extraction");
+  EXPECT_EQ(step_heat_summary(summary_runs(1, 5, 5, 3900)), "1 run, step A, 5 W, 1 h 5 min extraction");
+}
+
+TEST(StepHeatSummary, UnitsOfTheFirstRunAndNothingForNoRuns) {
+  auto runs = summary_runs(2, 600, 900, 30);
+  for (auto& r : runs) r.extraction.units = Unit::Temp;
+  EXPECT_EQ(step_heat_summary(runs), "2 runs, steps A to B, 600 to 900 °C, 1 min extraction");
+  EXPECT_EQ(step_heat_summary({}), "");
+}
