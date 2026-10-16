@@ -38,6 +38,7 @@ struct FactoryForm {
   Unit units = Unit::Watts;
   double duration_s = 0, cleanup_s = 0;
   std::string step_heat;          // "" or step values: "5, 10, 15" or "5:2.5:4" (start:increment:count)
+  std::string step_heat_template; // "" or the name of a template in the lab's step_heats
   std::string script, plan, post_equilibration, post_measurement, comment;
   ParamOverrides overrides;       // carried from defaults or a row; not edited in the form
   std::vector<std::string> conditionals;  // the lab's conditionals files every run gets
@@ -55,7 +56,16 @@ FieldRules form_rules(const FactoryForm& form, const IdentifierRules& ids);
 // The runs Add inserts, in order. Fields the type does not use are stripped
 // (strip_for_type). Config error for an invalid identifier, step, position or
 // step-heat text, or a step heat on a type without heating.
-Result<std::vector<RunSpec>> build_runs(const FactoryForm& form, const IdentifierRules& ids);
+//
+// A named `step_heat_template` is looked up in `step_heats`: Config error when
+// the step heat text is also filled in, or when the name is not there. With
+// one run per hole and a multi-hole position, each hole's run (identifier
+// stepped as without a template) gets the whole schedule, holes in order;
+// otherwise one schedule over the unsplit position.
+Result<std::vector<RunSpec>> build_runs(const FactoryForm& form, const IdentifierRules& ids,
+                                        const StepHeatLibrary& step_heats = {});
+
+// Never names a template: a queue row does not say which one made it.
 
 FactoryForm form_from_run(const RunSpec& run);
 
@@ -76,8 +86,9 @@ std::optional<FactoryForm> with_lab_defaults(const FactoryForm& form, const Iden
 // The form after Add. The identifier advances by `inc.identifier` past the
 // last identifier added (specials never advance; a changed identifier drops a
 // fixed aliquot and step); the position advances by `inc.position` past the
-// last hole added (a range keeps its width). Step-heat text and the other
-// fields are kept.
-Result<FactoryForm> next_form(const FactoryForm& form, const IncrementOptions& inc, const IdentifierRules& ids);
+// last hole added (a range keeps its width). Step-heat text, the named
+// template and the other fields are kept. `step_heats` as for build_runs.
+Result<FactoryForm> next_form(const FactoryForm& form, const IncrementOptions& inc, const IdentifierRules& ids,
+                              const StepHeatLibrary& step_heats = {});
 
 }  // namespace pychron::experiment

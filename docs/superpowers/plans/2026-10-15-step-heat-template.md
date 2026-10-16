@@ -321,13 +321,13 @@ git commit -m "feat(experiment): load step heat templates from queues/step_heats
   - `form_from_run` leaves `step_heat_template` empty.
 - Rules, in this order inside `build_runs`: template named and `trim(step_heat)` non-empty → `Config` `"choose a step heat template or type step values, not both"`; template named but not in `step_heats` → `"unknown step heat template '<name>'"`; template on a type that does not heat → the text's existing message. Template with `one_run_per_hole` and a position of more than one hole: `expand_positions` (with `identifier_step` when non-zero and not special, as today) then `make_step_heat` of each hole's run, concatenated in hole order. Otherwise `make_step_heat(*tmpl, t)` with the position unsplit.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```cpp
 TEST(StepHeatBuild, TemplateMakesOneRunPerStep);           // "laser-12" 3 steps: 3 runs A..C, durations from the template
 TEST(StepHeatBuild, TemplateAndTextIsAnError);             // message above
 TEST(StepHeatBuild, UnknownTemplateIsAnError);             // "unknown step heat template 'nope'"
-TEST(StepHeatBuild, TemplateNeedsATypeThatHeats);          // identifier "bu": error contains "does not"
+TEST(StepHeatBuild, TemplateNeedsATypeThatHeats);          // identifier "a" (air; "bu" heats): error contains "does not"
 TEST(StepHeatBuild, PerHoleGivesWholeScheduleForEachHole);
 //   position "1-3", one_run_per_hole, 2-step template: 6 runs; holes 1,1,2,2,3,3; steps A,B,A,B,A,B
 TEST(StepHeatBuild, PerHoleWithIdentifierStep);           // identifier_step 1, "20001": identifiers 20001,20001,20002,20002,...
@@ -336,10 +336,10 @@ TEST(StepHeatBuild, NextFormKeepsTheTemplate);
 TEST(StepHeatBuild, FormFromRunNeverNamesATemplate);
 ```
 
-- [ ] **Step 2: Run to verify they fail.**
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** `--gtest_filter='StepHeat*:FactoryForm*:RunFactory*'` — PASS. Then `ctest --preset dev-quick` (form.hpp reaches `elctl` and the UI).
-- [ ] **Step 5: Checks and commit**
+- [x] **Step 2: Run to verify they fail.**
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** `--gtest_filter='StepHeat*:FactoryForm*:RunFactory*'` — PASS. Then `ctest --preset dev-quick` (form.hpp reaches `elctl` and the UI).
+- [x] **Step 5: Checks and commit**
 
 ```bash
 git commit -m "feat(experiment): run factory adds a step heat from a named template"
@@ -484,7 +484,7 @@ void previewSaysCountAndTime();             // preview_text() == step_heat_summa
 void addInsertsOneRowPerStep();             // model rows += steps.size(), steps A.. in order
 void deletedTemplateLeavesCombo();          // remove file, refresh_step_heats(): choices lack it, combo on "none"
 void saveAsTemplateEmitsTheTextAsATemplate(); // text "5,10": signal arg == template_from_values({5,10}, form())
-void typeThatDoesNotHeatDisablesTheRow();   // identifier "bu": combo, edit, save disabled
+void typeThatDoesNotHeatDisablesTheRow();   // identifier "a" (air; "bu" heats): combo, edit, save disabled
 void editStaysEnabledWhenLocked();          // set_locked(true): field_enabled("edit_step_heat") true
 // test_experiment_window.cpp
 void stepHeatEditorOpensFromMenuAndRefreshesFactory(); // save a new template in the editor -> factory choices include it
