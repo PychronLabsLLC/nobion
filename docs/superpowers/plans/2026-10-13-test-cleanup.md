@@ -52,14 +52,15 @@ Read from `develop` `0f17653d`.
 
 **Files:** create `tools/test_times.py`; modify `docs/dev_setup.md` (a "Test times" paragraph).
 
-- [ ] Step 1: Write `tools/test_times.py`:
+- [x] Step 1: Write `tools/test_times.py`:
   - `run --preset dev [--tests-regex R] --out times.xml`: runs `ctest --preset <p> -j1 --output-junit <out>` (one at a time, so a time is the test's own), exit status of ctest passed through.
   - `show times.xml [--top N] [--by suite|test]`: reads the JUnit (`testcase` `name`, `time`), groups by the part before the first `.` (gtest suite; `Engines/ProjectImportTest` kept whole), prints count, sum, median, min, max per suite and the top N tests.
   - `compare before.xml after.xml`: per suite, sum before and after and the difference; tests present in one only listed.
   - Standard library only; `--help` for each.
-- [ ] Step 2: Test it by hand on `ctest --preset dev --tests-regex 'ProjectImportTest'` and check its numbers against gtest's own output (`pychron_dvc_tests --gtest_filter='Engines/ProjectImportTest.*'`): sums within 10%.
-- [ ] Step 3: `docs/dev_setup.md`: when and how to run it; a full `-j1` run takes about 15 min.
+- [x] Step 2: Test it by hand on `ctest --preset dev --tests-regex 'ProjectImportTest'` and check its numbers against gtest's own output (`pychron_dvc_tests --gtest_filter='Engines/ProjectImportTest.*'`): sums within 10%.
+- [x] Step 3: `docs/dev_setup.md`: when and how to run it; a full `-j1` run takes about 15 min.
 - [ ] Step 4: Record a baseline of the whole tree in the commit message (top 15 suites by sum). Commit `chore(tools): a per-test time report from ctest`.
+  - Tool committed by the nightly run of 2026-10-16 with a `ProjectImportTest` baseline only: a nightly unit may not build the whole tree or run the whole of `ctest --preset dev`. The whole-tree baseline is still owed: `python3 tools/test_times.py run --preset dev --out baseline.xml` after a full build, then `show baseline.xml --top 15`, recorded in the commit message of the first later task that changes a test.
 
 ### Task 2: Local coverage build and report
 

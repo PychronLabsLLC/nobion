@@ -131,6 +131,22 @@ cmake --build --preset dev-ui --parallel
 ctest --preset dev-ui
 ```
 
+Test times: before and after a change meant to make tests cheaper (or one
+that removes or merges tests), record each test's own time with
+`tools/test_times.py`. `run` calls ctest one test at a time (`-j1`), so a time
+is not the share of a busy machine, and writes ctest's JUnit file; `show`
+prints count, sum, median, min and max per GoogleTest suite and the slowest
+tests; `compare` gives each suite's sum before and after, and the tests found
+in one file only. A full `-j1` run of `dev` takes about 15 minutes; pass
+`--tests-regex` to time one suite. Times include starting the test binary
+once per test, so they read a few percent above GoogleTest's own.
+
+```bash
+python3 tools/test_times.py run --preset dev --tests-regex 'ProjectImportTest' --out before.xml
+python3 tools/test_times.py show before.xml --top 15
+python3 tools/test_times.py compare before.xml after.xml
+```
+
 To try the spectrometer window in simulation, run the app with `--sim` and
 open View > Spectrometer (Ctrl+Shift+S); the example
 `spectrometer.sim-integrated.toml` is loaded with a beam that follows its
