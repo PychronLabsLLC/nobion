@@ -388,11 +388,11 @@ git commit -m "feat(setup): ship an example step heat template"
   - `enum Column { Step, Value, Units, Duration, Cleanup, BeamDiameter, RampRate, ColumnCount };` headers "Step", "Value", "Units", "Duration (s)", "Cleanup (s)", "Beam diameter", "Ramp rate".
   - `void set_template(experiment::StepHeatTemplate t);` `const experiment::StepHeatTemplate& tmpl() const;` `[template]` fields are edited through `void set_template_defaults(std::optional<Unit>, std::optional<Duration> duration, std::optional<Duration> cleanup, std::string description)`.
   - `void set_form_extraction(experiment::ExtractionSpec form);` what inherited cells grey against.
-  - Row operations, each one undoable by `revert` only (no undo stack): `int add_step(std::optional<int> selected)` (inserts `step_after(t, selected or last)` after that row, returns its row); `int insert_step(int row)` (copy of `row` before it); `void remove_rows(std::vector<int> rows)`; `bool move_up(int row)`, `bool move_down(int row)`; `void fill(Column c, const QVariant& v, std::vector<int> rows)` (empty rows: every row); `Result<void> fill_values(std::vector<int> rows, const QString& text)` (`parse_step_values` then `experiment::fill_values`).
+  - Row operations, each one undoable by `revert` only (no undo stack): `int add_step(std::optional<int> selected)` (inserts `step_after(t, selected or last)` after that row, returns its row); `int insert_step(int row)` (copy of `row` before it); `void remove_rows(std::vector<int> rows)`; `bool move_up(int row)`, `bool move_down(int row)`; `void fill(Column c, const QVariant& v, std::vector<int> rows)` (empty rows: every row); `Result<void> fill_values(const std::vector<int>& rows, const QString& text)` (`parse_step_values` then `experiment::fill_values`).
   - `data`: Step column = `step_name(row)`, read-only. Empty optional: `DisplayRole` = resolved value from `resolve_step(form, t, step)`, `ForegroundRole` = palette's disabled text colour, `EditRole` = empty. `setData` with empty text clears the optional.
   - `signal void edited();` after any change.
 
-- [ ] **Step 1: Write the failing QtTest slots**
+- [x] **Step 1: Write the failing QtTest slots**
 
 ```cpp
 void stepColumnIsLettersAndReadOnly();
@@ -404,10 +404,10 @@ void fillSetsOneColumnOnSelectedRows();          // fill(Cleanup, 20, {0,2}); ro
 void fillValuesFromText();                       // "5:2.5:4" on no selection appends 4 steps 5,7.5,10,12.5; "1,2" on 3 rows -> error text
 ```
 
-- [ ] **Step 2: Run** `cmake --build --preset dev-ui --target pychron_ui_test_step_heat_editor` — FAIL (no header).
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** `QT_QPA_PLATFORM=offscreen build/dev-ui/tests/ui/pychron_ui_test_step_heat_editor` — PASS.
-- [ ] **Step 5: Checks** (`quality_check.py`; `compiler_sweep.py --changed --build-dir build/dev-ui`) **and commit**
+- [x] **Step 2: Run** `cmake --build --preset dev-ui --target pychron_ui_test_step_heat_editor` — FAIL (no header).
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** `QT_QPA_PLATFORM=offscreen build/dev-ui/tests/ui/pychron_ui_test_step_heat_editor` — PASS.
+- [x] **Step 5: Checks** (`quality_check.py`; `compiler_sweep.py --changed --build-dir build/dev-ui`) **and commit**
 
 ```bash
 git commit -m "feat(ui): step heat table model"
