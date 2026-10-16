@@ -40,7 +40,7 @@
 **Files:**
 - Create: `libs/experiment/include/pychron/experiment/factory/step_heat_template.hpp`
 - Create: `libs/experiment/src/factory/step_heat_template.cpp`
-- Modify: `libs/experiment/CMakeLists.txt` (add the source)
+- `libs/experiment/CMakeLists.txt`: unchanged; it globs `src/*.cpp` recursively
 - Test: `tests/experiment/test_step_heat_template.cpp` (new; the directory globs `test_*.cpp`)
 
 **Interfaces:**
@@ -52,7 +52,7 @@
   - `Result<StepHeatTemplate> parse_step_heat(std::string_view text, std::string_view name);` messages prefixed `"<name>.toml: "`. `name` must pass `valid_step_heat_name`. Result's `name` is `name`.
   - `Result<StepHeatTemplate> load_step_heat(const std::filesystem::path& path);` reads the file (`Io` error if unreadable), name = stem, messages prefixed with `path.string()` instead of `<name>.toml`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```cpp
 TEST(StepHeatParse, ReadsTheSpecExample) {
@@ -94,19 +94,19 @@ TEST(StepHeatParse, NamesFollowTheBlockRule);  // valid: "laser-12", "a_b", "x9"
 TEST(StepHeatLoad, NamesTheFileAndTakesTheStem);  // temp dir file "co2-6.toml": name "co2-6"; bad file: error starts with its path
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cmake --build --preset dev --target pychron_experiment_tests` — Expected: compile error, `step_heat_template.hpp` not found.
 
-- [ ] **Step 3: Implement the header and reader**
+- [x] **Step 3: Implement the header and reader**
 
 Read with toml++ directly in `step_heat_template.cpp` (queue_toml.cpp's `Reader` is in an anonymous namespace and writes non-optional fields; do not move it). A local `Errors` collector in the same `"<file>: <where>: <msg>"` and `"; "` form as `queue_toml.cpp`. Integers accepted wherever a number is (`node.value<double>()`). After reading, append `check_step_heat`'s lines (each prefixed by the file). Step label from `step_name(i)` (`factory/increments.hpp`): `"step " + std::to_string(i + 1) + " (" + step_name(i) + ")"`.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `build/dev/tests/experiment/pychron_experiment_tests --gtest_filter='StepHeat*'` — Expected: all PASS.
 
-- [ ] **Step 5: Checks and commit**
+- [x] **Step 5: Checks and commit**
 
 Run `python3 tools/quality_check.py` (exit 0) and `python3 tools/compiler_sweep.py --changed` (no warnings).
 
