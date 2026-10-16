@@ -113,9 +113,8 @@ Result<std::vector<RunSpec>> build_runs(const FactoryForm& form, const Identifie
   auto tmpl = template_run(form, ids);
   if (!tmpl) return fail(tmpl.error());
   const FieldRules rules = rules_for(tmpl->id.type);
-  auto values = parse_step_values(form.step_heat);
-  if (!values) return fail(values.error());
-
+  // Template checks come before the text is parsed: a template with any text,
+  // even text that does not parse, is the "not both" error.
   const StepHeatTemplate* named = nullptr;
   if (const std::string name = trim(form.step_heat_template); !name.empty()) {
     if (!trim(form.step_heat).empty()) return form_error("choose a step heat template or type step values, not both");
@@ -123,6 +122,8 @@ Result<std::vector<RunSpec>> build_runs(const FactoryForm& form, const Identifie
     if (found == step_heats.end()) return form_error("unknown step heat template '" + name + "'");
     named = &found->second;
   }
+  auto values = parse_step_values(form.step_heat);
+  if (!values) return fail(values.error());
   strip_for_type(*tmpl);
 
   const bool heats = named != nullptr || !values->empty();

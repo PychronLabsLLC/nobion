@@ -66,7 +66,6 @@ Result<std::vector<RunSpec>> build_runs(const FactoryForm& form, const Identifie
                                         const StepHeatLibrary& step_heats = {});
 
 // Never names a template: a queue row does not say which one made it.
-
 FactoryForm form_from_run(const RunSpec& run);
 
 // The step heat text field's values as a template: [template] units, duration

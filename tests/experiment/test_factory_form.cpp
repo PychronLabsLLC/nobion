@@ -269,6 +269,17 @@ TEST(StepHeatBuild, TemplateAndTextIsAnError) {
       << runs.error().what;
 }
 
+TEST(StepHeatBuild, TemplateAndUnparsableTextIsTheNotBothError) {
+  auto f = unknown_form();
+  f.step_heat_template = "laser-12";
+  f.step_heat = "abc";
+  auto runs = build_runs(f, kIds, library_with("laser-12", {1}));
+  ASSERT_FALSE(runs);
+  EXPECT_EQ(runs.error().kind, ErrorKind::Config);
+  EXPECT_NE(runs.error().what.find("choose a step heat template or type step values, not both"), std::string::npos)
+      << runs.error().what;
+}
+
 TEST(StepHeatBuild, UnknownTemplateIsAnError) {
   auto f = unknown_form();
   f.step_heat_template = "nope";
