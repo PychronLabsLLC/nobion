@@ -41,7 +41,8 @@ Read from `develop` `0f17653d`.
 | `cmake/PychronCoverage.cmake` (new) | `PYCHRON_COVERAGE` option: clang `-fprofile-instr-generate -fcoverage-mapping`; refused with gcc or MSVC. |
 | `CMakePresets.json` | `coverage` configure and test preset (`build/coverage`, `LLVM_PROFILE_FILE` per process). |
 | `tools/coverage_report.py` (new) | Merge profiles, `llvm-cov report` over `libs/` only, write a summary; compare two summaries. |
-| `tests/dvc/test_project_import.cpp`, `tests/dvc/test_meta_import.cpp`, `tests/dvc/*support*.hpp` | Task 3's changes, decided from its profile. |
+| `libs/dvc/src/git_reader.cpp`, `libs/dvc/include/pychron/dvc/git_reader.hpp`, `libs/dvc/src/commit_walk.cpp`, `tests/dvc/test_git_reader.cpp` | Task 4: fewer git processes per import run. |
+| `tests/dvc/git_fixture.hpp` and its test | Task 5: fewer git processes per fixture commit. |
 | `tests/devices/spectrometer/test_thermo_qtegra_acquire.cpp`, `tests/devices/spectrometer/legacy/test_acquirers.cpp` | S2 folds. |
 | `apps/elctl/tests/test_import_cmd.cpp` | S4 trim. |
 | `docs/dev_setup.md` | How to run the two tools. |
@@ -86,10 +87,11 @@ A measuring task: it writes findings, not fixes. Its result decides Tasks 4 and 
 
 **Files:** modify `docs/superpowers/specs/2026-10-13-test-cleanup-design.md` section 4 (findings), this plan (Tasks 4 and 5 written from them).
 
-- [ ] Step 1: Profile the six slowest bodies (spec section 4's list) with `sample` on macOS while each runs alone (`--gtest_filter`, `--gtest_repeat=3` for `sample` to catch it): time in `git` subprocesses (`GitFixture`, `LegacyRepoBuilder` commits), in `run_import` (reader, writer, store), in `fresh_world` (migrations), in assertions (`snapshot_of`, history reads).
-- [ ] Step 2: Count, for `OneHistoryOneResult` in both suites, the git commits it makes, the imports it runs and the worlds it opens; same for `ReadableRecordAfterAnUnreadableFirstRecordStartsTheCollection` and `VerifyAfterImportIsOk`.
-- [ ] Step 3: Time `SetUp` alone: a `TEST_P` with an empty body under `--gtest_repeat=20` in a scratch build, not committed. Confirm the 10% bound or correct it.
-- [ ] Step 4: Write the findings into spec section 4 (numbers, where the time is) and replace Tasks 4 and 5 below with concrete steps for the two largest causes. Commit `docs: where the importer tests spend their time`.
+- [x] Step 1: Profile the six slowest bodies (spec section 4's list) with `sample` on macOS while each runs alone (`--gtest_filter`, `--gtest_repeat=3` for `sample` to catch it): time in `git` subprocesses (`GitFixture`, `LegacyRepoBuilder` commits), in `run_import` (reader, writer, store), in `fresh_world` (migrations), in assertions (`snapshot_of`, history reads).
+- [x] Step 2: Count, for `OneHistoryOneResult` in both suites, the git commits it makes, the imports it runs and the worlds it opens; same for `ReadableRecordAfterAnUnreadableFirstRecordStartsTheCollection` and `VerifyAfterImportIsOk`.
+- [x] Step 3: Time `SetUp` alone: a `TEST_P` with an empty body under `--gtest_repeat=20` in a scratch build, not committed. Confirm the 10% bound or correct it.
+  - Done by the nightly run of 2026-10-16 (findings in spec section 4). Steps 1 and 2 were run on the whole of both suites as well as on the six bodies (seven: `UnreadableVersionIsSupersededByAReadableOneOrADeletion` of the project suite is as slow as the meta one), and git processes were counted with a logging `git` placed first on `PATH`. `SetUp` is about 2% of a suite: the bound holds. About 85% of both suites is waiting on git children; the two largest causes are `GitReader`'s processes per import run and verify walk (about 70%) and the fixture's commits (13 to 15%).
+- [x] Step 4: Write the findings into spec section 4 (numbers, where the time is) and replace Tasks 4 and 5 below with concrete steps for the two largest causes. Commit `docs: where the importer tests spend their time`.
 
 ### Moved to its own row (T097): fewer git processes per import run (`GitReader`), was Task 4
 
@@ -112,9 +114,15 @@ Spec section 4, cause 1: every import run and every verify walk opens a new `Git
   - Coverage of `libs/` not measured: Task 2's tool is not on `develop` yet. No test removed; four added, and two (`IgnoresInheritedGitEnvironment`, `OpenRejectsShallowClone`) gained assertions; the old open path is still reached by every open-failure test.
   - `quality_check.py` 0 findings, `compiler_sweep.py --changed` 0 warnings, full `ctest --preset dev` 5661 passed, importer suites under `PYCHRON_TEST_PG_URL` 220 passed.
 
-### Task 5: Second cause (written by Task 3)
+### Task 5: Fewer git processes per fixture commit (`GitFixture`)
 
-As Task 4.
+Spec section 4, cause 2: fixture commits are 13 to 15% of both suites and about 19% of the verify tests. `GitFixture::commit` (`tests/dvc/git_fixture.hpp:140`) starts 3 processes: `add -A`, `commit`, and `rev-parse HEAD` for the sha (`merge` starts 2, the second also `rev-parse HEAD`). Test-only change; does not depend on Task 4 and may land first.
+
+**Files:** modify `tests/dvc/git_fixture.hpp`; test `tests/dvc/test_git_reader.cpp` (where `GitFixture` is used against `GitReader` and `parse_git_version` is tested).
+
+- [ ] Step 1: Baseline as Task 4 Step 1 (if Task 4 has landed, its after is this baseline).
+- [ ] Step 2: `head()` reads the sha from the fixture's own git directory: `<path()>/.git/HEAD`; when it is `ref: <name>`, the file `<path()>/.git/<name>`; when that file is missing (a packed ref), `packed-refs`, and only when that fails too, today's `git rev-parse HEAD`. The file is read, never written, and only inside the fixture's root, so `libs/ingest/AGENTS.md`'s rule (no git against this repository) holds. Test first: `head()` equals `git rev-parse HEAD` after a commit, after a merge, on a detached HEAD after `checkout <sha>`, and after `git pack-refs --all`.
+- [ ] Step 3: Times after (`test_times.py compare`), git process count after (expected: about 590 fewer per `ProjectImportTest` run), coverage of `libs/` unchanged. `quality_check.py`, `compiler_sweep.py --changed`, `pychron_dvc_tests` and `pychron_elctl_tests --gtest_filter='ImportCmd*'` (it uses `GitFixture` too). Commit `test(dvc): a fixture commit reads its sha from the ref, not from git rev-parse`, with the numbers in its message.
 
 ### Task 6: S2 folds in the Qtegra acquire tests
 
@@ -143,6 +151,10 @@ Not cut yet: the candidates (spec section 3, about 60 S1 names and the S3 names)
 
 ## Self-review
 
-- Spec section 6's order kept: tooling (Tasks 1, 2), importer fixtures (3–5), S2 (6, 7), S4 (8), S1 and S3 (9 on). Section 4's "measure SetUp first" is Task 3, and its premise is already measured to be false for most of the time, so Tasks 4 and 5 are left to be written from Task 3's findings rather than guessed.
+- Spec section 6's order kept: tooling (Tasks 1, 2), importer fixtures (3–5), S2 (6, 7), S4 (8), S1 and S3 (9 on). Section 4's "measure SetUp first" is Task 3, and its premise is already measured to be false for most of the time, so Tasks 4 and 5 were left to be written from Task 3's findings rather than guessed. Task 3 found `SetUp` at about 2% and git processes at about 85% of both suites: Tasks 4 and 5 now cut git processes (reader, then fixture), and the shared per-suite world of the spec's first proposal is dropped.
 - Coverage gate (owner's answer 4) is a constraint on every task from 4 on; it needs Task 2 first.
 - UI suites (answer 5): none touched.
+
+## Open questions
+
+- Task 4 changes production code in `libs/dvc` (`GitReader::open`, and a new `commits_and_changes` used by the commit walk) so that the importer tests, the largest share of a full `ctest` run, start fewer git processes; behaviour and error messages stay the same, and real imports gain too. Is a production change made for test time within T036, or should Task 4 be its own row (Task 5, test-only, can land either way)?

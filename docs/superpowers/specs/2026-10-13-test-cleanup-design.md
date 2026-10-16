@@ -101,6 +101,83 @@ signal). Long tests are not superfluous for being long.
   profile those bodies first; a shared world only where `SetUp` is shown
   to matter. `OneHistoryOneResult` is kept whole whatever it costs
   (`libs/ingest/AGENTS.md`): made cheaper, never split or cut.
+- Profiled 2026-10-16 (plan Task 3; same build and Mac; other nightly lanes
+  running, load average 8 to 10 on 18 cores, so absolute times about 1.5x
+  the 2026-10-13 ones: `ProjectImportTest` 190 s, `MetaImportTest` 43 s;
+  shares below are what counts). How: `sample` on main thread from process
+  start, each self sample charged to outermost test-level helper under
+  `TestBody` (`run_import`, verify, fixture commits, `fresh_world`,
+  `snapshot_of`) and split into waiting on a git child (`poll`,
+  `posix_spawn`, `wait4` under `GitReader` or `GitFixture`) and in-process
+  work; git processes counted with a logging `git` first on `PATH` (each
+  `GitReader::open` runs `git --version` once, so those lines count adapter
+  opens). Scripts and raw reports were scratch, not kept.
+- Where time goes, whole suite (share of main-thread samples):
+
+  | | `ProjectImportTest` | `MetaImportTest` |
+  |---|---|---|
+  | git children of `run_import` | 61.6% | 55.0% |
+  | git children of verify | 8.1% | 11.3% |
+  | fixture commits (`GitFixture`, `LegacyRepoBuilder`) | 14.6% | 12.7% |
+  | importer, store, assertions in process | 10.5% | 15.7% |
+  | other git waits in body | 0.6% | 1.2% |
+  | `SetUp` | 2.0% | 2.3% |
+  | `fresh_world` (migrations) | 1.5% | 0.9% |
+  | teardown | 1.1% | 0.9% |
+  | all waits on git children | 85.4% | 80.9% |
+
+- Git processes per suite run: project 14 056 (772 adapter opens, 584
+  fixture commits, 88 `init`), meta 3 720 (190 opens, 128 commits). One git
+  process costs about 7 ms on this Mac (`git rev-parse HEAD`, 200 in
+  1.47 s). By kind, project: per batch `diff-tree` 2 702, `log` 2 600,
+  `cat-file` 2 331 (`GitReader::changes`, `commits`, `fetch_blobs`, one
+  each per batch, already `--stdin`); per open 4 (`--version`,
+  `rev-parse --git-dir`, `rev-parse --is-shallow-repository`,
+  `rev-parse --verify <branch>`, `git_reader.cpp:388`–`453`), per run
+  `rev-list` 993 and `for-each-ref` 690; per fixture commit 3 (`add -A`,
+  `commit`, `rev-parse HEAD`, `git_fixture.hpp:140`–`147`).
+- Six slowest bodies (one at a time, same load):
+
+  | Test | time | git processes | adapter opens | fixture commits | worlds | git wait |
+  |---|---|---|---|---|---|---|
+  | project `OneHistoryOneResult` | 30 s | 3 211 | 119 | 35 + 2 merges | 10 | 87% |
+  | project `ReadableRecordAfterAnUnreadableFirstRecordStartsTheCollection` | 20 s | 2 109 | 106 | 16 | 15 | 87% |
+  | project `VerifyAfterImportIsOk` | 7 s | 699 | 8 | 37 + 2 merges | 2 | 86% |
+  | project `UnreadableVersionIsSupersededByAReadableOneOrADeletion` | 7 s | 782 | 44 | 11 | 8 | 89% |
+  | meta `OneHistoryOneResult` | 20 s | 1 944 | 79 | 29 + 4 merges | 8 | 84% |
+  | meta `VerifyAfterImportIsOk` | 6 s | 573 | 8 | 29 + 4 merges | 2 | 83% |
+  | meta `UnreadableVersionIsSupersededByAReadableOneOrADeletion` | 5 s | 427 | 34 | 5 | 8 | 78% |
+
+  Worlds: `world_` of `SetUp` plus each `fresh_world()`. Opens: every import
+  run and every verify walk opens a new adapter, hence a new `GitReader`.
+  `OneHistoryOneResult`: 85 of project's 119 opens are the stopped-after-
+  every-batch runs, replays 53% of its time (meta 51%). `ReadableRecord...`
+  calls `same_at_every_cut` twice (7 worlds, about 52 opens each). Verify
+  tests: verify walks 67% of time, fixture commits 19%.
+- `SetUp` alone (scratch `TEST_P` with empty body, `--gtest_repeat=20`, not
+  committed): project median 34 ms (33 to 41), meta 32 ms (31 to 36): 2.2%
+  and 2.4% of 2026-10-13 suite sums. 10% bound of 2026-10-13 holds, with room: shared
+  per-suite world, template store, template database not worth doing; out
+  of this work.
+- Not the cause: migrations, `snapshot_of`, history reads, store writes
+  (each 2% or less).
+- So two causes, in order:
+  1. Git processes `GitReader` starts for each import run and verify walk
+     (70% project, 66% meta). Tests drive many short runs on purpose
+     (cut, resumed, replayed: `libs/ingest/AGENTS.md`), so fixed cost of a
+     run counts many times: 4 processes to open, 2 per run, 3 per batch.
+     Remedy (plan Task 4): fewer processes per open and per batch, same
+     output: `git --version` once per process; the three `rev-parse` of
+     `open` as one; `commits` and `changes` of a batch from one `git log`.
+     Production code (`libs/dvc`), behaviour unchanged, speed change
+     measured as root `AGENTS.md` asks; helps `elctl import` and the
+     `ImportCmd` suites too. Not chosen: a memoizing process runner
+     injected in tests (larger cut, but GitReader would then parse output
+     git did not produce for that call).
+  2. Fixture commits (13 to 15%; 19% of verify tests). Remedy (plan
+     Task 5): 3 processes per commit to 2: sha read from the ref file in
+     fixture's own git dir instead of `rev-parse HEAD`, `rev-parse` kept
+     as fallback when ref is packed.
 - `LabSim`, `LabSessionTest`, `ui.test_experiment_window`: look for real
   waits that a `VirtualClock` would remove before anything else.
 
@@ -119,7 +196,10 @@ signal). Long tests are not superfluous for being long.
 ## 6. Order of work (for the plan)
 
 1. Measurement tooling (timing hook, coverage preset), no test changed.
-2. Importer fixtures shared per suite (section 4), times before and after.
+2. Importer suites made cheaper where section 4's profile puts the time:
+   fewer git processes per import run, then per fixture commit; times
+   before and after. (First proposed: fixtures shared per suite; profile
+   showed `SetUp` 2%, so dropped.)
 3. S2 folds, one file per commit.
 4. S4: `ImportCmdParity` trimmed to command paths.
 5. S1 and S3 removals, one suite per commit, each with its named cover.
