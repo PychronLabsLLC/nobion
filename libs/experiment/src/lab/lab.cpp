@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <iterator>
 #include <set>
 #include <sstream>
 #include <system_error>
@@ -173,6 +174,10 @@ Lab load_lab(const LabPaths& paths) {
       else lab.problems.push_back(b.error().what);
     }
   }
+  auto step_heats = load_step_heats(paths.step_heats());
+  lab.step_heats = std::move(step_heats.templates);
+  lab.problems.insert(lab.problems.end(), std::make_move_iterator(step_heats.problems.begin()),
+                      std::make_move_iterator(step_heats.problems.end()));
   return lab;
 }
 

@@ -8,6 +8,7 @@
 #include <iterator>
 #include <set>
 #include <span>
+#include <system_error>
 #include <utility>
 
 #include <toml++/toml.hpp>
@@ -390,6 +391,105 @@ std::string step_heat_summary(const std::vector<RunSpec>& runs) {
   }
   out += " extraction";
   return out;
+}
+
+StepHeatLoad load_step_heats(const std::filesystem::path& dir) {
+  namespace fs = std::filesystem;
+  StepHeatLoad out;
+  std::error_code ec;
+  if (!fs::is_directory(dir, ec)) return out;
+  std::vector<fs::path> files;
+  for (fs::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec))
+    if (it->path().extension() == ".toml" && !it->is_directory(ec)) files.push_back(it->path());
+  if (ec) out.problems.push_back(dir.string() + ": cannot be listed: " + ec.message());
+  std::ranges::sort(files);
+  for (const auto& f : files) {
+    const std::string stem = f.stem().string();
+    if (!valid_step_heat_name(stem)) {
+      out.problems.push_back(f.string() + ": name '" + stem + "' must be lower-case letters, digits, '_' or '-'");
+      continue;
+    }
+    if (auto t = load_step_heat(f)) out.templates.insert_or_assign(stem, std::move(*t));
+    else out.problems.push_back(t.error().what);
+  }
+  return out;
+}
+
+namespace {
+
+Unexpected<Error> bad_name(std::string_view name) {
+  return fail(ErrorKind::Config,
+              "step heat template name '" + std::string(name) + "' must be lower-case letters, digits, '_' or '-'");
+}
+
+}  // namespace
+
+std::filesystem::path StepHeatFiles::path(std::string_view name) const { return dir_ / (std::string(name) + ".toml"); }
+
+bool StepHeatFiles::exists(std::string_view name) const {
+  std::error_code ec;
+  return valid_step_heat_name(name) && std::filesystem::is_regular_file(path(name), ec);
+}
+
+Result<std::vector<std::string>> StepHeatFiles::list() const {
+  namespace fs = std::filesystem;
+  std::vector<std::string> names;
+  std::error_code ec;
+  if (!fs::is_directory(dir_, ec)) return names;
+  for (fs::directory_iterator it(dir_, ec), end; !ec && it != end; it.increment(ec)) {
+    if (!it->is_regular_file(ec) || it->path().extension() != ".toml") continue;
+    std::string name = it->path().stem().string();
+    if (valid_step_heat_name(name)) names.push_back(std::move(name));
+  }
+  if (ec) return fail(ErrorKind::Io, "cannot list " + dir_.string() + ": " + ec.message());
+  std::ranges::sort(names);
+  return names;
+}
+
+Result<StepHeatTemplate> StepHeatFiles::read(std::string_view name) const {
+  if (!valid_step_heat_name(name)) return bad_name(name);
+  return load_step_heat(path(name));
+}
+
+Result<void> StepHeatFiles::write(const StepHeatTemplate& t) const {
+  namespace fs = std::filesystem;
+  if (!valid_step_heat_name(t.name)) return bad_name(t.name);
+  const auto target = path(t.name);
+  if (const auto problems = check_step_heat(t); !problems.empty()) {
+    std::string what = target.string() + ": ";
+    for (std::size_t i = 0; i < problems.size(); ++i) what += (i ? "; " : "") + problems[i];
+    return fail(ErrorKind::Config, what);
+  }
+  std::error_code ec;
+  fs::create_directories(dir_, ec);
+  if (ec) return fail(ErrorKind::Io, "cannot create " + dir_.string() + ": " + ec.message());
+  const auto tmp = dir_ / ("." + t.name + ".toml.tmp");
+  const std::string text = to_toml(t);
+  {
+    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
+    out.write(text.data(), static_cast<std::streamsize>(text.size()));
+    out.flush();
+    if (!out) {
+      fs::remove(tmp, ec);
+      return fail(ErrorKind::Io, "cannot write " + target.string());
+    }
+  }
+  fs::rename(tmp, target, ec);
+  if (ec) {
+    const std::string why = ec.message();
+    fs::remove(tmp, ec);
+    return fail(ErrorKind::Io, "cannot write " + target.string() + ": " + why);
+  }
+  return {};
+}
+
+Result<void> StepHeatFiles::remove(std::string_view name) const {
+  if (!valid_step_heat_name(name)) return bad_name(name);
+  const auto p = path(name);
+  std::error_code ec;
+  if (!std::filesystem::remove(p, ec) || ec)
+    return fail(ErrorKind::Io, "cannot delete " + p.string() + (ec ? ": " + ec.message() : ": no such file"));
+  return {};
 }
 
 }  // namespace pychron::experiment

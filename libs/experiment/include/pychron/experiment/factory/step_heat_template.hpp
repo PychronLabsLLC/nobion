@@ -2,9 +2,12 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "pychron/core/error.hpp"
@@ -113,5 +116,41 @@ inline constexpr std::size_t kMaxStepHeatSteps = 1000;
 // last step letter, value range in the first run's units, summed extraction
 // time (estimate_run, no measurement). Empty for no runs.
 [[nodiscard]] std::string step_heat_summary(const std::vector<RunSpec>& runs);
+
+// Templates by name (the file stem).
+using StepHeatLibrary = std::map<std::string, StepHeatTemplate, std::less<>>;
+
+struct StepHeatLoad {
+  StepHeatLibrary templates;
+  std::vector<std::string> problems;  // one line per file that did not load
+};
+
+// Every *.toml directly in `dir`, in sorted order. A file that does not load,
+// or whose stem fails valid_step_heat_name, is a problem line and is not
+// loaded. A missing directory gives no templates and no problem.
+[[nodiscard]] StepHeatLoad load_step_heats(const std::filesystem::path& dir);
+
+// The files of <lab>/queues/step_heats, for the editor (the API of
+// ConditionalFiles). Every method refuses, with a Config error, a name that
+// fails valid_step_heat_name before it touches the disk.
+class StepHeatFiles {
+ public:
+  explicit StepHeatFiles(std::filesystem::path dir) : dir_(std::move(dir)) {}
+
+  // Names without ".toml", sorted; empty when the directory is missing.
+  // Files whose stem fails valid_step_heat_name are left out.
+  [[nodiscard]] Result<std::vector<std::string>> list() const;
+  [[nodiscard]] Result<StepHeatTemplate> read(std::string_view name) const;
+  // to_toml(t) to <dir>/<t.name>.toml through a temporary file that is then
+  // renamed, so a failed write leaves the old file (or none). Creates the
+  // directory. Refuses a template check_step_heat finds a problem in.
+  [[nodiscard]] Result<void> write(const StepHeatTemplate& t) const;
+  [[nodiscard]] Result<void> remove(std::string_view name) const;
+  [[nodiscard]] bool exists(std::string_view name) const;
+  [[nodiscard]] std::filesystem::path path(std::string_view name) const;
+
+ private:
+  std::filesystem::path dir_;
+};
 
 }  // namespace pychron::experiment

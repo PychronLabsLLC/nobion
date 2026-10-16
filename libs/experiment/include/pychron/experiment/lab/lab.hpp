@@ -14,6 +14,7 @@
 //   <lab>/defaults.toml           run factory defaults per (analysis type, device) (optional)
 //   <lab>/queues/*.toml           queue files (any name; the program looks and saves here first)
 //   <lab>/queues/blocks/*.toml    reusable run sequences for the run factory (optional)
+//   <lab>/queues/step_heats/*.toml  step heat templates for the run factory (optional)
 //   <lab>/notifications.toml      email, webhook and command notifications (optional)
 //   <lab>/tray_maps/*.txt         sample trays, in legacy pychron's format (optional)
 //   <lab>/patterns/*.toml         laser patterns a run may name (optional)
@@ -40,6 +41,7 @@
 #include "pychron/experiment/conditionals/validate.hpp"
 #include "pychron/experiment/factory/blocks.hpp"
 #include "pychron/experiment/factory/defaults.hpp"
+#include "pychron/experiment/factory/step_heat_template.hpp"
 #include "pychron/experiment/lab/executor_config.hpp"
 #include "pychron/experiment/lab/notifications.hpp"
 #include "pychron/experiment/measurement/adapters.hpp"
@@ -76,6 +78,8 @@ struct LabPaths {
   // and, below them, its blocks. Derived from `dir`, so not fields.
   [[nodiscard]] std::filesystem::path queues() const { return dir / "queues"; }
   [[nodiscard]] std::filesystem::path blocks() const { return dir / "queues" / "blocks"; }
+  // Step heat templates; not a queue directory (no file in it is a queue).
+  [[nodiscard]] std::filesystem::path step_heats() const { return dir / "queues" / "step_heats"; }
 };
 
 // A script name exists in any of the script directories (queue validation
@@ -120,6 +124,7 @@ struct Lab {
   std::map<std::string, jobs::PeakCenterConfig> peak_centers;
   DefaultsTable defaults;               // <lab>/defaults.toml: what a new run starts with
   std::map<std::string, Block> blocks;  // <lab>/queues/blocks/*.toml by block name
+  StepHeatLibrary step_heats;           // <lab>/queues/step_heats/*.toml by name
   NotificationConfig notifications;     // <lab>/notifications.toml; no channels when absent
   ExecutorConfig executor;              // <lab>/executor.toml; the defaults when absent
   laser::TrayLibrary trays;             // <lab>/tray_maps

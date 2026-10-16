@@ -285,7 +285,7 @@ git commit -m "feat(experiment): step heat editing helpers and summary"
   - `class StepHeatFiles` with the API of `ConditionalFiles` (`conditionals/library.hpp`): `explicit StepHeatFiles(std::filesystem::path dir)`; `Result<std::vector<std::string>> list() const` (sorted); `Result<StepHeatTemplate> read(std::string_view name) const`; `Result<void> write(const StepHeatTemplate& t) const` (`to_toml`, temp file then rename, creates the directory; name from `t.name`); `Result<void> remove(std::string_view name) const`; `bool exists(std::string_view name) const`; `std::filesystem::path path(std::string_view name) const`. Every method refuses (`Config`) a name failing `valid_step_heat_name` before touching the disk.
   - `Lab::step_heats` (`StepHeatLibrary`), filled by `load_lab` from `paths.step_heats()`, its problems appended to `Lab::problems`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```cpp
 TEST(StepHeatFiles, WriteReadListRemove);        // temp dir: write "b" then "a"; list == {"a","b"}; read("a") == normalized(a); remove; list == {"b"}
@@ -298,10 +298,10 @@ TEST_F(LabTest, ABadStepHeatFileIsALabProblem);         // problems has one line
 TEST_F(LabTest, AStepHeatsDirectoryIsNotAQueueDirectory); // a valid queue text saved as queues/step_heats/q.toml is a problem (not a template), never a queue
 ```
 
-- [ ] **Step 2: Run to verify they fail.**
-- [ ] **Step 3: Implement**; `load_lab` calls `load_step_heats(paths.step_heats())` after blocks.
-- [ ] **Step 4: Run** `--gtest_filter='StepHeat*:LabTest.*'` — PASS.
-- [ ] **Step 5: Checks and commit**
+- [x] **Step 2: Run to verify they fail.**
+- [x] **Step 3: Implement**; `load_lab` calls `load_step_heats(paths.step_heats())` after blocks.
+- [x] **Step 4: Run** `--gtest_filter='StepHeat*:LabTest.*'` — PASS.
+- [x] **Step 5: Checks and commit**
 
 ```bash
 git commit -m "feat(experiment): load step heat templates from queues/step_heats"

@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <random>
@@ -9,6 +10,7 @@
 #include "pychron/experiment/factory/form.hpp"
 #include "pychron/experiment/factory/increments.hpp"
 #include "pychron/experiment/factory/step_heat_template.hpp"
+#include "temp_path.hpp"
 
 using namespace pychron;
 using namespace pychron::experiment;
@@ -634,4 +636,131 @@ TEST(StepHeatSummary, UnitsOfTheFirstRunAndNothingForNoRuns) {
   for (auto& r : runs) r.extraction.units = Unit::Temp;
   EXPECT_EQ(step_heat_summary(runs), "2 runs, steps A to B, 600 to 900 °C, 1 min extraction");
   EXPECT_EQ(step_heat_summary({}), "");
+}
+
+namespace {
+
+namespace fs = std::filesystem;
+
+class ScratchDir {
+ public:
+  ScratchDir() : dir_(pychron::testing::unique_temp_path("pychron-step-heats-")) { fs::create_directories(dir_); }
+  ~ScratchDir() {
+    std::error_code ec;
+    fs::remove_all(dir_, ec);
+  }
+  ScratchDir(const ScratchDir&) = delete;
+  ScratchDir& operator=(const ScratchDir&) = delete;
+  ScratchDir(ScratchDir&&) = delete;
+  ScratchDir& operator=(ScratchDir&&) = delete;
+  [[nodiscard]] const fs::path& path() const { return dir_; }
+
+ private:
+  fs::path dir_;
+};
+
+std::vector<std::string> entries(const fs::path& dir) {
+  std::vector<std::string> out;
+  for (const auto& e : fs::directory_iterator(dir)) out.push_back(e.path().filename().string());
+  std::ranges::sort(out);
+  return out;
+}
+
+StepHeatTemplate named(std::string name, const std::vector<double>& values) {
+  StepHeatTemplate t;
+  t.name = std::move(name);
+  t.units = Unit::Watts;
+  t.duration = Duration(30);
+  for (const double v : values) {
+    StepHeatStep s;
+    s.value = v;
+    s.duration = Duration(30);  // equal to the default: normalized clears it
+    t.steps.push_back(s);
+  }
+  return t;
+}
+
+}  // namespace
+
+TEST(StepHeatFiles, WriteReadListRemove) {
+  const ScratchDir scratch;
+  const StepHeatFiles files(scratch.path());
+  const auto a = named("a", {0.5, 1});
+  ASSERT_TRUE(files.write(named("b", {2})));
+  ASSERT_TRUE(files.write(a));
+  auto names = files.list();
+  ASSERT_TRUE(names) << names.error().what;
+  EXPECT_EQ(*names, (std::vector<std::string>{"a", "b"}));
+  EXPECT_TRUE(files.exists("a"));
+  EXPECT_EQ(files.path("a"), scratch.path() / "a.toml");
+  auto back = files.read("a");
+  ASSERT_TRUE(back) << back.error().what;
+  EXPECT_EQ(*back, normalized(a));
+  ASSERT_TRUE(files.remove("a"));
+  EXPECT_FALSE(files.exists("a"));
+  EXPECT_EQ(*files.list(), (std::vector<std::string>{"b"}));
+  EXPECT_EQ(entries(scratch.path()), (std::vector<std::string>{"b.toml"}));  // no temporary file left
+}
+
+TEST(StepHeatFiles, WriteCreatesTheDirectory) {
+  const ScratchDir scratch;
+  const StepHeatFiles files(scratch.path() / "queues" / "step_heats");
+  EXPECT_TRUE(files.list()->empty());  // missing directory: no names, no error
+  ASSERT_TRUE(files.write(named("x", {1})));
+  EXPECT_TRUE(fs::is_regular_file(scratch.path() / "queues" / "step_heats" / "x.toml"));
+}
+
+TEST(StepHeatFiles, WriteRefusesABadTemplate) {
+  const ScratchDir scratch;
+  const StepHeatFiles files(scratch.path());
+  const auto r = files.write(named("x", {0}));
+  ASSERT_FALSE(r);
+  EXPECT_EQ(r.error().kind, ErrorKind::Config);
+  EXPECT_TRUE(entries(scratch.path()).empty());
+}
+
+TEST(StepHeatFiles, RefusesNamesOutsideTheRule) {
+  const ScratchDir scratch;
+  const auto dir = scratch.path() / "step_heats";
+  const StepHeatFiles files(dir);
+  const auto before = entries(scratch.path());
+  for (const std::string name : {"../x", "a/b", "Laser", ""}) {
+    SCOPED_TRACE(name);
+    EXPECT_FALSE(files.exists(name));
+    const auto w = files.write(named(name, {1}));
+    ASSERT_FALSE(w);
+    EXPECT_EQ(w.error().kind, ErrorKind::Config);
+    const auto r = files.read(name);
+    ASSERT_FALSE(r);
+    EXPECT_EQ(r.error().kind, ErrorKind::Config);
+    const auto d = files.remove(name);
+    ASSERT_FALSE(d);
+    EXPECT_EQ(d.error().kind, ErrorKind::Config);
+  }
+  EXPECT_EQ(entries(scratch.path()), before);
+  EXPECT_FALSE(fs::exists(dir));
+}
+
+TEST(StepHeatLoadDir, MissingDirectoryIsEmpty) {
+  const ScratchDir scratch;
+  const auto load = load_step_heats(scratch.path() / "absent");
+  EXPECT_TRUE(load.templates.empty());
+  EXPECT_TRUE(load.problems.empty());
+}
+
+TEST(StepHeatLoadDir, BadFilesAreProblemsGoodOnesLoad) {
+  const ScratchDir scratch;
+  const auto& dir = scratch.path();
+  std::ofstream(dir / "good.toml") << "[[steps]]\nvalue = 1\n";
+  std::ofstream(dir / "bad.toml") << "[[steps]]\nvalue = 0\n";
+  std::ofstream(dir / "Bad Name.toml") << "[[steps]]\nvalue = 1\n";
+  std::ofstream(dir / "notes.txt") << "not a template\n";
+  const auto load = load_step_heats(dir);
+  ASSERT_EQ(load.templates.size(), 1u);
+  EXPECT_TRUE(load.templates.contains("good"));
+  ASSERT_EQ(load.problems.size(), 2u);
+  // Sorted by path: "Bad Name.toml" before "bad.toml".
+  EXPECT_EQ(load.problems[0],
+            (dir / "Bad Name.toml").string() + ": name 'Bad Name' must be lower-case letters, digits, '_' or '-'");
+  EXPECT_EQ(load.problems[1].rfind((dir / "bad.toml").string() + ": ", 0), 0u) << load.problems[1];
 }

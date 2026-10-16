@@ -217,4 +217,37 @@ TEST_F(LabTest, NoBlocksDirectoryIsNoProblem) {
   EXPECT_TRUE(lab.blocks.empty());
   EXPECT_TRUE(lab.problems.empty()) << lab.problems.front();
 }
+
+// <lab>/queues/step_heats (step heat template spec, 4.1): read with the lab; a
+// file that does not load is a lab problem; nothing there is ever a queue.
+TEST_F(LabTest, StepHeatsLoadFromQueuesStepHeats) {
+  EXPECT_EQ(paths().step_heats(), dir_ / "queues" / "step_heats");
+  fs::create_directories(paths().step_heats());
+  std::ofstream(paths().step_heats() / "x.toml") << "[[steps]]\nvalue = 1\n[[steps]]\nvalue = 2\n";
+  const Lab lab = load_lab(paths());
+  EXPECT_TRUE(lab.problems.empty()) << lab.problems.front();
+  ASSERT_TRUE(lab.step_heats.contains("x"));
+  EXPECT_EQ(lab.step_heats.at("x").steps.size(), 2u);
+}
+
+TEST_F(LabTest, ABadStepHeatFileIsALabProblem) {
+  fs::create_directories(paths().step_heats());
+  const auto bad = paths().step_heats() / "bad.toml";
+  std::ofstream(bad) << "[[steps]]\nvalue = 0\n";
+  const Lab lab = load_lab(paths());
+  ASSERT_EQ(lab.problems.size(), 1u);
+  EXPECT_NE(lab.problems.front().find(bad.string()), std::string::npos) << lab.problems.front();
+  EXPECT_TRUE(lab.step_heats.empty());
+  EXPECT_TRUE(lab.plans->find("sim_multicollect"));  // the rest of the lab still loads
+}
+
+TEST_F(LabTest, AStepHeatsDirectoryIsNotAQueueDirectory) {
+  fs::create_directories(paths().step_heats());
+  const auto q = paths().step_heats() / "q.toml";
+  fs::copy_file(dir_ / "queues" / "experiment.toml", q);
+  const Lab lab = load_lab(paths());
+  EXPECT_FALSE(lab.step_heats.contains("q"));
+  ASSERT_EQ(lab.problems.size(), 1u);
+  EXPECT_NE(lab.problems.front().find(q.string()), std::string::npos) << lab.problems.front();
+}
 }  // namespace pychron::experiment::lab
