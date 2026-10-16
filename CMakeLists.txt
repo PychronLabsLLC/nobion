@@ -21,6 +21,7 @@ include(PychronCcache)
 include(PychronToolchainFixes)
 include(PychronWarnings)
 include(PychronSanitizers)
+include(PychronCoverage)
 include(PychronDependencies)
 
 # Libraries in dependency order: core <- transport <- codecs <- devices <- systems.

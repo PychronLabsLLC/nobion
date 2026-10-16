@@ -36,3 +36,6 @@ configs/examples/**/snapshots/
 configs/examples/**/camera_scales/
 # notification channels hold site addresses and webhook URLs
 configs/examples/notifications.toml
+
+# A coverage-built binary run outside ctest --preset coverage writes here.
+*.profraw

@@ -147,6 +147,41 @@ python3 tools/test_times.py show before.xml --top 15
 python3 tools/test_times.py compare before.xml after.xml
 ```
 
+Coverage: a change that removes or merges tests shows that the lines and
+branches of `libs/` the tests reach did not go down. The `coverage` presets
+build with clang's source-based coverage (`-DPYCHRON_COVERAGE=ON`; Clang or
+AppleClang only, and refused together with `PYCHRON_SANITIZE`) into
+`build/coverage`, and every test process merges its counters into
+`build/coverage/profiles` (`LLVM_PROFILE_FILE=...%4m.profraw`: a pool of four
+files per binary, not one per process, which for the whole tree would be tens
+of GB). `tools/coverage_report.py report` merges them with `llvm-profdata`,
+summarizes them with `llvm-cov export -summary-only` over every executable
+under `build/coverage/tests` and `build/coverage/apps`, keeps the files under
+`libs/`, writes per-file and total line and branch counts as JSON and prints
+the totals; `compare` lists every file whose covered lines or branches went
+down and exits 1 when one did. On macOS the LLVM tools come from `xcrun`
+(they must match Apple clang); elsewhere from `PATH`. Not in CI.
+
+```bash
+cmake --preset coverage
+cmake --build --preset coverage --parallel
+python3 tools/coverage_report.py clean --build-dir build/coverage
+ctest --preset coverage
+python3 tools/coverage_report.py report --build-dir build/coverage --out before.json
+# ... change the tests, build, clean, ctest again ...
+python3 tools/coverage_report.py report --build-dir build/coverage --out after.json
+python3 tools/coverage_report.py compare before.json after.json
+```
+
+To measure one suite, build its target and pass `--tests-regex` to ctest; the
+report then covers only the binaries that were built. A coverage-built
+binary run by hand, outside the preset, writes `default.profraw` in its
+working directory (ignored by git) unless `LLVM_PROFILE_FILE` is set. Run on `pychron_core_tests`
+alone (2026-10-16): configure 38 s, build 14 s with a warm ccache, tests 3 s,
+report under 1 s; `libs/` lines 86.94% (2643/3040), branches 77.39%
+(1188/1535) over the 31 files that binary reaches. A whole-tree run has not
+been timed yet.
+
 To try the spectrometer window in simulation, run the app with `--sim` and
 open View > Spectrometer (Ctrl+Shift+S); the example
 `spectrometer.sim-integrated.toml` is loaded with a beam that follows its

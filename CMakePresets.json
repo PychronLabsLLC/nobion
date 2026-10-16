@@ -100,6 +100,15 @@
         "BUILD_UI": "ON",
         "CMAKE_PREFIX_PATH": "$env{QT_PREFIX};$env{HOME}/Qt/6.12.0/macos;/opt/homebrew/opt/qt;/usr/local/opt/qt"
       }
+    },
+    {
+      "name": "coverage",
+      "displayName": "dev with clang source-based coverage (tools/coverage_report.py; clang only)",
+      "inherits": "dev",
+      "cacheVariables": {
+        "PYCHRON_COVERAGE": "ON",
+        "PYCHRON_WARNINGS_AS_ERRORS": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -128,6 +137,10 @@
     {
       "name": "dev-ui",
       "configurePreset": "dev-ui"
+    },
+    {
+      "name": "coverage",
+      "configurePreset": "coverage"
     }
   ],
   "testPresets": [
@@ -191,6 +204,15 @@
       },
       "output": {
         "outputOnFailure": true
+      }
+    },
+    {
+      "name": "coverage",
+      "displayName": "every test, each process merging its raw profile into build/coverage/profiles",
+      "inherits": "dev",
+      "configurePreset": "coverage",
+      "environment": {
+        "LLVM_PROFILE_FILE": "${sourceDir}/build/coverage/profiles/%4m.profraw"
       }
     }
   ]

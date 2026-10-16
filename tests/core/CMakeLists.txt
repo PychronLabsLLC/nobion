@@ -54,6 +54,12 @@ if(Python3_Interpreter_FOUND)
     COMMAND "${Python3_EXECUTABLE}" -m unittest discover -s "${PROJECT_SOURCE_DIR}/tools/tests" -p "test_compiler_sweep.py"
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
   set_tests_properties(tools.compiler_sweep PROPERTIES TIMEOUT 60)
+  # tools/coverage_report.py: which binaries are objects, what of llvm-cov's
+  # summary is kept, what counts as a drop; llvm-cov itself is not run.
+  add_test(NAME tools.coverage_report
+    COMMAND "${Python3_EXECUTABLE}" -m unittest discover -s "${PROJECT_SOURCE_DIR}/tools/tests" -p "test_coverage_report.py"
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
+  set_tests_properties(tools.coverage_report PROPERTIES TIMEOUT 60)
   # tools/agent_bench (the agent toolchain's ledger and fixed set): its tests
   # start no agent; the runner is given a repository made in a temporary
   # directory and a stand-in for the agent.

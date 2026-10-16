@@ -110,8 +110,9 @@ signal). Long tests are not superfluous for being long.
   GoogleTest's own per-test times; `SetUp` timed with a scoped timer in the
   fixture under an environment variable (`PYCHRON_TEST_TIMING`), not left on.
 - Coverage: a `coverage` configure preset (`-fprofile-instr-generate
-  -fcoverage-mapping`, clang), `llvm-cov report` on `libs/` before and after
-  each suite's change; the two reports in the commit message. Not in CI.
+  -fcoverage-mapping`, clang), `llvm-cov` summary (`export -summary-only`,
+  `tools/coverage_report.py`) on `libs/` before and after each suite's
+  change; the two reports in the commit message. Not in CI.
 - Per-test unique coverage (which test is the only one to reach a line) is
   out of reach without per-test profiles; S3 is judged by reading bodies.
 

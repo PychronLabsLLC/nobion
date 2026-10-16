@@ -66,14 +66,19 @@ Read from `develop` `0f17653d`.
 
 **Files:** create `cmake/PychronCoverage.cmake`, `tools/coverage_report.py`; modify top-level `CMakeLists.txt` (include the module), `CMakePresets.json`, `docs/dev_setup.md`.
 
-- [ ] Step 1: `cmake/PychronCoverage.cmake`: `option(PYCHRON_COVERAGE "clang source-based coverage" OFF)`; when ON and the compiler is not Clang or AppleClang, `FATAL_ERROR` naming the compiler; else add the two flags to compile and link options for every target (as `PychronSanitizers.cmake` adds its flags). Not combined with `PYCHRON_SANITIZE` (refused with a message).
-- [ ] Step 2: `CMakePresets.json`: configure preset `coverage` (inherits `dev`, `PYCHRON_COVERAGE=ON`, `PYCHRON_WARNINGS_AS_ERRORS=ON`), test preset `coverage` (inherits `dev`'s environment, adds `LLVM_PROFILE_FILE=${sourceDir}/build/coverage/profiles/%p-%m.profraw`), excluding nothing.
-- [ ] Step 3: `tools/coverage_report.py`:
-  - `report --build-dir build/coverage --out summary.json`: `llvm-profdata merge -sparse` of `profiles/*.profraw`; `llvm-cov report` with every test binary under `build/coverage/tests` and `apps/elctl/tests` as `-object`, `--ignore-filename-regex` keeping only `libs/`; writes per-file and total line and branch percentages as JSON and prints the totals. Finds the tools with `xcrun --find` on macOS, `PATH` elsewhere; exit 2 with the reason when they are missing.
+- [x] Step 1: `cmake/PychronCoverage.cmake`: `option(PYCHRON_COVERAGE "clang source-based coverage" OFF)`; when ON and the compiler is not Clang or AppleClang, `FATAL_ERROR` naming the compiler; else add the two flags to compile and link options for every target (as `PychronSanitizers.cmake` adds its flags). Not combined with `PYCHRON_SANITIZE` (refused with a message).
+  - Also `-fcoverage-compilation-dir=${CMAKE_BINARY_DIR}`: ccache's base_dir hands the compiler relative paths, and an object reused from another worktree's coverage build would name that worktree's directory.
+- [x] Step 2: `CMakePresets.json`: configure preset `coverage` (inherits `dev`, `PYCHRON_COVERAGE=ON`, `PYCHRON_WARNINGS_AS_ERRORS=ON`), test preset `coverage` (inherits `dev`'s environment, adds `LLVM_PROFILE_FILE=${sourceDir}/build/coverage/profiles/%4m.profraw`), excluding nothing.
+  - `%4m` (a pool of four files per binary, merged online) instead of `%p-%m`: one raw profile per test process is several MB per process for the large binaries, tens of GB for the whole tree. Build preset `coverage` added too.
+- [x] Step 3: `tools/coverage_report.py`:
+  - `report --build-dir build/coverage --out summary.json`: `llvm-profdata merge -sparse` of `profiles/*.profraw`; `llvm-cov export -summary-only` (machine-readable form of `llvm-cov report`) with every executable under `build/coverage/tests` and `build/coverage/apps` (so `apps/elctl/tests` and `elctl` itself) as `-object`, restricted to `libs/` by passing `<source>/libs` as the source filter (llvm-cov's regex has no negative match, so `--ignore-filename-regex` cannot keep only one directory) and again when summarizing; writes per-file and total line and branch counts and percentages as JSON and prints the totals. Finds the tools with `xcrun --find` on macOS, `PATH` elsewhere; exit 2 with the reason when they are missing.
   - `compare before.json after.json`: totals and every file whose lines or branches covered went down; exit 1 when any did.
-  - `--clean` empties `profiles/` before a run.
+  - `clean --build-dir build/coverage` empties `profiles/` before a run (a subcommand rather than a `--clean` flag: it runs before ctest, not with the report).
+  - Tested by `tools/tests/test_coverage_report.py` (ctest `tools.coverage_report`).
 - [ ] Step 4: Run it once on the whole tree (`cmake --preset coverage`, build, `ctest --preset coverage`, report). Note the time it took and the totals in `docs/dev_setup.md`'s new "Coverage" paragraph and in the commit message.
+  - Nightly run of 2026-10-16 ran it on `pychron_core_tests` only (numbers in `docs/dev_setup.md` and the commit message): a nightly unit may not build the whole tree. The whole-tree run is still owed, and is the baseline the first later task that changes a test compares against: `cmake --build --preset coverage --parallel`, `coverage_report.py clean`, `ctest --preset coverage`, `coverage_report.py report --out baseline.json`; record its time and totals in `docs/dev_setup.md` and in that task's commit message.
 - [ ] Step 5: `ctest --preset dev` still passes (the option is OFF there). Commit `build: a local clang coverage preset and report`.
+  - Committed by the nightly run of 2026-10-16. `dev` was reconfigured (coverage stays off) and `ctest --preset dev -R 'tools\.'` run: `tools.coverage_report` passes; `tools.export_patterns` fails only because `build/dev/apps/elctl/elctl` is not built in this worktree. The full `ctest --preset dev` is left to the plan's last unit.
 
 ### Task 3: Where the importer suites' time goes
 
