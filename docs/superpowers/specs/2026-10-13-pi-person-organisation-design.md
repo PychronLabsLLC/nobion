@@ -163,7 +163,13 @@ struct PrincipalInvestigatorRow {
   refused with the value quoted.
 - Namesake (owner: stop and ask). A person whose family name and given
   initial match an existing row, given without ORCID or uuid, is not
-  resolved by guessing:
+  resolved by guessing. One stored row of exactly that family and given
+  name (and kind) is that row, not a namesake: nothing to ask, so a sheet
+  imported twice stays idempotent (task 5, 2026-10-16). Same name on two
+  stored rows: asked. A cell with no given name: every person of that
+  family name a candidate; with no kind column, an organisation of exactly
+  that name matches too. Question per distinct `question_name` ("Family,
+  Given"; organisation "Name (organisation)").
   - form: dialog listing the rows (name, affiliation, ORCID, projects) with
     "this one" or "another person";
   - sheet import in the UI: the import plan stops at those rows and the

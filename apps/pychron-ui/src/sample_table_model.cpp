@@ -281,12 +281,12 @@ Result<ps::CatalogEditBatch> SampleTableModel::to_batch(const entry::CatalogSnap
     if (n.name.empty() || n.material.empty()) return fail(ErrorKind::Config, "a new sample needs a name and a material");
     if (auto ok = entry::check_lat_lon(n.fields.lat, n.fields.lon); !ok)
       return fail(ErrorKind::Config, n.name + ": " + ok.error().what);
-    auto p = pi_ids.find({pi->last_name, pi->first_initial});
+    auto p = pi_ids.find({pi->family_name, pi->given_name});
     if (p == pi_ids.end()) {
       const ps::Uuid id = ps::Uuid::v7();
-      p = pi_ids.emplace(std::make_pair(pi->last_name, pi->first_initial), id).first;
+      p = pi_ids.emplace(std::make_pair(pi->family_name, pi->given_name), id).first;
       pis.emplace_back(ps::CatalogInsert{ps::CatalogTable::PrincipalInvestigator, id,
-                                      {{"family_name", pi->last_name}, {"given_name", pi->first_initial}}});
+                                      {{"family_name", pi->family_name}, {"given_name", pi->given_name}}});
     }
     auto j = project_ids.find({n.project, p->second});
     if (j == project_ids.end()) {

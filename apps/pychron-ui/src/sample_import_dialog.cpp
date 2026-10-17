@@ -50,7 +50,7 @@ SampleImportDialog::SampleImportDialog(EntryBridge& bridge, QWidget* parent) : Q
 
   auto* filters = new QHBoxLayout();
   filter_ = new QComboBox(this);
-  filter_->addItems({tr("All"), tr("Create"), tr("Exists"), tr("Update"), tr("Error")});
+  filter_->addItems({tr("All"), tr("Create"), tr("Exists"), tr("Update"), tr("Error"), tr("Ask")});
   update_existing_ = new QCheckBox(tr("Update samples that differ"), this);
   auto* export_errors = new QPushButton(tr("Export Errors…"), this);
   filters->addWidget(new QLabel(tr("Show"), this));
@@ -198,7 +198,7 @@ bool SampleImportDialog::preview() {
 void SampleImportDialog::fill_preview() {
   preview_->setRowCount(0);
   if (!plan_) return;
-  const int filter = filter_->currentIndex();  // 0 all, then Create, Exists, Update, Error
+  const int filter = filter_->currentIndex();  // 0 all, then Create, Exists, Update, Error, Ask
   for (const auto& r : plan_->rows) {
     if (filter > 0 && static_cast<int>(r.state) != filter - 1) continue;
     const int at = preview_->rowCount();
@@ -217,24 +217,32 @@ void SampleImportDialog::fill_preview() {
     }
   }
   const bool writes = plan_->creates > 0 || (plan_->updates > 0 && update_existing_->isChecked());
-  import_->setEnabled(plan_->errors == 0 && writes);
+  // No dialog asks about a PI with namesakes yet: such a sheet names its PI
+  // by principal_investigator_orcid or principal_investigator_uuid.
+  import_->setEnabled(plan_->errors == 0 && plan_->ready() && writes);
   QString summary = tr("%1 to create, %2 differing, %3 stored, %4 in error")
                         .arg(plan_->creates)
                         .arg(plan_->updates)
                         .arg(plan_->exists)
                         .arg(plan_->errors);
+  if (plan_->asks > 0)
+    summary += tr(" — %1 rows name a PI with namesakes: add a principal_investigator_orcid or "
+                  "principal_investigator_uuid column")
+                   .arg(plan_->asks);
   if (!plan_->new_principal_investigators.empty() || !plan_->new_projects.empty() || !plan_->new_materials.empty())
     summary += tr(" — also new: %1 PIs, %2 projects, %3 materials")
                    .arg(plan_->new_principal_investigators.size())
                    .arg(plan_->new_projects.size())
                    .arg(plan_->new_materials.size());
-  show_message(summary, plan_->errors > 0);
+  show_message(summary, plan_->errors > 0 || plan_->asks > 0);
 }
 
 void SampleImportDialog::import_rows() {
   if (!plan_ || plan_->errors > 0) return;
   entry::ImportOptions o{update_existing_->isChecked(), settings_.pi_names_allowed};
-  auto batch = entry::to_batch(*plan_, catalog_, o);
+  auto made = entry::to_batch(*plan_, catalog_, o);
+  if (!made) return show_message(QString::fromStdString(made.error().what), true);
+  auto batch = std::move(*made);
   if (batch.edits.empty()) return show_message(tr("Nothing to write"));
   import_->setEnabled(false);
   bridge_.run<ps::CatalogOutcome>(

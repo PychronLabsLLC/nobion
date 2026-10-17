@@ -80,10 +80,10 @@ Read from `develop` `358eb184`.
 
 **Files:** `libs/entry/include/pychron/entry/names.hpp`, `src/names.cpp`, `sample_import.hpp/.cpp`, `positions_import.hpp/.cpp`, `tests/entry/test_names.cpp`, `test_sample_import.cpp`, `apps/elctl/src/entry.cpp`, `apps/elctl/tests/test_entry_cmd.cpp`.
 
-- [ ] Take T039's parser and tests from `fix/pi-name-format` (`0a82ae3f`); `PiName` becomes `{kind, family_name, given_name}`, the given name kept in full; a cell without a comma is a family name alone (spec 6); `display_name()` as spec 5.1.
-- [ ] Failing tests: the four columns of spec 6 (`principal_investigator_kind`, `_orcid`, `_uuid`); ORCID wins over the name cell, a family name that differs from its row is an error naming both; uuid unmatched is an error; a namesake (family name and initial match, no ORCID, no uuid) puts the row in the plan's "asks" with the candidates, and the plan cannot be applied until each distinct name has an answer (`SampleImportPlan::answer(name, uuid | new)`); an organisation with ORCID or given name refused.
-- [ ] `elctl entry samples import`: a plan with questions fails, lists the candidates (name, affiliation, ORCID, uuid) and says to add a `principal_investigator_orcid` or `_uuid` column; nothing written.
-- [ ] Commit `feat(entry): an entry sheet names a PI in full, and a namesake is asked about`.
+- [x] Take T039's parser and tests from `fix/pi-name-format` (`0a82ae3f`); `PiName` becomes `{kind, family_name, given_name}`, the given name kept in full; a cell without a comma is a family name alone (spec 6); `display_name()` as spec 5.1.
+- [x] Failing tests: the four columns of spec 6 (`principal_investigator_kind`, `_orcid`, `_uuid`); ORCID wins over the name cell, a family name that differs from its row is an error naming both; uuid unmatched is an error; a namesake (family name and initial match, no ORCID, no uuid) puts the row in the plan's "asks" with the candidates, and the plan cannot be applied until each distinct name has an answer (`SampleImportPlan::answer(name, uuid | new)`); an organisation with ORCID or given name refused.
+- [x] `elctl entry samples import`: a plan with questions fails, lists the candidates (name, affiliation, ORCID, uuid) and says to add a `principal_investigator_orcid` or `_uuid` column; nothing written.
+- [x] Commit `feat(entry): an entry sheet names a PI in full, and a namesake is asked about`.
 
 ### Task 6: No allowed-names list
 

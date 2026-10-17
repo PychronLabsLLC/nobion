@@ -10,26 +10,45 @@
 #include <vector>
 
 #include "pychron/core/error.hpp"
+#include "pychron/persistence/catalog.hpp"
 
 namespace pychron::entry {
 
 std::string trim(std::string_view text);
 
+// A PI as entry reads it: a person's family and given name(s) as written, or
+// an organisation's name in family_name (PI spec 5, 6). Fields in this order
+// so that {family, given} is a person.
 struct PiName {
-  std::string last_name;
-  std::string first_initial;  // "" when none
+  std::string family_name;
+  std::string given_name;  // "" when none; a person's only
+  persistence::PiKind kind = persistence::PiKind::Person;
   friend bool operator==(const PiName&, const PiName&) = default;
 };
 
-// "Ross", "Ross, J" or "Ross,J" (a capitalised last name, then an optional
-// one-letter initial), or one of the lab's `allowed` names taken as a last
-// name ("NMGRL"). "Jake Ross" and "ross" are errors (legacy
-// sample_entry.py:60-83).
+// A person, "Family" or "Family, Given" (T039's rule, PI spec 6). The family
+// name is taken as written: any letters (UTF-8), particles and spaces ("van
+// der Pluijm", "Ruiz García"), with ' - and . inside it, at least two
+// characters, and not all in small ASCII letters ("ross"). The given name is
+// kept in full ("Ross, María José" is {"Ross", "María José"}); a lone initial
+// loses its full stop ("Ross, J." is {"Ross", "J"}). A digit or other
+// punctuation is an error, unless the whole text is one of the lab's
+// `allowed` names, which is then the family name as it stands ("Lab 7").
+// "Jake Ross" cannot be told from a family name of two words and is one.
 Result<PiName> parse_pi(std::string_view text, const std::vector<std::string>& allowed = {});
-// "Last, F" or "Last": the form parse_pi reads.
+// An organisation, by its name as written (trimmed, not empty).
+Result<PiName> parse_organisation(std::string_view text);
+// An organisation has no given name and no ORCID (PI spec 6); refused with
+// the name quoted.
+Result<void> check_pi(const PiName& name, const std::optional<std::string>& orcid);
+// "Family, Given" or "Family": the form parse_pi reads; an organisation's name.
 std::string sheet_name(const PiName& name);
-// "F Last" or "Last", as the store's display_name (PI spec 5.1).
+// "Given Family" or "Family"; an organisation's name: as the store's
+// display_name (PI spec 5.1).
 std::string display_name(const PiName& name);
+// The first letter of a given name, upper case when it is an ASCII one, whole
+// when it is not ASCII (its UTF-8 bytes); "" for "".
+std::string initial_of(std::string_view given);
 
 // An ORCID iD in its bare form ("0000-0002-1825-0097"): four groups of four
 // digits joined by '-', the last character a digit or 'X', the ISO 7064 mod

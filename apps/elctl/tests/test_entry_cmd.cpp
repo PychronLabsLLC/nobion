@@ -66,12 +66,16 @@ TEST_F(EntryCmd, SamplesTemplateAndDryRun) {
   ASSERT_EQ(entry({"samples", "template", path("t.csv").string()}).code, elctl::kOk);
   ASSERT_TRUE(std::filesystem::exists(path("t.csv")));
 
-  write("s.csv", kSamples);
-  // "NMGRL Lab" is not a PI name until the settings allow it.
+  // A lab's name is a PI name as it is written ("NMGRL Lab"); one with a
+  // digit in it is not, until the settings allow it.
+  std::string sheet = kSamples;
+  const std::string lab = "NMGRL Lab";
+  sheet.replace(sheet.find(lab), lab.size(), "Lab 7");
+  write("s.csv", sheet);
   Outcome o = entry({"samples", "import", path("s.csv").string(), "--dry-run"});
   EXPECT_EQ(o.code, elctl::kFailed) << o.out << o.err;
   EXPECT_TRUE(contains(o.out, "line 2 error FC-2")) << o.out;
-  ASSERT_EQ(entry({"settings", "set", "pi_names_allowed", "[\"NMGRL Lab\"]"}).code, elctl::kOk);
+  ASSERT_EQ(entry({"settings", "set", "pi_names_allowed", "[\"Lab 7\"]"}).code, elctl::kOk);
   o = entry({"samples", "import", path("s.csv").string(), "--dry-run"});
   EXPECT_EQ(o.code, elctl::kOk) << o.out << o.err;
   EXPECT_TRUE(contains(o.out, "3 to create")) << o.out;
@@ -90,6 +94,40 @@ TEST_F(EntryCmd, ImportThenReimport) {
   o = entry({"samples", "list", "--project", "Alpha"});
   EXPECT_TRUE(contains(o.out, "bt-1\tAlpha\tJ Ross\tbiotite\t20-40")) << o.out;
   EXPECT_FALSE(contains(o.out, "FC-2"));
+}
+
+// A sheet that names a PI with namesakes by name alone stops: the namesakes
+// are listed with what tells them apart, and nothing is written. An ORCID or
+// uuid column says which.
+TEST_F(EntryCmd, ANamesakeStopsTheImport) {
+  write("s.csv", kSamples);
+  ASSERT_EQ(entry({"samples", "import", path("s.csv").string()}).code, elctl::kOk);
+  write("n.csv", "sample,project,pi,material\nbt-9,Alpha,\"Ross, Jake\",biotite\n");
+  for (const bool dry : {true, false}) {
+    std::vector<std::string> args{"samples", "import", path("n.csv").string()};
+    if (dry) args.emplace_back("--dry-run");
+    const Outcome o = entry(args);
+    EXPECT_EQ(o.code, elctl::kFailed) << o.out << o.err;
+    EXPECT_TRUE(contains(o.out, "line 2 ask bt-9")) << o.out;
+    EXPECT_TRUE(contains(o.out, "principal investigator Ross, Jake (line 2) has namesakes:")) << o.out;
+    EXPECT_TRUE(contains(o.out, "  J Ross\t")) << o.out;
+    EXPECT_TRUE(contains(o.err, "principal_investigator_orcid")) << o.err;
+    EXPECT_TRUE(contains(o.err, "nothing was written")) << o.err;
+  }
+  EXPECT_FALSE(contains(entry({"samples", "list"}).out, "bt-9"));
+
+  // the uuid listed says which
+  const Outcome asked = entry({"samples", "import", path("n.csv").string(), "--dry-run"});
+  const auto at = asked.out.find("  J Ross\t");
+  ASSERT_NE(at, std::string::npos);
+  const auto end = asked.out.find('\n', at);
+  const std::string uuid = asked.out.substr(asked.out.rfind('\t', end) + 1, end - asked.out.rfind('\t', end) - 1);
+  write("u.csv", "sample,project,pi,material,principal_investigator_uuid\nbt-9,Alpha,\"Ross, Jake\",biotite," + uuid + "\n");
+  const Outcome o = entry({"samples", "import", path("u.csv").string()});
+  ASSERT_EQ(o.code, elctl::kOk) << o.out << o.err;
+  EXPECT_TRUE(contains(o.out, "1 to create")) << o.out;
+  EXPECT_FALSE(contains(o.out, "new principal investigator")) << o.out;
+  EXPECT_TRUE(contains(entry({"samples", "list", "--project", "Alpha"}).out, "bt-9\tAlpha\tJ Ross")) << o.out;
 }
 
 TEST_F(EntryCmd, PackagePositionsIdentifiers) {

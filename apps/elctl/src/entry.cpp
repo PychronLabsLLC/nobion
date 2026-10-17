@@ -271,21 +271,38 @@ int samples_import(Context& ctx, const Args& a) {
       for (const auto& c : r.changed) ctx.io.out << " ~" << c;
     ctx.io.out << '\n';
   }
+  for (const auto& q : plan.questions) {
+    ctx.io.out << "principal investigator " << q.name << " (line";
+    if (q.lines.size() > 1) ctx.io.out << 's';
+    for (std::size_t i = 0; i < q.lines.size(); ++i) ctx.io.out << (i == 0 ? " " : ", ") << q.lines[i];
+    ctx.io.out << ") has namesakes:\n";
+    for (const auto& c : q.candidates)
+      ctx.io.out << "  " << c.display_name << '\t' << c.affiliation.value_or("") << '\t' << c.orcid.value_or("")
+                 << '\t' << c.uuid.str() << '\n';
+  }
   for (const auto& n : plan.new_principal_investigators) ctx.io.out << "new principal investigator " << n << '\n';
   for (const auto& n : plan.new_projects) ctx.io.out << "new project " << n << '\n';
   for (const auto& n : plan.new_materials) ctx.io.out << "new material " << n << '\n';
   ctx.io.out << plan.creates << " to create, " << plan.updates << " differing, " << plan.exists << " stored, "
-             << plan.errors << " in error\n";
+             << plan.errors << " in error";
+  if (plan.asks > 0) ctx.io.out << ", " << plan.asks << " asking which PI";
+  ctx.io.out << '\n';
   if (const auto errors = a.get("--errors"); errors && plan.errors > 0)
     if (auto r = write_file(*errors, en::errors_csv(plan)); !r) return fatal(ctx.io, r.error());
   if (plan.errors > 0) {
     ctx.io.err << "elctl entry: rows in error; nothing was written\n";
     return kFailed;
   }
+  if (!plan.ready()) {
+    ctx.io.err << "elctl entry: a principal investigator has namesakes; say which in a principal_investigator_orcid "
+                  "or principal_investigator_uuid column; nothing was written\n";
+    return kFailed;
+  }
   if (ctx.dry_run) return kOk;
   const auto batch = en::to_batch(plan, *catalog, options);
-  if (batch.edits.empty()) return kOk;
-  auto out = ctx.store->apply_catalog_edits(ctx.actor.client, batch);
+  if (!batch) return fatal(ctx.io, batch.error());
+  if (batch->edits.empty()) return kOk;
+  auto out = ctx.store->apply_catalog_edits(ctx.actor.client, *batch);
   if (!out) return fatal(ctx.io, out.error());
   return report(ctx.io, *out);
 }
