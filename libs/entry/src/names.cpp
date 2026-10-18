@@ -79,9 +79,8 @@ std::string trim(std::string_view text) {
   return std::string(text.substr(b, e - b));
 }
 
-Result<PiName> parse_pi(std::string_view text, const std::vector<std::string>& allowed) {
+Result<PiName> parse_pi(std::string_view text) {
   const std::string t = trim(text);
-  if (std::find(allowed.begin(), allowed.end(), t) != allowed.end()) return PiName{t, ""};
   const auto refuse = [&t] {
     return fail(ErrorKind::Config, "principal investigator '" + t + R"(': write "Family" or "Family, Given")");
   };

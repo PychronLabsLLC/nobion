@@ -806,7 +806,7 @@ Result<int> PackagesWindow::import_positions(const QString& csv) {
   if (!table) return fail(table.error());
   std::map<std::string, entry::LevelSheetEdit> levels;
   levels.emplace(grid_->edit().loaded().level.name, grid_->edit());
-  const auto result = entry::apply_position_import(*table, catalog_, levels, settings_.pi_names_allowed);
+  const auto result = entry::apply_position_import(*table, catalog_, levels);
   if (!result.errors.empty()) {
     std::string what = result.errors.front();
     if (result.errors.size() > 1) what += " (and " + std::to_string(result.errors.size() - 1) + " more)";

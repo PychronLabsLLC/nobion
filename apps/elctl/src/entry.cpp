@@ -258,11 +258,8 @@ int samples_import(Context& ctx, const Args& a) {
   if (!table) return fatal(ctx.io, table.error());
   auto catalog = en::read_snapshot(*ctx.store);
   if (!catalog) return fatal(ctx.io, catalog.error());
-  auto settings = en::load_settings(*ctx.store);
-  if (!settings) return fatal(ctx.io, settings.error());
   en::ImportOptions options;
   options.update_existing = a.has("--update-existing");
-  options.pi_names_allowed = settings->settings.pi_names_allowed;
   const auto plan = en::plan_sample_import(*table, en::default_mapping(table->header), *catalog, options);
   for (const auto& r : plan.rows) {
     ctx.io.out << "line " << r.line << ' ' << en::to_string(r.state) << ' ' << r.sample;
@@ -481,7 +478,7 @@ int positions_import(Context& ctx, const Args& a) {
   if (!edits) return fatal(ctx.io, edits.error());
   auto settings = en::load_settings(*ctx.store);
   if (!settings) return fatal(ctx.io, settings.error());
-  const auto result = en::apply_position_import(*table, *catalog, *edits, settings->settings.pi_names_allowed);
+  const auto result = en::apply_position_import(*table, *catalog, *edits);
   if (!result.errors.empty()) {
     for (const auto& e : result.errors) ctx.io.out << e << '\n';
     ctx.io.err << "elctl entry: rows in error; nothing was written\n";
@@ -568,6 +565,14 @@ int settings_command(Context& ctx, const Args& a) {
     return kOk;
   }
   if (a.positional.size() != 4) return usage(ctx.io, "settings set takes a key and a value");
+  // Only a key this version reads: another would be kept unread, and a
+  // former one (pi_names_allowed, PI spec 6.1) would look as if it still
+  // did something.
+  if (const auto known = nlohmann::json::parse(en::to_json(en::EntrySettings{})); !known.contains(a.positional[2])) {
+    std::string keys;
+    for (const auto& item : known.items()) keys += (keys.empty() ? "" : ", ") + item.key();
+    return usage(ctx.io, "unknown key '" + a.positional[2] + "'; the keys are " + keys);
+  }
   auto doc = nlohmann::json::parse(en::to_json(loaded->settings));
   auto value = nlohmann::json::parse(a.positional[3], nullptr, false);
   doc[a.positional[2]] = value.is_discarded() ? nlohmann::json(a.positional[3]) : value;

@@ -58,7 +58,6 @@ class SampleImportDialog : public QDialog {
   std::optional<entry::CsvTable> table_;
   std::optional<entry::SampleImportPlan> plan_;
   entry::CatalogSnapshot catalog_;
-  entry::EntrySettings settings_;
 };
 
 }  // namespace pychron::ui

@@ -24,7 +24,6 @@ struct PositionImportResult {
 // `levels`, a position below 1, an unknown sample or a bad number is an error,
 // and then no row is applied.
 PositionImportResult apply_position_import(const CsvTable& table, const CatalogSnapshot& catalog,
-                                           std::map<std::string, LevelSheetEdit>& levels,
-                                           const std::vector<std::string>& pi_names_allowed = {});
+                                           std::map<std::string, LevelSheetEdit>& levels);
 
 }  // namespace pychron::entry

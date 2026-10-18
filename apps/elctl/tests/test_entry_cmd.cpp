@@ -67,7 +67,8 @@ TEST_F(EntryCmd, SamplesTemplateAndDryRun) {
   ASSERT_TRUE(std::filesystem::exists(path("t.csv")));
 
   // A lab's name is a PI name as it is written ("NMGRL Lab"); one with a
-  // digit in it is not, until the settings allow it.
+  // digit in it is not a person's, and is an organisation's when the sheet
+  // says so (there is no list of allowed names, PI spec 6.1).
   std::string sheet = kSamples;
   const std::string lab = "NMGRL Lab";
   sheet.replace(sheet.find(lab), lab.size(), "Lab 7");
@@ -75,7 +76,10 @@ TEST_F(EntryCmd, SamplesTemplateAndDryRun) {
   Outcome o = entry({"samples", "import", path("s.csv").string(), "--dry-run"});
   EXPECT_EQ(o.code, elctl::kFailed) << o.out << o.err;
   EXPECT_TRUE(contains(o.out, "line 2 error FC-2")) << o.out;
-  ASSERT_EQ(entry({"settings", "set", "pi_names_allowed", "[\"Lab 7\"]"}).code, elctl::kOk);
+  write("s.csv", "sample,project,pi,material,principal_investigator_kind\n"
+                 "FC-2,Irradiation-NM-001,Lab 7,sanidine,organisation\n"
+                 "bt-1,Alpha,\"Ross, J\",biotite,\n"
+                 "bt-2,Alpha,\"Ross, J\",biotite,\n");
   o = entry({"samples", "import", path("s.csv").string(), "--dry-run"});
   EXPECT_EQ(o.code, elctl::kOk) << o.out << o.err;
   EXPECT_TRUE(contains(o.out, "3 to create")) << o.out;
@@ -83,7 +87,6 @@ TEST_F(EntryCmd, SamplesTemplateAndDryRun) {
 }
 
 TEST_F(EntryCmd, ImportThenReimport) {
-  ASSERT_EQ(entry({"settings", "set", "pi_names_allowed", "[\"NMGRL Lab\"]"}).code, elctl::kOk);
   write("s.csv", kSamples);
   Outcome o = entry({"samples", "import", path("s.csv").string()});
   ASSERT_EQ(o.code, elctl::kOk) << o.out << o.err;
@@ -94,6 +97,20 @@ TEST_F(EntryCmd, ImportThenReimport) {
   o = entry({"samples", "list", "--project", "Alpha"});
   EXPECT_TRUE(contains(o.out, "bt-1\tAlpha\tJ Ross\tbiotite\t20-40")) << o.out;
   EXPECT_FALSE(contains(o.out, "FC-2"));
+}
+
+// `settings set` takes the keys this version reads; another, the former
+// allowed-names list among them (PI spec 6.1), is refused and nothing is
+// written.
+TEST_F(EntryCmd, SettingsSetRefusesAnUnknownKey) {
+  ASSERT_EQ(entry({"settings", "set", "package_prefix", "P-"}).code, elctl::kOk);
+  EXPECT_TRUE(contains(entry({"settings", "show"}).out, R"("package_prefix": "P-")"));
+  for (const char* key : {"pi_names_allowed", "no_such_key"}) {
+    const Outcome o = entry({"settings", "set", key, "[\"Lab 7\"]"});
+    EXPECT_EQ(o.code, elctl::kUsage) << key << o.out << o.err;
+    EXPECT_TRUE(contains(o.err, std::string("unknown key '") + key + "'")) << o.err;
+    EXPECT_FALSE(contains(entry({"settings", "show"}).out, key));
+  }
 }
 
 // A sheet that names a PI with namesakes by name alone stops: the namesakes
@@ -131,7 +148,6 @@ TEST_F(EntryCmd, ANamesakeStopsTheImport) {
 }
 
 TEST_F(EntryCmd, PackagePositionsIdentifiers) {
-  ASSERT_EQ(entry({"settings", "set", "pi_names_allowed", "[\"NMGRL Lab\"]"}).code, elctl::kOk);
   write("s.csv", kSamples);
   ASSERT_EQ(entry({"samples", "import", path("s.csv").string()}).code, elctl::kOk);
   write("24-hole.txt", "circle,0.0175\n0,0\n1,0\n2,0\n3,0\n");

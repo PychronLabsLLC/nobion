@@ -165,7 +165,7 @@ class EntrySettingsDialog : public QDialog {
  private:
   EntryBridge& bridge_;
   entry::LoadedSettings loaded_;
-  QLineEdit *prefix_, *pi_names_, *monitor_sample_, *monitor_material_, *project_prefix_, *j_multiplier_;
+  QLineEdit *prefix_, *monitor_sample_, *monitor_material_, *project_prefix_, *j_multiplier_;
   QComboBox *default_kind_, *null_rows_;
   QCheckBox* create_project_;
   QLabel* message_;

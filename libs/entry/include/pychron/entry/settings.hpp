@@ -19,7 +19,6 @@ inline constexpr std::string_view kSettingsKey = "pychron/entry_settings.json";
 struct EntrySettings {
   std::string package_prefix = "NM-";
   std::string default_package_kind = "irradiation";  // irradiation | package
-  std::vector<std::string> pi_names_allowed;
   std::string monitor_sample = "FC-2";
   std::string monitor_material = "sanidine";
   std::string irradiation_project_prefix = "Irradiation-";

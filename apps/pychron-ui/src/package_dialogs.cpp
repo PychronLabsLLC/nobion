@@ -559,8 +559,6 @@ EntrySettingsDialog::EntrySettingsDialog(EntryBridge& bridge, QWidget* parent) :
   prefix_ = new QLineEdit(this);
   default_kind_ = new QComboBox(this);
   default_kind_->addItems({QStringLiteral("irradiation"), QStringLiteral("package")});
-  pi_names_ = new QLineEdit(this);
-  pi_names_->setToolTip(tr("Names accepted as a PI that are not \"Last, F\", separated by ;"));
   monitor_sample_ = new QLineEdit(this);
   monitor_material_ = new QLineEdit(this);
   project_prefix_ = new QLineEdit(this);
@@ -570,7 +568,6 @@ EntrySettingsDialog::EntrySettingsDialog(EntryBridge& bridge, QWidget* parent) :
   null_rows_->addItems({QStringLiteral("allow"), QStringLiteral("packet")});
   form->addRow(tr("Package name prefix"), prefix_);
   form->addRow(tr("New packages are"), default_kind_);
-  form->addRow(tr("Lab PI names"), pi_names_);
   form->addRow(tr("Monitor sample"), monitor_sample_);
   form->addRow(tr("Monitor material"), monitor_material_);
   form->addRow(tr("Irradiation project prefix"), project_prefix_);
@@ -591,9 +588,6 @@ EntrySettingsDialog::EntrySettingsDialog(EntryBridge& bridge, QWidget* parent) :
   const auto& st = loaded_.settings;
   prefix_->setText(QString::fromStdString(st.package_prefix));
   default_kind_->setCurrentText(QString::fromStdString(st.default_package_kind));
-  QStringList names;
-  for (const auto& n : st.pi_names_allowed) names << QString::fromStdString(n);
-  pi_names_->setText(names.join(QStringLiteral("; ")));
   monitor_sample_->setText(QString::fromStdString(st.monitor_sample));
   monitor_material_->setText(QString::fromStdString(st.monitor_material));
   project_prefix_->setText(QString::fromStdString(st.irradiation_project_prefix));
@@ -606,9 +600,6 @@ void EntrySettingsDialog::accept() {
   entry::EntrySettings st = loaded_.settings;
   st.package_prefix = prefix_->text().trimmed().toStdString();
   st.default_package_kind = default_kind_->currentText().toStdString();
-  st.pi_names_allowed.clear();
-  for (const QString& n : pi_names_->text().split(QLatin1Char(';'), Qt::SkipEmptyParts))
-    if (!n.trimmed().isEmpty()) st.pi_names_allowed.push_back(n.trimmed().toStdString());
   st.monitor_sample = monitor_sample_->text().trimmed().toStdString();
   st.monitor_material = monitor_material_->text().trimmed().toStdString();
   st.irradiation_project_prefix = project_prefix_->text().trimmed().toStdString();

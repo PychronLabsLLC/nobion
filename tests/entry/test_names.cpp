@@ -43,8 +43,8 @@ TEST(Names, WhatIsStillNoPrincipalInvestigator) {
       EXPECT_NE(r.error().what.find("Family, Given"), std::string::npos) << r.error().what;
     }
   }
-  // the lab's own list still lets such a name through, as written
-  EXPECT_EQ(*parse_pi("Lab 7", {"Lab 7"}), (PiName{"Lab 7", ""}));
+  // such a name is an organisation's, as written (PI spec 6.1: no allowed list)
+  EXPECT_EQ(*parse_organisation("Lab 7"), (PiName{"Lab 7", "", PiKind::Organisation}));
 }
 
 TEST(Names, PrincipalInvestigator) {

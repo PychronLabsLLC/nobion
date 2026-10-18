@@ -236,8 +236,7 @@ void settle(SampleImportPlan& plan, const CatalogSnapshot& catalog) {
 // those are returned.
 std::vector<ps::PrincipalInvestigatorRow> resolve_pi(ImportRow& row, const std::string& name,
                                                      const std::string& kind_text, const std::string& orcid_text,
-                                                     const std::string& uuid_text, const CatalogSnapshot& catalog,
-                                                     const ImportOptions& options) {
+                                                     const std::string& uuid_text, const CatalogSnapshot& catalog) {
   row.principal_investigator = name;
   std::string kind_name = ascii_lower(kind_text);
   if (kind_name == "organization") kind_name = "organisation";
@@ -270,7 +269,7 @@ std::vector<ps::PrincipalInvestigatorRow> resolve_pi(ImportRow& row, const std::
     return {};
   }
   if (!name.empty()) {
-    auto parsed = *kind == ps::PiKind::Organisation ? parse_organisation(name) : parse_pi(name, options.pi_names_allowed);
+    auto parsed = *kind == ps::PiKind::Organisation ? parse_organisation(name) : parse_pi(name);
     if (!parsed) {
       row.messages.push_back(parsed.error().what);
       return {};
@@ -455,8 +454,7 @@ SampleImportPlan plan_sample_import(const CsvTable& table, const ColumnMapping& 
     if (row.material.empty()) row.messages.emplace_back("no material");
     auto namesakes =
         resolve_pi(row, get(ImportField::PrincipalInvestigator), get(ImportField::PrincipalInvestigatorKind),
-                   get(ImportField::PrincipalInvestigatorOrcid), get(ImportField::PrincipalInvestigatorUuid), catalog,
-                   options);
+                   get(ImportField::PrincipalInvestigatorOrcid), get(ImportField::PrincipalInvestigatorUuid), catalog);
     // An ORCID not stored is a new person, one for the whole sheet: named as
     // its first row names it, and refused under another family name.
     if (row.pi_orcid && !row.pi_uuid && !row.pi.family_name.empty()) {

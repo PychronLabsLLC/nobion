@@ -59,6 +59,28 @@ void print_schema(std::ostream& out, const std::vector<ps::AppliedMigration>& ap
   }
 }
 
+// PIs a former allowed-names list admitted ("NMGRL Lab") were carried over
+// by migration 0006 as persons with a family name only. Nothing tells them
+// from a person known by surname alone, so they are listed, not changed
+// (PI spec 6.1): the PI editor marks one an organisation.
+void print_pis_without_given_name(ps::IStore& store, Io io) {
+  auto pis = store.principal_investigators();
+  if (!pis) {
+    io.err << "elctl db: principal investigators not listed: " << pis.error().what << '\n';
+    return;
+  }
+  bool first = true;
+  for (const auto& pi : *pis) {
+    if (pi.kind != ps::PiKind::Person || !pi.given_name.empty()) continue;
+    if (first)
+      io.out << "principal investigators with no given name; mark any that is an organisation in its editor:\n";
+    first = false;
+    io.out << "  " << pi.display_name;
+    if (pi.affiliation) io.out << " (" << *pi.affiliation << ')';
+    io.out << '\t' << pi.uuid.str() << '\n';
+  }
+}
+
 namespace pp = pychron::processing;
 
 // elctl db derive: the backfill of the cache of ages (age cache spec 4.5).
@@ -165,6 +187,7 @@ int db_command(const std::vector<std::string>& args, const std::optional<std::st
   if (!applied) return fatal(io, applied.error().what);
   io.out << "migrated: the store is up to date, " << applied->size() << " migrations\n";
   print_schema(io.out, *applied);
+  print_pis_without_given_name(**migrated, io);
   return kOk;
 }
 

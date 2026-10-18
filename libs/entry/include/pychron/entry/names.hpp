@@ -32,10 +32,10 @@ struct PiName {
 // characters, and not all in small ASCII letters ("ross"). The given name is
 // kept in full ("Ross, María José" is {"Ross", "María José"}); a lone initial
 // loses its full stop ("Ross, J." is {"Ross", "J"}). A digit or other
-// punctuation is an error, unless the whole text is one of the lab's
-// `allowed` names, which is then the family name as it stands ("Lab 7").
-// "Jake Ross" cannot be told from a family name of two words and is one.
-Result<PiName> parse_pi(std::string_view text, const std::vector<std::string>& allowed = {});
+// punctuation is an error: a name such as "Lab 7" is an organisation's
+// (parse_organisation). "Jake Ross" cannot be told from a family name of two
+// words and is one.
+Result<PiName> parse_pi(std::string_view text);
 // An organisation, by its name as written (trimmed, not empty).
 Result<PiName> parse_organisation(std::string_view text);
 // An organisation has no given name and no ORCID (PI spec 6); refused with

@@ -71,8 +71,7 @@ class SampleTableModel : public QAbstractTableModel {
   // The edits as one batch. New PIs, projects and materials are inserted
   // first; `catalog` says which exist. Errors: a new sample that names a PI
   // the rules refuse, or an edit that is not a valid value.
-  Result<persistence::CatalogEditBatch> to_batch(const entry::CatalogSnapshot& catalog,
-                                                 const std::vector<std::string>& pi_names_allowed) const;
+  Result<persistence::CatalogEditBatch> to_batch(const entry::CatalogSnapshot& catalog) const;
 
   int rowCount(const QModelIndex& parent = {}) const override;
   int columnCount(const QModelIndex& parent = {}) const override;

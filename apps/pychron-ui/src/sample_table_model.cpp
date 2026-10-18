@@ -238,8 +238,7 @@ bool SampleTableModel::setData(const QModelIndex& index, const QVariant& value, 
   return true;
 }
 
-Result<ps::CatalogEditBatch> SampleTableModel::to_batch(const entry::CatalogSnapshot& catalog,
-                                                        const std::vector<std::string>& pi_names_allowed) const {
+Result<ps::CatalogEditBatch> SampleTableModel::to_batch(const entry::CatalogSnapshot& catalog) const {
   ps::CatalogEditBatch batch;
   batch.message = "samples";
   // Stored rows.
@@ -274,7 +273,7 @@ Result<ps::CatalogEditBatch> SampleTableModel::to_batch(const entry::CatalogSnap
     if (p.principal_investigator) project_ids[{p.name, *p.principal_investigator}] = p.uuid;
   for (const auto& m : catalog.materials) material_ids[{m.name, m.grainsize}] = m.uuid;
   for (const auto& n : new_) {
-    auto pi = entry::parse_pi(n.principal_investigator, pi_names_allowed);
+    auto pi = entry::parse_pi(n.principal_investigator);
     if (!pi) return fail(ErrorKind::Config, n.name + ": " + pi.error().what);
     if (!entry::valid_project_name(n.project))
       return fail(ErrorKind::Config, n.name + ": project '" + n.project + "' starts with a letter; letters, digits, - or _");

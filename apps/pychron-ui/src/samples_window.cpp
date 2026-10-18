@@ -28,7 +28,6 @@ namespace {
 struct Loaded {
   entry::CatalogSnapshot catalog;
   std::vector<ps::SampleRow> rows;
-  entry::EntrySettings settings;
 };
 
 std::optional<ps::Uuid> selected(const QComboBox* box) {
@@ -170,15 +169,12 @@ void SamplesWindow::reload() {
         auto rows = s.samples(query);
         if (!rows) return fail(rows.error());
         out.rows = std::move(*rows);
-        auto settings = entry::load_settings(s);
-        if (!settings) return fail(settings.error());
-        out.settings = settings->settings;
         return out;
       },
       [this](Result<Loaded> r) {
         --busy_;
         if (!r) return show_message(QString::fromStdString(to_string(r.error())), true);
-        apply_loaded(std::move(r->catalog), std::move(r->rows), std::move(r->settings));
+        apply_loaded(std::move(r->catalog), std::move(r->rows));
       });
 }
 
@@ -191,10 +187,8 @@ void SamplesWindow::fill_filter(QComboBox* box, const std::vector<std::pair<QStr
   box->setCurrentIndex(at < 0 ? 0 : at);
 }
 
-void SamplesWindow::apply_loaded(entry::CatalogSnapshot catalog, std::vector<ps::SampleRow> rows,
-                                 entry::EntrySettings settings) {
+void SamplesWindow::apply_loaded(entry::CatalogSnapshot catalog, std::vector<ps::SampleRow> rows) {
   catalog_ = std::move(catalog);
-  settings_ = std::move(settings);
   std::vector<std::pair<QString, ps::Uuid>> pis, projects, materials;
   QStringList pi_names, project_names, material_names;
   for (const auto& p : catalog_.principal_investigators) {
@@ -271,7 +265,7 @@ bool SamplesWindow::add_from_form() {
     show_message(tr("A new sample needs a name, a PI, a project and a material"), true);
     return false;
   }
-  if (auto pi = entry::parse_pi(s.principal_investigator, settings_.pi_names_allowed); !pi) {
+  if (auto pi = entry::parse_pi(s.principal_investigator); !pi) {
     show_message(QString::fromStdString(pi.error().what), true);
     return false;
   }
@@ -287,7 +281,7 @@ bool SamplesWindow::add_from_form() {
 
 void SamplesWindow::save() {
   if (!model_->dirty()) return;
-  auto batch = model_->to_batch(catalog_, settings_.pi_names_allowed);
+  auto batch = model_->to_batch(catalog_);
   if (!batch) return show_message(QString::fromStdString(batch.error().what), true);
   ++busy_;
   bridge_.run<ps::CatalogOutcome>(

@@ -89,8 +89,8 @@ Read from `develop` `358eb184`.
 
 **Files:** `libs/entry` `settings.hpp/.cpp`, `sample_import.*`, `positions_import.*`; `apps/elctl/src/entry.cpp`, `apps/elctl/src/db.cpp` (the migrate command); UI `package_dialogs.cpp`, `sample_table_model.*`, `samples_window.cpp`, `sample_import_dialog.cpp`, `packages_window.cpp`; `tests/entry/test_settings.cpp`, `apps/elctl/tests/test_entry_cmd.cpp`, `docs/entry.md`.
 
-- [ ] Failing tests: settings parse without the key and keep a stored `pi_names_allowed` in `other_json`, unread; `elctl entry settings set pi_names_allowed ...` is an unknown key; `elctl db migrate` that applies 0006 lists the PIs with no given name as candidates to mark organisation.
-- [ ] Remove the field and its uses (spec 6.1). Commit `feat(entry): no allowed-names list: an organisation is a kind of PI`.
+- [x] Failing tests: settings parse without the key and keep a stored `pi_names_allowed` in `other_json`, unread; `elctl entry settings set pi_names_allowed ...` is an unknown key; `elctl db migrate` that applies 0006 lists the PIs with no given name as candidates to mark organisation.
+- [x] Remove the field and its uses (spec 6.1). Commit `feat(entry): no allowed-names list: an organisation is a kind of PI`.
 
 ### Task 7: The entry windows
 

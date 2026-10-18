@@ -48,8 +48,7 @@ class SamplesWindow : public QMainWindow {
   void closeEvent(QCloseEvent* event) override;
 
  private:
-  void apply_loaded(entry::CatalogSnapshot catalog, std::vector<persistence::SampleRow> rows,
-                    entry::EntrySettings settings);
+  void apply_loaded(entry::CatalogSnapshot catalog, std::vector<persistence::SampleRow> rows);
   void fill_filter(QComboBox* box, const std::vector<std::pair<QString, persistence::Uuid>>& items);
   void show_message(const QString& text, bool error = false);
   void check_duplicates();
@@ -65,7 +64,6 @@ class SamplesWindow : public QMainWindow {
   QLabel* duplicates_;
   QLabel* message_;
   entry::CatalogSnapshot catalog_;
-  entry::EntrySettings settings_;
   int busy_ = 0;
   QPointer<SampleImportDialog> import_;
 };

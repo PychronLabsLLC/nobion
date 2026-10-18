@@ -103,6 +103,50 @@ TEST_F(DbCmd, MigrateBringsAStoreUpToDate) {
   EXPECT_FALSE(contains(again.out, "migrated")) << again.out;
 }
 
+// PIs a former allowed-names list admitted were migrated by 0006 as persons
+// with a family name only (PI spec 6.1): a migrate lists every such PI as a
+// candidate to mark organisation, and changes none of them.
+TEST_F(DbCmd, MigrateListsPisWithNoGivenName) {
+  {
+    auto store = ps::open_store(ps::StoreConfig{db_, true});
+    ASSERT_TRUE(store) << to_string(store.error());
+    const auto client = (*store)->register_client({"red-1", "reduction", std::nullopt, "test"});
+    ASSERT_TRUE(client);
+    ps::PrincipalInvestigatorSpec listed, ross, lab;
+    listed.family_name = "NMGRL Lab";
+    listed.affiliation = "NMT";
+    ross.family_name = "Ross";
+    ross.given_name = "J";
+    lab.family_name = "Lab 7";
+    lab.kind = ps::PiKind::Organisation;
+    for (const auto& spec : {listed, ross, lab}) {
+      ASSERT_TRUE((*store)->add_principal_investigator(*client, spec));
+    }
+  }
+  take_back_the_last_migration();
+
+  const Outcome o = run_raw({"db", "migrate", "--db", db_});
+  ASSERT_EQ(o.code, elctl::kOk) << o.err;
+  EXPECT_TRUE(contains(o.out, "principal investigators with no given name")) << o.out;
+  EXPECT_TRUE(contains(o.out, "  NMGRL Lab (NMT)\t")) << o.out;
+  EXPECT_FALSE(contains(o.out, "Ross")) << o.out;
+  EXPECT_FALSE(contains(o.out, "Lab 7")) << o.out;  // an organisation already
+
+  auto store = ps::open_store(ps::StoreConfig{db_, false});
+  ASSERT_TRUE(store);
+  const auto pis = (*store)->principal_investigators();
+  ASSERT_TRUE(pis);
+  for (const auto& pi : *pis) {
+    if (pi.family_name == "NMGRL Lab") {
+      EXPECT_EQ(pi.kind, ps::PiKind::Person);  // nothing guessed
+    }
+  }
+
+  // A store already up to date lists nothing: nothing was migrated.
+  const Outcome again = run_raw({"db", "migrate", "--db", db_});
+  EXPECT_FALSE(contains(again.out, "NMGRL Lab")) << again.out;
+}
+
 TEST_F(DbCmd, NeitherMakesADatabase) {
   const fs::path nowhere = path("typo.db");
   for (const char* action : {"status", "migrate"}) {

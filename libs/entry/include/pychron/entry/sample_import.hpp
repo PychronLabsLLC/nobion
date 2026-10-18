@@ -85,8 +85,7 @@ struct ImportRow {
 };
 
 struct ImportOptions {
-  bool update_existing = false;            // write Update rows; otherwise they are left alone
-  std::vector<std::string> pi_names_allowed;  // lab names accepted as a PI ("NMGRL")
+  bool update_existing = false;  // write Update rows; otherwise they are left alone
 };
 
 // What a person answers about a PI with namesakes: one of the candidates, or

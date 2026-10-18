@@ -150,7 +150,7 @@ void SampleImportDialog::fill_mapping() {
     box->setCurrentIndex(at);
     connect(box, &QComboBox::currentIndexChanged, this, [this] {
       if (!table_) return;
-      entry::ImportOptions o{update_existing_->isChecked(), settings_.pi_names_allowed};
+      entry::ImportOptions o{update_existing_->isChecked()};
       plan_ = entry::plan_sample_import(*table_, mapping(), catalog_, o);
       fill_preview();
     });
@@ -171,25 +171,15 @@ bool SampleImportDialog::preview() {
     return false;
   }
   table_ = std::move(*parsed);
-  struct Loaded {
-    entry::CatalogSnapshot catalog;
-    entry::EntrySettings settings;
-  };
-  auto loaded = bridge_.run_sync<Loaded>([](ps::IStore& s, const ps::Actor&) -> Result<Loaded> {
-    auto c = entry::read_snapshot(s);
-    if (!c) return fail(c.error());
-    auto settings = entry::load_settings(s);
-    if (!settings) return fail(settings.error());
-    return Loaded{std::move(*c), settings->settings};
-  });
+  auto loaded = bridge_.run_sync<entry::CatalogSnapshot>(
+      [](ps::IStore& s, const ps::Actor&) -> Result<entry::CatalogSnapshot> { return entry::read_snapshot(s); });
   if (!loaded) {
     show_message(QString::fromStdString(to_string(loaded.error())), true);
     return false;
   }
-  catalog_ = std::move(loaded->catalog);
-  settings_ = std::move(loaded->settings);
+  catalog_ = std::move(*loaded);
   if (new_table || mapping_->rowCount() != static_cast<int>(table_->header.size())) fill_mapping();
-  entry::ImportOptions o{update_existing_->isChecked(), settings_.pi_names_allowed};
+  entry::ImportOptions o{update_existing_->isChecked()};
   plan_ = entry::plan_sample_import(*table_, mapping(), catalog_, o);
   fill_preview();
   return true;
@@ -239,7 +229,7 @@ void SampleImportDialog::fill_preview() {
 
 void SampleImportDialog::import_rows() {
   if (!plan_ || plan_->errors > 0) return;
-  entry::ImportOptions o{update_existing_->isChecked(), settings_.pi_names_allowed};
+  entry::ImportOptions o{update_existing_->isChecked()};
   auto made = entry::to_batch(*plan_, catalog_, o);
   if (!made) return show_message(QString::fromStdString(made.error().what), true);
   auto batch = std::move(*made);

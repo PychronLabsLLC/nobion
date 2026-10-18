@@ -854,6 +854,12 @@ has. Each migration is applied in one transaction: whole, or not at all.
 Run again it does nothing and says the store is up to date. Close pychron
 first if it has the store open.
 
+When it has migrated the store, it then lists the principal investigators
+that are persons with no given name, with their affiliation and uuid. A lab
+or a group that a former list of allowed PI names let in ("NMGRL Lab") is
+among them, carried over as a person: mark each that is an organisation in
+its PI editor. Nothing is changed for you.
+
 Neither command makes a database: a SQLite path that is not there, or an
 empty file, is an error (exit 2). To make a new store use `import add` or
 set up a data-reduction install.

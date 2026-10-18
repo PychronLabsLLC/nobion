@@ -58,8 +58,9 @@ search by name).
   is saved. The row turns yellow, and its tooltip shows their values.
   Reload, then edit again.
 - New sample: fill in the form above the table, then Add, then Save.
-  - The PI is "Last" or "Last, F". Names that do not fit that pattern, such as
-    a lab name, can be allowed in Entry Settings.
+  - The PI is "Family" or "Family, Given". A lab or a group is a PI of kind
+    organisation, not a person's name: an import sheet says so in its
+    `principal_investigator_kind` column. There is no list of allowed names.
   - A PI, project or material that does not exist yet is created with the
     sample.
   - A warning appears when a similarly named sample exists in any project
@@ -150,7 +151,6 @@ Entry > Holders… lists irradiation holders and imports legacy holder files
 Entry > Entry Settings… holds the lab's settings, which every client shares:
 
 - the package name prefix and the kind new packages start as
-- PI names allowed besides "Last, F"
 - the monitor sample and material
 - the estimated J per hour of dose
 - whether positions without an identifier need a packet
@@ -171,7 +171,7 @@ elctl entry positions import NM-301 positions.csv --db ...
 elctl entry identifiers generate NM-301 --dry-run --db ...
 elctl entry identifiers generate NM-301 --db ...
 elctl entry package show NM-301 --csv --db ...
-elctl entry settings set pi_names_allowed '["NMGRL Lab"]' --db ...
+elctl entry settings set package_prefix NM- --db ...
 elctl entry seed ~/Pychron/argus/seed.toml --dry-run --db ...
 elctl entry seed ~/Pychron/argus/seed.toml --db ...
 ```

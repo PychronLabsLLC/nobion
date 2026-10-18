@@ -188,8 +188,16 @@ struct PrincipalInvestigatorRow {
   `elctl entry settings` key, docs (`docs/entry.md`) with it. A stored
   settings value of it stays in `other_json`, unread.
 - PIs the list admitted are migrated as persons with a family name only.
-  `elctl db migrate` lists, after 0006, PI rows with no given name, as
-  candidates to mark `organisation` in the PI editor; nothing is guessed.
+  `elctl db migrate` lists, after it has applied migrations (0006 among
+  them), persons with no given name (display name, affiliation, uuid), as
+  candidates to mark `organisation` in the PI editor; nothing is guessed. A
+  store already up to date lists nothing. Applied migrations not read before
+  migrating (store behind will not open), so a later migration lists the
+  same rows again: harmless.
+- `elctl entry settings set` refuses a key this version does not read
+  (`pi_names_allowed` among them), naming the keys; nothing written.
+- `parse_pi` takes no allowed list; `apply_position_import` and
+  `ImportOptions` lose theirs.
 
 ## 7. Browser: filter and facet by uuid (owner)
 
