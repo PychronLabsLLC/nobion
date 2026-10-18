@@ -157,4 +157,8 @@ Not cut yet: the candidates (spec section 3, about 60 S1 names and the S3 names)
 
 ## Open questions
 
-- Task 4 changes production code in `libs/dvc` (`GitReader::open`, and a new `commits_and_changes` used by the commit walk) so that the importer tests, the largest share of a full `ctest` run, start fewer git processes; behaviour and error messages stay the same, and real imports gain too. Is a production change made for test time within T036, or should Task 4 be its own row (Task 5, test-only, can land either way)?
+None.
+
+## Owner's answers, 2026-10-18
+
+1. The `libs/dvc` change (was Task 4) is its own row, T097, not part of T036. Task 5 is test-only and lands with T036 whether or not T097 has landed.
