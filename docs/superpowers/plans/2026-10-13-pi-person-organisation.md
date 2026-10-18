@@ -96,8 +96,8 @@ Read from `develop` `358eb184`.
 
 **Files:** `apps/pychron-ui/src/samples_window.*`, `sample_table_model.*`, `sample_import_dialog.*`, a new `pi_dialog.{hpp,cpp}` (kind, family, given, ORCID, affiliation, ROR; the namesake question), `apps/pychron-ui/CMakeLists.txt`, `tests/ui/test_entry_windows.cpp`.
 
-- [ ] Failing tests: a new PI from the samples window has its own fields, nothing parsed; a bad ORCID is refused at the field; a namesake opens the question with the candidates and "this one" / "another person"; an import with namesakes asks once a distinct name and applies the answers; a PI's kind can be changed to organisation in its editor.
-- [ ] Commit `feat(ui): a PI is entered by its parts and a namesake is asked about`.
+- [x] Failing tests: a new PI from the samples window has its own fields, nothing parsed; a bad ORCID is refused at the field; a namesake opens the question with the candidates and "this one" / "another person"; an import with namesakes asks once a distinct name and applies the answers; a PI's kind can be changed to organisation in its editor.
+- [x] Commit `feat(ui): a PI is entered by its parts and a namesake is asked about`.
 
 ### Task 8: The browser filters and facets by uuid
 

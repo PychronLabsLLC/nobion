@@ -1,11 +1,15 @@
 // Sample and package entry windows (entry spec, section 9) on a SQLite store:
 // the samples table edits and saves, shows another client's change as stale
-// and writes nothing; the import dialog previews and imports pasted rows;
+// and writes nothing; a PI is entered by its parts and a namesake is asked
+// about (PI spec 6); the import dialog previews and imports pasted rows,
+// asking once a namesake;
 // the packages window assigns samples, saves, asks before leaving unsaved
 // edits, generates identifiers (re-planning when the counter moved), and
 // writes the level sheets as PDF.
 
 #include <QtTest/QtTest>
+
+#include <algorithm>
 
 #ifndef PYCHRON_UI_HAS_STORE
 
@@ -21,6 +25,8 @@ class EntryWindowsTest : public QObject {
 #include <QComboBox>
 #include <QLineEdit>
 #include <QMainWindow>
+#include <QPointer>
+#include <QPushButton>
 #include <QTableView>
 #include <QTableWidget>
 #include <QSignalSpy>
@@ -36,6 +42,7 @@ class EntryWindowsTest : public QObject {
 #include "package_dialogs.hpp"
 #include "package_tree_delegate.hpp"
 #include "packages_window.hpp"
+#include "pi_dialog.hpp"
 #include "sample_import_dialog.hpp"
 #include "sample_table_model.hpp"
 #include "samples_window.hpp"
@@ -154,21 +161,37 @@ class EntryWindowsTest : public QObject {
     QCOMPARE((*store_->catalog_row(ps::CatalogTable::Sample, seeded_.bt1))->at("note"), ps::CatalogValue{std::string("theirs")});
   }
 
-  void samples_new_with_new_project() {
+  // A new PI is entered by its parts: what is typed in each field is stored
+  // as it is, nothing parsed (PI spec 6).
+  void samples_new_pi_by_its_parts() {
     auto b = bridge();
     pychron::ui::SamplesWindow w(*b);
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
+    int asked = 0;
+    w.set_ask_pi([&](const en::PiQuestion&) {
+      ++asked;
+      return std::optional<en::PiAnswer>();
+    });
     pychron::ui::NewSample s;
     s.name = "new-1";
-    s.principal_investigator = "Doe, A";
     s.project = "Delta";
     s.material = "biotite";
     s.grainsize = "20-40";
     w.set_form(s);
+    QVERIFY(!w.add_from_form());  // no PI chosen
+
+    QPointer<pychron::ui::PiDialog> d = w.new_pi();
+    QVERIFY(d);
+    d->family_edit()->setText(QStringLiteral("van der Pluijm"));
+    d->given_edit()->setText(QStringLiteral("Ben A."));
+    d->affiliation_edit()->setText(QStringLiteral("UMich"));
+    d->ror_edit()->setText(QStringLiteral("https://ror.org/00jmfr291"));
+    QVERIFY(d->ok_button()->isEnabled());
+    d->ok_button()->click();
+    QCOMPARE(asked, 0);  // no namesake
+    QCOMPARE(w.model()->new_pis().size(), std::size_t{1});
+    QCOMPARE(w.pi_box()->currentText(), QStringLiteral("Ben A. van der Pluijm (new)"));
     QVERIFY(w.add_from_form());
-    s.principal_investigator = "jake doe";  // refused by the PI rule
-    w.set_form(s);
-    QVERIFY(!w.add_from_form());
     w.save();
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy() && !w.model()->dirty(), kWaitMs);
     ps::SampleQuery q;
@@ -176,19 +199,148 @@ class EntryWindowsTest : public QObject {
     auto rows = *store_->samples(q);
     QCOMPARE(rows.size(), std::size_t{1});
     QCOMPARE(QString::fromStdString(rows[0].project_name), QStringLiteral("Delta"));
-    QCOMPARE(QString::fromStdString(rows[0].principal_investigator_name), QStringLiteral("A Doe"));
+    QCOMPARE(QString::fromStdString(rows[0].principal_investigator_name), QStringLiteral("Ben A. van der Pluijm"));
     QCOMPARE(QString::fromStdString(rows[0].grainsize), QStringLiteral("20-40"));
+    const auto pis = *store_->principal_investigators();
+    const auto made = std::find_if(pis.begin(), pis.end(), [](const auto& p) { return p.family_name == "van der Pluijm"; });
+    QVERIFY(made != pis.end());
+    QCOMPARE(made->given_name, std::string("Ben A."));
+    QCOMPARE(made->affiliation, std::optional<std::string>("UMich"));
+    QCOMPARE(made->ror, std::optional<std::string>("00jmfr291"));
+    QCOMPARE(made->kind, ps::PiKind::Person);
   }
 
-  // The store shows the PI "J Ross"; the form takes it as "Ross, J" and finds
-  // that row by family and given name: no second PI.
+  // The form refuses a bad ORCID or ROR where it is typed, with the value
+  // quoted; an organisation has no given name and no ORCID.
+  void pi_dialog_checks_its_fields() {
+    pychron::ui::PiDialog d;
+    QVERIFY(!d.ok_button()->isEnabled());  // no family name
+    d.family_edit()->setText(QStringLiteral("Ross"));
+    d.given_edit()->setText(QStringLiteral("Jake"));
+    QVERIFY(d.ok_button()->isEnabled());
+    d.orcid_edit()->setText(QStringLiteral("0000-0002-1825-0098"));  // check character wrong
+    QVERIFY(!d.ok_button()->isEnabled());
+    QVERIFY2(d.error().contains(QStringLiteral("0000-0002-1825-0098")), qPrintable(d.error()));
+    d.accept();
+    QCOMPARE(d.result(), int(QDialog::Rejected));
+    d.orcid_edit()->setText(QStringLiteral("https://orcid.org/0000-0002-1825-0097"));
+    QVERIFY(d.ok_button()->isEnabled());
+    QVERIFY(d.error().isEmpty());
+    QCOMPARE(d.fields()->orcid, std::optional<std::string>("0000-0002-1825-0097"));
+    d.ror_edit()->setText(QStringLiteral("not-a-ror"));
+    QVERIFY(!d.ok_button()->isEnabled());
+    QVERIFY2(d.error().contains(QStringLiteral("not-a-ror")), qPrintable(d.error()));
+    d.ror_edit()->clear();
+    d.kind_box()->setCurrentIndex(1);  // organisation
+    QVERIFY(!d.given_edit()->isEnabled());
+    QVERIFY(!d.orcid_edit()->isEnabled());
+    const auto org = d.fields();
+    QVERIFY(org.has_value());
+    QCOMPARE(org->kind, ps::PiKind::Organisation);
+    QCOMPARE(org->given_name, std::string());
+    QCOMPARE(org->orcid, std::optional<std::string>());
+  }
+
+  // A new PI whose name stored PIs share is asked about: "this one" takes
+  // the stored PI, "another person" makes a new one.
+  void samples_new_pi_namesake_is_asked() {
+    auto b = bridge();
+    pychron::ui::SamplesWindow w(*b);
+    QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
+    std::vector<en::PiQuestion> asked;
+    std::optional<en::PiAnswer> reply = en::PiAnswer{seeded_.ross};
+    w.set_ask_pi([&](const en::PiQuestion& q) {
+      asked.push_back(q);
+      return reply;
+    });
+    const auto enter = [&w] {
+      QPointer<pychron::ui::PiDialog> d = w.new_pi();
+      d->family_edit()->setText(QStringLiteral("Ross"));
+      d->given_edit()->setText(QStringLiteral("Jake"));
+      d->ok_button()->click();
+    };
+    enter();
+    QCOMPARE(asked.size(), std::size_t{1});
+    QCOMPARE(QString::fromStdString(asked[0].name), QStringLiteral("Ross, Jake"));
+    QCOMPARE(asked[0].candidates.size(), std::size_t{1});
+    QCOMPARE(asked[0].candidates[0].uuid, seeded_.ross);
+    QVERIFY(w.model()->new_pis().empty());
+    QCOMPARE(w.pi_box()->currentData().toString(), QString::fromStdString(seeded_.ross.str()));
+
+    reply = en::PiAnswer{std::nullopt};  // another person
+    enter();
+    QCOMPARE(asked.size(), std::size_t{2});
+    QCOMPARE(w.model()->new_pis().size(), std::size_t{1});
+    pychron::ui::NewSample s;
+    s.name = "new-3";
+    s.project = "Beta";
+    s.material = "sanidine";
+    w.set_form(s);
+    QVERIFY(w.add_from_form());
+    w.save();
+    QTRY_VERIFY_WITH_TIMEOUT(!w.busy() && !w.model()->dirty(), kWaitMs);
+    QCOMPARE(store_->principal_investigators()->size(), std::size_t{2});
+    // Two PIs that show alike would be told apart; these show "J Ross" and "Jake Ross".
+    QCOMPARE(w.pi_box()->count(), 2);
+  }
+
+  void pi_question_lists_the_candidates() {
+    ps::PrincipalInvestigatorRow a, c;
+    a.uuid = seeded_.ross;
+    a.family_name = "Ross";
+    a.given_name = "J";
+    a.display_name = "J Ross";
+    a.affiliation = "NMT";
+    c.uuid = ps::Uuid::v7();
+    c.family_name = "Ross";
+    c.given_name = "Jane";
+    c.display_name = "Jane Ross";
+    c.orcid = "0000-0002-1825-0097";
+    en::PiQuestion q;
+    q.pi = {"Ross", "J"};
+    q.name = en::question_name(q.pi);
+    q.candidates = {a, c};
+    std::vector<ps::ProjectRow> projects(1);
+    projects[0].name = "Alpha";
+    projects[0].principal_investigator = seeded_.ross;
+    {
+      pychron::ui::PiQuestionDialog d(q, projects);
+      QCOMPARE(d.candidates()->rowCount(), 2);
+      QCOMPARE(d.candidates()->item(0, 1)->text(), QStringLiteral("NMT"));
+      QCOMPARE(d.candidates()->item(0, 3)->text(), QStringLiteral("Alpha"));
+      QCOMPARE(d.candidates()->item(1, 2)->text(), QStringLiteral("0000-0002-1825-0097"));
+      QCOMPARE(d.another_button()->text(), QStringLiteral("Another Person"));
+      QVERIFY(!d.this_one_button()->isEnabled());
+      d.candidates()->selectRow(1);
+      QVERIFY(d.this_one_button()->isEnabled());
+      d.this_one_button()->click();
+      QCOMPARE(d.answer(), std::optional<en::PiAnswer>(en::PiAnswer{c.uuid}));
+    }
+    {
+      pychron::ui::PiQuestionDialog d(q, projects);
+      d.another_button()->click();
+      QCOMPARE(d.answer(), std::optional<en::PiAnswer>(en::PiAnswer{std::nullopt}));
+    }
+    // Listings tell two PIs that show alike apart.
+    ps::PrincipalInvestigatorRow b = a;
+    b.uuid = ps::Uuid::v7();
+    b.affiliation = std::nullopt;
+    b.orcid = "0000-0001-5109-3700";
+    QCOMPARE(pychron::ui::pi_label(a, {a, b}), QStringLiteral("J Ross (NMT)"));
+    QCOMPARE(pychron::ui::pi_label(b, {a, b}), QStringLiteral("J Ross (3700)"));
+    QCOMPARE(pychron::ui::pi_label(a, {a, c}), QStringLiteral("J Ross"));
+  }
+
+  // The form's PI is chosen from the stored ones: no second PI.
   void samples_new_under_an_existing_pi() {
     auto b = bridge();
     pychron::ui::SamplesWindow w(*b);
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
+    QCOMPARE(w.pi_box()->count(), 1);
+    QCOMPARE(w.pi_box()->itemText(0), QStringLiteral("J Ross"));
     pychron::ui::NewSample s;
     s.name = "new-2";
-    s.principal_investigator = "Ross, J";
+    s.principal_investigator = seeded_.ross;
     s.project = "Alpha";
     s.material = "sanidine";
     w.set_form(s);
@@ -202,6 +354,29 @@ class EntryWindowsTest : public QObject {
     QCOMPARE(rows[0].principal_investigator, std::optional<ps::Uuid>{seeded_.ross});
     QCOMPARE(QString::fromStdString(rows[0].principal_investigator_name), QStringLiteral("J Ross"));
     QCOMPARE(store_->principal_investigators()->size(), std::size_t{1});
+  }
+
+  // A PI's kind is changed in its editor: a former allowed name becomes an
+  // organisation (PI spec 6.1).
+  void pi_editor_makes_an_organisation() {
+    const ps::Uuid lab = *store_->add_principal_investigator(seeded_.client, {"NMGRL"});
+    auto b = bridge();
+    pychron::ui::SamplesWindow w(*b);
+    QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
+    QPointer<pychron::ui::PiDialog> d = w.edit_pi(lab);
+    QVERIFY(d);
+    QCOMPARE(d->family_edit()->text(), QStringLiteral("NMGRL"));
+    QCOMPARE(d->kind_box()->currentIndex(), 0);
+    d->kind_box()->setCurrentIndex(1);
+    d->ok_button()->click();
+    const auto stored = [&] {
+      const auto pis = *store_->principal_investigators();
+      const auto row = std::find_if(pis.begin(), pis.end(), [&lab](const auto& p) { return p.uuid == lab; });
+      return row == pis.end() ? ps::PrincipalInvestigatorRow{} : *row;
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(!w.busy() && stored().kind == ps::PiKind::Organisation, kWaitMs);
+    QCOMPARE(stored().display_name, std::string("NMGRL"));
+    QVERIFY(!w.edit_pi(ps::Uuid::v7()));  // not a PI
   }
 
   void import_pasted_rows() {
@@ -225,6 +400,52 @@ class EntryWindowsTest : public QObject {
     ps::SampleQuery q;
     q.text = "z-1";
     QCOMPARE(store_->samples(q)->size(), std::size_t{1});
+  }
+
+  // Two stored "J Ross": a sheet naming "Ross, J" on two rows is asked
+  // about once, and the answer used for both.
+  void import_asks_once_a_namesake() {
+    // add_principal_investigator ensures by name; a namesake is inserted.
+    const ps::Uuid other_ross = ps::Uuid::v7();
+    ps::CatalogEditBatch add;
+    add.edits = {ps::CatalogInsert{ps::CatalogTable::PrincipalInvestigator, other_ross,
+                                   {{"family_name", std::string("Ross")},
+                                    {"given_name", std::string("J")},
+                                    {"affiliation", std::string("elsewhere")}}}};
+    QVERIFY(std::holds_alternative<ps::CatalogApplied>(*store_->apply_catalog_edits(seeded_.client, add)));
+    auto b = bridge();
+    pychron::ui::SampleImportDialog d(*b);
+    std::vector<std::string> asked;
+    std::optional<en::PiAnswer> reply;
+    d.set_ask_pi([&](const en::PiQuestion& q) {
+      asked.push_back(q.name);
+      return reply;
+    });
+    d.set_text(QStringLiteral("sample\tproject\tPI\tmaterial\nq-1\tGamma\tRoss, J\tsanidine\n"
+                              "q-2\tGamma\tRoss, J\tsanidine\n"));
+    QVERIFY(d.preview());
+    QVERIFY2(d.plan()->asks == 2, qPrintable(d.message()));
+    QCOMPARE(d.plan()->questions.size(), std::size_t{1});
+    QVERIFY2(d.message().contains(QStringLiteral("Import asks")), qPrintable(d.message()));
+    // Not answered: nothing written.
+    QSignalSpy spy(&d, &pychron::ui::SampleImportDialog::imported);
+    d.import_rows();
+    QCOMPARE(asked.size(), std::size_t{1});
+    QCOMPARE(spy.count(), 0);
+    ps::SampleQuery q;
+    q.text = "q-";
+    QCOMPARE(store_->samples(q)->size(), std::size_t{0});
+    // Answered: one question, both rows under that PI.
+    asked.clear();
+    reply = en::PiAnswer{other_ross};
+    d.import_rows();
+    QCOMPARE(asked, std::vector<std::string>{"Ross, J"});
+    QTRY_COMPARE_WITH_TIMEOUT(spy.count(), 1, kWaitMs);
+    QCOMPARE(spy.at(0).at(0).toBool(), true);
+    const auto rows = *store_->samples(q);
+    QCOMPARE(rows.size(), std::size_t{2});
+    for (const auto& r : rows) QCOMPARE(r.principal_investigator, std::optional<ps::Uuid>{other_ross});
+    QCOMPARE(store_->principal_investigators()->size(), std::size_t{2});
   }
 
   void packages_assign_save_and_generate() {

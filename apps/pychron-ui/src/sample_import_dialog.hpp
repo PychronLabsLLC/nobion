@@ -9,6 +9,7 @@
 #include <QDialog>
 
 #include "entry_bridge.hpp"
+#include "pi_dialog.hpp"
 
 class QCheckBox;
 class QComboBox;
@@ -30,8 +31,13 @@ class SampleImportDialog : public QDialog {
   // Parses the text, maps its columns and plans against the catalog.
   // Blocks briefly on the store for the catalog.
   bool preview();
-  // Writes the plan (asynchronous); `finished(true)` when it applied.
+  // Asks each namesake question of the plan not answered yet, once a
+  // distinct name (PI spec 6), then writes the plan (asynchronous);
+  // `imported(true)` when it applied. A question left unanswered writes
+  // nothing.
   void import_rows();
+  // How the dialog asks a namesake question (tests answer without a dialog).
+  void set_ask_pi(PiAsk ask) { ask_pi_ = std::move(ask); }
 
   const std::optional<entry::SampleImportPlan>& plan() const noexcept { return plan_; }
   QString message() const;
@@ -58,6 +64,7 @@ class SampleImportDialog : public QDialog {
   std::optional<entry::CsvTable> table_;
   std::optional<entry::SampleImportPlan> plan_;
   entry::CatalogSnapshot catalog_;
+  PiAsk ask_pi_;
 };
 
 }  // namespace pychron::ui

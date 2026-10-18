@@ -171,7 +171,12 @@ struct PrincipalInvestigatorRow {
   that name matches too. Question per distinct `question_name` ("Family,
   Given"; organisation "Name (organisation)").
   - form: dialog listing the rows (name, affiliation, ORCID, projects) with
-    "this one" or "another person";
+    "this one" or "another person". Form's candidates: every stored PI of
+    same kind, family name (case aside) and given initial (either given
+    empty: all of family name), exact name included: a person adding a PI
+    is asked, not matched. ORCID a stored PI has: that PI chosen, not asked.
+    Samples window's PI is chosen from a list or made with New PI…, never
+    typed; Edit PI… changes a stored one (kind among fields);
   - sheet import in the UI: the import plan stops at those rows and the
     dialog asks once a distinct name, the answer used for every row of it;
   - `elctl entry samples import`: fails with the rows listed and how to

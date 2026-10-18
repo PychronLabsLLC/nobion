@@ -11,6 +11,7 @@
 #include <QPointer>
 
 #include "entry_bridge.hpp"
+#include "pi_dialog.hpp"
 #include "sample_table_model.hpp"
 
 class QComboBox;
@@ -41,8 +42,20 @@ class SamplesWindow : public QMainWindow {
   // Stages the sample in the new-sample form; false (with a message) when it
   // is incomplete.
   bool add_from_form();
-  void set_form(const NewSample& sample);  // tests
+  // Fills the form; its PI is chosen when the sample names one (tests).
+  void set_form(const NewSample& sample);
   SampleImportDialog* open_import();
+
+  // The PI form for a new PI (PI spec 6), shown without blocking. Accepted,
+  // a PI with namesakes is asked about first: one of them is chosen, or a new
+  // PI is staged; either becomes the form's PI.
+  PiDialog* new_pi();
+  // The PI form over a stored PI (the PI filter's when `pi` is not given);
+  // accepted, its changes are written at once. Null without a PI.
+  PiDialog* edit_pi(std::optional<persistence::Uuid> pi = std::nullopt);
+  // How the window asks a namesake question (tests answer without a dialog).
+  void set_ask_pi(PiAsk ask) { ask_pi_ = std::move(ask); }
+  QComboBox* pi_box() const noexcept { return new_pi_; }
 
  protected:
   void closeEvent(QCloseEvent* event) override;
@@ -52,6 +65,9 @@ class SamplesWindow : public QMainWindow {
   void fill_filter(QComboBox* box, const std::vector<std::pair<QString, persistence::Uuid>>& items);
   void show_message(const QString& text, bool error = false);
   void check_duplicates();
+  void fill_pi_box(const std::optional<persistence::Uuid>& select);
+  void choose_pi(const PiFields& fields);
+  void save_pi(const persistence::PrincipalInvestigatorRow& stored, const PiFields& fields);
 
   EntryBridge& bridge_;
   SampleTableModel* model_;
@@ -66,6 +82,7 @@ class SamplesWindow : public QMainWindow {
   entry::CatalogSnapshot catalog_;
   int busy_ = 0;
   QPointer<SampleImportDialog> import_;
+  PiAsk ask_pi_;
 };
 
 }  // namespace pychron::ui

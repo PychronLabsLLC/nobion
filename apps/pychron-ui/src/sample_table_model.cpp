@@ -1,5 +1,6 @@
 #include "sample_table_model.hpp"
 
+
 #include <QBrush>
 #include <QColor>
 #include <QFont>
@@ -34,6 +35,7 @@ void SampleTableModel::set_rows(std::vector<ps::SampleRow> rows) {
   beginResetModel();
   rows_ = std::move(rows);
   new_.clear();
+  new_pis_.clear();
   edits_.clear();
   deletes_.clear();
   stale_.clear();
@@ -69,9 +71,15 @@ bool SampleTableModel::mark_delete(int row) {
   return true;
 }
 
+void SampleTableModel::add_pi(ps::PrincipalInvestigatorSpec pi) {
+  if (!pi.uuid) pi.uuid = ps::Uuid::v7();
+  new_pis_.push_back(std::move(pi));
+}
+
 void SampleTableModel::revert() {
   beginResetModel();
   new_.clear();
+  new_pis_.clear();
   edits_.clear();
   deletes_.clear();
   endResetModel();
@@ -155,7 +163,7 @@ QVariant SampleTableModel::data(const QModelIndex& index, int role) const {
       switch (column) {
         case Name: return QString::fromStdString(n.name);
         case Project: return QString::fromStdString(n.project);
-        case PrincipalInvestigator: return QString::fromStdString(n.principal_investigator);
+        case PrincipalInvestigator: return QString::fromStdString(n.principal_investigator_name);
         case Material: return QString::fromStdString(n.material);
         case Grainsize: return QString::fromStdString(n.grainsize);
         case Lat: return n.fields.lat ? QVariant(*n.fields.lat) : QVariant();
@@ -266,32 +274,38 @@ Result<ps::CatalogEditBatch> SampleTableModel::to_batch(const entry::CatalogSnap
   }
   // New samples, with what they name that does not exist yet.
   std::vector<ps::CatalogEdit> pis, projects, materials, samples;
-  std::map<std::pair<std::string, std::string>, ps::Uuid> pi_ids, material_ids;
+  std::map<std::pair<std::string, std::string>, ps::Uuid> material_ids;
   std::map<std::pair<std::string, ps::Uuid>, ps::Uuid> project_ids;
-  for (const auto& p : catalog.principal_investigators) pi_ids.try_emplace({p.family_name, p.given_name}, p.uuid);
+  std::set<ps::Uuid> stored_pis, written_pis;
+  for (const auto& p : catalog.principal_investigators) stored_pis.insert(p.uuid);
+  for (const auto& p : new_pis_) {
+    if (stored_pis.contains(*p.uuid) || !written_pis.insert(*p.uuid).second) continue;
+    ps::CatalogFields values{{"kind", std::string(ps::pi_kind_name(p.kind))},
+                             {"family_name", p.family_name},
+                             {"given_name", p.given_name}};
+    if (p.orcid) values["orcid"] = *p.orcid;
+    if (p.ror) values["ror"] = *p.ror;
+    if (p.affiliation) values["affiliation"] = *p.affiliation;
+    pis.emplace_back(ps::CatalogInsert{ps::CatalogTable::PrincipalInvestigator, *p.uuid, std::move(values)});
+  }
   for (const auto& p : catalog.projects)
     if (p.principal_investigator) project_ids[{p.name, *p.principal_investigator}] = p.uuid;
   for (const auto& m : catalog.materials) material_ids[{m.name, m.grainsize}] = m.uuid;
   for (const auto& n : new_) {
-    auto pi = entry::parse_pi(n.principal_investigator);
-    if (!pi) return fail(ErrorKind::Config, n.name + ": " + pi.error().what);
     if (!entry::valid_project_name(n.project))
       return fail(ErrorKind::Config, n.name + ": project '" + n.project + "' starts with a letter; letters, digits, - or _");
     if (n.name.empty() || n.material.empty()) return fail(ErrorKind::Config, "a new sample needs a name and a material");
     if (auto ok = entry::check_lat_lon(n.fields.lat, n.fields.lon); !ok)
       return fail(ErrorKind::Config, n.name + ": " + ok.error().what);
-    auto p = pi_ids.find({pi->family_name, pi->given_name});
-    if (p == pi_ids.end()) {
-      const ps::Uuid id = ps::Uuid::v7();
-      p = pi_ids.emplace(std::make_pair(pi->family_name, pi->given_name), id).first;
-      pis.emplace_back(ps::CatalogInsert{ps::CatalogTable::PrincipalInvestigator, id,
-                                      {{"family_name", pi->family_name}, {"given_name", pi->given_name}}});
-    }
-    auto j = project_ids.find({n.project, p->second});
+    if (!n.principal_investigator) return fail(ErrorKind::Config, n.name + ": a new sample needs a PI");
+    const ps::Uuid pi = *n.principal_investigator;
+    if (!stored_pis.contains(pi) && !written_pis.contains(pi))
+      return fail(ErrorKind::Config, n.name + ": its PI is not in the catalog");
+    auto j = project_ids.find({n.project, pi});
     if (j == project_ids.end()) {
       const ps::Uuid id = ps::Uuid::v7();
-      j = project_ids.emplace(std::make_pair(n.project, p->second), id).first;
-      projects.emplace_back(ps::CatalogInsert{ps::CatalogTable::Project, id, {{"name", n.project}, {"pi_uuid", p->second}}});
+      j = project_ids.emplace(std::make_pair(n.project, pi), id).first;
+      projects.emplace_back(ps::CatalogInsert{ps::CatalogTable::Project, id, {{"name", n.project}, {"pi_uuid", pi}}});
     }
     auto m = material_ids.find({n.material, n.grainsize});
     if (m == material_ids.end()) {

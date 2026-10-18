@@ -16,10 +16,15 @@
 
 namespace pychron::ui {
 
-// A sample entered in the new-sample form. PI, project and material are named
-// by text: what the catalog lacks is created on save.
+// A sample entered in the new-sample form. Its PI is a stored one or one
+// staged with SampleTableModel::add_pi, by uuid (PI spec 6: a PI is entered
+// by its parts, never parsed from text); project and material are named by
+// text, and what the catalog lacks is created on save.
 struct NewSample {
-  std::string name, principal_investigator, project, material, grainsize;
+  std::string name;
+  std::optional<persistence::Uuid> principal_investigator;
+  std::string principal_investigator_name;  // as shown
+  std::string project, material, grainsize;
   persistence::SampleFields fields;
 };
 
@@ -59,9 +64,13 @@ class SampleTableModel : public QAbstractTableModel {
 
   void add_new(NewSample sample);
   const std::vector<NewSample>& new_samples() const noexcept { return new_; }
+  // A new PI for new samples to name by its uuid (set). Written on save;
+  // dropped with the new samples.
+  void add_pi(persistence::PrincipalInvestigatorSpec pi);
+  const std::vector<persistence::PrincipalInvestigatorSpec>& new_pis() const noexcept { return new_pis_; }
   // Marks a stored row for deletion (only rows with no positions or analyses).
   bool mark_delete(int row);
-  bool dirty() const { return !edits_.empty() || !new_.empty() || !deletes_.empty(); }
+  bool dirty() const { return !edits_.empty() || !new_.empty() || !new_pis_.empty() || !deletes_.empty(); }
   void revert() override;  // drops every edit and new sample
 
   // Rows another client changed: tinted, the other values in the tooltip.
@@ -69,8 +78,8 @@ class SampleTableModel : public QAbstractTableModel {
   bool is_stale(int row) const;
 
   // The edits as one batch. New PIs, projects and materials are inserted
-  // first; `catalog` says which exist. Errors: a new sample that names a PI
-  // the rules refuse, or an edit that is not a valid value.
+  // first; `catalog` says which exist. Errors: a new sample whose PI is
+  // neither stored nor staged, or an edit that is not a valid value.
   Result<persistence::CatalogEditBatch> to_batch(const entry::CatalogSnapshot& catalog) const;
 
   int rowCount(const QModelIndex& parent = {}) const override;
@@ -87,6 +96,7 @@ class SampleTableModel : public QAbstractTableModel {
 
   std::vector<persistence::SampleRow> rows_;
   std::vector<NewSample> new_;
+  std::vector<persistence::PrincipalInvestigatorSpec> new_pis_;
   std::map<persistence::Uuid, persistence::CatalogFields> edits_;  // column name -> new value
   std::set<persistence::Uuid> deletes_;
   std::map<persistence::Uuid, persistence::CatalogFields> stale_;

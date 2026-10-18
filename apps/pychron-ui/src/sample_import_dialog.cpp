@@ -107,6 +107,7 @@ SampleImportDialog::SampleImportDialog(EntryBridge& bridge, QWidget* parent) : Q
   connect(update_existing_, &QCheckBox::toggled, this, [this] { preview(); });
   connect(import_, &QPushButton::clicked, this, [this] { import_rows(); });
   connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+  ask_pi_ = [this](const entry::PiQuestion& q) { return ask_pi_modal(this, q, catalog_.projects); };
   resize(1000, 700);
 }
 
@@ -207,17 +208,16 @@ void SampleImportDialog::fill_preview() {
     }
   }
   const bool writes = plan_->creates > 0 || (plan_->updates > 0 && update_existing_->isChecked());
-  // No dialog asks about a PI with namesakes yet: such a sheet names its PI
-  // by principal_investigator_orcid or principal_investigator_uuid.
-  import_->setEnabled(plan_->errors == 0 && plan_->ready() && writes);
+  // Rows waiting on a namesake question may write once it is answered:
+  // Import asks it.
+  import_->setEnabled(plan_->errors == 0 && (writes || !plan_->ready()));
   QString summary = tr("%1 to create, %2 differing, %3 stored, %4 in error")
                         .arg(plan_->creates)
                         .arg(plan_->updates)
                         .arg(plan_->exists)
                         .arg(plan_->errors);
   if (plan_->asks > 0)
-    summary += tr(" — %1 rows name a PI with namesakes: add a principal_investigator_orcid or "
-                  "principal_investigator_uuid column")
+    summary += tr(" — %1 rows name a PI with namesakes: Import asks which")
                    .arg(plan_->asks);
   if (!plan_->new_principal_investigators.empty() || !plan_->new_projects.empty() || !plan_->new_materials.empty())
     summary += tr(" — also new: %1 PIs, %2 projects, %3 materials")
@@ -229,6 +229,24 @@ void SampleImportDialog::fill_preview() {
 
 void SampleImportDialog::import_rows() {
   if (!plan_ || plan_->errors > 0) return;
+  // Each question once, its answer used for every row of it. answer() may
+  // settle rows into errors (a duplicate once the PI is known).
+  for (std::size_t i = 0; i < plan_->questions.size(); ++i) {
+    if (plan_->questions[i].answer) continue;
+    const entry::PiQuestion q = plan_->questions[i];
+    const auto answer = ask_pi_ ? ask_pi_(q) : std::nullopt;
+    if (!answer) {
+      fill_preview();
+      return show_message(tr("No PI was chosen for \"%1\"; nothing was written").arg(QString::fromStdString(q.name)),
+                          true);
+    }
+    if (auto ok = plan_->answer(q.name, *answer, catalog_); !ok) {
+      fill_preview();
+      return show_message(QString::fromStdString(ok.error().what), true);
+    }
+  }
+  fill_preview();
+  if (plan_->errors > 0) return;
   entry::ImportOptions o{update_existing_->isChecked()};
   auto made = entry::to_batch(*plan_, catalog_, o);
   if (!made) return show_message(QString::fromStdString(made.error().what), true);

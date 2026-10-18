@@ -270,6 +270,7 @@ if(TARGET pychron_processing_store)
     src/package_dialogs.cpp
     src/package_tree_delegate.cpp
     src/packages_window.cpp
+    src/pi_dialog.cpp
     src/sample_import_dialog.cpp
     src/sample_table_model.cpp
     src/samples_window.cpp
@@ -290,6 +291,7 @@ if(TARGET pychron_processing_store)
     src/package_dialogs.hpp
     src/package_tree_delegate.hpp
     src/packages_window.hpp
+    src/pi_dialog.hpp
     src/sample_import_dialog.hpp
     src/sample_table_model.hpp
     src/samples_window.hpp)
