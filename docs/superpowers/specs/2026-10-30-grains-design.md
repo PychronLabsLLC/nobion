@@ -53,9 +53,10 @@ RecordedSource
 - `GrainPipeline` synchronous, single-threaded: one `Frame` in, one
   `GrainReport` out. No clock of its own; uses `Frame::timestamp` only, so
   output deterministic for given frames.
-- Worker takes newest frame from `LiveFeed::latest()`, skips what it missed,
-  posts report to UI thread. Real time by design: no simulated path, no
-  `Clock::Participant`.
+- Worker (`GrainRunner`, `libs/grains`, Qt-free) takes newest frame from
+  `LiveFeed::latest()`, skips what it missed, leaves report in mailbox under own
+  mutex, wakes UI thread with call that carries nothing. Real time by design: no
+  simulated path, no `Clock::Participant`.
 - Domain seam untouched: no Ar-Ar, no `Domain` entry. Not a data window.
 
 ## 4. Pipeline
@@ -69,6 +70,8 @@ enum class Side { Below, Above };          // relative to oil
 enum class Label { None, Candidate, Not, Unsure };  // None: no reference yet
 enum class Vote { Same, Opposite, None };
 enum class ReferenceState { None, Lost, MoveFocus, Reading, Disagree };
+
+struct ReferenceMark { vision::Vec2 at; Side side; };
 
 struct GrainView {
   std::uint64_t id;
@@ -95,6 +98,12 @@ class GrainPipeline {
   Result<void> set_reference(vision::Vec2 frame_px, Side side);
   Result<void> set_second_reference(vision::Vec2 frame_px, Side side);
   void clear_reference();
+  // Clears tracks and votes; references kept as marks, bound again to the blob
+  // at their place without a contrast check.
+  void reset();
+  void restore_references(ReferenceMark first, std::optional<ReferenceMark> second);
+  std::optional<ReferenceMark> reference_mark() const;
+  std::optional<ReferenceMark> second_reference_mark() const;
 };
 
 }  // namespace pychron::grains
@@ -176,9 +185,15 @@ other. `Below` is `Candidate`, `Above` is `Not`.
 
 ## 8. Recording and replay
 
-- Toggle on screen. Writes folder: one PGM per frame through `vision` `pgm`,
-  manifest `RecordedSource` reads (`fixture.hpp`), plus `tracks.jsonl`: per
-  frame, per grain outline, `v`, contrast, vote, label, score, reference state.
+- Toggle on screen. Writes folder: one PGM per frame processed, through
+  `vision::FrameRecorder`, manifest `RecordedSource` reads (`fixture.hpp`), plus
+  `tracks.jsonl`: first line options; then per frame timestamp, operator events
+  (reference set, cleared), per grain outline, `v`, contrast, vote, label, score,
+  reference state.
+- Starting recording calls `GrainPipeline::reset()`: votes restart, references
+  kept. Otherwise replay could not rebuild state from before first frame.
+- `RecordedSource` stamps at grab, frames carry no time: replay gives it clock
+  reading timestamps from `tracks.jsonl`, in order.
 - `tracks.jsonl` keeps enough to train model later. No model in this spec.
 - After writing folder: `pychron::mark_as_user_file` on each user-opened file
   (`tracks.jsonl`, manifest).
@@ -191,8 +206,10 @@ other. `Below` is `Candidate`, `Above` is `Not`.
 - Camera lost: `LiveFeed::Latest::error`. Last picture greyed under reason (as
   `apps/pychron-ui` `CameraView`), votes stop, labels held greyed. Returns by
   itself on reopen.
-- Frame rate under `min_fps` (default 10): warning `camera too slow`, passes
-  not counted.
+- Frame rate under `min_fps` (default 10), measured by pipeline from
+  `Frame::timestamp` so replay agrees: warning `camera too slow`, passes not
+  counted.
+- Frame size changes (camera reopened): pipeline `reset()`.
 - Global shift: pass dropped (section 4).
 - Processing behind camera: frames dropped, never queued.
 - Bad `grains.toml`: `Result` error shown at start, app does not run on
@@ -207,9 +224,10 @@ other. `Below` is `Candidate`, `Above` is `Not`.
   fps, options).
 - `[pipeline]`: `min_contrast`, `min_reference_contrast`, `min_passes`,
   `min_score`, `track_gap_frames`, `max_shift_px`, `disagree_passes`,
-  `min_fps`.
+  `min_fps`, `segment_window`, `ring_px`, `min_area_px`, `min_pass_frames`,
+  `min_ref_speed_px_s`.
 
-Defaults for all but `[camera]`.
+Defaults for all but `[camera]`. Unknown key or value out of range: error.
 
 ## 11. Camera requirements
 
