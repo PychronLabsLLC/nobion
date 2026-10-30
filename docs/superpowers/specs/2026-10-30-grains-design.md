@@ -26,8 +26,12 @@ App advises only. Moves nothing, reads no pychron config, touches no store.
   Image alone splits grains into two groups moving opposite ways, not which
   group is which. Reference grain of known side fixes sign (section 5).
 - Sign says "below oil", not "sanidine". Other low-index grains read sanidine:
-  volcanic glass (n about 1.49 to 1.50), microcline, orthoclase. Label means
-  sanidine candidate.
+  volcanic glass (n about 1.49 to 1.50), microcline, orthoclase. Separation
+  prep does not always remove them. So label is candidate: on screen
+  `sanidine?`, in code `Label::Candidate`.
+- Relief cannot settle this: microcline and orthoclase share sanidine's index.
+  Fringe contrast might separate glass only, unproven. `tracks.jsonl` keeps
+  contrast, so recordings can test it later.
 
 ## 3. Structure
 
@@ -62,7 +66,7 @@ Interfaces (names binding, fields may grow):
 namespace pychron::grains {
 
 enum class Side { Below, Above };          // relative to oil
-enum class Label { None, Sanidine, Not, Unsure };  // None: no reference yet
+enum class Label { None, Candidate, Not, Unsure };  // None: no reference yet
 enum class Vote { Same, Opposite, None };
 enum class ReferenceState { None, Lost, MoveFocus, Reading, Disagree };
 
@@ -130,8 +134,8 @@ no focus model, no assumed direction of rack.
   - `MoveFocus`: reference ok, no pass running.
   - `Reading`: passes counted.
   - `Disagree`: section below.
-- No sanidine label exists while no reference has been set. Label without sign
-  worthless.
+- No `Candidate` or `Not` label exists while no reference has been set. Label
+  without sign worthless.
 - Wrong side declared inverts every label. App cannot detect alone. Banner
   always shows reference and declared side.
 - Optional second reference of opposite side: their fringes must move opposite.
@@ -147,9 +151,9 @@ score = (agree + 1) / (agree + against + 2)
 votes add to neither.
 
 Side from reference: `Same` puts grain on reference's side, `Opposite` on
-other. `Below` is `Sanidine`, `Above` is `Not`.
+other. `Below` is `Candidate`, `Above` is `Not`.
 
-- Label is `Sanidine` or `Not` only when grain has at least `min_passes` voted
+- Label is `Candidate` or `Not` only when grain has at least `min_passes` voted
   passes and `score >= min_score`. Otherwise `Unsure`. Defaults: 3, 0.8.
 - Grain with weak fringe in every pass stays `Unsure`: correct outcome for
   near-oil grains.
@@ -161,7 +165,8 @@ other. `Below` is `Sanidine`, `Above` is `Not`.
 ## 7. Screen
 
 - Video fills window. Each grain: outline, label text, score, tick per pass.
-- Colours: sanidine green, not red, unsure amber, grey without reference. Text
+- Label text: `sanidine?`, `not`, `unsure`. Never bare `sanidine`.
+- Colours: candidate green, not red, unsure amber, grey without reference. Text
   always present: colour never sole signal. Colours from named tokens, no
   literals scattered in paint code.
 - Click grain: pass history, contrast, why unsure.
@@ -227,7 +232,7 @@ Rules with a test each:
 
 - No reference, no label.
 - Reversing z script leaves every label unchanged.
-- Flipping declared side inverts `Sanidine` and `Not`.
+- Flipping declared side inverts `Candidate` and `Not`.
 - Near-oil grains stay `Unsure`.
 - Irregular z speed, irregular reversals: same labels.
 - Reference lost: no new votes, labels held.
@@ -244,12 +249,11 @@ called working.
 ## 13. Out of scope
 
 Stage or z control. Encoder input. Air-bubble detection. Trained model. Named
-minerals. Sample records, operator or oil metadata. `libs/persistence`, DVC
+minerals. Telling sanidine from glass, microcline or orthoclase (relief cue,
+crossed polars). Sample records, operator or oil metadata. `libs/persistence`, DVC
 store. Phone, tablet. Installer or packaging: `grains` runs from a build until
 hardware proves it. Colour pipeline: `Frame` stays mono.
 
 ## Open questions
 
-- Does separation prep remove volcanic glass, microcline and orthoclase before
-  this step? If not, on-screen label should read `sanidine?` or similar, or a
-  later cue (relief magnitude) belongs in scope.
+None.
