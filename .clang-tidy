@@ -119,7 +119,7 @@ Checks: >
 #       (`hardware_name` became `n`); which to keep is a matter of style
 #
 # Directories that turn one more check off, each saying why:
-#   apps/pychron-ui, tests/ui   cppcoreguidelines-owning-memory (Qt parents)
+#   apps/pychron-ui, apps/grains, tests/ui   cppcoreguidelines-owning-memory (Qt parents)
 #   tests, apps/elctl/tests     bugprone-exception-escape
 
 # First-party headers only: nothing under build/ (fetched dependencies,

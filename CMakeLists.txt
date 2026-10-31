@@ -52,6 +52,10 @@ if(BUILD_UI AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/apps/pychron-ui/CMakeLists.t
   add_subdirectory(apps/pychron-ui)
 endif()
 
+if(BUILD_UI AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/apps/grains/CMakeLists.txt")
+  add_subdirectory(apps/grains)
+endif()
+
 if(BUILD_TESTS)
   enable_testing()
   include(GoogleTest)
