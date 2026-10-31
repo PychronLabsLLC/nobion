@@ -1,6 +1,7 @@
 #include "pychron/grains/segment.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 
@@ -13,16 +14,55 @@ constexpr double kFlatSigmas = 8.0;
 // The threshold is never below this many noise sigma.
 constexpr double kNoiseFloorSigmas = 4.0;
 // Where a fringe lingers near an edge it lifts the gradient on the skirt of
-// the ridge; holding the threshold at this fraction of the strongest edge
-// trims the skirt. Low, so a grain much fainter than its neighbours is kept.
+// the ridge; a pixel below this fraction of the strongest ridge within
+// kSkirtReachPx of it is trimmed.
 constexpr double kSkirtFraction = 0.2;
+constexpr int kSkirtReachPx = 8;
+// Otsu's level is held at or below this fraction of the nearby ridge.
+constexpr double kOtsuCap = 0.5;
 // Quantile of a pixel's gradient over the window. Low, so a fringe that sits
 // on the edge for part of the window does not lift it, but above the minimum.
 constexpr double kQuantile = 0.15;
+// Segmenting works on a frame at most this wide.
+constexpr int kMaxWidthPx = 800;
+// Nothing is returned until the ring holds this many frames; a quantile
+// rank of at least 1 needs it, and it is the window's lower bound.
+constexpr int kWarmUpFrames = 8;
+// Components are computed every this many frames; between, the last result.
+constexpr int kComputeEvery = 3;
+// The noise median looks at every this many pixels.
+constexpr std::size_t kSampleStride = 7;
+// Largest window the per-pixel scratch holds.
+constexpr std::size_t kMaxWindow = 64;
 // Median of a Rayleigh magnitude is 1.1774 sigma.
 constexpr double kRayleighMedian = 1.1774;
 // Gradient magnitudes are scaled to this range for Otsu.
 constexpr double kScaleTop = 60000.0;
+
+// Maximum over the (2r+1) square around each pixel, as two passes.
+std::vector<std::uint16_t> local_max(const std::vector<std::uint16_t>& v, int w, int h, int r) {
+  const auto uw = static_cast<std::size_t>(w);
+  const auto uh = static_cast<std::size_t>(h);
+  std::vector<std::uint16_t> rows(v.size());
+  for (std::size_t y = 0; y < uh; ++y) {
+    for (int x = 0; x < w; ++x) {
+      const int lo = std::max(0, x - r), hi = std::min(w - 1, x + r);
+      std::uint16_t m = 0;
+      for (int k = lo; k <= hi; ++k) m = std::max(m, v[y * uw + static_cast<std::size_t>(k)]);
+      rows[y * uw + static_cast<std::size_t>(x)] = m;
+    }
+  }
+  std::vector<std::uint16_t> out(v.size());
+  for (int y = 0; y < h; ++y) {
+    const int lo = std::max(0, y - r), hi = std::min(h - 1, y + r);
+    for (std::size_t x = 0; x < uw; ++x) {
+      std::uint16_t m = 0;
+      for (int k = lo; k <= hi; ++k) m = std::max(m, rows[static_cast<std::size_t>(k) * uw + x]);
+      out[static_cast<std::size_t>(y) * uw + x] = m;
+    }
+  }
+  return out;
+}
 
 // A grain cut by the frame edge leaves an arc whose ends meet the border, so
 // the interior is not enclosed and is not filled. Joins the ends of each
@@ -88,9 +128,15 @@ void fill_and_erode(std::vector<std::uint8_t>& mask, int w, int h) {
 Segmenter::Segmenter(const GrainOptions& options) : options_(options) {}
 
 void Segmenter::reset() {
-  ring_.clear();
+  buffer_.clear();
+  cached_.clear();
   width_ = height_ = 0;
   depth_ = 0;
+  factor_ = 1;
+  slot_ = 0;
+  filled_ = 0;
+  since_ = 0;
+  computed_ = false;
 }
 
 std::vector<vision::Component> Segmenter::update(const vision::FrameView& v) {
@@ -100,74 +146,137 @@ std::vector<vision::Component> Segmenter::update(const vision::FrameView& v) {
     width_ = v.width;
     height_ = v.height;
     depth_ = v.pixel_depth;
+    factor_ = (v.width + kMaxWidthPx - 1) / kMaxWidthPx;
+    sw_ = v.width / factor_;
+    sh_ = v.height / factor_;
+    if (sw_ < 3 || sh_ < 3) {
+      factor_ = 1;
+      sw_ = v.width;
+      sh_ = v.height;
+    }
+    window_ = static_cast<std::size_t>(std::min<std::size_t>(static_cast<std::size_t>(std::max(options_.segment_window, kWarmUpFrames)), kMaxWindow));
+    const auto n = static_cast<std::size_t>(sw_) * static_cast<std::size_t>(sh_);
+    buffer_.assign(n * window_, 0.0F);
+    small_.assign(n, 0.0F);
   }
-  const auto w = static_cast<std::size_t>(width_);
-  const auto h = static_cast<std::size_t>(height_);
+  const auto w = static_cast<std::size_t>(sw_);
+  const auto h = static_cast<std::size_t>(sh_);
+  const auto f = static_cast<std::size_t>(factor_);
 
-  // Sobel magnitude of this frame, in pixel levels per pixel.
-  std::vector<float> mag(w * h, 0.0F);
-  for (int y = 1; y < height_ - 1; ++y) {
-    for (int x = 1; x < width_ - 1; ++x) {
-      auto p = [&](int dx, int dy) { return static_cast<double>(v.at(x + dx, y + dy)); };
-      const double gx = (p(1, -1) + 2 * p(1, 0) + p(1, 1)) - (p(-1, -1) + 2 * p(-1, 0) + p(-1, 1));
-      const double gy = (p(-1, 1) + 2 * p(0, 1) + p(1, 1)) - (p(-1, -1) + 2 * p(0, -1) + p(1, -1));
-      mag[static_cast<std::size_t>(y) * w + static_cast<std::size_t>(x)] = static_cast<float>(std::hypot(gx, gy));
+  // Box mean down to at most kMaxWidthPx wide.
+  const float norm = 1.0F / static_cast<float>(factor_ * factor_);
+  for (std::size_t y = 0; y < h; ++y) {
+    for (std::size_t x = 0; x < w; ++x) {
+      std::uint32_t sum = 0;
+      for (std::size_t dy = 0; dy < f; ++dy) {
+        const std::uint16_t* row = v.data + (y * f + dy) * static_cast<std::size_t>(v.stride) + x * f;
+        for (std::size_t dx = 0; dx < f; ++dx) sum += row[dx];
+      }
+      small_[y * w + x] = static_cast<float>(sum) * norm;
     }
   }
 
-  // Noise: the median of a gradient magnitude over a mostly flat frame.
-  std::vector<float> sorted(mag);
-  const auto mid = sorted.begin() + static_cast<std::ptrdiff_t>(sorted.size() / 2);
-  std::nth_element(sorted.begin(), mid, sorted.end());
+  // Sobel magnitude of this frame into the ring, pixel-major so a pixel's
+  // history is contiguous. Pixel levels per pixel; the outermost stay zero.
+  for (std::size_t y = 1; y + 1 < h; ++y) {
+    for (std::size_t x = 1; x + 1 < w; ++x) {
+      const float* r0 = &small_[(y - 1) * w + x];
+      const float* r1 = &small_[y * w + x];
+      const float* r2 = &small_[(y + 1) * w + x];
+      const float gx = (r0[1] + 2 * r1[1] + r2[1]) - (r0[-1] + 2 * r1[-1] + r2[-1]);
+      const float gy = (r2[-1] + 2 * r2[0] + r2[1]) - (r0[-1] + 2 * r0[0] + r0[1]);
+      buffer_[(y * w + x) * window_ + slot_] = std::sqrt(gx * gx + gy * gy);
+    }
+  }
+  const std::size_t slot = slot_;
+  slot_ = (slot_ + 1) % window_;
+  filled_ = std::min(filled_ + 1, window_);
+  ++since_;
+
+  if (filled_ < static_cast<std::size_t>(kWarmUpFrames)) return {};
+  if (since_ < kComputeEvery && computed_) return cached_;
+  since_ = 0;
+  computed_ = true;
+
+  // Noise: the median of a gradient magnitude over a strided sample.
+  std::vector<float> sample;
+  sample.reserve(w * h / kSampleStride + 1);
+  for (std::size_t i = 0; i < w * h; i += kSampleStride) sample.push_back(buffer_[i * window_ + slot]);
+  const auto mid = sample.begin() + static_cast<std::ptrdiff_t>(sample.size() / 2);
+  std::nth_element(sample.begin(), mid, sample.end());
   const double sigma = static_cast<double>(*mid) / kRayleighMedian;
 
-  ring_.push_back(std::move(mag));
-  const auto window = static_cast<std::size_t>(std::max(options_.segment_window, 1));
-  while (ring_.size() > window) ring_.pop_front();
-
   // Per pixel, the kQuantile of the magnitudes over the ring.
-  const auto rank = static_cast<std::size_t>(kQuantile * static_cast<double>(ring_.size() - 1));
+  const auto rank = static_cast<std::ptrdiff_t>(kQuantile * static_cast<double>(filled_ - 1));
   std::vector<float> stable(w * h);
-  std::vector<float> column(ring_.size());
+  std::array<float, kMaxWindow> column{};
   for (std::size_t i = 0; i < stable.size(); ++i) {
-    for (std::size_t k = 0; k < ring_.size(); ++k) column[k] = ring_[k][i];
-    const auto nth = column.begin() + static_cast<std::ptrdiff_t>(rank);
-    std::nth_element(column.begin(), nth, column.end());
+    const float* src = &buffer_[i * window_];
+    std::copy(src, src + filled_, column.begin());
+    const auto nth = column.begin() + rank;
+    std::nth_element(column.begin(), nth, column.begin() + static_cast<std::ptrdiff_t>(filled_));
     stable[i] = *nth;
   }
 
+  cached_ = components_of(stable, sigma);
+  return cached_;
+}
+
+std::vector<vision::Component> Segmenter::components_of(const std::vector<float>& stable, double sigma) const {
+  const auto w = static_cast<std::size_t>(sw_);
+  const auto h = static_cast<std::size_t>(sh_);
   const double peak = static_cast<double>(*std::max_element(stable.begin(), stable.end()));
   if (peak <= 0 || peak < kFlatSigmas * sigma) return {};
 
   const double scale = kScaleTop / peak;
-  vision::Frame g = vision::Frame::make(width_, height_, 65535);
+  vision::Frame g = vision::Frame::make(sw_, sh_, 65535);
   for (std::size_t i = 0; i < stable.size(); ++i) {
     g.data[i] = static_cast<std::uint16_t>(static_cast<double>(stable[i]) * scale);
   }
   // Otsu alone can land inside the noise floor when edges are a tiny part of
   // the frame, so it is held above a few sigma.
   const auto floor_level = static_cast<std::uint16_t>(std::min(kNoiseFloorSigmas * sigma * scale, kScaleTop));
-  const auto skirt_level = static_cast<std::uint16_t>(kSkirtFraction * kScaleTop);
-  const std::uint16_t threshold = std::max({vision::otsu(g.view(), 0.0), floor_level, skirt_level});
+  const std::uint16_t otsu = vision::otsu(g.view(), 0.0);
 
+  // Otsu is a global level, and a strong ridge elsewhere (or a fringe on the
+  // edge in some frames) can put it above a faint grain's edge. So it is
+  // capped at half the strongest ridge within kSkirtReachPx, and the skirt trim
+  // is relative to that ridge too.
+  const std::vector<std::uint16_t> nearby = local_max(g.data, sw_, sh_, kSkirtReachPx);
   std::vector<std::uint8_t> mask(w * h, 0);
-  for (std::size_t i = 0; i < mask.size(); ++i) mask[i] = g.data[i] > threshold ? 1 : 0;
+  for (std::size_t i = 0; i < mask.size(); ++i) {
+    const auto ridge = static_cast<double>(nearby[i]);
+    const double level = std::max(static_cast<double>(floor_level), std::min(static_cast<double>(otsu), kOtsuCap * ridge));
+    mask[i] = static_cast<double>(g.data[i]) > level && static_cast<double>(g.data[i]) > kSkirtFraction * ridge ? 1 : 0;
+  }
 
   // Sobel leaves the outermost pixels at zero; carry the inner neighbour out.
-  for (int x = 0; x < width_; ++x) {
-    mask[static_cast<std::size_t>(x)] = mask[w + static_cast<std::size_t>(x)];
-    mask[(h - 1) * w + static_cast<std::size_t>(x)] = mask[(h - 2) * w + static_cast<std::size_t>(x)];
+  for (std::size_t x = 0; x < w; ++x) {
+    mask[x] = mask[w + x];
+    mask[(h - 1) * w + x] = mask[(h - 2) * w + x];
   }
-  for (int y = 0; y < height_; ++y) {
-    mask[static_cast<std::size_t>(y) * w] = mask[static_cast<std::size_t>(y) * w + 1];
-    mask[static_cast<std::size_t>(y) * w + w - 1] = mask[static_cast<std::size_t>(y) * w + w - 2];
+  for (std::size_t y = 0; y < h; ++y) {
+    mask[y * w] = mask[y * w + 1];
+    mask[y * w + w - 1] = mask[y * w + w - 2];
   }
 
-  const std::vector<vision::Component> rings = vision::components(mask, width_, height_, 0.0);
-  close_at_border(mask, width_, height_, rings);
-  fill_and_erode(mask, width_, height_);
-  std::vector<vision::Component> found = vision::components(mask, width_, height_, 0.0);
-  std::erase_if(found, [&](const vision::Component& c) { return c.area < options_.min_area_px; });
+  const std::vector<vision::Component> rings = vision::components(mask, sw_, sh_, 0.0);
+  close_at_border(mask, sw_, sh_, rings);
+  fill_and_erode(mask, sw_, sh_);
+  std::vector<vision::Component> found = vision::components(mask, sw_, sh_, 0.0);
+
+  // Back to frame pixels: a downscaled pixel i covers i*f .. i*f + f - 1.
+  const double f = factor_;
+  const double half = (f - 1.0) / 2.0;
+  const double min_area = options_.min_area_px / (f * f);
+  std::erase_if(found, [&](const vision::Component& c) { return c.area < min_area; });
+  for (vision::Component& c : found) {
+    c.area *= f * f;
+    c.perimeter *= f;
+    c.centroid = {c.centroid.x * f + half, c.centroid.y * f + half};
+    c.bbox = {c.bbox.x * factor_, c.bbox.y * factor_, c.bbox.w * factor_, c.bbox.h * factor_};
+    for (vision::Vec2& p : c.boundary) p = {p.x * f + half, p.y * f + half};
+  }
   return found;
 }
 
