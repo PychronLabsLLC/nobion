@@ -43,7 +43,7 @@ class GrainPipeline {
   // may be another grain. The second goes with the first. Ids restart and
   // GrainReport::generation moves on. process() does this itself on a frame of
   // another size or depth, or a blank one, and then drops both references and
-  // warns until one is set.
+  // warns until one is set or reset() is called.
   void reset();
   // For a replay: as reset() left the marks, bound the same way.
   void restore_references(ReferenceMark first, std::optional<ReferenceMark> second);

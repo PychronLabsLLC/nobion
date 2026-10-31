@@ -298,7 +298,7 @@ other. `Below` is `Candidate`, `Above` is `Not`.
 - Frame size or `pixel_depth` changes (camera reopened), or blank frame:
   both references dropped, pipeline `reset()`, state `None`. If a reference was
   set, warning `camera changed: click the reference again`, held until one is
-  set.
+  set or next `reset()` (recording start: replay starts clean).
 - Global shift: pass dropped (section 4).
 - Processing behind camera: frames dropped, never queued.
 - Bad `grains.toml`: `Result` error shown at start, app does not run on

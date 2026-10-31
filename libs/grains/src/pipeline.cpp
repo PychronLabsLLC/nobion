@@ -204,10 +204,11 @@ GrainReport GrainPipeline::process(const vision::Frame& frame) {
                                                     frame.pixel_depth != previous_.pixel_depth;
   if (blank || resized) {
     // Another camera, or the same one moved: nothing at a mark can be trusted.
-    camera_changed_ = camera_changed_ || first_.has_value();
+    const bool warn_on = camera_changed_ || first_.has_value();
     first_.reset();
     second_.reset();
     reset();
+    camera_changed_ = warn_on;
   }
   report.generation = generation_;
   if (blank) {
@@ -313,6 +314,7 @@ void GrainPipeline::reset() {
   previous_ = vision::Frame{};
   times_.clear();
   blind_ = false;
+  camera_changed_ = false;
   ++generation_;
   for (std::optional<Reference>* r : {&first_, &second_}) {
     if (*r) {

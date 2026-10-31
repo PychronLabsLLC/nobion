@@ -149,6 +149,32 @@ TEST(Recording, RestoreWithASecondMarkReplays) {
   expect_same(r->final_grains, last.grains);
 }
 
+TEST(Recording, RecordingStartedAfterACameraChangeReplaysClean) {
+  TempDir dir;
+  const auto frames = sweep_frames(kSanidine);
+  GrainScene small = four_grains(kSanidine);
+  small.width = 300;
+  small.height = 230;
+  const auto other = render(small, triangle_z(2, 1), kFps, 30);
+
+  const GrainOptions options;
+  GrainPipeline live(options);
+  feed(live, frames, 0, kClickFrame);
+  ASSERT_TRUE(live.set_reference(kRef, Side::Below).has_value());
+  feed(live, frames, kClickFrame, 20);
+  ASSERT_FALSE(live.process(other[0]).warning.empty());
+
+  // No click: the recording starts with nothing a replay could not rebuild.
+  live.reset();
+  const GrainReport last = record(live, dir.path, options, other, 1, other.size());
+  EXPECT_TRUE(last.warning.empty()) << last.warning;
+
+  const auto r = replay_folder(dir.path);
+  ASSERT_TRUE(r.has_value()) << (r ? "" : r.error().what);
+  EXPECT_EQ(r->frames, other.size() - 1);
+  EXPECT_EQ(r->mismatches, 0U);
+}
+
 TEST(Recording, ReplayKeepsTheRecordedOptions) {
   TempDir dir;
   const auto frames = sweep_frames(kSanidine);
