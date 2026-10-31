@@ -30,7 +30,7 @@ include(PychronDependencies)
 # the EarthBank data platform) sits on processing; earthbank_qt is its HTTPS
 # client (Qt Network), built only when Qt6 Network is found. arar (the Ar-Ar
 # domain: reduction now, figures and report later) sits on reduction.
-set(PYCHRON_LIBS core update metrics vision persistence ingest dvc entry transport codecs devices laser sim systems reduction scripting experiment processing arar earthbank earthbank_qt publish setup)
+set(PYCHRON_LIBS core update metrics vision grains persistence ingest dvc entry transport codecs devices laser sim systems reduction scripting experiment processing arar earthbank earthbank_qt publish setup)
 
 if(NOT PYCHRON_METRICS)
   list(REMOVE_ITEM PYCHRON_LIBS metrics)
