@@ -4,6 +4,7 @@
 #include <cmath>
 #include <numbers>
 #include <random>
+#include <utility>
 
 namespace pychron::grains {
 namespace {
@@ -98,7 +99,10 @@ GrainSynth::GrainSynth(GrainScene scene, ZScript z, double fps, ShiftScript shif
 Result<vision::Frame> GrainSynth::grab() {
   ++seq_;
   const double t = static_cast<double>(seq_) / fps_;
-  vision::Frame f = render_scene(scene_, z_ ? z_(t) : 0.0, shift_ ? shift_(t) : vision::Vec2{});
+  // A fresh noise draw each frame, still deterministic.
+  GrainScene frame_scene = scene_;
+  frame_scene.seed = scene_.seed + static_cast<std::uint32_t>(seq_);
+  vision::Frame f = render_scene(frame_scene, z_ ? z_(t) : 0.0, shift_ ? shift_(t) : vision::Vec2{});
   f.seq = seq_;
   f.timestamp = TimePoint{} + Duration(std::llround(static_cast<double>(seq_) * 1e9 / fps_));
   return f;
