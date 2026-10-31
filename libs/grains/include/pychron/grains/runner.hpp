@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "pychron/core/error.hpp"
+#include "pychron/core/logger.hpp"
 #include "pychron/grains/pipeline.hpp"
 #include "pychron/grains/recording.hpp"
 #include "pychron/grains/types.hpp"
@@ -35,10 +36,12 @@ struct FrameTick {
 // carries nothing and runs on the worker: the taker reads take_report(), and
 // marshals to its own thread itself. The `done` callbacks of the set_reference
 // calls also run on the worker, so their callers marshal back themselves. No
-// callback is called with an internal mutex held.
+// callback is called with an internal mutex held. A callback must not throw,
+// must not destroy the runner, and may not start or stop a recording (those
+// wait for the worker: called from it they fail with ErrorKind::Config).
 class GrainRunner {
  public:
-  GrainRunner(std::function<FrameTick()> poll, GrainOptions options, std::function<void()> on_report);
+  GrainRunner(std::function<FrameTick()> poll, GrainOptions options, std::function<void()> on_report, const Logger& log = Logger::disabled("grains"));
   // Finishes an open recording, then joins. Prompt even when poll keeps
   // returning new frames.
   ~GrainRunner();
@@ -53,6 +56,9 @@ class GrainRunner {
     std::optional<vision::Frame> frame;
     GrainReport report;
     std::string error;
+    // The first failure of the open recording, from the frame it met it on:
+    // frames after it are not recorded. Stays until stop_recording.
+    std::string recording_error;
   };
   // The newest; older ones are dropped. Empty when nothing new since the last
   // call.
@@ -75,6 +81,7 @@ class GrainRunner {
   std::function<FrameTick()> poll_;
   GrainOptions options_;
   std::function<void()> on_report_;
+  Logger log_;
 
   std::mutex mutex_;
   std::condition_variable cv_;

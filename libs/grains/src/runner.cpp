@@ -9,10 +9,13 @@ namespace pychron::grains {
 
 namespace {
 constexpr std::chrono::milliseconds kPoll{5};
+// Set on the worker for its whole run: a call that waits for the worker
+// would wait for itself.
+thread_local const GrainRunner* g_worker_of = nullptr;
 }
 
-GrainRunner::GrainRunner(std::function<FrameTick()> poll, GrainOptions options, std::function<void()> on_report)
-    : poll_(std::move(poll)), options_(options), on_report_(std::move(on_report)), pipeline_(options) {
+GrainRunner::GrainRunner(std::function<FrameTick()> poll, GrainOptions options, std::function<void()> on_report, const Logger& log)
+    : poll_(std::move(poll)), options_(options), on_report_(std::move(on_report)), log_(log), pipeline_(options) {
   thread_ = std::thread([this] { run(); });
 }
 
@@ -90,6 +93,7 @@ void GrainRunner::clear_reference() {
 }
 
 Result<void> GrainRunner::start_recording(const std::filesystem::path& dir) {
+  if (g_worker_of == this) return fail(ErrorKind::Config, "start_recording called from a runner callback");
   auto promise = std::make_shared<std::promise<Result<void>>>();
   std::future<Result<void>> future = promise->get_future();
   {
@@ -99,12 +103,12 @@ Result<void> GrainRunner::start_recording(const std::filesystem::path& dir) {
         promise->set_value(fail(ErrorKind::Config, "already recording"));
         return;
       }
-      pipeline_.reset();
       auto opened = GrainRecording::open(dir, options_);
       if (!opened) {
         promise->set_value(fail(opened.error()));
         return;
       }
+      pipeline_.reset();
       recording_.emplace(std::move(*opened));
       recording_error_.reset();
       events_.clear();
@@ -123,12 +127,13 @@ Result<void> GrainRunner::start_recording(const std::filesystem::path& dir) {
 }
 
 Result<void> GrainRunner::stop_recording() {
+  if (g_worker_of == this) return fail(ErrorKind::Config, "stop_recording called from a runner callback");
   auto promise = std::make_shared<std::promise<Result<void>>>();
   std::future<Result<void>> future = promise->get_future();
   {
     const std::lock_guard lock(mutex_);
     commands_.emplace_back([this, promise] {
-      if (!recording_ && !recording_error_) {
+      if (!recording_) {
         promise->set_value(fail(ErrorKind::Config, "not recording"));
         return;
       }
@@ -152,6 +157,7 @@ Result<void> GrainRunner::stop_recording() {
 }
 
 void GrainRunner::run() {
+  g_worker_of = this;
   for (;;) {
     std::vector<std::function<void()>> commands;
     bool stopping = false;
@@ -180,12 +186,14 @@ void GrainRunner::run() {
         Shown shown;
         shown.frame = std::move(*tick.frame);
         shown.report = std::move(report);
+        if (recording_error_) shown.recording_error = recording_error_->what;
         post(std::move(shown));
       }
     } else if (!tick.error.empty() && tick.error != last_error_) {
       last_error_ = tick.error;
       Shown shown;
       shown.error = std::move(tick.error);
+      if (recording_error_) shown.recording_error = recording_error_->what;
       post(std::move(shown));
     }
 
@@ -195,7 +203,8 @@ void GrainRunner::run() {
     }
   }
   if (recording_) {
-    (void)recording_->finish();
+    const Result<void> finished = recording_->finish();
+    if (!finished) log_.error("recording not finished: " + finished.error().what);
     recording_.reset();
   }
 }

@@ -4,6 +4,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -237,4 +238,76 @@ TEST(Runner, DestructorJoinsDuringBusyPoll) {
   const auto start = Clock::now();
   runner.reset();
   EXPECT_LT(Clock::now() - start, 5s);
+}
+
+TEST(Runner, RecordingCallsFromACallbackFailInsteadOfHanging) {
+  Feed feed;
+  feed.frames = sweep_frames(kSanidine);
+  GrainRunner* self = nullptr;
+  std::mutex m;
+  std::condition_variable cv;
+  std::optional<pychron::Result<void>> start, stop;
+  GrainRunner runner(feed.poll(), GrainOptions{}, [] {});
+  self = &runner;
+  ASSERT_TRUE(feed.step(runner, 0).has_value());
+  runner.set_reference({3, 3}, Side::Below, [&](const pychron::Result<void>&) {
+    auto a = self->start_recording("unused");
+    auto b = self->stop_recording();
+    const std::lock_guard lock(m);
+    start = std::move(a);
+    stop = std::move(b);
+    cv.notify_all();
+  });
+  std::unique_lock lock(m);
+  ASSERT_TRUE(cv.wait_for(lock, kLimit, [&] { return start.has_value(); }));
+  ASSERT_FALSE(start->has_value());
+  EXPECT_EQ(start->error().kind, pychron::ErrorKind::Config);
+  ASSERT_FALSE(stop->has_value());
+  EXPECT_EQ(stop->error().kind, pychron::ErrorKind::Config);
+}
+
+TEST(Runner, RecordingFailureIsShownBeforeStop) {
+  TempDir dir;
+  Feed feed;
+  feed.frames = sweep_frames(kSanidine);
+  GrainRunner runner(feed.poll(), GrainOptions{}, [] {});
+  ASSERT_TRUE(feed.step(runner, 0).has_value());
+  ASSERT_TRUE(runner.start_recording(dir.path).has_value());
+  const auto ok = feed.step(runner, 1);
+  ASSERT_TRUE(ok.has_value());
+  EXPECT_TRUE(ok->recording_error.empty());
+  // A file where the folder was: the next frame cannot be written.
+  std::filesystem::remove_all(dir.path);
+  { std::ofstream(dir.path) << "x"; }
+  bool shown = false;
+  for (std::size_t i = 2; i < 12 && !shown; ++i) {
+    const auto s = feed.step(runner, i);
+    ASSERT_TRUE(s.has_value());
+    shown = !s->recording_error.empty();
+  }
+  EXPECT_TRUE(shown);
+  EXPECT_FALSE(runner.stop_recording().has_value());
+}
+
+TEST(Runner, BadRecordingFolderKeepsTheVotes) {
+  TempDir dir;
+  Feed feed;
+  feed.frames = sweep_frames(kSanidine);
+  GrainRunner runner(feed.poll(), GrainOptions{}, [] {});
+  for (std::size_t i = 0; i < static_cast<std::size_t>(kClickFrame); ++i) ASSERT_TRUE(feed.step(runner, i).has_value());
+  runner.set_reference(kRef, Side::Below, [](const pychron::Result<void>&) {});
+  std::optional<GrainRunner::Shown> s;
+  for (std::size_t i = kClickFrame; i < 110; ++i) {
+    s = feed.step(runner, i);
+    ASSERT_TRUE(s.has_value());
+  }
+  // A file where the folder should go: open fails.
+  { std::ofstream(dir.path) << "x"; }
+  EXPECT_FALSE(runner.start_recording(dir.path).has_value());
+  const auto next = feed.step(runner, 110);
+  ASSERT_TRUE(next.has_value());
+  int tallied = 0;
+  for (const GrainView& g : next->report.grains) tallied += g.passes_agree + g.passes_against + g.passes_none;
+  EXPECT_GT(tallied, 0);
+  EXPECT_NE(next->report.reference, ReferenceState::None);
 }
