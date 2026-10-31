@@ -211,3 +211,99 @@ TEST(Segment, ALineCrossingTheEdgeNeitherBreaksNorMovesTheOutline) {
     EXPECT_NEAR(std::sqrt(found.front().area / 3.14159), kRadius, 2.0) << "frame " << i;
   }
 }
+
+namespace {
+
+// How far from the true radius the outline's mean radius sits, over the frames
+// after the ring has filled.
+struct OutlineError {
+  double worst = 0;
+  double share_over_4px = 0;
+};
+
+OutlineError sweep_error(double fps, double period_s) {
+  constexpr double kRadius = 25.0;
+  GrainScene s;
+  s.width = 120;
+  s.height = 120;
+  s.grains.push_back({{60, 60}, kRadius, 1.0, -0.017});
+  GrainSynth synth(s, triangle_z(period_s, 1), fps);
+  Segmenter seg{GrainOptions{}};
+  OutlineError e;
+  int counted = 0, over = 0;
+  const int frames = static_cast<int>(3.0 * period_s * fps);
+  const int settled = static_cast<int>(3.0 * fps);
+  for (int i = 1; i <= frames; ++i) {
+    const auto f = synth.grab();
+    if (!f) {
+      ADD_FAILURE() << "grab failed";
+      return e;
+    }
+    const auto found = seg.update(f->view());
+    if (i < settled) continue;
+    if (found.size() != 1U) {
+      ADD_FAILURE() << "frame " << i << ": " << found.size() << " blobs";
+      continue;
+    }
+    double sum = 0;
+    for (const pychron::vision::Vec2& p : found.front().boundary) sum += std::hypot(p.x - 60, p.y - 60);
+    const double error = std::abs(sum / static_cast<double>(found.front().boundary.size()) + 0.5 - kRadius);
+    e.worst = std::max(e.worst, error);
+    ++counted;
+    over += error > 4.0 ? 1 : 0;
+  }
+  e.share_over_4px = static_cast<double>(over) / std::max(counted, 1);
+  return e;
+}
+
+}  // namespace
+
+TEST(Segment, OutlineStaysOnTheBodyEdgeAtAnyFrameRate) {
+  for (const double fps : {15.0, 30.0, 60.0}) {
+    EXPECT_LT(sweep_error(fps, 2.0).worst, 2.0) << fps << " fps";
+  }
+}
+
+TEST(Segment, ASlowSweepLeavesTheEdgeForTheSameShareAtAnyFrameRate) {
+  // Not a virtue, a limit: at 6 s a sweep the line lingers past what 40 samples
+  // span, and the outline stands off the edge near the outer turnaround. The
+  // outline is not what the velocity is measured from; what is held here is
+  // that this does not get worse with a faster camera.
+  const OutlineError slow = sweep_error(20.0, 6.0);
+  EXPECT_LT(slow.worst, 9.0);
+  EXPECT_LT(slow.share_over_4px, 0.4);
+  for (const double fps : {15.0, 30.0, 60.0}) {
+    const OutlineError e = sweep_error(fps, 6.0);
+    EXPECT_LT(e.worst, slow.worst + 1.0) << fps << " fps";
+    EXPECT_LT(e.share_over_4px, slow.share_over_4px + 0.05) << fps << " fps";
+  }
+}
+
+TEST(Segment, TheRingKeepsFramesByTimeNotByCount) {
+  GrainScene s;
+  s.width = 120;
+  s.height = 120;
+  s.grains.push_back({{60, 60}, 25, 1.0, -0.017});
+  // 60 fps: every third frame is kept, so eight are kept by frame 22.
+  GrainSynth synth(s, triangle_z(2, 1), 60.0);
+  Segmenter seg{GrainOptions{}};
+  for (int i = 1; i <= 21; ++i) {
+    const auto f = synth.grab();
+    ASSERT_TRUE(f.has_value());
+    EXPECT_TRUE(seg.update(f->view()).empty()) << "frame " << i;
+  }
+  const auto last = synth.grab();
+  ASSERT_TRUE(last.has_value());
+  EXPECT_EQ(seg.update(last->view()).size(), 1U);
+}
+
+TEST(Segment, FramesWhoseTimestampDoesNotAdvanceAreAllKept) {
+  GrainScene s;
+  s.width = 120;
+  s.height = 120;
+  s.grains.push_back({{60, 60}, 25, 1.0, 0.0});
+  const auto frame = render_scene(s, 0.0, {});  // unstamped
+  Segmenter seg{GrainOptions{}};
+  for (int i = 1; i < 8; ++i) EXPECT_TRUE(seg.update(frame.view()).empty()) << "frame " << i;
+  EXPECT_EQ(seg.update(frame.view()).size(), 1U);
+}

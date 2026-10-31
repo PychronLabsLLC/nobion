@@ -211,7 +211,7 @@ GrainReport GrainPipeline::process(const vision::Frame& frame) {
   if (!previous_.data.empty()) {
     const int search = static_cast<int>(std::ceil(options_.max_shift_px)) + 1;
     const vision::Vec2 shift = estimate_shift(previous_.view(), view, search);
-    jumped = std::hypot(shift.x, shift.y) >= options_.max_shift_px;
+    jumped = std::hypot(shift.x, shift.y) > options_.max_shift_px;
   }
   previous_ = frame;
   if (jumped) {
@@ -243,11 +243,11 @@ Result<std::uint64_t> GrainPipeline::pick(vision::Vec2 at, const std::optional<R
   if (it->blob.touches_mask_edge) return fail(ErrorKind::Config, "that grain is cut by the frame edge");
 
   const auto f = fringes_.find(it->id);
-  double recent = 0;
-  if (f != fringes_.end() && !f->second.contrasts.empty()) {
-    const std::vector<double>& c = f->second.contrasts;
-    recent = std::accumulate(c.begin(), c.end(), 0.0) / static_cast<double>(c.size());
+  if (f == fringes_.end() || f->second.contrasts.empty()) {
+    return fail(ErrorKind::Config, "no fringe measured on that grain yet: sweep focus");
   }
+  const std::vector<double>& c = f->second.contrasts;
+  const double recent = std::accumulate(c.begin(), c.end(), 0.0) / static_cast<double>(c.size());
   if (recent < options_.min_reference_contrast) {
     std::ostringstream why;
     why << "reference contrast " << recent << " is under " << options_.min_reference_contrast;
@@ -259,13 +259,9 @@ Result<std::uint64_t> GrainPipeline::pick(vision::Vec2 at, const std::optional<R
 Result<void> GrainPipeline::set_reference(vision::Vec2 frame_px, Side side) {
   const Result<std::uint64_t> id = pick(frame_px, second_);
   if (!id) return fail(id.error());
-  if (first_ && first_->mark.side == side) {
-    ledger_.drop_pass();
-    ledger_.forget(*id);
-  } else {
-    ledger_.reset();
-  }
-  disagree_held_ = false;
+  const bool same_grain = first_ && first_->id == *id;
+  if (!same_grain) ledger_.reset();
+  if (!same_grain || first_->mark.side != side) disagree_held_ = false;
   first_ = Reference{{frame_px, side}, *id, false};
   return {};
 }

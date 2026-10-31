@@ -41,6 +41,31 @@ void expect_three_labels(const GrainReport& r) {
   EXPECT_EQ(label_at(r, kNear), Label::Unsure);
 }
 
+// A 6 s sweep; a smaller scene, for the frames a fast camera gives in 15 s.
+void expect_slow_sweep_labels(double fps) {
+  constexpr pychron::vision::Vec2 kOne{50, 60}, kTwo{150, 60}, kThree{250, 60};
+  GrainScene s;
+  s.width = 300;
+  s.height = 120;
+  s.grains.push_back({kOne, 25, 1.0, kSanidine});
+  s.grains.push_back({kTwo, 25, 1.0, kQuartz});
+  s.grains.push_back({kThree, 25, 1.0, kQuartz});
+  const auto frames = render(s, triangle_z(6, 1), fps, static_cast<int>(15.0 * fps));
+  GrainPipeline p{GrainOptions{}};
+  const auto click = static_cast<std::size_t>(0.6 * fps);
+  feed(p, frames, 0, click);
+  ASSERT_TRUE(p.set_reference(kThree, Side::Above).has_value());
+  const GrainReport r = feed(p, frames, click, frames.size());
+  EXPECT_EQ(label_at(r, kOne), Label::Candidate);
+  EXPECT_EQ(label_at(r, kTwo), Label::Not);
+  const GrainView* one = grain_at(r, kOne);
+  const GrainView* two = grain_at(r, kTwo);
+  ASSERT_NE(one, nullptr);
+  ASSERT_NE(two, nullptr);
+  EXPECT_EQ(one->passes_against, 0);
+  EXPECT_EQ(two->passes_against, 0);
+}
+
 }  // namespace
 
 TEST(Pipeline, NoReferenceNoLabel) {
@@ -117,6 +142,16 @@ TEST(Pipeline, ShiftDropsThePass) {
   EXPECT_EQ(shifted_before, steady_before);
   EXPECT_EQ(shifted_after, shifted_before) << "the shifted run gains nothing from it";
 
+  // The same frames with the jump not recognised as one: what the drop saves.
+  GrainOptions blind;
+  blind.max_shift_px = 40.0;
+  GrainPipeline unaware(blind);
+  feed(unaware, shifted, 0, kClickFrame);
+  ASSERT_TRUE(unaware.set_reference(kRef, Side::Below).has_value());
+  feed(unaware, shifted, kClickFrame, kBeforeClose);
+  const GrainReport unaware_after = feed(unaware, shifted, kBeforeClose, kAfterClose);
+  EXPECT_GT(passes_at(unaware_after, {kLow.x + 10, kLow.y}), shifted_after);
+
   // Grains are followed across the jump and go on voting.
   GrainPipeline p{GrainOptions{}};
   feed(p, shifted, 0, kClickFrame);
@@ -147,6 +182,10 @@ TEST(Pipeline, TooSlowCameraCountsNoPass) {
   EXPECT_TRUE(counted.warning.empty());
   EXPECT_GT(total_passes(counted), 0);
 }
+
+TEST(Pipeline, SlowSweepLabelsAt15Fps) { expect_slow_sweep_labels(15.0); }
+TEST(Pipeline, SlowSweepLabelsAt30Fps) { expect_slow_sweep_labels(30.0); }
+TEST(Pipeline, SlowSweepLabelsAt60Fps) { expect_slow_sweep_labels(60.0); }
 
 TEST(Pipeline, DeterministicForGivenFrames) {
   const auto frames = sweep_frames(kSanidine);

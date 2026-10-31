@@ -65,6 +65,33 @@ void expect_same_counts(const GrainView& a, const GrainView& b) {
   EXPECT_EQ(a.label, b.label);
 }
 
+// reset_at and jump_at are turnarounds. Each restarts the ring with the line at
+// its turn, so for the first 2 s the quiet image has seen little of the sweep.
+void expect_no_wrong_vote(double period_s, double reset_at, double jump_at) {
+  const ShiftScript jump = [jump_at](double t) { return t < jump_at ? Vec2{} : Vec2{20, 0}; };
+  const auto frames = render(four_grains(kSanidine), triangle_z(period_s, 1), kFps, 260, jump);
+  const auto reset_frame = static_cast<std::size_t>(reset_at * kFps);
+
+  GrainPipeline p{GrainOptions{}};
+  feed(p, frames, 0, kClickFrame);
+  ASSERT_TRUE(p.set_reference(kRef, Side::Below).has_value());
+  feed(p, frames, kClickFrame, reset_frame);
+  p.reset();
+  const GrainReport r = feed(p, frames, reset_frame, frames.size());
+
+  EXPECT_NE(r.reference, ReferenceState::Lost);
+  const GrainView* a = grain_at(r, {kLow.x + 20, kLow.y});
+  const GrainView* b = grain_at(r, {kHigh.x + 20, kHigh.y});
+  ASSERT_NE(a, nullptr);
+  ASSERT_NE(b, nullptr);
+  EXPECT_GT(a->passes_agree, 0);
+  EXPECT_GT(b->passes_agree, 0);
+  EXPECT_EQ(a->passes_against, 0);
+  EXPECT_EQ(b->passes_against, 0);
+  EXPECT_EQ(a->last_vote, Vote::Same);
+  EXPECT_EQ(b->last_vote, Vote::Opposite);
+}
+
 }  // namespace
 
 TEST(PipelineReference, RefusedOffAnyGrain) {
@@ -76,6 +103,23 @@ TEST(PipelineReference, RefusedOffAnyGrain) {
   EXPECT_EQ(clicked.error().kind, ErrorKind::Config);
   EXPECT_NE(clicked.error().what.find("no grain"), std::string::npos) << clicked.error().what;
   EXPECT_FALSE(p.reference_mark().has_value());
+}
+
+TEST(PipelineReference, RefusedWhenNoFringeIsMeasured) {
+  // Whole in the frame, but the ring round it is not: tracked, nothing to read.
+  GrainScene s;
+  s.width = 90;
+  s.height = 90;
+  s.grains.push_back({{45, 45}, 25, 1.0, kSanidine});
+  const auto frames = render(s, triangle_z(2, 1), kFps, kClickFrame);
+  GrainOptions wide;
+  wide.ring_px = 30;
+  GrainPipeline p(wide);
+  ASSERT_EQ(feed(p, frames, 0, frames.size()).grains.size(), 1U);
+  const auto clicked = p.set_reference({45, 45}, Side::Below);
+  ASSERT_FALSE(clicked.has_value());
+  EXPECT_EQ(clicked.error().kind, ErrorKind::Config);
+  EXPECT_NE(clicked.error().what.find("no fringe measured"), std::string::npos) << clicked.error().what;
 }
 
 TEST(PipelineReference, RefusedWhenContrastTooLow) {
@@ -118,11 +162,7 @@ TEST(PipelineReference, ReClickRecoversFromLost) {
   GrainPipeline p{GrainOptions{}};
   const GrainReport lost = walk_until_lost(p);
   ASSERT_EQ(lost.reference, ReferenceState::Lost);
-  const GrainView* high_lost = grain_at(lost, walked(kWalkHigh));
-  ASSERT_NE(high_lost, nullptr);
-  const int passes_lost = high_lost->passes_agree + high_lost->passes_against;
 
-  // Same declared side, so what the held votes mean does not change.
   ASSERT_TRUE(p.set_reference(walked(kWalkLow), Side::Below).has_value());
   const auto frames = walking_frames();
   const GrainReport end = feed(p, frames, 200, frames.size());
@@ -133,21 +173,41 @@ TEST(PipelineReference, ReClickRecoversFromLost) {
   ASSERT_NE(low_end, nullptr);
   ASSERT_NE(high_end, nullptr);
   EXPECT_TRUE(low_end->reference);
-  EXPECT_GT(high_end->passes_agree + high_end->passes_against, passes_lost);
+  EXPECT_GT(high_end->passes_agree + high_end->passes_against, 0);
 }
 
-TEST(PipelineReference, ChangingTheDeclaredSideDropsTheVotes) {
+TEST(PipelineReference, SameGrainClickedAgainKeepsVotesAndAChangedSideInverts) {
+  const auto frames = sweep_frames(kSanidine);
+  GrainPipeline p{GrainOptions{}};
+  feed(p, frames, 0, kClickFrame);
+  ASSERT_TRUE(p.set_reference(kRef, Side::Below).has_value());
+  const GrainReport before = feed(p, frames, kClickFrame, 160);
+  ASSERT_EQ(label_at(before, kLow), Label::Candidate);
+  ASSERT_EQ(label_at(before, kHigh), Label::Not);
+
+  ASSERT_TRUE(p.set_reference(kRef, Side::Above).has_value());
+  const GrainReport after = feed(p, frames, 160, 161);
+  EXPECT_EQ(passes_at(after, kLow), passes_at(before, kLow));
+  EXPECT_EQ(passes_at(after, kHigh), passes_at(before, kHigh));
+  EXPECT_EQ(label_at(after, kLow), Label::Not);
+  EXPECT_EQ(label_at(after, kHigh), Label::Candidate);
+}
+
+TEST(PipelineReference, ClickingAnotherGrainClearsTheVotes) {
   const auto frames = sweep_frames(kSanidine);
   GrainPipeline p{GrainOptions{}};
   feed(p, frames, 0, kClickFrame);
   ASSERT_TRUE(p.set_reference(kRef, Side::Below).has_value());
   const GrainReport before = feed(p, frames, kClickFrame, 100);
   ASSERT_GT(passes_at(before, kHigh), 0);
-  // A Same counted against a Below reference means nothing against an Above one.
-  ASSERT_TRUE(p.set_reference(kRef, Side::Above).has_value());
+
+  ASSERT_TRUE(p.set_reference(kLow, Side::Below).has_value());
   const GrainReport after = feed(p, frames, 100, 101);
-  EXPECT_EQ(passes_at(after, kHigh), 0);
+  EXPECT_EQ(total_passes(after), 0);
 }
+
+TEST(PipelineReference, NoWrongVoteThroughAResetAndAJumpInAFastSweep) { expect_no_wrong_vote(2.0, 3.5, 6.5); }
+TEST(PipelineReference, NoWrongVoteThroughAResetAndAJumpInASlowSweep) { expect_no_wrong_vote(6.0, 4.5, 7.5); }
 
 TEST(PipelineReference, SecondReferenceOppositeSideAgrees) {
   const auto frames = sweep_frames(kSanidine);

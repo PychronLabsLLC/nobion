@@ -115,8 +115,13 @@ Per frame, in order:
 
 1. Segment. Grains as blobs. Low-relief grains in near-matching oil have faint
    edges: segment on gradient of quiet image, per-pixel low quantile of level
-   over recent frames, not one frame. Becke line only adds light, so swept line
-   drops out; real line's dark band not yet tested, section 12 gate.
+   over `segment_window` samples, not one frame. Becke line only adds light,
+   so swept line drops out; real line's dark band not yet tested, section 12
+   gate. Sample kept only when its timestamp at least 50 ms after last kept
+   (timestamp not advancing: always kept), so ring spans about 2 s at any rate
+   from 20 fps up, more below. Line dwelling longer than that (sweep slower
+   than about 4 s) stands outline off body edge near turnaround; velocity
+   does not read outline.
 2. Track. Match blobs frame to frame by overlap; stable id per grain. Id
    survives gap up to `track_gap_frames`.
 3. Fringe. Resample ring around outline into radial brightness profile. Signed
@@ -141,6 +146,8 @@ no focus model, no assumed direction of rack.
   Standard sanidine `Below`, quartz `Above`. Side remembered between sessions.
 - Reference refused, with reason, when its contrast below
   `min_reference_contrast`. Near-oil pick fails early.
+- Votes relative to reference grain. Same grain clicked again: votes stay,
+  changed side inverts `Candidate` and `Not` at once. Other grain: votes clear.
 - `ReferenceState`, in banner always:
   - `None`: grains outlined grey, no labels, no votes.
   - `Lost`: votes stop, labels greyed and held, until tracked again or

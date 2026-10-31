@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 
@@ -32,6 +33,9 @@ constexpr int kWarmUpFrames = 8;
 constexpr int kComputeEvery = 3;
 // The noise median looks at every this many pixels.
 constexpr std::size_t kSampleStride = 7;
+// A frame enters the ring this long after the last one did, so that what the
+// ring spans does not shrink with a faster camera.
+constexpr std::chrono::milliseconds kMinSpacing{50};
 // Largest window the per-pixel scratch holds.
 constexpr std::size_t kMaxWindow = 64;
 // Median of a Rayleigh magnitude is 1.1774 sigma.
@@ -137,6 +141,7 @@ void Segmenter::reset() {
   filled_ = 0;
   since_ = 0;
   computed_ = false;
+  admitted_ = false;
 }
 
 std::vector<vision::Component> Segmenter::update(const vision::FrameView& v) {
@@ -159,6 +164,12 @@ std::vector<vision::Component> Segmenter::update(const vision::FrameView& v) {
     buffer_.assign(n * window_, 0.0F);
     small_.assign(n, 0.0F);
   }
+  // A timestamp that does not advance says nothing about spacing.
+  const bool early = admitted_ && v.timestamp > last_admitted_ && v.timestamp - last_admitted_ < kMinSpacing;
+  if (early) return cached_;
+  admitted_ = true;
+  last_admitted_ = v.timestamp;
+
   const auto w = static_cast<std::size_t>(sw_);
   const auto h = static_cast<std::size_t>(sh_);
   const auto f = static_cast<std::size_t>(factor_);

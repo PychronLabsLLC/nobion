@@ -28,8 +28,9 @@ class GrainPipeline {
 
   // ErrorKind::Config, naming the reason, when no grain is at the point, it is
   // cut by the frame edge, its recent contrast is under
-  // min_reference_contrast, or it is the other reference. Votes already cast
-  // stay when the declared side stays; they mean nothing against the other.
+  // min_reference_contrast, or it is the other reference. Votes are relative
+  // to the grain: the same grain clicked again keeps them, and a changed side
+  // inverts Candidate and Not at once. Another grain clears them.
   Result<void> set_reference(vision::Vec2 frame_px, Side side);
   // Needs the first reference. Tallied against it as any grain is: expected
   // Opposite when the sides differ, Same when equal.
