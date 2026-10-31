@@ -57,6 +57,8 @@ RecordedSource
   `LiveFeed::latest()`, skips what it missed, leaves report in mailbox under own
   mutex, wakes UI thread with call that carries nothing. Real time by design: no
   simulated path, no `Clock::Participant`.
+- `grains --demo`: window on synthetic scene, no camera, no config. App can be
+  seen before hardware exists.
 - Domain seam untouched: no Ar-Ar, no `Domain` entry. Not a data window.
 
 ## 4. Pipeline
@@ -191,7 +193,8 @@ other. `Below` is `Candidate`, `Above` is `Not`.
   (reference set, cleared), per grain outline, `v`, contrast, vote, label, score,
   reference state.
 - Starting recording calls `GrainPipeline::reset()`: votes restart, references
-  kept. Otherwise replay could not rebuild state from before first frame.
+  kept, grain ids restart from 1, pins cleared. Otherwise replay could not
+  rebuild state from before first frame.
 - `RecordedSource` stamps at grab, frames carry no time: replay gives it clock
   reading timestamps from `tracks.jsonl`, in order.
 - `tracks.jsonl` keeps enough to train model later. No model in this spec.
