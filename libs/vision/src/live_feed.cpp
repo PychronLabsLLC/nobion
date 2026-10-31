@@ -223,11 +223,15 @@ FrameInfo LiveFeed::info() const {
   return state_->info;
 }
 
-LiveFeed::Latest LiveFeed::latest() const {
+LiveFeed::Latest LiveFeed::latest() const { return latest_unless(nullptr); }
+
+LiveFeed::Latest LiveFeed::latest_if_newer(std::uint64_t seen_seq) const { return latest_unless(&seen_seq); }
+
+LiveFeed::Latest LiveFeed::latest_unless(const std::uint64_t* seen_seq) const {
   State& s = *state_;
   std::lock_guard lock(s.mutex);
   Latest out;
-  out.frame = s.frame;
+  if (s.frame && (seen_seq == nullptr || s.frame->seq != *seen_seq)) out.frame = s.frame;
   if (s.frame) out.age = std::chrono::duration_cast<std::chrono::milliseconds>(Steady::now() - s.arrived);
   // Whether or not anybody has waited for it: an open or a read that has
   // been in flight longer than the timeout is a camera that has stopped.

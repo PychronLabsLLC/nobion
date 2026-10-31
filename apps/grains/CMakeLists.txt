@@ -14,6 +14,8 @@ add_library(pychron_grains_app_lib STATIC
   src/demo.cpp
   src/grain_overlay.cpp
   src/grains_window.cpp
+  src/live_poll.cpp
+  src/replay_command.cpp
 )
 target_include_directories(pychron_grains_app_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(pychron_grains_app_lib PUBLIC pychron::grains Qt6::Widgets)

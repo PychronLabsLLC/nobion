@@ -10,6 +10,7 @@
 //             `timeout`. After a read has failed or timed out it fails at
 //             once, until the camera shows a frame again.
 //   latest()  the newest frame there is, how old, and what is wrong.
+//   latest_if_newer(seq)  the same, the frame only when its seq is not `seq`.
 //
 // A read that comes back empty is not a camera that has gone: a camera that
 // is still waking gives nothing for a while, and a frame can be late. It is
@@ -70,8 +71,13 @@ class LiveFeed final : public IFrameSource {
     std::string error;                // empty: frames are arriving
   };
   Latest latest() const;
+  // As latest(), but the frame is left out (and not copied) when the newest
+  // one has the seq `seen_seq`: a poller that already has it pays no copy.
+  // Age, fps and error are always filled.
+  Latest latest_if_newer(std::uint64_t seen_seq) const;
 
  private:
+  Latest latest_unless(const std::uint64_t* seen_seq) const;
   struct State;
   std::shared_ptr<State> state_;
 };

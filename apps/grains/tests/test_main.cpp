@@ -8,6 +8,7 @@
 
 #include "test_grain_overlay.hpp"
 #include "test_grains_window.hpp"
+#include "test_replay_command.hpp"
 
 int main(int argc, char** argv) {
   if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")) qputenv("QT_QPA_PLATFORM", "offscreen");
@@ -27,6 +28,10 @@ int main(int argc, char** argv) {
   {
     pychron::grains::test::GrainsWindowTest window;
     failed |= QTest::qExec(&window, argc, argv);
+  }
+  {
+    pychron::grains::test::ReplayCommandTest replay;
+    failed |= QTest::qExec(&replay, argc, argv);
   }
   return failed;
 }

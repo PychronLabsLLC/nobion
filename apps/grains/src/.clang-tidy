@@ -1,0 +1,5 @@
+# Qt widgets: owning-memory and NewDeleteLeaks off, as in apps/pychron-ui: a
+# new'd child belongs to its parent, which the check cannot see. Scoped to
+# src/ (main.cpp is in it); tests keep every check.
+InheritParentConfig: true
+Checks: '-cppcoreguidelines-owning-memory,-clang-analyzer-cplusplus.NewDeleteLeaks'

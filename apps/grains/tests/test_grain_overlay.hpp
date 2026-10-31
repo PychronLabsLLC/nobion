@@ -14,6 +14,7 @@ class GrainOverlayTest : public QObject {
   void failedKeepsPictureGreyed();
   void toFrameInvertsToWidget();
   void pinnedGrainGreyed();
+  void lostReferenceGreysLabels();
 };
 
 }  // namespace pychron::grains::test

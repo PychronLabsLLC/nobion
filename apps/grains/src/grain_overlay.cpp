@@ -250,16 +250,20 @@ void GrainOverlay::paintEvent(QPaintEvent*) {
         double x = bounds.left();
         const double y = bounds.bottom() + 4;
         p.setPen(Qt::NoPen);
-        const auto ticks = [&](int count, const QColor& colour) {
-          p.setBrush(dim || report_.reference == ReferenceState::Lost ? tokens::kGreyed : colour);
+        // agree is toward the label, so it takes the label's colour
+        const bool held = dim || report_.reference == ReferenceState::Lost;
+        const auto ticks = [&](int count, const QColor& colour, bool filled) {
+          const QColor shade = held ? tokens::kGreyed : colour;
+          p.setBrush(filled ? QBrush(shade) : QBrush(Qt::NoBrush));
+          p.setPen(filled ? QPen(Qt::NoPen) : QPen(shade, 1));
           for (int i = 0; i < count; ++i) {
             p.drawRect(QRectF(x, y, tick, tick));
             x += tick * 1.5;
           }
         };
-        ticks(grain.passes_agree, tokens::kCandidate);
-        ticks(grain.passes_against, tokens::kNot);
-        ticks(grain.passes_none, tokens::kNoReference);
+        ticks(grain.passes_agree, label_colour(grain.label), true);
+        ticks(grain.passes_against, tokens::kNoReference, true);
+        ticks(grain.passes_none, tokens::kNoReference, false);
       }
     }
     p.setRenderHint(QPainter::Antialiasing, false);

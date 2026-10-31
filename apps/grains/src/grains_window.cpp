@@ -188,6 +188,15 @@ void GrainsWindow::on_report_ready() {
   if (!shown->error.empty()) {
     overlay_->set_failed(QString::fromStdString(shown->error));
   } else if (shown->frame) {
+    // A camera reopened at another size restarts the grain ids: what was
+    // picked or selected would sit on other grains.
+    const std::pair<int, int> size{shown->frame->width, shown->frame->height};
+    if (last_size_ && *last_size_ != size) {
+      overlay_->clear_picked();
+      selected_.reset();
+      overlay_->set_selected(selected_);
+    }
+    last_size_ = size;
     overlay_->show_frame(*shown->frame, shown->report);
   }
   // A report made before stop_recording must not wipe what stop said.
@@ -294,7 +303,7 @@ void GrainsWindow::on_record_toggled(bool on) {
       set_recording_button(false);
       return;
     }
-    const QString path = QDir(record_folder_).filePath(QStringLiteral("grains-") + QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss")));
+    const QString path = QDir(record_folder_).filePath(QStringLiteral("grains-") + QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss-zzz")));
     const Result<void> started = runner_->start_recording(path.toStdString());
     if (!started) {
       recording_error_ = QString::fromStdString(started.error().what);

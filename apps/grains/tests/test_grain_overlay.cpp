@@ -164,4 +164,19 @@ void GrainOverlayTest::pinnedGrainGreyed() {
   QCOMPARE(two->colour, tokens::kCandidate);
 }
 
+void GrainOverlayTest::lostReferenceGreysLabels() {
+  GrainOverlay overlay;
+  overlay.resize(400, 320);
+  overlay.show_frame(picture(), report(ReferenceState::Lost, {square(2, 60, 40, Label::Candidate), square(3, 30, 60, Label::Not)}));
+  const auto drawn = overlay.drawn_labels();
+  QCOMPARE(drawn.size(), std::size_t{2});
+  for (const DrawnLabel& label : drawn) {
+    QCOMPARE(label.colour, tokens::kGreyed);
+    QVERIFY(!label.text.isEmpty());
+  }
+  // back to reading: coloured again
+  overlay.show_frame(picture(), report(ReferenceState::Reading, {square(2, 60, 40, Label::Candidate)}));
+  QCOMPARE(overlay.drawn_labels().at(0).colour, tokens::kCandidate);
+}
+
 }  // namespace pychron::grains::test

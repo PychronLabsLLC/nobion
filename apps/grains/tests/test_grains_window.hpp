@@ -11,6 +11,10 @@ class GrainsWindowTest : public QObject {
   void refusedReferenceShowsReason();
   void recordingToggleWritesFolder();
   void noScoreTextSaysProbability();
+  void secondReferenceButtonSetsOppositeReference();
+  void pinButtonGreysTheSelectedGrain();
+  void detailSaysWhyUnsure();
+  void frameSizeChangeClearsPinsAndSelection();
 };
 
 }  // namespace pychron::grains::test

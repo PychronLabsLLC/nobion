@@ -1,6 +1,8 @@
 #include "test_grains_window.hpp"
 
+#include <atomic>
 #include <filesystem>
+#include <memory>
 
 #include <QAbstractButton>
 #include <QComboBox>
@@ -14,6 +16,7 @@
 #include "demo.hpp"
 #include "grain_overlay.hpp"
 #include "grains_window.hpp"
+#include "overlay_tokens.hpp"
 
 namespace pychron::grains::test {
 
@@ -34,6 +37,18 @@ void click_at(GrainsWindow& window, QPointF frame_px) {
 bool has_reference(const GrainOverlay& overlay) {
   const auto& grains = overlay.report().grains;
   return std::ranges::any_of(grains, [](const GrainView& g) { return g.reference; });
+}
+
+// A fringe takes a few frames to measure: a refusal is tried again.
+bool set_first_reference(GrainsWindow& window) {
+  GrainOverlay* overlay = window.overlay();
+  auto* tool = window.findChild<QToolButton*>(QStringLiteral("reference_tool"));
+  for (int attempt = 0; tool != nullptr && attempt < 40 && !has_reference(*overlay); ++attempt) {
+    tool->setChecked(true);
+    click_at(window, kReferenceGrain);
+    QTest::qWait(150);
+  }
+  return has_reference(*overlay);
 }
 
 void show(GrainsWindow& window) {
@@ -144,6 +159,118 @@ void GrainsWindowTest::noScoreTextSaysProbability() {
     QVERIFY2(!text.contains(QStringLiteral("probab"), Qt::CaseInsensitive), qPrintable(text));
   }
   QVERIFY(std::ranges::any_of(texts, [](const QString& t) { return t.contains(QStringLiteral("score")); }));
+}
+
+void GrainsWindowTest::secondReferenceButtonSetsOppositeReference() {
+  GrainsWindow window(demo_poll(kSpeed), GrainOptions{});
+  show(window);
+  GrainOverlay* overlay = window.overlay();
+  QTRY_VERIFY_WITH_TIMEOUT(overlay->report().seq >= 15, kTimeoutMs);
+  auto* second = window.findChild<QToolButton*>(QStringLiteral("second_tool"));
+  auto* first = window.findChild<QToolButton*>(QStringLiteral("reference_tool"));
+  QVERIFY(second && first);
+  // before a first reference the second is refused, with the reason
+  second->setChecked(true);
+  click_at(window, QPointF(240, 65));
+  QTRY_VERIFY_WITH_TIMEOUT(overlay->banner_text().contains(QStringLiteral("first reference")), kTimeoutMs);
+  QVERIFY(!second->isChecked());
+  QVERIFY(set_first_reference(window));
+  // the two tools do not stay down together
+  first->setChecked(true);
+  second->setChecked(true);
+  QVERIFY(!first->isChecked());
+  first->setChecked(false);
+  // the quartz is of the opposite side: accepted once its fringe is measured,
+  // which leaves no refusal in the banner
+  bool accepted = false;
+  for (int attempt = 0; attempt < 40 && !accepted; ++attempt) {
+    second->setChecked(true);
+    click_at(window, QPointF(240, 65));
+    QTest::qWait(150);
+    accepted = !second->isChecked() && !overlay->banner_text().contains(QStringLiteral("|"));
+  }
+  QVERIFY2(accepted, qPrintable(overlay->banner_text()));
+  QVERIFY(has_reference(*overlay));
+}
+
+void GrainsWindowTest::pinButtonGreysTheSelectedGrain() {
+  GrainsWindow window(demo_poll(kSpeed), GrainOptions{});
+  show(window);
+  GrainOverlay* overlay = window.overlay();
+  QTRY_VERIFY_WITH_TIMEOUT(overlay->report().seq >= 15, kTimeoutMs);
+  QVERIFY(set_first_reference(window));
+  QTRY_VERIFY_WITH_TIMEOUT(!overlay->labels().isEmpty(), kTimeoutMs);
+  click_at(window, QPointF(80, 65));
+  QVERIFY(window.selected().has_value());
+  const std::uint64_t id = *window.selected();
+  auto* pin = window.findChild<QAbstractButton*>(QStringLiteral("pin"));
+  QVERIFY(pin && pin->isEnabled());
+  pin->click();
+  QVERIFY(overlay->is_picked(id));
+  QCOMPARE(pin->text(), QStringLiteral("Unmark picked"));
+  const auto colour_of = [&](std::uint64_t grain) {
+    for (const DrawnLabel& label : overlay->drawn_labels()) {
+      if (label.id == grain) return label.colour;
+    }
+    return QColor();
+  };
+  QTRY_COMPARE_WITH_TIMEOUT(colour_of(id), tokens::kGreyed, kTimeoutMs);
+  pin->click();
+  QVERIFY(!overlay->is_picked(id));
+  QVERIFY(colour_of(id) != tokens::kGreyed);
+}
+
+void GrainsWindowTest::detailSaysWhyUnsure() {
+  const GrainOptions options;
+  GrainView few;
+  few.id = 4;
+  few.label = Label::Unsure;
+  few.score = 0.5;
+  few.passes_agree = 1;
+  few.contrast = 0.1;
+  QVERIFY(grain_detail_text(few, options).contains(QStringLiteral("unsure because: only 1 passes counted")));
+  GrainView faint = few;
+  faint.passes_agree = 5;
+  faint.contrast = options.min_contrast / 2;
+  QVERIFY(grain_detail_text(faint, options).contains(QStringLiteral("unsure because: contrast under")));
+  GrainView split = faint;
+  split.contrast = 0.1;
+  split.passes_against = 4;
+  split.score = 0.55;
+  const QString text = grain_detail_text(split, options);
+  QVERIFY(text.contains(QStringLiteral("unsure because: score 0.55 under")));
+  QVERIFY(text.contains(QStringLiteral("5 for this label, 4 against it")));
+  GrainView sure = split;
+  sure.label = Label::Candidate;
+  QVERIFY(!grain_detail_text(sure, options).contains(QStringLiteral("unsure because")));
+}
+
+void GrainsWindowTest::frameSizeChangeClearsPinsAndSelection() {
+  const auto small = std::make_shared<std::atomic<bool>>(false);
+  auto inner = demo_poll(kSpeed);
+  GrainsWindow window(
+      [small, inner] {
+        FrameTick tick = inner();
+        if (tick.frame && small->load()) {
+          vision::Frame shrunk = vision::Frame::make(160, 120, 255, 100);
+          shrunk.seq = tick.frame->seq;
+          shrunk.timestamp = tick.frame->timestamp;
+          tick.frame = std::move(shrunk);
+        }
+        return tick;
+      },
+      GrainOptions{});
+  show(window);
+  GrainOverlay* overlay = window.overlay();
+  QTRY_VERIFY_WITH_TIMEOUT(overlay->report().seq >= 15, kTimeoutMs);
+  QTRY_VERIFY_WITH_TIMEOUT(!overlay->report().grains.empty(), kTimeoutMs);
+  click_at(window, QPointF(80, 65));
+  QVERIFY(window.selected().has_value());
+  overlay->set_picked(*window.selected(), true);
+  small->store(true);
+  QTRY_VERIFY_WITH_TIMEOUT(!window.selected().has_value(), kTimeoutMs);
+  QVERIFY(!overlay->is_picked(1));
+  for (const GrainView& g : overlay->report().grains) QVERIFY(!overlay->is_picked(g.id));
 }
 
 }  // namespace pychron::grains::test

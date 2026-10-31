@@ -1,4 +1,0 @@
-# Qt code: owning-memory and NewDeleteLeaks off, as in apps/pychron-ui: a new'd
-# child belongs to its parent, which the check cannot see.
-InheritParentConfig: true
-Checks: '-cppcoreguidelines-owning-memory,-clang-analyzer-cplusplus.NewDeleteLeaks'

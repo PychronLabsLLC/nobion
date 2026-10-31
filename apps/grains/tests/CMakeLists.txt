@@ -10,6 +10,8 @@ add_executable(pychron_grains_app_tests
   test_grain_overlay.hpp
   test_grains_window.cpp
   test_grains_window.hpp
+  test_replay_command.cpp
+  test_replay_command.hpp
 )
 target_link_libraries(pychron_grains_app_tests PRIVATE pychron_grains_app_lib Qt6::Test)
 pychron_set_warnings(pychron_grains_app_tests)

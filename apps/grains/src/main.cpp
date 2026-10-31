@@ -1,6 +1,7 @@
 // grains: labels grains in microscope video from Becke fringe motion.
 //
-//   grains replay <folder>            headless: runs a recording again, prints its summary
+//   grains replay <folder>            headless: runs a recording again, prints its summary;
+//                                     exit 1 on an error, 3 when a report differs from the recorded one
 //   grains --demo                     window on a synthetic scene; no config, no camera
 //   grains [--config grains.toml]     window on the camera of the config
 #include <cstdio>
@@ -16,23 +17,10 @@
 #include "demo.hpp"
 #include "grains_window.hpp"
 #include "pychron/grains/config.hpp"
-#include "pychron/grains/recording.hpp"
+#include "live_poll.hpp"
+#include "replay_command.hpp"
 #include "pychron/vision/camera_backend.hpp"
 #include "pychron/vision/live_feed.hpp"
-
-namespace {
-
-int replay(const std::string& folder) {
-  const auto summary = pychron::grains::replay_folder(folder);
-  if (!summary) {
-    std::cerr << "grains replay: " << summary.error().what << '\n';
-    return 1;
-  }
-  std::cout << pychron::grains::summary_text(*summary);
-  return 0;
-}
-
-}  // namespace
 
 int main(int argc, char** argv) {
   // Before any QApplication: a replay needs no display.
@@ -41,7 +29,7 @@ int main(int argc, char** argv) {
       std::cerr << "usage: grains replay <folder>\n";
       return 2;
     }
-    return replay(argv[2]);
+    return pychron::grains::run_replay(argv[2], std::cout, std::cerr);
   }
 
   bool demo = false;
@@ -81,11 +69,7 @@ int main(int argc, char** argv) {
     return pychron::vision::open_camera(request, std::move(stamp));
   });
   pychron::grains::GrainsWindow window(
-      [&feed] {
-        auto latest = feed.latest();
-        return pychron::grains::FrameTick{std::move(latest.frame), std::move(latest.error)};
-      },
-      config->pipeline);
+      pychron::grains::live_poll(feed), config->pipeline);
   window.resize(1000, 640);
   window.show();
   return QApplication::exec();

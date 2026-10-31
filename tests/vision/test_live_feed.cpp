@@ -117,6 +117,30 @@ TEST(LiveFeed, GrabGivesAFrameReadAfterTheCall) {
   EXPECT_EQ(feed.info().width, 4);
 }
 
+TEST(LiveFeed, LatestIfNewerLeavesOutAFrameAlreadySeen) {
+  Camera camera;
+  camera.period = 100ms;
+  LiveFeed feed(opener(camera), quick());
+  ASSERT_TRUE(feed.wait_open());
+  ASSERT_TRUE(eventually([&] { return feed.latest().frame.has_value(); }));
+  // the camera is slow: a new frame is rare, so a seen one is soon asked for again
+  bool left_out = false;
+  for (int i = 0; i < 20 && !left_out; ++i) {
+    const auto seen = feed.latest();
+    ASSERT_TRUE(seen.frame);
+    const auto again = feed.latest_if_newer(seen.frame->seq);
+    if (again.frame) continue;  // a new frame came between the two calls
+    left_out = true;
+    EXPECT_TRUE(again.error.empty());
+    EXPECT_GE(again.age.count(), 0);
+  }
+  EXPECT_TRUE(left_out);
+  // a seq that is not the newest gets the frame
+  const auto newer = feed.latest_if_newer(0);
+  ASSERT_TRUE(newer.frame);
+  EXPECT_GT(newer.frame->seq, 0U);
+}
+
 TEST(LiveFeed, FramesAreStampedFromTheCallersClock) {
   Camera camera;
   LiveFeedOptions o = quick();
