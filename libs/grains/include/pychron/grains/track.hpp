@@ -26,6 +26,7 @@ class Tracker {
 
   // Live tracks after this frame, matched or still waiting (missed > 0).
   const std::vector<Track>& update(std::vector<vision::Component> blobs);
+  [[nodiscard]] const std::vector<Track>& tracks() const { return tracks_; }
   std::vector<std::uint64_t> take_ended();  // ids ended since last asked
   void reset();
 
