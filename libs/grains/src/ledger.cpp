@@ -10,11 +10,15 @@ PassLedger::PassLedger(const GrainOptions& options) : options_(options) {}
 
 void PassLedger::update(TimePoint t, double reference_velocity, double reference_contrast,
                         std::span<const Sample> grains) {
-  const double dt = have_last_ ? std::chrono::duration<double>(t - last_t_).count() : 0.0;
+  const double gap =
+      have_last_ ? std::max(0.0, std::chrono::duration<double>(t - last_t_).count()) : 0.0;
+  if (!have_last_ || t > last_t_) {
+    last_t_ = t;
+  }
   have_last_ = true;
-  last_t_ = t;
 
-  const bool moving = std::abs(reference_velocity) >= options_.min_ref_speed_px_s;
+  const bool moving =
+      std::isfinite(reference_velocity) && std::abs(reference_velocity) >= options_.min_ref_speed_px_s;
   const int sign = reference_velocity < 0 ? -1 : 1;
   if (frames_ > 0 && (!moving || sign != sign_)) {
     close_pass();
@@ -22,14 +26,19 @@ void PassLedger::update(TimePoint t, double reference_velocity, double reference
   if (!moving) {
     return;
   }
+  // The first frame of a pass has no interval inside it.
+  const double dt = frames_ == 0 ? 0.0 : gap;
   if (frames_ == 0) {
     sign_ = sign;
   }
 
   ++frames_;
   ref_displacement_ += reference_velocity * dt;
-  ref_contrast_sum_ += reference_contrast;
+  ref_contrast_sum_ += std::isfinite(reference_contrast) ? reference_contrast : 0.0;
   for (const Sample& g : grains) {
+    if (!std::isfinite(g.velocity_px_s) || !std::isfinite(g.contrast)) {
+      continue;
+    }
     Accum& a = pass_[g.id];
     a.displacement += g.velocity_px_s * dt;
     a.contrast_sum += g.contrast;
@@ -41,6 +50,10 @@ void PassLedger::close_pass() {
   if (frames_ >= options_.min_pass_frames) {
     const double ref_contrast = ref_contrast_sum_ / frames_;
     for (const auto& [id, a] : pass_) {
+      // One noisy sample is not a pass.
+      if (a.frames < options_.min_pass_frames) {
+        continue;
+      }
       const double contrast = a.contrast_sum / a.frames;
       Record& r = records_[id];
       const double product = a.displacement * ref_displacement_;

@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <limits>
+#include <span>
 #include <vector>
 
 #include "pychron/grains/ledger.hpp"
@@ -61,14 +63,96 @@ TEST_F(Ledger, OppositeDirectionVotesOpposite) {
 }
 
 TEST_F(Ledger, FlippingBothSignsLeavesTheVote) {
-  feed(10, -5.0, -3.0);
+  // The same script at +v and -v in two ledgers gives the same tallies.
+  PassLedger other{GrainOptions{}};
+  int f = 0;
+  const auto run = [&](PassLedger& l, double sgn, int n, double ref_v, double grain_v) {
+    for (int i = 0; i < n; ++i, ++f) {
+      const PassLedger::Sample sample{1, sgn * grain_v, 0.1};
+      l.update(pychron::TimePoint{} + std::chrono::milliseconds(50 * f), sgn * ref_v, 0.1,
+               std::span<const PassLedger::Sample>(&sample, 1));
+    }
+  };
+  for (int pass = 0; pass < 2; ++pass) {
+    run(ledger, 1.0, 10, 5.0, pass == 0 ? 3.0 : -3.0);
+    run(ledger, 1.0, 1, 0.0, 0.0);
+    run(other, -1.0, 10, 5.0, pass == 0 ? 3.0 : -3.0);
+    run(other, -1.0, 1, 0.0, 0.0);
+  }
+  const Tally a = ledger.tally(1);
+  const Tally b = other.tally(1);
+  EXPECT_EQ(a.same_passes, 1);
+  EXPECT_EQ(a.opposite_passes, 1);
+  EXPECT_EQ(a.same_passes, b.same_passes);
+  EXPECT_EQ(a.opposite_passes, b.opposite_passes);
+  EXPECT_EQ(a.none_passes, b.none_passes);
+  EXPECT_DOUBLE_EQ(a.same_weight, b.same_weight);
+  EXPECT_DOUBLE_EQ(a.opposite_weight, b.opposite_weight);
+}
+
+TEST_F(Ledger, GrainInOneFrameOfAPassCastsNoVote) {
+  for (int i = 0; i < 10; ++i) {
+    PassLedger::Sample sample{1, -50.0, 0.1};
+    const std::span<const PassLedger::Sample> in =
+        i == 4 ? std::span<const PassLedger::Sample>(&sample, 1)
+               : std::span<const PassLedger::Sample>();
+    ledger.update(now(), 5.0, 0.1, in);
+    ++frame;
+  }
   stop();
-  EXPECT_EQ(ledger.last_vote(1), Vote::Same);
-  feed(10, -5.0, 3.0);
+  const Tally t = ledger.tally(1);
+  EXPECT_EQ(t.same_passes + t.opposite_passes + t.none_passes, 0);
+}
+
+TEST_F(Ledger, GrainAppearingMidPassStillVotes) {
+  for (int i = 0; i < 12; ++i) {
+    const PassLedger::Sample sample{1, 3.0, 0.1};
+    const std::span<const PassLedger::Sample> in =
+        i >= 5 ? std::span<const PassLedger::Sample>(&sample, 1)
+               : std::span<const PassLedger::Sample>();
+    ledger.update(now(), 5.0, 0.1, in);
+    ++frame;
+  }
   stop();
-  EXPECT_EQ(ledger.last_vote(1), Vote::Opposite);
   EXPECT_EQ(ledger.tally(1).same_passes, 1);
+}
+
+TEST_F(Ledger, LongGapBeforeAPassDoesNotDominate) {
+  // An idle spell, then a pass whose grain moves opposite to the reference.
+  stop();
+  frame += 100000;
+  feed(10, 5.0, -3.0);
+  stop();
   EXPECT_EQ(ledger.tally(1).opposite_passes, 1);
+  EXPECT_EQ(ledger.tally(1).same_passes, 0);
+}
+
+TEST_F(Ledger, BackwardTimestampDoesNotFlipTheVote) {
+  feed(5, 5.0, 3.0);
+  frame -= 40;  // clock steps back
+  feed(5, 5.0, 3.0);
+  frame += 40;
+  stop();
+  EXPECT_EQ(ledger.tally(1).same_passes, 1);
+  EXPECT_EQ(ledger.tally(1).opposite_passes, 0);
+}
+
+TEST_F(Ledger, NonFiniteSamplesCastNoWrongVote) {
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  feed(10, 5.0, 3.0);
+  stop();
+  ASSERT_EQ(ledger.tally(1).same_passes, 1);
+  // A grain whose every sample is NaN votes nothing; a NaN reference ends the pass.
+  feed(10, 5.0, nan);
+  stop();
+  EXPECT_EQ(ledger.tally(1).opposite_passes, 0);
+  EXPECT_EQ(ledger.tally(1).same_passes, 1);
+  feed(10, 5.0, 3.0, 0.1, nan);
+  stop();
+  EXPECT_EQ(ledger.tally(1).opposite_passes, 0);
+  feed(5, 5.0, 3.0);
+  feed(1, nan, 3.0);
+  EXPECT_FALSE(ledger.pass_running());
 }
 
 TEST_F(Ledger, LowContrastVotesNone) {
