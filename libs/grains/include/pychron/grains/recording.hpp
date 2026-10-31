@@ -30,6 +30,7 @@ struct RecordEvent {
 // time, the events applied before it and the report it gave. Start it right
 // after GrainPipeline::reset(), with a Restore event for the marks then held,
 // so a replay's pipeline starts where the live one did.
+// A recording not finished has no case.toml and does not replay.
 class GrainRecording {
  public:
   [[nodiscard]] static Result<GrainRecording> open(const std::filesystem::path& dir, const GrainOptions& options);

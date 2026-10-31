@@ -9,7 +9,10 @@
 #include <string_view>
 #include <system_error>
 
+#include <toml++/toml.hpp>
+
 #include "pychron/core/user_file.hpp"
+#include "pychron/grains/config.hpp"
 #include "pychron/grains/score.hpp"
 
 namespace pychron::grains {
@@ -250,6 +253,7 @@ Result<ReplaySummary> replay_folder(const std::filesystem::path& dir) {
   GrainOptions options;
   try {
     options = options_from(head.at("options"));
+    if (auto ok = validate_options(options); !ok) return corrupt(file, 1, "options: " + ok.error().what);
   } catch (const std::exception& e) {
     return corrupt(file, 1, std::string("options: ") + e.what());
   }
@@ -265,7 +269,17 @@ Result<ReplaySummary> replay_folder(const std::filesystem::path& dir) {
   }
 
   ReplaySummary summary;
-  if (recorded.empty()) return summary;
+  if (recorded.empty()) {
+    // No frame lines: case.toml must hold none either, or lines were cut.
+    const auto case_file = dir / "case.toml";
+    auto parsed = toml::parse_file(case_file.string());
+    if (!parsed) return fail(ErrorKind::Config, case_file.string() + ": " + std::string(parsed.error().description()));
+    const auto* listed = parsed.table()["frames"].as_array();
+    const std::size_t declared = listed != nullptr ? listed->size() : 0;
+    if (declared != 0)
+      return fail(ErrorKind::Config, file.string() + ": 0 frames recorded, " + std::to_string(declared) + " in case.toml");
+    return summary;
+  }
 
   auto fixture = vision::load_case(dir);
   if (!fixture) return fail(fixture.error());

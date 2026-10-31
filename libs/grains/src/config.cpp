@@ -154,6 +154,24 @@ Result<void> read_camera(const toml::table& tbl, vision::CameraRequest& c) {
 
 }  // namespace
 
+Result<void> validate_options(const GrainOptions& o) {
+  const toml::table tbl{{"min_contrast", o.min_contrast},
+                        {"min_reference_contrast", o.min_reference_contrast},
+                        {"min_passes", o.min_passes},
+                        {"min_score", o.min_score},
+                        {"track_gap_frames", o.track_gap_frames},
+                        {"max_shift_px", o.max_shift_px},
+                        {"disagree_passes", o.disagree_passes},
+                        {"min_fps", o.min_fps},
+                        {"segment_window", o.segment_window},
+                        {"ring_px", o.ring_px},
+                        {"min_area_px", o.min_area_px},
+                        {"min_pass_frames", o.min_pass_frames},
+                        {"min_ref_speed_px_s", o.min_ref_speed_px_s}};
+  GrainOptions scratch;
+  return read_pipeline(tbl, scratch);
+}
+
 Result<GrainsConfig> load_config(const std::filesystem::path& path) {
   std::ifstream in(path, std::ios::binary);
   if (!in) return fail(ErrorKind::Io, "cannot open " + path.string());

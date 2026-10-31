@@ -209,13 +209,55 @@ TEST(Recording, CorruptSidecarIsAnError) {
   }
   const auto r = replay_folder(dir.path);
   ASSERT_FALSE(r.has_value());
-  EXPECT_FALSE(r.error().what.empty());
+  EXPECT_NE(r.error().what.find("tracks.jsonl:"), std::string::npos) << r.error().what;
 
   {
     std::ofstream out(dir.path / "tracks.jsonl", std::ios::binary | std::ios::trunc);
     out << "not json\n";
   }
   EXPECT_FALSE(replay_folder(dir.path).has_value());
+}
+
+TEST(Recording, SidecarCutToItsHeaderIsAnError) {
+  TempDir dir;
+  const auto frames = sweep_frames(kSanidine);
+  GrainPipeline live{GrainOptions{}};
+  record(live, dir.path, GrainOptions{}, frames, 0, 4);
+  std::string text;
+  {
+    std::ifstream in(dir.path / "tracks.jsonl", std::ios::binary);
+    std::getline(in, text);
+  }
+  {
+    std::ofstream out(dir.path / "tracks.jsonl", std::ios::binary | std::ios::trunc);
+    out << text << '\n';
+  }
+  const auto r = replay_folder(dir.path);
+  ASSERT_FALSE(r.has_value());
+  EXPECT_NE(r.error().what.find("case.toml"), std::string::npos) << r.error().what;
+}
+
+TEST(Recording, TamperedOptionsAreAnError) {
+  TempDir dir;
+  const auto frames = sweep_frames(kSanidine);
+  GrainPipeline live{GrainOptions{}};
+  record(live, dir.path, GrainOptions{}, frames, 0, 3);
+  std::string text;
+  {
+    std::ifstream in(dir.path / "tracks.jsonl", std::ios::binary);
+    text.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+  }
+  const std::string key = R"("min_passes":3)";
+  const auto at = text.find(key);
+  ASSERT_NE(at, std::string::npos);
+  text.replace(at, key.size(), R"("min_passes":0)");
+  {
+    std::ofstream out(dir.path / "tracks.jsonl", std::ios::binary | std::ios::trunc);
+    out << text;
+  }
+  const auto r = replay_folder(dir.path);
+  ASSERT_FALSE(r.has_value());
+  EXPECT_NE(r.error().what.find("min_passes"), std::string::npos) << r.error().what;
 }
 
 TEST(Recording, FewerLinesThanFramesIsAnError) {
