@@ -19,8 +19,8 @@ struct FringeSample {
 // Radial brightness profile of a ring about the component's outline, from
 // -ring_px to +ring_px, with the edge step taken out by a median baseline (the median runs over
 // the whole profile, so a step alone leaves no residual).
-// Invalid for a blob cut off by the mask or frame border, one with too few
-// boundary points, or a ring that mostly leaves the frame. A valid sample may
+// Invalid for a blob cut off by the mask or frame border, one with no boundary
+// points, or a ring that mostly leaves the frame. A valid sample may
 // still have no contrast: the caller applies its own minimum.
 FringeSample measure_fringe(const vision::FrameView&, const vision::Component&, int ring_px);
 

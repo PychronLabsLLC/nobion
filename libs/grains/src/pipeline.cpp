@@ -17,6 +17,7 @@ namespace pychron::grains {
 namespace {
 
 constexpr const char* kTooSlow = "camera too slow";
+constexpr const char* kCameraChanged = "camera changed: click the reference again";
 // Fringe samples a velocity is fitted over.
 constexpr std::size_t kHistory = 5;
 // Fewer give no slope.
@@ -123,12 +124,12 @@ const Track* GrainPipeline::track(const std::optional<Reference>& reference) con
 
 // A reference that cannot be measured is lost whether or not its track lives.
 bool GrainPipeline::usable(const Track* reference_track) const {
-  return reference_track != nullptr && !reference_track->blob.touches_mask_edge;
+  return reference_track != nullptr && !blind_ && reference_track->missed == 0 && !reference_track->blob.touches_mask_edge;
 }
 
 void GrainPipeline::vote(TimePoint t, bool may_vote) {
   const Track* reference = track(first_);
-  if (!may_vote || !usable(reference) || reference->missed != 0) {
+  if (!may_vote || !usable(reference)) {
     ledger_.drop_pass();
     return;
   }
@@ -192,20 +193,32 @@ GrainReport GrainPipeline::process(const vision::Frame& frame) {
   GrainReport report;
   report.seq = frame.seq;
   report.timestamp = frame.timestamp;
+  const auto warn = [&](bool too_slow) {
+    if (camera_changed_) report.warning = kCameraChanged;
+    if (too_slow) report.warning += report.warning.empty() ? kTooSlow : std::string("; ") + kTooSlow;
+  };
 
   const bool blank = frame.width <= 0 || frame.height <= 0 || frame.data.empty();
   const bool resized = previous_.data.empty() ? false
                                               : frame.width != previous_.width || frame.height != previous_.height ||
                                                     frame.pixel_depth != previous_.pixel_depth;
-  if (blank || resized) reset();
+  if (blank || resized) {
+    // Another camera, or the same one moved: nothing at a mark can be trusted.
+    camera_changed_ = camera_changed_ || first_.has_value();
+    first_.reset();
+    second_.reset();
+    reset();
+  }
+  report.generation = generation_;
   if (blank) {
     report.reference = state();
+    warn(false);
     return report;
   }
 
   const vision::FrameView view = frame.view();
   const bool too_slow = camera_too_slow(frame.timestamp);
-  if (too_slow) report.warning = kTooSlow;
+  warn(too_slow);
 
   bool jumped = false;
   if (!previous_.data.empty()) {
@@ -220,13 +233,19 @@ GrainReport GrainPipeline::process(const vision::Frame& frame) {
     fringes_.clear();
   }
 
-  tracker_.update(segmenter_.update(view));
-  end_tracks();
-  bind(first_, second_);
-  bind(second_, first_);
-  measure_fringes(view);
-  follow(first_);
-  follow(second_);
+  std::vector<vision::Component> blobs = segmenter_.update(view);
+  blind_ = segmenter_.warming_up();
+  // Not seeing is not the same as a grain being gone: nothing ages while the
+  // ring refills, however many frames a fast camera gives in that time.
+  if (!blind_) {
+    tracker_.update(std::move(blobs));
+    end_tracks();
+    bind(first_, second_);
+    bind(second_, first_);
+    measure_fringes(view);
+    follow(first_);
+    follow(second_);
+  }
   vote(frame.timestamp, !too_slow && !jumped);
 
   report.reference = state();
@@ -262,6 +281,7 @@ Result<void> GrainPipeline::set_reference(vision::Vec2 frame_px, Side side) {
   const bool same_grain = first_ && first_->id == *id;
   if (!same_grain) ledger_.reset();
   if (!same_grain || first_->mark.side != side) disagree_held_ = false;
+  camera_changed_ = false;
   first_ = Reference{{frame_px, side}, *id, false};
   return {};
 }
@@ -283,6 +303,8 @@ void GrainPipeline::clear_reference() {
 }
 
 void GrainPipeline::reset() {
+  if (!usable(track(first_))) first_.reset();
+  if (!first_ || !usable(track(second_))) second_.reset();
   segmenter_.reset();
   tracker_.reset();
   ledger_.reset();
@@ -290,6 +312,8 @@ void GrainPipeline::reset() {
   disagree_held_ = false;
   previous_ = vision::Frame{};
   times_.clear();
+  blind_ = false;
+  ++generation_;
   for (std::optional<Reference>* r : {&first_, &second_}) {
     if (*r) {
       (*r)->id.reset();
@@ -301,6 +325,7 @@ void GrainPipeline::reset() {
 void GrainPipeline::restore_references(ReferenceMark first, std::optional<ReferenceMark> second) {
   ledger_.reset();
   disagree_held_ = false;
+  camera_changed_ = false;
   first_ = Reference{first, std::nullopt, true};
   second_.reset();
   if (second) second_ = Reference{*second, std::nullopt, true};

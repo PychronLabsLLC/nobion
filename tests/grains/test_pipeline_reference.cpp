@@ -65,6 +65,18 @@ void expect_same_counts(const GrainView& a, const GrainView& b) {
   EXPECT_EQ(a.label, b.label);
 }
 
+// A sweep in which `gone` is out of the scene for frames [from, to).
+std::vector<Frame> with_gap(std::size_t gone, std::size_t from, std::size_t to) {
+  auto frames = sweep_frames(kSanidine);
+  GrainScene without = four_grains(kSanidine);
+  without.grains.erase(without.grains.begin() + static_cast<std::ptrdiff_t>(gone));
+  const auto empty = cached("without" + std::to_string(gone), [&] { return render(without, triangle_z(2, 1), kFps, kFrames); });
+  for (std::size_t i = from; i < to; ++i) frames[i] = empty[i];
+  return frames;
+}
+
+constexpr std::size_t kRefIndex = 3, kLowIndex = 0;
+
 // reset_at and jump_at are turnarounds. Each restarts the ring with the line at
 // its turn, so for the first 2 s the quiet image has seen little of the sweep.
 void expect_no_wrong_vote(double period_s, double reset_at, double jump_at) {
@@ -359,12 +371,12 @@ TEST(PipelineReference, VeryFastRackFormsNoPass) {
   EXPECT_EQ(label_at(r, kLow), Label::Unsure);
 }
 
-TEST(PipelineReference, NewFrameSizeResets) {
+TEST(PipelineReference, NewFrameSizeResetsAndDropsTheReferences) {
   const auto frames = sweep_frames(kSanidine);
   GrainScene small = four_grains(kSanidine);
   small.width = 300;
   small.height = 230;
-  const auto other = render(small, triangle_z(2, 1), kFps, 12);
+  const auto other = render(small, triangle_z(2, 1), kFps, 30);
 
   GrainPipeline p{GrainOptions{}};
   feed(p, frames, 0, kClickFrame);
@@ -374,23 +386,233 @@ TEST(PipelineReference, NewFrameSizeResets) {
 
   const GrainReport first = p.process(other[0]);
   EXPECT_TRUE(first.grains.empty());
-  EXPECT_TRUE(p.reference_mark().has_value());
-  const GrainReport later = feed(p, other, 1, other.size());
+  EXPECT_FALSE(p.reference_mark().has_value());
+  EXPECT_EQ(first.reference, ReferenceState::None);
+  EXPECT_NE(first.warning.find("camera changed"), std::string::npos) << first.warning;
+
+  const GrainReport later = feed(p, other, 1, kClickFrame);
   ASSERT_EQ(later.grains.size(), 4U);
+  EXPECT_EQ(later.reference, ReferenceState::None);
+  EXPECT_EQ(later.warning, first.warning) << "held until a reference is set";
   for (const GrainView& g : later.grains) {
     EXPECT_LE(g.id, 4U) << "ids restart";
+    EXPECT_EQ(g.label, Label::None);
     EXPECT_EQ(g.passes_agree + g.passes_against + g.passes_none, 0);
+  }
+
+  ASSERT_TRUE(p.set_reference(kRef, Side::Below).has_value());
+  EXPECT_TRUE(feed(p, other, kClickFrame, other.size()).warning.empty());
+}
+
+TEST(PipelineReference, ACameraChangeWithNoReferenceSaysNothing) {
+  const auto frames = sweep_frames(kSanidine);
+  GrainPipeline p{GrainOptions{}};
+  feed(p, frames, 0, 10);
+  EXPECT_TRUE(p.process(pychron::vision::Frame::make(100, 80, 255, 90)).warning.empty());
+}
+
+TEST(PipelineReference, NewPixelDepthDropsTheReferences) {
+  const auto frames = sweep_frames(kSanidine);
+  GrainScene deep = four_grains(kSanidine);
+  deep.pixel_depth = 4095;
+  const auto other = render(deep, triangle_z(2, 1), kFps, 2);
+  GrainPipeline p{GrainOptions{}};
+  feed(p, frames, 0, kClickFrame);
+  ASSERT_TRUE(p.set_reference(kRef, Side::Below).has_value());
+  feed(p, frames, kClickFrame, 20);
+  const GrainReport r = p.process(other[0]);
+  EXPECT_FALSE(p.reference_mark().has_value());
+  EXPECT_EQ(r.reference, ReferenceState::None);
+  EXPECT_NE(r.warning.find("camera changed"), std::string::npos) << r.warning;
+}
+
+TEST(PipelineReference, BlankFrameResetsAndDropsTheReferences) {
+  const auto frames = sweep_frames(kSanidine);
+  GrainPipeline p{GrainOptions{}};
+  feed(p, frames, 0, kClickFrame);
+  ASSERT_TRUE(p.set_reference(kRef, Side::Below).has_value());
+  feed(p, frames, kClickFrame, 30);
+  const GrainReport blank = p.process(Frame{});
+  EXPECT_TRUE(blank.grains.empty());
+  EXPECT_EQ(blank.reference, ReferenceState::None);
+  EXPECT_FALSE(p.reference_mark().has_value());
+  EXPECT_NE(blank.warning.find("camera changed"), std::string::npos) << blank.warning;
+  const GrainReport first = p.process(frames[30]);
+  EXPECT_TRUE(first.grains.empty());
+  EXPECT_EQ(first.warning, blank.warning);
+}
+
+TEST(PipelineReference, GenerationCountsResetsOnly) {
+  const auto frames = sweep_frames(kSanidine);
+  GrainPipeline p{GrainOptions{}};
+  const GrainReport start = feed(p, frames, 0, 3);
+  EXPECT_EQ(feed(p, frames, 3, 5).generation, start.generation);
+  p.reset();
+  const GrainReport after_reset = feed(p, frames, 5, 6);
+  EXPECT_EQ(after_reset.generation, start.generation + 1);
+  const GrainReport resized = p.process(pychron::vision::Frame::make(100, 80, 255, 90));
+  EXPECT_EQ(resized.generation, start.generation + 2);
+  EXPECT_EQ(p.process(Frame{}).generation, start.generation + 3);
+}
+
+TEST(PipelineReference, AJumpOnAFastCameraKeepsTracksAndVotes) {
+  // At 60 fps the ring takes 22 frames to refill, more than track_gap_frames.
+  constexpr double kFast = 60.0;
+  constexpr double kJumpAt = 3.0;
+  constexpr Vec2 kOne{50, 60}, kTwo{150, 60}, kThree{235, 60};
+  GrainScene s;
+  s.width = 300;
+  s.height = 120;
+  s.grains.push_back({kOne, 25, 1.0, kSanidine});
+  s.grains.push_back({kTwo, 25, 1.0, kQuartz});
+  s.grains.push_back({kThree, 25, 1.0, kSanidine});
+  const ShiftScript jump = [](double t) { return t < kJumpAt ? Vec2{} : Vec2{20, 0}; };
+  const auto frames = render(s, triangle_z(2, 1), kFast, 300, jump);
+
+  GrainPipeline p{GrainOptions{}};
+  feed(p, frames, 0, 36);
+  ASSERT_TRUE(p.set_reference(kThree, Side::Below).has_value());
+  const auto jump_frame = static_cast<std::size_t>(kJumpAt * kFast);
+  const GrainReport before = feed(p, frames, 36, jump_frame - 2);
+  const GrainView* one_before = grain_at(before, kOne);
+  ASSERT_NE(one_before, nullptr);
+  ASSERT_GT(one_before->passes_agree, 0);
+
+  // Blind while the ring refills: the reference reads Lost, nothing ages.
+  const GrainReport blind = feed(p, frames, jump_frame - 2, jump_frame + 10);
+  EXPECT_EQ(blind.reference, ReferenceState::Lost);
+  EXPECT_EQ(blind.grains.size(), before.grains.size());
+
+  const GrainReport end = feed(p, frames, jump_frame + 10, frames.size());
+  EXPECT_NE(end.reference, ReferenceState::Lost);
+  const GrainView* one_end = grain_at(end, {kOne.x + 20, kOne.y});
+  ASSERT_NE(one_end, nullptr);
+  EXPECT_EQ(one_end->id, one_before->id);
+  EXPECT_GT(one_end->passes_agree, one_before->passes_agree) << "votes held, and more cast after";
+}
+
+TEST(PipelineReference, AGapReadsLostAndRecoversByItself) {
+  // The quiet image holds a vanished grain about 34 frames, so 38 frames out
+  // gives a gap shorter than track_gap_frames.
+  const auto frames = with_gap(kRefIndex, 100, 138);
+  GrainPipeline p{GrainOptions{}};
+  feed(p, frames, 0, kClickFrame);
+  ASSERT_TRUE(p.set_reference(kRef, Side::Below).has_value());
+  const GrainReport before = feed(p, frames, kClickFrame, 100);
+  const GrainView* reference = grain_at(before, kRef);
+  ASSERT_NE(reference, nullptr);
+  const std::uint64_t id = reference->id;
+
+  bool lost = false;
+  std::optional<GrainReport> first_lost, last_lost;
+  for (std::size_t i = 100; i < 160; ++i) {
+    const GrainReport r = p.process(frames[i]);
+    if (r.reference == ReferenceState::Lost) {
+      lost = true;
+      if (!first_lost) first_lost = r;
+      last_lost = r;
+    }
+  }
+  ASSERT_TRUE(lost) << "the gap never happened";
+  const GrainView* a = grain_at(*first_lost, kLow);
+  const GrainView* b = grain_at(*last_lost, kLow);
+  ASSERT_NE(a, nullptr);
+  ASSERT_NE(b, nullptr);
+  expect_same_counts(*a, *b);
+
+  const GrainReport end = feed(p, frames, 160, frames.size());
+  EXPECT_NE(end.reference, ReferenceState::Lost);
+  const GrainView* back = grain_at(end, kRef);
+  ASSERT_NE(back, nullptr);
+  EXPECT_EQ(back->id, id) << "the same track, tracked again";
+  EXPECT_TRUE(back->reference);
+}
+
+TEST(PipelineReference, AnEndedTrackRecoversOnlyByAReClick) {
+  const auto frames = with_gap(kRefIndex, 80, 150);
+  GrainPipeline p{GrainOptions{}};
+  feed(p, frames, 0, kClickFrame);
+  ASSERT_TRUE(p.set_reference(kRef, Side::Below).has_value());
+  feed(p, frames, kClickFrame, 150);
+
+  const GrainReport back = feed(p, frames, 150, 185);
+  const GrainView* blob = grain_at(back, kRef);
+  ASSERT_NE(blob, nullptr) << "the grain is back in view";
+  EXPECT_FALSE(blob->reference);
+  EXPECT_EQ(back.reference, ReferenceState::Lost);
+
+  ASSERT_TRUE(p.set_reference(kRef, Side::Below).has_value());
+  EXPECT_NE(feed(p, frames, 185, frames.size()).reference, ReferenceState::Lost);
+}
+
+TEST(PipelineReference, ResetDropsALostReference) {
+  GrainPipeline p{GrainOptions{}};
+  ASSERT_EQ(walk_until_lost(p).reference, ReferenceState::Lost);
+  p.reset();
+  EXPECT_FALSE(p.reference_mark().has_value());
+  const auto frames = walking_frames();
+  const GrainReport r = feed(p, frames, 200, frames.size());
+  EXPECT_EQ(r.reference, ReferenceState::None);
+  for (const GrainView& g : r.grains) {
+    EXPECT_FALSE(g.reference);
+    EXPECT_EQ(g.label, Label::None);
   }
 }
 
-TEST(PipelineReference, BlankFrameResets) {
-  const auto frames = sweep_frames(kSanidine);
+TEST(PipelineReference, ResetInAGapDropsTheReference) {
+  const auto frames = with_gap(kRefIndex, 80, 150);
   GrainPipeline p{GrainOptions{}};
-  feed(p, frames, 0, 30);
-  const GrainReport blank = p.process(Frame{});
-  EXPECT_TRUE(blank.grains.empty());
-  const GrainReport first = p.process(frames[30]);
-  EXPECT_TRUE(first.grains.empty());
+  feed(p, frames, 0, kClickFrame);
+  ASSERT_TRUE(p.set_reference(kRef, Side::Below).has_value());
+  std::size_t i = kClickFrame;
+  GrainReport r;
+  do {
+    r = p.process(frames[i++]);
+  } while (r.reference != ReferenceState::Lost && i < 150);
+  ASSERT_EQ(r.reference, ReferenceState::Lost);
+  ASSERT_NE(grain_at(r, kRef), nullptr) << "track still waiting";
+  p.reset();
+  EXPECT_FALSE(p.reference_mark().has_value());
+}
+
+TEST(PipelineReference, ResetDropsAReferenceCutByTheEdge) {
+  const auto frames = walking_frames();
+  GrainPipeline p{GrainOptions{}};
+  feed(p, frames, 0, kClickFrame);
+  ASSERT_TRUE(p.set_reference(kWalkRef, Side::Below).has_value());
+  // One jump walks it onto the border; the ring refills in 8 frames.
+  const auto after_jump = static_cast<std::size_t>(kFirstJump * kFps) + 9;
+  const GrainReport r = feed(p, frames, kClickFrame, after_jump);
+  const auto cut = std::find_if(r.grains.begin(), r.grains.end(), [](const GrainView& g) { return g.reference; });
+  ASSERT_NE(cut, r.grains.end());
+  ASSERT_TRUE(cut->at_edge);
+  ASSERT_EQ(r.reference, ReferenceState::Lost);
+  p.reset();
+  EXPECT_FALSE(p.reference_mark().has_value());
+}
+
+TEST(PipelineReference, ResetKeepsTheFirstWhenOnlyTheSecondIsLost) {
+  const auto frames = with_gap(kLowIndex, 60, 160);
+  GrainPipeline p{GrainOptions{}};
+  feed(p, frames, 0, kClickFrame);
+  ASSERT_TRUE(p.set_reference(kRef, Side::Below).has_value());
+  ASSERT_TRUE(p.set_second_reference(kLow, Side::Below).has_value());
+  feed(p, frames, kClickFrame, 150);
+  p.reset();
+  EXPECT_TRUE(p.reference_mark().has_value());
+  EXPECT_FALSE(p.second_reference_mark().has_value());
+}
+
+TEST(PipelineReference, ResetDropsTheSecondWithTheFirst) {
+  const auto frames = with_gap(kRefIndex, 60, 160);
+  GrainPipeline p{GrainOptions{}};
+  feed(p, frames, 0, kClickFrame);
+  ASSERT_TRUE(p.set_reference(kRef, Side::Below).has_value());
+  ASSERT_TRUE(p.set_second_reference(kLow, Side::Below).has_value());
+  feed(p, frames, kClickFrame, 150);
+  p.reset();
+  EXPECT_FALSE(p.reference_mark().has_value());
+  EXPECT_FALSE(p.second_reference_mark().has_value());
 }
 
 TEST(PipelineReference, ResetKeepsReferenceAsMark) {

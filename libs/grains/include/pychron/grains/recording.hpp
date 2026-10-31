@@ -28,7 +28,7 @@ struct RecordEvent {
 // A folder `replay_folder` can run again: one PGM per frame and case.toml
 // (vision::FrameRecorder), and tracks.jsonl, the options and, per frame, its
 // time, the events applied before it and the report it gave. Start it right
-// after GrainPipeline::reset(), with a Restore event for the marks then held,
+// after GrainPipeline::reset(), with a Restore event for the marks that survived it,
 // so a replay's pipeline starts where the live one did.
 // A recording not finished has no case.toml and does not replay.
 class GrainRecording {

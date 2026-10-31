@@ -15,6 +15,7 @@ class GrainsWindowTest : public QObject {
   void pinButtonGreysTheSelectedGrain();
   void detailSaysWhyUnsure();
   void frameSizeChangeClearsPinsAndSelection();
+  void pipelineResetClearsPinsAndSelection();
 };
 
 }  // namespace pychron::grains::test

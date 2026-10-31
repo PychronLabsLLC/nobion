@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -121,6 +122,31 @@ TEST(Recording, ReplayEqualsLive) {
   EXPECT_NE(summary_text(*r).find("mismatches 0"), std::string::npos);
   EXPECT_TRUE(std::filesystem::exists(dir.path / "tracks.jsonl"));
   EXPECT_TRUE(std::filesystem::exists(dir.path / "case.toml"));
+}
+
+TEST(Recording, RestoreWithASecondMarkReplays) {
+  TempDir dir;
+  const auto frames = sweep_frames(kSanidine);
+  const GrainOptions options;
+  GrainPipeline live(options);
+  feed(live, frames, 0, kClickFrame);
+  ASSERT_TRUE(live.set_reference(kRef, Side::Below).has_value());
+  ASSERT_TRUE(live.set_second_reference(kHigh, Side::Above).has_value());
+  live.reset();
+  ASSERT_TRUE(live.second_reference_mark().has_value());
+  RecordEvent restore;
+  restore.kind = RecordEvent::Kind::Restore;
+  restore.first = *live.reference_mark();
+  restore.second = live.second_reference_mark();
+
+  const GrainReport last = record(live, dir.path, options, frames, kClickFrame, 120, {{kClickFrame, {restore}}});
+  const auto reference_flags = std::count_if(last.grains.begin(), last.grains.end(), [](const GrainView& g) { return g.reference; });
+  EXPECT_EQ(reference_flags, 2);
+
+  const auto r = replay_folder(dir.path);
+  ASSERT_TRUE(r.has_value()) << (r ? "" : r.error().what);
+  EXPECT_EQ(r->mismatches, 0U);
+  expect_same(r->final_grains, last.grains);
 }
 
 TEST(Recording, ReplayKeepsTheRecordedOptions) {

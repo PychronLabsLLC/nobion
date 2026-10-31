@@ -453,7 +453,9 @@ an analysis (`experiment/src/run/run.cpp`), the names of snapshots and the
 stamps of hole corrections (`laser/src/laser_system.cpp`) and the time of a
 switch's last actuation (`systems/src/switch_manager.cpp`).
 `persistence/src/ids.cpp`, `processing/src/report.cpp` and `time_series.cpp`
-are not on a simulated path and keep real time. The apps read
+are not on a simulated path and keep real time; so does `GrainRunner`
+(`libs/grains/src/runner.cpp`), a worker polling a camera, no `Participant`.
+The apps read
 `system_clock::now()` once, for the `VirtualClock`'s epoch.
 
 ### 4.6 Apps

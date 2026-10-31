@@ -135,6 +135,8 @@ Per frame, in order:
    from 20 fps up, more below. Components recomputed every third kept sample;
    frames between return last result. No output during warm-up (fewer than 8
    samples since start, `reset()` or frame size change) and on flat scene.
+   While warming up pipeline blind: tracks do not age, no fringe, no vote,
+   reference reads `Lost`, so a jump on a fast camera ends no track.
    Blobs: interiors filled, below `min_area_px` dropped. Line dwelling longer
    than window (sweep slower than about 4 s) stands outline off body edge near
    turnaround; velocity does not read outline.
@@ -184,12 +186,17 @@ no focus model, no assumed direction of rack.
   recent contrast under `min_reference_contrast`; it is already the other
   reference. Contrast taken as mean of last 5 samples.
 - Reference mark (point) follows its grain while tracked and not cut by edge.
-  `reset()` keeps marks and binds each again to the blob at its place, no
-  contrast check; `restore_references` does the same for a replay.
+  `reset()` keeps mark only of reference tracked at that moment (no gap, not
+  cut by edge), bound again to blob at its place, no contrast check; any other
+  reference dropped, since a grain of other material there inverts every
+  label; second goes with first. `restore_references` binds same way for a
+  replay. Frame of other size or depth, or blank frame: both references
+  dropped, section 9.
 - `ReferenceState`, in banner always:
   - `None`: grains outlined grey, no labels, no votes.
-  - `Lost`: votes stop, labels greyed and held, until tracked again or
-    re-clicked.
+  - `Lost`: votes stop, labels greyed and held. Reference in gap (track
+    waiting), cut by edge or pipeline blind: `Lost`; tracked again within gap
+    recovers by itself. Track ended: only re-click recovers.
   - `MoveFocus`: reference ok, no pass running.
   - `Reading`: passes counted.
   - `Disagree`: section below.
@@ -237,8 +244,9 @@ other. `Below` is `Candidate`, `Above` is `Not`.
   literals scattered in paint code.
 - Click grain: pass history, contrast, why unsure, in side panel.
 - Pin: grain selected by click, then button `Mark picked` (toggle); grain
-  greyed. Session only; cleared on start of recording and on frame size
-  change, since ids restart.
+  greyed. Session only; cleared on every pipeline `reset()` (start of
+  recording, camera change), since ids restart; `GrainReport::generation`
+  tells window, not recorded, not compared.
 - Click on grain with reference tool: set reference; side from chooser
   (`below oil`, `above oil`), kept between sessions. Second-reference tool
   uses opposite of declared first side.
@@ -261,7 +269,8 @@ other. `Below` is `Candidate`, `Above` is `Not`.
   it met it on, stays until stop; `stop_recording` returns it. Live labels
   carry on. Destructor of runner finishes an open recording.
 - Starting recording calls `GrainPipeline::reset()`: votes restart, references
-  kept, grain ids restart from 1, pins cleared. Otherwise replay could not
+  tracked at that moment kept (section 5), grain ids restart from 1, pins
+  cleared. `Restore` event logged only for marks that survive. Otherwise replay could not
   rebuild state from before first frame.
 - `RecordedSource` stamps at grab, frames carry no time: replay gives it clock
   reading timestamps from `tracks.jsonl`, in order.
@@ -287,7 +296,9 @@ other. `Below` is `Candidate`, `Above` is `Not`.
   `Frame::timestamp` over last 8 intervals, or one gap over 2 / `min_fps`, so
   replay agrees: warning `camera too slow`, passes not counted.
 - Frame size or `pixel_depth` changes (camera reopened), or blank frame:
-  pipeline `reset()`.
+  both references dropped, pipeline `reset()`, state `None`. If a reference was
+  set, warning `camera changed: click the reference again`, held until one is
+  set.
 - Global shift: pass dropped (section 4).
 - Processing behind camera: frames dropped, never queued.
 - Bad `grains.toml`: `Result` error shown at start, app does not run on

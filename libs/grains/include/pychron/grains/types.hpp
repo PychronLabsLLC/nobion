@@ -51,6 +51,7 @@ struct GrainView {
 
 struct GrainReport {
   std::uint64_t seq = 0;
+  std::uint64_t generation = 0;  // bumped by every reset(): ids restarted. Not recorded
   TimePoint timestamp;
   ReferenceState reference = ReferenceState::None;
   std::vector<GrainView> grains;

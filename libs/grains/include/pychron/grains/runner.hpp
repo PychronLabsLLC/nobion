@@ -69,7 +69,8 @@ class GrainRunner {
   void clear_reference();
 
   // Both wait for the worker to run them and return its result. Start resets
-  // the pipeline on the worker and logs the marks held as a Restore event.
+  // the pipeline on the worker and logs the marks that survive it as a
+  // Restore event.
   // Stop returns the first error the recording met, if any.
   [[nodiscard]] Result<void> start_recording(const std::filesystem::path& dir);
   [[nodiscard]] Result<void> stop_recording();

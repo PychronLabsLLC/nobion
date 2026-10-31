@@ -144,6 +144,8 @@ void Segmenter::reset() {
   admitted_ = false;
 }
 
+bool Segmenter::warming_up() const { return filled_ < static_cast<std::size_t>(kWarmUpFrames); }
+
 std::vector<vision::Component> Segmenter::update(const vision::FrameView& v) {
   if (v.data == nullptr || v.width < 3 || v.height < 3) return {};
   if (v.width != width_ || v.height != height_ || v.pixel_depth != depth_) {
@@ -193,7 +195,7 @@ std::vector<vision::Component> Segmenter::update(const vision::FrameView& v) {
   filled_ = std::min(filled_ + 1, window_);
   ++since_;
 
-  if (filled_ < static_cast<std::size_t>(kWarmUpFrames)) return {};
+  if (warming_up()) return {};
   if (since_ < kComputeEvery && computed_) return cached_;
   since_ = 0;
   computed_ = true;

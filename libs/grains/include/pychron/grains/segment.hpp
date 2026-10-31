@@ -32,6 +32,9 @@ class Segmenter {
   // dropped. Empty during warm-up (fewer than 8 frames kept since the start, a
   // reset or a change of frame size) and while the scene is flat.
   std::vector<vision::Component> update(const vision::FrameView&);
+  // Too few frames kept to say anything: an empty result means nothing about
+  // the scene, and tracks must not age on it. Ask after update().
+  [[nodiscard]] bool warming_up() const;
   void reset();
 
  private:

@@ -273,4 +273,29 @@ void GrainsWindowTest::frameSizeChangeClearsPinsAndSelection() {
   for (const GrainView& g : overlay->report().grains) QVERIFY(!overlay->is_picked(g.id));
 }
 
+void GrainsWindowTest::pipelineResetClearsPinsAndSelection() {
+  // Same width and height, another depth: a reset the frame's size does not show.
+  const auto deep = std::make_shared<std::atomic<bool>>(false);
+  auto inner = demo_poll(kSpeed);
+  GrainsWindow window(
+      [deep, inner] {
+        FrameTick tick = inner();
+        if (tick.frame && deep->load()) tick.frame->pixel_depth = 4095;
+        return tick;
+      },
+      GrainOptions{});
+  show(window);
+  GrainOverlay* overlay = window.overlay();
+  QTRY_VERIFY_WITH_TIMEOUT(!overlay->report().grains.empty(), kTimeoutMs);
+  const std::uint64_t generation = overlay->report().generation;
+  click_at(window, QPointF(80, 65));
+  QVERIFY(window.selected().has_value());
+  overlay->set_picked(*window.selected(), true);
+  const std::uint64_t picked = *window.selected();
+  deep->store(true);
+  QTRY_VERIFY_WITH_TIMEOUT(overlay->report().generation != generation, kTimeoutMs);
+  QVERIFY(!window.selected().has_value());
+  QVERIFY(!overlay->is_picked(picked));
+}
+
 }  // namespace pychron::grains::test

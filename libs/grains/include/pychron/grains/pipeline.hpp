@@ -37,9 +37,15 @@ class GrainPipeline {
   Result<void> set_second_reference(vision::Vec2 frame_px, Side side);
   void clear_reference();
 
-  // Clears tracks and votes; references kept as marks, bound again to the blob
-  // at their place without a contrast check.
+  // Clears tracks and votes. A reference tracked at this moment (no gap, not
+  // cut by the edge) stays as a mark, bound again to the blob at its place
+  // without a contrast check; any other is dropped, since what sits there now
+  // may be another grain. The second goes with the first. Ids restart and
+  // GrainReport::generation moves on. process() does this itself on a frame of
+  // another size or depth, or a blank one, and then drops both references and
+  // warns until one is set.
   void reset();
+  // For a replay: as reset() left the marks, bound the same way.
   void restore_references(ReferenceMark first, std::optional<ReferenceMark> second);
 
   // A mark follows its grain while it is tracked.
@@ -79,6 +85,9 @@ class GrainPipeline {
   std::map<std::uint64_t, Fringe> fringes_;
   std::optional<Reference> first_, second_;
   bool disagree_held_ = false;  // the second reference ended in disagreement
+  bool blind_ = false;           // the segmenter is warming up: tracks are stale
+  bool camera_changed_ = false;  // references dropped, none set since
+  std::uint64_t generation_ = 0;
   vision::Frame previous_;
   std::deque<TimePoint> times_;
 };

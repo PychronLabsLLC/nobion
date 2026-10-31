@@ -5,6 +5,7 @@
 #include <condition_variable>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -216,6 +217,43 @@ TEST(Runner, RecordingStartsFresh) {
   const auto r = replay_folder(dir.path);
   ASSERT_TRUE(r.has_value()) << (r ? "" : r.error().what);
   EXPECT_EQ(r->frames, 30U);
+  EXPECT_EQ(r->mismatches, 0U);
+}
+
+TEST(Runner, RecordingLogsRestoreOnlyForMarksThatSurvive) {
+  TempDir dir;
+  // The reference leaves the scene long enough for its track to end.
+  Feed feed;
+  feed.frames = sweep_frames(kSanidine);
+  GrainScene without = four_grains(kSanidine);
+  without.grains.pop_back();
+  const auto gone = render(without, triangle_z(2, 1), kFps, 100);
+  for (std::size_t i = 20; i < 100; ++i) feed.frames[i] = gone[i];
+  GrainRunner runner(feed.poll(), GrainOptions{}, [] {});
+
+  std::atomic<bool> set_ok{false};
+  for (std::size_t i = 0; i < static_cast<std::size_t>(kClickFrame); ++i) ASSERT_TRUE(feed.step(runner, i).has_value());
+  runner.set_reference(kRef, Side::Below, [&](const pychron::Result<void>& r) { set_ok = r.has_value(); });
+  std::optional<GrainRunner::Shown> lost;
+  for (std::size_t i = kClickFrame; i < 100; ++i) {
+    lost = feed.step(runner, i);
+    ASSERT_TRUE(lost.has_value());
+  }
+  ASSERT_TRUE(set_ok.load());
+  ASSERT_EQ(lost->report.reference, ReferenceState::Lost);
+
+  ASSERT_TRUE(runner.start_recording(dir.path).has_value());
+  const auto first = feed.step(runner, 100);
+  ASSERT_TRUE(first.has_value());
+  EXPECT_EQ(first->report.reference, ReferenceState::None);
+  for (std::size_t i = 101; i < 110; ++i) ASSERT_TRUE(feed.step(runner, i).has_value());
+  ASSERT_TRUE(runner.stop_recording().has_value());
+
+  std::ifstream in(dir.path / "tracks.jsonl");
+  const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  EXPECT_EQ(text.find("restore"), std::string::npos);
+  const auto r = replay_folder(dir.path);
+  ASSERT_TRUE(r.has_value()) << (r ? "" : r.error().what);
   EXPECT_EQ(r->mismatches, 0U);
 }
 

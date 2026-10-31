@@ -188,15 +188,15 @@ void GrainsWindow::on_report_ready() {
   if (!shown->error.empty()) {
     overlay_->set_failed(QString::fromStdString(shown->error));
   } else if (shown->frame) {
-    // A camera reopened at another size restarts the grain ids: what was
-    // picked or selected would sit on other grains.
-    const std::pair<int, int> size{shown->frame->width, shown->frame->height};
-    if (last_size_ && *last_size_ != size) {
+    // A reset restarts the grain ids: what was picked or selected would sit on
+    // other grains.
+    if (last_generation_ && *last_generation_ != shown->report.generation) {
       overlay_->clear_picked();
       selected_.reset();
       overlay_->set_selected(selected_);
+      if (shown->report.reference == ReferenceState::None) declared_side_.reset();
     }
-    last_size_ = size;
+    last_generation_ = shown->report.generation;
     overlay_->show_frame(*shown->frame, shown->report);
   }
   // A report made before stop_recording must not wipe what stop said.

@@ -86,7 +86,7 @@ class GrainsWindow : public QMainWindow {
   QPushButton* pin_ = nullptr;
 
   std::optional<std::uint64_t> selected_;
-  std::optional<std::pair<int, int>> last_size_;  // of the frame last shown
+  std::optional<std::uint64_t> last_generation_;  // of the report last shown
   std::optional<Side> declared_side_;
   QString reference_notice_;
   QString recording_error_;

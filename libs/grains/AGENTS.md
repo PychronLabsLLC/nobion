@@ -19,9 +19,14 @@ only this component's. Kept compressed, as that file is. Spec:
 - Replay equals live (`replay_folder` checks it). So any new input to
   `process`, or operator action on the pipeline, goes in `tracks.jsonl`
   (`RecordEvent`) and is applied by replay before the frame it preceded. New
-  field of a report that replay compares goes in `report_json`. Starting a
-  recording calls `reset()` and logs a `Restore` event, so replay starts
-  where live did.
+  field of a report that replay compares goes in `report_json`
+  (`generation` is not one). Starting a recording calls `reset()` and logs a
+  `Restore` event for marks that survive it, so replay starts where live did.
+- A mark binds to what sits at it, so `reset()` keeps only a reference tracked
+  at that moment; camera change or blank frame drops both. A grain of other
+  material under a mark inverts every label, silently.
+- Blind while segmenter warms up: tracks do not age, no vote, reference
+  `Lost`. Frames are not time there: a fast camera gives more of them.
 - `Segmenter` assumes a line only adds light. A real line's dark band is
   untested. Constants (`GrainOptions` defaults, `segment_window`, quantile,
   fringe gain in `GrainSynth`) tuned on synthetic scene only: first recorded
