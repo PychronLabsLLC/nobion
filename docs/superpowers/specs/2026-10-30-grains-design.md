@@ -53,10 +53,19 @@ RecordedSource
 - `GrainPipeline` synchronous, single-threaded: one `Frame` in, one
   `GrainReport` out. No clock of its own; uses `Frame::timestamp` only, so
   output deterministic for given frames.
-- Worker (`GrainRunner`, `libs/grains`, Qt-free) takes newest frame from
-  `LiveFeed::latest()`, skips what it missed, leaves report in mailbox under own
-  mutex, wakes UI thread with call that carries nothing. Real time by design: no
-  simulated path, no `Clock::Participant`.
+- Worker (`GrainRunner`, `libs/grains`, Qt-free) polls a function returning
+  `FrameTick` (frame or error string). App's poll (`live_poll`) calls
+  `LiveFeed::latest_if_newer(seq)`: frame copied out only when its `seq` not
+  the last handed on, so idle poll copies nothing. Runner also skips a frame
+  whose `seq` it already processed. Frames missed while busy are dropped.
+  Report left in mailbox (`Shown`: frame, report, camera error,
+  `recording_error`) under own mutex; newest only, older dropped. Taker woken
+  by callback that carries nothing and runs on worker; taker marshals to own
+  thread. Operator commands (set or clear reference, start or stop recording)
+  queue and run on worker between frames: only worker touches pipeline and
+  recording. Start and stop wait for worker and return its `Result`; called
+  from a worker callback they fail with `ErrorKind::Config`. Real time by
+  design: no simulated path, no `Clock::Participant`.
 - `grains --demo`: window on synthetic scene, no camera, no config. App can be
   seen before hardware exists.
 - Domain seam untouched: no Ar-Ar, no `Domain` entry. Not a data window.
@@ -83,6 +92,9 @@ struct GrainView {
   Label label;
   double score;                 // section 6; not a probability
   int passes_agree, passes_against, passes_none;
+  bool reference;               // first or second reference
+  bool at_edge;                 // blob cut by mask or frame edge
+  Vote last_vote;               // of the last pass closed
 };
 
 struct GrainReport {
@@ -99,7 +111,7 @@ class GrainPipeline {
   GrainReport process(const vision::Frame& frame);
   Result<void> set_reference(vision::Vec2 frame_px, Side side);
   Result<void> set_second_reference(vision::Vec2 frame_px, Side side);
-  void clear_reference();
+  void clear_reference();                 // both references
   // Clears tracks and votes; references kept as marks, bound again to the blob
   // at their place without a contrast check.
   void reset();
@@ -115,27 +127,44 @@ Per frame, in order:
 
 1. Segment. Grains as blobs. Low-relief grains in near-matching oil have faint
    edges: segment on gradient of quiet image, per-pixel low quantile of level
-   over `segment_window` samples, not one frame. Becke line only adds light,
-   so swept line drops out; real line's dark band not yet tested, section 12
-   gate. Sample kept only when its timestamp at least 50 ms after last kept
+   over `segment_window` samples (clamped to 8..64), not one frame. Becke line
+   only adds light, so swept line drops out; real line's dark band not yet
+   tested, section 12 gate. Frame box-averaged to at most 800 px wide first.
+   Sample kept only when its timestamp at least 50 ms after last kept
    (timestamp not advancing: always kept), so ring spans about 2 s at any rate
-   from 20 fps up, more below. Line dwelling longer than that (sweep slower
-   than about 4 s) stands outline off body edge near turnaround; velocity
-   does not read outline.
-2. Track. Match blobs frame to frame by overlap; stable id per grain. Id
-   survives gap up to `track_gap_frames`.
-3. Fringe. Resample ring around outline into radial brightness profile. Signed
-   fringe velocity `v(t)`, positive outward, plus contrast. Velocity is slope
-   of fringe's distance from tracked centroid, so slow drift harmless and an
-   outline a lingering line moves reads as no motion.
-4. Vote. Sign changes of reference `v_ref(t)` split time into passes. Per pass,
-   per grain: `Same` or `Opposite` from sign of `v * v_ref`; `None` when
-   contrast below `min_contrast`. Vote weighted by contrast relative to
-   reference's.
+   from 20 fps up, more below. Components recomputed every third kept sample;
+   frames between return last result. No output during warm-up (fewer than 8
+   samples since start, `reset()` or frame size change) and on flat scene.
+   Blobs: interiors filled, below `min_area_px` dropped. Line dwelling longer
+   than window (sweep slower than about 4 s) stands outline off body edge near
+   turnaround; velocity does not read outline.
+2. Track. Match blobs frame to frame by bounding-box overlap (IoU at least
+   0.3); stable id per grain, ids from 1, not reused until `reset()`. Id
+   survives gap up to `track_gap_frames`. Blob overlapping two tracks, or
+   track overlapping two blobs (merge, split): tracks involved end, blobs
+   start new ids, since a label earned by one grain is not the other's.
+3. Fringe. Resample ring (`ring_px` each side) around outline into radial
+   brightness profile, median baseline removed (edge step leaves no residual).
+   Signed fringe velocity `v(t)`, positive outward, plus contrast (peak above
+   baseline). Velocity is least-squares slope of fringe's distance from
+   tracked centroid over last 5 samples, so slow drift harmless and an
+   outline a lingering line moves reads as no motion. Blob cut by mask or
+   frame edge, or ring mostly outside frame: no measurement, history cleared.
+4. Vote. A pass is a run of frames in which `|v_ref| >= min_ref_speed_px_s`
+   with one sign; it closes when reference stalls or sign flips. Pass under
+   `min_pass_frames` frames gives no vote, nor does a grain seen in fewer
+   frames of it. Per pass, per grain: `Same` or `Opposite` from sign of
+   fringe displacement times reference's displacement over the pass (so a
+   reversal of focus direction cannot change a vote); `None` when mean
+   contrast below `min_contrast` or product zero. Vote weight is grain's mean
+   contrast over reference's, at most 1. Reference itself, grains cut by edge
+   and grains not measured this frame do not vote.
 5. Classify. Section 6.
 
-Global frame shift above `max_shift_px` within pass: pass dropped, no vote from
-it.
+Global frame shift (whole-frame displacement against previous frame) above
+`max_shift_px`: pass in progress dropped, no vote from it, and segmenter and
+fringe histories cleared, since nothing before the jump lines up with after.
+Also no votes while `camera too slow` (section 9).
 
 Rule: comparison with reference at same moment is only use of z. No encoder,
 no focus model, no assumed direction of rack.
@@ -146,8 +175,17 @@ no focus model, no assumed direction of rack.
   Standard sanidine `Below`, quartz `Above`. Side remembered between sessions.
 - Reference refused, with reason, when its contrast below
   `min_reference_contrast`. Near-oil pick fails early.
-- Votes relative to reference grain. Same grain clicked again: votes stay,
-  changed side inverts `Candidate` and `Not` at once. Other grain: votes clear.
+- Votes relative to reference grain. Re-click rule: same grain clicked again
+  keeps votes; changed side inverts `Candidate` and `Not` at once (labels are
+  computed from tallies and reference's side, not stored). Other grain: votes
+  clear. `clear_reference()` clears votes and both references.
+- Reference refused (`ErrorKind::Config`, reason shown in notice) when: no
+  grain at point; grain cut by frame edge; no fringe measured on it yet; its
+  recent contrast under `min_reference_contrast`; it is already the other
+  reference. Contrast taken as mean of last 5 samples.
+- Reference mark (point) follows its grain while tracked and not cut by edge.
+  `reset()` keeps marks and binds each again to the blob at its place, no
+  contrast check; `restore_references` does the same for a replay.
 - `ReferenceState`, in banner always:
   - `None`: grains outlined grey, no labels, no votes.
   - `Lost`: votes stop, labels greyed and held, until tracked again or
@@ -159,8 +197,13 @@ no focus model, no assumed direction of rack.
   without sign worthless.
 - Wrong side declared inverts every label. App cannot detect alone. Banner
   always shows reference and declared side.
-- Optional second reference of opposite side: their fringes must move opposite.
-  If they do not over `disagree_passes` passes: state `Disagree`, labels stop.
+- Optional second reference, needs first, window gives it side opposite of
+  declared first. Tallied against first like any grain: expected `Opposite`
+  when sides differ, `Same` when equal. When contradicting passes reach
+  `disagree_passes` and exceed expected ones: state `Disagree`, no
+  `Candidate` or `Not` label is given (grains read `None` label). Held after
+  second's track ends, until first reference changes grain or side, the second
+  is set again, references clear or `reset()`.
 
 ## 6. Label and score
 
@@ -175,7 +218,9 @@ Side from reference: `Same` puts grain on reference's side, `Opposite` on
 other. `Below` is `Candidate`, `Above` is `Not`.
 
 - Label is `Candidate` or `Not` only when grain has at least `min_passes` voted
-  passes and `score >= min_score`. Otherwise `Unsure`. Defaults: 3, 0.8.
+  passes (`Same` plus `Opposite`) and `score >= min_score`. Otherwise `Unsure`;
+  tied weights also `Unsure`. Defaults: 3, 0.8. Reference grain itself carries
+  no label (`reference` flag). Score shown is for grain's leading side.
 - Grain with weak fringe in every pass stays `Unsure`: correct outcome for
   near-oil grains.
 - Track lost past `track_gap_frames`: votes reset. Rediscovered blob may be
@@ -190,18 +235,31 @@ other. `Below` is `Candidate`, `Above` is `Not`.
 - Colours: candidate green, not red, unsure amber, grey without reference. Text
   always present: colour never sole signal. Colours from named tokens, no
   literals scattered in paint code.
-- Click grain: pass history, contrast, why unsure.
-- Click-to-pin: operator marks grain picked, grain greyed. Session only.
-- Click on grain with reference tool: set reference, side chooser.
-- Banner: reference state, reference id, declared side, warning.
+- Click grain: pass history, contrast, why unsure, in side panel.
+- Pin: grain selected by click, then button `Mark picked` (toggle); grain
+  greyed. Session only; cleared on start of recording and on frame size
+  change, since ids restart.
+- Click on grain with reference tool: set reference; side from chooser
+  (`below oil`, `above oil`), kept between sessions. Second-reference tool
+  uses opposite of declared first side.
+- Banner: reference state, reference id, declared side, warning, camera error,
+  recording error, last reference refusal.
 
 ## 8. Recording and replay
 
 - Toggle on screen. Writes folder: one PGM per frame processed, through
-  `vision::FrameRecorder`, manifest `RecordedSource` reads (`fixture.hpp`), plus
-  `tracks.jsonl`: first line options; then per frame timestamp, operator events
-  (reference set, cleared), per grain outline, `v`, contrast, vote, label, score,
-  reference state.
+  `vision::FrameRecorder`, manifest `case.toml` `RecordedSource` reads
+  (`fixture.hpp`), plus `tracks.jsonl`: first line options (all of
+  `GrainOptions`); then per frame `t_ns`, operator events applied before it
+  (`set`, `set_second`, `clear`, `restore`, with mark: point and side), and the
+  report: state, warning, per grain outline, `v`, contrast, vote, label, score,
+  pass counts, reference flag, edge flag. Folder named `grains-<timestamp>`
+  under folder chosen on screen. Recording not finished has no `case.toml` and
+  does not replay.
+- Recording failure (disk full, say): first error kept, frames after it not
+  recorded, shown at once as `Shown::recording_error` (banner) from the frame
+  it met it on, stays until stop; `stop_recording` returns it. Live labels
+  carry on. Destructor of runner finishes an open recording.
 - Starting recording calls `GrainPipeline::reset()`: votes restart, references
   kept, grain ids restart from 1, pins cleared. Otherwise replay could not
   rebuild state from before first frame.
@@ -209,20 +267,27 @@ other. `Below` is `Candidate`, `Above` is `Not`.
   reading timestamps from `tracks.jsonl`, in order.
 - `tracks.jsonl` keeps enough to train model later. No model in this spec.
 - After writing folder: `pychron::mark_as_user_file` on each user-opened file
-  (`tracks.jsonl`, manifest).
-- `grains replay <folder>` headless, prints per-grain summary. Same pipeline.
-  Reference for replay from `tracks.jsonl`.
+  (`tracks.jsonl`, `case.toml`).
+- `grains replay <folder>` headless, prints per-grain summary of last frame.
+  Same pipeline, options, times and events from `tracks.jsonl`, first
+  `Restore` event giving the reference marks. Compares each frame's report to
+  the recorded one (numbers within 1e-9, rest exact). Exit status: 0 all
+  match, 1 error (no folder, sidecar not parsing or not matching frames), 3 at
+  least one frame differs (summary still printed, count on stderr), 2 bad
+  usage.
 - Rule: replay of recording gives same report as live gave on same frames.
 
 ## 9. Failure
 
-- Camera lost: `LiveFeed::Latest::error`. Last picture greyed under reason (as
-  `apps/pychron-ui` `CameraView`), votes stop, labels held greyed. Returns by
-  itself on reopen.
+- Camera lost: `LiveFeed::Latest::error` reaches worker as `FrameTick::error`,
+  shown once per new error, pipeline not called. Last picture greyed under
+  reason (as `apps/pychron-ui` `CameraView`), votes stop, labels held greyed.
+  Returns by itself on reopen.
 - Frame rate under `min_fps` (default 10), measured by pipeline from
-  `Frame::timestamp` so replay agrees: warning `camera too slow`, passes not
-  counted.
-- Frame size changes (camera reopened): pipeline `reset()`.
+  `Frame::timestamp` over last 8 intervals, or one gap over 2 / `min_fps`, so
+  replay agrees: warning `camera too slow`, passes not counted.
+- Frame size or `pixel_depth` changes (camera reopened), or blank frame:
+  pipeline `reset()`.
 - Global shift: pass dropped (section 4).
 - Processing behind camera: frames dropped, never queued.
 - Bad `grains.toml`: `Result` error shown at start, app does not run on
@@ -234,13 +299,15 @@ other. `Below` is `Candidate`, `Above` is `Not`.
 `--config`:
 
 - `[camera]`: maps to `vision::CameraRequest` (backend, device, width, height,
-  fps, options).
+  fps, `[camera.options]`).
 - `[pipeline]`: `min_contrast`, `min_reference_contrast`, `min_passes`,
   `min_score`, `track_gap_frames`, `max_shift_px`, `disagree_passes`,
   `min_fps`, `segment_window`, `ring_px`, `min_area_px`, `min_pass_frames`,
   `min_ref_speed_px_s`.
 
-Defaults for all but `[camera]`. Unknown key or value out of range: error.
+Defaults for all but `[camera]`. Unknown key, wrong type or value out of
+range: `Config` error naming key (`validate_options` checks options held in
+memory, `load_config` reads file).
 
 ## 11. Camera requirements
 
