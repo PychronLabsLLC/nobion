@@ -90,6 +90,7 @@ FringeSample measure_fringe(const vision::FrameView& f, const vision::Component&
 
   const int n = 2 * ring_px + 1;
   std::vector<double> profile(static_cast<std::size_t>(n), 0.0);
+  double radius_sum = 0;
   int used = 0;
   for (int i = 0; i < kAngles; ++i) {
     const double a = (i + 0.5) / kAngles * 2 * std::numbers::pi - std::numbers::pi;
@@ -103,6 +104,7 @@ FringeSample measure_fringe(const vision::FrameView& f, const vision::Component&
       const double off = k - ring_px;
       profile[static_cast<std::size_t>(k)] += sample(f, c.centroid.x + (r0 + off) * ca, c.centroid.y + (r0 + off) * sa);
     }
+    radius_sum += r0;
     ++used;
   }
   if (used < kAngles / 2) return out;
@@ -132,6 +134,7 @@ FringeSample measure_fringe(const vision::FrameView& f, const vision::Component&
     psum += resid[static_cast<std::size_t>(k)] * (k - ring_px);
   }
   out.position_px = psum / wsum;
+  out.radius_px = radius_sum / used + out.position_px;
   return out;
 }
 

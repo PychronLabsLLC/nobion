@@ -20,8 +20,8 @@ constexpr double kSkirtFraction = 0.2;
 constexpr int kSkirtReachPx = 8;
 // Otsu's level is held at or below this fraction of the nearby ridge.
 constexpr double kOtsuCap = 0.5;
-// Quantile of a pixel's gradient over the window. Low, so a fringe that sits
-// on the edge for part of the window does not lift it, but above the minimum.
+// Quantile of a pixel's level over the window. Low, since a line only adds
+// light, but above the minimum, which noise alone would pull down.
 constexpr double kQuantile = 0.15;
 // Segmenting works on a frame at most this wide.
 constexpr int kMaxWidthPx = 800;
@@ -176,19 +176,8 @@ std::vector<vision::Component> Segmenter::update(const vision::FrameView& v) {
     }
   }
 
-  // Sobel magnitude of this frame into the ring, pixel-major so a pixel's
-  // history is contiguous. Pixel levels per pixel; the outermost stay zero.
-  for (std::size_t y = 1; y + 1 < h; ++y) {
-    for (std::size_t x = 1; x + 1 < w; ++x) {
-      const float* r0 = &small_[(y - 1) * w + x];
-      const float* r1 = &small_[y * w + x];
-      const float* r2 = &small_[(y + 1) * w + x];
-      const float gx = (r0[1] + 2 * r1[1] + r2[1]) - (r0[-1] + 2 * r1[-1] + r2[-1]);
-      const float gy = (r2[-1] + 2 * r2[0] + r2[1]) - (r0[-1] + 2 * r0[0] + r0[1]);
-      buffer_[(y * w + x) * window_ + slot_] = std::sqrt(gx * gx + gy * gy);
-    }
-  }
-  const std::size_t slot = slot_;
+  // This frame into the ring, pixel-major so a pixel's history is contiguous.
+  for (std::size_t i = 0; i < w * h; ++i) buffer_[i * window_ + slot_] = small_[i];
   slot_ = (slot_ + 1) % window_;
   filled_ = std::min(filled_ + 1, window_);
   ++since_;
@@ -198,25 +187,38 @@ std::vector<vision::Component> Segmenter::update(const vision::FrameView& v) {
   since_ = 0;
   computed_ = true;
 
-  // Noise: the median of a gradient magnitude over a strided sample.
-  std::vector<float> sample;
-  sample.reserve(w * h / kSampleStride + 1);
-  for (std::size_t i = 0; i < w * h; i += kSampleStride) sample.push_back(buffer_[i * window_ + slot]);
-  const auto mid = sample.begin() + static_cast<std::ptrdiff_t>(sample.size() / 2);
-  std::nth_element(sample.begin(), mid, sample.end());
-  const double sigma = static_cast<double>(*mid) / kRayleighMedian;
-
-  // Per pixel, the kQuantile of the magnitudes over the ring.
+  // Per pixel, the kQuantile of the levels over the ring.
   const auto rank = static_cast<std::ptrdiff_t>(kQuantile * static_cast<double>(filled_ - 1));
-  std::vector<float> stable(w * h);
+  std::vector<float> quiet(w * h);
   std::array<float, kMaxWindow> column{};
-  for (std::size_t i = 0; i < stable.size(); ++i) {
+  for (std::size_t i = 0; i < quiet.size(); ++i) {
     const float* src = &buffer_[i * window_];
     std::copy(src, src + filled_, column.begin());
     const auto nth = column.begin() + rank;
     std::nth_element(column.begin(), nth, column.begin() + static_cast<std::ptrdiff_t>(filled_));
-    stable[i] = *nth;
+    quiet[i] = *nth;
   }
+
+  // Its Sobel magnitude; the outermost pixels stay zero.
+  std::vector<float> stable(w * h, 0.0F);
+  for (std::size_t y = 1; y + 1 < h; ++y) {
+    for (std::size_t x = 1; x + 1 < w; ++x) {
+      const float* r0 = &quiet[(y - 1) * w + x];
+      const float* r1 = &quiet[y * w + x];
+      const float* r2 = &quiet[(y + 1) * w + x];
+      const float gx = (r0[1] + 2 * r1[1] + r2[1]) - (r0[-1] + 2 * r1[-1] + r2[-1]);
+      const float gy = (r2[-1] + 2 * r2[0] + r2[1]) - (r0[-1] + 2 * r0[0] + r0[1]);
+      stable[y * w + x] = std::sqrt(gx * gx + gy * gy);
+    }
+  }
+
+  // Noise: the median gradient magnitude over a strided sample.
+  std::vector<float> sample;
+  sample.reserve(w * h / kSampleStride + 1);
+  for (std::size_t i = 0; i < w * h; i += kSampleStride) sample.push_back(stable[i]);
+  const auto mid = sample.begin() + static_cast<std::ptrdiff_t>(sample.size() / 2);
+  std::nth_element(sample.begin(), mid, sample.end());
+  const double sigma = static_cast<double>(*mid) / kRayleighMedian;
 
   cached_ = components_of(stable, sigma);
   return cached_;

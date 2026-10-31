@@ -105,3 +105,20 @@ TEST(Fringe, SlopeOfALine) {
   EXPECT_EQ(slope_px_s(std::span(v).first(1)), 0.0);
   EXPECT_EQ(slope_px_s({}), 0.0);
 }
+
+TEST(Fringe, RadiusIsThePlaceWhereverTheOutlineIs) {
+  const GrainScene s = one_grain(-0.017);
+  const auto f = render_scene(s, 0.5, {});
+  const Component outline = true_component(s);
+  Component grown = outline;
+  for (pychron::vision::Vec2& p : grown.boundary) {
+    p = {outline.centroid.x + 1.1 * (p.x - outline.centroid.x), outline.centroid.y + 1.1 * (p.y - outline.centroid.y)};
+  }
+  const FringeSample a = measure_fringe(f.view(), outline, kRing);
+  const FringeSample b = measure_fringe(f.view(), grown, kRing);
+  ASSERT_TRUE(a.valid);
+  ASSERT_TRUE(b.valid);
+  EXPECT_NEAR(a.position_px - b.position_px, 0.1 * kRadius, 1.0);
+  EXPECT_NEAR(a.radius_px, b.radius_px, 0.5);
+  EXPECT_NEAR(a.radius_px, kRadius + s.fringe_px_per_z * 0.5, 1.5);
+}

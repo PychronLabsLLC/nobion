@@ -11,6 +11,7 @@ namespace pychron::grains {
 
 struct FringeSample {
   double position_px = 0;  // mean signed distance from the outline, outward positive
+  double radius_px = 0;    // the same place as a distance from the centroid
   double contrast = 0;     // peak above the profile's baseline, fraction of pixel_depth
   bool valid = false;
 };

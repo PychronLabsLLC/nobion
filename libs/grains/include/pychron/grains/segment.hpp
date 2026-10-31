@@ -10,12 +10,17 @@
 namespace pychron::grains {
 
 // Finds grain bodies from the edges that hold still. Frames are box-averaged
-// down to at most 800 px wide, and the gradient magnitude of the last
-// segment_window frames (at least 8, at most 64) is kept. Per pixel a low
-// quantile over them is taken: a body edge is there in nearly every frame, a
-// Becke line sweeping through focus is at any one pixel for a few frames
-// only. (The gradient of the mean image does not do this: a fringe averaged
-// over a sweep is a broad hump about as strong as a faint body edge.)
+// down to at most 800 px wide, and the last segment_window frames (at least 8,
+// at most 64) are kept. Per pixel a low quantile of the level over them gives a
+// quiet image, and its gradient the edges: a Becke line only adds light, and
+// sweeping through focus it is at any one pixel for a few frames, so the quiet
+// image is the scene without it. (The gradient of the mean image does not do
+// this: a line averaged over a sweep is a broad hump about as strong as a faint
+// body edge. Nor does a quantile of the gradient: where a line's flank crosses
+// the edge it cancels the step, twice a sweep, and the ring breaks.) A line
+// that stays put for most of the window is in the quiet image and can move the
+// outline; so can a grain that moved: what was dark stays dark until the window
+// has passed, which also holds a vanished grain for most of it.
 // Components are recomputed every third frame; frames between return the
 // last result.
 class Segmenter {
@@ -32,7 +37,7 @@ class Segmenter {
   std::vector<vision::Component> components_of(const std::vector<float>& stable, double sigma) const;
 
   GrainOptions options_;
-  std::vector<float> buffer_;  // pixel-major: window_ magnitudes per pixel
+  std::vector<float> buffer_;  // pixel-major: window_ levels per pixel
   std::vector<float> small_;   // the downscaled frame
   std::vector<vision::Component> cached_;
   std::size_t window_ = 0, slot_ = 0, filled_ = 0;

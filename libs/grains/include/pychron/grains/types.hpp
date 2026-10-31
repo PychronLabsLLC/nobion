@@ -29,7 +29,7 @@ struct GrainOptions {
   double max_shift_px = 8.0;
   int disagree_passes = 2;
   double min_fps = 10.0;
-  int segment_window = 15;  // frames of gradient accumulated
+  int segment_window = 40;  // frames the quiet image is taken over
   int ring_px = 12;         // radial reach each side of the outline
   int min_area_px = 400;
   int min_pass_frames = 5;

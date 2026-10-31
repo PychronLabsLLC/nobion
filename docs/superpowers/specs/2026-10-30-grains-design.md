@@ -114,12 +114,15 @@ class GrainPipeline {
 Per frame, in order:
 
 1. Segment. Grains as blobs. Low-relief grains in near-matching oil have faint
-   edges: segment on gradient accumulated over recent frames, not one frame.
+   edges: segment on gradient of quiet image, per-pixel low quantile of level
+   over recent frames, not one frame. Becke line only adds light, so swept line
+   drops out; real line's dark band not yet tested, section 12 gate.
 2. Track. Match blobs frame to frame by overlap; stable id per grain. Id
    survives gap up to `track_gap_frames`.
 3. Fringe. Resample ring around outline into radial brightness profile. Signed
-   fringe velocity `v(t)`, positive outward, plus contrast. Measured relative
-   to tracked outline, so slow drift harmless.
+   fringe velocity `v(t)`, positive outward, plus contrast. Velocity is slope
+   of fringe's distance from tracked centroid, so slow drift harmless and an
+   outline a lingering line moves reads as no motion.
 4. Vote. Sign changes of reference `v_ref(t)` split time into passes. Per pass,
    per grain: `Same` or `Opposite` from sign of `v * v_ref`; `None` when
    contrast below `min_contrast`. Vote weighted by contrast relative to

@@ -190,3 +190,24 @@ TEST(Segment, FindsGrainsDownscaled) {
     }
   }
 }
+
+TEST(Segment, ALineCrossingTheEdgeNeitherBreaksNorMovesTheOutline) {
+  // Height 0.10 over a step of 0.04: the line's flank about cancels the step
+  // as it crosses, and at 20 fps it does so within the window.
+  constexpr double kRate = 20.0;
+  constexpr double kRadius = 25.0;
+  GrainScene s;
+  s.width = 200;
+  s.height = 160;
+  s.grains.push_back({{100, 80}, kRadius, 1.0, 0.010});
+  GrainSynth synth(s, triangle_z(2, 1), kRate);
+  Segmenter seg{GrainOptions{}};
+  for (int i = 1; i <= 120; ++i) {
+    const auto f = synth.grab();
+    ASSERT_TRUE(f.has_value());
+    const auto found = seg.update(f->view());
+    if (i < 45) continue;  // the window covers a whole sweep
+    ASSERT_EQ(found.size(), 1U) << "frame " << i;
+    EXPECT_NEAR(std::sqrt(found.front().area / 3.14159), kRadius, 2.0) << "frame " << i;
+  }
+}
