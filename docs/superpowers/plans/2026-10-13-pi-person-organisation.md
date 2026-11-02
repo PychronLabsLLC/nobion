@@ -110,8 +110,8 @@ Checked 2026-10-18, on the branch through Task 7: `cmake --build --preset dev-ui
 
 ### Task 9: Documents
 
-- [ ] `docs/entry.md` (sheet columns, kinds, ORCID, the namesake question, no allowed list), `docs/user` (browser's PI filter, how a PI is shown), release-note text in the commit: run `elctl db migrate`, "Ross, J" now shows "J Ross", mark former allowed names as organisations.
-- [ ] Commit `docs: a PI is a person or an organisation`.
+- [x] `docs/entry.md` (sheet columns, kinds, ORCID, the namesake question, no allowed list), `docs/user` (browser's PI filter, how a PI is shown), release-note text in the commit: run `elctl db migrate`, "Ross, J" now shows "J Ross", mark former allowed names as organisations. `docs/entry.md` has a new "Principal investigators" section; `06-data-analysis.md` the PI list; `08-elctl-reference.md` the import's stop and `--pi`.
+- [x] Commit `docs: a PI is a person or an organisation`.
 
 ## Before landing
 

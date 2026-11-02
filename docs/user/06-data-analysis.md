@@ -128,9 +128,17 @@ The left column filters; the table shows the newest analyses first.
 | **Age from** / **to** | A low and a high age, in Ma, both included. Each end counts only while its box is ticked, and a typed value is applied when you leave the box or press Enter. Only analyses with a **cached** age in the range are kept: one with no cached age, or none at all (a blank, an air), is never matched by a bound. If the low age is above the high one the status line reads `Age from is above to` and nothing changes. See [The Age column and the cached age](#the-age-column-and-the-cached-age). |
 | **Hide invalid** | On by default. Hides analyses tagged `invalid`. |
 | **Color by** | What the rows are tinted by (see below). |
-| Analysis type, Spectrometer, Sample, Identifier, Irradiation, Level | Tick values to keep only those. Within one list, ticks are alternatives (or); between lists they all apply (and). Each list shows only values that exist given the other filters, but a value you ticked stays visible even if nothing matches. |
+| Analysis type, Spectrometer, Sample, Identifier, PI, Irradiation, Level | Tick values to keep only those. Within one list, ticks are alternatives (or); between lists they all apply (and). Each list shows only values that exist given the other filters, but a value you ticked stays visible even if nothing matches. |
 | **Filter** box and **×** on each list | Typing in the box hides the values that do not contain the text (not case sensitive). It only narrows the list: nothing is filtered until you tick a value, and a ticked value is never hidden. **×** unticks everything in that list. The list's title counts the ticks. |
 | **Rescan** | Asks the source for new analyses (the database change log, or the folder) and reloads. A queue's runs do not need it: see [New runs appear by themselves](#new-runs-appear-by-themselves). |
+
+The PI list goes by the PI itself, not by the name. Two people who both show
+as "J Ross" are two lines, told apart by the affiliation in brackets, or by
+the last four characters of the ORCID: `J Ross (NMT)`, `J Ross (3700)`. If
+neither has one, the two lines read the same but still filter apart. A PI
+shows as "Jake Ross" ("J Ross" when only the initial is known); a laboratory
+or a group shows as its name. Over a folder of records there are no stored
+PIs, so the list is simply the names the records give.
 
 Tick an irradiation and the Level list shows only its levels. A level is
 matched by its name: with no irradiation ticked, ticking level `A` keeps

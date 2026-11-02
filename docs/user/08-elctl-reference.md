@@ -1259,9 +1259,9 @@ each change would make and writes nothing.
 
 | Command | What it does |
 |---|---|
-| `samples import <file.csv> [--update-existing] [--errors <out.csv>] [--dry-run]` | Add the samples in a CSV (or tab-separated) file, with their PIs, projects and materials. Rows already stored are left alone; with `--update-existing`, rows whose fields differ are updated. If any row is in error, nothing is written, and `--errors` writes the rows with their problems to a CSV. |
+| `samples import <file.csv> [--update-existing] [--errors <out.csv>] [--dry-run]` | Add the samples in a CSV (or tab-separated) file, with their PIs, projects and materials. Rows already stored are left alone; with `--update-existing`, rows whose fields differ are updated. If any row is in error, nothing is written, and `--errors` writes the rows with their problems to a CSV. A PI with namesakes also stops the import: the candidates are listed, nothing is written, and a `principal_investigator_orcid` or `principal_investigator_uuid` column says which ([sheet columns](../entry.md#principal-investigators)). |
 | `samples template <out.csv>` | Write a CSV with every column the import reads. Needs no database. |
-| `samples list [--pi NAME] [--project NAME] [--material NAME] [--text T]` | List samples, filtered. |
+| `samples list [--pi NAME] [--project NAME] [--material NAME] [--text T]` | List samples, filtered. `--pi` takes the name as shown ("J Ross"), so it matches every PI who shows that name. |
 | `package add <name> [--kind irradiation\|package] [--levels A-C \| A,B,D] [--holder NAME] [--z Z] [--reactor NAME] [--chronology FILE --tz ZONE]` | Add a package and its levels in one change. Kind `irradiation` (the default) needs a reactor (production values come from `reactors.json`) and a chronology file of `power,start,end` lines in local time (`--chronology` needs `--tz`). |
 | `package show <name> [--level L] [--csv]` | Show a package and its levels (or one level), as text or CSV. |
 | `package set-kind <name> irradiation\|package` | Change a package's kind. |
