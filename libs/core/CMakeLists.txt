@@ -28,6 +28,7 @@ add_library(pychron_core
   src/event_recorder.cpp
   src/config/local_file.cpp
   src/config/validate.cpp
+  src/toml_impl.cpp
 )
 add_library(pychron::core ALIAS pychron_core)
 
@@ -44,7 +45,8 @@ target_compile_features(pychron_core PUBLIC cxx_std_20)
 # trusts the compiler's (MSVC: shortest form, 0.1) and through a stream at 17
 # digits elsewhere (0.10000000000000001). A record's bytes, and so its sha,
 # must not depend on what built the program: the stream everywhere.
-target_compile_definitions(pychron_core PUBLIC TOML_EXCEPTIONS=0 TOML_FLOAT_CHARCONV=0)
+# TOML_HEADER_ONLY=0: toml++ is compiled once, in src/toml_impl.cpp.
+target_compile_definitions(pychron_core PUBLIC TOML_EXCEPTIONS=0 TOML_FLOAT_CHARCONV=0 TOML_HEADER_ONLY=0)
 target_link_libraries(pychron_core PUBLIC tomlplusplus::tomlplusplus Threads::Threads)
 # spdlog is an implementation detail of LogHub: never exposed (spec 4.6).
 target_link_libraries(pychron_core PRIVATE spdlog::spdlog)
