@@ -178,7 +178,7 @@
       "inherits": "dev",
       "filter": {
         "exclude": {
-          "name": "^(Engines/(Project|Meta)ImportTest\\.|ImportCmd|Outage\\.|Links/Outage)"
+          "name": "^(Engines/(Project|Meta)ImportTest\\.|ImportCmd|Outage\\.|Links/LinkOutage\\.)"
         }
       }
     },
@@ -187,7 +187,7 @@
       "configurePreset": "dev-ui",
       "environment": {
         "LSAN_OPTIONS": "suppressions=${sourceDir}/cmake/lsan.supp:print_suppressions=0",
-        "CTEST_PARALLEL_LEVEL": "2"
+        "CTEST_PARALLEL_LEVEL": ""
       },
       "output": {
         "outputOnFailure": true

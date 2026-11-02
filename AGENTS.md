@@ -126,12 +126,15 @@ Inner loop (keep waits short):
   --gtest_filter='<Suite>.*'`.
 - Wider check while working: `ctest --preset dev-quick` (parallel, skips
   importer suites `Engines/ProjectImportTest`, `Engines/MetaImportTest`,
-  `ImportCmd*`: about half of serial test time).
+  `ImportCmd*` and outage suites `Outage.*`, `Links/LinkOutage.*`: 89 s, `dev`
+  330 s, on 18 cores). A skip regex matches ctest's full name: check with
+  `ctest --preset dev-quick -N`.
 - Before merge into `develop`: full `cmake --build --preset dev` and
   `ctest --preset dev`. Never `dev-quick` as final run.
-- `dev` and `dev-quick` test presets run on every core (`CTEST_PARALLEL_LEVEL`
-  empty); `dev-ui` runs 2 at a time, as CI. A test that fails only in parallel
-  is a bug (shared file, port, settings): fix it, do not serialize suite.
+- `dev`, `dev-quick` and `dev-ui` test presets run on every core
+  (`CTEST_PARALLEL_LEVEL` empty; `dev-ui` 5.3 min, at 2 jobs 13.3 min, on 18
+  cores). CI gives `--parallel` itself. A test that fails only in parallel is
+  a bug (shared file, port, settings): fix it, do not serialize suite.
 - Use `dev-ui` only when change touches `apps/pychron-ui` or `tests/ui`. It
   builds and runs everything `dev` does and the UI tests: one run of it
   covers both.
