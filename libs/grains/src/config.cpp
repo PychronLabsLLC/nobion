@@ -1,12 +1,17 @@
 #include "pychron/grains/config.hpp"
 
+#include <array>
 #include <cmath>
+#include <cstddef>
 #include <fstream>
 #include <initializer_list>
+#include <map>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <toml++/toml.hpp>
+#include <utility>
 
 namespace pychron::grains {
 namespace {
@@ -101,6 +106,35 @@ Result<void> read_pipeline(const toml::table& tbl, GrainOptions& o) {
   return set_positive_double(tbl, "min_ref_speed_px_s", o.min_ref_speed_px_s);
 }
 
+// The free-form [<owner>.options] table, values kept as text for the driver.
+Result<void> read_options(const toml::table& tbl, const std::string& owner, std::map<std::string, std::string>& out) {
+  const auto* node = tbl.get("options");
+  if (node == nullptr) return {};
+  const auto* options = node->as_table();
+  if (options == nullptr) return fail(ErrorKind::Config, "[" + owner + ".options] must be a table");
+  for (auto&& kv : *options) {
+    const std::string key(kv.first.str());
+    const auto& val = kv.second;
+    if (const auto* s = val.as_string()) {
+      out[key] = s->get();
+    } else if (const auto* i = val.as_integer()) {
+      out[key] = std::to_string(i->get());
+    } else if (const auto* d = val.as_floating_point()) {
+      std::ostringstream os;
+      os << d->get();
+      out[key] = os.str();
+    } else if (const auto* b = val.as_boolean()) {
+      out[key] = b->get() ? "true" : "false";
+    } else {
+      std::string what = owner + " option '";
+      what += key;
+      what += "' must be a string, number or boolean";
+      return fail(ErrorKind::Config, what);
+    }
+  }
+  return {};
+}
+
 Result<void> read_camera(const toml::table& tbl, vision::CameraRequest& c) {
   if (const auto k = unknown_key(tbl, {"backend", "device", "width", "height", "fps", "options"}); !k.empty())
     return fail(ErrorKind::Config, "unknown key '" + k + "' in [camera]");
@@ -128,26 +162,100 @@ Result<void> read_camera(const toml::table& tbl, vision::CameraRequest& c) {
     if (*v < 0) return fail(ErrorKind::Config, "fps must not be negative");
     c.fps = *v;
   }
-  if (const auto* node = tbl.get("options")) {
-    const auto* options = node->as_table();
-    if (options == nullptr) return fail(ErrorKind::Config, "[camera.options] must be a table");
-    for (auto&& kv : *options) {
-      const std::string key(kv.first.str());
-      const auto& val = kv.second;
-      if (const auto* s = val.as_string()) {
-        c.options[key] = s->get();
-      } else if (const auto* i = val.as_integer()) {
-        c.options[key] = std::to_string(i->get());
-      } else if (const auto* d = val.as_floating_point()) {
-        std::ostringstream os;
-        os << d->get();
-        c.options[key] = os.str();
-      } else if (const auto* b = val.as_boolean()) {
-        c.options[key] = b->get() ? "true" : "false";
-      } else {
-        return fail(ErrorKind::Config, "camera option '" + key + "' must be a string, number or boolean");
-      }
+  return read_options(tbl, "camera", c.options);
+}
+
+Result<void> read_controller(const toml::table& tbl, const std::string& where, StageController& c) {
+  if (const auto k = unknown_key(tbl, {"kind", "port", "options"}); !k.empty())
+    return fail(ErrorKind::Config, "unknown key '" + k + "' in [" + where + "]");
+
+  const auto kind = tbl["kind"].value<std::string>();
+  if (!kind || kind->empty()) return fail(ErrorKind::Config, "[" + where + "] kind missing");
+  c.kind = *kind;
+
+  if (const auto* node = tbl.get("port")) {
+    const auto port = node->value<std::string>();
+    if (!port) return fail(ErrorKind::Config, "[" + where + "] port must be a string");
+    c.port = *port;
+  }
+  return read_options(tbl, where, c.options);
+}
+
+Result<void> read_axis(const toml::table& tbl, const std::string& where, StageAxis& a) {
+  if (const auto k = unknown_key(tbl, {"controller", "device", "axis", "sign", "min_mm", "max_mm"}); !k.empty())
+    return fail(ErrorKind::Config, "unknown key '" + k + "' in [" + where + "]");
+
+  const auto controller = tbl["controller"].value<std::string>();
+  if (!controller || controller->empty()) return fail(ErrorKind::Config, "[" + where + "] controller missing");
+  a.controller = *controller;
+
+  if (auto r = set_positive_int(tbl, "device", a.device); !r) return r;
+  if (auto r = set_positive_int(tbl, "axis", a.axis); !r) return r;
+  if (const auto* node = tbl.get("sign")) {
+    const auto v = whole(*node, "sign");
+    if (!v) return fail(ErrorKind::Config, v.error().what);
+    if (*v != 1 && *v != -1) return fail(ErrorKind::Config, "[" + where + "] sign must be 1 or -1");
+    a.sign = *v;
+  }
+
+  const auto* lo = tbl.get("min_mm");
+  if (lo == nullptr) return fail(ErrorKind::Config, "[" + where + "] min_mm missing");
+  const auto* hi = tbl.get("max_mm");
+  if (hi == nullptr) return fail(ErrorKind::Config, "[" + where + "] max_mm missing");
+  const auto min_mm = number(*lo, "min_mm");
+  if (!min_mm) return fail(ErrorKind::Config, min_mm.error().what);
+  const auto max_mm = number(*hi, "max_mm");
+  if (!max_mm) return fail(ErrorKind::Config, max_mm.error().what);
+  if (*min_mm >= *max_mm) return fail(ErrorKind::Config, "[" + where + "] min_mm must be below max_mm");
+  a.min_mm = *min_mm;
+  a.max_mm = *max_mm;
+  return {};
+}
+
+Result<void> read_stage(const toml::table& tbl, StageConfig& s) {
+  if (const auto k = unknown_key(tbl, {"controllers", "axes"}); !k.empty())
+    return fail(ErrorKind::Config, "unknown key '" + k + "' in [stage]");
+
+  if (const auto* node = tbl.get("controllers")) {
+    const auto* controllers = node->as_table();
+    if (controllers == nullptr) return fail(ErrorKind::Config, "[stage.controllers] must be a table");
+    for (auto&& kv : *controllers) {
+      const std::string name(kv.first.str());
+      const std::string where = "stage.controllers." + name;
+      const auto* controller = kv.second.as_table();
+      if (controller == nullptr) return fail(ErrorKind::Config, "[" + where + "] must be a table");
+      if (auto r = read_controller(*controller, where, s.controllers[name]); !r) return r;
     }
+  }
+
+  const auto* node = tbl.get("axes");
+  if (node == nullptr) return {};
+  const auto* axes = node->as_table();
+  if (axes == nullptr) return fail(ErrorKind::Config, "[stage.axes] must be a table");
+  if (const auto k = unknown_key(*axes, {"x", "y", "z"}); !k.empty())
+    return fail(ErrorKind::Config, "unknown axis '" + k + "' in [stage.axes]");
+
+  struct Slot {
+    std::string name;
+    std::optional<StageAxis>* axis;
+  };
+  const std::array<Slot, 3> axis_slots{{{"x", &s.x}, {"y", &s.y}, {"z", &s.z}}};
+  for (std::size_t i = 0; i < axis_slots.size(); ++i) {
+    const auto* axis_node = axes->get(axis_slots[i].name);
+    if (axis_node == nullptr) continue;
+    const std::string where = "stage.axes." + axis_slots[i].name;
+    const auto* axis = axis_node->as_table();
+    if (axis == nullptr) return fail(ErrorKind::Config, "[" + where + "] must be a table");
+    StageAxis a;
+    if (auto r = read_axis(*axis, where, a); !r) return r;
+    if (!s.controllers.contains(a.controller))
+      return fail(ErrorKind::Config, "[" + where + "] names controller '" + a.controller + "', not defined");
+    for (std::size_t j = 0; j < i; ++j) {
+      const auto& other = *axis_slots[j].axis;
+      if (other && other->controller == a.controller && other->device == a.device && other->axis == a.axis)
+        return fail(ErrorKind::Config, "[" + where + "] and [stage.axes." + axis_slots[j].name + "] are the same motor");
+    }
+    *axis_slots[i].axis = std::move(a);
   }
   return {};
 }
@@ -182,7 +290,7 @@ Result<GrainsConfig> load_config(const std::filesystem::path& path) {
   if (!parsed) return bad(path, std::string(parsed.error().description()));
   const toml::table root = std::move(parsed).table();
 
-  if (const auto k = unknown_key(root, {"camera", "pipeline"}); !k.empty())
+  if (const auto k = unknown_key(root, {"camera", "pipeline", "stage"}); !k.empty())
     return bad(path, "unknown key '" + k + "'");
 
   GrainsConfig cfg;
@@ -194,6 +302,12 @@ Result<GrainsConfig> load_config(const std::filesystem::path& path) {
     const auto* pipeline = node->as_table();
     if (pipeline == nullptr) return bad(path, "[pipeline] must be a table");
     if (auto r = read_pipeline(*pipeline, cfg.pipeline); !r) return bad(path, r.error().what);
+  }
+
+  if (const auto* node = root.get("stage")) {
+    const auto* stage = node->as_table();
+    if (stage == nullptr) return bad(path, "[stage] must be a table");
+    if (auto r = read_stage(*stage, cfg.stage); !r) return bad(path, r.error().what);
   }
   return cfg;
 }

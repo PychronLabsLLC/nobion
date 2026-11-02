@@ -35,4 +35,6 @@ only this component's. Kept compressed, as that file is. Spec:
 - `libs/grains` has no Qt and no OpenCV, depends on `core` and `vision` only.
   Real time on purpose in `GrainRunner` (no `Clock::Participant`): do not
   put it on a simulated path.
-- App advises only: no stage or z control, no pychron config, no store.
+- App advises only: no pychron config, no store. `[stage]` in `grains.toml` is
+  read and checked, nothing moves: motion needs own spec, with no z reaching
+  `GrainPipeline`.

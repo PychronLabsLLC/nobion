@@ -1,0 +1,53 @@
+# grains.toml: copy beside where you run grains, or pass --config <file>.
+# Ports are placeholders. Limits, device addresses, sign and z options are
+# legacy loader values: measure them on the bench.
+
+[camera]
+backend = "opencv"
+device = "0"
+
+# [stage] is optional. It says which controller moves each axis; an axis left
+# out is moved by hand. Nothing moves yet: no driver reads this table.
+#
+# Each controller is one connection. `kind` picks the driver and `options` is
+# the driver's own. Change the hardware by changing these tables: x, y and z
+# may share a controller, or each have their own.
+[stage.controllers.xy]
+kind = "zaber"
+port = "/dev/tty.usbserial-XXXX"
+
+[stage.controllers.xy.options]
+baudrate = 9600
+
+[stage.controllers.focus]
+kind = "jss57"
+port = "/dev/tty.usbserial-YYYY"
+
+[stage.controllers.focus.options]
+address = "1"
+steps_per_mm = 964
+velocity = 0.25
+acceleration = 2.5
+home_position = 12
+
+# Axes are in millimetres. `device` and `axis` (both default 1) find the motor
+# on its controller: one two-axis Zaber device is axis = 1 and 2, two
+# single-axis devices in a chain are device = 1 and 2. sign = -1 runs the axis
+# back from max_mm (x reads max_mm - motor position).
+[stage.axes.x]
+controller = "xy"
+device = 1
+sign = -1
+min_mm = 0
+max_mm = 50
+
+[stage.axes.y]
+controller = "xy"
+device = 2
+min_mm = 0
+max_mm = 50
+
+[stage.axes.z]
+controller = "focus"
+min_mm = 0
+max_mm = 52

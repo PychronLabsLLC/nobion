@@ -123,5 +123,107 @@ TEST_F(Config, MissingFileIsAnError) {
   EXPECT_EQ(cfg.error().kind, ErrorKind::Io);
 }
 
+// Zaber x and y on one controller.
+const char* const kController = "[stage.controllers.xy]\nkind = \"zaber\"\n";
+const char* const kAxisX = "[stage.axes.x]\ncontroller = \"xy\"\nmin_mm = 0\nmax_mm = 50\n";
+
+TEST_F(Config, NoStageTableMeansEveryAxisByHand) {
+  const auto cfg = load_config(write(kCamera));
+  ASSERT_TRUE(cfg.has_value());
+  EXPECT_TRUE(cfg->stage.controllers.empty());
+  EXPECT_FALSE(cfg->stage.x.has_value());
+  EXPECT_FALSE(cfg->stage.y.has_value());
+  EXPECT_FALSE(cfg->stage.z.has_value());
+}
+
+TEST_F(Config, ReadsEachAxisOnItsController) {
+  const auto cfg = load_config(write(std::string(kCamera) +
+                                     "[stage.controllers.xy]\nkind = \"zaber\"\nport = \"/dev/ttyUSB0\"\n"
+                                     "[stage.controllers.xy.options]\nbaudrate = 9600\n"
+                                     "[stage.controllers.focus]\nkind = \"jss57\"\nport = \"/dev/ttyACM0\"\n"
+                                     "[stage.axes.x]\ncontroller = \"xy\"\ndevice = 1\naxis = 1\nsign = -1\n"
+                                     "min_mm = 0\nmax_mm = 50\n"
+                                     "[stage.axes.y]\ncontroller = \"xy\"\ndevice = 2\nmin_mm = -5\nmax_mm = 45.5\n"
+                                     "[stage.axes.z]\ncontroller = \"focus\"\nmin_mm = 0\nmax_mm = 10\n"));
+  ASSERT_TRUE(cfg.has_value()) << cfg.error().what;
+  ASSERT_EQ(cfg->stage.controllers.size(), 2U);
+  const auto& xy = cfg->stage.controllers.at("xy");
+  EXPECT_EQ(xy.kind, "zaber");
+  EXPECT_EQ(xy.port, "/dev/ttyUSB0");
+  EXPECT_EQ(xy.options.at("baudrate"), "9600");
+  EXPECT_EQ(cfg->stage.controllers.at("focus").kind, "jss57");
+
+  ASSERT_TRUE(cfg->stage.x.has_value());
+  EXPECT_EQ(cfg->stage.x->controller, "xy");
+  EXPECT_EQ(cfg->stage.x->device, 1);
+  EXPECT_EQ(cfg->stage.x->axis, 1);
+  EXPECT_EQ(cfg->stage.x->sign, -1);
+  EXPECT_DOUBLE_EQ(cfg->stage.x->max_mm, 50.0);
+
+  ASSERT_TRUE(cfg->stage.y.has_value());
+  EXPECT_EQ(cfg->stage.y->device, 2);
+  EXPECT_EQ(cfg->stage.y->axis, 1);
+  EXPECT_EQ(cfg->stage.y->sign, 1);
+  EXPECT_DOUBLE_EQ(cfg->stage.y->min_mm, -5.0);
+
+  ASSERT_TRUE(cfg->stage.z.has_value());
+  EXPECT_EQ(cfg->stage.z->controller, "focus");
+}
+
+TEST_F(Config, AnAxisLeftOutStaysByHand) {
+  const auto cfg = load_config(write(std::string(kCamera) + kController + kAxisX));
+  ASSERT_TRUE(cfg.has_value()) << cfg.error().what;
+  EXPECT_TRUE(cfg->stage.x.has_value());
+  EXPECT_FALSE(cfg->stage.z.has_value());
+}
+
+TEST_F(Config, AnAxisOnAControllerNotDefinedIsAnError) {
+  const auto cfg = load_config(write(std::string(kCamera) + kAxisX));
+  ASSERT_FALSE(cfg.has_value());
+  EXPECT_EQ(cfg.error().kind, ErrorKind::Config);
+  EXPECT_NE(cfg.error().what.find("stage.axes.x"), std::string::npos);
+  EXPECT_NE(cfg.error().what.find("xy"), std::string::npos);
+}
+
+TEST_F(Config, TwoAxesOnOneMotorIsAnError) {
+  const auto cfg = load_config(write(std::string(kCamera) + kController + kAxisX +
+                                     "[stage.axes.y]\ncontroller = \"xy\"\nmin_mm = 0\nmax_mm = 50\n"));
+  ASSERT_FALSE(cfg.has_value());
+  EXPECT_NE(cfg.error().what.find("same motor"), std::string::npos);
+}
+
+TEST_F(Config, BadStageKeysAreNamed) {
+  const auto expect_error = [this](const std::string& stage, const std::string& named) {
+    const auto cfg = load_config(write(std::string(kCamera) + stage));
+    ASSERT_FALSE(cfg.has_value()) << stage;
+    EXPECT_EQ(cfg.error().kind, ErrorKind::Config);
+    EXPECT_NE(cfg.error().what.find(named), std::string::npos) << cfg.error().what;
+  };
+  const std::string controller = kController;
+
+  expect_error("[stage]\nchannels = 1\n", "channels");
+  expect_error("[stage.controllers.xy]\nport = \"a\"\n", "kind");
+  expect_error(controller + "baud = 1\n", "baud");
+  expect_error(controller + "[stage.axes.w]\ncontroller = \"xy\"\nmin_mm = 0\nmax_mm = 1\n", "'w'");
+  expect_error(controller + "[stage.axes.x]\nmin_mm = 0\nmax_mm = 1\n", "controller");
+  expect_error(controller + "[stage.axes.x]\ncontroller = \"xy\"\nmax_mm = 1\n", "min_mm");
+  expect_error(controller + "[stage.axes.x]\ncontroller = \"xy\"\nmin_mm = 0\n", "max_mm");
+  expect_error(controller + "[stage.axes.x]\ncontroller = \"xy\"\nmin_mm = 1\nmax_mm = 1\n", "max_mm");
+  expect_error(controller + kAxisX + "sign = 2\n", "sign");
+  expect_error(controller + kAxisX + "device = 0\n", "device");
+  expect_error(controller + kAxisX + "speed = 3\n", "speed");
+}
+
+TEST_F(Config, TheShippedExampleLoads) {
+  const auto cfg = load_config(PYCHRON_GRAINS_EXAMPLE_CONFIG);
+  ASSERT_TRUE(cfg.has_value()) << cfg.error().what;
+  ASSERT_TRUE(cfg->stage.x.has_value());
+  ASSERT_TRUE(cfg->stage.y.has_value());
+  ASSERT_TRUE(cfg->stage.z.has_value());
+  EXPECT_EQ(cfg->stage.controllers.at(cfg->stage.x->controller).kind, "zaber");
+  EXPECT_EQ(cfg->stage.x->controller, cfg->stage.y->controller);
+  EXPECT_EQ(cfg->stage.controllers.at(cfg->stage.z->controller).kind, "jss57");
+}
+
 }  // namespace
 }  // namespace pychron::grains

@@ -315,6 +315,23 @@ other. `Below` is `Candidate`, `Above` is `Not`.
   `min_score`, `track_gap_frames`, `max_shift_px`, `disagree_passes`,
   `min_fps`, `segment_window`, `ring_px`, `min_area_px`, `min_pass_frames`,
   `min_ref_speed_px_s`.
+- `[stage]`, optional: which controller moves each axis. Example
+  `apps/grains/grains.toml.example` (Zaber x,y, stepper z).
+  - `[stage.controllers.<name>]`: `kind` (driver name, required, not checked
+    until a driver exists), `port`, `[...options]` (driver's own, kept as text).
+  - `[stage.axes.x|y|z]`: `controller` (must be defined), `device` and `axis`
+    (default 1; both locate motor: legacy `integrated_axes` true is `axis`,
+    false is `device`), `sign` (1 or -1; -1 reads `max_mm` minus motor
+    position, legacy `positive_limit`), `min_mm`, `max_mm` (required,
+    `min_mm` below `max_mm`).
+  - Axis left out: moved by hand. Two axes on same controller, device and axis
+    refused.
+  - Keys from legacy `ZaberMotionController`, `ZaberAxis`
+    (`pychron/hardware/zaber`, used by `pychron/loading`); z from legacy
+    `STP_MTRD` (`pychron/hardware/jss57.py`). Spec
+    `2026-11-02-grains-stage-design.md`.
+  - Read and checked only: no driver, nothing moves, app does not use it.
+    Pipeline stays without z (section 2) whoever drives it.
 
 Defaults for all but `[camera]`. Unknown key, wrong type or value out of
 range: `Config` error naming key (`validate_options` checks options held in
@@ -322,7 +339,9 @@ memory, `load_config` reads file).
 
 ## 11. Camera requirements
 
-No hardware yet; these choose it.
+Rig is legacy loader's (2026-11-02). Its camera not yet checked against these.
+Legacy default 55 px/mm (`zoom_level.csv` per zoom, not in repo): 80 px is 1.45 mm
+there, so grain under 1 mm misses size line below unless zoomed. Check first.
 
 - Mono, or colour read as luma. 2 MP or more. Global shutter preferred. 15 fps
   or more. USB3 or GigE on existing backends (`opencv`, `pylon`).
@@ -357,7 +376,8 @@ called working.
 
 ## 13. Out of scope
 
-Stage or z control. Encoder input. Air-bubble detection. Trained model. Named
+Stage or z drivers and motion (`[stage]` config only, section 10). Encoder
+input. Air-bubble detection. Trained model. Named
 minerals. Telling sanidine from glass, microcline or orthoclase (relief cue,
 crossed polars). Sample records, operator or oil metadata. `libs/persistence`, DVC
 store. Phone, tablet. Installer or packaging: `grains` runs from a build until

@@ -8,6 +8,8 @@ file(GLOB PYCHRON_GRAINS_TESTS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/te
 if(PYCHRON_GRAINS_TESTS)
   add_executable(pychron_grains_tests ${PYCHRON_GRAINS_TESTS})
   target_link_libraries(pychron_grains_tests PRIVATE pychron::grains GTest::gtest_main)
+  target_compile_definitions(pychron_grains_tests PRIVATE
+    PYCHRON_GRAINS_EXAMPLE_CONFIG="${PROJECT_SOURCE_DIR}/apps/grains/grains.toml.example")
   pychron_set_warnings(pychron_grains_tests)
   gtest_discover_tests(pychron_grains_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)
 endif()
