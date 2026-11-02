@@ -50,6 +50,21 @@ bool is_ascii_letter(char c) { return is_upper(c) || (c >= 'a' && c <= 'z'); }
 // which of those characters are letters is not for this code to say.
 bool is_letter(char c) { return is_ascii_letter(c) || !is_ascii(c); }
 
+// A sheet or a web page may give these: a no-break space is a space, and a
+// zero-width character or byte order mark shows as nothing, so is refused.
+bool has_invisible(std::string_view text) {
+  constexpr std::array<std::string_view, 4> kInvisible{"\xE2\x80\x8B", "\xE2\x80\x8C", "\xE2\x80\x8D",
+                                                       "\xEF\xBB\xBF"};
+  return std::ranges::any_of(kInvisible, [&text](std::string_view c) { return text.find(c) != std::string_view::npos; });
+}
+
+std::string plain_spaces(std::string_view text) {
+  std::string out(text);
+  for (auto at = out.find("\xC2\xA0"); at != std::string::npos; at = out.find("\xC2\xA0", at))
+    out.replace(at, 2, " ");
+  return out;
+}
+
 // A name as it may be written: words of letters, with ' - and . inside or
 // after them, one space between words. Nullopt when it is empty, does not
 // begin with a letter, or holds anything else (a digit, a second comma).
@@ -80,10 +95,11 @@ std::string trim(std::string_view text) {
 }
 
 Result<PiName> parse_pi(std::string_view text) {
-  const std::string t = trim(text);
+  const std::string t = trim(plain_spaces(text));
   const auto refuse = [&t] {
     return fail(ErrorKind::Config, "principal investigator '" + t + R"(': write "Family" or "Family, Given")");
   };
+  if (has_invisible(t)) return refuse();
   const auto comma = t.find(',');
   const auto family = name_words(std::string_view(t).substr(0, comma));
   if (!family || family->size() < 2) return refuse();
@@ -99,7 +115,7 @@ Result<PiName> parse_pi(std::string_view text) {
 }
 
 Result<PiName> parse_organisation(std::string_view text) {
-  std::string t = trim(text);
+  std::string t = trim(plain_spaces(text));
   if (t.empty()) return fail(ErrorKind::Config, "an organisation needs a name");
   return PiName{std::move(t), "", persistence::PiKind::Organisation};
 }

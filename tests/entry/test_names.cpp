@@ -7,6 +7,17 @@ using pychron::persistence::PiKind;
 
 // A family name is written as its owner writes it: particles, spaces and any
 // letters. What follows the comma is the given name, kept in full.
+// A sheet or a web page gives these; on screen they are a plain space and
+// nothing, and kept they would make two PIs that read the same.
+TEST(Names, AnOddSpaceIsASpaceAndAnInvisibleCharacterIsRefused) {
+  EXPECT_EQ(*parse_pi("Ross,\xC2\xA0" "J"), (PiName{"Ross", "J"}));
+  EXPECT_EQ(*parse_pi("Ruiz\xC2\xA0" "Garc\xC3\xAD" "a"), (PiName{"Ruiz Garc\xC3\xAD" "a", ""}));
+  EXPECT_EQ(*parse_pi("\xC2\xA0Ross\xC2\xA0"), (PiName{"Ross", ""}));
+  EXPECT_FALSE(parse_pi("Ro\xE2\x80\x8Bss"));
+  EXPECT_FALSE(parse_pi("Ross, \xEF\xBB\xBFJ"));
+  EXPECT_EQ(parse_organisation("New\xC2\xA0Mexico Tech")->family_name, "New Mexico Tech");
+}
+
 TEST(Names, AFamilyNameMayHaveParticlesSpacesAndAnyLetters) {
   EXPECT_EQ(*parse_pi("van der Pluijm"), (PiName{"van der Pluijm", ""}));
   EXPECT_EQ(*parse_pi("van der Pluijm, B"), (PiName{"van der Pluijm", "B"}));
