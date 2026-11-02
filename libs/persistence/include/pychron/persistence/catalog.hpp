@@ -90,6 +90,13 @@ struct PrincipalInvestigatorRow {
   friend bool operator==(const PrincipalInvestigatorRow&, const PrincipalInvestigatorRow&) = default;
 };
 
+// What a listing shows for `row` (PI spec 5.1): its display name, and when
+// another PI of `all` shows the same text, its affiliation, else the last four
+// of its ORCID, in brackets. Two PIs with neither read alike; their uuids
+// still tell them apart.
+[[nodiscard]] std::string pi_listing_label(const PrincipalInvestigatorRow& row,
+                                           const std::vector<PrincipalInvestigatorRow>& all);
+
 struct ProjectRow {
   Uuid uuid;
   std::string name;

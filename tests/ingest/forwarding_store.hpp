@@ -127,7 +127,7 @@ class ForwardingStore : public persistence::IStore {
   Result<std::optional<persistence::AnalysisView>> load_analysis(Uuid analysis) override { return inner_.load_analysis(analysis); }
   Result<std::vector<persistence::AnalysisSummary>> find_analyses(const persistence::AnalysisQuery& query) override { return inner_.find_analyses(query); }
   Result<persistence::BrowseResult> browse(const persistence::BrowseRequest& request) override { return inner_.browse(request); }
-  Result<std::vector<std::string>> facet(persistence::BrowseFacet facet, const persistence::BrowseFilter& filter) override { return inner_.facet(facet, filter); }
+  Result<std::vector<persistence::FacetValue>> facet(persistence::BrowseFacet facet, const persistence::BrowseFilter& filter) override { return inner_.facet(facet, filter); }
   Result<std::optional<persistence::AnalysisDetail>> load_analysis_detail(Uuid analysis) override { return inner_.load_analysis_detail(analysis); }
   Result<std::optional<persistence::BlobData>> load_blob(const Sha256Digest& sha) override { return inner_.load_blob(sha); }
   Result<persistence::ChangePage> changes_since(persistence::ChangeSeq cursor, int limit) override { return inner_.changes_since(cursor, limit); }

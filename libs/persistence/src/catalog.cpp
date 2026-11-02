@@ -842,6 +842,20 @@ PrincipalInvestigatorRow principal_investigator_row(const Row& r) {
 
 }  // namespace
 
+}  // namespace detail
+
+std::string pi_listing_label(const PrincipalInvestigatorRow& row, const std::vector<PrincipalInvestigatorRow>& all) {
+  const bool shared = std::ranges::any_of(all, [&](const PrincipalInvestigatorRow& p) {
+    return p.uuid != row.uuid && p.display_name == row.display_name;
+  });
+  if (!shared) return row.display_name;
+  if (row.affiliation && !row.affiliation->empty()) return row.display_name + " (" + *row.affiliation + ")";
+  if (row.orcid && row.orcid->size() >= 4) return row.display_name + " (" + row.orcid->substr(row.orcid->size() - 4) + ")";
+  return row.display_name;
+}
+
+namespace detail {
+
 Result<std::vector<PrincipalInvestigatorRow>> principal_investigators(Db& db) {
   auto rows = db.select(sql::kPrincipalInvestigators);
   if (!rows) return fail(rows.error());

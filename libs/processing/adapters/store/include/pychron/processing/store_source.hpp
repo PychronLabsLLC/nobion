@@ -89,7 +89,7 @@ class StoreSource final : public IAnalysisSource, public IRevisionSource, public
   // generation and drops cached analyses.
   Result<void> refresh() override;
   Result<BrowsePage> browse(const BrowseQuery& query) override;
-  Result<std::vector<std::string>> facet(Facet facet, const BrowseQuery& query) override;
+  Result<std::vector<FacetValue>> facet(Facet facet, const BrowseQuery& query) override;
   Result<AnalysisPtr> load(const std::string& uuid) override;
   // load(uuid) as of `bookmark` (data publishing spec 4.3): heads, payloads
   // and references from its entries. Not cached; `input_fingerprint` is of
@@ -148,7 +148,8 @@ class StoreSource final : public IAnalysisSource, public IRevisionSource, public
 // "postgresql://user:password@host/db" -> "postgresql://user:***@host/db".
 std::string redact_password(std::string url);
 
-// Pure mappings, exposed for tests.
+// Pure mappings, exposed for tests. to_store_filter leaves out the two lists
+// of uuids, which browse and facet parse, and can refuse.
 persistence::BrowseFilter to_store_filter(const BrowseQuery& query);
 AnalysisSummary summary_from_row(const persistence::BrowseRow& row);
 persistence::BrowseFacet to_store_facet(Facet facet) noexcept;

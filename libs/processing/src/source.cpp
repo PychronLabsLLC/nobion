@@ -78,7 +78,7 @@ std::string facet_value(const AnalysisSummary& s, Facet f) {
     case Facet::Project:
       return s.project;
     case Facet::PrincipalInvestigator:
-      return s.principal_investigator;
+      return s.principal_investigator_uuid.empty() ? s.principal_investigator : s.principal_investigator_uuid;
     case Facet::Sample:
       return s.sample;
     case Facet::Material:
@@ -169,17 +169,21 @@ BrowsePage browse_summaries(const std::vector<AnalysisSummary>& rows, const Brow
   return page;
 }
 
-std::vector<std::string> facet_values(const std::vector<AnalysisSummary>& rows, Facet f, const BrowseQuery& q) {
+std::vector<FacetValue> facet_values(const std::vector<AnalysisSummary>& rows, Facet f, const BrowseQuery& q) {
   const double newest = newest_of(rows);
   BrowseQuery unpaged = q;
   unpaged.after.reset();
-  std::set<std::string> values;
+  std::set<std::pair<std::string, std::string>> found;  // label, value: listed by what is shown
   for (const auto& r : rows) {
     if (!matches(unpaged, r, newest, f)) continue;
     auto v = facet_value(r, f);
-    if (!v.empty()) values.insert(std::move(v));
+    if (v.empty()) continue;
+    found.emplace(f == Facet::PrincipalInvestigator ? r.principal_investigator : v, std::move(v));
   }
-  return {values.begin(), values.end()};
+  std::vector<FacetValue> values;
+  values.reserve(found.size());
+  for (const auto& [label, value] : found) values.push_back({value, label});
+  return values;
 }
 
 // ---------------------------------------------------------------- MemorySource
@@ -242,7 +246,7 @@ Result<BrowsePage> MemorySource::browse(const BrowseQuery& query) {
   return browse_summaries(rows, query);
 }
 
-Result<std::vector<std::string>> MemorySource::facet(Facet f, const BrowseQuery& query) {
+Result<std::vector<FacetValue>> MemorySource::facet(Facet f, const BrowseQuery& query) {
   std::lock_guard lock(mutex_);
   const std::vector<AnalysisSummary> rows = summaries();
   return facet_values(rows, f, query);

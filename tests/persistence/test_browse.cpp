@@ -12,6 +12,13 @@
 namespace pychron::persistence::testing {
 namespace {
 
+std::vector<std::string> values(const Result<std::vector<FacetValue>>& facet) {
+  std::vector<std::string> out;
+  if (!facet) return out;
+  for (const auto& v : *facet) out.push_back(v.value);
+  return out;
+}
+
 class BrowseTest : public StoreTest {
  protected:
   void SetUp() override {
@@ -139,7 +146,7 @@ TEST_P(BrowseTest, Filters) {
   EXPECT_EQ(uuids(browse(sample)), (std::vector<Uuid>{a2_, a1_}));
   BrowseFilter project;
   project.projects = {"Fish Canyon"};
-  project.principal_investigators = {"J Ross"};
+  project.principal_investigators = {pi_};
   project.materials = {"sanidine"};
   EXPECT_EQ(browse(project).rows.size(), 2u);
 
@@ -183,15 +190,75 @@ TEST_P(BrowseTest, FacetsIgnoreTheirOwnFilter) {
   f.analysis_types = {"air"};
   auto types = store_->facet(BrowseFacet::AnalysisType, f);
   ASSERT_TRUE(types) << to_string(types.error());
-  EXPECT_EQ(*types, (std::vector<std::string>{"air", "blank_unknown", "unknown"}));
+  EXPECT_EQ(values(types), (std::vector<std::string>{"air", "blank_unknown", "unknown"}));
   auto ids = store_->facet(BrowseFacet::Identifier, f);
   ASSERT_TRUE(ids);
-  EXPECT_EQ(*ids, (std::vector<std::string>{"66574"}));
-  EXPECT_EQ(*store_->facet(BrowseFacet::Sample, {}), (std::vector<std::string>{"FC-2"}));
-  EXPECT_EQ(*store_->facet(BrowseFacet::Repository, {}), (std::vector<std::string>{"FishCanyon"}));
+  EXPECT_EQ(values(ids), (std::vector<std::string>{"66574"}));
+  EXPECT_EQ(values(store_->facet(BrowseFacet::Sample, {})), (std::vector<std::string>{"FC-2"}));
+  EXPECT_EQ(values(store_->facet(BrowseFacet::Repository, {})), (std::vector<std::string>{"FishCanyon"}));
   EXPECT_TRUE(store_->facet(BrowseFacet::Repository, f)->empty());
-  EXPECT_EQ(*store_->facet(BrowseFacet::PrincipalInvestigator, {}), (std::vector<std::string>{"J Ross"}));
-  EXPECT_EQ(*store_->facet(BrowseFacet::Level, {}), (std::vector<std::string>{"A"}));
+  EXPECT_EQ(*store_->facet(BrowseFacet::PrincipalInvestigator, {}), (std::vector<FacetValue>{{pi_.str(), "J Ross"}}));
+  EXPECT_EQ(values(store_->facet(BrowseFacet::Level, {})), (std::vector<std::string>{"A"}));
+}
+
+// PI spec 7: a name is not a PI. Each namesake is its own value, read apart by
+// its affiliation, else its ORCID's last four; one with neither reads as its
+// name alone, and its uuid still says which. Sorted as every PI list.
+TEST_P(BrowseTest, NamesakesAreTwoFacetValuesAndFilterApart) {
+  const Uuid c = lab_.acquisition_client;
+  const auto analysis_of = [&](const Uuid pi, const std::string& project, const std::string& sample,
+                               const std::string& identifier, int position, const std::string& ts) {
+    const Uuid proj = *store_->add_project(c, {project, pi, std::nullopt});
+    const Uuid smp = *store_->add_sample(c, {.name = sample, .project = proj, .material = material_});
+    const Uuid pos = *store_->add_irradiation_position(c, {lab_.level, position, smp, std::nullopt, {}, {}, std::nullopt});
+    EXPECT_TRUE(store_->add_identifier(c, {identifier, "unknown", std::nullopt, std::nullopt, pos, std::nullopt, std::nullopt}));
+    return add(identifier, 1, "unknown", ts);
+  };
+  const Uuid unm = Uuid::v7(), orcid = Uuid::v7(), abbot = Uuid::v7();
+  const auto pi = [](Uuid id, std::string family, std::string given, const char* column, std::string value) {
+    return CatalogInsert{CatalogTable::PrincipalInvestigator, id,
+                         {{"family_name", std::move(family)}, {"given_name", std::move(given)}, {column, std::move(value)}}};
+  };
+  CatalogEditBatch namesakes;
+  namesakes.edits = {pi(unm, "Ross", "J", "affiliation", "UNM"), pi(orcid, "Ross", "J", "orcid", "0000-0001-5109-3700"),
+                     pi(abbot, "Abbot", "Z", "email", "z@example.org")};
+  ASSERT_TRUE(store_->apply_catalog_edits(c, namesakes));
+  const Uuid of_unm = analysis_of(unm, "UNM project", "UN-1", "78000", 3, "2026-10-03T10:00:00Z");
+  const Uuid of_orcid = analysis_of(orcid, "ORCID project", "OR-1", "78001", 4, "2026-10-03T11:00:00Z");
+  analysis_of(abbot, "Abbot project", "AB-1", "78002", 5, "2026-10-03T12:00:00Z");
+
+  EXPECT_EQ(*store_->facet(BrowseFacet::PrincipalInvestigator, {}),
+            (std::vector<FacetValue>{{abbot.str(), "Z Abbot"},
+                                     {pi_.str(), "J Ross"},
+                                     {unm.str(), "J Ross (UNM)"},
+                                     {orcid.str(), "J Ross (3700)"}}));
+
+  BrowseFilter one;
+  one.principal_investigators = {unm};
+  EXPECT_EQ(uuids(browse(one)), (std::vector<Uuid>{of_unm}));
+  EXPECT_EQ(browse(one).total, 1);
+  BrowseFilter two;
+  two.principal_investigators = {unm, orcid};
+  EXPECT_EQ(uuids(browse(two)), (std::vector<Uuid>{of_orcid, of_unm}));
+  ASSERT_EQ(browse(one).rows.size(), 1u);
+  EXPECT_EQ(browse(one).rows[0].principal_investigator, "J Ross");
+  EXPECT_EQ(browse(one).rows[0].principal_investigator_uuid, std::optional<Uuid>{unm});
+
+  // A facet ignores its own filter, and a label does not depend on what the
+  // other filters leave: the one Ross offered here is still told apart.
+  EXPECT_EQ(store_->facet(BrowseFacet::PrincipalInvestigator, one)->size(), 4u);
+  BrowseFilter narrowed;
+  narrowed.samples = {"UN-1"};
+  EXPECT_EQ(*store_->facet(BrowseFacet::PrincipalInvestigator, narrowed),
+            (std::vector<FacetValue>{{unm.str(), "J Ross (UNM)"}}));
+}
+
+TEST_P(BrowseTest, AnAnalysisWithNoPiIsNoFacetValue) {
+  BrowseFilter airs;
+  airs.analysis_types = {"air"};
+  EXPECT_TRUE(store_->facet(BrowseFacet::PrincipalInvestigator, airs)->empty());
+  ASSERT_FALSE(browse(airs).rows.empty());
+  EXPECT_FALSE(browse(airs).rows[0].principal_investigator_uuid);
 }
 
 TEST_P(BrowseTest, DetailAndBlobs) {
@@ -300,11 +367,11 @@ TEST_P(BrowseTest, FacetsUnderAnAgeBound) {
   const BrowseFilter older = ages(12.0, std::nullopt);  // a2 (unknown, FC-2), a4 (air)
   auto types = store_->facet(BrowseFacet::AnalysisType, older);
   ASSERT_TRUE(types) << to_string(types.error());
-  EXPECT_EQ(*types, (std::vector<std::string>{"air", "unknown"}));
-  EXPECT_EQ(*store_->facet(BrowseFacet::Sample, older), (std::vector<std::string>{"FC-2"}));
-  EXPECT_EQ(*store_->facet(BrowseFacet::Repository, older), (std::vector<std::string>{"FishCanyon"}));
+  EXPECT_EQ(values(types), (std::vector<std::string>{"air", "unknown"}));
+  EXPECT_EQ(values(store_->facet(BrowseFacet::Sample, older)), (std::vector<std::string>{"FC-2"}));
+  EXPECT_EQ(values(store_->facet(BrowseFacet::Repository, older)), (std::vector<std::string>{"FishCanyon"}));
   const BrowseFilter middle = ages(14.0, 16.0);  // a4 only
-  EXPECT_EQ(*store_->facet(BrowseFacet::Identifier, middle), (std::vector<std::string>{"66574"}));
+  EXPECT_EQ(values(store_->facet(BrowseFacet::Identifier, middle)), (std::vector<std::string>{"66574"}));
   EXPECT_TRUE(store_->facet(BrowseFacet::Sample, middle)->empty());
   EXPECT_TRUE(store_->facet(BrowseFacet::Repository, middle)->empty());
   EXPECT_TRUE(store_->facet(BrowseFacet::AnalysisType, ages(std::nullopt, 5.0))->empty());

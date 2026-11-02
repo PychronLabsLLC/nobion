@@ -103,8 +103,8 @@ TEST_F(StoreSourceTest, BrowsePagesNewestFirstWithCatalogColumns) {
   EXPECT_EQ(airs->rows[0].analysis_type, "air");
   auto facet = source().facet(Facet::AnalysisType, types);
   ASSERT_TRUE(facet) << to_string(facet.error());
-  EXPECT_EQ(*facet, (std::vector<std::string>{"air", "unknown"}));
-  EXPECT_EQ(*source().facet(Facet::Sample, {}), (std::vector<std::string>{"FC-2"}));
+  EXPECT_EQ(*facet, (std::vector<FacetValue>{{"air", "air"}, {"unknown", "unknown"}}));
+  EXPECT_EQ(*source().facet(Facet::Sample, {}), (std::vector<FacetValue>{{"FC-2", "FC-2"}}));
   q.limit = 0;
   EXPECT_FALSE(source().browse(q));
 }
@@ -127,7 +127,7 @@ TEST_F(StoreSourceTest, BrowsesByUuid) {
   EXPECT_EQ(one->rows[0].uuid, unknown_.str());
   auto types = source().facet(Facet::AnalysisType, q);
   ASSERT_TRUE(types) << to_string(types.error());
-  EXPECT_EQ(*types, (std::vector<std::string>{"unknown"}));
+  EXPECT_EQ(*types, (std::vector<FacetValue>{{"unknown", "unknown"}}));
 
   q.uuids = {"not-a-uuid"};
   auto bad = source().browse(q);
@@ -988,6 +988,34 @@ TEST(StoreSourceMapping, SeriesFromBlob) {
   EXPECT_FALSE(series_from_blob(ref, ps::BlobData{"zstd/1", bytes, 3}));
   ref.series_kind = "whiff";
   EXPECT_FALSE(series_from_blob(ref, ps::BlobData{"f32le-tvs/1", bytes, 3}));
+}
+
+// PI spec 7: through a source a PI is its uuid, and the name is only shown.
+TEST_F(StoreSourceTest, APiIsFilteredByItsUuid) {
+  const auto pis = store_->principal_investigators();
+  ASSERT_TRUE(pis) << to_string(pis.error());
+  ASSERT_EQ(pis->size(), 1u);
+  const std::string ross = pis->front().uuid.str();
+
+  auto facet = source().facet(Facet::PrincipalInvestigator, {});
+  ASSERT_TRUE(facet) << to_string(facet.error());
+  EXPECT_EQ(*facet, (std::vector<FacetValue>{{ross, "J Ross"}}));
+
+  BrowseQuery q;
+  q.principal_investigators = {ross};
+  auto page = source().browse(q);
+  ASSERT_TRUE(page) << to_string(page.error());
+  ASSERT_EQ(page->rows.size(), 1u);
+  EXPECT_EQ(page->rows[0].uuid, unknown_.str());
+  EXPECT_EQ(page->rows[0].principal_investigator_uuid, ross);
+  EXPECT_EQ(page->rows[0].principal_investigator, "J Ross");
+
+  q.principal_investigators = {ps::Uuid::v7().str()};  // a PI with no analyses
+  EXPECT_TRUE(source().browse(q)->rows.empty());
+
+  q.principal_investigators = {"J Ross"};  // a name is refused, not matched
+  EXPECT_FALSE(source().browse(q));
+  EXPECT_FALSE(source().facet(Facet::Sample, q));
 }
 
 TEST(StoreSourceMapping, QueryAndCursorRoundTrip) {

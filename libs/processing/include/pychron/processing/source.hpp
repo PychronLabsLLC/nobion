@@ -28,6 +28,8 @@ struct BrowseCursor {
 
 struct BrowseQuery {
   std::string text;  // case-insensitive prefix of run id, identifier or sample
+  // Every list holds FacetValue::value. For principal_investigators that is
+  // the PI's uuid on a source that keeps PIs, its name on one that does not.
   std::vector<std::string> identifiers, samples, projects, principal_investigators, materials, analysis_types,
       mass_spectrometers, extract_devices, loads, irradiations, levels, repositories;
   std::optional<double> from, to;     // UTC epoch seconds, inclusive
@@ -43,6 +45,9 @@ struct BrowseQuery {
 struct AnalysisSummary {
   std::string uuid, runid, identifier, sample, project, material, principal_investigator, analysis_type,
       mass_spectrometer, extract_device, load, irradiation, level, repository, tag;
+  // The PI's uuid, where the source keeps PIs (a store); empty otherwise, and
+  // the name then stands for the PI.
+  std::string principal_investigator_uuid;
   int aliquot = 0;
   int increment = -1;
   double timestamp = 0.0;
@@ -75,6 +80,15 @@ enum class Facet {
 };
 
 std::string_view to_string(Facet f) noexcept;
+
+// One value of a facet: what a BrowseQuery list takes, and what a list shows.
+// The label is the value, except for a PI of a source that keeps PIs: the
+// value is its uuid and the label says who it is, so that two PIs of one name
+// are two values.
+struct FacetValue {
+  std::string value, label;
+  friend bool operator==(const FacetValue&, const FacetValue&) = default;
+};
 
 // True when `s` passes every filter of `q` except `ignore` (facets are computed
 // from all other filters). Paging, text and last_hours are applied too;
@@ -131,8 +145,8 @@ class IAnalysisSource {
   virtual Result<void> refresh() = 0;
   virtual Result<BrowsePage> browse(const BrowseQuery& query) = 0;
   // Distinct non-empty values of `facet` among analyses matching every other
-  // filter of `query`, sorted.
-  virtual Result<std::vector<std::string>> facet(Facet facet, const BrowseQuery& query) = 0;
+  // filter of `query`, in the order to list them.
+  virtual Result<std::vector<FacetValue>> facet(Facet facet, const BrowseQuery& query) = 0;
   virtual Result<AnalysisPtr> load(const std::string& uuid) = 0;
   virtual Result<RawData> load_raw(const std::string& uuid) = 0;
   // Where reductions of this source's analyses leave their ages, for a source
@@ -158,7 +172,7 @@ class MemorySource : public IAnalysisSource {
   std::uint64_t generation() const override;
   Result<void> refresh() override { return {}; }
   Result<BrowsePage> browse(const BrowseQuery& query) override;
-  Result<std::vector<std::string>> facet(Facet facet, const BrowseQuery& query) override;
+  Result<std::vector<FacetValue>> facet(Facet facet, const BrowseQuery& query) override;
   Result<AnalysisPtr> load(const std::string& uuid) override;
   Result<RawData> load_raw(const std::string& uuid) override;
 
@@ -178,6 +192,6 @@ AnalysisSummary summarize(const Analysis& a);
 
 // browse() over in-memory summaries, newest first, keyset paged.
 BrowsePage browse_summaries(const std::vector<AnalysisSummary>& rows, const BrowseQuery& q);
-std::vector<std::string> facet_values(const std::vector<AnalysisSummary>& rows, Facet f, const BrowseQuery& q);
+std::vector<FacetValue> facet_values(const std::vector<AnalysisSummary>& rows, Facet f, const BrowseQuery& q);
 
 }  // namespace pychron::processing

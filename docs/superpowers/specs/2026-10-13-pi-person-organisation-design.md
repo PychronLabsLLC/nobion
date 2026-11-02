@@ -206,20 +206,27 @@ struct PrincipalInvestigatorRow {
 
 ## 7. Browser: filter and facet by uuid (owner)
 
-- `persistence::BrowseFilter::principal_investigators` and
-  `processing::BrowseQuery::principal_investigators`: PI uuids, matched on
-  `p.pi_uuid` (`browse.cpp:79`, `sql/browse.hpp` `kColPrincipalInvestigator`
-  becomes `p.pi_uuid`; display still selected for the column).
-- Facets: `facet()` returns `FacetValue{value, label}` (`source.hpp`); for
-  every facet but the PI's, label is value. PI: value the uuid, label the
-  display text of 5.1. `MemorySource` and the record source have no PI
-  rows: their value is the name, as now.
+- `persistence::BrowseFilter::principal_investigators`: `std::vector<Uuid>`.
+  `processing::BrowseQuery::principal_investigators`: strings, facet values:
+  PI uuids on a store (`StoreSource` refuses one that is no uuid), names on
+  a source without PI rows. Matched on `p.pi_uuid` (`sql/browse.hpp`
+  `kColPrincipalInvestigator` is `p.pi_uuid`; display still selected).
+- Facets: `facet()` returns `FacetValue{value, label}` (`source.hpp`;
+  persistence's twin in `store.hpp`, conversion in `StoreSource`); for every
+  facet but the PI's, label is value. PI: value the uuid, label the listing
+  text of 5.1 (`pi_listing_label`, namesakes judged against every stored PI,
+  so a label does not change with the other filters), sorted as every PI
+  list. `MemorySource` and the record source have no PI rows: their value is
+  the name, as now.
 - `AnalysisSummary` gains `principal_investigator_uuid` (empty without one).
-- Facet box shows labels, keeps values; a saved browser search stores
-  values. A saved search with PI names (before 0006) is read as names and
-  matched by display text once, then saved as uuids.
-- Plan test: the browse filtered by PI uses an index on `project.pi_uuid`
-  or says why none is needed (projects are few). `libs/persistence/AGENTS.md`,
+- Data browser gains a PI box: it had none (six boxes, PI not among them).
+  Facet box shows labels, keeps values.
+- No saved browser search exists (nothing under `apps`, `libs`, `tests`), so
+  nothing to read as names. When one is added it stores values.
+- No index on `project.pi_uuid`: a page walks analyses in time order and
+  reads each project by primary key. Lab store (672 projects, 8.7 thousand
+  analyses): same times with and without one. Plan test
+  `SchemaIndexes.APiFilterNeedsNoIndexOnProject`; `libs/persistence/AGENTS.md`,
   "Indexes".
 
 ## 8. Legacy import (`libs/dvc`, `libs/ingest`)

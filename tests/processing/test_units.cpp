@@ -311,7 +311,49 @@ TEST(MemorySource, AgeBoundsMatchTheCachedAge) {
   EXPECT_EQ(page->total, 1u);
   auto types = src->facet(pp::Facet::AnalysisType, young);
   ASSERT_TRUE(types);
-  EXPECT_EQ(*types, (std::vector<std::string>{"unknown"}));
+  EXPECT_EQ(*types, (std::vector<pp::FacetValue>{{"unknown", "unknown"}}));
+}
+
+// A memory source keeps no PIs: a PI's name is the facet's value and label,
+// and what the filter takes (PI spec 7).
+TEST(MemorySource, APiIsItsNameWithoutAStore) {
+  pp::MemorySource src;
+  for (const auto& [uuid, pi] : {std::pair{"u1", "J Ross"}, std::pair{"u2", "A Smith"}, std::pair{"u3", ""}}) {
+    auto a = std::make_shared<pp::Analysis>();
+    a->uuid = uuid;
+    a->principal_investigator = pi;
+    src.add(a);
+  }
+  auto facet = src.facet(pp::Facet::PrincipalInvestigator, {});
+  ASSERT_TRUE(facet);
+  EXPECT_EQ(*facet, (std::vector<pp::FacetValue>{{"A Smith", "A Smith"}, {"J Ross", "J Ross"}}));
+  pp::BrowseQuery q;
+  q.principal_investigators = {"J Ross"};
+  auto page = src.browse(q);
+  ASSERT_TRUE(page);
+  ASSERT_EQ(page->rows.size(), 1u);
+  EXPECT_EQ(page->rows[0].uuid, "u1");
+  EXPECT_TRUE(page->rows[0].principal_investigator_uuid.empty());
+}
+
+// In summaries that do carry a PI's uuid (the in-memory facet and filter are
+// the same code for every source) the uuid is the value, the name the label.
+TEST(MemorySource, ASummaryWithAPiUuidFiltersByIt) {
+  pp::AnalysisSummary a;
+  a.uuid = "u1";
+  a.principal_investigator = "J Ross";
+  a.principal_investigator_uuid = "pi-b";
+  pp::AnalysisSummary b = a;
+  b.uuid = "u2";
+  b.principal_investigator_uuid = "pi-a";
+  const std::vector<pp::AnalysisSummary> rows{a, b};
+  EXPECT_EQ(pp::facet_values(rows, pp::Facet::PrincipalInvestigator, {}),
+            (std::vector<pp::FacetValue>{{"pi-a", "J Ross"}, {"pi-b", "J Ross"}}));
+  pp::BrowseQuery q;
+  q.principal_investigators = {"pi-b"};
+  const auto page = pp::browse_summaries(rows, q);
+  ASSERT_EQ(page.rows.size(), 1u);
+  EXPECT_EQ(page.rows[0].uuid, "u1");
 }
 
 // A list of uuids narrows browse to those analyses: the Selected list of the

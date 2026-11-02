@@ -58,7 +58,7 @@ class RecordDirectorySource final : public IAnalysisSource {
   // Rescans the directory; parses new or changed files only.
   Result<void> refresh() override;
   Result<BrowsePage> browse(const BrowseQuery& query) override;
-  Result<std::vector<std::string>> facet(Facet facet, const BrowseQuery& query) override;
+  Result<std::vector<FacetValue>> facet(Facet facet, const BrowseQuery& query) override;
   Result<AnalysisPtr> load(const std::string& uuid) override;
   Result<RawData> load_raw(const std::string& uuid) override;
 

@@ -52,6 +52,7 @@ const std::pair<pp::Facet, const char*> kFacets[] = {
     {pp::Facet::MassSpectrometer, "Spectrometer"},
     {pp::Facet::Sample, "Sample"},
     {pp::Facet::Identifier, "Identifier"},
+    {pp::Facet::PrincipalInvestigator, "PI"},
     {pp::Facet::Irradiation, "Irradiation"},
     {pp::Facet::Level, "Level"},
 };
@@ -425,6 +426,9 @@ pp::BrowseQuery DataBrowserWindow::query() const {
       case pp::Facet::Identifier:
         q.identifiers = checked;
         break;
+      case pp::Facet::PrincipalInvestigator:
+        q.principal_investigators = checked;
+        break;
       case pp::Facet::Irradiation:
         q.irradiations = checked;
         break;
@@ -657,10 +661,10 @@ void DataBrowserWindow::update_facets() {
   const auto q = query();
   for (const auto& [facet, box] : facets_) {
     auto values = source_.facet(facet, q);
-    QStringList all;
+    std::vector<FacetBox::Item> items;
     if (values)
-      for (const auto& v : *values) all << qs(v);
-    box->set_values(all);
+      for (const auto& v : *values) items.push_back({qs(v.value), qs(v.label)});
+    box->set_items(items);
   }
 }
 

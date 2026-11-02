@@ -4,8 +4,10 @@
 
 #include <algorithm>
 #include <cctype>
+#include <set>
 #include <utility>
 
+#include "catalog_impl.hpp"
 #include "sql/browse.hpp"
 #include "store_impl.hpp"
 
@@ -76,7 +78,11 @@ Result<Where> build_where(Db& db, Dialect dialect, const BrowseFilter& f, std::o
   list(BrowseFacet::Identifier, f.identifiers);
   list(BrowseFacet::Sample, f.samples);
   list(BrowseFacet::Project, f.projects);
-  list(BrowseFacet::PrincipalInvestigator, f.principal_investigators);
+  if (!f.principal_investigators.empty() && ignore != BrowseFacet::PrincipalInvestigator) {
+    w.clauses << sql::kBrowseIn.arg(sql::kColPrincipalInvestigator,
+                                    sql::placeholders(static_cast<qsizetype>(f.principal_investigators.size())));
+    for (const Uuid& id : f.principal_investigators) w.bindings << qv(id);
+  }
   list(BrowseFacet::Material, f.materials);
   list(BrowseFacet::AnalysisType, f.analysis_types);
   list(BrowseFacet::MassSpectrometer, f.mass_spectrometers);
@@ -156,6 +162,7 @@ BrowseRow row_from(const Row& r) {
   b.project = to_std(r.value("project"));
   b.material = to_std(r.value("material"));
   b.principal_investigator = to_std(r.value("principal_investigator"));
+  b.principal_investigator_uuid = opt_uuid(r.value("principal_investigator_uuid"));
   b.extract_device = to_std(r.value("extract_device"));
   b.load = to_std(r.value("load_name"));
   b.irradiation = to_std(r.value("irradiation"));
@@ -229,7 +236,8 @@ Result<BrowseStatement> facet_statement(Db& db, Dialect dialect, BrowseFacet f, 
   if (f == BrowseFacet::Repository)
     return BrowseStatement{sql::kRepositoryFacet.arg(from_for_aggregate(filter), where->sql()), std::move(where->bindings)};
   Where w = std::move(*where);
-  w.clauses << sql::kFacetNotNull.arg(facet_column(f));
+  const QString& not_null = f == BrowseFacet::PrincipalInvestigator ? sql::kFacetUuidNotNull : sql::kFacetNotNull;
+  w.clauses << not_null.arg(facet_column(f));
   return BrowseStatement{sql::kFacetSelect.arg(facet_column(f)) + from_for_aggregate(filter) + w.sql() + sql::kFacetTail,
                          std::move(w.bindings)};
 }
@@ -257,15 +265,30 @@ Result<BrowseResult> browse(Db& db, Dialect dialect, const BrowseRequest& req) {
   return out;
 }
 
-Result<std::vector<std::string>> facet(Db& db, Dialect dialect, BrowseFacet f, const BrowseFilter& filter) {
+Result<std::vector<FacetValue>> facet(Db& db, Dialect dialect, BrowseFacet f, const BrowseFilter& filter) {
   auto st = facet_statement(db, dialect, f, filter);
   if (!st) return fail(st.error());
   auto rows = db.select(st->sql, st->bindings);
   if (!rows) return fail(rows.error());
-  std::vector<std::string> out;
+  std::vector<FacetValue> out;
+  if (f == BrowseFacet::PrincipalInvestigator) {
+    // The statement says which PIs; their rows come from the one listing, so
+    // the order is that of every PI list and a label does not change with
+    // what the other filters leave. Once per facet, and a lab's PIs are few.
+    std::set<std::string> present;
+    for (const auto& r : *rows) present.insert(to_uuid(r.value("v")).str());
+    auto all = principal_investigators(db);
+    if (!all) return fail(all.error());
+    for (const auto& pi : *all)
+      if (present.contains(pi.uuid.str())) out.push_back({pi.uuid.str(), pi_listing_label(pi, *all)});
+    return out;
+  }
   for (const auto& r : *rows) {
     auto v = to_std(r.value("v"));
-    if (!v.empty()) out.push_back(std::move(v));
+    if (!v.empty()) {
+      auto label = v;
+      out.push_back({std::move(v), std::move(label)});
+    }
   }
   return out;
 }

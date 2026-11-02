@@ -169,7 +169,7 @@ TEST_F(StoreSourceTest, ASummaryCarriesTheAgeTheSinkWrote) {
   EXPECT_EQ(found->total, 1u);
   auto types = src.facet(Facet::AnalysisType, around);
   ASSERT_TRUE(types) << to_string(types.error());
-  EXPECT_EQ(*types, (std::vector<std::string>{"unknown"}));
+  EXPECT_EQ(*types, (std::vector<FacetValue>{{"unknown", "unknown"}}));
   BrowseQuery above;
   above.age_min = dv(d, "age")->nominal() + 1.0;
   auto none = src.browse(above);

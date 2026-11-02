@@ -134,7 +134,7 @@ Result<BrowseStatement> browse_page_statement(Db& db, Dialect dialect, const Bro
 Result<BrowseStatement> browse_count_statement(Db& db, Dialect dialect, const BrowseFilter& filter);
 Result<BrowseStatement> facet_statement(Db& db, Dialect dialect, BrowseFacet facet, const BrowseFilter& filter);
 Result<BrowseResult> browse(Db& db, Dialect dialect, const BrowseRequest& request);
-Result<std::vector<std::string>> facet(Db& db, Dialect dialect, BrowseFacet facet, const BrowseFilter& filter);
+Result<std::vector<FacetValue>> facet(Db& db, Dialect dialect, BrowseFacet facet, const BrowseFilter& filter);
 Result<std::optional<AnalysisDetail>> load_analysis_detail(Db& db, Dialect dialect, Uuid analysis);
 Result<std::optional<BlobData>> load_blob(Db& db, const Sha256Digest& sha);
 Result<ChangeSeq> latest_change_seq(Db& db);

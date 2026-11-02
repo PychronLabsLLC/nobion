@@ -1,6 +1,5 @@
 #include "pi_dialog.hpp"
 
-#include <algorithm>
 #include <cctype>
 
 #include <QComboBox>
@@ -57,16 +56,7 @@ std::vector<ps::PrincipalInvestigatorRow> pi_namesakes(const PiFields& fields,
 }
 
 QString pi_label(const ps::PrincipalInvestigatorRow& row, const std::vector<ps::PrincipalInvestigatorRow>& all) {
-  QString shown = QString::fromStdString(row.display_name);
-  const bool shared = std::any_of(all.begin(), all.end(), [&](const ps::PrincipalInvestigatorRow& p) {
-    return p.uuid != row.uuid && p.display_name == row.display_name;
-  });
-  if (!shared) return shown;
-  if (row.affiliation && !row.affiliation->empty())
-    return QStringLiteral("%1 (%2)").arg(shown, QString::fromStdString(*row.affiliation));
-  if (row.orcid && row.orcid->size() >= 4)
-    return QStringLiteral("%1 (%2)").arg(shown, QString::fromStdString(row.orcid->substr(row.orcid->size() - 4)));
-  return shown;
+  return QString::fromStdString(ps::pi_listing_label(row, all));
 }
 
 ps::CatalogEditBatch pi_update(const ps::PrincipalInvestigatorRow& stored, const PiFields& fields) {

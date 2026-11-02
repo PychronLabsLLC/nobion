@@ -291,7 +291,7 @@ Result<BrowsePage> RecordDirectorySource::browse(const BrowseQuery& query) {
   return browse_summaries(rows, query);
 }
 
-Result<std::vector<std::string>> RecordDirectorySource::facet(Facet f, const BrowseQuery& query) {
+Result<std::vector<FacetValue>> RecordDirectorySource::facet(Facet f, const BrowseQuery& query) {
   if (!scanned_)
     if (auto ok = refresh(); !ok) return fail(ok.error());
   std::lock_guard lock(mutex_);

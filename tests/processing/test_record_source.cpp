@@ -171,10 +171,32 @@ TEST(RecordSource, BrowsesNewestFirstWithPaging) {
   // Facets ignore their own filter.
   auto f = src.facet(pp::Facet::AnalysisType, types);
   ASSERT_TRUE(f);
-  EXPECT_EQ(*f, (std::vector<std::string>{"air", "unknown"}));
+  EXPECT_EQ(*f, (std::vector<pp::FacetValue>{{"air", "air"}, {"unknown", "unknown"}}));
   pp::BrowseQuery only_air = types;
   auto ids = src.facet(pp::Facet::Identifier, only_air);
-  EXPECT_EQ(*ids, (std::vector<std::string>{"air"}));
+  EXPECT_EQ(*ids, (std::vector<pp::FacetValue>{{"air", "air"}}));
+}
+
+// A record names its PI and keeps no PI rows: the name is value and label,
+// and what the filter takes (PI spec 7).
+TEST(RecordSource, APiIsItsName) {
+  TempDir dir;
+  auto ross = record("u1", "66001", 1, "", "unknown", "2026-09-30T10:00:00Z");
+  ross.sample.pi = "J Ross";
+  auto smith = record("u2", "66002", 1, "", "unknown", "2026-09-30T11:00:00Z");
+  smith.sample.pi = "A Smith";
+  write(dir.path, ross);
+  write(dir.path, smith);
+  pp::RecordDirectorySource src(dir.path);
+  auto facet = src.facet(pp::Facet::PrincipalInvestigator, {});
+  ASSERT_TRUE(facet);
+  EXPECT_EQ(*facet, (std::vector<pp::FacetValue>{{"A Smith", "A Smith"}, {"J Ross", "J Ross"}}));
+  pp::BrowseQuery q;
+  q.principal_investigators = {"J Ross"};
+  auto page = src.browse(q);
+  ASSERT_TRUE(page);
+  ASSERT_EQ(page->rows.size(), 1u);
+  EXPECT_EQ(page->rows[0].uuid, "u1");
 }
 
 TEST(RecordSource, RefreshPicksUpNewFilesAndBumpsGeneration) {

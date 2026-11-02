@@ -369,12 +369,32 @@ TEST(SchemaIndexes, ACountWithoutAnAgeBoundLeavesTheCacheAlone) {
     ASSERT_TRUE(count) << to_string(count.error());
     EXPECT_FALSE(count->sql.contains(QStringLiteral("derived_value"))) << count->sql.toStdString();
     for (BrowseFacet facet : {BrowseFacet::AnalysisType, BrowseFacet::Sample, BrowseFacet::Identifier,
-                              BrowseFacet::Repository}) {
+                              BrowseFacet::PrincipalInvestigator, BrowseFacet::Repository}) {
       auto st = pd::facet_statement(*db, Dialect::Sqlite, facet, f);
       ASSERT_TRUE(st) << to_string(st.error());
       EXPECT_FALSE(st->sql.contains(QStringLiteral("derived_value"))) << st->sql.toStdString();
     }
   }
+}
+
+// PI spec 7: a filter by PI reads the project row each analysis already joins,
+// by primary key. No index on project.pi_uuid: to start from the PI would save
+// nothing on a page, which walks the analyses in time order, and the commit
+// that made this filter shows the times on a lab's store (672 projects).
+TEST(SchemaIndexes, APiFilterNeedsNoIndexOnProject) {
+  TestDatabase tdb("sqlite", true);
+  ASSERT_TRUE(open_or_die(tdb.url()));
+  auto db = raw(tdb.url());
+  ASSERT_TRUE(db);
+  BrowseFilter f;
+  f.principal_investigators = {Uuid::v7()};
+  const std::string plan = plan_of(*db, page_statement(*db, f));
+  ASSERT_FALSE(plan.empty());
+  EXPECT_NE(plan.find("SEARCH p USING INDEX sqlite_autoindex_project_1 (uuid=?)"), std::string::npos) << plan;
+  EXPECT_FALSE(scans_analysis_without_an_index(plan)) << plan;
+  auto facet = pd::facet_statement(*db, Dialect::Sqlite, BrowseFacet::PrincipalInvestigator, BrowseFilter{});
+  ASSERT_TRUE(facet) << to_string(facet.error());
+  EXPECT_FALSE(facet->sql.contains(QStringLiteral("display_name"))) << facet->sql.toStdString();
 }
 
 // Under an age bound the bound is a range on derived_value_name_ix (name,

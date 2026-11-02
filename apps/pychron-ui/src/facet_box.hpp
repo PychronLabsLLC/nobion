@@ -6,7 +6,9 @@
 // A ticked value is never hidden.
 
 #include <QGroupBox>
+#include <QString>
 #include <QStringList>
+#include <vector>
 
 class QLineEdit;
 class QListWidget;
@@ -18,12 +20,21 @@ class FacetBox : public QGroupBox {
   Q_OBJECT
 
  public:
+  // What a line shows, and what ticking it filters by: two PIs of one name
+  // are two values, whatever they read as.
+  struct Item {
+    QString value, label;
+  };
+
   explicit FacetBox(const QString& title, QWidget* parent = nullptr);
 
   // The values to offer. Ticks are kept, and a ticked value that is no longer
-  // among them stays, at the end. The filter text stays and is applied again.
-  // Emits nothing.
+  // among them stays, at the end, with the label it had. The filter text
+  // stays and is applied again, to the labels. Emits nothing.
+  void set_items(const std::vector<Item>& items);
+  // Values that are their own label.
   void set_values(const QStringList& values);
+  // The values ticked, not their labels.
   QStringList checked() const;
   // Unticks everything; changed() once when anything was ticked.
   void clear_checked();

@@ -136,10 +136,10 @@ class MetaThenProjectImportTest : public ::testing::TestWithParam<std::string> {
     EXPECT_EQ(found->rows.size(), 1u);
     auto samples = world_->store->facet(P::BrowseFacet::Sample, {});
     ASSERT_TRUE(samples);
-    EXPECT_EQ(*samples, std::vector<std::string>{"SB15-03"});
+    EXPECT_EQ(*samples, (std::vector<P::FacetValue>{{"SB15-03", "SB15-03"}}));
     auto projects = world_->store->facet(P::BrowseFacet::Project, {});
     ASSERT_TRUE(projects);
-    EXPECT_EQ(*projects, std::vector<std::string>{"IR1010"});
+    EXPECT_EQ(*projects, (std::vector<P::FacetValue>{{"IR1010", "IR1010"}}));
     // One position NM-293/G/16: the two sources agree on which row it is.
     auto holes = world_->db->select_one(
         QStringLiteral("SELECT count(*) AS n FROM irradiation_position WHERE position = 16"));

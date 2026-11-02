@@ -206,6 +206,14 @@ struct CountingSource : pp::MemorySource {
   }
 };
 
+// Two PIs of one name, offered as a store offers them: by uuid.
+struct NamesakeSource : pp::MemorySource {
+  Result<std::vector<pp::FacetValue>> facet(pp::Facet f, const pp::BrowseQuery& query) override {
+    if (f != pp::Facet::PrincipalInvestigator) return pp::MemorySource::facet(f, query);
+    return std::vector<pp::FacetValue>{{"uuid-a", "J Ross (NMT)"}, {"uuid-b", "J Ross"}, {"uuid-c", "J Ross"}};
+  }
+};
+
 // A source that counts the browses made by uuid (the Selected refetch) and
 // can be told to fail them.
 struct UuidSource : pp::MemorySource {
@@ -811,6 +819,42 @@ class TestDataWindows : public QObject {
     find_item(w.facet_list(pp::Facet::Level), QStringLiteral("B"))->setCheckState(Qt::Checked);
     QCOMPARE(w.query().levels, std::vector<std::string>{"B"});
     for (const auto& r : w.model()->rows()) QCOMPARE(r.level, std::string("B"));
+  }
+
+  // PI spec 7: the box shows labels and filters by values. Two lines may read
+  // alike; the one ticked is the one asked for.
+  void browser_tells_namesakes_apart() {
+    NamesakeSource src;
+    DataBrowserWindow w(src, arar_);
+    auto* pis = w.facet_list(pp::Facet::PrincipalInvestigator);
+    QVERIFY(pis);
+    QCOMPARE(pis->count(), 3);
+    QCOMPARE(pis->item(0)->text(), QStringLiteral("J Ross (NMT)"));
+    QCOMPARE(pis->item(1)->text(), pis->item(2)->text());
+    pis->item(2)->setCheckState(Qt::Checked);
+    QCOMPARE(w.query().principal_investigators, std::vector<std::string>{"uuid-c"});
+    find_item(w.facet_list(pp::Facet::PrincipalInvestigator), QStringLiteral("J Ross (NMT)"))->setCheckState(Qt::Checked);
+    QCOMPARE(w.query().principal_investigators, (std::vector<std::string>{"uuid-a", "uuid-c"}));
+  }
+
+  void facet_box_keeps_values_behind_its_labels() {
+    ui::FacetBox box(QStringLiteral("PI"));
+    box.set_items({{QStringLiteral("a"), QStringLiteral("J Ross (NMT)")}, {QStringLiteral("b"), QStringLiteral("A Smith")}});
+    find_item(box.list(), QStringLiteral("J Ross (NMT)"))->setCheckState(Qt::Checked);
+    QCOMPARE(box.checked(), QStringList{QStringLiteral("a")});
+    box.filter()->setText(QStringLiteral("smith"));  // the filter reads what is shown
+    QVERIFY(!find_item(box.list(), QStringLiteral("A Smith"))->isHidden());
+    box.filter()->clear();
+
+    // No longer offered: it stays ticked, under the label it had.
+    box.set_items({{QStringLiteral("b"), QStringLiteral("A Smith")}});
+    QCOMPARE(box.checked(), QStringList{QStringLiteral("a")});
+    QCOMPARE(box.list()->item(1)->text(), QStringLiteral("J Ross (NMT)"));
+    // Offered again: by value, not by what it reads as.
+    box.set_items({{QStringLiteral("a"), QStringLiteral("J Ross")}});
+    QCOMPARE(box.checked(), QStringList{QStringLiteral("a")});
+    QCOMPARE(box.list()->count(), 1);
+    QCOMPARE(box.list()->item(0)->text(), QStringLiteral("J Ross"));
   }
 
   void facet_box_filters_its_values() {

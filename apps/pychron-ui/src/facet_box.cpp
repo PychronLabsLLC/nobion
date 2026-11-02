@@ -1,5 +1,7 @@
 #include "facet_box.hpp"
 
+#include <algorithm>
+
 #include <QHBoxLayout>
 #include <QLineEdit>
 #include <QListWidget>
@@ -34,27 +36,40 @@ FacetBox::FacetBox(const QString& title, QWidget* parent)
   });
 }
 
-void FacetBox::set_values(const QStringList& values) {
+void FacetBox::set_items(const std::vector<Item>& items) {
   const QStringList ticked = checked();
-  QStringList all = values;
-  for (const auto& value : ticked)
-    if (!all.contains(value)) all << value;
+  std::vector<Item> all = items;
+  for (int i = 0; i < list_->count(); ++i) {
+    const QListWidgetItem* line = list_->item(i);
+    const QString value = line->data(Qt::UserRole).toString();
+    if (line->checkState() != Qt::Checked) continue;
+    if (std::ranges::none_of(items, [&](const Item& item) { return item.value == value; }))
+      all.push_back({value, line->text()});
+  }
   updating_ = true;
   list_->clear();
-  for (const auto& value : all) {
-    auto* item = new QListWidgetItem(value, list_);
-    item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-    item->setCheckState(ticked.contains(value) ? Qt::Checked : Qt::Unchecked);
+  for (const auto& [value, label] : all) {
+    auto* line = new QListWidgetItem(label, list_);
+    line->setData(Qt::UserRole, value);
+    line->setFlags(line->flags() | Qt::ItemIsUserCheckable);
+    line->setCheckState(ticked.contains(value) ? Qt::Checked : Qt::Unchecked);
   }
   updating_ = false;
   apply_filter();
   update_header();
 }
 
+void FacetBox::set_values(const QStringList& values) {
+  std::vector<Item> items;
+  items.reserve(static_cast<std::size_t>(values.size()));
+  for (const auto& value : values) items.push_back({value, value});
+  set_items(items);
+}
+
 QStringList FacetBox::checked() const {
   QStringList out;
   for (int i = 0; i < list_->count(); ++i)
-    if (list_->item(i)->checkState() == Qt::Checked) out << list_->item(i)->text();
+    if (list_->item(i)->checkState() == Qt::Checked) out << list_->item(i)->data(Qt::UserRole).toString();
   return out;
 }
 

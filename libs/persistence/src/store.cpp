@@ -722,7 +722,7 @@ class TinyStore final : public IStore {
     return detail::browse(*db_, dialect(), request);
   }
 
-  Result<std::vector<std::string>> facet(BrowseFacet f, const BrowseFilter& filter) override {
+  Result<std::vector<FacetValue>> facet(BrowseFacet f, const BrowseFilter& filter) override {
     return detail::facet(*db_, dialect(), f, filter);
   }
 

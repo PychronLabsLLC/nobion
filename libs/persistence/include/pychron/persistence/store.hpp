@@ -511,8 +511,9 @@ struct AppliedMigration {
 // material come from the identifier's sample or its irradiation position's.
 struct BrowseFilter {
   std::string text;  // case-insensitive prefix of run id, identifier or sample
-  std::vector<std::string> identifiers, samples, projects, principal_investigators, materials, analysis_types,
-      mass_spectrometers, extract_devices, loads, irradiations, levels, repositories;
+  std::vector<std::string> identifiers, samples, projects, materials, analysis_types, mass_spectrometers,
+      extract_devices, loads, irradiations, levels, repositories;
+  std::vector<Uuid> principal_investigators;  // by uuid: a name is not a PI (PI spec 7)
   std::optional<UtcTime> from, to;    // timestamp_utc, inclusive
   std::optional<double> last_hours;   // relative to the newest analysis in the database
   std::vector<std::string> exclude_tags;  // names of the head tag
@@ -546,6 +547,8 @@ struct BrowseRow {
   // the identifier's own, else its position's. Several samples may share a
   // name, one per project; this says which.
   std::optional<Uuid> sample_uuid = std::nullopt;
+  // The project's PI (`principal_investigator` is what it is shown as).
+  std::optional<Uuid> principal_investigator_uuid = std::nullopt;
   // The cached age and its 1 sigma error (Ma), when derived_value has one.
   // It may be out of date: nothing here says whether its inputs changed.
   std::optional<double> age = std::nullopt, age_err = std::nullopt;
@@ -570,6 +573,14 @@ enum class BrowseFacet {
   Level,
   Load,
   Repository,
+};
+
+// One value of a facet: what a filter takes, and what a list shows. The two
+// are one text but for a PI, whose value is its uuid and whose label says who
+// it is, with its affiliation when another PI shows the same name.
+struct FacetValue {
+  std::string value, label;
+  friend bool operator==(const FacetValue&, const FacetValue&) = default;
 };
 
 // What recall and reduction need beyond the head payloads.
@@ -789,8 +800,8 @@ class IStore {
   // Newest first, keyset paged on (timestamp, uuid).
   virtual Result<BrowseResult> browse(const BrowseRequest& request) = 0;
   // Distinct non-empty values of `facet` among analyses matching every other
-  // filter of `filter`, sorted.
-  virtual Result<std::vector<std::string>> facet(BrowseFacet facet, const BrowseFilter& filter) = 0;
+  // filter of `filter`, sorted (PIs by family name, then given name).
+  virtual Result<std::vector<FacetValue>> facet(BrowseFacet facet, const BrowseFilter& filter) = 0;
   virtual Result<std::optional<AnalysisDetail>> load_analysis_detail(Uuid analysis) = 0;
   // A content-addressed raw series; nullopt when not (yet) uploaded.
   virtual Result<std::optional<BlobData>> load_blob(const Sha256Digest& sha) = 0;

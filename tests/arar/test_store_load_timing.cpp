@@ -116,7 +116,7 @@ std::string busiest_spectrometer(StoreSource& source, const std::vector<std::str
   if (!names) return {};
   std::string best;
   std::size_t most = 0;
-  for (const auto& name : *names) {
+  for (const auto& [name, label] : *names) {
     BrowseQuery one = q;
     one.mass_spectrometers = {name};
     one.limit = 100000;

@@ -105,8 +105,8 @@ Checked 2026-10-18, on the branch through Task 7: `cmake --build --preset dev-ui
 
 **Files:** `libs/persistence` `store.hpp` (`BrowseFilter`), `browse.cpp`, `sql/browse.hpp`; `libs/processing` `source.hpp` (`FacetValue`, `AnalysisSummary::principal_investigator_uuid`), `source.cpp`, `adapters/store/src/store_source.cpp`, `adapters/records` (the record source), every `facet()` override; UI facet box (`facet_box.*`, `data_browser_window.cpp`); tests in `tests/persistence/test_browse.cpp`, `tests/processing/test_store_source.cpp` (and the test of `MemorySource`, wherever it lives), `tests/ui/test_data_windows.cpp`.
 
-- [ ] Failing tests: two PIs shown "J Ross" are two facet values with the same label and the affiliation in brackets; filtering by one gives its analyses only; a memory or record source gives name as value and label; plan test: the PI filter on `p.pi_uuid` uses `project`'s index on it or the commit shows why none is needed (count projects in the lab store copy at `~/pychron-dev/legacy-db/store.db`, on a copy).
-- [ ] `facet()` returns `std::vector<FacetValue>` through the stack. Commit `feat(processing): the data browser tells PIs apart by uuid`.
+- [x] Failing tests: two PIs shown "J Ross" are two facet values with the same label and the affiliation in brackets; filtering by one gives its analyses only; a memory or record source gives name as value and label; plan test: the PI filter on `p.pi_uuid` uses `project`'s index on it or the commit shows why none is needed (count projects in the lab store copy at `~/pychron-dev/legacy-db/store.db`, on a copy). `BrowseTest.NamesakesAreTwoFacetValuesAndFilterApart`, `StoreSourceTest.APiIsFilteredByItsUuid`, `MemorySource.APiIsItsNameWithoutAStore`, `RecordSource.APiIsItsName`, `SchemaIndexes.APiFilterNeedsNoIndexOnProject` (672 projects: none needed, times in the commit).
+- [x] `facet()` returns `std::vector<FacetValue>` through the stack. Commit `feat(processing): the data browser tells PIs apart by uuid`. The browser had no PI box at all, so one was added; no saved search exists, so spec 7's rule on them had nothing to act on.
 
 ### Task 9: Documents
 

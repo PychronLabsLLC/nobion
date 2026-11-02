@@ -15,6 +15,7 @@ inline const QString kBrowseSelect = QStringLiteral(
     "SELECT a.uuid, a.runid_text, i.identifier, a.aliquot, a.increment, a.provisional, a.analysis_type, "
     "%1 AS ts, m.name AS mass_spectrometer, a.signals_state, "
     "s.name AS sample, s.uuid AS sample_uuid, p.name AS project, mt.name AS material, pi.display_name AS principal_investigator, "
+    "p.pi_uuid AS principal_investigator_uuid, "
     "ed.name AS extract_device, ld.name AS load_name, ir.name AS irradiation, lv.name AS level, "
     "ip.position AS position, a.extract_value, a.extract_units, tv.name AS tag, "
     "dv.value AS age, dv.error AS age_err, "
@@ -65,7 +66,8 @@ inline const QString kColAnalysisType = QStringLiteral("a.analysis_type");
 inline const QString kColMassSpectrometer = QStringLiteral("m.name");
 inline const QString kColExtractDevice = QStringLiteral("ed.name");
 inline const QString kColProject = QStringLiteral("p.name");
-inline const QString kColPrincipalInvestigator = QStringLiteral("pi.display_name");
+// A PI by its uuid: two PIs may show one name.
+inline const QString kColPrincipalInvestigator = QStringLiteral("p.pi_uuid");
 inline const QString kColSample = QStringLiteral("s.name");
 inline const QString kColMaterial = QStringLiteral("mt.name");
 inline const QString kColIdentifier = QStringLiteral("i.identifier");
@@ -98,6 +100,8 @@ inline const QString kBrowseCount = QStringLiteral("SELECT COUNT(*) AS n ");
 inline const QString kFacetSelect = QStringLiteral("SELECT DISTINCT %1 AS v ");
 inline const QString kFacetTail = QStringLiteral(" ORDER BY 1");
 inline const QString kFacetNotNull = QStringLiteral("%1 IS NOT NULL AND %1 <> ''");
+// A uuid column: PostgreSQL will not compare one with ''.
+inline const QString kFacetUuidNotNull = QStringLiteral("%1 IS NOT NULL");
 // %1: kBrowseFrom (and an age join), %2: where clause.
 inline const QString kRepositoryFacet = QStringLiteral(
     "SELECT DISTINCT r.name AS v FROM repository r JOIN repository_member rm ON rm.repository_uuid = r.uuid "
