@@ -8,6 +8,7 @@
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <random>
 #include <thread>
 
 #include "pychron/core/virtual_clock.hpp"
@@ -50,11 +51,13 @@ std::unique_ptr<TcpTransport> connect(std::uint16_t port, Duration timeout = 5s)
 
 // Two consecutive ports nothing is bound to, as far as one can tell.
 std::optional<std::uint16_t> free_pair() {
+  // Below every OS's ephemeral range (macOS and Windows 49152, Linux 32768):
+  // port 0 hands out neighbouring ports, so tests running at once would take
+  // this pair's second port between the check here and the use.
+  std::random_device seed;
+  std::uniform_int_distribution<int> pick(20000, 31998);
   for (int attempt = 0; attempt < 20; ++attempt) {
-    auto a = TcpListener::bind("127.0.0.1", 0);
-    if (!a || (*a)->port() >= 65535) continue;
-    const auto base = (*a)->port();
-    a->reset();
+    const auto base = static_cast<std::uint16_t>(pick(seed));
     auto first = TcpListener::bind("127.0.0.1", base);
     auto second = TcpListener::bind("127.0.0.1", static_cast<std::uint16_t>(base + 1));
     if (first && second) return base;
@@ -160,10 +163,12 @@ TEST(WireServerSteady, TwoConnectionsShareModel) {
 }
 
 TEST(WireServerSteady, StartAllOrNothingWhenPortTaken) {
-  auto taken = TcpListener::bind("127.0.0.1", 0);
+  // A port whose neighbour is free: run in parallel, another test may hold it.
+  const auto base = free_pair();
+  if (!base) GTEST_SKIP() << "no two free consecutive ports";
+  const auto port = *base;
+  auto taken = TcpListener::bind("127.0.0.1", port);
   ASSERT_TRUE(taken);
-  const auto port = (*taken)->port();
-  if (port == 65535) GTEST_SKIP() << "the OS chose the last port";
   auto calls = std::make_shared<std::atomic<int>>(0);
   WireServer server({.bind = "127.0.0.1", .port_base = port, .clock = nullptr});
   ASSERT_TRUE(server.add("b", WireProtocol::Tcp, echo(calls)));
