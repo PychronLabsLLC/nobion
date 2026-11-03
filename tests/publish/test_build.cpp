@@ -103,7 +103,7 @@ TEST_P(BuildTest, WritesEveryFileInTheManifestWithMatchingSha) {
   EXPECT_EQ(m.release.state, "draft");
   EXPECT_EQ(m.build.software, "pychron-cpp/0.4.0");
   EXPECT_EQ(m.build.store_kind, GetParam() == "pg" ? "postgresql" : "sqlite");
-  EXPECT_EQ(m.build.schema_version, 7);
+  EXPECT_EQ(m.build.schema_version, 8);
   EXPECT_EQ(m.pins.analyses.size(), 3u);
   EXPECT_EQ(m.pins.samples.size(), 3u);
   EXPECT_EQ(m.pins.analyses[0].heads.size(), 6u);

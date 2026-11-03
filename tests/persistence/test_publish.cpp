@@ -4,13 +4,19 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <map>
+#include <set>
+#include <string>
+#include <vector>
 
 #include "pychron/persistence/publish.hpp"
 #include "store_fixture.hpp"
+#include "store_impl.hpp"
 
 using namespace pychron;
 using namespace pychron::persistence;
 using namespace pychron::persistence::testing;
+namespace pd = pychron::persistence::detail;
 
 namespace {
 
@@ -471,4 +477,244 @@ TEST_P(PublishStoreTest, ResolveRefsAtDropsReferencesMadeAfterTheBookmark) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Engines, PublishStoreTest, ::testing::ValuesIn(engines()),
+                         [](const ::testing::TestParamInfo<std::string>& i) { return i.param; });
+
+// ---------------------------------------------------------------- USGS Geochron view (spec 9.2)
+
+namespace {
+
+// The arar_constants of a stored interpreted age, under "preferred" as a
+// nested legacy document has them.
+constexpr const char* kPlateauDoc =
+    R"({"preferred": {"arar_constants": {"lambda_k": 5.463e-10, "lambda_k_err": 1.0e-11,)"
+    R"( "atm4036": 298.56, "atm4036_err": 0.31}}})";
+
+// pub_geochron_ar40ar39 is PostgreSQL only: a sample with a location, one
+// analysis, and interpreted ages of it released as the tests choose.
+class GeochronViewTest : public PublishStoreTest {
+ protected:
+  void SetUp() override {
+    PublishStoreTest::SetUp();
+    SampleSpec spec{"RC-1", project_, material_};
+    spec.lat = 33.5;
+    spec.lon = -106.25;
+    spec.elevation = 1520.0;
+    spec.igsn = "IEJR00001";
+    spec.unit = "Bandelier Tuff";
+    spec.lithology = "rhyolite";
+    spec.location = "Valles caldera rim";
+    located_ = *store_->add_sample(lab_.reduction_client, spec);
+    analysis_ = ingest("70004", located_);
+    located_group_ = *store_->create_group(reducer(), "release:geochron", {analysis_});
+    located_bookmark_ =
+        *store_->create_bookmark(reducer(), BookmarkSpec{"geochron", std::nullopt, std::nullopt, located_group_});
+  }
+
+  Uuid age_of(const std::vector<Uuid>& members, const std::string& kind = "Plateau",
+              const std::string& doc = kPlateauDoc) {
+    const Uuid ia = *store_->add_interpreted_age(lab_.reduction_client, {"RC-1 " + kind});
+    InterpretedAgeValue v;
+    v.age = 31.92;
+    v.age_err = 0.03;
+    v.age_kind = kind;
+    v.kca = 19.2;
+    v.kca_err = 0.4;
+    v.mswd = 2.56;
+    v.nanalyses = 5;
+    v.doc_json = doc;
+    for (const Uuid& member : members) v.members.push_back({member, std::nullopt, std::nullopt, std::nullopt});
+    auto uow = *store_->begin(reducer());
+    EXPECT_TRUE(uow->add_revision(ia, Kind::InterpretedAge, v, std::nullopt));
+    auto outcome = uow->commit(ChangesetKind::Reduction, "ia");
+    EXPECT_TRUE(outcome && std::holds_alternative<Committed>(*outcome));
+    return ia;
+  }
+
+  ReleaseInsert located_release(const std::string& name, const std::vector<Uuid>& ages, int version = 1) const {
+    ReleaseInsert r = insert(name, version);
+    r.group = located_group_;
+    r.bookmark = located_bookmark_;
+    r.samples = {located_};
+    for (const Uuid& ia : ages) r.interpreted_ages.emplace_back(ia, **store_->head(ia, Kind::InterpretedAge));
+    return r;
+  }
+
+  void publish(const ReleaseInsert& r, Visibility visibility = Visibility::Public) {
+    auto id = store_->add_release(reducer(), r);
+    ASSERT_TRUE(id) << to_string(id.error());
+    ReleaseUpdate u;
+    u.release = r.uuid;
+    u.state = ReleaseState::Published;
+    u.visibility = visibility;
+    u.manifest_sha256 = sha256(std::string_view{"manifest"});
+    auto updated = store_->update_release(reducer(), u);
+    ASSERT_TRUE(updated) << to_string(updated.error());
+  }
+
+  std::vector<pd::Row> rows() {
+    auto db = pd::Db::open(StoreConfig{db_->url(), false});
+    EXPECT_TRUE(db) << (db ? "" : to_string(db.error()));
+    if (!db) return {};
+    auto out = (*db)->select("SELECT * FROM pub_geochron_ar40ar39 ORDER BY id");
+    EXPECT_TRUE(out) << (out ? "" : to_string(out.error()));
+    return out ? *out : std::vector<pd::Row>{};
+  }
+
+  Uuid located_, analysis_, located_group_, located_bookmark_;
+};
+
+}  // namespace
+
+TEST_P(GeochronViewTest, APublishedPlateauIsAParentRowInUsgsTerms) {
+  const Uuid ia = age_of({analysis_});
+  auto release = located_release("r", {ia});
+  release.title = "Valles caldera ages";
+  publish(release);
+
+  const auto got = rows();
+  ASSERT_EQ(got.size(), 1u);
+  const auto& r = got[0];
+  EXPECT_EQ(pd::to_std(r.value("id")), release.uuid.str() + "_" + ia.str());
+  EXPECT_EQ(pd::to_std(r.value("sample_id")), "RC-1");
+  EXPECT_EQ(pd::to_std(r.value("igsn")), "IEJR00001");
+  EXPECT_DOUBLE_EQ(r.value("lat").toDouble(), 33.5);
+  EXPECT_DOUBLE_EQ(r.value("long").toDouble(), -106.25);
+  EXPECT_DOUBLE_EQ(r.value("elevation").toDouble(), 1520.0);
+  EXPECT_EQ(pd::to_std(r.value("fieldname")), "rhyolite");
+  EXPECT_EQ(pd::to_std(r.value("geologicalunit")), "Bandelier Tuff");
+  EXPECT_EQ(pd::to_std(r.value("localitydesc")), "Valles caldera rim");
+  EXPECT_EQ(pd::to_std(r.value("samplematerial")), "sanidine");
+  EXPECT_EQ(pd::to_std(r.value("argon_id")), "70004");
+  EXPECT_DOUBLE_EQ(r.value("age").toDouble(), 31.92);
+  EXPECT_DOUBLE_EQ(r.value("ageunc").toDouble(), 0.03);
+  EXPECT_DOUBLE_EQ(r.value("mswd").toDouble(), 2.56);
+  EXPECT_EQ(r.value("nofanalyses").toInt(), 5);
+  EXPECT_DOUBLE_EQ(r.value("kcaratio").toDouble(), 19.2);
+  EXPECT_DOUBLE_EQ(r.value("kcaratiounc").toDouble(), 0.4);
+  EXPECT_EQ(pd::to_std(r.value("ageintpntype")), "plateau");
+  EXPECT_EQ(pd::to_std(r.value("ageintpnclass")), "not specified");
+  EXPECT_EQ(pd::to_std(r.value("analysistype")), "Incremental heating");
+  EXPECT_EQ(pd::to_std(r.value("instrumentmethod")), "Noble gas mass spectrometer");
+  EXPECT_DOUBLE_EQ(r.value("decayconsttotal").toDouble(), 5.463);
+  EXPECT_NEAR(r.value("decayconttotalunc").toDouble(), 0.1, 1e-12);
+  EXPECT_DOUBLE_EQ(r.value("initratioar4036").toDouble(), 298.56);
+  EXPECT_DOUBLE_EQ(r.value("initratioar4036unc").toDouble(), 0.31);
+  EXPECT_EQ(pd::to_std(r.value("citation")), "Valles caldera ages");
+  EXPECT_EQ(pd::to_std(r.value("publication_geodatum")), "WGS84");
+  EXPECT_EQ(pd::to_std(r.value("release_name")), "r");
+  EXPECT_FALSE(r.value("geom").isNull());
+}
+
+TEST_P(GeochronViewTest, AgeKindsTakeUsgsVocabulary) {
+  const std::map<std::string, std::string> kinds{{"Plateau", "plateau"},
+                                                 {"Weighted Mean", "weighted mean"},
+                                                 {"Isochron", "isochron"},
+                                                 {"Integrated", "total gas"},
+                                                 {"Something else", "not specified"}};
+  std::vector<Uuid> ages;
+  ages.reserve(kinds.size());
+  for (const auto& [kind, usgs] : kinds) ages.push_back(age_of({analysis_}, kind));
+  publish(located_release("r", ages));
+
+  std::set<std::string> seen;
+  for (const auto& r : rows()) {
+    const std::string type = pd::to_std(r.value("ageintpntype"));
+    seen.insert(type);
+    if (type == "isochron") {
+      EXPECT_TRUE(r.value("initratioar4036").isNull()) << "an isochron's ratio is calculated";
+    }
+  }
+  for (const auto& [kind, usgs] : kinds) EXPECT_TRUE(seen.contains(usgs)) << usgs;
+}
+
+// A legacy document may hold anything where a constant belongs; one bad
+// value must not fail every query of the view.
+TEST_P(GeochronViewTest, AConstantThatIsNotANumberIsNull) {
+  const Uuid flat = age_of({analysis_}, "Plateau", R"({"arar_constants": {"lambda_k": 5.543e-10}})");
+  const Uuid bad = age_of({analysis_}, "Weighted Mean", R"({"arar_constants": {"lambda_k": "n/a", "atm4036": null}})");
+  publish(located_release("r", {flat, bad}));
+
+  const auto got = rows();
+  ASSERT_EQ(got.size(), 2u);
+  for (const auto& r : got) {
+    if (pd::to_std(r.value("ageintpntype")) == "plateau") {
+      EXPECT_DOUBLE_EQ(r.value("decayconsttotal").toDouble(), 5.543);
+    } else {
+      EXPECT_TRUE(r.value("decayconsttotal").isNull());
+      EXPECT_TRUE(r.value("initratioar4036").isNull());
+    }
+  }
+}
+
+TEST_P(GeochronViewTest, OnlyAPublishedPublicReleaseIsServed) {
+  const Uuid ia = age_of({analysis_});
+  auto draft = located_release("draft", {ia});
+  ASSERT_TRUE(store_->add_release(reducer(), draft));
+  publish(located_release("private", {ia}), Visibility::Private);
+  EXPECT_TRUE(rows().empty());
+}
+
+TEST_P(GeochronViewTest, AnEmbargoHidesTheAge) {
+  publish(located_release("r", {age_of({analysis_})}));
+  ASSERT_EQ(rows().size(), 1u);
+
+  auto e = store_->add_embargo(reducer(), {{EmbargoScopeType::Analysis, analysis_}, std::nullopt, "in review"});
+  ASSERT_TRUE(e) << to_string(e.error());
+  EXPECT_TRUE(rows().empty()) << "a member under embargo leaks through no age";
+  ASSERT_TRUE(store_->lift_embargo(reducer(), *e));
+  EXPECT_EQ(rows().size(), 1u);
+
+  ASSERT_TRUE(store_->add_embargo(reducer(), {{EmbargoScopeType::Project, project_}, std::nullopt, "in review"}));
+  EXPECT_TRUE(rows().empty());
+}
+
+// Spec R4: every member of the age has to be published with it.
+TEST_P(GeochronViewTest, AnAgeWithAMemberOutsideTheReleaseIsNotServed) {
+  // Of the released sample itself: only the member rule can hide the age.
+  const Uuid outside = ingest("70005", located_);
+  publish(located_release("r", {age_of({analysis_, outside})}));
+  EXPECT_TRUE(rows().empty());
+}
+
+TEST_P(GeochronViewTest, ASampleWithNoLocationIsNotServed) {
+  auto release = insert("r");
+  release.samples = {sample1_};
+  const Uuid ia = age_of({analysis1_});
+  release.interpreted_ages = {{ia, **store_->head(ia, Kind::InterpretedAge)}};
+  publish(release);
+  EXPECT_TRUE(rows().empty()) << "USGS Geochron requires a location";
+}
+
+TEST_P(GeochronViewTest, EachReleaseNameServesItsNewestVersion) {
+  const Uuid ia = age_of({analysis_});
+  const auto v1 = located_release("r", {ia}, 1);
+  publish(v1);
+  auto v2 = located_release("r", {ia}, 2);
+  v2.supersedes = v1.uuid;
+  publish(v2);
+  auto other = located_release("other", {ia});
+  publish(other);
+
+  const auto got = rows();
+  ASSERT_EQ(got.size(), 2u) << "one age, two release names";
+  std::set<std::string> ids;
+  for (const auto& r : got) {
+    ids.insert(pd::to_std(r.value("id")));
+    if (pd::to_std(r.value("release_name")) == "r") {
+      EXPECT_EQ(r.value("release_version").toInt(), 2);
+    }
+  }
+  EXPECT_EQ(ids.size(), 2u) << "pygeoapi needs a unique id";
+}
+
+namespace {
+std::vector<std::string> postgres_only() {
+  std::vector<std::string> e;
+  if (!pg_url().empty()) e.emplace_back("pg");
+  return e;
+}
+}  // namespace
+
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(GeochronViewTest);
+INSTANTIATE_TEST_SUITE_P(Engines, GeochronViewTest, ::testing::ValuesIn(postgres_only()),
                          [](const ::testing::TestParamInfo<std::string>& i) { return i.param; });

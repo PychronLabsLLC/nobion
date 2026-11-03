@@ -860,6 +860,40 @@ Plan tests (`SchemaIndexes`, PostgreSQL only): `pub.sample` by bbox uses
 `pub.record` is a materialised view refreshed by `publish upload` and
 `embargo` changes: `REFRESH MATERIALIZED VIEW CONCURRENTLY`).
 
+**USGS Geochron view** (migration `0008`, `-- @sqlite skip`): `pub_geochron_ar40ar39`.
+One row per visible interpreted age, as parent row of USGS Geochron table
+`ar40ar39` (Data Report 1227, table 2.1; field names checked against data
+release ver. 4.0, `doi:10.5066/P9RZNPIF`): column names and units theirs,
+flattened with `sample` and `location` as their CSV is, plus pychron uuids,
+`release_name`, `release_version`, `geom`. `id` is `<release>_<ia>` text: one
+age may sit in several releases.
+
+- Departs from table above: values read from `ia_value` at pin
+  (`release_interpreted_age.revision_uuid`), not `pub_interpreted_age_value`,
+  so view serves before `publish upload` (phase 7) exists. Nothing calculated
+  but change of unit (`lambda_k` a^-1 to USGS x10^10 a^-1).
+- `ageunc` is `ia_value.age_err`, one sigma (plateau of fixture
+  `tests/dvc/fixtures/ia/Cornudas/694/ia/21_00000.ia.json`: SEM x sqrt(MSWD) of
+  members' `age_err_wo_j`, exact). `ageuncint`, `ageuncext` left out:
+  `include_j_error_in_plateau` is true on that same document, whose error
+  holds no J, so flag cannot say what error includes.
+- `ageintpntype` in USGS vocabulary: plateau, weighted mean, isochron,
+  total gas (Integrated), else `not specified`. `ageintpnclass` always
+  `not specified`: store has no interpretation class.
+  `initratioar4036` is assumed `atm4036`; null for isochron, whose ratio is
+  calculated and is not in `ia_value`.
+- `arar_constants` read from document with `jsonb_typeof` guard: legacy text
+  in a constant gives null, not an error for every query of view.
+- A sample with no location is left out (USGS requires one).
+- Age is served only when all of: every member in release's group; no member
+  under live embargo; every member's sample visible (R4, as release build).
+  Sample and identifier are those of earliest member.
+- Newest visible version per release name, as `pub_interpreted_age`.
+- Out of scope: step rows (child rows, `parentarid`): their values are in
+  `pub_analysis_value`, written only by `publish upload`. Fields store does
+  not hold (`collector`, `datecollected`, `country`, `stateprovince`,
+  monitor, J) are not columns.
+
 ### 9.3 pygeoapi
 
 pygeoapi 0.24.0 (2026-07-28;
@@ -880,6 +914,7 @@ Collections per tenant (OGC API - Features):
 | `analyses` | `pub.analysis` | one per visible analysis (geometry = sample's) |
 | `interpreted-ages` | `pub.interpreted_age` | one per visible IA |
 | `releases` | `pub.release` | one per visible release |
+| `ar40ar39` | `pub_geochron_ar40ar39` | one per visible IA, USGS Geochron terms: `id_field: id`, `time_field: entrydate` |
 
 OGC API - Records: pygeoapi 0.24 ships record providers
 ElasticsearchCatalogue, TinyDBCatalogue, CSWFacade only

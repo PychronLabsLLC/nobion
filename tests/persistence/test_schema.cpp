@@ -139,7 +139,7 @@ TEST_P(SchemaTest, MigrateIsIdempotentAndRecordsChecksums) {
     ASSERT_TRUE(store);
     auto status = store->schema_status();
     ASSERT_TRUE(status) << to_string(status.error());
-    ASSERT_EQ(status->size(), 7u);
+    ASSERT_EQ(status->size(), 8u);
     EXPECT_EQ((*status)[0].version, 1);
     EXPECT_EQ((*status)[0].description, "init");
     EXPECT_EQ((*status)[0].checksum_hex.size(), 64u);
@@ -155,6 +155,8 @@ TEST_P(SchemaTest, MigrateIsIdempotentAndRecordsChecksums) {
     EXPECT_EQ((*status)[5].description, "pi_identity");
     EXPECT_EQ((*status)[6].version, 7);
     EXPECT_EQ((*status)[6].description, "release");
+    EXPECT_EQ((*status)[7].version, 8);
+    EXPECT_EQ((*status)[7].description, "geochron_view");
   }
   // Reopen: nothing pending, so migrate = false opens fine.
   auto again = open_store(StoreConfig{tdb.url(), false});
