@@ -375,9 +375,9 @@ An unknown argument is a usage error (2). Nothing is downloaded or installed;
 the release page is for you to open.
 
 What `--check` sends: one `GET` of
-`https://api.github.com/repos/PychronLabsLLC/pychron-cpp/releases/latest`, with
+`https://api.github.com/repos/PychronLabsLLC/nobion/releases/latest`, with
 the headers `Accept: application/vnd.github+json` and
-`User-Agent: pychron-cpp/<version>`, and a 10 second timeout. Nothing else
+`User-Agent: nobion/<version>`, and a 10 second timeout. Nothing else
 identifying is sent, and nothing is written to disk. A build without Qt
 Network has no client and says so (`this build has no network client`).
 

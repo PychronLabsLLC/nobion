@@ -1,6 +1,6 @@
 # Developer setup (macOS)
 
-How to set up a machine to build, test and continue developing pychron-cpp,
+How to set up a machine to build, test and continue developing nobion,
 including the spec-router agent workflow. CI (`.github/workflows/ci.yml`)
 covers Linux and Windows builds as well; this page is the macOS dev setup.
 
@@ -95,7 +95,7 @@ Without it a release is built without `data/*.parquet` and says so.
 ## 2. Code
 
 ```bash
-git clone https://github.com/PychronLabsLLC/pychron-cpp.git ~/Programming/pychron-cpp
+git clone https://github.com/PychronLabsLLC/nobion.git ~/Programming/nobion
 git clone https://github.com/PychronLabsLLC/pychron.git ~/Programming/pychron
 ```
 
@@ -108,7 +108,7 @@ legacy behaviour.
 ## 3. Build and test
 
 ```bash
-cd ~/Programming/pychron-cpp
+cd ~/Programming/nobion
 cmake --preset dev
 cmake --build --preset dev --parallel
 ctest --preset dev
@@ -454,7 +454,7 @@ agent's report with TypeSafe (Jev) and merges.
 1. Python venv:
 
    ```bash
-   cd ~/Programming/pychron-cpp/tools/spec_router
+   cd ~/Programming/nobion/tools/spec_router
    uv venv .venv
    uv pip install -e '.[dev]'
    .venv/bin/python -m pytest -q
@@ -474,7 +474,7 @@ agent's report with TypeSafe (Jev) and merges.
 Usage:
 
 ```bash
-cd ~/Programming/pychron-cpp
+cd ~/Programming/nobion
 tools/spec_router/.venv/bin/spec-router status
 tools/spec_router/.venv/bin/spec-router run --wave <N> --parallel 3
 tools/spec_router/.venv/bin/spec-router verify <unit> [--accept-judgment | --without-report]
@@ -950,7 +950,7 @@ elctl import-line ~/Pychron/setupfiles       # prints the conversion; --out DIR 
 A legacy Pychron line (`extractionline/valves.yaml` or `valves.xml`,
 `canvas2D/`, `devices/`) is converted to `extraction_line.toml` and
 `canvas.toml`. NGX valve controllers keep their address; controllers with no
-pychron-cpp driver yet are simulated (`sim_valves`), and the report lists
+nobion driver yet are simulated (`sim_valves`), and the report lists
 what was not carried over (legacy extraction-line survey,
 `docs/superpowers/specs/2026-10-03-legacy-extraction-line-survey.md`).
 

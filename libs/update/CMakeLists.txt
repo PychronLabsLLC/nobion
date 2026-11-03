@@ -14,5 +14,5 @@ target_include_directories(pychron_update PUBLIC
 )
 target_compile_features(pychron_update PUBLIC cxx_std_20)
 target_link_libraries(pychron_update PUBLIC pychron::core PRIVATE nlohmann_json::nlohmann_json)
-target_compile_definitions(pychron_update PRIVATE PYCHRON_UPDATE_USER_AGENT="pychron-cpp/${PROJECT_VERSION}")
+target_compile_definitions(pychron_update PRIVATE PYCHRON_UPDATE_USER_AGENT="nobion/${PROJECT_VERSION}")
 pychron_set_warnings(pychron_update)

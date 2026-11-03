@@ -50,7 +50,7 @@ TEST(UpdateRelease, ReadsTheFixture) {
   ASSERT_TRUE(release.has_value());
   EXPECT_EQ(release->tag, "v0.4.0");
   EXPECT_EQ(release->version, (Version{0, 4, 0}));
-  EXPECT_EQ(release->html_url, "https://github.com/PychronLabsLLC/pychron-cpp/releases/tag/v0.4.0");
+  EXPECT_EQ(release->html_url, "https://github.com/PychronLabsLLC/nobion/releases/tag/v0.4.0");
   EXPECT_FALSE(release->notes.empty());
 }
 

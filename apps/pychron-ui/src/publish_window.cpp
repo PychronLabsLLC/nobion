@@ -596,9 +596,9 @@ void PublishWindow::new_release() {
         if (spec->options_json.empty()) spec->options_json = pb::release_options_json(pb::ReleaseOptions{});
         spec->reduction_version = std::string(reduction::kReductionVersion);
 #ifdef PYCHRON_VERSION
-        spec->software_version = std::string("pychron-cpp/") + PYCHRON_VERSION;
+        spec->software_version = std::string("nobion/") + PYCHRON_VERSION;
 #else
-        spec->software_version = "pychron-cpp";
+        spec->software_version = "nobion";
 #endif
         const std::string name = spec->name;
         begin_job();

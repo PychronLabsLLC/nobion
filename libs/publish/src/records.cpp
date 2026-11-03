@@ -327,7 +327,7 @@ std::string release_record_json(const Manifest& m, const ReleaseTables& t) {
   Json p;
   p["type"] = "dataset";
   p["title"] = m.release.title;
-  p["description"] = (m.release.description ? *m.release.description + " " : std::string()) + "pychron-cpp release " +
+  p["description"] = (m.release.description ? *m.release.description + " " : std::string()) + "nobion release " +
                      release_id(m) + ": " + std::to_string(t.analyses.rows.size()) + " analyses, " +
                      std::to_string(t.samples.rows.size()) + " samples.";
   p["keywords"] = Json::array({"40Ar/39Ar", "geochronology", "release"});

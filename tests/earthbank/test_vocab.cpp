@@ -163,7 +163,7 @@ TEST(Vocab, AgeTypeNames) {
   EXPECT_EQ(age_type_name(AgeKind::Integrated), "Total Gas Age");
 }
 
-// The words pychron-cpp has for the error of a mean each have an id: they
+// The words nobion has for the error of a mean each have an id: they
 // are what the mapping writes as an uncertainty type.
 TEST(Vocab, MeanErrorKindsAreUncertaintyTypes) {
   for (const reduction::MeanErrorKind kind :

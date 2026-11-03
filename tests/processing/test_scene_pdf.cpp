@@ -103,7 +103,7 @@ TEST(ScenePdf, CreationDateIsTheGivenTime) {
   const std::string pdf = scene_pdf(Scene{}, kInfo);
   EXPECT_NE(pdf.find("/CreationDate (D:20251009085320Z)"), std::string::npos);
   EXPECT_NE(pdf.find("/Title (fixture)"), std::string::npos);
-  EXPECT_NE(pdf.find("/Producer (pychron-cpp)"), std::string::npos);
+  EXPECT_NE(pdf.find("/Producer (nobion)"), std::string::npos);
 }
 
 TEST(ScenePdf, UsesTheStandardFonts) {

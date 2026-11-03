@@ -214,7 +214,7 @@ TEST(Mapping, OneSubmissionPerSampleInNameOrder) {
 
 TEST(Mapping, SampleAndLocation) {
   PublishOptions options;
-  options.software = "pychron-cpp 9.9.9";
+  options.software = "nobion 9.9.9";
   const Submission s = build_one(step_sample(), options);
   EXPECT_EQ(s.sample.name, "S-STEP");
   EXPECT_EQ(s.sample.sampleID, "S-STEP");
@@ -222,13 +222,13 @@ TEST(Mapping, SampleAndLocation) {
   EXPECT_EQ(s.sample.referenceElevation, 2850.0);
   EXPECT_EQ(s.sample.igsn, "IEXXX0001");
   EXPECT_EQ(s.sample.stratographicUnitName, "Fish Canyon Tuff");
-  EXPECT_EQ(s.sample.description, "Uploaded from pychron-cpp 9.9.9");
-  EXPECT_EQ(build_one(step_sample()).sample.description, "Uploaded from pychron-cpp");
+  EXPECT_EQ(s.sample.description, "Uploaded from nobion 9.9.9");
+  EXPECT_EQ(build_one(step_sample()).sample.description, "Uploaded from nobion");
   // No name given: the fallback the age summary uses, not a sentence without its end.
   options.software.clear();
   const Submission unnamed = build_one(step_sample(), options);
-  EXPECT_EQ(unnamed.sample.description, "Uploaded from pychron-cpp");
-  EXPECT_TRUE(contains(unnamed.age_summary.description.value_or(""), "; reduced with pychron-cpp."));
+  EXPECT_EQ(unnamed.sample.description, "Uploaded from nobion");
+  EXPECT_TRUE(contains(unnamed.age_summary.description.value_or(""), "; reduced with nobion."));
   ASSERT_TRUE(s.location.has_value());
   EXPECT_EQ(s.location->lat, 37.75);
   EXPECT_EQ(s.location->lon, -106.9);
@@ -238,7 +238,7 @@ TEST(Mapping, SampleAndLocation) {
   const Submission bare = build_one(fusion_sample());
   EXPECT_FALSE(bare.location.has_value());
   EXPECT_EQ(to_json(bare.sample).dump(),
-            R"({"description":"Uploaded from pychron-cpp","materialName":"biotite","name":"S-FUS","sampleID":"S-FUS"})");
+            R"({"description":"Uploaded from nobion","materialName":"biotite","name":"S-FUS","sampleID":"S-FUS"})");
   EXPECT_EQ(note_with(bare, "location"), "");
 
   // Half a point is no point, and the user is told.
@@ -1626,14 +1626,14 @@ TEST(Mapping, TheAgeSummarySaysWhatItsUncertaintyIs) {
 
   // A plateau: its steps and its share of the gas.
   PublishOptions options;
-  options.software = "pychron-cpp 9.9.9";
+  options.software = "nobion 9.9.9";
   const auto found =
       pp::group_plateau(step_items, options.ages.plateau, options.ages.plateau_weighting, options.ages.mean_error);
   ASSERT_TRUE(found.has_value());
   EXPECT_EQ(described(build_one(steps, options)),
             "Plateau Age of 6 of 10 analyses (steps C to H, " + printed(found->mean.gas_fraction, 4) +
                 "% of the 39ArK); uncertainty 1 sigma (the mean's msem), J uncertainty included; reduced with "
-                "pychron-cpp 9.9.9.");
+                "nobion 9.9.9.");
   EXPECT_GT(found->mean.gas_fraction, 50.0);
 
   // The same without the J uncertainty, and with another error kind.
@@ -1642,18 +1642,18 @@ TEST(Mapping, TheAgeSummarySaysWhatItsUncertaintyIs) {
   EXPECT_EQ(described(build_one(steps, options)),
             "Plateau Age of 6 of 10 analyses (steps C to H, " + printed(found->mean.gas_fraction, 4) +
                 "% of the 39ArK); uncertainty 1 sigma (the mean's sem), analytical uncertainty only; reduced with "
-                "pychron-cpp 9.9.9.");
+                "nobion 9.9.9.");
 
   // A weighted mean.
   EXPECT_EQ(described(build_one(fusion_sample())),
             "Weighted Mean Age of 6 of 6 analyses; uncertainty 1 sigma (the mean's msem), J uncertainty included; "
-            "reduced with pychron-cpp.");
+            "reduced with nobion.");
   PublishOptions sd_only;
   sd_only.ages.mean_error = r::MeanErrorKind::Sd;
   sd_only.age_includes_j_error = false;
   EXPECT_EQ(described(build_one({fusion_analysis(0)}, sd_only)),
             "Weighted Mean Age of 1 of 1 analysis; uncertainty 1 sigma (the mean's sd), analytical uncertainty "
-            "only; reduced with pychron-cpp.");
+            "only; reduced with nobion.");
 
   // An isochron: the trapped ratio its intercept gives.
   PublishOptions isochron;
@@ -1666,7 +1666,7 @@ TEST(Mapping, TheAgeSummarySaysWhatItsUncertaintyIs) {
             "Inverse Isochron Age of 10 of 10 analyses (trapped 40Ar/36Ar " + printed(fit->trapped.value, 6) +
                 " +/- " + printed(fit->trapped.error, 2) +
                 "); uncertainty 1 sigma (propagated through the regression and the age equation), J uncertainty "
-                "included; reduced with pychron-cpp.");
+                "included; reduced with nobion.");
   isochron.age_includes_j_error = false;
   EXPECT_TRUE(contains(described(build_one(steps, isochron)),
                        "(propagated through the regression and the age equation), analytical uncertainty only;"));
@@ -1676,11 +1676,11 @@ TEST(Mapping, TheAgeSummarySaysWhatItsUncertaintyIs) {
   strict.ages.plateau.nsteps = 9;
   EXPECT_EQ(described(build_one(steps, strict)),
             "Total Gas Age of 10 of 10 analyses; uncertainty 1 sigma (propagated through the age equation), J "
-            "uncertainty included; reduced with pychron-cpp.");
+            "uncertainty included; reduced with nobion.");
   strict.age_includes_j_error = false;
   EXPECT_EQ(described(build_one(steps, strict)),
             "Total Gas Age of 10 of 10 analyses; uncertainty 1 sigma (propagated through the age equation), "
-            "analytical uncertainty only; reduced with pychron-cpp.");
+            "analytical uncertainty only; reduced with nobion.");
 
   // The decay constant's uncertainty, when the reduction carries it into the
   // ages, is in every one of these uncertainties, and the sentence says so:
@@ -1691,7 +1691,7 @@ TEST(Mapping, TheAgeSummarySaysWhatItsUncertaintyIs) {
   decay.reduction.include_decay_error = true;
   const Submission with_decay = build_one(steps, decay);
   EXPECT_EQ(described(with_decay), plateau_of + "(the mean's msem), J uncertainty included, decay constant "
-                                                "uncertainty included; reduced with pychron-cpp.");
+                                                "uncertainty included; reduced with nobion.");
   // It is the report's number under the same settings, and more than without.
   EXPECT_REL(with_decay.age_summary.ageUncertainty, cell(report_of(steps, decay), "plateau age ±(1s) with J"));
   EXPECT_GT(*with_decay.age_summary.ageUncertainty, *build_one(steps).age_summary.ageUncertainty);
@@ -1700,7 +1700,7 @@ TEST(Mapping, TheAgeSummarySaysWhatItsUncertaintyIs) {
   decay.age_includes_j_error = false;
   const Submission decay_only = build_one(steps, decay);
   EXPECT_EQ(described(decay_only), plateau_of + "(the mean's msem), J uncertainty not included, decay constant "
-                                                "uncertainty included; reduced with pychron-cpp.");
+                                                "uncertainty included; reduced with nobion.");
   EXPECT_FALSE(contains(note_with(decay_only, "reported age's uncertainty"), "analytical"))
       << note_with(decay_only, "reported age's uncertainty");
   // The constants of the analyses can ask for it as well as the settings.
@@ -1737,7 +1737,7 @@ TEST(Mapping, TheAgeSummarySaysWhatItsUncertaintyIs) {
   EXPECT_EQ(described(build_one(two_j, fusion_decay)),
             "Weighted Mean Age of 6 of 6 analyses; uncertainty 1 sigma (the mean's msem), J uncertainty included "
             "(the largest relative J uncertainty among its analyses, 0.4% of 20002-05), decay constant uncertainty "
-            "included; reduced with pychron-cpp.");
+            "included; reduced with nobion.");
   // Analyses that do not agree on it have no one sentence that is true of them.
   const std::string mixed = refused(with_edit(steps, 4, [](pp::Analysis& a) {
     edit_analysis_data(a).constants = r::constants_preset(r::ConstantsPreset::Default);
@@ -1806,7 +1806,7 @@ TEST(Mapping, TheJOfAMeanIsThatOfItsAnalyses) {
   EXPECT_TRUE(contains(note, "20002-05") && contains(note, "0.4%") && contains(note, "largest")) << note;
   EXPECT_EQ(f.age_summary.description,
             "Weighted Mean Age of 6 of 6 analyses; uncertainty 1 sigma (the mean's msem), J uncertainty included "
-            "(the largest relative J uncertainty among its analyses, 0.4% of 20002-05); reduced with pychron-cpp.");
+            "(the largest relative J uncertainty among its analyses, 0.4% of 20002-05); reduced with nobion.");
   // Without the J uncertainty there is no J in the age's uncertainty to speak of.
   PublishOptions analytical;
   analytical.age_includes_j_error = false;

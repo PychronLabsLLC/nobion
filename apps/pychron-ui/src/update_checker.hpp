@@ -1,6 +1,6 @@
 #pragma once
 
-// Telling the operator that a newer release of pychron-cpp exists (update
+// Telling the operator that a newer release of nobion exists (update
 // check spec). One check at a time asks GitHub for the latest release on a
 // thread of its own, so a slow network never stops the window from painting;
 // the answer comes back on the GUI thread, where it is remembered in QSettings

@@ -109,7 +109,7 @@ inline void run_round_trip(IHttpClient& http, const RoundTrip& with) {
   const PackageGuard guard(session, *made, out);
 
   PublishOptions options;
-  options.software = "pychron-cpp live test";
+  options.software = "nobion live test";
   const auto submissions = build_submissions(both_samples(), options);
   ASSERT_TRUE(submissions) << to_string(submissions.error());
   ASSERT_EQ(submissions->size(), 2u);

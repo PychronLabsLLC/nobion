@@ -278,6 +278,6 @@ location (`../catalog.json`, `../tables/<sample>/report.csv`).
 A release pins revisions, not values: `elctl publish build --release <r>`
 rebuilds from the pins alone. `manifest.build.store` says which store
 (`kind`, its schema version, an id derived from its url) and
-`manifest.build.software` which pychron-cpp built it. A rebuild with another
+`manifest.build.software` which nobion built it. A rebuild with another
 `reduction_version` may give other values; `verify --db` then says so and
 compares nothing else.

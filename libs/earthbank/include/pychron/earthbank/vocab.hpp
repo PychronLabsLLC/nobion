@@ -7,7 +7,7 @@
 // in `<term>Name`; the id goes into `<term>Id` once the name has been looked
 // up. This header holds what is fixed: which list each name field is looked
 // up in, the one list that cannot be looked up at all (the uncertainty
-// types), and the names pychron-cpp itself chooses (the method, the decay
+// types), and the names nobion itself chooses (the method, the decay
 // constant, the air ratio, the kind of age). The names are the service's
 // own, as its Ar-Ar template workbook lists them (sheet `Lookup Tables`).
 // Nothing here talks to the service.
@@ -195,7 +195,7 @@ inline constexpr std::string_view kMilligrams = "mg";
 inline constexpr std::string_view kInterpretationTool = "Pychron";
 inline constexpr std::string_view kUnknownInterpretation = "Unknown";
 
-// The kinds of summary age pychron-cpp computes for a sample.
+// The kinds of summary age nobion computes for a sample.
 enum class AgeKind { Plateau, WeightedMean, Isochron, Integrated };
 // The service's name for the kind of summary age, from its lookup list.
 std::string_view age_type_name(AgeKind kind);

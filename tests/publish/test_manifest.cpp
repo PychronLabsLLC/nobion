@@ -33,7 +33,7 @@ Manifest sample_manifest() {
   m.release.created = *ps::UtcTime::parse("2026-10-18T00:00:00Z");
   m.release.published = *ps::UtcTime::parse("2026-10-19T00:00:00Z");
   m.build.built = *ps::UtcTime::parse("2026-10-18T01:02:03.000004Z");
-  m.build.software = "pychron-cpp/0.4.0";
+  m.build.software = "nobion/0.4.0";
   m.build.reduction_version = "arar-1";
   m.build.constants_preset = "default";
   m.build.options_json = R"({"sigma":2})";

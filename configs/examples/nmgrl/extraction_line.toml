@@ -13,7 +13,7 @@
 name = "nmgrl_valve"
 scan_interval_ms = 1000
 
-# legacy NMGRLFurnaceActuator: pychron-cpp has no driver for it yet; simulated
+# legacy NMGRLFurnaceActuator: nobion has no driver for it yet; simulated
 [transports."furnace_switch_controller"]
 kind = "sim"
 timeout_ms = 2000
@@ -32,7 +32,7 @@ timeout_ms = 2000
 kind = "agilent_switch"
 transport = "switch_controller"
 
-# legacy ArduinoGPActuator: pychron-cpp has no driver for it yet; simulated
+# legacy ArduinoGPActuator: nobion has no driver for it yet; simulated
 [transports."arduino_valve_controller"]
 kind = "sim"
 timeout_ms = 2000
@@ -353,8 +353,8 @@ units = "C"
 #   query_state="false" not carried over (33 valves: FD, FA, FB, FC, FH, FG, FE, FF, ...)
 #   canvas: tee R-JanNP10-MSManual: end offset not carried over
 #   canvas: tee ADiode-Diode-RDiode: end offset not carried over
-#   actuator furnace_switch_controller (NMGRLFurnaceActuator): no pychron-cpp driver yet; simulated by sim_valves
-#   actuator arduino_valve_controller (ArduinoGPActuator): no pychron-cpp driver yet; simulated by sim_valves
+#   actuator furnace_switch_controller (NMGRLFurnaceActuator): no nobion driver yet; simulated by sim_valves
+#   actuator arduino_valve_controller (ArduinoGPActuator): no nobion driver yet; simulated by sim_valves
 #   canvas: manual_valve MiniboneManual_Rough is not in the valve file; dropped
 #   canvas: 5 gauges drawn for illustration, with no reading (legacy gauge controllers are not imported): FBTurbo IG, FATurbo IG, Microbone IG, Roughing IG, Bone IG
 #   canvas: connection MiniboneManual_Rough-Minibone names an element that is not drawn; dropped

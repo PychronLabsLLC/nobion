@@ -75,7 +75,7 @@ struct NamedValue {
 };
 
 // Total 40K decay constants, per year. The service lists a fourth, `Carter
-// et al. 2025`, which no preset of pychron-cpp uses; it is reached by name
+// et al. 2025`, which no preset of nobion uses; it is reached by name
 // (PublishOptions), not by value.
 constexpr std::array kDecayConstants = {
     NamedValue{5.543e-10, "Steiger and Jager, 1977"},

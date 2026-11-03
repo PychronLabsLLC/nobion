@@ -101,8 +101,8 @@ class SessionLog(unittest.TestCase):
         self.assertEqual(line["bash"], {})  # and its own commands
 
     def test_a_directorys_project_name(self):
-        self.assertEqual(session_log.project_slug(Path("/Users/a/pychron-cpp/.claude/x")),
-                         "-Users-a-pychron-cpp--claude-x")
+        self.assertEqual(session_log.project_slug(Path("/Users/a/nobion/.claude/x")),
+                         "-Users-a-nobion--claude-x")
 
 
 class Ledger(unittest.TestCase):

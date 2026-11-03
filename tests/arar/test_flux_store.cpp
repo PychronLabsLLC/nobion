@@ -191,14 +191,14 @@ TEST(FluxOptionsJson, RoundTrip) {
   o.mean = pr::MeanKind::Weighted;
   o.mean_error = pr::MeanErrorKind::Sem;
   const MonitorSet renne = default_monitor_sets().sets[1];
-  const std::string json = flux_options_json(o, renne, false, true, true, 1.12, 5, "pychron-cpp 0.4.0");
+  const std::string json = flux_options_json(o, renne, false, true, true, 1.12, 5, "nobion 0.4.0");
   for (const char* member :
        {R"j("model_kind":"Nearest Neighbors")j", R"j("use_weighted_fit":true)j", R"j("predicted_j_error_type":"sd")j",
         R"j("error_kind":"sem")j", R"j("mean_kind":"weighted")j", R"j("n_neighbors":3)j", R"j("interpolation_style":"Linear")j",
         R"j("one_d_axis":"Y")j", R"j("degree":3)j", R"j("monitor_reference":"FC-2 (Renne 1998)")j",
         R"j("monitor_sample":"FC-2")j", R"j("used_in_fit":false)j", R"j("excluded":true)j", R"j("all_positions":true)j",
         R"j("fit_mswd":1.12)j", R"j("fit_dof":5)j",
-        R"j("software":"pychron-cpp 0.4.0")j"})
+        R"j("software":"nobion 0.4.0")j"})
     EXPECT_TRUE(has(json, member)) << member << " in " << json;
 
   const FluxOptionsDoc doc = parse_flux_options(json);
@@ -343,7 +343,7 @@ TEST(FluxSameValue, OptionsCompareAsJsonWithoutTheSoftware) {
   a.j = 1.0e-3;
   a.j_err = 2.0e-7;
   a.monitor_name = kuiper.name;
-  a.options_json = flux_options_json(o, kuiper, true, false, false, 1.12, 5, "pychron-cpp 0.4.0");
+  a.options_json = flux_options_json(o, kuiper, true, false, false, 1.12, 5, "nobion 0.4.0");
   EXPECT_TRUE(same_flux_value(a, a));
 
   // As PostgreSQL returns a jsonb: its own key order, a space after each colon and comma.
@@ -356,20 +356,20 @@ TEST(FluxSameValue, OptionsCompareAsJsonWithoutTheSoftware) {
   EXPECT_TRUE(same_flux_value(stored, a));
 
   ps::FluxValue newer = a;  // a version bump and nothing else
-  newer.options_json = flux_options_json(o, kuiper, true, false, false, 1.12, 5, "pychron-cpp 0.5.0");
+  newer.options_json = flux_options_json(o, kuiper, true, false, false, 1.12, 5, "nobion 0.5.0");
   EXPECT_TRUE(same_flux_value(a, newer));
   EXPECT_TRUE(same_flux_value(stored, newer));
 
   ps::FluxValue plane = a;
   FluxOptions p = o;
   p.fit.kind = pr::ModelKind::Plane;
-  plane.options_json = flux_options_json(p, kuiper, true, false, false, 1.12, 5, "pychron-cpp 0.4.0");
+  plane.options_json = flux_options_json(p, kuiper, true, false, false, 1.12, 5, "nobion 0.4.0");
   EXPECT_FALSE(same_flux_value(a, plane));
   EXPECT_FALSE(same_flux_value(stored, plane));
 
   // Every other key of the options counts, and every other field.
   ps::FluxValue excluded = a;
-  excluded.options_json = flux_options_json(o, kuiper, true, true, false, 1.12, 5, "pychron-cpp 0.4.0");
+  excluded.options_json = flux_options_json(o, kuiper, true, true, false, 1.12, 5, "nobion 0.4.0");
   EXPECT_FALSE(same_flux_value(a, excluded));
   ps::FluxValue other_j = stored;
   other_j.j = 1.1e-3;
@@ -1194,7 +1194,7 @@ TEST_P(FluxSaveLevel, ASaveByAnotherVersionWritesNothing) {
   const LevelFit fit = fitted();
   ASSERT_EQ(save(fit).written, 12);
   const ps::ChangeSeq saved = change_seq();
-  auto outcome = save_level(store(), actor(), fitted(), {}, "pychron-cpp 9.9.9");
+  auto outcome = save_level(store(), actor(), fitted(), {}, "nobion 9.9.9");
   ASSERT_TRUE(outcome) << to_string(outcome.error());
   EXPECT_EQ(outcome->written, 0);
   EXPECT_EQ(outcome->unchanged, 12);

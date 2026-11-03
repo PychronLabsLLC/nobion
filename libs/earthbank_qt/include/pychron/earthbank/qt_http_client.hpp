@@ -17,7 +17,7 @@
 //     connection of its own, so there is no kept-open connection to find
 //     closed and be retried on, and a 3xx is the answer it is, whatever host
 //     its Location names.
-//   - The request goes with `User-Agent: pychron-cpp/<version>` unless the
+//   - The request goes with `User-Agent: nobion/<version>` unless the
 //     request has a User-Agent of its own.
 //   - An empty body is allowed, in a request and in an answer.
 //   - A transport failure is an `Io` error (`Timeout` when the time ran out)

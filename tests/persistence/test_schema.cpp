@@ -524,7 +524,7 @@ TEST_P(SchemaTest, ReleaseRowUpdatesOnlyItsStateColumns) {
   ASSERT_TRUE(db->affecting(
       "INSERT INTO release (uuid, name, title, version, group_uuid, bookmark_uuid, licence, authors, options, "
       "reduction_version, software_version, created_by_user_uuid, client_uuid, created_utc) "
-      "VALUES (?, 'r', 'Release r', 1, ?, ?, 'CC-BY-4.0', '[]', '{}', 'arar-1', 'pychron-cpp/0.4.0', ?, ?, ?)",
+      "VALUES (?, 'r', 'Release r', 1, ?, ?, 'CC-BY-4.0', '[]', '{}', 'arar-1', 'nobion/0.4.0', ?, ?, ?)",
       values));
   EXPECT_FALSE(db->affecting("UPDATE release SET title = 'x'"));
   EXPECT_FALSE(db->affecting("UPDATE release SET licence = 'CC0-1.0'"));

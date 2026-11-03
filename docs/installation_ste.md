@@ -73,7 +73,7 @@ Before you start, make sure that you have these items:
 
 ### 3.1 Get the package
 
-1. Go to <https://github.com/PychronLabsLLC/pychron-cpp/releases>.
+1. Go to <https://github.com/PychronLabsLLC/nobion/releases>.
 2. Download the package for your platform:
 
    | Platform | Package |
@@ -389,7 +389,7 @@ and to [10 Troubleshooting](user/10-troubleshooting.md).
 
 ## 11. Help
 
-Open an issue at <https://github.com/PychronLabsLLC/pychron-cpp/issues>.
+Open an issue at <https://github.com/PychronLabsLLC/nobion/issues>.
 Attach the output of these commands:
 
 - `elctl --version`

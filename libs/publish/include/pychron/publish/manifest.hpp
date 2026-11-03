@@ -41,7 +41,7 @@ struct ManifestRelease {
 
 struct ManifestBuild {
   UtcTime built;
-  std::string software;             // "pychron-cpp/<version>"
+  std::string software;             // "nobion/<version>"
   std::string reduction_version;    // reduction::kReductionVersion
   std::string constants_preset;
   std::string options_json;         // the release options, canonical JSON

@@ -555,7 +555,7 @@ bool EarthbankPublishPanel::included(int row, QString* why) const {
 
 eb::PublishOptions EarthbankPublishPanel::base_options() const {
   eb::PublishOptions options;
-  options.software = (QStringLiteral("pychron-cpp ") + app_version()).toStdString();
+  options.software = (QStringLiteral("nobion ") + app_version()).toStdString();
   options.setup = setup_name_->text().trimmed().toStdString();
   options.decay_constant = decay_constant_->text().trimmed().toStdString();
   options.air_ratio = air_ratio_->text().trimmed().toStdString();

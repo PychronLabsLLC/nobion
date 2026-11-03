@@ -379,7 +379,7 @@ written here (date, what differed, what was fixed).
 
 Also still the owner's: reading the API licence linked from legacy's README
 for any condition on clients (identification, rate limits). The client
-identifies itself as `pychron-cpp/<version>`.
+identifies itself as `nobion/<version>`.
 
 ## Replacing the fake's fixtures with captures
 

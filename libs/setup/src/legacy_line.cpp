@@ -535,8 +535,8 @@ Actuator resolve_actuator(const std::string& name, const std::optional<fs::path>
   }
   a.kind = "sim_valves";
   a.comment = "legacy " + what + (a.endpoint.empty() ? "" : " at " + a.endpoint) +
-              ": pychron-cpp has no driver for it yet; simulated";
-  notes.push_back("actuator " + name + " (" + what + "): no pychron-cpp driver yet; simulated by sim_valves");
+              ": nobion has no driver for it yet; simulated";
+  notes.push_back("actuator " + name + " (" + what + "): no nobion driver yet; simulated by sim_valves");
   return a;
 }
 

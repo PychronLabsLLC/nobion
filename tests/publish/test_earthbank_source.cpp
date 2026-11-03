@@ -43,7 +43,7 @@ class ReleaseDatasetTest : public ReleaseFixture {
     s.analyses = analysis_texts();
     s.options_json = release_options_json(ReleaseOptions{});
     s.reduction_version = "arar-1";
-    s.software_version = "pychron-cpp/0.4.0";
+    s.software_version = "nobion/0.4.0";
     auto created = create_release(*store_, reducer(), s);
     EXPECT_TRUE(created) << (created ? "" : to_string(created.error()));
     return created ? created->release : Uuid{};

@@ -170,7 +170,7 @@ std::string readme_md(const Manifest& m, const ReleaseTables& t) {
          "sample under `tables/`; `catalog.json` and `records/` are an OGC API - Records catalogue; "
          "`manifest.json` lists every file with its hash and what the release pins. ";
   out += "Serve the directory over HTTP (`python3 -m http.server`) to read it with a viewer; the format is "
-         "documented in pychron-cpp's `" + std::string(kReleaseFormatDoc) + "`.\n";
+         "documented in nobion's `" + std::string(kReleaseFormatDoc) + "`.\n";
   return out;
 }
 

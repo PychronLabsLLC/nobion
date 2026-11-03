@@ -1,5 +1,5 @@
 {
-  "name": "pychron-cpp",
+  "name": "nobion",
   "version-string": "0.4.0",
   "description": "Instrument control for noble-gas extraction lines (pychron replacement)",
   "dependencies": [

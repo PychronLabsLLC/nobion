@@ -245,7 +245,7 @@ std::string draw_list_pdf(const DrawList& list, const PdfInfo& info) {
   objects.emplace_back("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
   objects.emplace_back("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
   objects.emplace_back("<< /Type /Font /Subtype /Type1 /BaseFont /Symbol >>");
-  std::string meta = "<< /Producer (pychron-cpp) /CreationDate (D:" +
+  std::string meta = "<< /Producer (nobion) /CreationDate (D:" +
                      format_utc(static_cast<double>(std::clamp<std::int64_t>(info.created_unix, 0, kLastPdfSecond)), "%Y%m%d%H%M%S") + "Z)";
   if (!info.title.empty()) meta += " /Title " + ascii_literal(info.title);
   objects.push_back(meta + " >>");

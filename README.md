@@ -1,4 +1,4 @@
-# pychron-cpp
+# Nobion
 
 A C++20 rewrite of [pychron](https://github.com/PychronLabsLLC/pychron), the
 data acquisition and control software for noble-gas (Ar/Ar) geochronology

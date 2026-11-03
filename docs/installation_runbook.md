@@ -1,6 +1,6 @@
 # Installation runbook
 
-How to put pychron-cpp on a lab computer, configure it, and bring a legacy
+How to put nobion on a lab computer, configure it, and bring a legacy
 pychron lab's data across. It is written for the person doing the install.
 Each part links to the page that holds the detail; this page holds the order,
 the checks and the way back.
@@ -43,7 +43,7 @@ the example configs.
 ### 1.1 From a release package
 
 Packages are built by the `release` workflow on a `v*` tag and attached to the
-GitHub release (<https://github.com/PychronLabsLLC/pychron-cpp/releases>).
+GitHub release (<https://github.com/PychronLabsLLC/nobion/releases>).
 Each carries its own Python for extraction scripts. The macOS `.dmg` is signed
 with Pychron Labs' Developer ID and notarized by Apple once the repository has
 the signing secrets (section 1.4); the Windows packages are not code-signed,
@@ -620,7 +620,7 @@ Before accepting:
 Then point the workstations at the store (part 2.2) and browse it in Pychron
 (View > Data). The legacy repositories keep changing while the old system is
 in use: run `elctl import run --all` again to pick up new commits. Once an
-item has been edited in pychron-cpp, the legacy source no longer updates it.
+item has been edited in nobion, the legacy source no longer updates it.
 
 ### 3.6 Migrate legacy configuration
 
@@ -642,7 +642,7 @@ elctl init helix --root ~/Pychron/helix --set line_source=legacy --set legacy_fo
 ```
 
 The report lists what was not carried over. Valve controllers that have no
-pychron-cpp driver yet become simulated (`sim_valves`): the line loads and
+nobion driver yet become simulated (`sim_valves`): the line loads and
 draws, but those valves do not move hardware.
 
 **Conditionals** (needs PyYAML):
@@ -688,7 +688,7 @@ repository or database, so falling back is a matter of continuing to use it.
 ## Escalation
 
 Single-developer project. Open an issue at
-<https://github.com/PychronLabsLLC/pychron-cpp/issues> with the output of
+<https://github.com/PychronLabsLLC/nobion/issues> with the output of
 `elctl --version`, `elctl doctor`, and for an import `elctl import status` and
 `elctl import conflicts --json`.
 

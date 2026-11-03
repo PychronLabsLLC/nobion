@@ -206,8 +206,8 @@ TEST(QtHttpClient, GetPostAndHeaders) {
   EXPECT_EQ(first.target, "/api/account?size=2&name.equals=Fish%20Canyon");
   EXPECT_EQ(first.header("Authorization"), "Bearer not-a-real-token");
   EXPECT_EQ(first.header("Accept"), "application/json");
-  EXPECT_TRUE(first.header("User-Agent").starts_with("pychron-cpp/")) << first.header("User-Agent");
-  EXPECT_GT(first.header("User-Agent").size(), std::string("pychron-cpp/").size());
+  EXPECT_TRUE(first.header("User-Agent").starts_with("nobion/")) << first.header("User-Agent");
+  EXPECT_GT(first.header("User-Agent").size(), std::string("nobion/").size());
 
   HttpRequest post = request("POST", server.url("/api/authenticate"));
   post.headers = {{"Content-Type", "application/json"}};

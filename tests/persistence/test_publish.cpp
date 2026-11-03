@@ -67,7 +67,7 @@ class PublishStoreTest : public StoreTest {
     r.authors_json = R"([{"name": "J. Ross"}])";
     r.options_json = "{}";
     r.reduction_version = "arar-1";
-    r.software_version = "pychron-cpp/0.4.0";
+    r.software_version = "nobion/0.4.0";
     r.samples = {sample1_, sample2_, sample3_};
     return r;
   }

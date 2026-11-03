@@ -256,7 +256,7 @@ class ArrowWriter final : public IParquetWriter {
     parquet::WriterProperties::Builder builder;
     builder.compression(parquet::Compression::ZSTD);
     builder.max_row_group_length(std::max<int64_t>(1, static_cast<int64_t>(t.rows.size())));
-    builder.created_by("pychron-cpp parquet writer");
+    builder.created_by("nobion parquet writer");
     const auto props = builder.build();
     const auto arrow_props = parquet::ArrowWriterProperties::Builder().store_schema()->build();
     const auto st = parquet::arrow::WriteTable(*table, arrow::default_memory_pool(), *outfile,

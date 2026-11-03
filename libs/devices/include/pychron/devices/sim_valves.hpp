@@ -2,7 +2,7 @@
 
 // A simulated valve actuator (config kind "sim_valves"): any address, the
 // state kept in memory, every valve closed at start. It stands in for a
-// controller pychron-cpp has no driver for yet, e.g. a line converted from a
+// controller nobion has no driver for yet, e.g. a line converted from a
 // legacy Pychron setup (setup::import_legacy_line), so the line loads and
 // runs in simulation. Its transport is never used.
 

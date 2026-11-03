@@ -620,8 +620,8 @@ never touched.
   off there to stop the check. `elctl` never checks on its own
   (`elctl version --check` asks when you run it).
 - **What is asked, and of whom.** One request to `api.github.com` for the
-  latest release of `PychronLabsLLC/pychron-cpp`. It carries only the
-  program's version (as `User-Agent: pychron-cpp/<version>`): no lab, user,
+  latest release of `PychronLabsLLC/nobion`. It carries only the
+  program's version (as `User-Agent: nobion/<version>`): no lab, user,
   computer name, path or configuration.
 - **What you see.** When the latest release is newer than the one running,
   the status bar shows **Update available: v*x.y.z***. Click it for the

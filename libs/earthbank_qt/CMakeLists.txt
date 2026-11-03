@@ -16,5 +16,5 @@ target_compile_features(pychron_earthbank_qt PUBLIC cxx_std_20)
 target_link_libraries(pychron_earthbank_qt PUBLIC pychron::earthbank pychron::core
                                            PRIVATE Qt6::Core Qt6::Network)
 target_compile_definitions(pychron_earthbank_qt PRIVATE QT_NO_KEYWORDS
-  PYCHRON_EARTHBANK_USER_AGENT="pychron-cpp/${PROJECT_VERSION}")
+  PYCHRON_EARTHBANK_USER_AGENT="nobion/${PROJECT_VERSION}")
 pychron_set_warnings(pychron_earthbank_qt)

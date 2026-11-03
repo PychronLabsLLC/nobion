@@ -65,7 +65,7 @@ class BuildTest : public ReleaseFixture {
     s.analyses = analysis_texts();
     s.options_json = release_options_json(ReleaseOptions{});
     s.reduction_version = "arar-1";
-    s.software_version = "pychron-cpp/0.4.0";
+    s.software_version = "nobion/0.4.0";
     auto created = create_release(*store_, reducer(), s);
     EXPECT_TRUE(created) << (created ? "" : to_string(created.error()));
     return created ? created->release : Uuid{};
@@ -101,7 +101,7 @@ TEST_P(BuildTest, WritesEveryFileInTheManifestWithMatchingSha) {
   const Manifest& m = built->manifest;
   EXPECT_EQ(m.release.name, "r");
   EXPECT_EQ(m.release.state, "draft");
-  EXPECT_EQ(m.build.software, "pychron-cpp/0.4.0");
+  EXPECT_EQ(m.build.software, "nobion/0.4.0");
   EXPECT_EQ(m.build.store_kind, GetParam() == "pg" ? "postgresql" : "sqlite");
   EXPECT_EQ(m.build.schema_version, 8);
   EXPECT_EQ(m.pins.analyses.size(), 3u);
@@ -269,7 +269,7 @@ TEST_P(BuildTest, SampleNamesAreMadeFileSafeAndUnique) {
   s.analyses.push_back(extra.str());
   s.options_json = release_options_json(ReleaseOptions{});
   s.reduction_version = "arar-1";
-  s.software_version = "pychron-cpp/0.4.0";
+  s.software_version = "nobion/0.4.0";
   auto created = create_release(*store_, reducer(), s);
   ASSERT_TRUE(created) << to_string(created.error());
   auto built = build_release(*store_, *source_, created->release, options(), nullptr);
@@ -302,7 +302,7 @@ TEST_P(BuildTest, PerSampleReportsHoldOnlyTheirOwnAnalyses) {
   s.analyses.push_back(extra.str());
   s.options_json = release_options_json(ReleaseOptions{});
   s.reduction_version = "arar-1";
-  s.software_version = "pychron-cpp/0.4.0";
+  s.software_version = "nobion/0.4.0";
   auto created = create_release(*store_, reducer(), s);
   ASSERT_TRUE(created);
   auto built = build_release(*store_, *source_, created->release, options(), nullptr);

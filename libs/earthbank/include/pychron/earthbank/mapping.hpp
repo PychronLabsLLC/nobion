@@ -1,4 +1,4 @@
-// From pychron-cpp's analyses to what EarthBank is sent: one Submission
+// From nobion's analyses to what EarthBank is sent: one Submission
 // (model.hpp) per sample.
 //
 // build_submissions reduces each analysis, groups them by sample and fills
@@ -72,7 +72,7 @@
 // so analyses that name different ones are published with none named and a
 // note.
 //
-// Left unset, for want of anything in pychron-cpp to fill them from: grain
+// Left unset, for want of anything in nobion to fill them from: grain
 // size, K content, funding, literature, the sample's kind and collection, the
 // analysis scale, the comments, the trapped 40Ar/36Ar of a single measurement.
 // And `beamSize` with its unit: ExtractionInfo::beam_diameter is recorded
@@ -171,8 +171,8 @@ struct PublishOptions {
   std::string setup;
   std::map<std::string, SampleOptions> samples;  // by sample name
   // Name and version, for the sample's description ("Uploaded from ...") and
-  // the age summary's ("reduced with ..."); empty reads as `pychron-cpp`.
-  std::string software = "pychron-cpp";
+  // the age summary's ("reduced with ..."); empty reads as `nobion`.
+  std::string software = "nobion";
 };
 
 // One submission per sample (Analysis::sample), in order of sample name. The

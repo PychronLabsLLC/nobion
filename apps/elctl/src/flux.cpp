@@ -324,9 +324,9 @@ namespace {
 
 std::string software() {
 #ifdef PYCHRON_ELCTL_VERSION
-  return std::string("pychron-cpp ") + PYCHRON_ELCTL_VERSION;
+  return std::string("nobion ") + PYCHRON_ELCTL_VERSION;
 #else
-  return "pychron-cpp";
+  return "nobion";
 #endif
 }
 

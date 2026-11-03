@@ -30,7 +30,7 @@ class CheckPlanTest : public ReleaseFixture {
     s.analyses = analysis_texts();
     s.options_json = release_options_json(ReleaseOptions{});
     s.reduction_version = "arar-1";
-    s.software_version = "pychron-cpp/0.4.0";
+    s.software_version = "nobion/0.4.0";
     return s;
   }
   Uuid create(std::optional<UtcTime> embargo_until = std::nullopt) {

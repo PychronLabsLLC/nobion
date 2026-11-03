@@ -658,7 +658,7 @@ TEST_F(Xlsx, EveryRecordLandsInItsSheetUnderItsColumn) {
   EXPECT_EQ(std::stod(samples[1].at("longitude")), -106.9);
   EXPECT_EQ(std::stod(samples[1].at("elevationGround")), 2850.0);
   EXPECT_EQ(samples[1].at("unitName"), "Fish Canyon Tuff");
-  EXPECT_EQ(samples[1].at("sampleComment"), "Uploaded from pychron-cpp");
+  EXPECT_EQ(samples[1].at("sampleComment"), "Uploaded from nobion");
   // The fusion sample has no place: its columns stay empty.
   EXPECT_FALSE(samples[0].contains("latitude"));
 }

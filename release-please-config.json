@@ -3,7 +3,7 @@
   "packages": {
     ".": {
       "release-type": "simple",
-      "package-name": "pychron-cpp",
+      "package-name": "nobion",
       "include-component-in-tag": false,
       "bump-minor-pre-major": true,
       "extra-files": [

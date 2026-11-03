@@ -379,7 +379,7 @@ TEST_F(YamlLine, AnAgilentUnitOnSerialKeepsItsPortAndInvert) {
   EXPECT_EQ(sp.parity, config::Parity::None);
   EXPECT_TRUE(has_note(*made, "serial port usbserial-FTXYZ written as /dev/tty.usbserial-FTXYZ")) << all_notes(*made);
   EXPECT_FALSE(has_note(*made, "switch_controller: invert=True not carried over")) << all_notes(*made);
-  EXPECT_FALSE(has_note(*made, "AgilentGPActuator): no pychron-cpp driver yet")) << all_notes(*made);
+  EXPECT_FALSE(has_note(*made, "AgilentGPActuator): no nobion driver yet")) << all_notes(*made);
 }
 
 TEST_F(YamlLine, AnAgilentUnitOnTheLanUsesItsScpiSocket) {

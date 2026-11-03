@@ -37,7 +37,7 @@ namespace pychron::processing {
 struct ReportOptions {
   int nsigma = 2;                  // level of every "±" column
   std::string laboratory;          // who measured; empty: no row
-  std::string software;            // what reduced; empty: "pychron-cpp"
+  std::string software;            // what reduced; empty: "nobion"
   std::vector<std::string> notes;  // free text, one metadata row each
   // When the report says it was generated (UTC epoch seconds); absent: now.
   // A release pins it so that a rebuild gives the same bytes.

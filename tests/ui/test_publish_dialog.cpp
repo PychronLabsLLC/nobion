@@ -134,7 +134,7 @@ class TestPublishDialog : public QObject {
     for (const QString& a : analyses()) s.analyses.push_back(a.toStdString());
     s.options_json = pb::release_options_json(pb::ReleaseOptions{});
     s.reduction_version = "arar-1";
-    s.software_version = "pychron-cpp/test";
+    s.software_version = "nobion/test";
     return s;
   }
 

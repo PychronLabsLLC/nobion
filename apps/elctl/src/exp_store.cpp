@@ -27,7 +27,7 @@ class AcquisitionStore final : public ExpStore {
 }  // namespace
 
 pychron::Result<std::unique_ptr<ExpStore>> open_exp_store(const std::string& url, const std::filesystem::path& data) {
-  auto opened = pychron::experiment::store::open_acquisition(url, data, std::string("pychron-cpp ") + PYCHRON_ELCTL_VERSION);
+  auto opened = pychron::experiment::store::open_acquisition(url, data, std::string("nobion ") + PYCHRON_ELCTL_VERSION);
   if (!opened) return pychron::fail(std::move(opened).error());
   return std::unique_ptr<ExpStore>(std::make_unique<AcquisitionStore>(std::move(*opened)));
 }

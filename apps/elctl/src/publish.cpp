@@ -103,9 +103,9 @@ bool take(const std::vector<std::string>& args, std::size_t& i, const char* flag
 
 std::string software_version() {
 #ifdef PYCHRON_ELCTL_VERSION
-  return std::string("pychron-cpp/") + PYCHRON_ELCTL_VERSION;
+  return std::string("nobion/") + PYCHRON_ELCTL_VERSION;
 #else
-  return "pychron-cpp";
+  return "nobion";
 #endif
 }
 

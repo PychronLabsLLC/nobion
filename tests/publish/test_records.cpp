@@ -30,7 +30,7 @@ Manifest manifest_of(const TableInputs& in, const ReleaseTables& tables) {
   m.release.doi = "10.1234/abcd";
   m.release.created = *ps::UtcTime::parse("2026-10-18T00:00:00Z");
   m.build.built = m.release.created;
-  m.build.software = "pychron-cpp/0.4.0";
+  m.build.software = "nobion/0.4.0";
   m.build.reduction_version = "arar-1";
   for (const auto& s : in.samples) m.pins.samples.push_back(s.uuid);
   for (const Table* t : {&tables.samples, &tables.positions, &tables.analyses, &tables.isotopes, &tables.interpreted_ages})

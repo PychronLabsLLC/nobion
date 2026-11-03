@@ -364,7 +364,7 @@ AboutDialog::AboutDialog(QWidget* parent) : QDialog(parent) {
           "<p><span style='color:%1'><b>In development.</b></span> No driver has yet been run against a real "
           "instrument; everything runs against the built-in simulator.</p>"
           "<p style='color:%2'>Free software under the GNU General Public License v3, with no warranty. "
-          "Source: <a href='https://github.com/PychronLabsLLC/pychron-cpp'>PychronLabsLLC/pychron-cpp</a>.<br>"
+          "Source: <a href='https://github.com/PychronLabsLLC/nobion'>PychronLabsLLC/nobion</a>.<br>"
           "Built with %3.</p>")
           .arg(t.warning_text.name(), t.muted_text.name(), components));
   body_->setWordWrap(true);

@@ -13,7 +13,7 @@ namespace {
 using testing::FakeHttp;
 using testing::release_json;
 
-constexpr const char* kUrl = "https://api.github.com/repos/PychronLabsLLC/pychron-cpp/releases/latest";
+constexpr const char* kUrl = "https://api.github.com/repos/PychronLabsLLC/nobion/releases/latest";
 
 std::string header(const http::HttpRequest& request, const std::string& name) {
   for (const auto& [key, value] : request.headers) {
@@ -32,7 +32,7 @@ TEST(UpdateFetch, AsksTheRightThing) {
   EXPECT_EQ(sent[0].url, kUrl);
   EXPECT_EQ(sent[0].headers.size(), 2U);
   EXPECT_EQ(header(sent[0], "Accept"), "application/vnd.github+json");
-  EXPECT_EQ(header(sent[0], "User-Agent").rfind("pychron-cpp/", 0), 0U);
+  EXPECT_EQ(header(sent[0], "User-Agent").rfind("nobion/", 0), 0U);
   EXPECT_EQ(sent[0].timeout, std::chrono::seconds(10));
   EXPECT_TRUE(sent[0].body.empty());
 }

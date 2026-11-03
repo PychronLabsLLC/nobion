@@ -63,7 +63,7 @@ TEST_P(BuildTiming, CreateAndBuildScaleWithTheCount) {
   spec.analyses = uuids;
   spec.options_json = release_options_json(ReleaseOptions{});
   spec.reduction_version = "arar-1";
-  spec.software_version = "pychron-cpp/bench";
+  spec.software_version = "nobion/bench";
   t0 = std::chrono::steady_clock::now();
   auto created = create_release(*store_, reducer(), spec);
   ASSERT_TRUE(created) << to_string(created.error());

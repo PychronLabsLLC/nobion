@@ -67,7 +67,7 @@ class TestPublishWindow : public QObject {
     s.analyses = analyses();
     s.options_json = pb::release_options_json(pb::ReleaseOptions{});
     s.reduction_version = "arar-1";
-    s.software_version = "pychron-cpp/test";
+    s.software_version = "nobion/test";
     return s;
   }
 

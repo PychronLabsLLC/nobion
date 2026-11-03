@@ -17,7 +17,7 @@
 namespace pychron::update {
 
 // The repository releases are read from; never a preference.
-inline constexpr std::string_view kRepository = "PychronLabsLLC/pychron-cpp";
+inline constexpr std::string_view kRepository = "PychronLabsLLC/nobion";
 
 struct Version {
   int major = 0, minor = 0, patch = 0;

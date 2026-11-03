@@ -116,7 +116,7 @@ class Walk {
         // Never a silent pass: the field is new to the model and nobody has
         // said where it is looked up.
         miss.outcome = LookupOutcome::CouldNotAsk;
-        miss.detail = "pychron-cpp does not know which list of EarthBank's this field is of.";
+        miss.detail = "nobion does not know which list of EarthBank's this field is of.";
       } else {
         const LookupResult result = resolver_.resolve(term.name_field, value);
         if (result.outcome == LookupOutcome::Found) found(record, term.name_field, value, result);

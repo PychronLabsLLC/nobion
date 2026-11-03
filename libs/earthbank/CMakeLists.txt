@@ -1,6 +1,6 @@
 # pychron::earthbank: publishing Ar-Ar results to EarthBank (AuScope's
 # AusGeochem data platform). The service's records and vocabulary tables, and
-# the mapping from pychron-cpp's analyses to them. Qt-free and without network
+# the mapping from nobion's analyses to them. Qt-free and without network
 # code. nlohmann_json is PUBLIC: to_json is the records' interface; processing
 # and reduction are, for the mapping's options. miniz and pugixml are PRIVATE:
 # only src/ooxml.cpp (the workbook templates' zip and XML) sees them. Sources

@@ -692,7 +692,7 @@ Result<SummaryAge> preferred_age(std::string_view sample, const Group& g, const 
 }
 
 // The name and version the two descriptions give.
-std::string software_of(const PublishOptions& o) { return o.software.empty() ? std::string("pychron-cpp") : o.software; }
+std::string software_of(const PublishOptions& o) { return o.software.empty() ? std::string("nobion") : o.software; }
 
 // What the reported age is and what its uncertainty holds, in one sentence of
 // facts: it is the age summary's description, the only place the record can
