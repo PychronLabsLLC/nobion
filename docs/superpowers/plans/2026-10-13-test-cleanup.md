@@ -60,8 +60,9 @@ Read from `develop` `0f17653d`.
   - Standard library only; `--help` for each.
 - [x] Step 2: Test it by hand on `ctest --preset dev --tests-regex 'ProjectImportTest'` and check its numbers against gtest's own output (`pychron_dvc_tests --gtest_filter='Engines/ProjectImportTest.*'`): sums within 10%.
 - [x] Step 3: `docs/dev_setup.md`: when and how to run it; a full `-j1` run takes about 15 min.
-- [ ] Step 4: Record a baseline of the whole tree in the commit message (top 15 suites by sum). Commit `chore(tools): a per-test time report from ctest`.
+- [x] Step 4: Record a baseline of the whole tree in the commit message (top 15 suites by sum). Commit `chore(tools): a per-test time report from ctest`.
   - Tool committed by the nightly run of 2026-10-16 with a `ProjectImportTest` baseline only: a nightly unit may not build the whole tree or run the whole of `ctest --preset dev`. The whole-tree baseline is still owed: `python3 tools/test_times.py run --preset dev --out baseline.xml` after a full build, then `show baseline.xml --top 15`, recorded in the commit message of the first later task that changes a test.
+  - Done 2026-11-02 on `497e24e2`, Debug, SQLite, 18 cores, other builds running (load average 30 to 40): 6454 tests, 100% passed, 11 skipped by their own conditions, 32:18 wall, 1907.6 s summed. Top suites: `Links/LinkOutage` 761.9 s, `Engines/ProjectImportTest` 154.4 s, `Engines/MetaImportTest` 55.8 s, `LabSim` 45.8 s, `LaserCmd` 38.3 s, `VirtualClockTest` 36.4 s, `ElctlExpTest` 34.5 s, `ImportCmd` 33.8 s, `Dragonfly` 31.0 s, `TrackBench` 29.4 s, `LaserCameraCmd` 26.0 s, `LabSessionTest` 22.6 s, `ElctlSetupTest` 20.0 s, `FluxCmd` 19.2 s, `CrescentHole` 19.1 s. In Task 5's commit message.
 
 ### Task 2: Local coverage build and report
 
@@ -76,10 +77,12 @@ Read from `develop` `0f17653d`.
   - `compare before.json after.json`: totals and every file whose lines or branches covered went down; exit 1 when any did.
   - `clean --build-dir build/coverage` empties `profiles/` before a run (a subcommand rather than a `--clean` flag: it runs before ctest, not with the report).
   - Tested by `tools/tests/test_coverage_report.py` (ctest `tools.coverage_report`).
-- [ ] Step 4: Run it once on the whole tree (`cmake --preset coverage`, build, `ctest --preset coverage`, report). Note the time it took and the totals in `docs/dev_setup.md`'s new "Coverage" paragraph and in the commit message.
+- [x] Step 4: Run it once on the whole tree (`cmake --preset coverage`, build, `ctest --preset coverage`, report). Note the time it took and the totals in `docs/dev_setup.md`'s new "Coverage" paragraph and in the commit message.
   - Nightly run of 2026-10-16 ran it on `pychron_core_tests` only (numbers in `docs/dev_setup.md` and the commit message): a nightly unit may not build the whole tree. The whole-tree run is still owed, and is the baseline the first later task that changes a test compares against: `cmake --build --preset coverage --parallel`, `coverage_report.py clean`, `ctest --preset coverage`, `coverage_report.py report --out baseline.json`; record its time and totals in `docs/dev_setup.md` and in that task's commit message.
-- [ ] Step 5: `ctest --preset dev` still passes (the option is OFF there). Commit `build: a local clang coverage preset and report`.
+  - Done 2026-11-02 on `497e24e2`: configure 43 s, build 7:47 (no coverage objects in ccache), `ctest --preset coverage` 6:01, report 2 s; `libs/` (637 files) lines 95.33% (88300/92622), branches 82.31% (46708/56744). In `docs/dev_setup.md` and Task 5's commit message.
+- [x] Step 5: `ctest --preset dev` still passes (the option is OFF there). Commit `build: a local clang coverage preset and report`.
   - Committed by the nightly run of 2026-10-16. `dev` was reconfigured (coverage stays off) and `ctest --preset dev -R 'tools\.'` run: `tools.coverage_report` passes; `tools.export_patterns` fails only because `build/dev/apps/elctl/elctl` is not built in this worktree. The full `ctest --preset dev` is left to the plan's last unit.
+  - Full `ctest --preset dev` run 2026-11-02 with Task 1's baseline: 100% of 6454 passed; `tools.export_patterns` passes with `elctl` built.
 
 ### Task 3: Where the importer suites' time goes
 
@@ -120,9 +123,13 @@ Spec section 4, cause 2: fixture commits are 13 to 15% of both suites and about 
 
 **Files:** modify `tests/dvc/git_fixture.hpp`; test `tests/dvc/test_git_reader.cpp` (where `GitFixture` is used against `GitReader` and `parse_git_version` is tested).
 
-- [ ] Step 1: Baseline as Task 4 Step 1 (if Task 4 has landed, its after is this baseline).
-- [ ] Step 2: `head()` reads the sha from the fixture's own git directory: `<path()>/.git/HEAD`; when it is `ref: <name>`, the file `<path()>/.git/<name>`; when that file is missing (a packed ref), `packed-refs`, and only when that fails too, today's `git rev-parse HEAD`. The file is read, never written, and only inside the fixture's root, so `libs/ingest/AGENTS.md`'s rule (no git against this repository) holds. Test first: `head()` equals `git rev-parse HEAD` after a commit, after a merge, on a detached HEAD after `checkout <sha>`, and after `git pack-refs --all`.
-- [ ] Step 3: Times after (`test_times.py compare`), git process count after (expected: about 590 fewer per `ProjectImportTest` run), coverage of `libs/` unchanged. `quality_check.py`, `compiler_sweep.py --changed`, `pychron_dvc_tests` and `pychron_elctl_tests --gtest_filter='ImportCmd*'` (it uses `GitFixture` too). Commit `test(dvc): a fixture commit reads its sha from the ref, not from git rev-parse`, with the numbers in its message.
+- [x] Step 1: Baseline as Task 4 Step 1 (if Task 4 has landed, its after is this baseline).
+  - Task 1's whole-tree run, and git processes counted on `497e24e2`: `Engines/ProjectImportTest` 9 458, `Engines/MetaImportTest` 2 463, `ImportCmd*` 2 187, the same as T097's after.
+- [x] Step 2: `head()` reads the sha from the fixture's own git directory: `<path()>/.git/HEAD`; when it is `ref: <name>`, the file `<path()>/.git/<name>`; when that file is missing (a packed ref), `packed-refs`, and only when that fails too, today's `git rev-parse HEAD`. The file is read, never written, and only inside the fixture's root, so `libs/ingest/AGENTS.md`'s rule (no git against this repository) holds. Test first: `head()` equals `git rev-parse HEAD` after a commit, after a merge, on a detached HEAD after `checkout <sha>`, and after `git pack-refs --all`.
+  - Done. `HeadIsWhatGitSays` holds those four cases and a commit made after packing (the loose ref wins); `HeadStartsNoProcess` runs `head()` with no git on `PATH` and was the failing test first; `HeadOfAnUnbornBranchFails` keeps git's refusal through the fallback. What is neither a sha nor a `ref: ` line goes to `rev-parse`, so another ref storage (reftable) still works.
+- [x] Step 3: Times after (`test_times.py compare`), git process count after (expected: about 590 fewer per `ProjectImportTest` run), coverage of `libs/` unchanged. `quality_check.py`, `compiler_sweep.py --changed`, `pychron_dvc_tests` and `pychron_elctl_tests --gtest_filter='ImportCmd*'` (it uses `GitFixture` too). Commit `test(dvc): a fixture commit reads its sha from the ref, not from git rev-parse`, with the numbers in its message.
+  - Git processes: `Engines/ProjectImportTest` 9 458 -> 8 867 (591 fewer), `Engines/MetaImportTest` 2 463 -> 2 327, `ImportCmd*` 2 187 -> 1 925. ctest `-j1`, load average 30 to 50 on both sides, so the process count is the measure and these are noise-bound: `Engines/ProjectImportTest` 154.4 -> 126.5 s, `Engines/MetaImportTest` 55.8 -> 52.1 s, `ImportCmd` 33.8 -> 18.1 s, `ImportCmdParity` 17.9 -> 15.0 s.
+  - Coverage of `libs/`: lines 95.33% (88300/92622) -> 95.34% (88305), branches 82.31% (46708/56744) -> 82.33% (46719). `compare` lists nine small dips (one to four counts), all in files this change cannot reach (`maxigauge`, `scheduler`, `ngx_link`, `serialize`, `store`, `host_state`, `live_feed`): timing of threaded tests between runs, and `Rehearse.PythonTimeBeforeAStepStillCountsAgainstWallTime`, which failed once in that run under load (not this change: see the end of this plan). No file under `libs/dvc` or `libs/ingest` went down.
 
 ### Task 6: S2 folds in the Qtegra acquire tests
 
@@ -148,6 +155,10 @@ As Task 6 for `tests/devices/spectrometer/legacy/test_acquirers.cpp` lines 176â€
 ### Task 9 onward: S1 and S3, one suite per commit
 
 Not cut yet: the candidates (spec section 3, about 60 S1 names and the S3 names) are judged by reading bodies, suite by suite. Cut into tasks after Task 8 lands, from a list made then: `grep` of the S1 shapes per suite, read, and S3 twins by body. Each such task: list, removal with named cover, coverage and time before and after.
+
+## Found on the way, not changed
+
+- `Rehearse.PythonTimeBeforeAStepStillCountsAgainstWallTime` (`tests/scripting/test_rehearse.cpp`) failed once in a whole-tree coverage run at load average 48 and passes alone (six of six). `max_wall_time` is looked at only on every 256th line event (`libs/scripting/src/python/host_state.cpp:232`), and the test crosses its 300 ms limit in the last 100 ms of a busy loop: a thread short of CPU can leave that loop without another 256 lines, and the script ends with the limit never read. Nothing in this branch reaches it. Not fixed here: it is a test or a production-check change for its own row.
 
 ## Self-review
 

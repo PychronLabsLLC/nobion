@@ -137,7 +137,7 @@ that removes or merges tests), record each test's own time with
 is not the share of a busy machine, and writes ctest's JUnit file; `show`
 prints count, sum, median, min and max per GoogleTest suite and the slowest
 tests; `compare` gives each suite's sum before and after, and the tests found
-in one file only. A full `-j1` run of `dev` takes about 15 minutes; pass
+in one file only. A full `-j1` run of `dev` takes 15 to 30 minutes, by load; pass
 `--tests-regex` to time one suite. Times include starting the test binary
 once per test, so they read a few percent above GoogleTest's own.
 
@@ -179,8 +179,12 @@ binary run by hand, outside the preset, writes `default.profraw` in its
 working directory (ignored by git) unless `LLVM_PROFILE_FILE` is set. Run on `pychron_core_tests`
 alone (2026-10-16): configure 38 s, build 14 s with a warm ccache, tests 3 s,
 report under 1 s; `libs/` lines 86.94% (2643/3040), branches 77.39%
-(1188/1535) over the 31 files that binary reaches. A whole-tree run has not
-been timed yet.
+(1188/1535) over the 31 files that binary reaches. On the whole tree
+(2026-11-02, other builds running): configure 43 s, build 8 min, tests 6 min,
+report 2 s; `libs/` lines 95.33% (88300/92622), branches 82.31% (46708/56744)
+over 637 files. Between two runs of the same tests `compare` can list a few
+counts down in files with threads or timing (`scheduler`, `live_feed`,
+`host_state`); read what it lists against what the change can reach.
 
 To try the spectrometer window in simulation, run the app with `--sim` and
 open View > Spectrometer (Ctrl+Shift+S); the example

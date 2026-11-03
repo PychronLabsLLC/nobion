@@ -10,6 +10,7 @@
 #include <optional>
 #include <ranges>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -138,6 +139,70 @@ TEST(GitFixture, IgnoresInheritedGitEnvironment) {
   EXPECT_EQ(decoy.git({"for-each-ref"}), refs_before);
   EXPECT_EQ(decoy.git({"status", "--porcelain"}), "");
   EXPECT_EQ(decoy.git({"ls-files"}), "d.json\n");
+}
+
+// head() reads the fixture's own git directory, so a fixture commit costs no
+// process for its sha. It must say what git says however HEAD is kept.
+TEST(GitFixture, HeadIsWhatGitSays) {
+  SKIP_WITHOUT_GIT();
+  GitFixture repo;
+  repo.init();
+  const auto rev_parse = [&repo] {
+    std::string out = repo.git({"rev-parse", "HEAD"});
+    while (!out.empty() && (out.back() == '\n' || out.back() == '\r')) out.pop_back();
+    return out;
+  };
+
+  repo.write("a.json", "a");
+  const std::string first = repo.commit("first", "2016-03-04T05:06:07+00:00");
+  EXPECT_EQ(first, rev_parse());
+
+  repo.branch("side");
+  repo.checkout("side");
+  repo.write("b.json", "b");
+  const std::string side = repo.commit("side", "2016-03-05T05:06:07+00:00");
+  EXPECT_EQ(side, rev_parse());
+  repo.checkout("main");
+  EXPECT_EQ(repo.head(), first);
+
+  const std::string merged = repo.merge("side", "merge side", "2016-03-06T05:06:07+00:00");
+  EXPECT_EQ(merged, rev_parse());
+
+  repo.checkout(first);  // detached: HEAD holds the sha itself
+  EXPECT_EQ(repo.head(), first);
+  EXPECT_EQ(repo.head(), rev_parse());
+  repo.checkout("main");
+
+  repo.git({"pack-refs", "--all"});  // no loose file for the branch any more
+  ASSERT_FALSE(std::filesystem::exists(repo.path() / ".git" / "refs" / "heads" / "main"));
+  EXPECT_EQ(repo.head(), merged);
+  EXPECT_EQ(repo.head(), rev_parse());
+
+  repo.write("c.json", "c");  // a loose ref written after packing wins over the packed one
+  const std::string after_packing = repo.commit("after packing", "2016-03-07T05:06:07+00:00");
+  EXPECT_NE(after_packing, merged);
+  EXPECT_EQ(after_packing, rev_parse());
+}
+
+TEST(GitFixture, HeadStartsNoProcess) {
+  SKIP_WITHOUT_GIT();
+  GitFixture repo;
+  repo.init();
+  repo.write("a.json", "a");
+  const std::string sha = repo.commit("first", "2016-03-04T05:06:07+00:00");
+  const std::filesystem::path no_git = repo.temp("no-git");
+  std::filesystem::create_directories(no_git);
+  ScopedEnv env;
+  env.set("PATH", no_git.string());
+  EXPECT_EQ(repo.head(), sha);
+}
+
+// No commit yet: git's refusal, as before.
+TEST(GitFixture, HeadOfAnUnbornBranchFails) {
+  SKIP_WITHOUT_GIT();
+  GitFixture repo;
+  repo.init();
+  EXPECT_THROW(repo.head(), std::runtime_error);
 }
 
 TEST(GitReader, IgnoresInheritedGitEnvironment) {
