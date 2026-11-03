@@ -303,12 +303,6 @@ TEST_F(QtegraAcquire, MissingDetectorIsAbsentNotError) {
   EXPECT_EQ(q.health().state, DeviceState::Ok);
 }
 
-TEST_F(QtegraAcquire, ExtraDetectorIgnored) {
-  override_data("PM,9,H1,1.5,L3,7");
-  ASSERT_TRUE(q.start());
-  EXPECT_EQ(frame().values, (std::vector<std::pair<ChannelId, double>>{{"H1", 1.5}}));
-}
-
 TEST_F(QtegraAcquire, NoDataYetIsNoFrameAndNoError) {
   override_data("Error: no data");
   ASSERT_TRUE(q.start());
@@ -338,14 +332,6 @@ TEST_F(QtegraAcquire, ErrorReplyIsProtocolAndConsumesSeq) {
   override_data("");
   clock.advance(kHalf);
   EXPECT_EQ(frame().seq, first + 2);
-}
-
-TEST_F(QtegraAcquire, NonNumericValueIsProtocol) {
-  override_data("H1,1.5,AX,volts");
-  ASSERT_TRUE(q.start());
-  auto r = q.next(Duration::zero());
-  ASSERT_FALSE(r);
-  EXPECT_EQ(r.error().kind, ErrorKind::Protocol);
 }
 
 // Was NoReplyIsTimeoutAndIsNotRetried. GetData is Safe: a reply that never
@@ -395,6 +381,7 @@ TEST_F(QtegraAcquire, GetDataEdgeReplies) {
       {"untagged values, even count", "1.5,2.5,3.5,4.5", std::nullopt},
       {"one lower-case name", "h1,1.5,AX,2.5", Values{{"AX", 2.5}}},
       {"one known name among others", "IC0,1.5,CDD,2.5,IC1,3", Values{{"CDD", 2.5}}},
+      {"detectors not configured are ignored", "PM,9,H1,1.5,L3,7", Values{{"H1", 1.5}}},
   };
   ASSERT_TRUE(q.start());
   for (const auto& c : cases) {

@@ -135,9 +135,13 @@ Spec section 4, cause 2: fixture commits are 13 to 15% of both suites and about 
 
 **Files:** modify `tests/devices/spectrometer/test_thermo_qtegra_acquire.cpp` (lines 88–146).
 
-- [ ] Step 1: Read the tests in that range; list the ones whose bodies differ only in a value and an expectation. Any that differ in setup or in what they assert stay as they are.
-- [ ] Step 2: Fold that list into one table test (a `struct Case` vector, loop with `SCOPED_TRACE(case.name)`), or a `TEST_P` with `INSTANTIATE_TEST_SUITE_P` naming each case, keeping every case's value and expectation. `QtegraAcquireSteady` cases are not touched.
-- [ ] Step 3: Build `pychron_devices_tests` (`tests/devices/CMakeLists.txt:6`), run the file's suite; coverage before and after (Task 2) for `libs/devices`; commit `test(devices): one table for the Qtegra acquire cases that differ by a value`.
+- [x] Step 1: Read the tests in that range; list the ones whose bodies differ only in a value and an expectation. Any that differ in setup or in what they assert stay as they are.
+  - Stale range: the file has moved on, and the tests now at about lines 90–145 (`NextBeforeStartIsConfig` to `NotDueReturnsNulloptWithoutTraffic`) differ in setup or in what they assert, so all stay. `GetDataEdgeReplies` was added since and is the table the spec asked for. Two tests outside the range are one-literal copies of it: `NonNumericValueIsProtocol` (the same reply and expectation as its row "non-numeric value") and `ExtraDetectorIgnored` (a reply and a value set, as its rows are). `MissingDetectorIsAbsentNotError` also asserts `Frame::value` and health, so it stays. Neither of the two came with a bug fix: both date from the first commit of the driver, `7b535dd8`.
+- [x] Step 2: Fold that list into one table test (a `struct Case` vector, loop with `SCOPED_TRACE(case.name)`), or a `TEST_P` with `INSTANTIATE_TEST_SUITE_P` naming each case, keeping every case's value and expectation. `QtegraAcquireSteady` cases are not touched.
+  - `ExtraDetectorIgnored` is a new row of `GetDataEdgeReplies`; `NonNumericValueIsProtocol` needed no row, its own is there.
+- [x] Step 3: Build `pychron_devices_tests` (`tests/devices/CMakeLists.txt:6`), run the file's suite; coverage before and after (Task 2) for `libs/devices`; commit `test(devices): one table for the Qtegra acquire cases that differ by a value`.
+  - Commit `test(devices): the Qtegra GetData table holds the replies that differ by a value` (it joins an existing table). Tests 6457 -> 6455, all passing. Lines and branches of every Qtegra file (`libs/codecs/src/thermo_qtegra.cpp`, `libs/devices/src/spectrometer/thermo_qtegra.cpp`, `thermo_qtegra_sim.cpp`, `qtegra_link.cpp`) are identical before and after.
+  - The whole-tree total is not a gate to the last count: two runs of the same tree differ by 3 lines and 2 branches, all in threaded or timed code, and four runs on this branch span lines 88296 to 88305 and branches 46697 to 46719. Task 6's totals (88299/92622 and 46699/56744, two runs: 88296 and 46697) lie in that band. The gate that holds is: no file the change can reach goes down.
 
 ### Task 7: S2 folds in the legacy acquirers tests
 

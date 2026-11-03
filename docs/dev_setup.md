@@ -182,9 +182,11 @@ report under 1 s; `libs/` lines 86.94% (2643/3040), branches 77.39%
 (1188/1535) over the 31 files that binary reaches. On the whole tree
 (2026-11-02, other builds running): configure 43 s, build 8 min, tests 6 min,
 report 2 s; `libs/` lines 95.33% (88300/92622), branches 82.31% (46708/56744)
-over 637 files. Between two runs of the same tests `compare` can list a few
-counts down in files with threads or timing (`scheduler`, `live_feed`,
-`host_state`); read what it lists against what the change can reach.
+over 637 files. Two runs of the same tree differ: 3 lines and 2 branches
+between two runs, and four runs spanned 9 lines and 22 branches, so `compare`
+lists counts down in files with threads or timing (`scheduler`, `live_feed`,
+`persister`, `plan_parse`). The gate is that no file the change can reach goes
+down; when a total dips, a second run of the same tree shows the spread.
 
 To try the spectrometer window in simulation, run the app with `--sim` and
 open View > Spectrometer (Ctrl+Shift+S); the example
