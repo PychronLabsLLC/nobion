@@ -68,6 +68,11 @@ S4. **CLI test that re-proves the engine**: an `elctl` test whose assertions
     `ImportCmdParity` (`apps/elctl/tests/test_import_cmd.cpp:1002`, 13 tests)
     against `InterpretedAgeBecomesARevision`
     (`tests/dvc/test_project_import.cpp:1857`).
+    Result (plan Task 8): candidate mostly wrong. `ImportCmdParity` is only
+    test of age function `AgeAsOf` (`apps/elctl/src/import_age.cpp`); engine
+    tests script `AgeFn`; `libs/ingest` does not reduce, so nothing can move
+    there. As-of and not-comparable assertions kept; only those engine test
+    already held removed, no test dropped.
 
 Not superfluous: a UI test of what a library test also covers, when the UI
 test checks the window's wiring (an action enabled, a status line, a

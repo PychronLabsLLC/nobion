@@ -1141,9 +1141,6 @@ class ImportCmdParity : public ImportCmd {
     EXPECT_TRUE(contains(verified.out, "parity: 0 pass, 0 pass on age only, 0 fail, 13 not comparable"))
         << verified.out;
     EXPECT_TRUE(contains(verified.out, std::string(reason) + " 1")) << verified.out;
-    const json report = json::parse(verify({"--json"}).out, nullptr, false);
-    ASSERT_TRUE(report.is_array());
-    EXPECT_EQ(report[0].at("parity").at("not_comparable").value(reason, 0), 1);
   }
   void expect_reproduced() const {
     const Outcome verified = verify();
@@ -1170,7 +1167,6 @@ TEST_F(ImportCmdParity, TheLegacyAgeIsReproduced) {
       << verified.out;
   EXPECT_TRUE(contains(verified.out, "not comparable: analysis is not in the store 12")) << verified.out;
   EXPECT_EQ(lines(verified.out).back(), "  ok") << verified.out;
-  EXPECT_EQ(import({"conflicts", "--kind", "value_mismatch", "--all"}).out, "");
 }
 
 // The default tolerance is 1e-6; the largest residual of the comparisons that
@@ -1197,8 +1193,9 @@ TEST_F(ImportCmdParity, TheLargestPassingResidualIsPrinted) {
 
 // The constants are part of the answer: with the lab default (atmospheric
 // 40Ar/36Ar 298.56, where legacy used 295.5) the same data gives another
-// age. The failure is kept as a conflict that says what it was computed
-// with, and a later verify that passes supersedes it.
+// age, and the report says what it was computed with. A later verify that
+// passes supersedes the conflict: VerifierTest scripts the age, this is the
+// command's own. What verify stores for a failure is VerifierTest's.
 TEST_F(ImportCmdParity, OtherConstantsDoNotReproduceIt) {
   build(true);
   const Outcome other = verify({"--constants", "default"});
@@ -1209,13 +1206,6 @@ TEST_F(ImportCmdParity, OtherConstantsDoNotReproduceIt) {
   EXPECT_TRUE(contains(other.out, ": legacy 24.0335197636 +- 0.90859477073, computed 23.97")) << other.out;
   EXPECT_TRUE(contains(other.out, " (age_err_wo_j)")) << other.out;
   EXPECT_EQ(lines(other.out).back(), "  not ok: 1 blocking conflict; 1 parity failure") << other.out;
-
-  const json rows = json::parse(import({"conflicts", "--kind", "value_mismatch", "--json"}).out, nullptr, false);
-  ASSERT_TRUE(rows.is_array());
-  ASSERT_EQ(rows.size(), 1u);
-  EXPECT_EQ(rows[0].at("detail").value("basis", ""), "constants=default");
-  EXPECT_EQ(rows[0].at("detail").value("error_compared", ""), "age_err_wo_j");
-  EXPECT_DOUBLE_EQ(rows[0].at("detail").at("legacy").value("age", 0.0), 24.03351976363802);
 
   const json report = json::parse(verify({"--constants", "default", "--json"}).out, nullptr, false);
   ASSERT_TRUE(report.is_array());
@@ -1375,6 +1365,11 @@ TEST_F(ImportCmdParity, ProductionNamedAtTheAgeButDefinedLaterIsNotComparable) {
 TEST_F(ImportCmdParity, ReferenceDataNotYetDefinedAtTheAgeIsNotComparable) {
   build(true, {}, kAfterTheAge);
   expect_not_comparable("reference_not_yet_defined");
+
+  // The reasons are in --json too, by name.
+  const json report = json::parse(verify({"--json"}).out, nullptr, false);
+  ASSERT_TRUE(report.is_array());
+  EXPECT_EQ(report[0].at("parity").at("not_comparable").value("reference_not_yet_defined", 0), 1);
 }
 
 // Spec 10.21: reference data removed before the age was saved has no value
