@@ -29,8 +29,8 @@ differ slightly.
 | `nothing is installed yet` | No install exists | Run the setup wizard (`nobion --setup` or `elctl init`). |
 | `installation 'X': ... elctl doctor --install X says more` | Install config fails to load | Run the command it names. |
 | `nobion --setup can set it up again` | A data-reduction install cannot open its database, and has nothing else to show, so the program does not start. An instrument install starts anyway (next row). | Re-run setup, check the database server is up and credentials are right. |
-| The window opens, the data window has a banner `The database could not be opened: <reason>` and `Showing the records folder <path>.`, the Log dock has `ERROR [ui]` with the reason, and no queue will start | An instrument install's database could not be opened (the server is away, its password could not be read, or the schema is behind). The line can still be worked; the data window shows only the record files that folder holds, not the install's analyses, and the Entry and Fit menus are missing. A queue is refused with `the queue cannot be saved:` and `the database cannot be reached: <reason>`. | Put right what the reason names: start the server, check `<root>/.pychron/credentials.toml`; for `database schema is out of date` run `elctl db migrate --db <url>` (the reason names it), with pychron closed. Then restart `nobion`. `elctl doctor --install <name>` says more. |
-| `--db` exits 2, "database schema is out of date" | The store was made by an older pychron (the UI never migrates). | `elctl db migrate --db <url>` (see [elctl reference](08-elctl-reference.md#the-stores-schema)), with pychron closed. |
+| The window opens, the data window has a banner `The database could not be opened: <reason>` and `Showing the records folder <path>.`, the Log dock has `ERROR [ui]` with the reason, and no queue will start | An instrument install's database could not be opened (the server is away, its password could not be read, or the schema is behind). The line can still be worked; the data window shows only the record files that folder holds, not the install's analyses, and the Entry and Fit menus are missing. A queue is refused with `the queue cannot be saved:` and `the database cannot be reached: <reason>`. | Put right what the reason names: start the server, check `<root>/.pychron/credentials.toml`; for `database schema is out of date` run `elctl db migrate --db <url>` (the reason names it), with nobion closed. Then restart `nobion`. `elctl doctor --install <name>` says more. |
+| `--db` exits 2, "database schema is out of date" | The store was made by an older nobion (the UI never migrates). | `elctl db migrate --db <url>` (see [elctl reference](08-elctl-reference.md#the-stores-schema)), with nobion closed. |
 | `--db` exits 2, "built without persistence" | The build has no database support. | Use a build with persistence. |
 | `built without the DVC store` / `elctl was built without persistence` | The build skipped persistence. `import`, `export`, `entry` are unavailable. Exit 2. | Install a build with persistence (Windows CI builds have none). |
 | `elctl` with no `-c` uses a surprising config | With no install found it quietly falls back to `extraction_line.toml` in the current folder | Pass `-c`, or `cd` to the right folder. |
@@ -227,7 +227,7 @@ Both programs write a log file as they run, with no setup.
   wrote the line: `queue` for the experiment queue, `run` for the thread
   that carries out a run, `scheduler` for timed jobs such as gauge and
   temperature polling, `transport.<name>` for a device link, `ui` for the
-  window, `elctl` for the command line; a thread pychron did not name shows
+  window, `elctl` for the command line; a thread nobion did not name shows
   as a number (`t3`). `run=<id>` is there only on lines written while a run
   is in progress. A message of several lines is written on one line, its
   lines separated by ` / ` (the Log panel shows it as it was).

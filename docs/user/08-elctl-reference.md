@@ -1,12 +1,12 @@
 # elctl reference
 
-`elctl` is Pychron's command-line tool. Use it to check configuration files,
+`elctl` is Nobion's command-line tool. Use it to check configuration files,
 set up and check an installation, drive the extraction line from a terminal,
 run an experiment queue without a screen, work with lasers and trays, and do
 bulk database work (legacy import, sample entry, publication export, the
 EarthBank workbooks).
 
-This page is a reference. For a first look at Pychron, start with
+This page is a reference. For a first look at Nobion, start with
 [01 Getting started](01-getting-started.md). Related pages:
 [export](../export.md), [entry](../entry.md),
 [legacy import](../legacy_import.md), [notifications](../notifications.md),
@@ -151,7 +151,7 @@ Warnings are printed as `warning: ...` and do not fail; it ends with
 elctl list-drivers
 ```
 
-Prints every driver kind that Pychron knows and the settings each one reads.
+Prints every driver kind that Nobion knows and the settings each one reads.
 Use it when writing a `[drivers.*]` table.
 
 ### list
@@ -299,7 +299,7 @@ asks `Write them? [Y/n]` unless `--yes`, then checks:
 - A local file that is there is opened as it is. One whose schema is behind
   is refused with the command that brings it up to date
   (`elctl db migrate --db <url>`): it is never migrated from here, since it
-  may be a copy that an older pychron still reads. An empty file is refused.
+  may be a copy that an older nobion still reads. An empty file is refused.
 - A server is opened as it is, with the password given or the one kept, and
   never migrated. One that cannot be reached, or refuses the user, is
   refused.
@@ -822,7 +822,7 @@ your lab changed them).
 
 ## The store's schema
 
-A store's tables and indexes are its schema, and a newer pychron may need a
+A store's tables and indexes are its schema, and a newer nobion may need a
 newer one. The application, `export`, `flux` and `entry` open a store as it
 is and refuse one that is behind: they never change a schema in passing.
 After an update, this is how an existing store is brought up to date.
@@ -851,7 +851,7 @@ names the first migration it lacks). It changes nothing.
 
 Applies the migrations the store lacks, in order, and lists what it then
 has. Each migration is applied in one transaction: whole, or not at all.
-Run again it does nothing and says the store is up to date. Close pychron
+Run again it does nothing and says the store is up to date. Close nobion
 first if it has the store open.
 
 When it has migrated the store, it then lists the principal investigators
@@ -993,7 +993,7 @@ elctl publish delete  --db <url> --release <r>
 
 | Command | Does |
 |---|---|
-| `create` | Pins the selection's heads and references (and every interpreted age whose members are all selected, or the ones named by `--ia`) in a bookmark and writes a new draft release. The selection and reduction flags are `export`'s; `--tag` keeps only analyses with those head tags (default: every tag but `invalid`). A second `create` of a name makes version 2, superseding version 1. The licence preselects `CC-BY-4.0`; the texts of CC-BY-4.0, CC-BY-SA-4.0 and CC0-1.0 ship with pychron, another id is named in `LICENSE.txt` only. Prints the release's uuid and counts; exit 1 when nothing matched. |
+| `create` | Pins the selection's heads and references (and every interpreted age whose members are all selected, or the ones named by `--ia`) in a bookmark and writes a new draft release. The selection and reduction flags are `export`'s; `--tag` keeps only analyses with those head tags (default: every tag but `invalid`). A second `create` of a name makes version 2, superseding version 1. The licence preselects `CC-BY-4.0`; the texts of CC-BY-4.0, CC-BY-SA-4.0 and CC0-1.0 ship with nobion, another id is named in `LICENSE.txt` only. Prints the release's uuid and counts; exit 1 when nothing matched. |
 | `build` | Writes `<dir>/<name>-v<N>`. Embargoed samples and analyses are left out and counted in the manifest; `--private` keeps them and marks the build private. Without Apache Arrow (`PYCHRON_PUBLISH`) the Parquet tables are not written and the command says so. `--with-figures` adds `figures/<sample>/` with an ideogram, a spectrum per step-heated aliquot and an inverse isochron (three or more included analyses), each as SVG and PDF (`docs/release_format.md`, Figures); `verify --db` then rebuilds with them. `--with-viewer` is accepted and ignored in this version. |
 | `verify` | Every file against `manifest.json`; with `--db`, also against a rebuild of the same release from that store (row hashes per table, bytes per non-Parquet file). Exit 1 names each difference. |
 | `publish` | Marks the draft published, recording the manifest of the build given; refuses a manifest whose pins are not this release's. Private unless `--public`. |
@@ -1153,7 +1153,7 @@ persistence.
 
 A **profile** names an account: the server, your login, and the institution
 and data package uploads go to. Profiles live in one file (the one the
-Pychron window uses, so a login made here is a login there):
+Nobion window uses, so a login made here is a login there):
 `~/Library/Application Support/Pychron/earthbank/profiles.toml` on macOS,
 `%APPDATA%\Pychron\earthbank\profiles.toml` on Windows,
 `~/.config/pychron/earthbank/profiles.toml` on Linux. Every subcommand takes

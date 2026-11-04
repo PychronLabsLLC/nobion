@@ -1287,7 +1287,7 @@ elctl -c extraction_line.toml exp run queues/experiment.toml --resume
 
 ### 8.6 Notifications
 
-Pychron can send a message when a run fails (or its record cannot be saved),
+Nobion can send a message when a run fails (or its record cannot be saved),
 when the queue holds and goes on again, when a failed run left the line
 unsafe, and when the queue ends: email, a Slack-style webhook, or a local
 program. A message that cannot be sent (the network is down) waits on disk

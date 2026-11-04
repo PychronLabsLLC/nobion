@@ -1,6 +1,6 @@
 # Glossary
 
-Terms as pychron uses them. Longer explanations are linked.
+Terms as nobion uses them. Longer explanations are linked.
 
 | Term | Meaning |
 |---|---|

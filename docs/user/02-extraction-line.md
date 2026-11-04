@@ -1,6 +1,6 @@
 # The extraction line
 
-The extraction-line window is the first window Pychron opens and the one the
+The extraction-line window is the first window Nobion opens and the one the
 other windows hang off. It shows your gas-handling line as a drawing: valves,
 gauges, pumps, pipettes and the stages (volumes) between them, with the
 state of each one live. Around the drawing are docks for alarms, the log, and
@@ -17,9 +17,9 @@ Related pages: [getting started](01-getting-started.md),
 
 ## Opening the window
 
-- It opens when Pychron starts. The title bar reads `pychron - <system name>`,
+- It opens when Nobion starts. The title bar reads `Nobion — <system name>`,
   where the name is `[system] name` in `extraction_line.toml`.
-- From any other Pychron window, choose **View > Extraction Line**
+- From any other Nobion window, choose **View > Extraction Line**
   (Ctrl+Shift+L, Cmd+Shift+L on a Mac) to bring it back to the front.
 - The other **View** entries (Spectrometer, Experiment, Data, Laser) are
   greyed out until the thing they open has loaded. The spectrometer, for
@@ -35,7 +35,7 @@ Related pages: [getting started](01-getting-started.md),
 | What you see | What it means |
 |---|---|
 | A rounded square labelled with a name | An actuated valve (`[[valve]]` / `[[rough_valve]]` in the canvas). |
-| A rounded square with a small handwheel in the corner | A manual valve: nobody can drive it, you tell Pychron what you did (see below). |
+| A rounded square with a small handwheel in the corner | A manual valve: nobody can drive it, you tell Nobion what you did (see below). |
 | A circle | A switch (`[[switch]]`): pump power, a heater relay, a shutter. |
 | Green valve | Open. |
 | Red valve | Closed. |
@@ -53,7 +53,7 @@ The canvas is a fixed drawing; it does not zoom. Its size and scale come from
 
 ### Colors show where gas can go
 
-Boxes and pipes are not one fixed color. Pychron works out which volumes are
+Boxes and pipes are not one fixed color. Nobion works out which volumes are
 connected through open valves and paints each connected region with the
 color of the most important source attached to it:
 
@@ -121,7 +121,7 @@ running experiment, goes through one gatekeeper in this order:
    Refusal text: `'X' is software locked`.
 2. **Owner.** A valve can be claimed by one user of the line; a claimed valve
    accepts commands only from its owner (`'X' is owned by 'a', not 'b'`).
-   The tooltip shows `owned by ...`. Pychron's own windows act as `ui` and do
+   The tooltip shows `owned by ...`. Nobion's own windows act as `ui` and do
    not claim valves, so you will normally never meet an owner. Ownership is
    not saved: it is gone after a restart.
 3. **Interlocks**, only when **opening** (closing is never interlocked):
@@ -133,7 +133,7 @@ running experiment, goes through one gatekeeper in this order:
    - *Required valves* (`positive_interlocks = ["B"]`): every listed valve
      must be open first. Refusal text: `cannot open 'A': requires 'B' open,
      it is closed`. Closing a prerequisite later is allowed.
-4. **Command, settle, read-back.** The command is sent, Pychron waits the
+4. **Command, settle, read-back.** The command is sent, Nobion waits the
    valve's `settle_ms`, then asks the hardware what state it is really in.
    If the answer is not the state commanded, the valve is recorded as what
    the hardware said and the error is `'X' read back closed after open`.
@@ -150,10 +150,10 @@ Important consequences:
   the health bar.
 - Operations are one at a time. Two people (or a script and a person) cannot
   open interlocked valves at the same instant.
-- Interlocks look at the state Pychron has *recorded*. For a valve with
+- Interlocks look at the state Nobion has *recorded*. For a valve with
   `verify = false` (no read-back) that is the state last commanded, not
   measured.
-- Interlocks rest on what Pychron has recorded. Actuated valves are read back
+- Interlocks rest on what Nobion has recorded. Actuated valves are read back
   from the hardware when the line starts and after each command; a valve
   moved by hand at the hardware afterwards is not noticed until then.
 
@@ -185,7 +185,7 @@ also interlocks the two valves so they can never both be open.
 
 ## Gauges
 
-Gauges are drawn as chips on the canvas. Pychron reads each gauge every
+Gauges are drawn as chips on the canvas. Nobion reads each gauge every
 `scan_interval_ms` (default 1000 ms) in the background. Readings are in the
 gauge's configured units (`torr`, `mbar` or `pa`) in scientific notation.
 
@@ -223,7 +223,7 @@ From a terminal, `elctl read <gauge>` takes one reading and
 
 ## Pumps
 
-Pychron has no "pump" widget. A pump appears in two ways:
+Nobion has no "pump" widget. A pump appears in two ways:
 
 - as a **stage** in the canvas with `kind = "pump"` (or a turbo, ion pump
   or roughing pump glyph): it only colors the region it is connected to, as
@@ -249,7 +249,7 @@ or more `[[heaters]]`. Each row has:
 Under the rows is a message line and a strip chart of every heater's
 readback. A control is disabled while its command is pending, and permanently
 greyed out when the heater's driver does not support it (for example a PLC
-heater configured without a `use_pid` coil). After each command Pychron reads
+heater configured without a `use_pid` coil). After each command Nobion reads
 the same field back; a mismatch is reported as an error and the row snaps
 back to what the heater actually says. Errors go to the status line and to
 the log dock as `ERROR [heater] ...`. Heaters are scanned like gauges; one
@@ -591,7 +591,7 @@ Other things a valve or switch may carry:
 | Key | Use |
 |---|---|
 | `positive_interlocks` | valves that must be **open** before this one opens |
-| `inverted = true` | the channel is wired backwards; Pychron still shows the valve's real state |
+| `inverted = true` | the channel is wired backwards; Nobion still shows the valve's real state |
 | `state_source = { driver = "...", address = "...", inverted = false }` | read the state from another device (some labs read autovalve states from a second unit) |
 | `verify = false` | do not read back; trust the command (legacy `query_state = false`). Interlocks then rest on the commanded state. Cannot be combined with `state_source`. |
 
@@ -680,7 +680,7 @@ pos = [100, 50]
 Other sections the loader accepts: `[colors]`, `[[rough_valve]]` (drawn as a
 valve), `[[switch]]`, `[[cross]]`, `[[image]]` and `[legend]`.
 
-The line and the canvas are checked against each other when Pychron starts:
+The line and the canvas are checked against each other when Nobion starts:
 
 - A canvas valve, manual valve, switch or pipette whose name is not defined
   in `extraction_line.toml` is an **error**; the line will not load. The

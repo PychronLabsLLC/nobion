@@ -160,7 +160,7 @@ This age is **cached**: it is stored in the database next to the analysis,
 so that the browser can show and filter by it without reducing every
 analysis it lists. It is not recomputed when the browser shows it.
 
-- **When it is computed.** Whenever pychron reduces an analysis with the
+- **When it is computed.** Whenever nobion reduces an analysis with the
   default settings: opening it in Recall (while it has no unsaved fit
   edits), drawing it in a figure, exporting it. Also by `elctl import run`
   at the end of an import, and by `elctl db derive`, which fills in every

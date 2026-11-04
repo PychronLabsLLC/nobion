@@ -59,7 +59,7 @@ calibrated on any stage as shipped.
 
 On the laser PC, in Chromium: **View > Control Panels > Show/Hide Remote
 Control Window**, tick **TCP/IP Interface** (port 1234). Chromium must be
-running; pychron keeps one connection open to it. Then add a transport and a
+running; nobion keeps one connection open to it. Then add a transport and a
 driver to the line's `extraction_line.toml` (see
 `configs/examples/laser.chromium.toml.example`):
 
@@ -240,7 +240,7 @@ checked this way; the device name is then free text.
 
 ## 6. Stage calibration
 
-A calibration tells pychron where a tray sits on a laser's stage. It is a
+A calibration tells nobion where a tray sits on a laser's stage. It is a
 list of points: "the stage was at (x, y) when it was on hole H".
 
 * One point places the tray.
@@ -351,7 +351,7 @@ glow. A live camera may do that only over a real laser; a simulated one only
 over a simulated laser. `view` is a picture only: nothing it sees moves the
 stage, hole moves go to their calibrated positions, and queues run as before.
 To try a computer's own camera, set `source = "opencv"` and `use = "view"`.
-On macOS the system asks once whether Pychron may use the camera.
+On macOS the system asks once whether Nobion may use the camera.
 
 ```bash
 elctl -c extraction_line.toml laser cameras

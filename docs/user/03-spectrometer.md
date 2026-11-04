@@ -17,7 +17,7 @@ Related pages: [the extraction line](02-extraction-line.md),
 ## Opening the window
 
 Choose **View > Spectrometer** (Ctrl+Shift+S, Cmd+Shift+S on a Mac) in any
-Pychron window.
+Nobion window.
 
 The menu entry is greyed out when:
 
@@ -109,7 +109,7 @@ Columns: Color, Name, Isotope, Intensity, ±1σ, Units.
 
 **Large-move confirmation.** If the move would change the mass on the
 reference detector by more than a threshold (default **5 amu**), or the
-current or target position is unknown, Pychron asks "This moves H1 by N amu.
+current or target position is unknown, Nobion asks "This moves H1 by N amu.
 Move the magnet?" (or "The current magnet position is unknown. Move the
 magnet?"). The default answer is No. Set the threshold in **File >
 Preferences... > Spectrometer** ("Ask before moving the magnet more than");
@@ -330,7 +330,7 @@ Notes on the parts people trip over:
 
 Each detector has its own gain and efficiency. The factor that puts them on
 one scale is the **IC factor**: the same gas measured on two detectors, as a
-ratio. In Pychron:
+ratio. In Nobion:
 
 1. Measure it with the `detector_ic` plan (or an air shot with a plan that
    hops the same isotope across detectors). Air runs have a known
@@ -427,7 +427,7 @@ the active one). Old versions are kept; nothing is overwritten. If that file
 cannot be written (no data directory, a folder that is not writable), the peak
 center still succeeds and moves to the new value, but its result carries the
 note `field table not saved: <why>` and a warning is logged: the update then
-lasts only until pychron is restarted.
+lasts only until nobion is restarted.
 
 #### From the Peak Center window
 
@@ -495,9 +495,9 @@ Closing the program or switching spectrometer cancels a run without asking.
 
 ## Field table editor
 
-The field table (pychron's mftable) says, for every isotope, the magnet
+The field table (nobion's mftable) says, for every isotope, the magnet
 setting that puts it on each detector. Choose **Spectrometer > Field
-Table…** in any Pychron window to see and edit it. There is one editor
+Table…** in any Nobion window to see and edit it. There is one editor
 window; choosing the item again brings it to the front. The item is greyed,
 with the tooltip `no spectrometer configured`, when there is no spectrometer
 or it has no data directory.
@@ -657,12 +657,12 @@ Things worth knowing:
 - **Field table.** For every isotope, the magnet setting that puts it on each
   detector (`tables/<name>/current` points at the active
   `<timestamp>.toml`; each file has `[[points]]` with `isotope`, `mass` and
-  one column per detector). The `argon` table shipped with Pychron is a
+  one column per detector). The `argon` table shipped with Nobion is a
   **simulation placeholder** and describes no instrument.
 - **Mass table.** `molecular_weights.toml` extends the built-in noble-gas
   masses.
 - **Protection and saturation.** `protection.threshold` is the signal at
-  which a detector counts as in danger; `on_move = true` makes Pychron
+  which a detector counts as in danger; `on_move = true` makes Nobion
   protect it during magnet moves; `[magnet] protection` lists the detectors
   and a `beam_blank_threshold`. These are only as good as the field table.
 - **Source ramping.** `[source] ramp = { HV = 200.0, TrapCurrent = 10.0 }`
@@ -744,10 +744,10 @@ What that means in practice:
 
 ## Calibration checklist
 
-When `pychron setup` writes an install it also writes a `CALIBRATE.md` in the
-install folder listing what is still a placeholder; `elctl doctor` warns about
-every file that still says `SIMULATION PLACEHOLDER` or `CONFIRM`. Before you
-measure on a real instrument:
+When `elctl init` or the setup wizard writes an install, it also writes a
+`CALIBRATE.md` in the install folder listing what is still a placeholder;
+`elctl doctor` warns about every file that still says `SIMULATION PLACEHOLDER`
+or `CONFIRM`. Before you measure on a real instrument:
 
 1. **Field table** (`tables/`): replace with a calibration for your
    instrument, every isotope on every detector. Do not move the magnet

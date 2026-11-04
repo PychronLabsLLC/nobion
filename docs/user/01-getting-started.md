@@ -1,13 +1,13 @@
 # Getting started
 
-This page is for lab operators and lab managers. It explains what Pychron is,
+This page is for lab operators and lab managers. It explains what Nobion is,
 what its main ideas are, how to start it, what every menu does, and walks you
 through a 15-minute tour on the built-in simulator, so you can learn the
 program without touching an instrument.
 
-> **Status.** Pychron (the C++ rewrite) is in development. Everything runs
-> against the built-in simulator. No instrument driver has been run against a
-> real instrument yet; see "Hardware status" in the
+> **Status.** Nobion (the C++ rewrite of pychron) is in development.
+> Everything runs against the built-in simulator. No instrument driver has
+> been run against a real instrument yet; see "Hardware status" in the
 > [README](../../README.md). Until your lab has done the bring-up in
 > [the installation runbook](../installation_runbook.md), treat an instrument
 > install as a simulation.
@@ -16,7 +16,7 @@ Where to go next:
 
 | You want to | Read |
 |---|---|
-| Install Pychron on a lab computer | [Installation runbook](../installation_runbook.md) |
+| Install Nobion on a lab computer | [Installation runbook](../installation_runbook.md) |
 | Operate the valves, gauges and heaters | [02 Extraction line](02-extraction-line.md) |
 | Operate the mass spectrometer | [03 Spectrometer](03-spectrometer.md) |
 | Build and run queues of analyses | [04 Experiments](04-experiments.md) |
@@ -30,7 +30,7 @@ Where to go next:
 
 ## Quick start: a fresh install on the simulator
 
-Three commands take a computer with Pychron and nothing else to measured runs
+Three commands take a computer with Nobion and nothing else to measured runs
 in a database. No instrument is needed and nothing is typed in by hand.
 
 1. Make an instrument install. It is set up for simulation, with its own
@@ -95,16 +95,16 @@ irradiated sample, and the simulator does not have samples yet. Dated unknowns
 in the shipped queue come in a later version. Section 11 is a longer tour, on
 the example lab, which has no database and writes record files instead.
 
-## 1. What Pychron is
+## 1. What Nobion is
 
-Pychron is data acquisition and control software for noble-gas (Ar/Ar)
+Nobion is data acquisition and control software for noble-gas (Ar/Ar)
 geochronology labs. It drives the extraction line (valves, gauges, pumps,
 heaters), a mass spectrometer, and optionally a laser; it runs automated queues
 of analyses; and it stores and reduces the results.
 
 Two programs are installed:
 
-- **nobion** (called **Pychron** on macOS) is the application you work in.
+- **nobion** (**Nobion.app** on macOS) is the application you work in.
   It has windows for the extraction line, the spectrometer, experiments, the
   laser and the data.
 - **elctl** is a command-line tool for checking configuration, driving the
@@ -114,13 +114,13 @@ Two programs are installed:
 ## 2. Key concepts
 
 **Extraction line.** The vacuum plumbing between the sample and the
-spectrometer: valves, gauges, pumps, heaters, a pipette and so on. Pychron
+spectrometer: valves, gauges, pumps, heaters, a pipette and so on. Nobion
 shows it as a drawing (the *canvas*) where each valve is a clickable symbol.
 It is described by two files, `extraction_line.toml` (what the hardware is and
 how it is wired) and `canvas.toml` (where things are drawn).
 
 **Spectrometer.** The mass spectrometer: magnet, detectors and source. Its
-configuration is a separate file (for example `spectrometer.toml`). Pychron
+configuration is a separate file (for example `spectrometer.toml`). Nobion
 opens it in its own window (View > Spectrometer) with a live strip chart and
 detector intensities.
 
@@ -148,7 +148,7 @@ its own: the queues it runs are saved to it and its data window reads it. The
 store is also used by data-reduction installs, by Entry, by `elctl export` and
 `elctl import`, and by the UI when you pass `--db`. The example lab, and an
 install with no database, use the records folder. The store only exists if
-your Pychron was built with persistence; the release packages are.
+your Nobion was built with persistence; the release packages are.
 
 **Simulation mode.** Every hardware connection ("transport") can be replaced by
 a simulated one, so the same program runs with no instrument: a simulated line
@@ -165,7 +165,7 @@ against real hardware by mistake.
 that holds one set of settings and data: a line config, a canvas, a
 spectrometer config, scripts, plans, a data folder, and optionally a database
 URL. A **profile** is a template that creates an install by asking you a few
-questions. The profiles that ship with Pychron are:
+questions. The profiles that ship with Nobion are:
 
 | Profile | Kind | What it sets up |
 |---|---|---|
@@ -181,7 +181,7 @@ switch between installs from File > Installations.
 
 ## 3. First launch
 
-Start **Pychron** from Applications (macOS), the Start menu (Windows), or run
+Start **Nobion** from Applications (macOS), the Start menu (Windows), or run
 `nobion` from a terminal.
 
 What opens depends on what is installed on this computer:
@@ -192,7 +192,7 @@ What opens depends on what is installed on this computer:
 3. **Several installs and no default.** The **Installations** dialog opens so
    you can choose one (section 10).
 4. **Development shortcut.** With `--sim` and nothing installed, or with
-   `--examples`, the example lab shipped with Pychron opens instead of the
+   `--examples`, the example lab shipped with Nobion opens instead of the
    wizard.
 
 While it loads, a splash screen shows each step ("Loading the extraction line:
@@ -249,7 +249,7 @@ with the package).
 | `extraction_line.toml [canvas.toml]` | Positional: open this line config, and optionally this canvas, instead of an install. |
 | `--install NAME` | Open the install of that name from the site config. An unknown name is a fatal error. |
 | `--setup` | Run the setup wizard even if installs exist. |
-| `--examples` | Open the example lab shipped with Pychron (for development and learning). |
+| `--examples` | Open the example lab shipped with Nobion (for development and learning). |
 | `--sim` | Force every extraction-line transport to be simulated. Also loads the example `spectrometer.sim-integrated.toml` if no spectrometer is given. A spectrometer config that is not fully simulated is refused. |
 | `--sim-speed X` | With `--sim`, or on an install set up for simulation: run the whole application on simulated time `X` times faster than real time (`X` must be a positive number). |
 | `--spectrometer FILE` | The spectrometer config to load for View > Spectrometer. |
@@ -354,7 +354,7 @@ front. A menu with nothing to offer yet shows a greyed hint,
 | **New ▸** | **New Queue**, **New Script…**, **New Conditionals…**. Each works from any window and brings up the window it acts in: the Experiment window, the script editor, the conditionals editor. |
 | **Open ▸** | **Open Queue…**, **Open Script…**, **Open Conditionals…**, in the same way. |
 | **Save**, **Save As…** | Act on what the window in front edits, and say so: **Save Queue** in the Experiment window, **Save Script** in the script editor, **Save Conditionals** in the conditionals editor. Greyed in a window that edits no file. **Save As…** is for queues only. |
-| **Installations…** | Opens the Installations dialog (section 10). Shown only when the window was started from an install or can switch installs. Choosing another install closes this window (asking about unsaved queue edits) and starts Pychron again on it. |
+| **Installations…** | Opens the Installations dialog (section 10). Shown only when the window was started from an install or can switch installs. Choosing another install closes this window (asking about unsaved queue edits) and starts Nobion again on it. |
 | **Preferences…** | Opens the Preferences dialog (section 9). On macOS it appears in the application menu. |
 | **Quit** | Closes the window. In the main window this asks about unsaved queue edits. |
 
@@ -371,7 +371,7 @@ What New and Open do:
 
 They ask about unsaved changes first, where they would replace them. They
 are greyed when there is no experiment session (the extraction line did not
-start, or Pychron was opened for data only).
+start, or Nobion was opened for data only).
 
 **Ctrl+N** and **Ctrl+O** are New and Open for the window in front: a queue
 in the Experiment window, a script in the script editor, a conditionals file
@@ -412,7 +412,7 @@ was loaded, or the line failed to start).
 
 ### Entry
 
-Present only when Pychron has a database to enter into (started with `--db`, or
+Present only when Nobion has a database to enter into (started with `--db`, or
 a data-reduction install with a database; needs a build with persistence).
 
 | Item | Opens |
@@ -568,13 +568,13 @@ running on; a broken `logging.local.toml` is not overwritten.
 | Metrics | **Reachable from** | This computer only; every address of this computer; or one address, given in numbers. The monitoring box needs more than "this computer only". Next start. |
 | Metrics | **Port** | 1 to 65535. Next start. |
 
-A level set from the log panel's "Set logger level…" lasts until pychron
+A level set from the log panel's "Set logger level…" lasts until nobion
 closes; one set here is kept. If the local file cannot be written (the
 config is in a read-only folder), the dialog says so and changes nothing.
 The two pages appear only when a line is loaded.
 
 **Data source** is where the install reads and writes its data: its
-database and its data folder. It appears when Pychron runs on an install
+database and its data folder. It appears when Nobion runs on an install
 (not on the bundled examples), and it belongs to the install, not to you: it
 is kept in the install's files and the site config, which `elctl` reads too
 (`elctl data-source`, in the [elctl reference](08-elctl-reference.md#data-source)).
@@ -587,7 +587,7 @@ is kept in the install's files and the site config, which `elctl` reads too
 | **Data folder** | Where run records are kept, relative to the install folder or a full path. |
 | **Test connection** | Tries what the fields say without writing anything: opens the database and checks the folder, and says what it found (a file or folder that is not there yet is "will be made"). |
 
-On **OK** or **Apply** with this page changed, Pychron checks the new source
+On **OK** or **Apply** with this page changed, Nobion checks the new source
 first, as Test connection does, except that a new file and a missing folder
 are made. A file that already exists is only opened: one whose schema is
 behind is refused with the command that brings it up to date, and a server
@@ -596,13 +596,13 @@ and offers **Save without checking** (for a server not reachable from here
 now). Nothing is copied or moved: the old database and the records in the
 old data folder stay where they are.
 
-Pychron opens its database once, when it starts, so a new source needs a
-restart: "Pychron must reopen to use the new data source." **Reopen now**
+Nobion opens its database once, when it starts, so a new source needs a
+restart: "Nobion must reopen to use the new data source." **Reopen now**
 closes the window, which still asks about unsaved queue edits, and opens the
 install again; **Later** keeps the old source until the next start.
 
 While a queue runs the page is read-only ("Stop the queue to change the data
-source"). Started with `--db`, Pychron uses that database for the session;
+source"). Started with `--db`, Nobion uses that database for the session;
 the page says so and still changes the install's own.
 
 A saved value that is missing, unreadable or out of range silently reads as its
@@ -681,7 +681,7 @@ and no default). It lists each install with its profile and folder, tagged
 | Button | What it does |
 |---|---|
 | **Open** | Switch to the selected install (not available for the one already open). |
-| **Open by default** | Make it the install that opens when Pychron starts without `--install`. |
+| **Open by default** | Make it the install that opens when Nobion starts without `--install`. |
 | **Remove from list** | Forget the install. Its folder and files are kept. Not available for the one that is open. |
 | **New…** | Run the setup wizard. |
 | **Close** | Dismiss the dialog. |
