@@ -892,6 +892,29 @@ class TestDataWindows : public QObject {
     QCOMPARE(changed.count(), 2);
   }
 
+  void facet_box_collapses_and_keeps_its_ticks() {
+    ui::FacetBox box(QStringLiteral("Things"));
+    box.show();
+    box.set_values({QStringLiteral("alpha"), QStringLiteral("Beta")});
+    QVERIFY(box.is_expanded());
+    QVERIFY(box.list()->isVisible());
+    QVERIFY(box.filter()->isVisible());
+
+    find_item(box.list(), QStringLiteral("alpha"))->setCheckState(Qt::Checked);
+    box.toggle_button()->click();  // the header folds the list away
+    QVERIFY(!box.is_expanded());
+    QVERIFY(!box.list()->isVisible());
+    QVERIFY(!box.filter()->isVisible());
+    QCOMPARE(box.toggle_button()->arrowType(), Qt::RightArrow);
+    // Folded, it still filters and still says how many are ticked.
+    QCOMPARE(box.checked(), QStringList{QStringLiteral("alpha")});
+    QCOMPARE(box.title(), QStringLiteral("Things (1)"));
+
+    box.set_expanded(true);
+    QVERIFY(box.list()->isVisible());
+    QCOMPARE(box.toggle_button()->arrowType(), Qt::DownArrow);
+  }
+
   void browser_list_filter_survives_a_reload() {
     auto src = make_source(60);
     DataBrowserWindow w(*src, arar_);

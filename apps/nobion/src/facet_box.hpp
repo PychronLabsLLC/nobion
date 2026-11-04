@@ -3,9 +3,11 @@
 // FacetBox (data browser search and display design, section 3.3): one of the
 // browser's filter lists. Tick values to keep; the line above the list hides
 // the values that do not contain its text, without asking the source again.
-// A ticked value is never hidden.
+// A ticked value is never hidden. The header (arrow and title, with the count
+// of ticked values) folds the filter line and the list away; folded, the ticks
+// still filter.
 
-#include <QGroupBox>
+#include <QWidget>
 #include <QString>
 #include <QStringList>
 #include <vector>
@@ -16,7 +18,7 @@ class QToolButton;
 
 namespace pychron::ui {
 
-class FacetBox : public QGroupBox {
+class FacetBox : public QWidget {
   Q_OBJECT
 
  public:
@@ -39,7 +41,14 @@ class FacetBox : public QGroupBox {
   // Unticks everything; changed() once when anything was ticked.
   void clear_checked();
 
+  // Shows or folds away the filter line and the list.
+  void set_expanded(bool expanded);
+  bool is_expanded() const noexcept;
+  // The header's text: the title, and the count of ticked values.
+  QString title() const;
+
   QListWidget* list() const noexcept { return list_; }
+  QToolButton* toggle_button() const noexcept { return toggle_; }
   QLineEdit* filter() const noexcept { return filter_; }
   QToolButton* clear_button() const noexcept { return clear_; }
 
@@ -52,6 +61,8 @@ class FacetBox : public QGroupBox {
   void update_header();
 
   QString title_;
+  QToolButton* toggle_;
+  QWidget* body_;
   QLineEdit* filter_;
   QToolButton* clear_;
   QListWidget* list_;

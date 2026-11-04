@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include <QFont>
 #include <QHBoxLayout>
 #include <QLineEdit>
 #include <QListWidget>
@@ -11,7 +12,24 @@
 namespace pychron::ui {
 
 FacetBox::FacetBox(const QString& title, QWidget* parent)
-    : QGroupBox(title, parent), title_(title), filter_(new QLineEdit), clear_(new QToolButton), list_(new QListWidget) {
+    : QWidget(parent),
+      title_(title),
+      toggle_(new QToolButton),
+      body_(new QWidget),
+      filter_(new QLineEdit),
+      clear_(new QToolButton),
+      list_(new QListWidget) {
+  toggle_->setText(title);
+  toggle_->setCheckable(true);
+  toggle_->setChecked(true);
+  toggle_->setArrowType(Qt::DownArrow);
+  toggle_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  toggle_->setAutoRaise(true);
+  toggle_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  toggle_->setToolTip(tr("Show or hide this list"));
+  QFont bold = toggle_->font();
+  bold.setBold(true);
+  toggle_->setFont(bold);
   filter_->setPlaceholderText(tr("Filter"));
   filter_->setClearButtonEnabled(true);
   clear_->setText(QStringLiteral("×"));
@@ -22,9 +40,17 @@ FacetBox::FacetBox(const QString& title, QWidget* parent)
   auto* header = new QHBoxLayout;
   header->addWidget(filter_, 1);
   header->addWidget(clear_);
+  auto* body = new QVBoxLayout(body_);
+  body->setContentsMargins(0, 0, 0, 0);
+  body->addLayout(header);
+  body->addWidget(list_);
   auto* layout = new QVBoxLayout(this);
-  layout->addLayout(header);
-  layout->addWidget(list_);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(2);
+  layout->addWidget(toggle_);
+  layout->addWidget(body_);
+
+  connect(toggle_, &QToolButton::toggled, this, &FacetBox::set_expanded);
 
   connect(filter_, &QLineEdit::textChanged, this, [this] { apply_filter(); });
   connect(clear_, &QToolButton::clicked, this, &FacetBox::clear_checked);
@@ -83,6 +109,16 @@ void FacetBox::clear_checked() {
   emit changed();
 }
 
+void FacetBox::set_expanded(bool expanded) {
+  if (toggle_->isChecked() != expanded) toggle_->setChecked(expanded);  // toggled() comes back here
+  toggle_->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
+  body_->setVisible(expanded);
+}
+
+bool FacetBox::is_expanded() const noexcept { return toggle_->isChecked(); }
+
+QString FacetBox::title() const { return toggle_->text(); }
+
 void FacetBox::apply_filter() {
   const QString text = filter_->text().trimmed();
   for (int i = 0; i < list_->count(); ++i) {
@@ -94,7 +130,7 @@ void FacetBox::apply_filter() {
 void FacetBox::update_header() {
   const auto ticked = checked().size();
   clear_->setEnabled(ticked > 0);
-  setTitle(ticked > 0 ? tr("%1 (%2)").arg(title_).arg(ticked) : title_);
+  toggle_->setText(ticked > 0 ? tr("%1 (%2)").arg(title_).arg(ticked) : title_);
 }
 
 }  // namespace pychron::ui
