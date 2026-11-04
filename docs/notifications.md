@@ -1,6 +1,6 @@
 # Notifications
 
-How to make pychron send a message when a run fails, when the queue waits
+How to make nobion send a message when a run fails, when the queue waits
 for an instrument that has stopped answering, and when a queue ends.
 Written for the lab manager: no programming is needed, only a text editor, a
 terminal and about twenty minutes.
@@ -21,10 +21,10 @@ Gmail, Outlook, a university account. Nothing has to be set up on their side.
 
 ## Which way to send
 
-Pychron does not send from a Gmail or Outlook account directly. Both now
+Nobion does not send from a Gmail or Outlook account directly. Both now
 need a browser sign-in that an unattended instrument computer cannot do
 reliably. Instead it hands each message to a mail service, which delivers it.
-You make one free account with the service and give pychron its key.
+You make one free account with the service and give nobion its key.
 
 | You have | Use | Section |
 |---|---|---|
@@ -55,7 +55,7 @@ search the service's help for the words in bold.
 1. Click your account name (top right), then **Senders, Domains & Dedicated
    IPs**.
 2. On the **Senders** tab, check that your address is listed. If not, click
-   **Add a sender**, enter a name (`Argon Lab Pychron`) and the address.
+   **Add a sender**, enter a name (`Argon Lab Nobion`) and the address.
 3. Brevo mails that address. Open the message and confirm.
 
 Recipients will see the name you entered. Because your institution's domain
@@ -78,10 +78,10 @@ not reach you; nobody needs to reply to these.
 The key lets its holder send mail as your lab. Treat it like a password: do
 not put it in `notifications.toml`, in email, or in a shared drive.
 
-### 4. Give the key to pychron
+### 4. Give the key to nobion
 
-Pychron reads the key from an environment variable named
-`PYCHRON_MAIL_API_KEY`. Set it for the account that runs pychron on the
+Nobion reads the key from an environment variable named
+`PYCHRON_MAIL_API_KEY`. Set it for the account that runs nobion on the
 instrument computer, in the way for that system. Replace `xkeysib-...` with
 your key.
 
@@ -91,7 +91,7 @@ your key.
 setx PYCHRON_MAIL_API_KEY "xkeysib-..."
 ```
 
-Close every pychron window and terminal and open them again.
+Close every nobion window and terminal and open them again.
 
 **Linux.** Create the file `~/.config/environment.d/pychron.conf` holding one
 line:
@@ -115,7 +115,7 @@ export PYCHRON_MAIL_API_KEY="xkeysib-..."
 That covers `elctl` and a `nobion` started from a terminal. A
 `nobion` started from the Dock or Finder does not read `~/.zshrc`. For
 it, also run this once after each restart of the computer, before opening
-pychron:
+nobion:
 
 ```bash
 launchctl setenv PYCHRON_MAIL_API_KEY "xkeysib-..."
@@ -206,13 +206,13 @@ records you have added.
    domain's registrar and wait for "Verified".
 3. **API Keys > Create API Key** with "Sending access". The key starts with
    `re_`.
-4. Set the variable as in [step 4](#4-give-the-key-to-pychron), and:
+4. Set the variable as in [step 4](#4-give-the-key-to-nobion), and:
 
 ```toml
 [[email]]
 provider = "resend"
 api_key_env = "PYCHRON_MAIL_API_KEY"
-from = "pychron@your-domain.org"           # any address at the verified domain
+from = "nobion@your-domain.org"           # any address at the verified domain
 to = ["you@your-university.edu"]
 ```
 
@@ -225,7 +225,7 @@ to = ["you@your-university.edu"]
    the link Postmark mails to it, or verify a whole domain with DNS records.
 3. Open the server Postmark made for you, then **API Tokens**, and copy the
    **Server API token**.
-4. Set the variable as in [step 4](#4-give-the-key-to-pychron), and:
+4. Set the variable as in [step 4](#4-give-the-key-to-nobion), and:
 
 ```toml
 [[email]]
@@ -300,7 +300,7 @@ removed. Each attempt shows in the event list, with when the next one is.
   the instrument computer (a pager, a light, a local script) is how the lab
   hears that the network is down; the email saying so arrives when it is
   back.
-- Closing pychron does not lose what is waiting: the next start, from
+- Closing nobion does not lose what is waiting: the next start, from
   `elctl` or the window, sends it.
 - The files hold the message, the queue's `email` and the names of its
   channels, never a key, a password, a server or a webhook URL, nor the
@@ -335,7 +335,7 @@ Run `elctl exp notify` and match what follows `failed:`.
 ## Looking after it
 
 - **Changing the key.** Generate a new one, set the variable to it, restart
-  pychron, test, then delete the old key at the service. Do this when
+  nobion, test, then delete the old key at the service. Do this when
   someone who knew the key leaves, or if it was ever pasted somewhere
   shared.
 - **Changing who is told.** Edit `to`, and restart the experiment window.

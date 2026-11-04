@@ -1,11 +1,11 @@
 # Installation instructions (ASD-STE100)
 
-These instructions tell you how to install Pychron on a lab computer and how
+These instructions tell you how to install Nobion on a lab computer and how
 to make the first installation. They are written in Simplified Technical
 English (ASD-STE100). The [installation runbook](installation_runbook.md)
 contains the full procedures and the reasons for them.
 
-> **Status.** All of Pychron operates with the built-in simulator. No driver
+> **Status.** All of Nobion operates with the built-in simulator. No driver
 > has had a test on a real instrument. Thus, an instrument installation starts
 > in simulation and stays in simulation.
 
@@ -78,26 +78,26 @@ Before you start, make sure that you have these items:
 
    | Platform | Package |
    |---|---|
-   | macOS (Apple silicon) | `Pychron-<version>-macOS-arm64.dmg` |
-   | Ubuntu 24.04 | `pychron_<version>_amd64.deb` |
+   | macOS (Apple silicon) | `Nobion-<version>-macOS-arm64.dmg` |
+   | Ubuntu 24.04 | `nobion_<version>_amd64.deb` |
    | Linux, other | `.tar.gz` |
-   | Windows x64 | `Pychron-<version>-windows-x64.exe` or `.zip` |
+   | Windows x64 | `Nobion-<version>-windows-x64.exe` or `.zip` |
 
 Each package contains its own Python for the extraction scripts.
 
 ### 3.2 Install on macOS
 
 1. Open the `.dmg` file.
-2. Move Pychron to the Applications folder.
-3. Open Pychron one time.
+2. Move Nobion to the Applications folder.
+3. Open Nobion one time.
 4. If macOS shows "Apple could not verify ...", do these steps:
    1. Close the message.
    2. Open System Settings > Privacy & Security.
    3. Click Open Anyway.
 
    On macOS 15 and later, right-click > Open does not open the application.
-5. If macOS shows "Pychron is damaged and can't be opened", type this command
-   in Terminal. Then open Pychron again.
+5. If macOS shows "Nobion is damaged and can't be opened", type this command
+   in Terminal. Then open Nobion again.
 
    ```bash
    xattr -dr com.apple.quarantine /Applications/Nobion.app
@@ -214,7 +214,7 @@ command. Do not use this variable on macOS or Windows.
 
 You can make an installation in two ways. The two ways give the same result:
 
-- The setup wizard. Pychron opens the wizard when there is no installation.
+- The setup wizard. Nobion opens the wizard when there is no installation.
   To open the wizard again, type `nobion --setup`.
 - The command line. Type `elctl init <profile>`. The command asks the same
   questions as the wizard.
@@ -250,7 +250,7 @@ You can make an installation in two ways. The two ways give the same result:
 3. Do the check in 6.3.
 
 The importer makes the schema of a server database (runbook, part 3.3). After
-an update of Pychron, the schema can be old. To find the status of the
+an update of Nobion, the schema can be old. To find the status of the
 schema, type `elctl db status --db <url>`. To update the schema, type
 `elctl db migrate --db <url>`.
 
@@ -349,17 +349,17 @@ simulation to the instrument. Do all the steps of part 2.4 in sequence.
 | Change an answer | Type `elctl init --reconfigure --install NAME --set id=value`, or type `nobion --setup` |
 | Change the data source | Select Preferences > Data source, or type `elctl data-source set` |
 | Change a configuration file | Edit the TOML file in the installation folder. Then type `elctl doctor`. |
-| Select, set as default or remove an installation | In Pychron, select File > Installations. Pychron removes the entry only. It does not delete the files. |
+| Select, set as default or remove an installation | In Nobion, select File > Installations. Nobion removes the entry only. It does not delete the files. |
 | Use one installation | Type `elctl --install NAME <command>` or `nobion --install NAME` |
 
-## 9. Remove Pychron
+## 9. Remove Nobion
 
 ### 9.1 Remove the programs
 
 | Platform | Procedure |
 |---|---|
-| macOS | Move Pychron to the Trash. |
-| Ubuntu | Type `sudo apt remove pychron`. |
+| macOS | Move Nobion to the Trash. |
+| Ubuntu | Type `sudo apt remove nobion`. |
 | Windows | Open Apps & features and remove Pychron. |
 
 The installation folders and the site configuration file stay on the
@@ -367,7 +367,7 @@ computer.
 
 ### 9.2 Remove an installation
 
-1. In Pychron, select File > Installations and remove the installation.
+1. In Nobion, select File > Installations and remove the installation.
 
    As an alternative, delete its `[[installs]]` entry in the site
    configuration file.

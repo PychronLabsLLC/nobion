@@ -1,13 +1,13 @@
 # Publishing to EarthBank
 
-How to get 40Ar/39Ar results out of pychron and into EarthBank (AuScope's
+How to get 40Ar/39Ar results out of nobion and into EarthBank (AuScope's
 AusGeochem data platform), from `nobion` or `elctl earthbank`: by
 uploading them, or by writing EarthBank's own import workbooks. The code is
 `libs/earthbank`; `elctl earthbank help` and the
 [elctl reference](user/08-elctl-reference.md#earthbank-workbooks) have every
 flag. The last part of this page is for whoever maintains the code.
 
-Pychron cannot change or remove a record on EarthBank. Everything below
+Nobion cannot change or remove a record on EarthBank. Everything below
 follows from that: it shows what it will send before it sends it, it never
 sends a record twice, and when it cannot tell whether a record arrived it
 stops and asks you.
@@ -19,7 +19,7 @@ stops and asks you.
 - **A data package you may write to.** Everything on EarthBank (samples,
   data points, ages) is kept in a data package. Your account must be an
   editor or supervisor of the one you upload to. A package you make from
-  pychron is yours, so it can always be written to.
+  nobion is yours, so it can always be written to.
 - **Your institution's id on EarthBank**, a number. It is used to list your
   institution's packages and to make new ones under it. Ask your EarthBank
   administrator if you do not know it.
@@ -27,7 +27,7 @@ stops and asks you.
   data point refers to one, and it must already exist there.
 
 To write the workbooks and import them on the website you need none of these
-in pychron, only a login on the website.
+in nobion, only a login on the website.
 
 ## Set up once
 
@@ -104,9 +104,9 @@ ticked), then open the dialog on it.
 |---|---|
 | Sample, Analyses | The sample's name and how many of the selected analyses are its. |
 | Interpretation | What the age dates, by EarthBank's name for it (`Eruption age`, ...). Empty is sent as `Unknown`. Pre-flight says if EarthBank does not know the name. |
-| Preferred age | The one age reported for the sample. The first choice is the rule's, with the age it gives; under it is each kind pychron can compute for the sample, with its age and one-sigma uncertainty in Ma. A kind that cannot be computed is greyed, and hovering says why. |
+| Preferred age | The one age reported for the sample. The first choice is the rule's, with the age it gives; under it is each kind nobion can compute for the sample, with its age and one-sigma uncertainty in Ma. A kind that cannot be computed is greyed, and hovering says why. |
 | Flux monitor | The monitor found on the analyses. Type another to replace it. |
-| Notes | After a pre-flight, the terms of this sample EarthBank does not know. Hover for what pychron noted while building the sample. |
+| Notes | After a pre-flight, the terms of this sample EarthBank does not know. Hover for what nobion noted while building the sample. |
 
 **The rule for the age**: a sample with heating steps reports its plateau
 when it has one and its total gas (integrated) age when it has not; a sample
@@ -155,7 +155,7 @@ gave, and at the end one line for each sample:
 during an upload does the same.
 
 **In doubt.** A record sent twice is there twice and cannot be removed, so
-pychron does not guess. Two buttons appear under the run line. Open the data
+nobion does not guess. Two buttons appear under the run line. Open the data
 package on EarthBank's website and look for the record the message names:
 
 - it is there: type its id and press **It is there, with this id**;
@@ -241,7 +241,7 @@ analysis's apparent age is analytical, with its J sent beside it.
 The same values, with the same flags, are those of
 `elctl export --group-by sample --sigma 1`: see [export](export.md).
 
-**Left empty**, because pychron has nothing to fill it from: grain size,
+**Left empty**, because nobion has nothing to fill it from: grain size,
 K content, funding and literature, the kind of sample and how it was
 collected, the analysis scale, comments, and the beam size (it is recorded
 without a unit). An analysis without an age, or without all five argon
@@ -249,7 +249,7 @@ isotopes measured, is left out of its sample and counted in the sample's
 notes. A number that is not finite is not sent and is named there.
 
 **Names.** EarthBank keeps lists of what it knows: minerals, methods, decay
-constants, air ratios, flux monitors, interpretations. Pychron sends a term
+constants, air ratios, flux monitors, interpretations. Nobion sends a term
 as the id of its row in the list, looked up by name. The decay constant and
 air ratio are found from the values the reduction used; a flux monitor is
 found by its name together with its age or its paper (`FC-2 28.201 Ma`
@@ -365,12 +365,12 @@ Not yet done. It is the owner's, with real credentials, and its outcome is
 written here (date, what differed, what was fixed).
 
 1. `elctl earthbank login`, then `elctl earthbank packages --create
-   "pychron check A"` and note the id.
+   "nobion check A"` and note the id.
 2. `elctl earthbank preflight` on one real sample. Correct `vocab.cpp` where
    a name differs and add the case to its test.
 3. `elctl earthbank export-xlsx` of that sample, and import the workbooks
    through the website into package A.
-4. `elctl earthbank packages --create "pychron check B"`, then
+4. `elctl earthbank packages --create "nobion check B"`, then
    `elctl earthbank upload ... --package <B> --yes` of the same sample.
 5. Compare the two data points on the website, field by field. They were
    made from one `Submission` by two routes and should agree.
@@ -398,7 +398,7 @@ people and ids. To replace one with what the service really returns:
 ## A newer template from EarthBank
 
 The two workbooks in `libs/earthbank/templates/` are EarthBank's files and
-ship with pychron's installers. They are never edited, opened and saved, or
+ship with nobion's installers. They are never edited, opened and saved, or
 regenerated: the exporter copies one and fills rows, and everything else in
 the copy is the template's, byte for byte. A newer template replaces a file
 whole. Update its SHA-256 in `libs/earthbank/templates/README.md`, then run

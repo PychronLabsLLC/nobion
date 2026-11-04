@@ -1,14 +1,14 @@
 # Observability
 
 How to see an instrument on the lab's monitoring box: its pressures and
-valves, what the queue is doing, and whether pychron itself is healthy.
+valves, what the queue is doing, and whether nobion itself is healthy.
 Written for the lab manager. You need a text editor, a terminal on the box
 and about half an hour.
 
 ## What you get
 
 Each lab has one monitoring box from PychronLabs, on the lab network, running
-Prometheus (which collects numbers) and Grafana (which draws them). Pychron
+Prometheus (which collects numbers) and Grafana (which draws them). Nobion
 publishes its numbers on the instrument computer; the box fetches them every
 fifteen seconds.
 
@@ -18,11 +18,11 @@ fifteen seconds.
 | Run operations | the lab manager | whether a queue is running and how far it is, how runs end, how long each phase takes, conditionals that tripped, notifications sent, when and why the queue held, gaps in the readings, records and notifications waiting to be sent |
 | Application health | whoever supports the lab | the version running, transports and how often their links reconnected, warnings and errors in the log, the scheduler, how long saving takes |
 
-And one alert: pychron stopped while a queue was running. Pychron's own alarms
+And one alert: nobion stopped while a queue was running. Nobion's own alarms
 and [notifications](notifications.md) tell you about everything else; this is
 the one thing it cannot tell you itself.
 
-The numbers exist only while pychron is running. Close it and the dashboards
+The numbers exist only while nobion is running. Close it and the dashboards
 show a gap.
 
 ## 1. Turn metrics on
@@ -63,8 +63,8 @@ You should see several dozen lines that begin `pychron_`, among them one
 `pychron_pressure` line for each gauge. If instead:
 
 - **the log says `metrics endpoint is off`** (there is an alarm too): the
-  port is taken, usually by a second pychron on the same computer, or `bind`
-  is not one of this computer's addresses. Pychron runs normally without the
+  port is taken, usually by a second nobion on the same computer, or `bind`
+  is not one of this computer's addresses. Nobion runs normally without the
   endpoint. Close the other copy, or choose another `port`, and restart.
 - **`curl` cannot connect**: a firewall on the instrument computer is closing
   the port. Allow incoming TCP on 9464 from the box's address.
@@ -131,19 +131,19 @@ Two rules, in
 
 | Rule | Fires when |
 |---|---|
-| `PychronGone` | the box cannot reach pychron, and a queue was running the last time it could: pychron crashed or froze, the computer is off or asleep, the network is down |
-| `PychronStuck` | pychron answers, a queue is running, and its scheduler has done nothing for a minute |
+| `PychronGone` | the box cannot reach nobion, and a queue was running the last time it could: nobion crashed or froze, the computer is off or asleep, the network is down |
+| `PychronStuck` | nobion answers, a queue is running, and its scheduler has done nothing for a minute |
 
 Each waits two minutes before firing, so a restart does not page anyone.
-Quitting pychron with no queue running fires nothing.
+Quitting nobion with no queue running fires nothing.
 
 **What they do not catch:** a queue that hangs inside one run while the rest
-of pychron keeps working. The *Since the last run finished* panel on the Run
+of nobion keeps working. The *Since the last run finished* panel on the Run
 operations dashboard is where to look for that.
 
-**One false alarm to know:** if pychron is quit within a few seconds of a
+**One false alarm to know:** if nobion is quit within a few seconds of a
 queue ending, the box's last reading still says a queue was running, and
-`PychronGone` fires until pychron is started again (or for a day).
+`PychronGone` fires until nobion is started again (or for a day).
 
 The clocks of the box and the instrument computer do not have to agree. Every
 "how long ago" on the dashboards and in the alert is measured on the
@@ -177,7 +177,7 @@ To install:
    dashboard says the queue is running, then quit pychron. Within about three
    minutes **Alerting > Alert rules** shows `PychronGone` firing and the
    contact point receives it. Read the message: it should name the
-   instrument. Start pychron again and it clears.
+   instrument. Start nobion again and it clears.
 
 Menu names are those of Grafana 12, as of October 2026. The dashboards and
 both rules were loaded and the rules seen to fire on Grafana 12.1 with
@@ -201,13 +201,13 @@ check a changed dashboard or alert before it goes to a lab. It needs Docker
    ```
 
    (`docker-compose up -d` with the older, separate program.)
-3. Start pychron on that line, simulated: `--sim`.
+3. Start nobion on that line, simulated: `--sim`.
 4. Open <http://localhost:3000>: no sign-in, dashboards under **Pychron**,
    **Instrument** set to `sim`. <http://localhost:9090/targets> shows the
    scrape; **UP** within half a minute.
 5. When done: `docker compose down`. Add `-v` to throw its history away too.
 
-What it scrapes is in `box/targets.yml`, by default a pychron on this
+What it scrapes is in `box/targets.yml`, by default a nobion on this
 computer at port 9464. Change the address there to point it at another
 computer; Prometheus reads the file again within half a minute.
 
@@ -291,9 +291,9 @@ real time they are simulated seconds.
 | Metric | Labels | Meaning |
 |---|---|---|
 | `pychron_build_info` | `version`, `os`, `compiler` | always 1; the labels say what is running |
-| `pychron_process_uptime_seconds` | | seconds since pychron started |
+| `pychron_process_uptime_seconds` | | seconds since nobion started |
 | `pychron_log_records_total` | `level`, `component` | log records; `component` is the first part of the logger's name |
-| `pychron_bus_handler_failures_total` | `event` | parts of pychron that failed while handling an event, by the event. It should stay at zero: anything else is a bug, and the log (`bus`) has what was said |
+| `pychron_bus_handler_failures_total` | `event` | parts of nobion that failed while handling an event, by the event. It should stay at zero: anything else is a bug, and the log (`bus`) has what was said |
 | `pychron_transport_connected` | `transport` | 1 while the transport is up, 0 while it is down |
 | `pychron_transport_outages_total` | `transport` | times the transport went down. Single errors are not counted: the log has them |
 | `pychron_link_reconnects_total` | `transport` | times the transport's link reconnected after a failure: each is an outage the line rode out |
@@ -304,10 +304,10 @@ real time they are simulated seconds.
 | `pychron_metrics_bad_requests_total` | | connections to the endpoint that were dropped |
 | `pychron_metrics_dropped_series_total` | | series refused (more than 1000 in one metric: a configuration with a great many devices, or a bug) |
 
-Counters start again from zero when pychron restarts. The dashboards show
+Counters start again from zero when nobion restarts. The dashboards show
 increases over a time range, which is unaffected.
 
-A counter appears when pychron first hears of what it counts: a valve, a
+A counter appears when nobion first hears of what it counts: a valve, a
 gauge, a transport, a notification channel. The first alarm from a source
 that has never been read (the line itself, say) is therefore not drawn as an
 increase; every later one is. A link's counters are there from the start,

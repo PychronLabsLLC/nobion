@@ -26,7 +26,7 @@ this page is the reader's reference to what is in the directory.
   tables/<sample>/report.csv, report.json   the same report, per sample
   figures/<sample>/<kind>.svg, <kind>.pdf   ideogram, spectrum, isochron; only with --with-figures
   constants.json                  the decay constants and ratios the ages used
-  LICENSE.txt                     the licence text (CC-BY-4.0, CC-BY-SA-4.0 and CC0-1.0 ship with pychron)
+  LICENSE.txt                     the licence text (CC-BY-4.0, CC-BY-SA-4.0 and CC0-1.0 ship with nobion)
   CITATION.cff                    how to cite the release
   README.md                       one paragraph: what this is
 ```

@@ -885,7 +885,7 @@ device = 0            # `elctl laser cameras` lists what there is
 nobion --examples --sim --laser    # after setting source and use as above
 ```
 
-  macOS asks once whether Pychron may use the camera. From a terminal it is
+  macOS asks once whether Nobion may use the camera. From a terminal it is
   the terminal that is asked (`elctl laser look co2`).
 
 The picture is video: up to 25 frames a second (the camera's own rate

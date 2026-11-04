@@ -1,6 +1,6 @@
 # The simulated lab
 
-What pychron simulates when it runs with no hardware, how to give the
+What nobion simulates when it runs with no hardware, how to give the
 simulated line your own numbers (`sim.toml`), and what the example lab reads
 when it runs air shots and blanks. The code is `libs/sim`; the design is
 `superpowers/specs/2026-10-06-lab-simulator-design.md`.
