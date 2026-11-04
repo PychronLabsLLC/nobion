@@ -4,8 +4,8 @@
 #   INSTRUMENT_PC    the instrument computer's address on the lab network
 #   INSTRUMENT_NAME  how the dashboards name it, e.g. "argus"
 #
-# The job must be called `pychron`: the alert rule looks for it by that name.
-- job_name: pychron
+# The job must be called `nobion`: the alert rule looks for it by that name.
+- job_name: nobion
   scrape_interval: 15s
   static_configs:
     - targets: ["INSTRUMENT_PC:9464"]

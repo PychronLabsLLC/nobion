@@ -1,9 +1,9 @@
 {
-  "uid": "pychron-app-health",
-  "title": "Pychron / Application health",
+  "uid": "nobion-app-health",
+  "title": "Nobion / Application health",
   "description": "The application itself: its version, its transports, its log, its scheduler.",
   "tags": [
-    "pychron"
+    "nobion"
   ],
   "schemaVersion": 39,
   "version": 1,
@@ -681,7 +681,7 @@
     },
     {
       "id": 13,
-      "title": "Parts of pychron that failed handling an event",
+      "title": "Parts of nobion that failed handling an event",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -729,7 +729,7 @@
           "sort": "desc"
         }
       },
-      "description": "Should be empty. A bar is a bug in pychron: the log (bus) has what was said."
+      "description": "Should be empty. A bar is a bug in nobion: the log (bus) has what was said."
     },
     {
       "id": 14,

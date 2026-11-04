@@ -102,8 +102,8 @@ std::map<std::string, std::set<std::string>> used(const std::set<std::string>& k
 
 TEST(MetricsPackaging, TheFilesAreThere) {
   for (const char* rel :
-       {"prometheus/pychron.scrape.yml", "grafana/provisioning/dashboards/pychron.yml",
-        "grafana/provisioning/alerting/pychron-deadman.yml", "grafana/dashboards/instrument-health.json",
+       {"prometheus/nobion.scrape.yml", "grafana/provisioning/dashboards/nobion.yml",
+        "grafana/provisioning/alerting/nobion-deadman.yml", "grafana/dashboards/instrument-health.json",
         "grafana/dashboards/run-operations.json", "grafana/dashboards/app-health.json"}) {
     EXPECT_TRUE(fs::exists(kRoot / rel)) << rel;
   }
@@ -151,9 +151,9 @@ TEST(MetricsPackaging, LinkRecoveriesHoldsGapsAndBacklogsHaveAPanel) {
 }
 
 TEST(MetricsPackaging, TheAlertNamesBothConditions) {
-  const std::string alert = slurp(kRoot / "grafana" / "provisioning" / "alerting" / "pychron-deadman.yml");
+  const std::string alert = slurp(kRoot / "grafana" / "provisioning" / "alerting" / "nobion-deadman.yml");
   EXPECT_NE(alert.find("last_over_time(pychron_queue_active[24h])"), std::string::npos);
-  EXPECT_NE(alert.find("up{job=\\\"pychron\\\"} == 0"), std::string::npos);
+  EXPECT_NE(alert.find("up{job=\\\"nobion\\\"} == 0"), std::string::npos);
   EXPECT_NE(alert.find("pychron_scheduler_heartbeat_age_seconds > 60"), std::string::npos);
   // The box's clock and the instrument computer's need not agree: nothing here compares them.
   EXPECT_EQ(alert.find("time()"), std::string::npos);
@@ -186,15 +186,15 @@ TEST(MetricsPackaging, TheVirtualBoxAgreesWithTheRealOnesFiles) {
   const std::string datasource = slurp(box / "datasource.yml");
   const std::string targets = slurp(box / "targets.yml");
   // The alert finds the job by name, and the dashboards the instrument by label.
-  EXPECT_NE(prometheus.find("job_name: pychron"), std::string::npos);
+  EXPECT_NE(prometheus.find("job_name: nobion"), std::string::npos);
   EXPECT_NE(prometheus.find("scrape_interval: 15s"), std::string::npos);
   EXPECT_NE(targets.find("instrument:"), std::string::npos);
   EXPECT_NE(targets.find(":9464"), std::string::npos);
   // The alert rules' data source is the one the box provisions.
-  EXPECT_NE(compose.find("PYCHRON_PROM_UID: pychron-prometheus"), std::string::npos);
-  EXPECT_NE(datasource.find("uid: pychron-prometheus"), std::string::npos);
+  EXPECT_NE(compose.find("PYCHRON_PROM_UID: nobion-prometheus"), std::string::npos);
+  EXPECT_NE(datasource.find("uid: nobion-prometheus"), std::string::npos);
   // Every file it mounts from the real box's set exists.
-  for (const char* rel : {"grafana/provisioning/dashboards/pychron.yml", "grafana/provisioning/alerting/pychron-deadman.yml",
+  for (const char* rel : {"grafana/provisioning/dashboards/nobion.yml", "grafana/provisioning/alerting/nobion-deadman.yml",
                           "grafana/dashboards"}) {
     EXPECT_NE(compose.find(std::string("../") + rel + ":"), std::string::npos) << rel;
     EXPECT_TRUE(fs::exists(kRoot / rel)) << rel;
@@ -203,14 +203,14 @@ TEST(MetricsPackaging, TheVirtualBoxAgreesWithTheRealOnesFiles) {
   EXPECT_NE(compose.find("\"127.0.0.1:3000:3000\""), std::string::npos);
   EXPECT_NE(compose.find("\"127.0.0.1:9090:9090\""), std::string::npos);
   // The dashboards folder the provider reads is the one the compose file fills.
-  const std::string provider = slurp(kRoot / "grafana" / "provisioning" / "dashboards" / "pychron.yml");
-  EXPECT_NE(provider.find("path: /var/lib/grafana/dashboards/pychron"), std::string::npos);
-  EXPECT_NE(compose.find(":/var/lib/grafana/dashboards/pychron:ro"), std::string::npos);
+  const std::string provider = slurp(kRoot / "grafana" / "provisioning" / "dashboards" / "nobion.yml");
+  EXPECT_NE(provider.find("path: /var/lib/grafana/dashboards/nobion"), std::string::npos);
+  EXPECT_NE(compose.find(":/var/lib/grafana/dashboards/nobion:ro"), std::string::npos);
 }
 
 TEST(MetricsPackaging, TheScrapeJobIsNamedAsTheAlertExpects) {
-  const std::string scrape = slurp(kRoot / "prometheus" / "pychron.scrape.yml");
-  EXPECT_NE(scrape.find("job_name: pychron"), std::string::npos);
+  const std::string scrape = slurp(kRoot / "prometheus" / "nobion.scrape.yml");
+  EXPECT_NE(scrape.find("job_name: nobion"), std::string::npos);
   EXPECT_NE(scrape.find(":9464"), std::string::npos);
   EXPECT_NE(scrape.find("instrument:"), std::string::npos);
 }

@@ -3,17 +3,17 @@
 # The one thing the application cannot report is that it has gone. These two
 # rules fire when it goes while a queue is running:
 #
-#   PychronGone   the scrape fails, and a queue was running at the last
+#   NobionGone   the scrape fails, and a queue was running at the last
 #                 scrape that worked (the application crashed or froze, the
 #                 computer is off, the network is down)
-#   PychronStuck  the application answers, but its scheduler has not run for
+#   NobionStuck  the application answers, but its scheduler has not run for
 #                 a minute (the endpoint has a thread of its own, so a stuck
 #                 scheduler still answers scrapes)
 #
 # Not caught: a queue stuck inside one run while the scheduler keeps going.
 #
 # Neither rule compares the box's clock with the instrument computer's: the
-# age PychronStuck reads is measured on the instrument computer.
+# age NobionStuck reads is measured on the instrument computer.
 #
 # Grafana fills ${PYCHRON_PROM_UID} in from its environment and leaves the
 # templates' own {{ $labels... }} alone (seen on Grafana 12.1: written with
@@ -26,12 +26,12 @@ apiVersion: 1
 
 groups:
   - orgId: 1
-    name: pychron
-    folder: Pychron
+    name: nobion
+    folder: Nobion
     interval: 1m
     rules:
-      - uid: pychron-gone
-        title: PychronGone
+      - uid: nobion-gone
+        title: NobionGone
         condition: C
         for: 2m
         noDataState: OK
@@ -39,7 +39,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Pychron on {{ $labels.instrument }} stopped answering while a queue was running."
+          summary: "Nobion on {{ $labels.instrument }} stopped answering while a queue was running."
         data:
           - refId: A
             relativeTimeRange:
@@ -52,7 +52,7 @@ groups:
               # last_over_time, not max_over_time over a short window: that
               # would resolve by itself once the old samples aged out, with
               # the application still gone.
-              expr: "up{job=\"pychron\"} == 0 and on(instance) last_over_time(pychron_queue_active[24h]) == 1"
+              expr: "up{job=\"nobion\"} == 0 and on(instance) last_over_time(pychron_queue_active[24h]) == 1"
           - refId: B
             datasourceUid: __expr__
             model:
@@ -72,8 +72,8 @@ groups:
                 - evaluator:
                     type: gt
                     params: [-1]
-      - uid: pychron-stuck
-        title: PychronStuck
+      - uid: nobion-stuck
+        title: NobionStuck
         condition: C
         for: 2m
         noDataState: OK
@@ -81,7 +81,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Pychron on {{ $labels.instrument }} is running a queue and its scheduler has stopped."
+          summary: "Nobion on {{ $labels.instrument }} is running a queue and its scheduler has stopped."
         data:
           - refId: A
             relativeTimeRange:

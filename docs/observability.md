@@ -47,7 +47,7 @@ metrics for the lab's monitoring box**, choose **Every address of this
 computer**, press OK. That writes the same three settings into the line's
 local file (`extraction_line.local.toml`), for this computer only.
 
-Restart pychron. The log says:
+Restart nobion. The log says:
 
 ```
 metrics: listening on 0.0.0.0:9464
@@ -74,13 +74,13 @@ You should see several dozen lines that begin `pychron_`, among them one
 ## 2. Tell the box where to look
 
 On the box, add the job in
-[`packaging/observability/prometheus/pychron.scrape.yml`](../packaging/observability/prometheus/pychron.scrape.yml)
+[`packaging/observability/prometheus/nobion.scrape.yml`](../packaging/observability/prometheus/nobion.scrape.yml)
 under `scrape_configs:` in `prometheus.yml` (usually
 `/etc/prometheus/prometheus.yml`), with your values:
 
 ```yaml
 scrape_configs:
-  - job_name: pychron
+  - job_name: nobion
     scrape_interval: 15s
     static_configs:
       - targets: ["192.168.1.20:9464"]
@@ -91,12 +91,12 @@ scrape_configs:
 - `targets` is the instrument computer's address and the port from step 1.
 - `instrument` is the name the dashboards show. Choose it once: changing it
   later starts a new history.
-- Leave `job_name` as `pychron`. The alert looks for that name.
+- Leave `job_name` as `nobion`. The alert looks for that name.
 - A second instrument is a second entry under `static_configs`, with its own
   `targets` and `instrument`.
 
 Reload Prometheus (`sudo systemctl reload prometheus`), then open
-`http://BOX:9090/targets`. The `pychron` job should say **UP** within half a
+`http://BOX:9090/targets`. The `nobion` job should say **UP** within half a
 minute. **DOWN** with "connection refused" or a timeout is the firewall or
 `bind` from step 1.
 
@@ -105,34 +105,34 @@ minute. **DOWN** with "connection refused" or a timeout is the firewall or
 On the box, from a copy of `packaging/observability/grafana/`:
 
 ```bash
-sudo mkdir -p /var/lib/grafana/dashboards/pychron
-sudo cp dashboards/*.json /var/lib/grafana/dashboards/pychron/
-sudo cp provisioning/dashboards/pychron.yml /etc/grafana/provisioning/dashboards/
+sudo mkdir -p /var/lib/grafana/dashboards/nobion
+sudo cp dashboards/*.json /var/lib/grafana/dashboards/nobion/
+sudo cp provisioning/dashboards/nobion.yml /etc/grafana/provisioning/dashboards/
 sudo systemctl restart grafana-server
 ```
 
-In Grafana, open **Dashboards**, then the **Pychron** folder. Each dashboard
+In Grafana, open **Dashboards**, then the **Nobion** folder. Each dashboard
 has two menus at the top: **Data source** (the box's Prometheus) and
 **Instrument** (the name from step 2).
 
 These paths are those of the Debian and Ubuntu packages. If the box runs
 Grafana in a container, the two directories are wherever its configuration
 mounts `/etc/grafana/provisioning` and the dashboards path named in
-`pychron.yml`.
+`nobion.yml`.
 
 If a dashboard opens with every panel empty: the **Instrument** menu is
-empty too, which means Prometheus has no `pychron` data yet (go back to
+empty too, which means Prometheus has no `nobion` data yet (go back to
 step 2), or the scrape job has no `instrument` label.
 
 ## 4. The alert
 
 Two rules, in
-[`provisioning/alerting/pychron-deadman.yml`](../packaging/observability/grafana/provisioning/alerting/pychron-deadman.yml):
+[`provisioning/alerting/nobion-deadman.yml`](../packaging/observability/grafana/provisioning/alerting/nobion-deadman.yml):
 
 | Rule | Fires when |
 |---|---|
-| `PychronGone` | the box cannot reach nobion, and a queue was running the last time it could: nobion crashed or froze, the computer is off or asleep, the network is down |
-| `PychronStuck` | nobion answers, a queue is running, and its scheduler has done nothing for a minute |
+| `NobionGone` | the box cannot reach nobion, and a queue was running the last time it could: nobion crashed or froze, the computer is off or asleep, the network is down |
+| `NobionStuck` | nobion answers, a queue is running, and its scheduler has done nothing for a minute |
 
 Each waits two minutes before firing, so a restart does not page anyone.
 Quitting nobion with no queue running fires nothing.
@@ -143,7 +143,7 @@ operations dashboard is where to look for that.
 
 **One false alarm to know:** if nobion is quit within a few seconds of a
 queue ending, the box's last reading still says a queue was running, and
-`PychronGone` fires until nobion is started again (or for a day).
+`NobionGone` fires until nobion is started again (or for a day).
 
 The clocks of the box and the instrument computer do not have to agree. Every
 "how long ago" on the dashboards and in the alert is measured on the
@@ -164,7 +164,7 @@ To install:
 3. Copy the rules and restart:
 
    ```bash
-   sudo cp provisioning/alerting/pychron-deadman.yml /etc/grafana/provisioning/alerting/
+   sudo cp provisioning/alerting/nobion-deadman.yml /etc/grafana/provisioning/alerting/
    sudo systemctl restart grafana-server
    ```
 
@@ -174,14 +174,28 @@ To install:
    (`[smtp]` in `grafana.ini`); the mail service you set up for
    [notifications](notifications.md) will do.
 5. Test it. Start a simulated queue (`--sim`), wait until the Run operations
-   dashboard says the queue is running, then quit pychron. Within about three
-   minutes **Alerting > Alert rules** shows `PychronGone` firing and the
+   dashboard says the queue is running, then quit nobion. Within about three
+   minutes **Alerting > Alert rules** shows `NobionGone` firing and the
    contact point receives it. Read the message: it should name the
    instrument. Start nobion again and it clears.
 
 Menu names are those of Grafana 12, as of October 2026. The dashboards and
 both rules were loaded and the rules seen to fire on Grafana 12.1 with
 Prometheus 3.5.
+
+### A box set up with the old names
+
+Up to version 0.4, the job was called `pychron`, the folder Pychron and
+the alerts `PychronGone` and `PychronStuck`. On such a box:
+
+1. In the box's `prometheus.yml`, rename the job to `nobion` and reload
+   Prometheus. Until then the alert finds no data.
+2. Delete `pychron.yml` from `/etc/grafana/provisioning/dashboards/` and
+   `pychron-deadman.yml` from `/etc/grafana/provisioning/alerting/`, and
+   the folder `/var/lib/grafana/dashboards/pychron`. Then do parts 3 and 4
+   again with the new files.
+3. Delete the old **Pychron** folder in Grafana. Bookmarks to the old
+   dashboards stop working: the dashboards have new uids.
 
 ## Try it without a box
 
@@ -202,7 +216,7 @@ check a changed dashboard or alert before it goes to a lab. It needs Docker
 
    (`docker-compose up -d` with the older, separate program.)
 3. Start nobion on that line, simulated: `--sim`.
-4. Open <http://localhost:3000>: no sign-in, dashboards under **Pychron**,
+4. Open <http://localhost:3000>: no sign-in, dashboards under **Nobion**,
    **Instrument** set to `sim`. <http://localhost:9090/targets> shows the
    scrape; **UP** within half a minute.
 5. When done: `docker compose down`. Add `-v` to throw its history away too.
@@ -220,7 +234,7 @@ Grafana here lets anyone who can reach it change anything, so both programs
 listen on this computer only. It is for trying things, not for a lab.
 
 To try the alert: start a queue, wait for the Run operations dashboard to
-say it is running, quit pychron. `PychronGone` fires within about three
+say it is running, quit nobion. `NobionGone` fires within about three
 minutes (**Alerting > Alert rules**). No contact point is set up here, so
 nothing is sent; the rule's state is what to look at.
 

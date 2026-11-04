@@ -1,9 +1,9 @@
 {
-  "uid": "pychron-instrument-health",
-  "title": "Pychron / Instrument health",
+  "uid": "nobion-instrument-health",
+  "title": "Nobion / Instrument health",
   "description": "The extraction line as the application reads it: pressures, temperatures, heaters, valves.",
   "tags": [
-    "pychron"
+    "nobion"
   ],
   "schemaVersion": 39,
   "version": 1,

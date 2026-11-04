@@ -1,9 +1,9 @@
 {
-  "uid": "pychron-run-operations",
-  "title": "Pychron / Run operations",
+  "uid": "nobion-run-operations",
+  "title": "Nobion / Run operations",
   "description": "What the queue is doing, how runs end and how long each phase takes.",
   "tags": [
-    "pychron"
+    "nobion"
   ],
   "schemaVersion": 39,
   "version": 1,
