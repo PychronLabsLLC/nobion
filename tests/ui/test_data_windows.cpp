@@ -896,12 +896,19 @@ class TestDataWindows : public QObject {
     ui::FacetBox box(QStringLiteral("Things"));
     box.show();
     box.set_values({QStringLiteral("alpha"), QStringLiteral("Beta")});
+    // A list starts folded: only its header shows.
+    QVERIFY(!box.is_expanded());
+    QVERIFY(!box.list()->isVisible());
+    QCOMPARE(box.toggle_button()->arrowType(), Qt::RightArrow);
+    box.toggle_button()->click();  // the header unfolds it
     QVERIFY(box.is_expanded());
     QVERIFY(box.list()->isVisible());
     QVERIFY(box.filter()->isVisible());
+    QCOMPARE(box.toggle_button()->arrowType(), Qt::DownArrow);
+    QVERIFY(box.list()->spacing() > 0);  // room above and below each tick box
 
     find_item(box.list(), QStringLiteral("alpha"))->setCheckState(Qt::Checked);
-    box.toggle_button()->click();  // the header folds the list away
+    box.toggle_button()->click();  // and folds it away again
     QVERIFY(!box.is_expanded());
     QVERIFY(!box.list()->isVisible());
     QVERIFY(!box.filter()->isVisible());

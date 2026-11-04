@@ -4,8 +4,8 @@
 // browser's filter lists. Tick values to keep; the line above the list hides
 // the values that do not contain its text, without asking the source again.
 // A ticked value is never hidden. The header (arrow and title, with the count
-// of ticked values) folds the filter line and the list away; folded, the ticks
-// still filter.
+// of ticked values) folds the filter line and the list away; a list starts
+// folded, and folded, its ticks still filter.
 
 #include <QWidget>
 #include <QString>

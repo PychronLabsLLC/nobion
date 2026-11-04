@@ -21,8 +21,8 @@ FacetBox::FacetBox(const QString& title, QWidget* parent)
       list_(new QListWidget) {
   toggle_->setText(title);
   toggle_->setCheckable(true);
-  toggle_->setChecked(true);
-  toggle_->setArrowType(Qt::DownArrow);
+  toggle_->setChecked(false);  // folded until asked for
+  toggle_->setArrowType(Qt::RightArrow);
   toggle_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
   toggle_->setAutoRaise(true);
   toggle_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -35,7 +35,8 @@ FacetBox::FacetBox(const QString& title, QWidget* parent)
   clear_->setText(QStringLiteral("×"));
   clear_->setToolTip(tr("Untick every value of this list"));
   clear_->setEnabled(false);
-  list_->setMaximumHeight(130);
+  list_->setSpacing(3);  // room above and below each tick box
+  list_->setMaximumHeight(160);
 
   auto* header = new QHBoxLayout;
   header->addWidget(filter_, 1);
@@ -49,6 +50,7 @@ FacetBox::FacetBox(const QString& title, QWidget* parent)
   layout->setSpacing(2);
   layout->addWidget(toggle_);
   layout->addWidget(body_);
+  body_->setVisible(false);
 
   connect(toggle_, &QToolButton::toggled, this, &FacetBox::set_expanded);
 
