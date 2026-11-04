@@ -905,7 +905,6 @@ class TestDataWindows : public QObject {
     QVERIFY(box.list()->isVisible());
     QVERIFY(box.filter()->isVisible());
     QCOMPARE(box.toggle_button()->arrowType(), Qt::DownArrow);
-    QVERIFY(box.list()->spacing() > 0);  // room above and below each tick box
 
     find_item(box.list(), QStringLiteral("alpha"))->setCheckState(Qt::Checked);
     box.toggle_button()->click();  // and folds it away again
@@ -920,6 +919,23 @@ class TestDataWindows : public QObject {
     box.set_expanded(true);
     QVERIFY(box.list()->isVisible());
     QCOMPARE(box.toggle_button()->arrowType(), Qt::DownArrow);
+  }
+
+  void facet_box_rows_hold_their_tick_box() {
+    // Under the application's style sheet a tick box is 16 px (14 and its
+    // border), taller than a line of text: a row padded less cuts its top.
+    const QString before = qApp->styleSheet();
+    qApp->setStyleSheet(ui::style::style_sheet());
+    {
+      ui::FacetBox box(QStringLiteral("Things"));
+      box.set_values({QStringLiteral("felix"), QStringLiteral("jan")});
+      box.set_expanded(true);
+      box.show();
+      QVERIFY(QTest::qWaitForWindowExposed(&box));
+      const QRect row = box.list()->visualItemRect(box.list()->item(0));
+      QVERIFY2(row.height() >= 16 + 2 * 3, qPrintable(QStringLiteral("row %1 px").arg(row.height())));
+    }
+    qApp->setStyleSheet(before);
   }
 
   void browser_list_filter_survives_a_reload() {

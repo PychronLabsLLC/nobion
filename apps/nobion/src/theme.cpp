@@ -275,6 +275,8 @@ QAbstractItemView::indicator:checked:disabled, QCheckBox::indicator:indeterminat
 QGroupBox::indicator:indeterminate:disabled, QAbstractItemView::indicator:indeterminate:disabled {
   background: @accent_soft; border-color: @accent_soft; }
 
+QAbstractItemView[ticklist="true"]::item { padding: 3px 2px; }
+
 QListWidget#PreferencesPages { outline: 0; }
 QListWidget#PreferencesPages::item { padding: 0 10px; }
 QListWidget#PreferencesPages::item:hover { background: @accent_wash; }
@@ -470,6 +472,8 @@ void set_invalid(QWidget* widget, bool invalid) { set_property(widget, "invalid"
 void make_banner(QWidget* widget) { set_property(widget, "banner", true); }
 
 void make_outlined(QToolButton* button) { set_property(button, "outlined", true); }
+
+void make_tick_list(QAbstractItemView* view) { set_property(view, "ticklist", true); }
 
 void make_sidebar(QTreeView* tree) {
   set_property(tree, "sidebar", true);

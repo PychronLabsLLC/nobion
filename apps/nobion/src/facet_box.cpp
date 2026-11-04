@@ -9,6 +9,8 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include "theme.hpp"
+
 namespace pychron::ui {
 
 FacetBox::FacetBox(const QString& title, QWidget* parent)
@@ -35,7 +37,7 @@ FacetBox::FacetBox(const QString& title, QWidget* parent)
   clear_->setText(QStringLiteral("×"));
   clear_->setToolTip(tr("Untick every value of this list"));
   clear_->setEnabled(false);
-  list_->setSpacing(3);  // room above and below each tick box
+  style::make_tick_list(list_);  // room above and below each tick box
   list_->setMaximumHeight(160);
 
   auto* header = new QHBoxLayout;

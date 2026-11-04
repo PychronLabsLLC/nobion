@@ -23,6 +23,7 @@
 #include <QPalette>
 #include <QString>
 
+class QAbstractItemView;
 class QApplication;
 class QLabel;
 class QToolButton;
@@ -137,6 +138,10 @@ void make_outlined(QToolButton* button);
 // A tree as a sidebar list: no frame or header, chevrons, a highlight across
 // the row.
 void make_sidebar(QTreeView* tree);
+
+// A list whose rows carry tick boxes: each row is padded so that the box,
+// taller than a line of text, is not cut at the top.
+void make_tick_list(QAbstractItemView* view);
 
 enum class Level { Unknown, Ok, Warning, Error };
 QColor level_color(Level level);
