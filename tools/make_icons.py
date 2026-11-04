@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Packs the application icon into the installers' icon files.
 
-The icon is painted in code (apps/pychron-ui/src/brand.cpp); this turns its
+The icon is painted in code (apps/nobion/src/brand.cpp); this turns its
 rendered sizes into files the platforms want:
 
-    pychron-ui --write-icons /tmp/icons
+    nobion --write-icons /tmp/icons
     python3 tools/make_icons.py /tmp/icons packaging/icons
 
-writes packaging/icons/pychron.icns (macOS bundle), pychron.ico (Windows
-program and installer) and pychron.png (Linux, 512 px). Both containers hold
+writes packaging/icons/nobion.icns (macOS bundle), nobion.ico (Windows
+program and installer) and nobion.png (Linux, 512 px). Both containers hold
 PNG images, which every supported macOS and Windows reads. Run it again after
 changing the icon and commit the results.
 """
@@ -28,9 +28,9 @@ ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
 
 
 def png(src: Path, size: int) -> bytes:
-    data = (src / f"pychron-{size}.png").read_bytes()
+    data = (src / f"nobion-{size}.png").read_bytes()
     if data[:8] != b"\x89PNG\r\n\x1a\n":
-        raise SystemExit(f"pychron-{size}.png is not a PNG")
+        raise SystemExit(f"nobion-{size}.png is not a PNG")
     return data
 
 
@@ -53,13 +53,13 @@ def ico(src: Path) -> bytes:
 
 def main() -> None:
     if len(sys.argv) != 3:
-        raise SystemExit("usage: make_icons.py <dir from pychron-ui --write-icons> <output dir>")
+        raise SystemExit("usage: make_icons.py <dir from nobion --write-icons> <output dir>")
     src, out = Path(sys.argv[1]), Path(sys.argv[2])
     out.mkdir(parents=True, exist_ok=True)
-    (out / "pychron.icns").write_bytes(icns(src))
-    (out / "pychron.ico").write_bytes(ico(src))
-    shutil.copyfile(src / "pychron-512.png", out / "pychron.png")
-    for name in ("pychron.icns", "pychron.ico", "pychron.png"):
+    (out / "nobion.icns").write_bytes(icns(src))
+    (out / "nobion.ico").write_bytes(ico(src))
+    shutil.copyfile(src / "nobion-512.png", out / "nobion.png")
+    for name in ("nobion.icns", "nobion.ico", "nobion.png"):
         print(out / name, (out / name).stat().st_size, "bytes")
 
 

@@ -45,7 +45,7 @@ class PatternMakerTest : public QObject {
  private slots:
   void init() {
     std::random_device rd;
-    dir_ = fs::temp_directory_path() / ("pychron-ui-patterns-" + std::to_string(rd()) + std::to_string(rd()));
+    dir_ = fs::temp_directory_path() / ("nobion-patterns-" + std::to_string(rd()) + std::to_string(rd()));
     fs::create_directories(dir_);
     std::ofstream(dir_ / "hexagon.toml") << "kind = \"polygon\"\nradius = 0.75\nnsides = 6\nvelocity = 1.5\niterations = 2\n";
     std::ofstream(dir_ / "follow.toml") << "kind = \"dragonfly\"\nduration = 12\nspiral = \"square\"\n";

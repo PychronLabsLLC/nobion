@@ -35,7 +35,7 @@ Without a suitable Python, CMake builds the stub host instead.
 The python.org 3.14 installer (`/Library/Frameworks/Python.framework`) is
 known to work.
 
-### Qt 6 (`apps/pychron-ui` and `libs/persistence`)
+### Qt 6 (`apps/nobion` and `libs/persistence`)
 
 ```bash
 brew install qt
@@ -194,7 +194,7 @@ open View > Spectrometer (Ctrl+Shift+S); the example
 field table, and the window starts the scan when it opens:
 
 ```bash
-build/dev-ui/apps/pychron-ui/pychron-ui --sim
+build/dev-ui/apps/nobion/nobion --sim
 ```
 
 Use `--spectrometer <file>` to load another spectrometer config (the menu
@@ -221,7 +221,7 @@ up for simulation), `--sim-speed <x>` runs the whole app on simulated time x tim
 real time:
 
 ```bash
-build/dev-ui/apps/pychron-ui/pychron-ui --sim --sim-speed 50 --queue configs/examples/queues/experiment.toml
+build/dev-ui/apps/nobion/nobion --sim --sim-speed 50 --queue configs/examples/queues/experiment.toml
 ```
 
 View > Data browses the records under `<data>/records`. With
@@ -243,7 +243,7 @@ saves blanks and IC factors from reference analyses; saves are recorded under
 `$USER` on this host's client:
 
 ```bash
-build/dev-ui/apps/pychron-ui/pychron-ui --sim --db postgresql://me@labdb/pychron
+build/dev-ui/apps/nobion/nobion --sim --db postgresql://me@labdb/pychron
 ```
 
 On Ubuntu 24.04, `apt install qt6-base-dev libqt6sql6-sqlite` is enough for
@@ -301,7 +301,7 @@ missing). A push that changes no C++ is not slowed. CI does not run on
 - The checks are listed in `.clang-tidy`, each one that is off with its
   reason, and cppcheck's suppressions in `cmake/cppcheck.supp`. A directory
   whose code makes one check meaningless has its own `.clang-tidy` that
-  inherits the rest (`apps/pychron-ui` and `tests/ui`: Qt's parents own what
+  inherits the rest (`apps/nobion` and `tests/ui`: Qt's parents own what
   is `new`'d; `tests`: a test may dereference an optional unguarded). One finding
   that is wrong is silenced on its line, with the reason:
   `// NOLINT(<check>): <why>` or `// cppcheck-suppress <id>`.
@@ -335,7 +335,7 @@ the static analysis, when the branch changes C++ and both a `g++-NN` and a
 configured `build/dev` are there, and refuses the push while it reports a
 warning. Without the compiler or the build directory the hook leaves the
 sweep out and says nothing. It does not sweep `build/dev-ui`: run that by
-hand after changing `apps/pychron-ui` or `tests/ui`.
+hand after changing `apps/nobion` or `tests/ui`.
 
 It is not CI: Homebrew's gcc is newer than CI's and has let a gcc 14 warning
 through, and it says nothing of MSVC. `AGENTS.md` lists what CI has caught
@@ -410,7 +410,7 @@ or `qtegra_gauges` driver on a `kind = "udp"` transport is refused.
 4. Run the app on that config and open View > Spectrometer:
 
    ```bash
-   build/dev-ui/apps/pychron-ui/pychron-ui --spectrometer <dir>/spectrometer.qtegra.toml
+   build/dev-ui/apps/nobion/nobion --spectrometer <dir>/spectrometer.qtegra.toml
    ```
 
    Opening the spectrometer window starts a scan, which sends
@@ -774,7 +774,7 @@ glow at the sample while the simulated laser fires (`grain_offset_mm` and
 and moves, `[co2.sim.grain]`). `elctl laser track <scenario.toml>` runs the
 dragonfly against such a grain and scores it, with no line, lab or device
 (`configs/examples/track/`, `docs/user/05-laser.md` section 8.3). To watch one
-instead, `pychron-ui --sim` has **Follow (simulated)** in the laser window's
+instead, `nobion --sim` has **Follow (simulated)** in the laser window's
 Patterns tab, with a cross at the grain's true center (section 8.5). It is
 offered only when the driver is simulated and the camera's `source` is `sim`.
 
@@ -803,13 +803,13 @@ a pattern maker and on-screen calibration, watts and temperature.
 
 ### The laser window
 
-`pychron-ui` has a window for each extraction device: View ▸ Laser
+`nobion` has a window for each extraction device: View ▸ Laser
 (Ctrl+Shift+B), a submenu when the line has several. A laser PC that runs no
 experiments can open that window alone:
 
 ```sh
-pychron-ui --examples --sim --laser              # the only extraction device
-pychron-ui --sim --laser --device co2 line.toml  # one of several
+nobion --examples --sim --laser              # the only extraction device
+nobion --sim --laser --device co2 line.toml  # one of several
 ```
 
 What it shows is what the device says now, four times a second: where the
@@ -882,7 +882,7 @@ device = 0            # `elctl laser cameras` lists what there is
   computer's own camera:
 
 ```sh
-pychron-ui --examples --sim --laser    # after setting source and use as above
+nobion --examples --sim --laser    # after setting source and use as above
 ```
 
   macOS asks once whether Pychron may use the camera. From a terminal it is
@@ -960,7 +960,7 @@ samples and their identifiers, the mass spectrometer and a reactor. Its
 shipped `queues/experiment.toml` is three air shots between two blanks (`ba`, `a`,
 `a`, `a`, `ba`; about 19 minutes of simulated time, though `exp run`'s `ETA`
 line, an estimate, reads `0:08:50`), and names only what the
-seed made. `exp run` and `pychron-ui` write each finished run to that
+seed made. `exp run` and `nobion` write each finished run to that
 database, and refuse a queue that names an identifier, mass spectrometer or
 extract device it lacks; with no database (the example lab of section 5) runs
 are record files as before. `--db <url>` names another database. An install
@@ -974,16 +974,16 @@ and `--set id=value` answer without prompts. A re-run never overwrites a file;
 `--reconfigure` rewrites only files nobody edited and leaves `<file>.new`
 beside edited ones.
 
-`pychron-ui` does the same with a setup wizard. Started with nothing
+`nobion` does the same with a setup wizard. Started with nothing
 installed, it opens the wizard: pick data reduction or an instrument, a
 folder, and answer one page per question group; Install writes the files,
 creates a local database, records the install and shows the doctor's checks.
-After that `pychron-ui` opens the default install (`--install NAME` another;
+After that `nobion` opens the default install (`--install NAME` another;
 File > Installations switches, sets the default or forgets one). An
 instrument install's data window reads its database and shows each run when
 it ends; `--sim-speed N` needs no `--sim` beside it when the install is set
 up for simulation. A
-data-reduction install opens the data browser alone. `pychron-ui --setup`
+data-reduction install opens the data browser alone. `nobion --setup`
 runs the wizard again; `--examples` (or `--sim` with nothing installed) opens
 the example line in `configs/examples` as before.
 
@@ -997,9 +997,9 @@ the example line in `configs/examples` as before.
 cmake -S . -B build/pkg -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_UI=ON -DBUILD_TESTS=OFF
 cmake --build build/pkg
 (cd build/pkg && cpack)
-sudo apt install ./build/pkg/pychron_*.deb
+sudo apt install ./build/pkg/nobion_*.deb
 elctl --version                                   # shows where the profiles were found
-QT_QPA_PLATFORM=offscreen pychron-ui --self-test  # profiles, wizard, database plugin
+QT_QPA_PLATFORM=offscreen nobion --self-test  # profiles, wizard, database plugin
 ```
 
 To ship Python with the package (scripted extractions without a system

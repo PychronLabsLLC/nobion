@@ -3,7 +3,7 @@
 // Shared set-up for the experiment UI suites: a scratch copy of the example
 // lab (configs/examples) on a VirtualClock paced at 400x, the line with its
 // own scheduler threads, the sim spectrometer and a LabSession, as
-// `pychron-ui --sim --sim-speed 400` builds them. The Qt thread does not take
+// `nobion --sim --sim-speed 400` builds them. The Qt thread does not take
 // part in the clock: simulated time goes on while a test looks, and a test
 // waits for what it expects in real time (QTRY_*, QSignalSpy::wait).
 
@@ -31,7 +31,7 @@ namespace pychron::ui::test {
 
 inline std::filesystem::path scratch_lab() {
   namespace fs = std::filesystem;
-  const fs::path dir = pychron::testing::unique_temp_path("pychron-ui-lab-");
+  const fs::path dir = pychron::testing::unique_temp_path("nobion-lab-");
   pychron::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir);
   return dir;
 }

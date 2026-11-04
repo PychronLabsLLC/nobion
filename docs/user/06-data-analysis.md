@@ -2,7 +2,7 @@
 
 How to find analyses, look at one, refit its isotope evolutions, fit blanks
 and detector factors from reference runs, draw ideograms, age spectra and
-isochrons, and write a data table. Everything here is in `pychron-ui`
+isochrons, and write a data table. Everything here is in `nobion`
 (the **Data** browser) except the export, which `elctl` can also do.
 
 Before this page: [01 Getting started](01-getting-started.md) installs and
@@ -43,7 +43,7 @@ decided when the program starts; the title of the browser window says which
 
 | Source | What it is | When you get it | Can save edits? |
 |---|---|---|---|
-| **Database store** | The lab's PostgreSQL database (or a SQLite file for a single computer). It holds the catalog (samples, irradiations), every analysis, and the full revision history of each analysis's fits. | `pychron-ui --db <url>`, or an install that has a `database` set (every data-reduction install does, and so does every instrument install made with a database; `elctl init` and the setup wizard write it into the site file). | Yes: fits, blanks and IC factors are saved as new revisions, and old ones can be restored. |
+| **Database store** | The lab's PostgreSQL database (or a SQLite file for a single computer). It holds the catalog (samples, irradiations), every analysis, and the full revision history of each analysis's fits. | `nobion --db <url>`, or an install that has a `database` set (every data-reduction install does, and so does every instrument install made with a database; `elctl init` and the setup wizard write it into the site file). | Yes: fits, blanks and IC factors are saved as new revisions, and old ones can be restored. |
 | **Records folder** | A folder of per-analysis `.json` files, `<data>/records/<identifier>/<run id>.json`. | When there is no database: the example lab, an install made before installs had a database, a build without the database library. `<data>` is `--data <dir>`, else the install's `data` folder, else `<lab>/data`. Also shown, with a banner, when an instrument install's database cannot be opened (below). | No. Recall, figures and export work; every **Save** and **History** control is disabled with a tooltip saying a source that keeps revisions is needed. |
 
 The program uses one database throughout: `--db` when it is given, else the
@@ -75,7 +75,7 @@ record files, which a database browser does not list. See
 ### When an instrument install's database is away
 
 If the install's database cannot be opened (the server is down, the password
-cannot be read, the schema is behind), `pychron-ui` still starts, so the line
+cannot be read, the schema is behind), `nobion` still starts, so the line
 can be worked. The data browser then shows a banner, `The database could not
 be opened: <reason>` and `Showing the records folder <path>.`, and lists
 whatever record files that folder holds, which are not the install's

@@ -76,7 +76,7 @@ QString text_of(QWidget* editor) {
 // A data-reduction install made as the wizard makes one, in a temp folder,
 // recorded in a site file of its own.
 struct Lab {
-  fs::path dir = pychron::testing::unique_temp_path("pychron-ui-data-source-");
+  fs::path dir = pychron::testing::unique_temp_path("nobion-data-source-");
   fs::path root = dir / "lab";
   fs::path site_path = dir / "site" / "site.toml";
   setup::ProfileLibrary library = shipped();

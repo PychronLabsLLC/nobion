@@ -1,7 +1,7 @@
 # The NMGRL valve box: a real, full-size extraction line (33 valves on five
 # controllers, furnace, two bones, pipettes), converted from its legacy Pychron
 # setupfiles with `elctl import-line`. Every controller is simulated, so it runs
-# with no hardware: `pychron-ui extraction_line.toml canvas.toml` from this directory.
+# with no hardware: `nobion extraction_line.toml canvas.toml` from this directory.
 # Drawn by canvas.toml in this directory. A simulated cryostat and bakeout
 # heater are added by hand (see below): the legacy setup had neither here.
 #

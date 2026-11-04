@@ -15,7 +15,7 @@ contains the full procedures and the reasons for them.
 
 The package contains two programs:
 
-- `pychron-ui`: the application. On macOS, the name of the application is
+- `nobion`: the application. On macOS, the name of the application is
   Pychron.
 - `elctl`: the command-line program.
 
@@ -100,13 +100,13 @@ Each package contains its own Python for the extraction scripts.
    in Terminal. Then open Pychron again.
 
    ```bash
-   xattr -dr com.apple.quarantine /Applications/Pychron.app
+   xattr -dr com.apple.quarantine /Applications/Nobion.app
    ```
 
 6. To use `elctl` in Terminal, type this command:
 
    ```bash
-   alias elctl=/Applications/Pychron.app/Contents/MacOS/elctl
+   alias elctl=/Applications/Nobion.app/Contents/MacOS/elctl
    ```
 
 The message in step 5 occurs only with release v0.3.0.
@@ -123,7 +123,7 @@ xattr -d com.apple.quarantine <file>
 1. Type this command in the folder that contains the package:
 
    ```bash
-   sudo apt install ./pychron_*.deb
+   sudo apt install ./nobion_*.deb
    ```
 
 2. If you use a PostgreSQL database, install the PostgreSQL driver for Qt:
@@ -201,10 +201,10 @@ include the database library. Then `elctl import` is not available.
 3. Type this command:
 
    ```bash
-   pychron-ui --self-test
+   nobion --self-test
    ```
 
-   On macOS, the program is `/Applications/Pychron.app/Contents/MacOS/Pychron`.
+   On macOS, the program is `/Applications/Nobion.app/Contents/MacOS/Nobion`.
 4. Make sure that each line of the output shows `OK`.
 
 On Linux without a display, put `QT_QPA_PLATFORM=offscreen` before the
@@ -215,7 +215,7 @@ command. Do not use this variable on macOS or Windows.
 You can make an installation in two ways. The two ways give the same result:
 
 - The setup wizard. Pychron opens the wizard when there is no installation.
-  To open the wizard again, type `pychron-ui --setup`.
+  To open the wizard again, type `nobion --setup`.
 - The command line. Type `elctl init <profile>`. The command asks the same
   questions as the wizard.
 
@@ -331,7 +331,7 @@ The `line_source` question selects the extraction line:
    5/5 run(s) succeeded; in sqlite:<root>/data/pychron.db
    ```
 
-5. Type `pychron-ui --install argus`.
+5. Type `nobion --install argus`.
 6. Select View > Data. Make sure that the five runs show.
 
 > **CAUTION:** DO NOT RUN TWO PROGRAMS WITH THE DATABASE OF ONE INSTALLATION
@@ -346,11 +346,11 @@ simulation to the instrument. Do all the steps of part 2.4 in sequence.
 
 | Task | Procedure |
 |---|---|
-| Change an answer | Type `elctl init --reconfigure --install NAME --set id=value`, or type `pychron-ui --setup` |
+| Change an answer | Type `elctl init --reconfigure --install NAME --set id=value`, or type `nobion --setup` |
 | Change the data source | Select Preferences > Data source, or type `elctl data-source set` |
 | Change a configuration file | Edit the TOML file in the installation folder. Then type `elctl doctor`. |
 | Select, set as default or remove an installation | In Pychron, select File > Installations. Pychron removes the entry only. It does not delete the files. |
-| Use one installation | Type `elctl --install NAME <command>` or `pychron-ui --install NAME` |
+| Use one installation | Type `elctl --install NAME <command>` or `nobion --install NAME` |
 
 ## 9. Remove Pychron
 

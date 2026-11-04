@@ -419,7 +419,7 @@ panels go back to the installed layout and the log shows
   through at the valve's conductance, so the pressures the simulated gauges
   report change over a moment, not at once; pumped volumes pump down, static
   ones rise, and gauges have a little noise.
-- `pychron-ui --sim` forces **every** transport to `sim`, whatever the config
+- `nobion --sim` forces **every** transport to `sim`, whatever the config
   says. An installation set up "for simulation" does this automatically. With
   nothing installed, `--sim` (or `--examples`) opens the example line shipped
   with Pychron.
@@ -444,7 +444,7 @@ panels go back to the installed layout and the log shows
 To move from simulation to a real line, change each transport from
 `kind = "sim"` to `serial` or `tcp` with a port or host (see below), run
 `elctl validate` and `elctl probe`, and start with `elctl state` before
-opening anything. Run the setup wizard again (`pychron-ui --setup`, or
+opening anything. Run the setup wizard again (`nobion --setup`, or
 `elctl init --reconfigure`) to switch an installation out of simulation; see
 [getting started](01-getting-started.md) and the
 [installation runbook](../installation_runbook.md).

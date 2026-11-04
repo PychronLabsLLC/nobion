@@ -37,7 +37,7 @@ inline systems::ExtractionLine::Options example_line_options(const Clock* clock 
   options.sim_file = std::filesystem::path{};
   // Locks persist beside the config by default; keep tests out of the repo
   // and independent of each other.
-  options.state_file = pychron::testing::unique_temp_path("pychron-ui-test-", ".state.toml");
+  options.state_file = pychron::testing::unique_temp_path("nobion-test-", ".state.toml");
   return options;
 }
 

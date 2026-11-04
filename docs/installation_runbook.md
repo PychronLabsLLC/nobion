@@ -36,7 +36,7 @@ the checks and the way back.
 
 ## Part 1. Install the programs
 
-Two programs are installed: `pychron-ui` (the application, called Pychron on
+Two programs are installed: `nobion` (the application, called Pychron on
 macOS) and `elctl` (the command line). Both come with the setup profiles and
 the example configs.
 
@@ -58,7 +58,7 @@ whose signatures do not hold together) there is no Open Anyway: copy the
 application to Applications and clear its quarantine mark once, then open it:
 
 ```
-xattr -dr com.apple.quarantine /Applications/Pychron.app
+xattr -dr com.apple.quarantine /Applications/Nobion.app
 ```
 
 Such a build also leaves the files it writes quarantined; Pychron
@@ -69,8 +69,8 @@ be cleared by hand: `xattr -d com.apple.quarantine <file>`.
 
 | Platform | Package | Install | Where `elctl` is |
 |---|---|---|---|
-| macOS (Apple silicon) | `Pychron-<version>-macOS-arm64.dmg` | Open it, drag Pychron to Applications | `/Applications/Pychron.app/Contents/MacOS/elctl` |
-| Ubuntu 24.04 | `pychron_<version>_amd64.deb` | `sudo apt install ./pychron_*.deb` | on `PATH` |
+| macOS (Apple silicon) | `Pychron-<version>-macOS-arm64.dmg` | Open it, drag Pychron to Applications | `/Applications/Nobion.app/Contents/MacOS/elctl` |
+| Ubuntu 24.04 | `pychron_<version>_amd64.deb` | `sudo apt install ./nobion_*.deb` | on `PATH` |
 | Linux, other | `.tar.gz` | Unpack anywhere; it is relocatable | `<dir>/bin/elctl` |
 | Windows x64 | `Pychron-<version>-windows-x64.exe` (or `.zip`) | Run the installer | on `PATH` (the installer adds it) |
 
@@ -80,7 +80,7 @@ PostgreSQL database also install the recommended `libqt6sql6-psql`.
 On macOS, make `elctl` reachable for the rest of this runbook:
 
 ```bash
-alias elctl=/Applications/Pychron.app/Contents/MacOS/elctl
+alias elctl=/Applications/Nobion.app/Contents/MacOS/elctl
 ```
 
 ### 1.2 From source
@@ -122,18 +122,18 @@ Prints the version and the `profiles:` and `examples:` directories it found.
 If those two lines are missing, the package is incomplete.
 
 ```bash
-pychron-ui --self-test
+nobion --self-test
 ```
 
 Checks the profiles, the setup wizard and the database plugin, and prints one
 `OK` line each. On macOS the program is
-`/Applications/Pychron.app/Contents/MacOS/Pychron`. On a Linux machine with no
+`/Applications/Nobion.app/Contents/MacOS/Nobion`. On a Linux machine with no
 display, prefix it with `QT_QPA_PLATFORM=offscreen`; the macOS and Windows
 packages carry only their native platform plugin, so leave it unset there.
 
 ### 1.4 Signing and notarizing the macOS package
 
-The `release` workflow signs `Pychron.app` from the inside out with the
+The `release` workflow signs `Nobion.app` from the inside out with the
 hardened runtime (`packaging/macos/sign_app.sh`, called by CPack before the
 disk image is made), then signs the `.dmg`, submits it to Apple's notary
 service and staples the ticket to it. The smoke test checks the signatures,
@@ -210,7 +210,7 @@ class, goes there.
 There are two ways to make an install, and they do the same thing:
 
 - **The wizard.** Start Pychron with nothing installed and it opens. Later:
-  `pychron-ui --setup`.
+  `nobion --setup`.
 - **The command line.** `elctl init <profile>` asks the same questions.
   `--yes` takes every default, `--set id=value` and `--answers file.toml`
   answer without prompting.
@@ -285,7 +285,7 @@ The last question is where the database is: a file on this computer
 (`data/pychron.db`, the default) or the lab's PostgreSQL server
 (`--set data_source=server` and the `db_*` answers, as in part 2.2). It holds
 the catalog (samples, projects, packages) and every run the instrument
-finishes: `pychron-ui` and `elctl exp run` write each one to it, and the data
+finishes: `nobion` and `elctl exp run` write each one to it, and the data
 window reads it. A run the database cannot take at once waits in
 `<root>/data/spool` and is sent when the next queue starts
 ([04 Experiments](user/04-experiments.md#85-what-is-written-run-records)).
@@ -355,7 +355,7 @@ queue completed
 5/5 run(s) succeeded; in sqlite:/home/you/Pychron/argus/data/pychron.db
 ```
 
-The five runs are in the database, and `pychron-ui --install argus` shows
+The five runs are in the database, and `nobion --install argus` shows
 them under View > Data. Run only one program at a time against an install's
 database.
 
@@ -476,11 +476,11 @@ writes its database. Three things follow:
 
 | Task | How |
 |---|---|
-| Change an answer | `elctl init --reconfigure --install NAME --set id=value`, or `pychron-ui --setup` |
+| Change an answer | `elctl init --reconfigure --install NAME --set id=value`, or `nobion --setup` |
 | Change where data is read and written | Preferences > Data source, or `elctl data-source set` |
 | Edit a config by hand | Edit the TOML in the install folder, then `elctl doctor` |
 | Switch, set default or forget an install | Pychron: File > Installations. Forgetting removes the entry, never the files |
-| Use one install from the command line | `elctl --install NAME <command>`, `pychron-ui --install NAME` |
+| Use one install from the command line | `elctl --install NAME <command>`, `nobion --install NAME` |
 | Check a line or canvas file | `elctl -c extraction_line.toml validate`, `elctl canvas-check` |
 
 ## Part 3. Migrate legacy pychron data

@@ -527,7 +527,7 @@ class TestSetupWizard : public QObject {
     std::ostringstream log;
     QCOMPARE(write_icons(out, log), 0);
     for (const int size : {16, 24, 32, 48, 64, 128, 256, 512, 1024}) {
-      const QImage img(QString::fromStdString((out / ("pychron-" + std::to_string(size) + ".png")).string()));
+      const QImage img(QString::fromStdString((out / ("nobion-" + std::to_string(size) + ".png")).string()));
       QCOMPARE(img.width(), size);
       QCOMPARE(img.height(), size);
       QVERIFY(img.hasAlphaChannel());

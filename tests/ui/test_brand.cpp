@@ -50,7 +50,7 @@ class TestBrand : public QObject {
   void the_version_comes_from_the_build() {
     QVERIFY(!pychron::ui::app_version().isEmpty());
     const QString info = pychron::ui::build_info();
-    QVERIFY(info.startsWith(QStringLiteral("pychron: ") + pychron::ui::app_version()));
+    QVERIFY(info.startsWith(QStringLiteral("nobion: ") + pychron::ui::app_version()));
     QVERIFY(info.contains(QStringLiteral("Qt: ") + QString::fromLatin1(qVersion())));
     QVERIFY(info.contains(QStringLiteral("compiler: ")));
   }

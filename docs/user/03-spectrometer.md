@@ -22,7 +22,7 @@ Pychron window.
 The menu entry is greyed out when:
 
 - no spectrometer config was given or installed (an installation names one;
-  otherwise start with `pychron-ui --spectrometer <file>`, or `--sim`, which
+  otherwise start with `nobion --spectrometer <file>`, or `--sim`, which
   uses the example simulated spectrometer);
 - the config failed to load (the log dock shows
   `ERROR [ui] spectrometer not loaded: ...`);
@@ -570,7 +570,7 @@ removed, and fit changes. A version that does not parse is compared as text.
 The same operations, for scripts and for a line without the UI. Each works
 on the files of the data directory named by the spectrometer config
 (`--spectrometer <file>`), opens no device, and takes effect when a process
-next loads the table: a running pychron-ui keeps the table it loaded until
+next loads the table: a running nobion keeps the table it loaded until
 it saves one itself or is restarted.
 
 ```
@@ -704,7 +704,7 @@ What that means in practice:
 
 - **Simulated** is safe and complete. Beside a simulated extraction line it
   measures the gas in the line's spectrometer stage; on its own it shows a
-  fixed argon ([The simulated lab](../simulator.md)). `pychron-ui --sim` refuses to load a
+  fixed argon ([The simulated lab](../simulator.md)). `nobion --sim` refuses to load a
   spectrometer config that is not fully simulated (every transport `sim`, and
   every driver a `sim_*` one), so it cannot be used to rehearse against
   hardware by accident. Error: `simulation requested but <file> is not a
@@ -773,7 +773,7 @@ To leave simulation once the instrument is ready:
 elctl init --reconfigure --install <name> --set simulation=no
 ```
 
-(or run `pychron-ui --setup` again). Files you have edited are kept.
+(or run `nobion --setup` again). Files you have edited are kept.
 
 ## Unverified / not yet implemented
 

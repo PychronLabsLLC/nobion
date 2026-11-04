@@ -88,8 +88,8 @@ preset = "dev-ui"
 wave = 8
 layer = "ui"
 depends = ["extraction_line_facade"]
-goal = "apps/pychron-ui (configure with `cmake --preset dev-ui`; Qt 6.12 is at $HOME/Qt/6.12.0/macos, components Widgets+Charts+Test available): CoreBridge (SignalBus -> Qt main thread, command executor thread), QGraphicsView canvas items, LogDock, AlarmDock, HealthBar; Qt Test smoke under BUILD_UI."
-targets = ["apps/pychron-ui", "tests/ui"]
+goal = "apps/nobion (configure with `cmake --preset dev-ui`; Qt 6.12 is at $HOME/Qt/6.12.0/macos, components Widgets+Charts+Test available): CoreBridge (SignalBus -> Qt main thread, command executor thread), QGraphicsView canvas items, LogDock, AlarmDock, HealthBar; Qt Test smoke under BUILD_UI."
+targets = ["apps/nobion", "tests/ui"]
 
 [[unit]]
 id = "gp_microion"
@@ -449,8 +449,8 @@ wave = 19
 layer = "ui"
 depends = ["spec_ui_tuning", "elctl_exp", "template_library"]
 spec = "docs/superpowers/specs/2026-09-29-experiment-system-design.md"
-goal = "apps/pychron-ui experiment views via CoreBridge: queue editor, measurement panel with generated parameter form and advanced structured editor, script editor with static-check diagnostics and live estimate, executor pane with phase timeline/overlap lanes/explained waits/conditionals view, evolutions plots sharing the spectrometer plot widget, notification subscriber; Qt Test smoke."
-targets = ["apps/pychron-ui", "tests/ui"]
+goal = "apps/nobion experiment views via CoreBridge: queue editor, measurement panel with generated parameter form and advanced structured editor, script editor with static-check diagnostics and live estimate, executor pane with phase timeline/overlap lanes/explained waits/conditionals view, evolutions plots sharing the spectrometer plot widget, notification subscriber; Qt Test smoke."
+targets = ["apps/nobion", "tests/ui"]
 
 [[unit]]
 id = "spec_bringup"
@@ -536,8 +536,8 @@ wave = 17
 layer = "ui"
 depends = ["qt_ui", "elctl_spec_core"]
 spec = "docs/superpowers/specs/2026-09-29-spectrometer-control-design.md"
-goal = "apps/pychron-ui spectrometer part 1 via CoreBridge: readout dock (sigma from the host, active toggles on hardware, protect badges, stale indicator) and magnet panel (position by mass/native, reusing the spectrometer window's large-move confirmation for mass/native moves, table selector); live intensities, the integration selector, the current-position display, the large-move confirmation and position-by-isotope are delivered by the spectrometer window, see docs/superpowers/specs/2026-10-01-spectrometer-window-design.md; Qt Test smoke."
-targets = ["apps/pychron-ui", "tests/ui"]
+goal = "apps/nobion spectrometer part 1 via CoreBridge: readout dock (sigma from the host, active toggles on hardware, protect badges, stale indicator) and magnet panel (position by mass/native, reusing the spectrometer window's large-move confirmation for mass/native moves, table selector); live intensities, the integration selector, the current-position display, the large-move confirmation and position-by-isotope are delivered by the spectrometer window, see docs/superpowers/specs/2026-10-01-spectrometer-window-design.md; Qt Test smoke."
+targets = ["apps/nobion", "tests/ui"]
 
 [[unit]]
 id = "spec_ui_tuning"
@@ -546,6 +546,6 @@ wave = 18
 layer = "ui"
 depends = ["spec_ui_readout", "elctl_spec_jobs"]
 spec = "docs/superpowers/specs/2026-09-29-spectrometer-control-design.md"
-goal = "apps/pychron-ui spectrometer part 2: scan view with live sweep plot and peak-center overlay, generated parameters panel with profile apply/verify and mismatch list, detectors panel with deflection/gain/CDD editors and coincidence proposal table, jobs dock (queue, progress, cancel, results); Qt Test smoke."
-targets = ["apps/pychron-ui", "tests/ui"]
+goal = "apps/nobion spectrometer part 2: scan view with live sweep plot and peak-center overlay, generated parameters panel with profile apply/verify and mismatch list, detectors panel with deflection/gain/CDD editors and coincidence proposal table, jobs dock (queue, progress, cancel, results); Qt Test smoke."
+targets = ["apps/nobion", "tests/ui"]
 

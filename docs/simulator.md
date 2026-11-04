@@ -139,7 +139,7 @@ prints
 note: the simulated spectrometer is not joined to the line: the canvas has no spectrometer stage
 ```
 
-and `pychron-ui` writes the same sentence to the terminal it was started
+and `nobion` writes the same sentence to the terminal it was started
 from.
 
 A gauge that `extraction_line.toml` has and the canvas does not is a 1 cc
@@ -178,7 +178,7 @@ sim: valve 'V1~V2': a valve's name may not contain '~' on a simulated line (the 
 
 The valves that carry no gas are listed once, in one log line at `info`, when
 the line is built, which is before any window is open. It goes where the
-line's log goes: to `pychron.log` (kept by default; the Log dock of `pychron-ui` shows that
+line's log goes: to `pychron.log` (kept by default; the Log dock of `nobion` shows that
 file's history when it opens), and to the terminal if it has `echo_stderr = true`. An
 `elctl exp run` user sees it in the same two places; `elctl` prints nothing
 of it otherwise. The example line has no valve without gas, so it logs no
@@ -215,7 +215,7 @@ or detector by name. It cannot change what a stage is: that is the canvas's
   is the file the previous point finds. An install whose line was imported
   gets none from the setup.
 - It is read only when the line is loaded with its canvas, since its names
-  are the canvas's. `pychron-ui` and `elctl exp run` load the canvas. A tool
+  are the canvas's. `nobion` and `elctl exp run` load the canvas. A tool
   that loads the line alone does not read it, and a simulated line says so
   in its log, at `info`:
   `sim: <file> not read: the line was loaded without its canvas`.
@@ -370,7 +370,7 @@ error: sim.toml: detectors.H3: unknown detector 'H3'; known: H2, H1, AX, L1, L2,
 ```
 
 `elctl exp validate` checks the queue, not the simulator: these errors come
-when the line is loaded, from `elctl exp run` or `pychron-ui`.
+when the line is loaded, from `elctl exp run` or `nobion`.
 
 ## The spectrometer side
 
@@ -465,11 +465,11 @@ Its `sim.toml` sets six numbers, so that the signals are of a lab's size:
 `queues/experiment.sim-air.toml` is five analyses: blank, air, air, air, blank.
 
 Every command here is run from `configs/examples`, and calls the programs by
-their names, `elctl` and `pychron-ui`: have them on your `PATH`, or write
+their names, `elctl` and `nobion`: have them on your `PATH`, or write
 the path out. In a build tree, from that folder, `elctl` is
-`../../build/dev/apps/elctl/elctl` and `pychron-ui` is
-`../../build/dev-ui/apps/pychron-ui/pychron-ui`
-(`../../build/dev-ui/apps/pychron-ui/Pychron.app/Contents/MacOS/Pychron` on
+`../../build/dev/apps/elctl/elctl` and `nobion` is
+`../../build/dev-ui/apps/nobion/nobion`
+(`../../build/dev-ui/apps/nobion/Nobion.app/Contents/MacOS/Nobion` on
 macOS).
 
 ```bash
@@ -536,12 +536,12 @@ The `elctl` commands are the same there. Without `--data` the records go to
 | `--sim-speed max` | about 5 seconds: the clock does not wait at all |
 
 The speed does not change what is measured. `max` is `elctl`'s only;
-`pychron-ui` takes a number.
+`nobion` takes a number.
 
 In the window, from `configs/examples` again:
 
 ```bash
-pychron-ui --examples --sim --sim-speed 50 --data ~/pychron-sim-data \
+nobion --examples --sim --sim-speed 50 --data ~/pychron-sim-data \
     --queue queues/experiment.sim-air.toml
 ```
 
@@ -550,7 +550,7 @@ build tree is `configs/examples`; `--queue` is a path from the folder you
 are in. In a copy of the lab, name its files instead:
 
 ```bash
-pychron-ui extraction_line.toml canvas.toml --sim --sim-speed 50 \
+nobion extraction_line.toml canvas.toml --sim --sim-speed 50 \
     --spectrometer spectrometer.sim-integrated.toml \
     --queue queues/experiment.sim-air.toml
 ```
@@ -671,11 +671,11 @@ in [the elctl reference](user/08-elctl-reference.md) (`exp run`).
 
 ### The model without a queue
 
-The gas model belongs to the line as `pychron-ui` and `elctl exp run` load
+The gas model belongs to the line as `nobion` and `elctl exp run` load
 it. `elctl`'s own hardware commands (`open`, `close`, `read`, `state`,
 `scan`, and the `sim` session) simulate the controllers only: valves answer
 and gauges read a fixed number whatever the valves do. To watch the gas
-move by hand, use the canvas in `pychron-ui --examples --sim`.
+move by hand, use the canvas in `nobion --examples --sim`.
 
 ## Reproducibility
 
@@ -747,7 +747,7 @@ beside the line's file. In a second terminal:
 elctl -c lab/extraction_line.toml --sim-endpoints lab/sim-endpoints.toml exp run queue.toml
 ```
 
-or `pychron-ui --sim-endpoints lab/sim-endpoints.toml` with the install.
+or `nobion --sim-endpoints lab/sim-endpoints.toml` with the install.
 Interrupting `sim serve` stops it and removes the file. Each start is the
 lab of `sim.toml` with every valve closed: a client reads valves back from
 it, as from the instrument.

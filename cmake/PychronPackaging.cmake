@@ -1,28 +1,28 @@
 # Packages from the "pychron" install component (cmake/PychronInstall.cmake):
 #   Linux    .deb (dependencies from dpkg-shlibdeps) and .tar.gz
-#   macOS    .dmg: drag Pychron to Applications (signed: packaging/macos/sign_app.sh)
+#   macOS    .dmg: drag Nobion to Applications (signed: packaging/macos/sign_app.sh)
 #   Windows  NSIS installer (Start menu, uninstaller, elctl on PATH) and .zip
 
-set(CPACK_PACKAGE_NAME "pychron")
+set(CPACK_PACKAGE_NAME "nobion")
 set(CPACK_PACKAGE_VENDOR "Pychron Labs LLC")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Noble-gas mass spectrometry: instrument control, extraction lines and Ar/Ar data reduction")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/PychronLabsLLC/nobion")
 set(CPACK_PACKAGE_CONTACT "Pychron Labs LLC")
 set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
-set(CPACK_PACKAGE_INSTALL_DIRECTORY "Pychron")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "Nobion")
 set(CPACK_STRIP_FILES ON)
-# Only pychron's own files, never the dependencies' headers and archives.
+# Only nobion's own files, never the dependencies' headers and archives.
 set(CPACK_INSTALL_CMAKE_PROJECTS
   "${CMAKE_BINARY_DIR};${PROJECT_NAME};${PYCHRON_COMPONENT};/"
   "${CMAKE_BINARY_DIR};${PROJECT_NAME};pychron_qt;/")
 
 if(APPLE)
   set(CPACK_GENERATOR "DragNDrop")
-  set(CPACK_DMG_VOLUME_NAME "Pychron")
-  set(CPACK_PACKAGE_ICON "${PROJECT_SOURCE_DIR}/packaging/icons/pychron.icns")  # the mounted volume
-  set(CPACK_PACKAGE_FILE_NAME "Pychron-${PROJECT_VERSION}-macOS-${CMAKE_SYSTEM_PROCESSOR}")
-  # Pychron.app is signed in the staging directory before the image is made,
+  set(CPACK_DMG_VOLUME_NAME "Nobion")
+  set(CPACK_PACKAGE_ICON "${PROJECT_SOURCE_DIR}/packaging/icons/nobion.icns")  # the mounted volume
+  set(CPACK_PACKAGE_FILE_NAME "Nobion-${PROJECT_VERSION}-macOS-${CMAKE_SYSTEM_PROCESSOR}")
+  # Nobion.app is signed in the staging directory before the image is made,
   # with the identity in PYCHRON_CODESIGN_IDENTITY (none set: left unsigned).
   # The release workflow signs, notarizes and staples the image itself.
   set(CPACK_PRE_BUILD_SCRIPTS "${PROJECT_SOURCE_DIR}/packaging/macos/cpack_sign.cmake")
@@ -30,17 +30,17 @@ if(APPLE)
   set(CPACK_PYCHRON_ENTITLEMENTS "${PROJECT_SOURCE_DIR}/packaging/macos/entitlements.plist")
 elseif(WIN32)
   set(CPACK_GENERATOR "NSIS;ZIP")
-  set(CPACK_PACKAGE_FILE_NAME "Pychron-${PROJECT_VERSION}-windows-x64")
-  set(CPACK_NSIS_DISPLAY_NAME "Pychron")
-  set(CPACK_NSIS_PACKAGE_NAME "Pychron ${PROJECT_VERSION}")
+  set(CPACK_PACKAGE_FILE_NAME "Nobion-${PROJECT_VERSION}-windows-x64")
+  set(CPACK_NSIS_DISPLAY_NAME "Nobion")
+  set(CPACK_NSIS_PACKAGE_NAME "Nobion ${PROJECT_VERSION}")
   set(CPACK_NSIS_MODIFY_PATH ON)
   set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
   set(CPACK_NSIS_URL_INFO_ABOUT "${CPACK_PACKAGE_HOMEPAGE_URL}")
-  set(CPACK_NSIS_MUI_ICON "${PROJECT_SOURCE_DIR}/packaging/icons/pychron.ico")
-  set(CPACK_NSIS_MUI_UNIICON "${PROJECT_SOURCE_DIR}/packaging/icons/pychron.ico")
-  if(TARGET pychron-ui)
-    set(CPACK_PACKAGE_EXECUTABLES "pychron-ui" "Pychron")
-    set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\pychron-ui.exe")
+  set(CPACK_NSIS_MUI_ICON "${PROJECT_SOURCE_DIR}/packaging/icons/nobion.ico")
+  set(CPACK_NSIS_MUI_UNIICON "${PROJECT_SOURCE_DIR}/packaging/icons/nobion.ico")
+  if(TARGET nobion)
+    set(CPACK_PACKAGE_EXECUTABLES "nobion" "Nobion")
+    set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\nobion.exe")
   endif()
 else()
   set(CPACK_GENERATOR "DEB;TGZ")

@@ -1,1 +1,1 @@
-@../../apps/pychron-ui/AGENTS.md
+@../../apps/nobion/AGENTS.md

@@ -135,7 +135,7 @@ Inner loop (keep waits short):
   (`CTEST_PARALLEL_LEVEL` empty; `dev-ui` 5.3 min, at 2 jobs 13.3 min, on 18
   cores). CI gives `--parallel` itself. A test that fails only in parallel is
   a bug (shared file, port, settings): fix it, do not serialize suite.
-- Use `dev-ui` only when change touches `apps/pychron-ui` or `tests/ui`. It
+- Use `dev-ui` only when change touches `apps/nobion` or `tests/ui`. It
   builds and runs everything `dev` does and the UI tests: one run of it
   covers both.
 - ccache used when installed (`cmake/PychronCcache.cmake`); base_dir is
@@ -151,7 +151,7 @@ Inner loop (keep waits short):
   `python3 tools/compiler_sweep.py` (every source through Homebrew's `g++`,
   `-fsyntax-only`, all warnings at once; needs `brew install gcc` and a
   configured build directory; the pre-push hook runs it on `build/dev`, so a
-  change under `apps/pychron-ui` or `tests/ui` is swept by hand with
+  change under `apps/nobion` or `tests/ui` is swept by hand with
   `--build-dir build/dev-ui`). While working, `--changed`: only sources the
   branch's changes reach (own file, or header read when last built, from
   Ninja's dependency log; unknown → swept; changed CMake file → whole tree).
@@ -262,7 +262,7 @@ given it when it reads a file there; any other agent opens it itself).
 |---|---|
 | `libs/persistence`, `tests/persistence`, a migration, any query against the store | `libs/persistence/AGENTS.md` (has "Schema and queries": a migration costs every lab a step, a query is paid once per analysis) |
 | `libs/ingest`, `libs/dvc`, `tests/dvc`, `elctl import` | `libs/ingest/AGENTS.md` |
-| `libs/arar`, `tests/arar`, `apps/pychron-ui/src/arar`; publication report, flux fitting, `elctl export`, `elctl flux`, flux window | `libs/arar/AGENTS.md` |
+| `libs/arar`, `tests/arar`, `apps/nobion/src/arar`; publication report, flux fitting, `elctl export`, `elctl flux`, flux window | `libs/arar/AGENTS.md` |
 | `libs/entry`, `tests/entry`, an install's `seed.toml` | `libs/entry/AGENTS.md` |
 | `libs/earthbank`, `libs/earthbank_qt`, `tests/earthbank`, `elctl earthbank`, EarthBank page and Publish dialog | `libs/earthbank/AGENTS.md` |
 | `libs/experiment` record, store adapter, `tests/experiment`, how a run is saved, executor hold, safe state, gap rule | `libs/experiment/AGENTS.md` |
@@ -270,8 +270,8 @@ given it when it reads a file there; any other agent opens it itself).
 | `libs/devices`, `tests/devices`, a driver's command or wire call | `libs/devices/AGENTS.md` (which command may be sent twice; a new command has a row in `test_repeat_tables.cpp`) |
 | `libs/sim`, `sim.toml`, simulator noise or gas | `libs/sim/AGENTS.md` |
 | `libs/metrics`, an exporter, a dashboard | `libs/metrics/AGENTS.md` |
-| `apps/pychron-ui` Preferences, the line's local override file | `apps/pychron-ui/AGENTS.md` |
-| `libs/processing`, `libs/reduction`, `domain.hpp`, data windows of `apps/pychron-ui` (browser, figure, recall), `elctl` export and flux | No file: domain seam rules below the table. |
+| `apps/nobion` Preferences, the line's local override file | `apps/nobion/AGENTS.md` |
+| `libs/processing`, `libs/reduction`, `domain.hpp`, data windows of `apps/nobion` (browser, figure, recall), `elctl` export and flux | No file: domain seam rules below the table. |
 | `packaging/`, signing, entitlements | `packaging/AGENTS.md` |
 
 Domain seam (`docs/superpowers/specs/2026-10-22-domain-seam-design.md` §10),
@@ -280,11 +280,11 @@ every change keeps:
 - `libs/processing`; `libs/reduction` outside files Ar-Ar by design
   (`arar.hpp`, `arar.cpp`, `arar_live.hpp`, `detail/arar_kernels.hpp`:
   `compute_arar`, live conditionals, `libs/experiment` links them, below
-  `processing`); `apps/pychron-ui` outside `src/arar/`; `elctl` outside
+  `processing`); `apps/nobion` outside `src/arar/`; `elctl` outside
   `flux`: no Ar-Ar reduction logic (age, J, flux, production, decay or
   interference stage) and no literal only Ar-Ar understands in a window,
   unit, exporter or quantity. What has one lives in `libs/arar` (or, from
-  spec step 4, Ar-Ar's `DomainUi` under `apps/pychron-ui/src/arar`). Neutral
+  spec step 4, Ar-Ar's `DomainUi` under `apps/nobion/src/arar`). Neutral
   data that happens to list argon stays: isotope mass table
   (`isotope_classifier.cpp`), detector-discrimination text
   (`reference_fit.hpp`); comments naming age or J as examples. Exceptions
@@ -479,5 +479,5 @@ Tests (`tests/support/virtual_time.hpp`, namespace `pychron::testing`):
   good.
 
 Apps: `--sim` alone keeps real time. `elctl exp run --sim-speed N|max` and
-`pychron-ui --sim --sim-speed N` run on a `VirtualClock` at N simulated
+`nobion --sim --sim-speed N` run on a `VirtualClock` at N simulated
 seconds a second (`max`, `elctl` only: no waiting at all).

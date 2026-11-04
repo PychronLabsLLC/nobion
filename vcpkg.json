@@ -12,7 +12,7 @@
   ],
   "features": {
     "ui": {
-      "description": "Qt6 UI (apps/pychron-ui)",
+      "description": "Qt6 UI (apps/nobion)",
       "dependencies": [
         {
           "name": "qtbase",

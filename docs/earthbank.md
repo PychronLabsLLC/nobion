@@ -1,7 +1,7 @@
 # Publishing to EarthBank
 
 How to get 40Ar/39Ar results out of pychron and into EarthBank (AuScope's
-AusGeochem data platform), from `pychron-ui` or `elctl earthbank`: by
+AusGeochem data platform), from `nobion` or `elctl earthbank`: by
 uploading them, or by writing EarthBank's own import workbooks. The code is
 `libs/earthbank`; `elctl earthbank help` and the
 [elctl reference](user/08-elctl-reference.md#earthbank-workbooks) have every

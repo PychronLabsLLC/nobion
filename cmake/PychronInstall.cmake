@@ -1,9 +1,9 @@
 # Install layout and packages (installation wizard spec section 3.7).
 #
 #   Linux, Windows             macOS (with BUILD_UI)
-#   <prefix>/bin/elctl         Pychron.app/Contents/MacOS/Pychron   (pychron-ui)
-#   <prefix>/bin/pychron-ui    Pychron.app/Contents/MacOS/elctl
-#   <prefix>/share/pychron/    Pychron.app/Contents/Resources/
+#   <prefix>/bin/elctl         Nobion.app/Contents/MacOS/Nobion   (nobion)
+#   <prefix>/bin/nobion        Nobion.app/Contents/MacOS/elctl
+#   <prefix>/share/pychron/    Nobion.app/Contents/Resources/
 #     profiles/ examples/        profiles/ examples/
 #     earthbank/templates/       earthbank/templates/
 #     python/  (optional)        python/  (optional)
@@ -39,8 +39,8 @@ endif()
 option(PYCHRON_DEPLOY_QT "Copy the Qt runtime into the install (macdeployqt / windeployqt)" ${_pychron_deploy_qt_default})
 
 set(PYCHRON_COMPONENT pychron)
-if(APPLE AND TARGET pychron-ui)
-  set(PYCHRON_INSTALL_BUNDLE "Pychron.app")
+if(APPLE AND TARGET nobion)
+  set(PYCHRON_INSTALL_BUNDLE "Nobion.app")
   set(PYCHRON_INSTALL_BIN "${PYCHRON_INSTALL_BUNDLE}/Contents/MacOS")
   set(PYCHRON_INSTALL_RESOURCES "${PYCHRON_INSTALL_BUNDLE}/Contents/Resources")
   set(PYCHRON_INSTALL_DOC "${PYCHRON_INSTALL_RESOURCES}")
@@ -63,32 +63,32 @@ if(TARGET elctl)
   list(APPEND _pychron_programs elctl)
   install(TARGETS elctl RUNTIME DESTINATION "${PYCHRON_INSTALL_BIN}" COMPONENT ${PYCHRON_COMPONENT})
 endif()
-if(TARGET pychron-ui)
-  list(APPEND _pychron_programs pychron-ui)
+if(TARGET nobion)
+  list(APPEND _pychron_programs nobion)
   if(APPLE)
-    set_target_properties(pychron-ui PROPERTIES
+    set_target_properties(nobion PROPERTIES
       MACOSX_BUNDLE ON
-      OUTPUT_NAME Pychron
-      MACOSX_BUNDLE_BUNDLE_NAME Pychron
-      MACOSX_BUNDLE_GUI_IDENTIFIER com.pychronlabs.pychron
+      OUTPUT_NAME Nobion
+      MACOSX_BUNDLE_BUNDLE_NAME Nobion
+      MACOSX_BUNDLE_GUI_IDENTIFIER com.pychronlabs.nobion
       MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
       MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
-      MACOSX_BUNDLE_ICON_FILE pychron.icns
+      MACOSX_BUNDLE_ICON_FILE nobion.icns
       # CMake's own template plus NSCameraUsageDescription: without it macOS
       # ends a program that opens a camera (a laser's live camera).
       MACOSX_BUNDLE_INFO_PLIST "${PROJECT_SOURCE_DIR}/packaging/macos/Info.plist.in")
     # The icon files are the application icon rendered by tools/make_icons.py.
-    set(_pychron_icns "${PROJECT_SOURCE_DIR}/packaging/icons/pychron.icns")
+    set(_pychron_icns "${PROJECT_SOURCE_DIR}/packaging/icons/nobion.icns")
     # TARGET_DIRECTORY: source properties belong to a directory, and the target
-    # is made in apps/pychron-ui, not here; without it the icon is not copied.
-    set_source_files_properties("${_pychron_icns}" TARGET_DIRECTORY pychron-ui
+    # is made in apps/nobion, not here; without it the icon is not copied.
+    set_source_files_properties("${_pychron_icns}" TARGET_DIRECTORY nobion
       PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
-    target_sources(pychron-ui PRIVATE "${_pychron_icns}")
+    target_sources(nobion PRIVATE "${_pychron_icns}")
   elseif(WIN32)
-    set_target_properties(pychron-ui PROPERTIES WIN32_EXECUTABLE ON)
-    target_sources(pychron-ui PRIVATE "${PROJECT_SOURCE_DIR}/packaging/windows/pychron.rc")
+    set_target_properties(nobion PROPERTIES WIN32_EXECUTABLE ON)
+    target_sources(nobion PRIVATE "${PROJECT_SOURCE_DIR}/packaging/windows/nobion.rc")
   endif()
-  install(TARGETS pychron-ui
+  install(TARGETS nobion
     BUNDLE DESTINATION . COMPONENT ${PYCHRON_COMPONENT}
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT ${PYCHRON_COMPONENT})
 endif()
@@ -116,10 +116,10 @@ if(TARGET pychron_publish)
     COMPONENT ${PYCHRON_COMPONENT} FILES_MATCHING PATTERN "*.txt")
 endif()
 
-if(UNIX AND NOT APPLE AND TARGET pychron-ui)
-  install(FILES "${PROJECT_SOURCE_DIR}/packaging/linux/pychron.desktop"
+if(UNIX AND NOT APPLE AND TARGET nobion)
+  install(FILES "${PROJECT_SOURCE_DIR}/packaging/linux/nobion.desktop"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/applications" COMPONENT ${PYCHRON_COMPONENT})
-  install(FILES "${PROJECT_SOURCE_DIR}/packaging/icons/pychron.png"
+  install(FILES "${PROJECT_SOURCE_DIR}/packaging/icons/nobion.png"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/512x512/apps" COMPONENT ${PYCHRON_COMPONENT})
 endif()
 
@@ -171,15 +171,15 @@ endif()
 
 # --- Qt runtime -----------------------------------------------------------------
 
-if(PYCHRON_DEPLOY_QT AND TARGET pychron-ui)
+if(PYCHRON_DEPLOY_QT AND TARGET nobion)
   if(UNIX AND NOT APPLE AND Qt6_VERSION VERSION_LESS 6.5)
     message(WARNING "PYCHRON_DEPLOY_QT: Qt ${Qt6_VERSION} cannot deploy on Linux (needs 6.5); skipped")
   elseif(COMMAND qt6_generate_deploy_script)
-    # pychron-ui and elctl share one copy of Qt (elctl uses QtSql for the store).
+    # nobion and elctl share one copy of Qt (elctl uses QtSql for the store).
     if(APPLE)
       set(_pychron_ui_exe "\${QT_DEPLOY_PREFIX}/${PYCHRON_INSTALL_BIN}/Pychron")
     else()
-      set(_pychron_ui_exe "\${QT_DEPLOY_PREFIX}/${PYCHRON_INSTALL_BIN}/$<TARGET_FILE_NAME:pychron-ui>")
+      set(_pychron_ui_exe "\${QT_DEPLOY_PREFIX}/${PYCHRON_INSTALL_BIN}/$<TARGET_FILE_NAME:nobion>")
     endif()
     set(_pychron_extra "")
     if(TARGET elctl)
@@ -187,9 +187,9 @@ if(PYCHRON_DEPLOY_QT AND TARGET pychron-ui)
     endif()
     # qt6_, not qt_: the versionless name is a macro that forwards ${ARGV}, so
     # CMake expands ${QT_DEPLOY_PREFIX} at configure time (to nothing) and the
-    # deploy tool is handed "/Pychron.app".
+    # deploy tool is handed "/Nobion.app".
     qt6_generate_deploy_script(
-      TARGET pychron-ui
+      TARGET nobion
       OUTPUT_SCRIPT _pychron_deploy_script
       CONTENT "
 qt_deploy_runtime_dependencies(

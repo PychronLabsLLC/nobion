@@ -4,7 +4,7 @@
 // docs/superpowers/specs/2026-10-18-data-source-editing-design.md, 3.1): the
 // database it reads and writes (a local SQLite file or the lab's PostgreSQL
 // server) and its data folder. Qt-free and persistence-free, as the rest of
-// libs/setup: elctl and pychron-ui share it.
+// libs/setup: elctl and nobion share it.
 //
 // A change is planned first (every refusal happens there, nothing written),
 // then applied.

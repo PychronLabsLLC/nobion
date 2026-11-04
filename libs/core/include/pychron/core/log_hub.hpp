@@ -24,7 +24,7 @@ class SignalBus;
 
 // What a process says about itself in its `session start` record.
 struct SessionInfo {
-  std::string app;                                    // "pychron-ui", "elctl"
+  std::string app;                                    // "nobion", "elctl"
   std::string version;                                // pychron::setup::version()
   std::optional<std::filesystem::path> install_root;
   std::string profiles;                               // "" when none

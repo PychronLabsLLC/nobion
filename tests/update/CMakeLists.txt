@@ -3,7 +3,7 @@
 file(GLOB PYCHRON_UPDATE_TESTS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp")
 
 # FakeHttp, release_json() and the fixture directory, for tests that fake the
-# update check's HTTP seam. The elctl and pychron-ui tests link this too.
+# update check's HTTP seam. The elctl and nobion tests link this too.
 add_library(pychron_update_testing INTERFACE)
 add_library(pychron::update_testing ALIAS pychron_update_testing)
 target_include_directories(pychron_update_testing INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")

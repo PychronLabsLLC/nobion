@@ -1,4 +1,4 @@
-// pychron-ui argument parsing: positional files, --sim, --spectrometer and the
+// nobion argument parsing: positional files, --sim, --spectrometer and the
 // experiment options.
 
 #include <cstddef>

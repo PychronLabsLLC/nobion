@@ -11,7 +11,6 @@
 #include <fstream>
 #include <functional>
 #include <memory>
-#include <random>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -28,6 +27,7 @@
 #include "pychron/experiment/lab/lasers.hpp"
 #include "pychron/sim/sim_system.hpp"
 #include "pychron/systems/extraction_line.hpp"
+#include "temp_path.hpp"
 
 namespace pychron::ui::test {
 
@@ -54,10 +54,7 @@ struct SimLaserLab {
   // what the lasers are told of the driver (empty: the line is asked).
   explicit SimLaserLab(double speed = 50, const std::function<void(const std::filesystem::path&)>& prepare = {},
                        const std::function<bool(std::string_view)>& simulated = {})
-      : clock(clock_options(speed)) {
-    namespace fs = std::filesystem;
-    std::random_device rd;
-    dir = fs::temp_directory_path() / ("pychron-ui-laser-" + std::to_string(rd()) + std::to_string(rd()));
+      : dir(pychron::testing::unique_temp_path("nobion-laser-")), clock(clock_options(speed)) {
     pychron::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir);
     if (prepare) prepare(dir);
     systems::ExtractionLine::Options options;

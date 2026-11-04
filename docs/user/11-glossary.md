@@ -9,7 +9,7 @@ Terms as pychron uses them. Longer explanations are linked.
 | **Age spectrum** | Figure of apparent age against cumulative 39Ar released, per heating step. |
 | **Air / blank / cocktail / unknown** | Run types. Unknowns are samples; air and cocktail are standards; blanks are gas-free extractions. See [experiments](04-experiments.md). |
 | **Block** | Reusable group of runs in a queue (for example a blank pair), a file in `<lab>/queues/blocks/`. |
-| **Canvas** | The drawn diagram of the extraction line in `pychron-ui`. See [extraction line](02-extraction-line.md). |
+| **Canvas** | The drawn diagram of the extraction line in `nobion`. See [extraction line](02-extraction-line.md). |
 | **Conditional** | A rule checked during a run (terminate, truncate, cancel, ...). See [experiments](04-experiments.md). |
 | **Detector IC** | Intercalibration factor between detectors. |
 | **Doctor** | `elctl doctor`, the config checker. |

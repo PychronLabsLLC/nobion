@@ -1,4 +1,4 @@
-// The process log hub of pychron-ui: made before any window, line or no line,
+// The process log hub of nobion: made before any window, line or no line,
 // and Qt's own messages go to logger `qt`.
 
 #include <filesystem>

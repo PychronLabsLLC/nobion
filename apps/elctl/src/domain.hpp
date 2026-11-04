@@ -1,7 +1,7 @@
 #pragma once
 
 // The domain an elctl invocation runs on (domain seam spec 4). The UI has its
-// own helper of the same name (apps/pychron-ui/src/main.cpp): one per app.
+// own helper of the same name (apps/nobion/src/main.cpp): one per app.
 
 #include <iosfwd>
 #include <string_view>

@@ -40,7 +40,7 @@ directory**, a folder of plain files that every program in the package reads:
   data/                      written by the program: records/, spool/, executor_state.json
 ```
 
-`pychron-ui` takes the lab directory from `--lab <dir>`; without it, it uses
+`nobion` takes the lab directory from `--lab <dir>`; without it, it uses
 the install folder, or the folder of the extraction line config. The data
 folder is `--data <dir>`, by default `<lab>/data` (an install may name its own
 data folder). Finished runs go to the install's database when it has one, and
@@ -363,7 +363,7 @@ table, or "Nothing to resume." for Resume....
 
 **Resuming a queue.** While a queue runs, the executor keeps how far it has
 got in `executor_state.json` in the data directory. When you open a queue
-(**File > Open**, or `pychron-ui --queue <file>` at start-up), and when you
+(**File > Open**, or `nobion --queue <file>` at start-up), and when you
 choose **Queue > Resume...**, the window reads that file. If it is about the
 same queue (same name) and that queue stopped part way, it asks:
 
@@ -516,7 +516,7 @@ identifier. Enter the Identifier, and optionally Aliquot (leave blank for
 automatic) and Step. When the type changes, the form starts from the lab's
 defaults for that type (below).
 
-*Picking the identifier.* When `pychron-ui` was started with `--db`, the Run
+*Picking the identifier.* When `nobion` was started with `--db`, the Run
 group also has **Package** and **Level**, and the Identifier field has a
 dropdown. Choose a package (an irradiation) and the dropdown lists the
 identifiers of all its levels, each with its sample and where it sits:
@@ -1154,10 +1154,10 @@ the bottom are elapsed time since the queue's first event.
 Where a finished run goes depends on whether the program has a database.
 
 **With a database.** An instrument install has one (the setup makes it, by
-default a SQLite file at `<install>/data/pychron.db`), and both `pychron-ui`
+default a SQLite file at `<install>/data/pychron.db`), and both `nobion`
 and `elctl exp run` use it; `--db <url>` names another. Each finished run is
 written to the database as one analysis before the run is reported as ended,
-and the data window of `pychron-ui` shows it when the run ends
+and the data window of `nobion` shows it when the run ends
 ([Data analysis](06-data-analysis.md)).
 No record file is written for it. These stay files under the data folder:
 
@@ -1303,7 +1303,7 @@ every channel.
 Without an instrument you can try everything above on a simulated lab:
 
 ```bash
-pychron-ui --sim --lab configs/examples --queue configs/examples/queues/experiment.toml
+nobion --sim --lab configs/examples --queue configs/examples/queues/experiment.toml
 ```
 
 `--sim` forces every transport in the extraction line to the built-in
@@ -1313,7 +1313,7 @@ example run takes minutes, mostly waiting. **`--sim-speed <x>`** (with
 time:
 
 ```bash
-pychron-ui --sim --sim-speed 400 --lab configs/examples --queue configs/examples/queues/experiment.toml
+nobion --sim --sim-speed 400 --lab configs/examples --queue configs/examples/queues/experiment.toml
 ```
 
 The same options exist at the command line, which needs no window:
@@ -1336,10 +1336,10 @@ files under the data folder instead, and says so once:
 note: simulated runs are written to /home/lab/Pychron/argus/data/records, not to postgresql://lab@db.example.org/pychron; pass --sim-save to save them there
 ```
 
-`pychron-ui` puts the same sentence in the log dock, and its data window goes
+`nobion` puts the same sentence in the log dock, and its data window goes
 on showing the database. To save simulated runs there all the same (a test
 database, a rehearsal), add **`--sim-save`** to `elctl exp run` or
-`pychron-ui`. A session is simulated when it is started with `--sim`, when its
+`nobion`. A session is simulated when it is started with `--sim`, when its
 install was set up for simulation, or when its spectrometer file names only
 simulators. A real instrument is never affected.
 

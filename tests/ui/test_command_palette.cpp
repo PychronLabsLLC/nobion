@@ -77,7 +77,7 @@ class TestCommandPalette : public QObject {
     const QStringList shown = palette->shown();
     QVERIFY(shown.contains(QStringLiteral("View › Extraction Line")));
     QVERIFY(shown.contains(QStringLiteral("File › Preferences")));
-    QVERIFY(shown.contains(QStringLiteral("Help › About pychron")));
+    QVERIFY(shown.contains(QStringLiteral("Help › About Nobion")));
     QVERIFY(!shown.contains(QStringLiteral("View › Spectrometer")));      // disabled: none loaded
     QVERIFY(!shown.contains(QStringLiteral("File › Installations")));       // hidden
     QVERIFY(!shown.contains(QStringLiteral("Help › Command Palette")));     // not itself

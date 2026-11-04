@@ -31,7 +31,7 @@ elctl -c mylab/extraction_line.toml --sim-endpoints mylab-endpoints/sim-endpoint
 `--sim-endpoints-any` is needed because the server knows the line as
 `/lab/extraction_line.toml`: it skips the check that the file serves the path
 the client loaded, so make sure it is the same lab. The same two options on
-`exp run`, or on `pychron-ui`, run a queue against it. `docker compose down`,
+`exp run`, or on `nobion`, run a queue against it. `docker compose down`,
 or Ctrl-C, stops it cleanly and removes the file.
 
 ## From another machine

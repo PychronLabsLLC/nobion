@@ -25,7 +25,7 @@ only this component's. Kept compressed, as that file is.
   `PYCHRON_TEST_PG_URL` is set; `elctl`'s flux tests run on SQLite only. A
   level's saved fit (monitor set, sample, all positions) is one revision's,
   and is repeated only under its own monitor set. User guide: `docs/flux.md`.
-  Flux window (`apps/pychron-ui` `flux_window.cpp`) computes nothing: its
+  Flux window (`apps/nobion` `flux_window.cpp`) computes nothing: its
   scene, options schema and status line are in `libs/arar`
   `flux_view.hpp` and are the window's own; warnings and CSV text there are
   shared with `elctl flux`.

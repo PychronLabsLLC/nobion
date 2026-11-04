@@ -1160,7 +1160,7 @@ TEST_F(Xlsx, DefaultTemplateDir) {
   EXPECT_TRUE(fs::equivalent(default_template_dir(prefix / "bin"), template_dir()));  // nothing installed there yet
   fs::create_directories(share);
   EXPECT_EQ(default_template_dir(prefix / "bin"), fs::weakly_canonical(share));
-  const fs::path bundle = dir_ / "Pychron.app" / "Contents";
+  const fs::path bundle = dir_ / "Nobion.app" / "Contents";
   fs::create_directories(bundle / "MacOS");
   fs::create_directories(bundle / "Resources" / "earthbank" / "templates");
   EXPECT_EQ(default_template_dir(bundle / "MacOS"),

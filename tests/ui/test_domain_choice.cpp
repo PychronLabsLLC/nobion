@@ -1,4 +1,4 @@
-// Which domain pychron-ui runs on: the install's id, against the domains this build links.
+// Which domain nobion runs on: the install's id, against the domains this build links.
 
 #include <string>
 

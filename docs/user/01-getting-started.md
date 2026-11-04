@@ -49,7 +49,7 @@ in a database. No instrument is needed and nothing is typed in by hand.
 2. Open it, with simulated time running 20 times faster than a clock:
 
    ```bash
-   pychron-ui --install argus --sim-speed 20
+   nobion --install argus --sim-speed 20
    ```
 
    Open the Experiment window (**View > Experiment**), load the install's
@@ -75,7 +75,7 @@ in a database. No instrument is needed and nothing is typed in by hand.
    5/5 run(s) succeeded; in sqlite:/home/you/Pychron/argus/data/pychron.db
    ```
 
-   The runs are in the install's database, and `pychron-ui --install argus`
+   The runs are in the install's database, and `nobion --install argus`
    shows them in its data window. `elctl` prints a run's aliquot as it is
    (`run 1 a-1: success`); the database and the data window show it with two
    digits (`a-01`).
@@ -104,7 +104,7 @@ of analyses; and it stores and reduces the results.
 
 Two programs are installed:
 
-- **pychron-ui** (called **Pychron** on macOS) is the application you work in.
+- **nobion** (called **Pychron** on macOS) is the application you work in.
   It has windows for the extraction line, the spectrometer, experiments, the
   laser and the data.
 - **elctl** is a command-line tool for checking configuration, driving the
@@ -182,7 +182,7 @@ switch between installs from File > Installations.
 ## 3. First launch
 
 Start **Pychron** from Applications (macOS), the Start menu (Windows), or run
-`pychron-ui` from a terminal.
+`nobion` from a terminal.
 
 What opens depends on what is installed on this computer:
 
@@ -223,25 +223,25 @@ appear as a message box and on stderr.
 |---|---|
 | Site config (the list of installs, the default) | macOS `~/Library/Application Support/Pychron/site.toml`; Windows `%APPDATA%\Pychron\site.toml`; Linux `$XDG_CONFIG_HOME/pychron/site.toml` or `~/.config/pychron/site.toml`. The environment variable `PYCHRON_SITE_CONFIG` overrides the path. |
 | An install's files | the install's folder (shown in File > Installations) |
-| Preferences, window sizes and positions | the per-user settings store (Qt `QSettings`, organization "PychronLabs", application "pychron-ui") |
+| Preferences, window sizes and positions | the per-user settings store (Qt `QSettings`, organization "PychronLabs", application "nobion") |
 | Figure presets | the user's application config folder under `presets`, plus lab presets in `<lab>/figures` |
 | Finished runs | the install's database (by default `<install>/data/pychron.db`); with no database, `<data folder>/records` |
 | Runs waiting to be saved | `<data folder>/spool` |
 | Log files | an install: `<install>/logs/pychron.log` (`elctl.log` for `elctl`); otherwise the log folder of your system (see Troubleshooting, Logs). Set in `logging.toml` in the install folder, or File > Preferences > Logging |
 
-## 4. Command-line flags of pychron-ui
+## 4. Command-line flags of nobion
 
 ```bash
-pychron-ui [--install NAME | --setup | --examples | extraction_line.toml [canvas.toml]]
+nobion [--install NAME | --setup | --examples | extraction_line.toml [canvas.toml]]
            [--sim] [--sim-speed X] [--spectrometer FILE] [--lab DIR] [--data DIR]
            [--queue FILE] [--db URL] [--sim-save] [--laser [--device NAME]]
-pychron-ui --version
-pychron-ui --self-test
-pychron-ui --write-icons DIR
+nobion --version
+nobion --self-test
+nobion --write-icons DIR
 ```
 
 On macOS the executable is inside the app bundle:
-`/Applications/Pychron.app/Contents/MacOS/pychron-ui` (the exact path may vary
+`/Applications/Nobion.app/Contents/MacOS/nobion` (the exact path may vary
 with the package).
 
 | Flag | Meaning |
@@ -256,19 +256,19 @@ with the package).
 | `--lab DIR` | The lab directory the Experiment window runs queues against (plans, scripts, conditionals, patterns, trays). Default: the install's folder, or the folder holding the line config. |
 | `--data DIR` | The data folder: the spool, and with no database the records that are written and browsed (`DIR/records`). Default: the install's data folder, or `<lab>/data`. |
 | `--queue FILE` | A queue to open in the Experiment window when it is opened. |
-| `--db URL` | The database for the whole program, instead of the install's: the data browser reads it, the Entry and Fit menus work on it, and **the runs of a queue are saved to it**, so it must already hold the identifiers the queue names. A simulated session only reads a database given this way: its runs are written as record files unless `--sim-save` is given too (`pychron-ui --sim --db <url>` browses; `pychron-ui --sim --db <url> --sim-save` also saves). `postgresql://user:password@host/db` or `sqlite:/path/to/file.db`. The schema must already be current; it is never changed from here. Needs a build with persistence. |
+| `--db URL` | The database for the whole program, instead of the install's: the data browser reads it, the Entry and Fit menus work on it, and **the runs of a queue are saved to it**, so it must already hold the identifiers the queue names. A simulated session only reads a database given this way: its runs are written as record files unless `--sim-save` is given too (`nobion --sim --db <url>` browses; `nobion --sim --db <url> --sim-save` also saves). `postgresql://user:password@host/db` or `sqlite:/path/to/file.db`. The schema must already be current; it is never changed from here. Needs a build with persistence. |
 | `--sim-save` | Let a simulated session save its runs to the database. Without it simulated runs are saved to a database only when it is the install's own and a file on this computer (the default of an instrument install); for any other database they are record files under the data folder, and the Log dock says so once. Refused when there is no database. See [Experiments](04-experiments.md#9-simulation-and-simulated-speed). |
 | `--laser` | Open only the laser window of one extraction device, for a laser PC. Takes no `--queue` or `--spectrometer`. |
 | `--device NAME` | With `--laser`: which extraction device (a laser driver in the line config). Needed only when the line has more than one; with exactly one it is used automatically. |
-| `--version` | Print `pychron-ui <version>` and exit. Needs no display. |
+| `--version` | Print `nobion <version>` and exit. Needs no display. |
 | `--self-test` | Check that the Qt platform, the shipped profiles, the setup wizard and the database plug-in work; prints `OK` or `FAIL` lines, exits 0 if all pass, 1 otherwise. |
 | `--write-icons DIR` | Write the application icon files into `DIR` and exit (used for packaging). |
 
 Rules enforced when the flags are read (a violation prints
-`pychron-ui: <message>` and exits with status 2):
+`nobion: <message>` and exits with status 2):
 
 - `--sim-speed` needs a positive number, and either `--sim` or an install set
-  up for simulation (`pychron-ui: --sim-speed needs --sim` otherwise).
+  up for simulation (`nobion: --sim-speed needs --sim` otherwise).
 - `--device` needs `--laser`.
 - `--laser` cannot be combined with `--queue` or `--spectrometer`.
 - Positional config files, `--install`, `--setup` and `--examples` exclude each
@@ -276,7 +276,7 @@ Rules enforced when the flags are read (a violation prints
 - `--lab`, `--data`, `--spectrometer` and `--queue` each need a value, and the
   value must not start with `--`. `--db` and `--install` need a non-empty value.
 - `--sim-save` needs a database: `--db`, or an install that has one
-  (`pychron-ui: --sim-save: there is no database to save to ...` otherwise).
+  (`nobion: --sim-save: there is no database to save to ...` otherwise).
 - An unknown `--option` is an error.
 
 Exit status: 0 on a normal exit, 1 on a fatal load error (a message box is also
@@ -287,7 +287,7 @@ window you get".)
 ## 5. A tour of the main window
 
 The main window is the extraction line. Its title is
-`pychron — <system name>` (the `name` in `[system]` of the line config).
+`Nobion — <system name>` (the `name` in `[system]` of the line config).
 
 ```
 +--------------------------------------------------------------+
@@ -437,7 +437,7 @@ beside the one in front. Pick a window from the list to bring it forward.
 |---|---|
 | **Command Palette…** | Opens the command palette (next section). |
 | **Keyboard Shortcuts** | Opens a searchable list of every shortcut. |
-| **About pychron** | The about box (version and credits). |
+| **About Nobion** | The about box (version and credits). |
 | **Check for Updates…** | Asks GitHub now whether a newer release exists and always answers in a dialog. Greyed while a check is out. See [Updates](#updates). |
 
 ## 7. The command palette
@@ -534,7 +534,7 @@ pages (below).
 | Plots | **Series colors** | 12 colors; default the figures' 12 group colors | Color of series 1 to 12 in the live plots, and of the projects in the sample holder view (a 13th series takes color 1 again). A detector given a color in the spectrometer's config keeps that color. Open plots change at once on OK or Apply. |
 | Plots | **Reset colors** | | Puts the background and the 12 series colors back to their defaults in the dialog; OK or Apply keeps it. |
 | Spectrometer | **Ask before moving the magnet more than** | 0 to 300 amu, steps of 0.5; 0 shows "Never ask" | A magnet move bigger than this change of mass on the reference detector asks for confirmation. A move from an unknown position always asks. Kept separately for each spectrometer. The page appears only when a spectrometer is loaded. |
-| Updates | **Check for updates at startup** | On by default | Once a day, at startup, asks api.github.com for the latest pychron release. See [Updates](#updates). |
+| Updates | **Check for updates at startup** | On by default | Once a day, at startup, asks api.github.com for the latest nobion release. See [Updates](#updates). |
 
 The Plots page does not change figures (ideogram, spectrum, isochron and the
 others): a figure keeps its own colors in its options and in the presets
@@ -611,7 +611,7 @@ mode setting.
 
 ### Updates
 
-pychron-ui tells you when a newer release of pychron has been published. It
+Nobion tells you when a newer release has been published. It
 only tells you: nothing is downloaded or installed, and a running queue is
 never touched.
 
@@ -641,7 +641,7 @@ check was answered, and the version you skipped.
 
 ### Setup wizard
 
-It opens on first launch, with `pychron-ui --setup`, and from **New…** in the
+It opens on first launch, with `nobion --setup`, and from **New…** in the
 Installations dialog. (`elctl init` does the same from a terminal; see
 [08 elctl reference](08-elctl-reference.md).)
 
@@ -701,26 +701,26 @@ closed and the example queue's scripts move only B, C, P1 and P2; the rest is th
 to look at and try. The example queue has three runs: a blank (`bu`) and two
 unknowns (`66001`) of the sample FC-2.
 
-You need a built `pychron-ui` (see [dev_setup.md](../dev_setup.md); the release
+You need a built `nobion` (see [dev_setup.md](../dev_setup.md); the release
 installer is not needed). From the repository root:
 
 ```bash
 mkdir -p ~/pychron-sim-data
-build/dev-ui/apps/pychron-ui/pychron-ui --examples --sim --sim-speed 50 \
+build/dev-ui/apps/nobion/nobion --examples --sim --sim-speed 50 \
     --data ~/pychron-sim-data \
     --queue configs/examples/queues/experiment.toml
 ```
 
 On macOS the program is inside the application bundle: write
-`build/dev-ui/apps/pychron-ui/Pychron.app/Contents/MacOS/Pychron` where the
-command says `build/dev-ui/apps/pychron-ui/pychron-ui`.
+`build/dev-ui/apps/nobion/Nobion.app/Contents/MacOS/Nobion` where the
+command says `build/dev-ui/apps/nobion/nobion`.
 
 `--data` keeps the records out of the repository. `--sim-speed 50` makes
 simulated time run 50 times faster than the clock on the wall.
 
 **Minutes 0 to 3: the line.**
 
-1. The main window opens, titled `pychron — example`, with "(Simulation)" shown
+1. The main window opens, titled `Nobion — example`, with "(Simulation)" shown
    on the splash screen. Look at the status bar: one health chip per
    simulated transport (`valve_bus`, `gauge_net`, `cg_controller`,
    `laser_pc`, `cryostat`, `bakeout_plc`).

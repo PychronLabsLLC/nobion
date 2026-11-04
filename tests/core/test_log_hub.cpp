@@ -1246,7 +1246,7 @@ TEST(LogHub, SessionMarkerQuotesSpacesAndListsRules) {
     ASSERT_TRUE(hub);
     hub->set_level("transport", LogLevel::Warn);
     SessionInfo info;
-    info.app = "pychron-ui";
+    info.app = "nobion";
     info.version = "0.4.0";
     info.install_root = fs::path("/tmp/my install");
     info.profiles = "a,b";

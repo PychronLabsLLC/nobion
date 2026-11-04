@@ -105,9 +105,9 @@ with one entry each. A laser PC that runs no experiments can open only the
 laser window:
 
 ```bash
-pychron-ui --laser line.toml                      # the line's only laser
-pychron-ui --laser --device co2 line.toml         # one of several
-pychron-ui --examples --sim --laser               # the simulated example
+nobion --laser line.toml                      # the line's only laser
+nobion --laser --device co2 line.toml         # one of several
+nobion --examples --sim --laser               # the simulated example
 ```
 
 (`--laser` takes no `--queue` or `--spectrometer`.) The window refreshes four
@@ -655,7 +655,7 @@ it.
 ### 8.5 Watching a dragonfly follow a simulated grain
 
 `elctl laser track` (section 8.3) gives a table; the laser window under
-`pychron-ui --sim` shows the same tracker at work. Give the lab's camera a grain
+`nobion --sim` shows the same tracker at work. Give the lab's camera a grain
 (`[co2.sim.grain]` in `cameras.toml`, without `glow_drift_mm_per_s` or
 `glow_sigma_mm`; a scenario's `[grain]` table pastes in unchanged), or leave
 the steady glow to follow that instead.

@@ -26,12 +26,12 @@ spectrometers, runs automated experiment queues, and stores the results.
 | `libs/processing` | Browsing, recall and figures, free of any one domain: analysis sources (record directories, the DVC store), quantities, figure options and presets, composable units and pipelines, the core reduction (intercepts to IC-corrected signals), time-series and reference-fit figures, and the `Domain` interface |
 | `libs/arar` | Ar-Ar: reduction, figures (ideogram, spectrum, isochrons), group ages, the Schaen report, flux fitting, the Ar-Ar domain |
 | `apps/elctl` | Command-line tool: validate configs, drive the line, run experiments |
-| `apps/pychron-ui` | Qt 6 application: extraction-line canvas, log and alarm docks, spectrometer window, experiment window, script and conditionals editors, data browser, recall and figure windows |
+| `apps/nobion` | Qt 6 application: extraction-line canvas, log and alarm docks, spectrometer window, experiment window, script and conditionals editors, data browser, recall and figure windows |
 | `configs/examples` | An example lab: line, canvas, spectrometers, plans, scripts, a three-run queue; `nmgrl/` is a full-size line (the NMGRL valve box, simulated) |
 | `docs/superpowers/specs` | Design specs; `docs/superpowers/plans` holds implementation plans |
 | `tools/spec_router` | Splits the specs into work units and runs them through coding agents |
 
-The core libraries are Qt-free. Qt is used only by `apps/pychron-ui` and, for
+The core libraries are Qt-free. Qt is used only by `apps/nobion` and, for
 its SQL layer, `libs/persistence`.
 
 ## Using it
@@ -78,7 +78,7 @@ makes an instrument install in `~/Pychron/argus`, set up for simulation, with
 a SQLite database of its own that already holds what its first queue names.
 
 ```bash
-pychron-ui --install argus --sim-speed 20
+nobion --install argus --sim-speed 20
 ```
 
 opens it. In the experiment window (View > Experiment) open the install's
@@ -103,18 +103,18 @@ Open the extraction-line window and the spectrometer strip chart
 (View > Spectrometer):
 
 ```bash
-build/dev-ui/apps/pychron-ui/pychron-ui --sim
+build/dev-ui/apps/nobion/nobion --sim
 ```
 
 (On macOS the program is inside the application bundle:
-`build/dev-ui/apps/pychron-ui/Pychron.app/Contents/MacOS/Pychron`, here and
+`build/dev-ui/apps/nobion/Nobion.app/Contents/MacOS/Nobion`, here and
 below.)
 
 Run the example experiment queue in the experiment window (View >
 Experiment, then Start or F5); `--sim-speed` runs simulated time faster:
 
 ```bash
-build/dev-ui/apps/pychron-ui/pychron-ui --sim --sim-speed 50 --queue configs/examples/queues/experiment.toml
+build/dev-ui/apps/nobion/nobion --sim --sim-speed 50 --queue configs/examples/queues/experiment.toml
 ```
 
 Browse and plot the records a queue wrote (View > Data): filter, double-click
@@ -164,7 +164,7 @@ what the example reads are in [docs/simulator.md](docs/simulator.md).
 - **Isotopx NGX:** not implemented. Findings and open questions are in
   [the NGX notes](docs/superpowers/specs/2026-10-01-ngx-driver-notes.md).
 
-`pychron-ui --sim` refuses to load a spectrometer config that is not fully
+`nobion --sim` refuses to load a spectrometer config that is not fully
 simulated, so the flag cannot be used to dry-run against real hardware.
 
 ## Contributing

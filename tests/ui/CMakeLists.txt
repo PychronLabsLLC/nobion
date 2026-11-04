@@ -1,4 +1,4 @@
-# Qt Test smoke suites for apps/pychron-ui (BUILD_UI only). Each test_*.cpp is
+# Qt Test smoke suites for apps/nobion (BUILD_UI only). Each test_*.cpp is
 # one QTEST_MAIN executable run headless on the offscreen platform against the
 # example line with every transport simulated.
 find_package(Qt6 REQUIRED COMPONENTS Test Widgets)
@@ -6,7 +6,7 @@ find_package(Qt6 REQUIRED COMPONENTS Test Widgets)
 set(CMAKE_AUTOMOC ON)
 
 file(GLOB PYCHRON_UI_TESTS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp")
-# The Publish window exists only with the store (apps/pychron-ui, PYCHRON_UI_HAS_STORE).
+# The Publish window exists only with the store (apps/nobion, PYCHRON_UI_HAS_STORE).
 if(NOT TARGET pychron_publish OR NOT TARGET pychron_processing_store)
   list(FILTER PYCHRON_UI_TESTS EXCLUDE REGEX "test_publish[^/]*\\.cpp$")
 endif()
@@ -44,7 +44,7 @@ foreach(src IN LISTS PYCHRON_UI_TESTS)
   target_compile_definitions(${target} PRIVATE
     PYCHRON_EXAMPLE_CONFIGS_DIR="${PROJECT_SOURCE_DIR}/configs/examples"
     PYCHRON_SYSTEMS_TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/systems/data"
-    PYCHRON_UI_SOURCE_DIR="${PROJECT_SOURCE_DIR}/apps/pychron-ui/src")
+    PYCHRON_UI_SOURCE_DIR="${PROJECT_SOURCE_DIR}/apps/nobion/src")
   # spectrometer sim drivers register from static initializers nothing references
   pychron_link_drivers(${target} pychron_sim)
   pychron_set_warnings(${target})

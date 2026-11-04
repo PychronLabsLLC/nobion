@@ -95,7 +95,7 @@ TEST_F(DbCmd, MigrateBringsAStoreUpToDate) {
   EXPECT_EQ(o.code, elctl::kOk) << o.err;
   EXPECT_TRUE(contains(o.out, "migrated")) << o.out;
   EXPECT_TRUE(contains(o.out, "0005  ref_scope_indexes")) << o.out;
-  EXPECT_TRUE(ps::open_store(ps::StoreConfig{db_, false}));  // what pychron-ui does
+  EXPECT_TRUE(ps::open_store(ps::StoreConfig{db_, false}));  // what nobion does
 
   const Outcome again = run_raw({"db", "migrate", "--db", db_});
   EXPECT_EQ(again.code, elctl::kOk);

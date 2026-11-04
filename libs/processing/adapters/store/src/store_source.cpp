@@ -1236,7 +1236,7 @@ Result<ps::Actor> StoreSource::Impl::actor_for(ps::IStore& s) {
     std::lock_guard lock(actor_mutex);
     if (actor) return *actor;
   }
-  auto client = s.register_client({hostname, "reduction", std::nullopt, "pychron-ui"});
+  auto client = s.register_client({hostname, "reduction", std::nullopt, "nobion"});
   if (!client) return fail(client.error());
   auto u = s.ensure_user(*client, user);
   if (!u) return fail(u.error());

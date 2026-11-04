@@ -1916,7 +1916,7 @@ class FluxWindowTest : public QObject {
       QVERIFY(value->j.has_value());
       QCOMPARE(*value->j, predicted.at(hole));
       QVERIFY(value->options_json.has_value());
-      QVERIFY2(QString::fromStdString(*value->options_json).contains(QStringLiteral("pychron-ui")),
+      QVERIFY2(QString::fromStdString(*value->options_json).contains(QStringLiteral("nobion")),
                value->options_json->c_str());
     }
     // The level was read again, once: it shows what was saved, and nothing is pending.

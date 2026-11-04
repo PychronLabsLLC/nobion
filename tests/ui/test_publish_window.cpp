@@ -87,7 +87,7 @@ class TestPublishWindow : public QObject {
     auto source = pp::StoreSource::open(ps::StoreConfig{url_, false}, pychron::arar::store_source_options());
     if (!source) qFatal("source: %s", pychron::to_string(source.error()).c_str());
     o.source = std::move(*source);
-    auto bridge = EntryBridge::open({url_, "tester", "test-host", "publisher", "pychron-ui/test"});
+    auto bridge = EntryBridge::open({url_, "tester", "test-host", "publisher", "nobion/test"});
     if (!bridge) qFatal("bridge: %s", pychron::to_string(bridge.error()).c_str());
     o.bridge = std::move(*bridge);
     o.window = std::make_unique<PublishWindow>(*o.bridge, *o.source, url_, std::move(selection));

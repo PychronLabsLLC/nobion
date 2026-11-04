@@ -770,7 +770,7 @@ class TestReferenceSeries : public QObject {
     QTemporaryDir dir;
     // The folder the session writes its records to.
     pp::RecordDirectorySource records(sim.dir / "data" / "records");
-    // As pychron-ui wires it under arar: the airs and blanks reduce with the Ar-Ar references.
+    // As nobion wires it under arar: the airs and blanks reduce with the Ar-Ar references.
     records.set_extension_loader(pychron::arar::record_extension_loader(records.root() / "references.toml"));
     pp::PresetStore presets((dir.path() + QStringLiteral("/presets")).toStdString());
     ProcessingBridge processing(records, arar_domain());

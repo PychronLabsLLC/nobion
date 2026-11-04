@@ -1,4 +1,4 @@
-// Which database pychron-ui uses: --db, else the install's with its password.
+// Which database nobion uses: --db, else the install's with its password.
 
 #include <filesystem>
 #include <fstream>

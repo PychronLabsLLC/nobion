@@ -16,7 +16,7 @@
 // error (exit 1, as for every command); no --db and no install at all is a
 // usage error.
 //
-// pychron-ui, export, flux and entry open a store as it is and refuse one
+// nobion, export, flux and entry open a store as it is and refuse one
 // whose schema is behind (they never change a store's schema in passing).
 // After an update of pychron that adds a migration, `db migrate` is what
 // brings an existing store up to date. Each migration is applied in one

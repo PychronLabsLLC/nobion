@@ -112,8 +112,8 @@ chmod 600 ~/.config/environment.d/pychron.conf
 export PYCHRON_MAIL_API_KEY="xkeysib-..."
 ```
 
-That covers `elctl` and a `pychron-ui` started from a terminal. A
-`pychron-ui` started from the Dock or Finder does not read `~/.zshrc`. For
+That covers `elctl` and a `nobion` started from a terminal. A
+`nobion` started from the Dock or Finder does not read `~/.zshrc`. For
 it, also run this once after each restart of the computer, before opening
 pychron:
 

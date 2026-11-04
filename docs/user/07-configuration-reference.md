@@ -31,18 +31,18 @@ them are [02 Extraction line](02-extraction-line.md),
 There is no global search path. Each program is told where its files are, in
 one of three ways, and every other file is found relative to those.
 
-1. **An install** (what the setup wizard makes). `pychron-ui --install
+1. **An install** (what the setup wizard makes). `nobion --install
    <name>` or `elctl --install <name>` reads the per-user **site file**
    (below) to find that install's root folder and the names of its line,
    canvas and spectrometer files. With no name, the site file's `default`
    install is used, or the only install if there is one.
-2. **Named on the command line.** `pychron-ui <extraction_line.toml>
+2. **Named on the command line.** `nobion <extraction_line.toml>
    [canvas.toml]`, `--spectrometer <file>`, `--lab <dir>`, `--data <dir>`;
    `elctl -c <extraction_line.toml>` and the same `--lab`, `--spectrometer`
    and `--data` on `exp`.
-3. **The shipped examples**. `pychron-ui --examples` opens the example line
+3. **The shipped examples**. `nobion --examples` opens the example line
    and canvas that come with the program (`configs/examples`), all
-   simulated. (`pychron-ui` with no arguments at all picks an install from
+   simulated. (`nobion` with no arguments at all picks an install from
    the site file instead, and offers the setup wizard when it has none.)
 
 From those:
@@ -413,7 +413,7 @@ the detectors, and the field tables. Examples:
 `configs/examples/spectrometer.qtegra.toml` (one Thermo box),
 `spectrometer.ngx.toml` (Isotopx), `spectrometer.sim-integrated.toml` and
 `spectrometer.sim-legacy.toml` (simulated). Check with
-`elctl exp validate` or open it in `pychron-ui`.
+`elctl exp validate` or open it in `nobion`.
 
 ```
 spectrometer/                      (the folder holding the config)
@@ -554,7 +554,7 @@ krypton and xenon isotopes). A value must be a number above zero.
 ## Lab folder files
 
 The lab folder is where everything that is about the lab, not the hardware,
-lives. `elctl exp` and `pychron-ui` load it without needing the hardware;
+lives. `elctl exp` and `nobion` load it without needing the hardware;
 a file that does not load is reported with the others by `elctl exp
 validate`, and stops only what depends on it.
 

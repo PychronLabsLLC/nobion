@@ -6,7 +6,7 @@
 # Core jobs use the `dev` configure preset: dependencies come from
 # find_package() or the pinned FetchContent fallbacks in
 # cmake/PychronDependencies.cmake and libs/transport, so no vcpkg bootstrap is
-# needed. The UI job builds apps/pychron-ui and runs tests/ui headless.
+# needed. The UI job builds apps/nobion and runs tests/ui headless.
 #
 # libs/persistence (TinyORM on QtSql) builds wherever Qt6 Core + Sql is found:
 # the Linux core jobs install Qt's SQL drivers, the macOS UI job has Qt, and the

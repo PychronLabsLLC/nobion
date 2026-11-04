@@ -34,7 +34,7 @@ leave a position out) is done in the flux window (below) or with flags.
 
 ## The flux window
 
-`Fit ▸ Flux…` in `pychron-ui` opens a window that does what `elctl flux fit`
+`Fit ▸ Flux…` in `nobion` opens a window that does what `elctl flux fit`
 does, with the review done by eye: the plot shows the monitors and the fit,
 and every change refits at once. It needs a store, like entry. The design is
 `superpowers/specs/2026-10-07-flux-window-design.md`. The window computes
@@ -310,7 +310,7 @@ Both call the same `save_level`: the same revisions, the same changeset
 message `fit flux for <irradiation><level>`, the same options. A fit saved in
 the window is repeated by `elctl flux fit NM-300 A --save`, and the reverse.
 The window records its version as the `software` of the revision
-(`pychron-ui <version>`). After the window saves, the Packages window shows
+(`nobion <version>`). After the window saves, the Packages window shows
 the new J of the level it has open, unless it has unsaved edits of its own
 (in the grid, the dose table or the level fields): it then keeps them and
 does not read the level again.

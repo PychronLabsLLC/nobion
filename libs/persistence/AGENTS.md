@@ -42,7 +42,7 @@ passes its test has told you nothing about its cost.
 
 ### Before adding a migration
 
-- Every migration locks every existing store out of `pychron-ui`, `export`,
+- Every migration locks every existing store out of `nobion`, `export`,
   `flux` and `entry` until someone runs `elctl db migrate --db <url>` on it
   (they open with `migrate = false` and refuse a schema that is behind). So:
   add one when it earns that step, put what belongs together into one

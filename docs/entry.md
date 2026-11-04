@@ -1,7 +1,7 @@
 # Sample and package entry
 
 How to enter samples and packages (irradiations) in the DVC store, from
-`pychron-ui` or `elctl entry`. The design is
+`nobion` or `elctl entry`. The design is
 `superpowers/specs/2026-10-04-sample-irradiation-entry-design.md`.
 
 ## Before you start

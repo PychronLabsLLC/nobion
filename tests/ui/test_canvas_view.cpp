@@ -582,7 +582,7 @@ class TestCanvasView : public QObject {
     systems::ExtractionLine::Options options;
     options.force_sim = true;
     options.run_scheduler = false;
-    options.state_file = std::filesystem::path(QDir::tempPath().toStdString()) / "pychron-ui-test-nmgrl.state.toml";
+    options.state_file = std::filesystem::path(QDir::tempPath().toStdString()) / "nobion-test-nmgrl.state.toml";
     auto line = systems::ExtractionLine::load(dir / "extraction_line.toml", dir / "canvas.toml", options);
     QVERIFY2(line.has_value(), line ? "" : line.error().what.c_str());
     CoreBridge bridge(**line);
@@ -604,7 +604,7 @@ class TestCanvasView : public QObject {
     const std::filesystem::path dir = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "nmgrl";
     systems::ExtractionLine::Options options;
     options.force_sim = true;
-    options.state_file = std::filesystem::path(QDir::tempPath().toStdString()) / "pychron-ui-test-nmgrl-tanks.state.toml";
+    options.state_file = std::filesystem::path(QDir::tempPath().toStdString()) / "nobion-test-nmgrl-tanks.state.toml";
     std::filesystem::remove(options.state_file);
     auto line = systems::ExtractionLine::load(dir / "extraction_line.toml", dir / "canvas.toml", options);
     QVERIFY2(line.has_value(), line ? "" : line.error().what.c_str());

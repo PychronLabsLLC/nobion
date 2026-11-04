@@ -2,7 +2,7 @@
 
 // The layout of a scene (data publishing design, section 5.6): what a
 // renderer needs to place a scene on a page without Qt. The axis ranges are
-// the ones the figure view (apps/pychron-ui SceneView) takes, so both show a
+// the ones the figure view (apps/nobion SceneView) takes, so both show a
 // scene over the same limits; ticks, text widths and margins are what
 // QCustomPlot does for the view and are used by the file writers
 // (scene_svg.hpp, scene_pdf.hpp) alone. Lengths are in points, the origin is

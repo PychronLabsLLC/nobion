@@ -130,7 +130,7 @@ class TestUpdateUi : public QObject {
     indicator()->click();
     UpdateDialog* d = shown_dialog();
     QVERIFY(d != nullptr);
-    QCOMPARE(d->windowTitle(), QStringLiteral("pychron 999.0.0 is available"));
+    QCOMPARE(d->windowTitle(), QStringLiteral("Nobion 999.0.0 is available"));
     QVERIFY(d->notes() != nullptr);
     QVERIFY(d->notes()->isReadOnly());
     QVERIFY(!d->notes()->toPlainText().isEmpty());
@@ -175,14 +175,14 @@ class TestUpdateUi : public QObject {
     fake_->answer(200, release_json("v999.0.0"));
     help_action()->trigger();
     QTRY_VERIFY_WITH_TIMEOUT(shown_dialog() != nullptr, kWaitMs);
-    QCOMPARE(shown_dialog()->windowTitle(), QStringLiteral("pychron 999.0.0 is available"));
+    QCOMPARE(shown_dialog()->windowTitle(), QStringLiteral("Nobion 999.0.0 is available"));
   }
 
   void manualUpToDateShowsDialog() {
     fake_->answer(200, release_json("v0.4.0"));
     help_action()->trigger();
     QTRY_VERIFY_WITH_TIMEOUT(shown_dialog() != nullptr, kWaitMs);
-    QCOMPARE(shown_dialog()->message(), QStringLiteral("pychron 0.4.0 is up to date"));
+    QCOMPARE(shown_dialog()->message(), QStringLiteral("Nobion 0.4.0 is up to date"));
     QVERIFY(shown_dialog()->download_button() == nullptr);
   }
 
@@ -190,7 +190,7 @@ class TestUpdateUi : public QObject {
     fake_->answer(200, release_json("v0.3.9"));
     help_action()->trigger();
     QTRY_VERIFY_WITH_TIMEOUT(shown_dialog() != nullptr, kWaitMs);
-    QCOMPARE(shown_dialog()->message(), QStringLiteral("pychron 0.4.0 is up to date (latest release: 0.3.9)"));
+    QCOMPARE(shown_dialog()->message(), QStringLiteral("Nobion 0.4.0 is up to date (latest release: 0.3.9)"));
   }
 
   void manualNoReleaseShowsDialog() {
