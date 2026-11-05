@@ -133,16 +133,16 @@ std::vector<LegendEntry> legend_entries(const LegendInputs& in) {
   // An open box in a section's colour: this line's best source's, or a pump's.
   const bool inherit = !redgreen || in.open_valve_color == canvas::OpenValveColor::Inherit;
   const QColor section = in.sources.empty() ? theme().sources.pump : in.sources.front().color;
-  QString open = redgreen ? tr("Open: green box, filled glyph.") : tr("Open: filled glyph, box in the colour of the section it joins (light grey when that section has no source).");
-  if (redgreen && inherit) open = tr("Open: filled glyph, box in the colour of the section it joins.");
+  QString open = redgreen ? tr("Open: green box, white glyph.") : tr("Open: white glyph, box in the colour of the section it joins (light grey when that section has no source).");
+  if (redgreen && inherit) open = tr("Open: white glyph, box in the colour of the section it joins.");
   add(valves, QStringLiteral("valve.open"), open, valve_glyph(in, ValveKind::Valve, ValveState::Open, [&](ValveItem& v) {
         if (inherit) v.set_inherited_color(section);
       }));
   add(valves, QStringLiteral("valve.closed"),
-      redgreen ? tr("Closed: red box, hollow glyph.") : tr("Closed: grey box, hollow glyph."),
+      redgreen ? tr("Closed: red box, black glyph.") : tr("Closed: grey box, black glyph."),
       valve_glyph(in, ValveKind::Valve, ValveState::Closed));
   add(valves, QStringLiteral("valve.unknown"),
-      tr("State unknown (white, hatched box): not read yet, or the last command or read-back failed."),
+      tr("State unknown (white, hatched box, grey glyph): not read yet, or the last command or read-back failed."),
       valve_glyph(in, ValveKind::Valve, ValveState::Unknown));
   add(valves, QStringLiteral("valve.pending"), tr("Command in flight (dashed ring)."),
       valve_glyph(in, ValveKind::Valve, ValveState::Closed, [](ValveItem& v) { v.set_pending(true); }));

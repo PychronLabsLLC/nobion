@@ -62,9 +62,9 @@ while you work; press the button again, or Esc, to close it.
 | A box holding a bow-tie (two triangles tip to tip) with a small dome on a stem | An actuated valve (`[[valve]]` / `[[rough_valve]]` in the canvas). It lies along its pipe; one whose pipes leave only above and below stands upright, its stem to the left. Its name is written beside it, on a side no pipe leaves by. |
 | A box holding a bow-tie with a T bar on its stem | A manual valve: nobody can drive it, you tell Nobion what you did (see below). |
 | A box holding a circle | A switch (`[[switch]]`): pump power, a heater relay, a shutter. |
-| Box in a section's colour, glyph filled | Open: the box takes the colour of the gas it joins (see [Colors](#colors-show-where-gas-can-go)); light grey when that section has no source. With `valve_style = "redgreen"` in `[canvas]`: a green box. |
-| Grey box, glyph hollow | Closed. With `valve_style = "redgreen"`: a red box. |
-| White hatched box | State unknown (not read yet, or the last command or read-back failed). |
+| Box in a section's colour, white glyph | Open: the box takes the colour of the gas it joins (see [Colors](#colors-show-where-gas-can-go)); light grey when that section has no source. With `valve_style = "redgreen"` in `[canvas]`: a green box. |
+| Grey box, black glyph | Closed. With `valve_style = "redgreen"`: a red box. |
+| White hatched box, grey glyph | State unknown (not read yet, or the last command or read-back failed). |
 | Dashed outline around a valve | A command is in flight (waiting on the controller, the settle time and the read-back). |
 | Accent outline around a valve | Its faceplate is open (or, in a rehearsal, the last step changed it). |
 | Blue padlock on a valve's corner | The valve is **locked** in software. |

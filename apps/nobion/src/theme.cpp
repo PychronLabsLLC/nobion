@@ -49,6 +49,8 @@ Theme light() {
   t.outline = rgb(0x4a5563);
   t.neutral_fill = rgb(0xdde3ea);
   t.flash = rgb(0xffe14d);
+  t.valve_open = rgb(0xffffff);
+  t.valve_closed = rgb(0x000000);
 
   t.border = rgb(0xd5dce4);
   t.strong_border = rgb(0xb7c1cc);

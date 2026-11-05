@@ -487,14 +487,14 @@ class TestCanvasView : public QObject {
 
   // A valve's box, where it takes no section colour: hmi open the isolated
   // grey and closed a darker grey; the legacy style green and red. Unknown is
-  // hatched over the base in both. The glyph inside is filled only when open.
+  // hatched over the base in both. The glyph inside is white open, black closed, grey unknown.
   void eachStyleFillsEachState() {
     using canvas::ValveStyle;
     QCOMPARE(ui::valve_fill(ValveState::Open, ValveStyle::Hmi), ui::theme().neutral_fill);
     QCOMPARE(ui::valve_fill(ValveState::Closed, ValveStyle::Hmi), ui::theme().inactive);
-    QCOMPARE(ui::valve_tie_fill(ValveState::Open), ui::theme().muted_text);
-    QCOMPARE(ui::valve_tie_fill(ValveState::Closed), ui::theme().base);
-    QCOMPARE(ui::valve_tie_fill(ValveState::Unknown), ui::theme().base);
+    QCOMPARE(ui::valve_tie_fill(ValveState::Open), ui::theme().valve_open);
+    QCOMPARE(ui::valve_tie_fill(ValveState::Closed), ui::theme().valve_closed);
+    QCOMPARE(ui::valve_tie_fill(ValveState::Unknown), ui::theme().muted_text);
     QCOMPARE(ui::valve_fill(ValveState::Unknown, ValveStyle::Hmi), ui::theme().base);
     QCOMPARE(ui::valve_fill(ValveState::Open, ValveStyle::Redgreen), ui::theme().ok);
     QCOMPARE(ui::valve_fill(ValveState::Closed, ValveStyle::Redgreen), ui::theme().error);
@@ -997,7 +997,7 @@ class TestCanvasView : public QObject {
     QCOMPARE(manual.toolTip(), QStringLiteral("MiniBoneGP5Manual"));
     manual.set_label(QString());
     valve.set_label(QString());
-    // Open, so the box is the light isolated grey and the bow-tie filled.
+    // Open, so the box is the light isolated grey and the bow-tie white.
     manual.set_state(ValveState::Open);
     valve.set_state(ValveState::Open);
     // The glyph is drawn at 0.72 inside the 30 px box centred on (30, 30).
@@ -1006,11 +1006,13 @@ class TestCanvasView : public QObject {
     QVERIFY(painted(&valve).pixelColor(25, 21).lightness() > 200);
     // the dome's top, above the centre (30 - 15 x 0.72)
     QVERIFY(painted(&valve).pixelColor(30, 19).lightness() < 140);
-    // a bow-tie: the triangles' outer edge on the left (30 - 13 x 0.72),
+    // a bow-tie: the triangles' outer edge on the left (30 - 13 x 0.72, its
+    // stroke on the pixel left of 20.6),
     // nothing but the box near its top-left corner
     for (auto* item : {&manual, &valve}) {
       const QImage image = painted(item);
-      QVERIFY(image.pixelColor(21, 30).lightness() < 140);
+      QVERIFY(image.pixelColor(20, 30).lightness() < 140);
+      QVERIFY(image.pixelColor(23, 30).lightness() > 240);  // white inside: open
       QVERIFY(near(image.pixelColor(18, 18), ui::theme().neutral_fill));
     }
 
@@ -1021,16 +1023,18 @@ class TestCanvasView : public QObject {
     QCOMPARE(view_->valve("A")->label(), QStringLiteral("A"));
   }
 
-  // An unknown valve is hatched: light and dark inside one triangle.
+  // An unknown valve's box is hatched: light and dark in its top-left
+  // corner, clear of the glyph; the bow-tie inside is grey.
   void anUnknownValveIsHatched() {
     ui::ValveItem item("A", canvas::ValveKind::Valve);
     item.set_label(QString());
     QCOMPARE(item.state(), ValveState::Unknown);
     const QImage image = painted(&item);
+    QVERIFY(near(image.pixelColor(30 - 7, 30), ui::theme().muted_text));
     int dark = 0;
     int light = 0;
-    for (int x = 30 - 10; x <= 30 - 4; ++x) {
-      for (int y = 30 - 2; y <= 30 + 2; ++y) {
+    for (int x = 17; x <= 20; ++x) {
+      for (int y = 17; y <= 22; ++y) {
         (image.pixelColor(x, y).lightness() < 200 ? dark : light) += 1;
       }
     }

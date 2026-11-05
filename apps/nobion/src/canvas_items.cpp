@@ -40,7 +40,17 @@ QColor valve_fill(ValveState state, canvas::ValveStyle style) {
   return theme().base;
 }
 
-QColor valve_tie_fill(ValveState state) { return state == ValveState::Open ? theme().muted_text : theme().base; }
+QColor valve_tie_fill(ValveState state) {
+  switch (state) {
+    case ValveState::Open:
+      return theme().valve_open;
+    case ValveState::Closed:
+      return theme().valve_closed;
+    case ValveState::Unknown:
+      break;
+  }
+  return theme().muted_text;
+}
 
 // ---- ValveItem --------------------------------------------------------------
 
@@ -250,8 +260,8 @@ void ValveItem::paint_glyph(QPainter& painter) const {
   }
   painter.strokePath(outline, QPen(theme().outline, 1.0));
 
-  // The glyph inside it: its shape says the state without colour (filled
-  // open, hollow closed).
+  // The glyph inside it says the state without the box's colour: white
+  // open, black closed, grey unknown.
   painter.scale(kGlyphScale, kGlyphScale);
   if (vertical()) painter.rotate(-90);  // the stem to the left
   const QPen line(theme().text, 1.5 / kGlyphScale, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);

@@ -35,8 +35,8 @@ QPointF to_qpoint(const canvas::Point& p);
 // state is the base in both, hatched when painted. An open hmi valve in a
 // section with a source wears that section's colour instead.
 QColor valve_fill(ValveState state, canvas::ValveStyle style);
-// The glyph's fill inside the box, the same in both styles: filled open,
-// hollow otherwise, so the state reads without colour.
+// The glyph's fill inside the box, the same in both styles: white open, black
+// closed, grey unknown, so the state reads without the box's colour.
 QColor valve_tie_fill(ValveState state);
 
 // An ISA-5.1 valve (spec 2026-11-04-hmi-valves): a bow-tie along its pipe

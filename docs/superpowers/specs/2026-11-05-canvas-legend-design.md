@@ -114,9 +114,9 @@ Valves:
 | `valve.failed` | Valve, Closed, `flash("")` | Flashing: last command refused or failed; reason in tooltip and faceplate. |
 
 Open and closed texts name box and glyph (boxed valves,
-`2026-11-04-hmi-valves-design.md` §4): hmi open "filled glyph, box in the
+`2026-11-04-hmi-valves-design.md` §4): hmi open "white glyph, box in the
 colour of the section it joins (light grey when that section has no
-source)", closed "grey box, hollow glyph"; redgreen "green box" / "red
+source)", closed "grey box, black glyph"; redgreen "green box" / "red
 box", open in section colour with `open_valve_color = "inherit"`. Open
 glyph's box takes first of `LegendInputs::sources` (pump's colour when
 none) whenever open box would take a section's colour.

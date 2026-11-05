@@ -220,17 +220,17 @@ class TestCanvasLegend : public QObject {
     // box, clear of the glyph and the padlock.
     const QPointF tie = centre(open) + QPointF(-5, 0);
     const QPointF corner = centre(open) + QPointF(-12, 12);
-    QVERIFY(near(pixel(open, tie), ui::theme().muted_text));
+    QVERIFY(near(pixel(open, tie), ui::theme().valve_open));
     QVERIFY(near(pixel(open, corner), in.sources.front().color));  // hmi: the section's colour
     const QPixmap shut = find(entries, QStringLiteral("valve.closed"))->glyph;
-    QVERIFY(near(pixel(shut, tie), ui::theme().base));
+    QVERIFY(near(pixel(shut, tie), ui::theme().valve_closed));
     QVERIFY(near(pixel(shut, corner), ui::theme().inactive));
-    QVERIFY(find(entries, QStringLiteral("valve.closed"))->text.contains(QStringLiteral("hollow")));
+    QVERIFY(find(entries, QStringLiteral("valve.closed"))->text.contains(QStringLiteral("black glyph")));
 
     in.valve_style = canvas::ValveStyle::Redgreen;
     entries = ui::legend_entries(in);
     const QPixmap red_green = find(entries, QStringLiteral("valve.open"))->glyph;
-    QVERIFY(near(pixel(red_green, tie), ui::theme().muted_text));
+    QVERIFY(near(pixel(red_green, tie), ui::theme().valve_open));
     QVERIFY(near(pixel(red_green, corner), ui::theme().ok));
     const QPixmap closed = find(entries, QStringLiteral("valve.closed"))->glyph;
     QVERIFY(near(pixel(closed, corner), ui::theme().error));
@@ -252,7 +252,7 @@ class TestCanvasLegend : public QObject {
     view_->set_valve_style(canvas::ValveStyle::Hmi);
     view_->show_legend(true);
     CanvasLegend* legend = view_->legend();
-    QVERIFY(legend->entry(QStringLiteral("valve.open"))->text.contains(QStringLiteral("filled")));
+    QVERIFY(legend->entry(QStringLiteral("valve.open"))->text.contains(QStringLiteral("white glyph")));
     view_->set_valve_style(canvas::ValveStyle::Redgreen);
     const LegendEntry* open = legend->entry(QStringLiteral("valve.open"));
     QVERIFY(open->text.contains(QStringLiteral("green")));

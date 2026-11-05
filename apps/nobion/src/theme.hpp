@@ -58,6 +58,8 @@ struct Theme {
   QColor outline;       // input hover border, scroll handle hover
   QColor neutral_fill;  // isolated volumes, pending steps
   QColor flash;
+  QColor valve_open;    // the glyph inside an open valve's box: white
+  QColor valve_closed;  // and a closed one's: black
 
   // Chrome: the style sheet's frames, headers and the menu bar.
   QColor border;         // hairlines between surfaces

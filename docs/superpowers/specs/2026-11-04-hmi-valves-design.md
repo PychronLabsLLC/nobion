@@ -38,7 +38,7 @@ Out:
 New key in `[canvas]`:
 
 ```toml
-# valve fill: "hmi" (default; open filled grey, closed hollow) or "redgreen"
+# valve fill: "hmi" (default; glyph white open, black closed) or "redgreen"
 valve_style = "redgreen"
 ```
 
@@ -84,9 +84,10 @@ hits (`shape()`). Pipes still join any side. Glyph inside it, scaled 0.72
 | Unknown | hatch: `theme().muted_text` 45° lines on `theme().base` | same |
 
 - Glyph fill, both styles (`valve_tie_fill(state)`): Open
-  `theme().muted_text` (filled), else `theme().base` (hollow). State reads
-  by shape too: open valve in a sourceless region has a grey box as a
-  closed one does, but a filled glyph.
+  `theme().valve_open` (white), Closed `theme().valve_closed` (black),
+  Unknown `theme().muted_text`. State reads without box colour:
+  open valve in a sourceless region has a grey box as a closed one does,
+  but a white glyph.
 
 Pending (command in flight): dashed ring around body, fill unchanged (item
 does not know target state).
@@ -201,7 +202,7 @@ Interlock partners: `ICanvasState::interlocks(name)` returns
 
 - `valve_style` parsed; default `Hmi`; bad value refused.
 - Box colour per state per style; hmi open takes section colour always,
-  redgreen only with inherit; glyph filled only when open.
+  redgreen only with inherit; glyph white open, black closed.
 - Plain click: no actuation, `valve_selected` emitted. Alt-click: actuation
   as old click test.
 - Right click: no menu, no lock.
