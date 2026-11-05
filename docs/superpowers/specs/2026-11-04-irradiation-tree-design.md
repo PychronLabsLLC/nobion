@@ -207,16 +207,22 @@ statement.
 
 ## 7. Cost
 
-Measured before landing, numbers in commit message:
+Measured 2026-11-04 on copy of lab store (8,716 analyses, 15,095
+identifiers, 102 irradiations, 963 levels), SQLite, warm cache:
 
-- Both statements (§5.1 with each branch, §5.2 with no other filter) under
-  `EXPLAIN QUERY PLAN` and timed, on a copy of a real-size store (8.7
-  thousand analyses, 15 thousand identifiers). Bad signs per
-  `libs/persistence/AGENTS.md`.
-- `IrradiationTree::set_rows` with 15 thousand rows, timed.
-  If over 100 ms: identifier rows built only when their level is first
-  expanded (filter line then searches rows' data, not items). Fallback
-  named, not assumed.
+- §5.1, each branch alone and all four: index-only, one `LIST SUBQUERY`,
+  no `SCAN` of `identifier`, `irradiation_position`, `level`. Page 2-12 ms
+  (cold first page 169 ms); count 1-8 ms.
+- §5.2, no other filter: one `SCAN a` (the analysis pass), index searches,
+  `TEMP B-TREE` for `DISTINCT` and `ORDER BY`. 17-20 ms (cold 96 ms).
+- §5.2 lists identifiers that have analyses, not all identifiers: 355 rows
+  on that store, never more than analysis count.
+- `IrradiationTree::set_rows`: 2.2 ms median on those 355 rows; 8.3 µs a
+  row (122 ms on 14,688 synthetic rows).
+- Fallback, not built: when a store's §5.2 listing passes about 12
+  thousand rows (set_rows over 100 ms), identifier rows built only when
+  their level is first expanded (filter line then searches rows' data, not
+  items).
 
 ## 8. Rules that must hold
 
