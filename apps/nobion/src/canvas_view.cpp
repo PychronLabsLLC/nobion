@@ -144,6 +144,13 @@ CanvasView::~CanvasView() {
     disconnect(legend_, nullptr, this, nullptr);
     delete legend_;
   }
+  // The scene is destroyed after the members declared below it (the timers,
+  // the gauge under the mouse); leaving the view, it resets the scroll range
+  // and so calls scrollContentsBy, which reaches them. Leave it now, while
+  // they are alive, and with no rest to end: nothing is told of a gauge left
+  // by a window going away.
+  gauge_rested_ = false;
+  setScene(nullptr);
 }
 
 QColor CanvasView::source_display_color(const canvas::Source& source,

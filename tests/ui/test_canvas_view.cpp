@@ -16,6 +16,7 @@
 #include <thread>
 #include <vector>
 
+#include <QGraphicsRectItem>
 #include <QGraphicsScene>
 #include <QGraphicsSceneHoverEvent>
 #include <QScrollBar>
@@ -1294,6 +1295,39 @@ class TestCanvasView : public QObject {
     QCOMPARE(view_->gauge_rest_ms(), CanvasView::kGaugeRestMs);
     view_->set_gauge_rest_ms(-5);
     QCOMPARE(view_->gauge_rest_ms(), 0);
+  }
+
+  // A view destroyed while scrolled. Its scene goes with it and leaves the
+  // view, which resets the scroll range and calls scrollContentsBy: that
+  // must not reach members already destroyed (a test's MainWindow crashed
+  // there, now and then, under a full parallel run).
+  //
+  // The scene deletes its items before it leaves its views, so a probe item
+  // marks the start of the scene's teardown: no scroll may come after it.
+  void aScrolledViewIsDestroyedCleanly() {
+    struct Probe : QGraphicsRectItem {
+      bool* gone;
+      explicit Probe(bool* flag) : gone(flag) {}
+      Probe(const Probe&) = delete;
+      Probe& operator=(const Probe&) = delete;
+      Probe(Probe&&) = delete;
+      Probe& operator=(Probe&&) = delete;
+      ~Probe() override { *gone = true; }
+    };
+    bool scene_going = false;
+    int late_scrolls = 0;
+    view_->scene()->addItem(new Probe(&scene_going));
+    view_->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
+    view_->setTransform(QTransform::fromScale(8, 8));
+    QScrollBar* bar = view_->horizontalScrollBar();
+    QVERIFY(bar->maximum() > bar->minimum());
+    bar->setValue(bar->maximum());
+    QVERIFY(bar->value() != 0);
+    connect(bar, &QScrollBar::valueChanged, bar, [&] { late_scrolls += scene_going ? 1 : 0; });
+    view_.reset();
+    QVERIFY(scene_going);
+    QCOMPARE(late_scrolls, 0);
   }
 
   // The canvas never overflows its view: at any size the whole drawing is in
