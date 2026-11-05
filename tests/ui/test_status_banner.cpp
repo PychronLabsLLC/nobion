@@ -5,6 +5,7 @@
 #include <chrono>
 #include <memory>
 
+#include <QLabel>
 #include <QSignalSpy>
 #include <QToolButton>
 #include <QtTest/QtTest>
@@ -116,14 +117,81 @@ class TestStatusBanner : public QObject {
     QCOMPARE(banner.mode_text(), QStringLiteral("LIVE"));
   }
 
-  // The clock is the one it is given (the line's), read each tick.
+  // The clock is the one it is given (the line's), read each tick; it
+  // keeps one width, so the fields beside it stay put as it counts.
   void theClockReadsTheLinesClock() {
     QDateTime now = at(13, 41, 7);
     StatusBanner banner([&now] { return now; });
+    banner.resize(900, StatusBanner::kHeight);
+    banner.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&banner));
     QCOMPARE(banner.clock_text(), QStringLiteral("13:41:07"));
-    now = at(2, 0, 30);
-    banner.tick();
-    QCOMPARE(banner.clock_text(), QStringLiteral("02:00:30"));
+    auto* clock = banner.findChild<QLabel*>(QStringLiteral("bannerClock"));
+    const QRect before = banner.alarms_button()->geometry();
+    const int width = clock->width();
+    for (const QTime t : {QTime(11, 11, 11), QTime(20, 8, 59), QTime(0, 0, 0)}) {
+      now = QDateTime(QDate(2026, 11, 5), t);
+      banner.tick();
+      QCoreApplication::processEvents();
+      QCOMPARE(clock->width(), width);
+      QCOMPARE(banner.alarms_button()->geometry(), before);
+      QVERIFY(clock->fontMetrics().horizontalAdvance(clock->text()) <= clock->contentsRect().width());
+    }
+    QCOMPARE(banner.clock_text(), QStringLiteral("00:00:00"));
+  }
+
+  // No field is drawn over another, whatever the executor says.
+  void noFieldOverlapsAnother() {
+    StatusBanner banner([] { return at(13, 41, 7); });
+    banner.set_mode({true, 50});
+    banner.set_line(QStringLiteral("example"));
+    banner.set_session(false);
+    banner.resize(900, StatusBanner::kHeight);
+    banner.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&banner));
+    QStringList names{QStringLiteral("bannerMode"), QStringLiteral("bannerLine"), QStringLiteral("bannerExecutor"),
+                      QStringLiteral("bannerAlarms"), QStringLiteral("bannerHealth"), QStringLiteral("bannerClock")};
+    QList<QRect> rects;
+    for (const auto& name : names) rects += banner.findChild<QWidget*>(name)->geometry();
+    for (int i = 0; i + 1 < rects.size(); ++i) {
+      QVERIFY2(rects[i].right() < rects[i + 1].left(), qPrintable(names[i] + QStringLiteral(" / ") + names[i + 1]));
+    }
+    auto* line = banner.findChild<QLabel*>(QStringLiteral("bannerLine"));
+    QVERIFY(line->fontMetrics().horizontalAdvance(line->text()) <= line->contentsRect().width());
+  }
+
+  // A long name and a long hold reason, in a narrow band: still nothing
+  // drawn over anything else, and the band never asks the window to be
+  // wider than it is.
+  void aNarrowBandWithLongTextsStillDoesNotOverlap() {
+    StatusBanner banner([] { return at(13, 41, 7); });
+    banner.set_mode({true, 50});
+    banner.set_line(QStringLiteral("NMGRL Felix extraction line, the long name"));
+    banner.set_session(true);
+    banner.on_state({exec::ExecutorState::Running, exec::ExecutorState::Holding, {}});
+    exec::ExecutorHolding hold;
+    hold.reason = "waiting for valve_bus, cg_controller and gauge_net to come back";
+    banner.on_holding(hold);
+    banner.set_alarms({{"IG1", AlarmSeverity::Critical, "high", {}}, {"cryo", AlarmSeverity::Warning, "drift", {}}});
+    QVERIFY2(banner.minimumSizeHint().width() < 640, qPrintable(QString::number(banner.minimumSizeHint().width())));
+    for (const int width : {1200, 640}) {
+      banner.resize(width, StatusBanner::kHeight);
+      banner.show();
+      QVERIFY(QTest::qWaitForWindowExposed(&banner));
+      QCoreApplication::processEvents();
+      QStringList names{QStringLiteral("bannerMode"), QStringLiteral("bannerLine"), QStringLiteral("bannerExecutor"),
+                        QStringLiteral("bannerAlarms"), QStringLiteral("bannerHealth"), QStringLiteral("bannerClock")};
+      for (int i = 0; i + 1 < names.size(); ++i) {
+        const QRect a = banner.findChild<QWidget*>(names[i])->geometry();
+        const QRect b = banner.findChild<QWidget*>(names[i + 1])->geometry();
+        QVERIFY2(a.right() < b.left(), qPrintable(QStringLiteral("%1 / %2 at %3").arg(names[i], names[i + 1]).arg(width)));
+      }
+      // The clock and the alarm counts are never squeezed.
+      auto* clock = banner.findChild<QLabel*>(QStringLiteral("bannerClock"));
+      QVERIFY(clock->fontMetrics().horizontalAdvance(clock->text()) <= clock->contentsRect().width());
+    }
+    QCOMPARE(banner.findChild<QLabel*>(QStringLiteral("bannerLine"))->toolTip(),
+             QStringLiteral("NMGRL Felix extraction line, the long name"));
   }
 
   // The executor field follows the executor's events.
@@ -254,6 +322,12 @@ class TestStatusBanner : public QObject {
       QCOMPARE(static_cast<std::size_t>(s.ok + s.degraded + s.down + s.unknown), line->config().transports.size());
       line->bus().publish(TransportHealth{"valve_bus", false, 1, "gone", line->clock().now()});
       QTRY_VERIFY2(banner->health_text().startsWith(QStringLiteral("1 down")), qPrintable(banner->health_text()));
+
+      // Help > Canvas Legend opens the canvas's legend, as its button does.
+      QVERIFY(window.legend_action() != nullptr);
+      window.legend_action()->trigger();
+      QVERIFY(window.canvas_view()->legend() != nullptr && window.canvas_view()->legend()->isVisible());
+      QVERIFY(window.canvas_view()->legend_button()->isChecked());
       line->stop();
     }
   }

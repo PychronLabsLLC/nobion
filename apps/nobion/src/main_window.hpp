@@ -88,6 +88,8 @@ class MainWindow : public QMainWindow {
   // The band at the top (spec 2026-11-05-hmi-banner) and the alarms under it.
   StatusBanner* status_banner() const noexcept { return banner_; }
   AlarmStrip* alarm_strip() const noexcept { return strip_; }
+  // Help > Canvas Legend.
+  QAction* legend_action() const noexcept { return legend_action_; }
   // Live or simulated, and how fast: the banner's mode.
   void set_line_mode(LineMode mode);
   // Where the panels are: the factory layout, the last one, the named ones.
@@ -275,6 +277,7 @@ class MainWindow : public QMainWindow {
   HealthBar* health_;
   StatusBanner* banner_ = nullptr;
   AlarmStrip* strip_ = nullptr;
+  QAction* legend_action_ = nullptr;
   DockLayouts* layouts_ = nullptr;
   QAction* spectrometer_action_;
   SpectrometerBridge* spectrometer_ = nullptr;

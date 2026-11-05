@@ -44,7 +44,19 @@ layouts unchanged: banner and strip are not docks, not saved in
 ## 4. `StatusBanner`
 
 New `apps/nobion/src/status_banner.{hpp,cpp}` (also holds `AlarmStrip`). `QFrame`, one row, fixed
-height 28 px, background `theme().chrome`, text `theme().on_chrome`.
+height 30 px, background `theme().header_bg` (light grey; changed
+2026-11-05 from `chrome`, developer's review: ISA-101 muted background, colour
+on it only for what needs attention), 1 px `strong_border` rule under it,
+text `theme().text`. Every field padded `kClockPadding` (8) each side.
+Name and executor fields: explicit minimum `kMinField` (40), so they give
+way when narrow (full text in tooltip) and band never sets window's
+minimum width. Clock re-measured on its own font or style change and on
+show. Field weights in each field's style sheet, never
+`setFont` (app sheet sets font: measured with one, drawn with other,
+fields overlap). Executor field takes spare width (stretch 1, `Ignored`
+policy, min 40): no empty stretch, which would leave it its minimum and
+squeeze it under its neighbour. Clock fixed width: widest digit x 6 plus
+two colons plus padding, so neighbours stay put as it counts.
 Fields left to right, each a `QLabel` with object name for tests:
 
 | Field | Object name | Shows | Source |
@@ -63,9 +75,9 @@ struct LineMode {
 };
 ```
 
-Mode chip: live a `muted_text` pill (grey: normal state, no alarm colour,
-ISA-101); simulated an `accent_strong` pill, so a simulated session is
-never mistaken for live.
+Mode chip: live a `base` pill with `strong_border` edge, `muted_text` (grey: normal state,
+no alarm colour, ISA-101); simulated an `accent_soft` pill, `accent_strong`
+text, so a simulated session is never mistaken for live.
 
 Executor text by `ExecutorState` (`executor.hpp:72`):
 
@@ -81,16 +93,16 @@ Executor text by `ExecutorState` (`executor.hpp:72`):
 | `Cancelling`, `Aborting` | "Cancelling", "Aborting" |
 | `Finalizing` | "Finishing queue" |
 
-Holding and Aborting in `warning_text`; rest `on_chrome`.
+Holding and Aborting a `warning` pill; rest plain `text`.
 
 Alarms field: counts of standing alarms by severity, Critical and Warning
-only (Info: dock only, §5). Critical count in `error_text` on
-`error_bg`, warning in `warning_text`; "No alarms" `on_chrome`. Click:
+only (Info: dock only, §5). Any critical: `error` pill, `base` text;
+warnings only: `warning` pill, `text`; "No alarms" plain. Click:
 show and raise Alarms dock.
 
 Connections field: counts of `HealthBar` statuses. All Ok: "Connections ok
 (N)". Else "<d> down · <g> degraded · <u> unknown", zero parts left out,
-coloured by worst (`level_color`). Click: nothing (health chips are in the
+down an `error` pill, degraded a `warning` pill, unknown only plain. Click: nothing (health chips are in the
 status bar under it).
 
 Clock: wall time of line's clock, so simulated session shows simulated

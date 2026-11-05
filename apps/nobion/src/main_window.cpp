@@ -290,8 +290,12 @@ MainWindow::MainWindow(systems::ExtractionLine& line, std::unique_ptr<QSettings>
     return ok ? std::optional<QString>(name) : std::nullopt;
   };
   menus.contribute(this, MenuHub::Menu::Scripts, {rehearse_action_}, MenuHub::Scope::App);
+  // The canvas's legend, also from its own button.
+  legend_action_ = new QAction(tr("Canvas Legend"), this);
+  connect(legend_action_, &QAction::triggered, this, [this] { canvas_->show_legend(true); });
   MenuHub::instance().contribute(this, MenuHub::Menu::Help,
-                                 {make_command_palette_action(this), make_shortcuts_action(this)}, MenuHub::Scope::App);
+                                 {make_command_palette_action(this), make_shortcuts_action(this), legend_action_},
+                                 MenuHub::Scope::App);
   about_action_ = brand::add_help_menu(this);
   MenuHub::instance().install(this);
   // The first laser (the only one, usually); with several the action carries

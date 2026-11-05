@@ -37,7 +37,9 @@ class StatusBanner : public QFrame {
   Q_OBJECT
 
  public:
-  static constexpr int kHeight = 28;
+  static constexpr int kHeight = 30;
+  static constexpr int kClockPadding = 8;  // every field's padding, each side
+  static constexpr int kMinField = 40;     // the narrowest the name and executor fields get
 
   // `clock` is the line's wall clock (simulated time in a simulation).
   explicit StatusBanner(std::function<QDateTime()> clock, QWidget* parent = nullptr);
@@ -75,8 +77,13 @@ class StatusBanner : public QFrame {
   // The alarm counts were clicked: the window shows its Alarms dock.
   void alarms_clicked();
 
+ protected:
+  bool eventFilter(QObject* watched, QEvent* event) override;
+  void showEvent(QShowEvent* event) override;
+
  private:
   void render_executor();
+  void fit_clock();
 
   std::function<QDateTime()> clock_;
   QLabel* mode_;

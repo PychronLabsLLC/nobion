@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <utility>
 
+#include <QEvent>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
@@ -17,15 +19,23 @@ namespace {
 
 namespace exec = experiment::executor;
 
-// A pill on the banner: a field whose state is not the normal one.
-QString pill(const QColor& background, const QColor& text) {
-  return QStringLiteral("background: %1; color: %2; border-radius: 9px; padding: 1px 8px;")
-      .arg(background.name(), text.name());
+// A pill on the band: a field whose state is not the normal one. The weight
+// is in the sheet, not a setFont: the application's sheet sets the font, and
+// a size measured with one font and drawn with another overlaps.
+QString pill(const QColor& background, const QColor& text, bool bold = false, const QColor& border = {}) {
+  return QStringLiteral("background: %1; color: %2; border-radius: 9px; padding: 1px %3px; font-weight: %4; border: %5;")
+      .arg(background.name(), text.name(), QString::number(StatusBanner::kClockPadding),
+           bold ? QStringLiteral("600") : QStringLiteral("400"),
+           border.isValid() ? QStringLiteral("1px solid %1").arg(border.name()) : QStringLiteral("none"));
 }
 
 // A field in its normal state: plain text on the band, nothing coloured
 // (ISA-101: colour is for what needs attention).
-QString plain() { return QStringLiteral("background: transparent; color: %1; padding: 1px 8px;").arg(theme().on_chrome.name()); }
+QString plain(bool bold = false) {
+  return QStringLiteral("background: transparent; color: %1; padding: 1px %2px; font-weight: %3;")
+      .arg(theme().text.name(), QString::number(StatusBanner::kClockPadding),
+           bold ? QStringLiteral("600") : QStringLiteral("400"));
+}
 
 QLabel* field(const char* name, QWidget* parent) {
   auto* label = new QLabel(parent);
@@ -52,22 +62,21 @@ StatusBanner::StatusBanner(std::function<QDateTime()> clock, QWidget* parent)
       clock_label_(field("bannerClock", this)) {
   setObjectName(QStringLiteral("statusBanner"));
   setFixedHeight(kHeight);
-  setAutoFillBackground(true);
-  QPalette band = palette();
-  band.setColor(QPalette::Window, theme().chrome);
-  band.setColor(QPalette::WindowText, theme().on_chrome);
-  setPalette(band);
+  // A light grey band (ISA-101: a muted background, so that colour on it is
+  // only ever an alarm or an abnormal state), ruled off from the canvas.
+  setStyleSheet(QStringLiteral("QFrame#statusBanner { background: %1; border-bottom: 1px solid %2; }")
+                    .arg(theme().header_bg.name(), theme().strong_border.name()));
 
-  // The band never sets how narrow the window may be: the line's name and
-  // the executor's text give way first (the whole text in their tooltips).
-  for (QLabel* flexible : {line_, executor_}) {
-    flexible->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    flexible->setMinimumWidth(40);
-  }
-  QFont bold = mode_->font();
-  bold.setBold(true);
-  mode_->setFont(bold);
-  line_->setFont(bold);
+  // The band never sets how narrow the window may be: the executor's text
+  // takes the spare width and gives way first, then the line's name (each
+  // whole in its tooltip). The executor, not an empty stretch, takes the
+  // room: a stretch would leave it its minimum and squeeze it under its
+  // neighbour. The name keeps its width while there is room (its minimum is
+  // set, not its text's).
+  executor_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+  executor_->setMinimumWidth(kMinField);
+  line_->setMinimumWidth(kMinField);
+  line_->setStyleSheet(plain(true));
   alarms_->setObjectName(QStringLiteral("bannerAlarms"));
   alarms_->setAutoRaise(true);
   alarms_->setCursor(Qt::PointingHandCursor);
@@ -81,8 +90,7 @@ StatusBanner::StatusBanner(std::function<QDateTime()> clock, QWidget* parent)
   row->addWidget(mode_);
   row->addWidget(line_);
   row->addSpacing(12);
-  row->addWidget(executor_);
-  row->addStretch(1);
+  row->addWidget(executor_, 1);
   row->addWidget(alarms_);
   row->addWidget(health_);
   row->addWidget(clock_label_);
@@ -91,6 +99,8 @@ StatusBanner::StatusBanner(std::function<QDateTime()> clock, QWidget* parent)
   set_session(false);
   set_alarms({});
   set_health({});
+  fit_clock();
+  clock_label_->installEventFilter(this);
   ticker_.setInterval(1000);
   connect(&ticker_, &QTimer::timeout, this, &StatusBanner::tick);
   ticker_.start();
@@ -102,11 +112,11 @@ void StatusBanner::set_mode(LineMode mode) {
                                           : tr("The line's clock: real time"));
   if (!mode.simulated) {
     mode_->setText(tr("LIVE"));
-    mode_->setStyleSheet(pill(theme().muted_text, theme().on_chrome));
+    mode_->setStyleSheet(pill(theme().base, theme().muted_text, true, theme().strong_border));
     return;
   }
   mode_->setText(mode.speed > 0 ? tr("SIMULATED x%1").arg(mode.speed) : tr("SIMULATED"));
-  mode_->setStyleSheet(pill(theme().accent_strong, theme().on_chrome));
+  mode_->setStyleSheet(pill(theme().accent_soft, theme().accent_strong, true));
 }
 
 void StatusBanner::set_line(const QString& name) {
@@ -165,7 +175,7 @@ void StatusBanner::render_executor() {
   executor_->setToolTip(executor_->text());
   const bool attention = session_ && state_ &&
                          (*state_ == exec::ExecutorState::Holding || *state_ == exec::ExecutorState::Aborting);
-  executor_->setStyleSheet(attention ? pill(theme().warning_bg, theme().warning_text) : plain());
+  executor_->setStyleSheet(attention ? pill(theme().warning, theme().text, true) : plain());
 }
 
 void StatusBanner::set_alarms(const std::vector<AlarmRow>& rows) {
@@ -179,9 +189,9 @@ void StatusBanner::set_alarms(const std::vector<AlarmRow>& rows) {
   alarms_->setText(parts.isEmpty() ? tr("No alarms") : parts.join(QStringLiteral(" · ")));
   QString look = plain();
   if (critical > 0) {
-    look = pill(theme().error_bg, theme().on_error_bg);
+    look = pill(theme().error, theme().base, true);
   } else if (warning > 0) {
-    look = pill(theme().warning_bg, theme().warning_text);
+    look = pill(theme().warning, theme().text, true);
   }
   alarms_->setStyleSheet(QStringLiteral("QToolButton { %1 border: none; }").arg(look));
 }
@@ -199,12 +209,40 @@ void StatusBanner::set_health(const HealthBar::Summary& s) {
   if (s.unknown > 0) parts += tr("%1 unknown").arg(s.unknown);
   health_->setText(parts.join(QStringLiteral(" · ")));
   if (s.down > 0) {
-    health_->setStyleSheet(pill(theme().error_bg, theme().on_error_bg));
+    health_->setStyleSheet(pill(theme().error, theme().base, true));
   } else if (s.degraded > 0) {
-    health_->setStyleSheet(pill(theme().warning_bg, theme().warning_text));
+    health_->setStyleSheet(pill(theme().warning, theme().text, true));
   } else {
     health_->setStyleSheet(plain());  // not heard from yet: nothing wrong known
   }
+}
+
+void StatusBanner::fit_clock() {
+  // As wide as the widest time, so the fields beside it stay put as the
+  // seconds count: digits differ in width in most fonts.
+  clock_label_->ensurePolished();
+  const QFontMetrics metrics(clock_label_->font());
+  int digit = 0;
+  for (char d = '0'; d <= '9'; ++d) digit = std::max(digit, metrics.horizontalAdvance(QLatin1Char(d)));
+  const int text = 6 * digit + 2 * metrics.horizontalAdvance(QLatin1Char(':'));
+  const QMargins margins = clock_label_->contentsMargins();
+  // + 2: a pixel each side for antialiased glyph edges.
+  clock_label_->setFixedWidth(text + margins.left() + margins.right() + 2 * kClockPadding + 2);
+  clock_label_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+}
+
+// The clock's own font: a change to it (an application font or sheet) does
+// not reach the band's changeEvent.
+bool StatusBanner::eventFilter(QObject* watched, QEvent* event) {
+  if (watched == clock_label_ && (event->type() == QEvent::FontChange || event->type() == QEvent::StyleChange)) {
+    fit_clock();
+  }
+  return QFrame::eventFilter(watched, event);
+}
+
+void StatusBanner::showEvent(QShowEvent* event) {
+  QFrame::showEvent(event);
+  fit_clock();
 }
 
 void StatusBanner::tick() { clock_label_->setText(clock_().time().toString(QStringLiteral("HH:mm:ss"))); }

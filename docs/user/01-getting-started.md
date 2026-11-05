@@ -447,6 +447,7 @@ beside the one in front. Pick a window from the list to bring it forward.
 |---|---|
 | **Command Palette…** | Opens the command palette (next section). |
 | **Keyboard Shortcuts** | Opens a searchable list of every shortcut. |
+| **Canvas Legend** | Opens the key to every symbol on the main window's canvas, as the canvas's **Legend** button does. |
 | **About Nobion** | The about box (version and credits). |
 | **Check for Updates…** | Asks GitHub now whether a newer release exists and always answers in a dialog. Greyed while a check is out. See [Updates](#updates). |
 
