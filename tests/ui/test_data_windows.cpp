@@ -602,7 +602,6 @@ std::vector<pychron::processing::PositionRow> tree_rows() {
 }
 }  // namespace
 
-
 bool wait_runs(FigureWindow& w, ProcessingBridge& bridge, int runs) {
   QElapsedTimer t;
   t.start();
@@ -1036,6 +1035,16 @@ class TestDataWindows : public QObject {
     QVERIFY(!find_node(tree.tree(), QStringLiteral("NM-301"))->isHidden());
   }
 
+  void irradiation_tree_filter_shows_rows_under_a_match() {
+    ui::IrradiationTree tree(QStringLiteral("Irradiation"));
+    tree.set_rows(tree_rows());
+    tree.filter()->setText(QStringLiteral("NM-300"));
+    for (const char* text : {"NM-300", "A", "B", "77000", "77001", "77002"})
+      QVERIFY2(!find_node(tree.tree(), QString::fromLatin1(text))->isHidden(), text);
+    QVERIFY(find_node(tree.tree(), QStringLiteral("NM-301"))->isHidden());
+    QVERIFY(find_node(tree.tree(), QStringLiteral("88000"))->isHidden());
+  }
+
   void irradiation_tree_keeps_a_tick_no_longer_listed() {
     namespace pp = pychron::processing;
     ui::IrradiationTree tree(QStringLiteral("Irradiation"));
@@ -1074,7 +1083,6 @@ class TestDataWindows : public QObject {
     tree.clear_checked();
     QCOMPARE(changed.count(), 1);
   }
-
 
   void browser_list_filter_survives_a_reload() {
     auto src = make_source(60);

@@ -36,7 +36,7 @@ New `apps/nobion/src/irradiation_tree.{hpp,cpp}`, beside `facet_box`.
 - Folding section like `FacetBox`: header `QToolButton`, arrow, title
   "Irradiation", count of ticked nodes in title (`Irradiation (2)`), starts
   folded. Body: filter line, clear button (×), `QTreeWidget`.
-- Rows: irradiation; level; identifier. Identifier row column 2:
+- Rows: irradiation; level; identifier. Identifier row column 1 (0-based):
   `<sample> · <project>`. One missing: other alone, no `·`. Both missing:
   column empty.
   Last top-level node "Not irradiated", its identifiers under it directly.
@@ -47,12 +47,15 @@ New `apps/nobion/src/irradiation_tree.{hpp,cpp}`, beside `facet_box`.
   only to checked or unchecked; tick on a parent sets all its children.
 - Rows padded as `FacetBox` rows: `style::make_tick_list` on the tree.
 - Filter line: case-insensitive substring of irradiation, level,
-  identifier, sample or project. Row shown when it or a descendant matches,
+  identifier, sample or project. Row shown when it, a descendant or an
+  ancestor matches (filter by irradiation name leaves its levels to tick),
   or when it is ticked or partly ticked; ancestors of a match expanded.
   Ticked row never hidden. Applied again after new rows, as `FacetBox`.
 - `set_rows(rows)` keeps ticks by key. Ticked node no longer among rows
   stays, at end of its parent (or of top level), label it had: as
-  `FacetBox::set_items`.
+  `FacetBox::set_items`. Parent gone too is recreated as stand-in to hold it:
+  stand-in lists only kept nodes, so it never reads `Qt::Checked` (partly
+  ticked at most) and `selection()` keeps the child's key, not the parent's.
 - Emits `changed()` on user tick, untick, clear. `set_rows` emits nothing.
 
 ### 3.1 Selection
