@@ -509,16 +509,22 @@ TEST_P(BrowseTest, PositionListingIgnoresItsOwnFilterAndOrders) {
 
 TEST_P(BrowseTest, BrowseRowsCarryIrradiationAndLevelUuids) {
   const auto r = browse({});
+  bool saw_a1 = false;
+  bool saw_a3 = false;
   for (const auto& row : r.rows) {
     if (row.summary.uuid == a1_) {
+      saw_a1 = true;
       EXPECT_EQ(row.irradiation_uuid, lab_.irradiation);
       EXPECT_EQ(row.level_uuid, lab_.level);
     }
     if (row.summary.uuid == a3_) {
+      saw_a3 = true;
       EXPECT_FALSE(row.irradiation_uuid);
       EXPECT_FALSE(row.level_uuid);
     }
   }
+  EXPECT_TRUE(saw_a1);
+  EXPECT_TRUE(saw_a3);
 }
 
 INSTANTIATE_TEST_SUITE_P(Engines, BrowseTest, ::testing::ValuesIn(engines()), [](const auto& p) { return p.param; });

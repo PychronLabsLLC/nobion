@@ -54,8 +54,11 @@ New `apps/nobion/src/irradiation_tree.{hpp,cpp}`, beside `facet_box`.
 - `set_rows(rows)` keeps ticks by key. Ticked node no longer among rows
   stays, at end of its parent (or of top level), label it had: as
   `FacetBox::set_items`. Parent gone too is recreated as stand-in to hold it:
-  stand-in lists only kept nodes, so it never reads `Qt::Checked` (partly
-  ticked at most) and `selection()` keeps the child's key, not the parent's.
+  stand-in lists only kept nodes, so it never reads `Qt::Checked` unless user
+  ticks it, then `selection()` selects whole irradiation; else (partly ticked)
+  `selection()` keeps the child's key, not the parent's.
+- Row with irradiation but empty `level_key`: identifier sits directly under its
+  irradiation (no level node); its tick gives its identifier key (all of an irradiation's identifiers ticked is the irradiation).
 - Emits `changed()` on user tick, untick, clear. `set_rows` emits nothing.
 
 ### 3.1 Selection
@@ -105,7 +108,7 @@ store (`row_from` reads `ir.uuid`, `lv.uuid`), empty elsewhere, as
 `principal_investigator_uuid`. Key of a summary (free functions beside
 `facet_value`): `irradiation_key(s)` = `irradiation_uuid`, else
 `irradiation`; `level_key(s)` = `level_uuid`, else `<irradiation>/<level>`,
-empty when `level` empty. Record folder source needs no change.
+empty when `level` empty. Record folder source summaries need no key change (keys fall back to names); it gains `positions()`.
 `matches()` tests `positions` against those keys, `identifier`, and "not
 irradiated" = `irradiation_key(s)` empty.
 
@@ -123,7 +126,7 @@ virtual Result<std::vector<PositionRow>> positions(const BrowseQuery& query) = 0
 - Not irradiated: keys, `irradiation`, `level` empty.
 - Order: irradiation, level, identifier, by name; not irradiated last.
 - `MemorySource`, `RecordDirectorySource`: from summaries, one shared helper
-  beside `facet_values` (`position_rows(rows, q)`), `matches` with
+  beside `facet_values` (`position_rows(rows, q, newest)`), `matches` with
   `positions` ignored.
 - `StoreSource`: §5.
 
@@ -202,7 +205,7 @@ statement.
   added after the remaining lists, before Rescan.
 - `query()` sets `positions` from `tree->selection()`.
 - `update_facets()` also calls `source_.positions(query())` and
-  `tree->set_rows`. Error: tree emptied, logged as facets are.
+  `tree->set_rows`. Error: rows emptied, ticks kept (stand-ins), logged as facets are.
 - Accessor for tests: `irradiation_tree()`.
 
 ## 7. Cost
