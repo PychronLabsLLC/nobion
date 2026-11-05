@@ -117,8 +117,8 @@ const Theme& theme();
 
 namespace style {
 
-// Fusion style, the theme's palette and style sheet. Call once, before any
-// window is built.
+// Fusion style (tooltip and menu windows translucent where rounded_popups),
+// the theme's palette and style sheet. Call once, before any window is built.
 void apply(QApplication& app);
 QPalette palette();
 QString style_sheet();
@@ -155,6 +155,11 @@ void set_chip(QLabel* label, Level level);
 // that does not set its own; code editors refresh themselves
 // (apply_application_preferences).
 void set_font_sizes(int ui_pt, int code_pt);
+
+// Whether tooltips and menus get rounded corners on this Qt platform: their
+// windows can be made translucent there (cocoa, windows, wayland), so the
+// corners outside the radius are clear, not filled.
+[[nodiscard]] bool rounded_popups(const QString& platform);
 
 // Tooltip text from plain lines: the first line is the subject and is set
 // heavier, the rest are its details. A single line comes back as it is.

@@ -244,9 +244,9 @@ class TestTheme : public QObject {
     QCOMPARE(image.pixelColor(image.width() / 2, 1), theme().error);
   }
 
-  // A tooltip is a light surface with a hairline, like a menu: not the menu
-  // bar's ink.
-  void tooltip_is_a_light_surface_with_a_hairline() {
+  // A tooltip is ink, like the menu bar, so it stands off every light
+  // surface. The offscreen platform has no translucent windows: square.
+  void tooltip_is_ink() {
     QLabel host(QStringLiteral("host"));
     host.resize(200, 100);
     host.show();
@@ -257,11 +257,23 @@ class TestTheme : public QObject {
       if (w->inherits("QTipLabel")) tip = w;
     }
     QVERIFY(tip);
+    QVERIFY(!tip->testAttribute(Qt::WA_TranslucentBackground));
     const QImage image = tip->grab().toImage();
-    QCOMPARE(image.pixelColor(0, image.height() / 2), theme().strong_border);
-    QCOMPARE(image.pixelColor(3, image.height() / 2), theme().base);
-    QCOMPARE(text_color(*tip), theme().text);
+    QCOMPARE(image.pixelColor(0, 0), theme().chrome);
+    QCOMPARE(image.pixelColor(3, image.height() / 2), theme().chrome);
+    QCOMPARE(text_color(*tip), theme().on_chrome);
     QToolTip::hideText();
+  }
+
+  // Rounded only where the window can be translucent: on X11 without a
+  // compositor a clear corner is black.
+  void popups_are_rounded_where_windows_can_be_translucent() {
+    QVERIFY(style::rounded_popups(QStringLiteral("cocoa")));
+    QVERIFY(style::rounded_popups(QStringLiteral("windows")));
+    QVERIFY(style::rounded_popups(QStringLiteral("wayland")));
+    QVERIFY(!style::rounded_popups(QStringLiteral("xcb")));
+    QVERIFY(!style::rounded_popups(QStringLiteral("offscreen")));
+    QVERIFY(!style::style_sheet().contains(QStringLiteral("radius: @")));
   }
 
   void tip_text_sets_the_first_of_several_lines_heavier() {
@@ -270,6 +282,13 @@ class TestTheme : public QObject {
     QVERIFY(Qt::mightBeRichText(tip));
     QVERIFY(tip.contains(QStringLiteral("font-weight:600\">62410-01D  excluded</span>")));
     QVERIFY(tip.contains(QStringLiteral("Age &lt;Ma&gt; 28.2<br>12.4% gas")));
+    // The details are fainter than the subject, on the tooltip's ink.
+    const qsizetype at = tip.indexOf(QStringLiteral("color:#"));
+    QVERIFY(at > 0);
+    const QColor detail(tip.mid(at + 6, 7));
+    QVERIFY(detail.isValid());
+    QVERIFY(detail.lightness() < theme().on_chrome.lightness());
+    QVERIFY(detail.lightness() > theme().chrome.lightness());
   }
 
   void fonts() {

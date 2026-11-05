@@ -7,11 +7,14 @@
 #include <QApplication>
 #include <QFontDatabase>
 #include <QFontInfo>
+#include <QGuiApplication>
 #include <QImage>
 #include <QLabel>
+#include <QMenu>
 #include <QPainter>
 #include <QPen>
 #include <QPolygonF>
+#include <QProxyStyle>
 #include <QStyle>
 #include <QTemporaryDir>
 #include <QToolButton>
@@ -186,11 +189,36 @@ QString arrow_dir(const Theme& t) {
   return dir.path();
 }
 
+// Fusion, with tooltip and menu windows made translucent where rounded_popups
+// allows, so the style sheet's radius leaves real corners. Set before the
+// window is created (polish runs first), as a translucent window must be.
+class PopupStyle : public QProxyStyle {
+ public:
+  PopupStyle() : QProxyStyle(QStringLiteral("Fusion")) {}
+
+  void polish(QWidget* widget) override {
+    QProxyStyle::polish(widget);
+    const bool popup = widget->inherits("QTipLabel") || qobject_cast<QMenu*>(widget) != nullptr;
+    if (!popup || !widget->isWindow() || !style::rounded_popups(QGuiApplication::platformName())) return;
+    widget->setAttribute(Qt::WA_TranslucentBackground);
+    // Windows draws a square shadow around a popup, which shows past the
+    // rounded corners; macOS draws one that follows the shape.
+    if (QGuiApplication::platformName() == QLatin1String("windows") &&
+        !widget->windowFlags().testFlag(Qt::NoDropShadowWindowHint))
+      widget->setWindowFlag(Qt::NoDropShadowWindowHint);
+  }
+
+  // The style sheet style passes polish(QApplication*) and polish(QPalette&)
+  // through as well; only the widget overload is ours.
+  using QProxyStyle::polish;
+};
+
 // The widget chrome. Colours are @name tokens, filled from the theme.
 // Item views keep their default item drawing so a model's BackgroundRole
 // (run states, analysis types) still shows; only frames and headers change.
-// A tooltip is a menu's surface with square corners: a tooltip window is
-// opaque on macOS, so a radius leaves its corners filled.
+// A tooltip is ink, like the menu bar, so it stands off every light surface.
+// Tooltips and menus are rounded only where PopupStyle makes their windows
+// translucent: an opaque window fills the corners outside the radius.
 QString chrome_sheet(const Theme& t) {
   QString s = QStringLiteral(R"(
 QMainWindow::separator { background: @window; width: 5px; height: 5px; }
@@ -200,12 +228,12 @@ QMenuBar { background: @chrome; color: @on_chrome; padding: 3px 6px; border: non
 QMenuBar::item { background: transparent; padding: 5px 12px; border-radius: 5px; }
 QMenuBar::item:selected { background: @accent_strong; }
 QMenuBar::item:pressed { background: @accent; color: @base; }
-QMenu { background: @base; border: 1px solid @strong_border; border-radius: 8px; padding: 5px; }
+QMenu { background: @base; border: 1px solid @strong_border; border-radius: @menu_radius; padding: 5px; }
 QMenu::item { padding: 6px 26px 6px 12px; border-radius: 5px; }
 QMenu::item:selected { background: @accent_soft; color: @accent_strong; }
 QMenu::item:disabled { color: @faint_text; }
 QMenu::separator { height: 1px; background: @border; margin: 4px 8px; }
-QToolTip { background: @base; color: @text; border: 1px solid @strong_border; padding: 4px 7px; }
+QToolTip { background: @chrome; color: @on_chrome; border: none; border-radius: @tip_radius; padding: 6px 10px; }
 
 QToolBar { background: @base; border: none; border-bottom: 1px solid @border; padding: 4px 6px; spacing: 4px; }
 QToolBar::separator { background: @border; width: 1px; margin: 4px 6px; }
@@ -350,6 +378,9 @@ QTreeView#PackageTree { background: @window; border: none; padding: 4px 0; outli
       {"base", t.base},                   {"text", t.text},
   });
   s.replace(QStringLiteral("@arrows"), arrow_dir(t));
+  const bool rounded = style::rounded_popups(QGuiApplication::platformName());
+  s.replace(QStringLiteral("@menu_radius"), QLatin1String(rounded ? "8px" : "0"));
+  s.replace(QStringLiteral("@tip_radius"), QLatin1String(rounded ? "7px" : "0"));
   // Longer names first, so @accent never eats the start of @accent_soft.
   for (const auto& [name, color] : colors) s.replace(QLatin1Char('@') + QLatin1String(name), color.name());
   return s;
@@ -382,8 +413,8 @@ QPalette palette() {
   p.setColor(QPalette::Text, t.text);
   p.setColor(QPalette::Button, t.window);
   p.setColor(QPalette::ButtonText, t.text);
-  p.setColor(QPalette::ToolTipBase, t.base);
-  p.setColor(QPalette::ToolTipText, t.text);
+  p.setColor(QPalette::ToolTipBase, t.chrome);
+  p.setColor(QPalette::ToolTipText, t.on_chrome);
   p.setColor(QPalette::PlaceholderText, t.faint_text);
   p.setColor(QPalette::Highlight, t.accent);
   p.setColor(QPalette::HighlightedText, t.base);
@@ -449,7 +480,7 @@ QString installed_family(std::initializer_list<QLatin1String> wanted) {
 
 void apply(QApplication& app) {
   platform_point_size();
-  QApplication::setStyle(QStringLiteral("Fusion"));
+  QApplication::setStyle(new PopupStyle);  // the application owns its style
   QApplication::setPalette(palette());
   // IBM Plex Sans (or Windows 11's variable Segoe) where installed, else the
   // platform's own UI font. The size stays the platform's until set_font_sizes.
@@ -511,13 +542,29 @@ void set_font_sizes(int ui_pt, int code_pt) {
   code_point_size = code_pt > 0 ? code_pt : 0;
 }
 
+bool rounded_popups(const QString& platform) {
+  // xcb is left out: without a compositor a translucent window is black where
+  // it is clear. offscreen (the tests) has nothing to round.
+  return platform == QLatin1String("cocoa") || platform == QLatin1String("windows") ||
+         platform == QLatin1String("wayland");
+}
+
 QString tip_text(const QString& plain) {
   const qsizetype cut = plain.indexOf(QLatin1Char('\n'));
   if (cut < 0) return plain;
   QString rest = plain.mid(cut + 1).toHtmlEscaped();
   rest.replace(QLatin1Char('\n'), QStringLiteral("<br>"));
-  return QStringLiteral("<p style=\"white-space:pre; margin:0\"><span style=\"font-weight:600\">%1</span><br>%2</p>")
-      .arg(plain.left(cut).toHtmlEscaped(), rest);
+  // Details in the tooltip's text colour, faded toward its ink ground.
+  const Theme& t = theme();
+  QColor detail = t.on_chrome;
+  constexpr double kept = 0.68;
+  detail.setRgbF(static_cast<float>(t.on_chrome.redF() * kept + t.chrome.redF() * (1 - kept)),
+                 static_cast<float>(t.on_chrome.greenF() * kept + t.chrome.greenF() * (1 - kept)),
+                 static_cast<float>(t.on_chrome.blueF() * kept + t.chrome.blueF() * (1 - kept)));
+  return QStringLiteral(
+             "<p style=\"white-space:pre; margin:0\"><span style=\"font-weight:600\">%1</span></p>"
+             "<p style=\"white-space:pre; margin:3px 0 0 0; color:%3\">%2</p>")
+      .arg(plain.left(cut).toHtmlEscaped(), rest, detail.name());
 }
 
 QFont title_font(const QFont& base) {
