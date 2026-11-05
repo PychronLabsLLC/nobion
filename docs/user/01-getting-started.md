@@ -293,7 +293,8 @@ The main window is the extraction line. Its title is
 +--------------------------------------------------------------+
 | menu bar                                                     |
 +--------------------------------------------+-----------------+
-|                                            | Alarms          |
+| status band: mode, run, alarms, clock      | Alarms          |
+| alarm strip (only while alarms stand)      |                 |
 |   canvas: the drawing of the line          | Heaters (if any)|
 |   (click a valve for its faceplate)        | Cryo (if any)   |
 |                                            |                 |
@@ -308,6 +309,11 @@ The main window is the extraction line. Its title is
 
 The canvas draws the line from `canvas.toml`: valves, stages, pipettes, gauge
 readouts and labels. **Legend**, at its top right, explains every symbol.
+Above it, the status band says whether the line is live or simulated, what
+the queue is doing, how many alarms stand, whether every connection is up,
+and the time on the line's clock; the alarm strip under it lists the most
+pressing alarms (details in
+[02 Extraction line](02-extraction-line.md#the-status-band-and-the-alarm-strip)).
 
 - **Click a valve** to open its faceplate: its state, the interlocks its
   opening waits on, its history, and the buttons **Open** / **Close** and

@@ -30,6 +30,26 @@ Related pages: [getting started](01-getting-started.md),
   preferences (on a Mac the platform may move it to the application menu). **Help > Command palette** (Ctrl+Shift+P) and
   **Help > Keyboard shortcuts** list everything else.
 
+## The status band and the alarm strip
+
+A dark band runs across the top of the canvas. Left to right:
+
+| Field | What it says |
+|---|---|
+| Mode | `LIVE` (grey) on real hardware; `SIMULATED` (teal), or `SIMULATED x50` with `--sim-speed 50`, in a simulation. |
+| Line | The line's name. |
+| Executor | `No experiment session`, `Idle`, `Preparing queue`, `Running 66120-01A`, `Holding: <why>` (amber), `Stopping after …`, `Cancelling`, `Aborting` (amber), `Finishing queue`. |
+| Alarms | `No alarms`, or the count of standing alarms: `1 critical · 2 warning` (red while any is critical, amber for warnings only). Click it for the Alarms dock. |
+| Connections | `Connections ok (6)`, or what is wrong: `1 down · 1 degraded` (red while one is down, amber while one is degraded). The status bar at the bottom has a chip for each. |
+| Clock | The time on the line's clock: simulated time in a simulation. |
+
+Normal states are plain text; colour means something needs looking at.
+
+Under the band, the **alarm strip** shows the three most pressing standing
+alarms, critical before warning and newest first, then `+N more`. It is
+there only while a warning or critical alarm stands (`info` alarms stay in
+the dock). Click it for the Alarms dock; alarms are acknowledged there.
+
 ## Reading the canvas
 
 The **Legend** button at the top right of the canvas opens a key to every
@@ -50,6 +70,7 @@ while you work; press the button again, or Esc, to close it.
 | Blue padlock on a valve's corner | The valve is **locked** in software. |
 | Valve flashes yellow | The last command was refused or failed. Hover for the reason. |
 | A rounded chip with a small dial and `IG1: 1.20e-08 torr` | A gauge and its latest reading. The chip text turns red while the reading is outside `alarm_high` / `alarm_low`. Rest the pointer on it for a moment (under a second) and a small chart of its last 10 minutes appears beside it (it goes when the pointer moves off, the canvas scrolls or a button is pressed). Click it to open the gauge's own window (see [Gauges](#gauges)). |
+| A grey gauge chip with a dashed outline and an age, `CG1: 1.00e-09 torr · 45 s` | No new reading for three scans (3 s at the default `scan_interval_ms`): the value is old, and so is any alarm it showed (grey wins over red). `no reading` when the gauge has not answered since the window opened. The next reading clears it. |
 | A gauge chip that shows only its name | The canvas draws a gauge that `extraction_line.toml` does not define; it is decoration and never shows a reading. Resting on it or clicking it does nothing. |
 | Boxes (stages) | Volumes: prep line, stage1, turbo, spectrometer, tanks. Some carry a glyph (turbo, ion pump, roughing pump, cryo, getter, spectrometer, laser, quadrupole). |
 | Pipes | Connections between boxes and valves. |
@@ -307,6 +328,9 @@ cryostat and the spectrometer have raised: columns Source, Severity
   press **Acknowledge**, or press **Acknowledge all**. Acknowledging only
   removes the row; it does not silence the hardware.
 - The gauge chip's red text follows the live reading, independent of the dock.
+- The status band counts the standing warning and critical rows, and the
+  alarm strip under it shows the three most pressing; both follow the dock
+  (see [The status band and the alarm strip](#the-status-band-and-the-alarm-strip)).
 
 ## Log dock
 

@@ -48,6 +48,7 @@
 #include "processing_bridge.hpp"
 #include "reading_history.hpp"
 #include "rehearsal_window.hpp"
+#include "status_banner.hpp"
 #include "field_table_editor_window.hpp"
 #include "peak_center_window.hpp"
 #include "spectrometer_window.hpp"
@@ -84,6 +85,11 @@ class MainWindow : public QMainWindow {
   // Null unless the line has [[heaters]].
   HeaterDock* heater_dock() const noexcept { return heaters_; }
   HealthBar* health_bar() const noexcept { return health_; }
+  // The band at the top (spec 2026-11-05-hmi-banner) and the alarms under it.
+  StatusBanner* status_banner() const noexcept { return banner_; }
+  AlarmStrip* alarm_strip() const noexcept { return strip_; }
+  // Live or simulated, and how fast: the banner's mode.
+  void set_line_mode(LineMode mode);
   // Where the panels are: the factory layout, the last one, the named ones.
   DockLayouts* dock_layouts() const noexcept { return layouts_; }
 
@@ -267,6 +273,8 @@ class MainWindow : public QMainWindow {
   CryoDock* cryo_ = nullptr;
   HeaterDock* heaters_ = nullptr;
   HealthBar* health_;
+  StatusBanner* banner_ = nullptr;
+  AlarmStrip* strip_ = nullptr;
   DockLayouts* layouts_ = nullptr;
   QAction* spectrometer_action_;
   SpectrometerBridge* spectrometer_ = nullptr;
@@ -282,7 +290,7 @@ class MainWindow : public QMainWindow {
   QAction* experiment_action_;
   ExperimentBridge* experiment_ = nullptr;
   // The bridge's signals to refresh_data() and to the health bar's hold chip.
-  std::array<QMetaObject::Connection, 7> experiment_refreshes_;
+  std::array<QMetaObject::Connection, 10> experiment_refreshes_;
   bool experiment_simulation_ = false;
   std::optional<std::filesystem::path> experiment_queue_;
   std::function<std::unique_ptr<QSettings>()> experiment_settings_;

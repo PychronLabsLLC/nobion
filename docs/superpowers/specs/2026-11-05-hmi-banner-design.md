@@ -1,6 +1,6 @@
 # HMI status banner, alarm strip, stale gauge mark
 
-Date 2026-11-05. Status: agreed. Follows `2026-11-04-hmi-valves-design.md`
+Date 2026-11-05. Status: built. Follows `2026-11-04-hmi-valves-design.md`
 §2 (banner, strip, stale mark deferred there; gauge faceplates dropped:
 gauge window and rest chart cover them).
 
@@ -36,19 +36,20 @@ Out:
 
 `MainWindow` central widget becomes wrapper (`QWidget`, `QVBoxLayout`,
 zero margins, zero spacing): `StatusBanner`, `AlarmStrip`, `CanvasView`.
+Band spans canvas column; docks sit beside it, not under it.
 Menu bar unchanged (global bar on macOS: `setMenuWidget` not used). Dock
 layouts unchanged: banner and strip are not docks, not saved in
 `DockLayouts`.
 
 ## 4. `StatusBanner`
 
-New `apps/nobion/src/status_banner.{hpp,cpp}`. `QFrame`, one row, fixed
+New `apps/nobion/src/status_banner.{hpp,cpp}` (also holds `AlarmStrip`). `QFrame`, one row, fixed
 height 28 px, background `theme().chrome`, text `theme().on_chrome`.
 Fields left to right, each a `QLabel` with object name for tests:
 
 | Field | Object name | Shows | Source |
 |---|---|---|---|
-| Mode | `bannerMode` | "LIVE", "SIMULATED", "SIMULATED x50" (`--sim-speed`) | `MainWindow::set_line_mode(LineMode)`, from `main.cpp` (`sim`, `sim_speed`) |
+| Mode | `bannerMode` | "LIVE" (grey pill), "SIMULATED", "SIMULATED x50" (`--sim-speed`) | `MainWindow::set_line_mode(LineMode)`, from `main.cpp` (`sim`, `sim_speed`) |
 | Line | `bannerLine` | line name | as window title |
 | Executor | `bannerExecutor` | below | `ExperimentBridge` signals |
 | Alarms | `bannerAlarms` | "No alarms", "2 critical · 1 warning" | `AlarmDock` (§5) |
@@ -62,20 +63,21 @@ struct LineMode {
 };
 ```
 
-Mode chip: live in `theme().on_chrome` on chrome (normal state is not
-coloured, ISA-101); simulated on `theme().accent_strong`, so a simulated
-session is never mistaken for live.
+Mode chip: live a `muted_text` pill (grey: normal state, no alarm colour,
+ISA-101); simulated an `accent_strong` pill, so a simulated session is
+never mistaken for live.
 
 Executor text by `ExecutorState` (`executor.hpp:72`):
 
 | State | Text |
 |---|---|
 | no session (`set_experiment` not called) | "No experiment session" |
+| session given while a queue runs (`ExperimentBridge::running()`) | "Running" until next `RunStarted` |
 | `Idle` | "Idle" |
 | `Preparing` | "Preparing queue" |
-| `Running` | "Running <identifier>" (last `RunStarted::identifier`) |
+| `Running` | "Running <name>" (last `RunStarted::name`, `<identifier>-<aliquot><step>`; identifier when empty) |
 | `Holding` | "Holding: <reason>" (`ExecutorHolding::reason`) |
-| `StoppingAtBoundary` | "Stopping after <identifier>" |
+| `StoppingAtBoundary` | "Stopping after <name>" |
 | `Cancelling`, `Aborting` | "Cancelling", "Aborting" |
 | `Finalizing` | "Finishing queue" |
 
@@ -92,18 +94,24 @@ coloured by worst (`level_color`). Click: nothing (health chips are in the
 status bar under it).
 
 Clock: wall time of line's clock, so simulated session shows simulated
-time. Tooltip names clock ("virtual x50" or "system").
+time. Tooltip names clock ("simulated, 50 times real time" or "real
+time").
 
-`StatusBanner` holds no line state: `MainWindow` pushes
-`set_mode`, `set_line`, `set_executor(QString, style::Tone)`,
-`set_alarm_counts(int critical, int warning)`,
-`set_health(HealthSummary)`, and gives it a `std::function<QDateTime()>`
-clock.
+`StatusBanner` holds no line state: `MainWindow` pushes `set_mode`,
+`set_line`, `set_session`, the executor events (`on_state`,
+`on_run_started`, `on_holding`), `set_alarms(rows)`,
+`set_health(HealthBar::Summary)`, and gives it a
+`std::function<QDateTime()>` clock. Fields on dark band: normal state plain
+text; state needing attention a pill (critical `error_bg`, warning and
+holding `warning_bg`, simulated `accent_strong`, live `muted_text`).
 
 ## 5. Alarms: standing set and `AlarmStrip`
 
 Standing alarm = row in `AlarmDock` (one per source, newest replaces,
 removed only by acknowledge). Rule unchanged; banner and strip read it.
+Ties of time broken by raise order (a counter per raise: same second, or
+same simulated instant). A repeat of what a row says (same severity and
+message) moves only its time and does not emit `changed()`.
 
 `AlarmDock` gains:
 
@@ -113,7 +121,7 @@ std::vector<AlarmRow> rows() const;  // standing, Critical first, then newest fi
 signals: void changed();             // after add, acknowledge, acknowledge all
 ```
 
-`AlarmStrip` (new `apps/nobion/src/alarm_strip.{hpp,cpp}`): `QFrame`
+`AlarmStrip` (in `status_banner.{hpp,cpp}`): `QFrame`
 under banner. Hidden while no Critical or Warning row stands. Shows up to
 3 rows from `rows()` (Info left out), one line each:
 
@@ -151,18 +159,20 @@ chip's status changes (not on age ticks). Rule of status unchanged
   new key.
 - Sample age: `PressureSample::ts` is line `Clock::now()`; compared with
   `CoreBridge::now()` (same clock): simulated time in a simulation.
-- Canvas: `ICanvasState::gauge_stale_after()` (`std::chrono::milliseconds`,
-  0 = never), `CoreBridge` reads config once. `CanvasView` 1 s
-  `QTimer` checks each wired gauge; `GaugeLabelItem::set_stale(bool,
-  QString age)`.
+- Canvas: `CanvasView` over a bridge reads `gauge_stale_after` of
+  `bridge_->config().system` once; `check_stale()` on a 1 s `QTimer`
+  against `bridge_->now()`; `GaugeLabelItem::set_stale(bool, QString
+  age)`. Read-only view (no bridge, no readings): `stale_after()` 0, marks
+  nothing. A gauge never read since view was built: age text "no reading".
 - Stale chip: value and dial in `theme().muted_text`, dashed chip outline,
   age appended: `IG1: 1.20e-08 torr · 45 s`. Age in s under 120 s, then
   min. Alarm red wins over stale grey? No: stale wins (value is not
   current, so its alarm is not either); tooltip says "No reading for 45 s;
   last value was in alarm" when both.
 - Next sample clears it at once.
-- Legend (`canvas_legend`) gains `gauge.stale` row: "No new reading for 3
-  scans: value is old.".
+- Legend (`canvas_legend`) gains `gauge.stale` row: "No new reading for
+  three scans (grey, dashed): the value is old, and so is any alarm it
+  showed.".
 
 ## 8. Rules that must hold
 
@@ -177,18 +187,16 @@ chip's status changes (not on age ticks). Rule of status unchanged
 
 ## 9. Tests
 
-- `tests/ui/test_status_banner.cpp` (new): mode texts; executor text per
+- `tests/ui/test_status_banner.cpp` (new; also `AlarmDock::rows()` /
+  `changed()`, `HealthBar::summary()` / `changed()`, strip): mode texts; executor text per
   state from `ExperimentBridge` signals; alarm counts follow dock add and
   acknowledge, Info not counted; health text from summary; clock reads
   injected clock; click on alarms raises dock.
-- `tests/ui/test_alarm_strip.cpp` (new): hidden with none or Info only;
-  Critical before Warning, newest first; 3 rows then "+N more"; click
-  raises dock.
+- Strip (same file): hidden with none or Info only; Critical before
+  Warning, newest first; 3 rows then "+N more"; click raises dock.
 - `tests/ui/test_canvas_view.cpp`: gauge goes stale after 3 scans with no
   sample (simulated time, `VirtualClock` or injected `now`), clears on
   sample, unwired never stale, stale beats alarm colour.
-- `tests/ui/test_docks.cpp` or `test_health_bar`: `AlarmDock::rows()`
-  order and `changed()`; `HealthBar::summary()`.
 - `tests/systems`: `gauge_stale_after` = 3 x scan interval;
   `LinePressureService` unchanged behaviour.
 - `tests/ui/test_canvas_legend.cpp`: `gauge.stale` row.

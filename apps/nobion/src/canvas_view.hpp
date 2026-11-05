@@ -10,6 +10,7 @@
 // The drawing never overflows the view: it is scaled, either way, to fit the
 // view whatever its size, with no scroll bars and nothing to pan.
 
+#include <chrono>
 #include <functional>
 #include <map>
 #include <memory>
@@ -107,6 +108,15 @@ class CanvasView : public QGraphicsView {
   // The legend window; null until it was first shown.
   [[nodiscard]] CanvasLegend* legend() const noexcept { return legend_; }
   void show_legend(bool shown);
+  // Marks each wired gauge stale or not as of the line's clock now (a 1 s
+  // timer does too): no reading for gauge_stale_after() of the line. A view
+  // with no bridge has no readings and marks nothing.
+  void check_stale();
+  // How old a reading may be; zero without a bridge.
+  [[nodiscard]] std::chrono::milliseconds stale_after() const noexcept { return stale_after_; }
+  // "45 s" under two minutes, then whole minutes: "3 min".
+  static QString age_text(std::chrono::milliseconds age);
+
   // What the legend is drawn from: this canvas's style and sources.
   [[nodiscard]] LegendInputs legend_inputs() const;
 
@@ -198,6 +208,10 @@ class CanvasView : public QGraphicsView {
   std::vector<ConnectionItem*> pipes_;
   int connections_ = 0;
   QTimer gauge_rest_timer_;
+  QTimer stale_timer_;
+  std::chrono::milliseconds stale_after_{0};
+  TimePoint watch_from_{};                         // readings expected from here on
+  std::map<std::string, TimePoint> last_sample_;  // per gauge, on the line's clock
   std::string gauge_under_;  // the wired gauge the pointer is on, if any
   bool gauge_rested_ = false;
 };

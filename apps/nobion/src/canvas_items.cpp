@@ -800,6 +800,14 @@ void GaugeLabelItem::set_alarm(bool alarm) {
   refresh();
 }
 
+void GaugeLabelItem::set_stale(bool stale, const QString& age) {
+  const QString shown = stale ? age : QString();
+  if (stale == stale_ && shown == age_) return;
+  stale_ = stale;
+  age_ = shown;
+  refresh();
+}
+
 // The dial sits left of the reading, as tall as the text.
 QRectF GaugeLabelItem::dial_rect() const {
   const QRectF text = QGraphicsSimpleTextItem::boundingRect();
@@ -848,7 +856,7 @@ void GaugeLabelItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
   const QColor ink = brush().color();  // red with the reading while in alarm
   painter->setRenderHint(QPainter::Antialiasing, true);
   const QRectF chip = chip_rect();
-  painter->setPen(QPen(ink, 1));
+  painter->setPen(QPen(ink, 1, stale_ ? Qt::DashLine : Qt::SolidLine));
   painter->setBrush(theme().base);
   painter->drawRoundedRect(chip, chip.height() / 2, chip.height() / 2);
   QGraphicsSimpleTextItem::paint(painter, option, widget);
@@ -896,8 +904,10 @@ void GaugeLabelItem::apply_wired() {
 void GaugeLabelItem::refresh() {
   prepareGeometryChange();
   // A gauge the line does not define is there for illustration: its name only.
-  setText(wired_ ? QStringLiteral("%1: %2").arg(QString::fromStdString(name_), value_) : QString::fromStdString(name_));
-  setBrush(alarm_ ? theme().error_text : theme().text);
+  QString text = wired_ ? QStringLiteral("%1: %2").arg(QString::fromStdString(name_), value_) : QString::fromStdString(name_);
+  if (wired_ && stale_ && !age_.isEmpty()) text += QStringLiteral(" · ") + age_;
+  setText(text);
+  setBrush(stale_ ? theme().muted_text : alarm_ ? theme().error_text : theme().text);
   // Center the chip (dial and text) on the element position the view assigns
   // with setPos(); the text itself starts at x = 0.
   const QRectF r = QGraphicsSimpleTextItem::boundingRect();

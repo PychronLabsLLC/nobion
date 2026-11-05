@@ -168,7 +168,7 @@ class TestCanvasLegend : public QObject {
     for (const char* key :
          {"valve.actuated", "valve.manual", "valve.switch", "valve.open", "valve.closed", "valve.unknown",
           "valve.pending", "valve.selected", "valve.locked", "valve.failed", "gauge.reading", "gauge.alarm",
-          "gauge.unwired", "stage.volume", "stage.spectrometer", "stage.quadrupole", "stage.laser", "stage.turbo",
+          "gauge.stale", "gauge.unwired", "stage.volume", "stage.spectrometer", "stage.quadrupole", "stage.laser", "stage.turbo",
           "stage.getter", "stage.ion_pump", "stage.cryo", "stage.roughing_pump", "pipe", "section.none",
           "section.rule"}) {
       const LegendEntry* e = find(entries, QString::fromLatin1(key));

@@ -28,6 +28,14 @@ class HealthBar : public QWidget {
 
  public:
   enum class Status { Unknown, Ok, Degraded, Down };
+  // How many transports are in each status.
+  struct Summary {
+    int ok = 0;
+    int degraded = 0;
+    int down = 0;
+    int unknown = 0;
+    friend bool operator==(const Summary&, const Summary&) = default;
+  };
 
   // `now` must use the core Clock's epoch; defaults to steady_clock.
   explicit HealthBar(QWidget* parent = nullptr, std::function<TimePoint()> now = {});
@@ -53,6 +61,11 @@ class HealthBar : public QWidget {
 
   std::optional<Status> status(const std::string& transport) const;
   QLabel* chip(const std::string& transport) const;
+  [[nodiscard]] Summary summary() const;
+
+ signals:
+  // A transport was added or its status changed (not on the age ticks).
+  void changed();
 
  private:
   struct Chip {

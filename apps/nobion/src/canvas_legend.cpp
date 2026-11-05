@@ -160,6 +160,12 @@ std::vector<LegendEntry> legend_entries(const LegendInputs& in) {
         g.set_value(1.2e-4, "torr");
         g.set_alarm(true);
       }));
+  add(gauges, QStringLiteral("gauge.stale"),
+      tr("No new reading for three scans (grey, dashed): the value is old, and so is any alarm it showed."),
+      gauge_glyph(in, [](GaugeLabelItem& g) {
+        g.set_value(1.2e-8, "torr");
+        g.set_stale(true, QStringLiteral("45 s"));
+      }));
   add(gauges, QStringLiteral("gauge.unwired"), tr("Drawn, but not defined by the line: no reading."),
       gauge_glyph(in, [](GaugeLabelItem& g) { g.set_wired(false); }));
 

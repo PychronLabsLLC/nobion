@@ -17,6 +17,7 @@
 
 #include <QMessageBox>
 
+#include "pychron/systems/line_pressure_service.hpp"
 #include "pychron/systems/network_graph.hpp"
 
 namespace pychron::ui {
@@ -121,6 +122,11 @@ CanvasView::CanvasView(ICanvasState& state, CoreBridge* bridge, QWidget* parent)
       }
     });
     connect(bridge_, &CoreBridge::actuationFinished, this, &CanvasView::on_finished);
+    stale_after_ = systems::gauge_stale_after(bridge_->config().system);
+    watch_from_ = bridge_->now();
+    stale_timer_.setInterval(1000);
+    connect(&stale_timer_, &QTimer::timeout, this, &CanvasView::check_stale);
+    stale_timer_.start();
   }
   apply_state();
 }
@@ -779,6 +785,11 @@ void CanvasView::on_pressure(const PressureSample& sample) {
     return;
   }
   item->set_value(sample.value, sample.units);
+  last_sample_[sample.gauge] = sample.ts;
+  if (item->is_stale()) {
+    item->set_stale(false);
+    item->setToolTip(QString());  // the stale mark's own; a chip has no other
+  }
   grow_content();
   if (!item->in_alarm()) {
     return;
@@ -792,6 +803,36 @@ void CanvasView::on_pressure(const PressureSample& sample) {
       item->set_alarm(high || low);
     }
   }
+}
+
+void CanvasView::check_stale() {
+  if (bridge_ == nullptr || stale_after_.count() <= 0) return;
+  const TimePoint now = bridge_->now();
+  bool moved = false;
+  for (auto& [name, item] : gauges_) {
+    if (!item->wired()) continue;
+    const auto seen = last_sample_.find(name);
+    const TimePoint since = seen == last_sample_.end() ? watch_from_ : seen->second;
+    const auto age = std::chrono::duration_cast<std::chrono::milliseconds>(now - since);
+    if (age > stale_after_) {
+      const QString before = item->text();
+      item->set_stale(true, seen == last_sample_.end() ? tr("no reading") : age_text(age));
+      moved = moved || item->text() != before;
+      item->setToolTip(item->in_alarm() ? tr("No reading for %1; the last value was in alarm").arg(age_text(age))
+                                        : tr("No reading for %1").arg(age_text(age)));
+    } else if (item->is_stale()) {
+      item->set_stale(false);
+      item->setToolTip(QString());
+      moved = true;
+    }
+  }
+  if (moved) grow_content();  // a chip widens with its age
+}
+
+QString CanvasView::age_text(std::chrono::milliseconds age) {
+  const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(age).count();
+  if (seconds < 120) return tr("%1 s").arg(seconds);
+  return tr("%1 min").arg(seconds / 60);
 }
 
 void CanvasView::on_alarm(const Alarm& alarm) {

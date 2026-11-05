@@ -771,6 +771,7 @@ int main(int argc, char** argv) {
     // start-up Snapshot paints the canvas before the first scan.
     pychron::ui::MainWindow window(**line, std::make_unique<QSettings>());
     window.apply_preferences(pychron::ui::load_preferences(QSettings()));
+    window.set_line_mode({sim, sim_clock != nullptr ? cli->sim_speed : 0.0});
     // Preferences keeps the line's logging and metrics beside this file. Not
     // for the examples that come with the application: they are part of it
     // (inside the bundle on macOS), and nothing is written there.

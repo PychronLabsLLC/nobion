@@ -12,20 +12,18 @@ suite under `tests/systems`.
 ## Task 2: what the banner counts
 
 `AlarmDock::rows()` and `changed()`; `HealthBar::summary()` and
-`changed()`. Tests beside the existing dock and health bar tests in
-`tests/ui`.
+`changed()`. Tests in `tests/ui/test_status_banner.cpp`.
 
 ## Task 3: banner and strip
 
-`apps/nobion/src/status_banner.{hpp,cpp}`, `apps/nobion/src/alarm_strip.{hpp,cpp}`,
+`apps/nobion/src/status_banner.{hpp,cpp}` (banner and strip),
 `LineMode` and `MainWindow::set_line_mode` (called from `main.cpp`), the
 central wrapper in `main_window.cpp`, executor text from `ExperimentBridge`
-signals. Tests `tests/ui/test_status_banner.cpp`, `tests/ui/test_alarm_strip.cpp`.
+signals. Tests `tests/ui/test_status_banner.cpp`.
 
 ## Task 4: stale gauge mark
 
-`ICanvasState::gauge_stale_after()`, `CoreBridge` reads it once;
-`GaugeLabelItem::set_stale`; `CanvasView` 1 s check; legend row
+`CanvasView::check_stale()` over its bridge; `GaugeLabelItem::set_stale`; `CanvasView` 1 s check; legend row
 `gauge.stale`. Tests in `tests/ui/test_canvas_view.cpp` and
 `tests/ui/test_canvas_legend.cpp`.
 

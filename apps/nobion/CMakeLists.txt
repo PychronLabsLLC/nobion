@@ -22,6 +22,7 @@ add_library(pychron_ui_lib STATIC
   src/canvas_state.cpp
   src/canvas_view.cpp
   src/valve_popup.cpp
+  src/status_banner.cpp
   src/canvas_legend.cpp
   src/dock_layouts.cpp
   src/error_report.cpp
@@ -136,6 +137,7 @@ add_library(pychron_ui_lib STATIC
   src/canvas_state.hpp
   src/canvas_view.hpp
   src/valve_popup.hpp
+  src/status_banner.hpp
   src/canvas_legend.hpp
   src/dock_layouts.hpp
   src/error_report.hpp

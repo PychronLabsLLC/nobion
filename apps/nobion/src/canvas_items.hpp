@@ -308,6 +308,13 @@ class GaugeLabelItem : public QGraphicsSimpleTextItem {
   void set_value(double value, const std::string& units);
   void set_alarm(bool alarm);
 
+  // No new reading for too long (spec 2026-11-05-hmi-banner §7): the value
+  // and dial go grey, the chip's outline dashed, and `age` ("45 s") follows
+  // the value. Grey wins over the alarm red: an old value's alarm is not
+  // current either. The next reading clears it.
+  bool is_stale() const noexcept { return stale_; }
+  void set_stale(bool stale, const QString& age = {});
+
   // False for a gauge the line does not define: drawn for illustration, its
   // name with no reading.
   bool wired() const noexcept { return wired_; }
@@ -342,6 +349,8 @@ class GaugeLabelItem : public QGraphicsSimpleTextItem {
   std::string name_;
   QString value_ = QStringLiteral("--");
   bool alarm_ = false;
+  bool stale_ = false;
+  QString age_;
   bool wired_ = true;
 };
 

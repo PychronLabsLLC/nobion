@@ -282,6 +282,71 @@ class TestCanvasView : public QObject {
     line->stop();
   }
 
+  // A wired gauge with no reading for three scans goes grey, dashed, with
+  // its age (spec 2026-11-05-hmi-banner §7), on the line's clock; the next
+  // reading clears it; grey wins over the alarm red; a gauge only drawn is
+  // never stale.
+  void aGaugeWithNoNewReadingGoesStale() {
+    using namespace std::chrono_literals;
+    VirtualClock clock(VirtualClock::Options{});  // outlives the line; nobody holds it, so a sleep jumps
+    // With a gauge the line does not define, drawn for illustration.
+    const std::filesystem::path examples = PYCHRON_EXAMPLE_CONFIGS_DIR;
+    QTemporaryDir tmp;
+    const std::filesystem::path canvas = std::filesystem::path(tmp.path().toStdString()) / "canvas.toml";
+    std::filesystem::copy_file(examples / "canvas.toml", canvas);
+    std::ofstream(canvas, std::ios::app) << "\n[[gauge]]\nname = \"Stage1 IG\"\npos = [100, 120]\n";
+    auto line = ui::test::make_example_line(canvas, &clock);
+    CoreBridge bridge(*line);
+    CanvasView view(bridge);
+    QCOMPARE(view.stale_after(), 3 * std::chrono::milliseconds(line->config().system.scan_interval_ms));
+    ui::GaugeLabelItem* ig1 = view.gauge("IG1");
+    QVERIFY(ig1 != nullptr && ig1->wired());
+
+    view.check_stale();
+    QVERIFY(!ig1->is_stale());
+    clock.sleep_for(view.stale_after() + 1s);
+    view.check_stale();
+    QVERIFY(ig1->is_stale());
+    QVERIFY2(ig1->text().endsWith(QStringLiteral("no reading")), qPrintable(ig1->text()));
+
+    QVERIFY(ig1->toolTip().startsWith(QStringLiteral("No reading for")));
+    line->bus().publish(PressureSample{"IG1", 1.2e-8, "torr", clock.now()});
+    QTRY_VERIFY(!ig1->is_stale());
+    QVERIFY(ig1->toolTip().isEmpty());  // at once, not at the next check
+    QVERIFY2(ig1->text().startsWith(QStringLiteral("IG1: 1.20e-08 torr")), qPrintable(ig1->text()));
+    QCOMPARE(ig1->brush().color(), ui::theme().text);
+
+    clock.sleep_for(view.stale_after() + 2s);
+    view.check_stale();
+    QVERIFY(ig1->is_stale());
+    const QString age =
+        ui::CanvasView::age_text(std::chrono::duration_cast<std::chrono::milliseconds>(view.stale_after() + 2s));
+    QVERIFY2(ig1->text().endsWith(QStringLiteral(" · ") + age), qPrintable(ig1->text()));
+    QCOMPARE(ig1->brush().color(), ui::theme().muted_text);
+    ig1->set_alarm(true);
+    QCOMPARE(ig1->brush().color(), ui::theme().muted_text);
+    view.check_stale();
+    QVERIFY(ig1->toolTip().contains(QStringLiteral("in alarm")));
+
+    const ui::GaugeLabelItem* drawn = view.gauge("Stage1 IG");
+    QVERIFY(drawn != nullptr && !drawn->wired());
+    QVERIFY(!drawn->is_stale());
+    QCOMPARE(ui::CanvasView::age_text(45s), QStringLiteral("45 s"));
+    QCOMPARE(ui::CanvasView::age_text(119s), QStringLiteral("119 s"));
+    QCOMPARE(ui::CanvasView::age_text(185s), QStringLiteral("3 min"));
+  }
+
+  // A read-only view (a rehearsal) has no readings and marks nothing stale.
+  void aReadOnlyViewMarksNothingStale() {
+    auto line = ui::test::make_example_line();
+    CoreBridge bridge(*line);
+    ui::CoreBridgeCanvasState state(bridge);
+    CanvasView ro(state, nullptr);
+    QCOMPARE(ro.stale_after().count(), 0);
+    ro.check_stale();
+    QVERIFY(!ro.gauge("IG1")->is_stale());
+  }
+
   // The lines under a valve's name, from its history and as of a given moment.
   void valveDetailsSayStateHistoryAndTimeOpen() {
     using std::chrono::seconds;

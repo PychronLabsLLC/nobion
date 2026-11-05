@@ -13,6 +13,7 @@
 #include <utility>
 
 #include <QApplication>
+#include <QVBoxLayout>
 #include <QCloseEvent>
 #include <QDialog>
 #include <QIcon>
@@ -192,7 +193,19 @@ MainWindow::MainWindow(systems::ExtractionLine& line, std::unique_ptr<QSettings>
       log_hub_(line.log_hub()) {
   setWindowTitle(QStringLiteral("Nobion — %1").arg(QString::fromStdString(line.config().system.name)));
   resize(kDefaultSize);  // the saved geometry, if any, wins below
-  setCentralWidget(canvas_);
+  // The status band and the standing alarms above the canvas (spec
+  // 2026-11-05-hmi-banner §3); not docks, so no layout saves them.
+  banner_ = new StatusBanner([this] { return bridge_.wall_now(); });
+  banner_->set_line(QString::fromStdString(line.config().system.name));
+  strip_ = new AlarmStrip;
+  auto* centre = new QWidget(this);
+  auto* stack = new QVBoxLayout(centre);
+  stack->setContentsMargins(0, 0, 0, 0);
+  stack->setSpacing(0);
+  stack->addWidget(banner_);
+  stack->addWidget(strip_);
+  stack->addWidget(canvas_, 1);
+  setCentralWidget(centre);
   log_->set_fed_by(bridge_.bus());
   if (bridge_.cryo_outputs() > 0 || !bridge_.cryo_inputs().empty()) {
     cryo_ = new CryoDock(bridge_, this);
@@ -338,6 +351,7 @@ MainWindow::MainWindow(systems::ExtractionLine& line, std::unique_ptr<QSettings>
     transports.push_back(name);
   }
   health_->seed(transports);
+  banner_->set_health(health_->summary());
 
   for (const auto& w : line.warnings()) {
     log_->append_line(QStringLiteral("WARN [canvas] ") + QString::fromStdString(config::to_string(w)));
@@ -345,6 +359,19 @@ MainWindow::MainWindow(systems::ExtractionLine& line, std::unique_ptr<QSettings>
 
   connect(&bridge_, &CoreBridge::logLine, log_, &LogDock::append_log);
   connect(&bridge_, &CoreBridge::alarm, alarms_, &AlarmDock::add_alarm);
+  // The banner and the strip count what the dock and the health bar hold.
+  const auto show_alarms = [this] {
+    alarms_->show();
+    alarms_->raise();
+  };
+  connect(alarms_, &AlarmDock::changed, this, [this] {
+    const auto rows = alarms_->rows();
+    banner_->set_alarms(rows);
+    strip_->set_alarms(rows);
+  });
+  connect(health_, &HealthBar::changed, banner_, [this] { banner_->set_health(health_->summary()); });
+  connect(banner_, &StatusBanner::alarms_clicked, this, show_alarms);
+  connect(strip_, &AlarmStrip::clicked, this, show_alarms);
   connect(&bridge_, &CoreBridge::transportHealth, health_, &HealthBar::update_health);
   // A gauge's history: a rest on its chip shows the last ten minutes, a
   // click opens its window. The popup is the main window's (it places
@@ -440,6 +467,8 @@ void MainWindow::set_spectrometer(SpectrometerBridge* bridge, bool simulation,
                                                     : QStringLiteral("no spectrometer configured"));
 }
 
+void MainWindow::set_line_mode(LineMode mode) { banner_->set_mode(mode); }
+
 void MainWindow::set_experiment(ExperimentBridge* bridge, bool simulation, std::optional<std::filesystem::path> queue,
                                 std::function<std::unique_ptr<QSettings>()> settings) {
   if (experiment_window_ != nullptr) {
@@ -482,7 +511,13 @@ void MainWindow::set_experiment(ExperimentBridge* bridge, bool simulation, std::
     experiment_refreshes_[6] = connect(bridge, &ExperimentBridge::queueEnded, this, [this] {
       if (peak_center_window_ != nullptr) peak_center_window_->queue_state_changed();
     });
+    // What the executor is doing, in the banner.
+    experiment_refreshes_[7] =
+        connect(bridge, &ExperimentBridge::executorStateChanged, banner_, &StatusBanner::on_state);
+    experiment_refreshes_[8] = connect(bridge, &ExperimentBridge::runStarted, banner_, &StatusBanner::on_run_started);
+    experiment_refreshes_[9] = connect(bridge, &ExperimentBridge::executorHolding, banner_, &StatusBanner::on_holding);
   }
+  banner_->set_session(bridge != nullptr, bridge != nullptr && bridge->running());
   health_->clear_hold();  // a hold of the old bridge's queue
   experiment_simulation_ = simulation;
   experiment_queue_ = std::move(queue);

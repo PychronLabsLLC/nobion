@@ -47,12 +47,15 @@ HealthBar::HealthBar(QWidget* parent, std::function<TimePoint()> now)
 }
 
 void HealthBar::seed(const std::vector<std::string>& transports) {
+  const Summary before = summary();
   for (const auto& name : transports) {
     render(name, chip_for(name));
   }
+  if (summary() != before) emit changed();
 }
 
 void HealthBar::update_health(const TransportHealth& health) {
+  const Summary before = summary();
   Chip& chip = chip_for(health.transport);
   chip.status = status_of(health);
   if (health.connected) {
@@ -64,6 +67,20 @@ void HealthBar::update_health(const TransportHealth& health) {
   }
   chip.label->setToolTip(tip);
   render(health.transport, chip);
+  if (summary() != before) emit changed();
+}
+
+HealthBar::Summary HealthBar::summary() const {
+  Summary s;
+  for (const auto& [name, chip] : chips_) {
+    switch (chip.status) {
+      case Status::Ok: ++s.ok; break;
+      case Status::Degraded: ++s.degraded; break;
+      case Status::Down: ++s.down; break;
+      case Status::Unknown: ++s.unknown; break;
+    }
+  }
+  return s;
 }
 
 void HealthBar::refresh() {
