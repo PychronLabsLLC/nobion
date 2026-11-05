@@ -32,6 +32,11 @@ Related pages: [getting started](01-getting-started.md),
 
 ## Reading the canvas
 
+The **Legend** button at the top right of the canvas opens a key to every
+symbol below, drawn as this canvas draws it (in its valve style and
+colours), with one row for each source colour of this line. It stays open
+while you work; press the button again, or Esc, to close it.
+
 | What you see | What it means |
 |---|---|
 | A bow-tie (two triangles tip to tip) with a small dome on a stem | An actuated valve (`[[valve]]` / `[[rough_valve]]` in the canvas). It lies along its pipe; one whose pipes leave only above and below stands upright, its stem to the left. Its name is written beside it, on a side no pipe leaves by. |

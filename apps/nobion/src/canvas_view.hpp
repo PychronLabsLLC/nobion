@@ -25,7 +25,10 @@
 #include <QStringList>
 #include <QTimer>
 
+class QToolButton;
+
 #include "canvas_items.hpp"
+#include "canvas_legend.hpp"
 #include "canvas_state.hpp"
 #include "core_bridge.hpp"
 #include "valve_popup.hpp"
@@ -98,6 +101,15 @@ class CanvasView : public QGraphicsView {
   // What the faceplate shows for a valve, as of the state now.
   [[nodiscard]] ValveFaceplate faceplate(const std::string& name) const;
 
+  // The Legend button, top right of the viewport: checked exactly while the
+  // legend shows.
+  [[nodiscard]] QToolButton* legend_button() const noexcept { return legend_button_; }
+  // The legend window; null until it was first shown.
+  [[nodiscard]] CanvasLegend* legend() const noexcept { return legend_; }
+  void show_legend(bool shown);
+  // What the legend is drawn from: this canvas's style and sources.
+  [[nodiscard]] LegendInputs legend_inputs() const;
+
   // The lines of a valve's tooltip under its name, as of `now`: description,
   // state and how long it has held, last actuation, counts and time open.
   static QStringList valve_details(const CoreBridge::State& state, const std::string& name, const QDateTime& now);
@@ -111,6 +123,10 @@ class CanvasView : public QGraphicsView {
   // differ by `ordinal`, their place among the canvas's tanks; the other
   // kinds have one colour each.
   static QColor source_color(canvas::SourceKind kind, int ordinal = 0);
+  // What a source's own region is painted: the file's colour for it, else
+  // (a pipette) its tank's, else the theme's for its kind.
+  static QColor source_display_color(const canvas::Source& source,
+                                     const std::map<std::string, canvas::Source, std::less<>>& sources);
 
  signals:
   void gauge_clicked(const QString& name);
@@ -152,6 +168,7 @@ class CanvasView : public QGraphicsView {
   // Records the side a pipe leaves a valve by; `run` starts at the valve's end.
   void note_pipe_side(const std::string& name, const std::vector<QPointF>& run);
   void end_selection();
+  void place_legend_button();
   void apply_state();
   void apply_regions();
   void on_pressure(const PressureSample& sample);
@@ -167,6 +184,10 @@ class CanvasView : public QGraphicsView {
   std::map<std::string, unsigned> pipe_sides_;  // valves, while the pipes are laid
   std::string selected_;
   ValvePopup* popup_ = nullptr;  // child; made on the first selection
+  QToolButton* legend_button_ = nullptr;  // child of the viewport
+  CanvasLegend* legend_ = nullptr;        // child; made when first shown
+  std::optional<QColor> background_;      // the file's, for the legend
+  double connection_width_ = 5;
   QGraphicsScene scene_;
   std::map<std::string, QPointF> positions_;
   std::map<std::string, ValveItem*> valves_;

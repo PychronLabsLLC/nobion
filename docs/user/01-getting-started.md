@@ -307,7 +307,7 @@ The main window is the extraction line. Its title is
 ### The canvas
 
 The canvas draws the line from `canvas.toml`: valves, stages, pipettes, gauge
-readouts and labels.
+readouts and labels. **Legend**, at its top right, explains every symbol.
 
 - **Click a valve** to open its faceplate: its state, the interlocks its
   opening waits on, its history, and the buttons **Open** / **Close** and

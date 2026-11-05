@@ -206,6 +206,10 @@ struct Source {
 // The canvas's stages and pipettes with a precedence above 0, by name.
 std::map<std::string, Source, std::less<>> sources(const Canvas& canvas);
 
+// Whether `a` wins a region over `b`: the higher precedence, then the
+// kind's place in SourceKind, then the smaller name.
+bool outranks(const Source& a, const Source& b) noexcept;
+
 // The source that colours a region holding `volumes`: the highest
 // precedence, then the kind's place in SourceKind, then the name. Null when
 // the region has none. Depends on nothing but who is connected.

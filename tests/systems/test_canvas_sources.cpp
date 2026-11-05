@@ -198,6 +198,18 @@ TEST(CanvasSources, TiesGoByKindThenName) {
   EXPECT_EQ(winner(c, {"jan", "quad"}), "jan");
 }
 
+// The legend lists sources in the order a region picks them: one rule.
+TEST(CanvasSources, OutranksIsTheRuleDominantUses) {
+  const auto c = fixture();
+  const auto all = sources(c);
+  for (const auto& [a_name, a] : all) {
+    for (const auto& [b_name, b] : all) {
+      if (a_name == b_name) continue;
+      EXPECT_EQ(outranks(a, b), winner(c, {a_name, b_name}) == a_name) << a_name << " vs " << b_name;
+    }
+  }
+}
+
 TEST(CanvasSources, BadValuesAreReported) {
   auto r = load_canvas_report_from_string(R"toml(
 [[stage]]

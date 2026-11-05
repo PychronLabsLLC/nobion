@@ -87,16 +87,20 @@ std::map<std::string, Source, std::less<>> sources(const Canvas& canvas) {
   return out;
 }
 
+bool outranks(const Source& a, const Source& b) noexcept {
+  if (a.precedence != b.precedence) return a.precedence > b.precedence;
+  if (a.kind != b.kind) return a.kind < b.kind;
+  return a.name < b.name;
+}
+
 const Source* dominant(const std::map<std::string, Source, std::less<>>& sources,
                        const std::set<std::string>& volumes) {
   const Source* best = nullptr;
-  // `volumes` is sorted, so among equals the first name stays.
   for (const auto& volume : volumes) {
     const auto it = sources.find(volume);
     if (it == sources.end()) continue;
     const Source& s = it->second;
-    if (best == nullptr || s.precedence > best->precedence ||
-        (s.precedence == best->precedence && s.kind < best->kind)) {
+    if (best == nullptr || outranks(s, *best)) {
       best = &s;
     }
   }

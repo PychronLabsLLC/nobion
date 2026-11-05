@@ -7,6 +7,7 @@
 #include <QLocale>
 #include <QResizeEvent>
 #include <QShowEvent>
+#include <QToolButton>
 
 #include <algorithm>
 #include <array>
@@ -87,8 +88,19 @@ CanvasView::CanvasView(ICanvasState& state, CoreBridge* bridge, QWidget* parent)
   gauge_rest_timer_.setInterval(kGaugeRestMs);
   connect(&gauge_rest_timer_, &QTimer::timeout, this, &CanvasView::on_gauge_rest);
   viewport()->installEventFilter(this);
+  legend_button_ = new QToolButton(viewport());
+  legend_button_->setObjectName(QStringLiteral("canvasLegendButton"));
+  legend_button_->setText(tr("Legend"));
+  legend_button_->setToolTip(tr("Show what the canvas symbols mean"));
+  legend_button_->setCheckable(true);
+  legend_button_->setCursor(Qt::ArrowCursor);
+  connect(legend_button_, &QToolButton::toggled, this, [this](bool on) {
+    if (on != (legend_ != nullptr && legend_->isVisible())) show_legend(on);
+  });
   if (const canvas::Canvas* c = state_.canvas()) {
     valve_style_ = c->canvas.valve_style;
+    background_ = background_color(*c);
+    connection_width_ = static_cast<double>(c->canvas.connection_width);
     build(*c);
     open_valve_color_ = c->canvas.open_valve_color;
   }
@@ -118,6 +130,103 @@ CanvasView::~CanvasView() {
     disconnect(popup_, nullptr, this, nullptr);
     delete popup_;
   }
+  // Its hide sets the button, which may already be gone with the viewport.
+  if (legend_ != nullptr) {
+    disconnect(legend_, nullptr, this, nullptr);
+    delete legend_;
+  }
+}
+
+QColor CanvasView::source_display_color(const canvas::Source& source,
+                                        const std::map<std::string, canvas::Source, std::less<>>& sources) {
+  const canvas::Source* shown = &source;
+  if (!source.color && !source.tank.empty()) {
+    if (auto tank = sources.find(source.tank); tank != sources.end()) shown = &tank->second;
+  }
+  const QColor own = shown->color ? QColor(QString::fromStdString(*shown->color)) : QColor();
+  return own.isValid() ? own : source_color(shown->kind, shown->ordinal);
+}
+
+LegendInputs CanvasView::legend_inputs() const {
+  LegendInputs in;
+  in.valve_style = valve_style_;
+  in.open_valve_color = open_valve_color_;
+  in.connection_width = connection_width_;
+  in.background = background_;
+  in.device_pixel_ratio = devicePixelRatioF();
+  std::vector<const canvas::Source*> ranked;
+  ranked.reserve(sources_.size());
+  for (const auto& [name, source] : sources_) ranked.push_back(&source);
+  // NOLINTNEXTLINE(bugprone-nondeterministic-pointer-iteration-order): outranks compares the sources, names last: a total order
+  std::sort(ranked.begin(), ranked.end(),
+            [](const canvas::Source* a, const canvas::Source* b) { return canvas::outranks(*a, *b); });
+  // One row per colour, in the place of its best source: four pumps in the
+  // pump colour are one row naming the four.
+  std::vector<QStringList> names;
+  std::vector<QStringList> kinds;
+  for (const canvas::Source* s : ranked) {
+    const StageItem* item = stage(s->name);
+    const QString name = item != nullptr && !item->label().isEmpty() ? item->label() : QString::fromStdString(s->name);
+    QString kind;
+    switch (s->kind) {
+      case canvas::SourceKind::Pump: kind = tr("pump"); break;
+      case canvas::SourceKind::Pipette: kind = tr("pipette"); break;
+      case canvas::SourceKind::Laser: kind = tr("laser"); break;
+      case canvas::SourceKind::Tank: kind = tr("tank"); break;
+      case canvas::SourceKind::Spectrometer: kind = tr("spectrometer"); break;
+      case canvas::SourceKind::Getter: kind = tr("getter"); break;
+      case canvas::SourceKind::None: break;
+    }
+    const QColor color = source_display_color(*s, sources_);
+    const auto same = std::find_if(in.sources.begin(), in.sources.end(),
+                                   [&color](const LegendInputs::Source& row) { return row.color == color; });
+    const auto row = static_cast<std::size_t>(same - in.sources.begin());
+    if (row == in.sources.size()) {
+      in.sources.push_back({QString::fromStdString(s->name), QString(), color});
+      names.emplace_back();
+      kinds.emplace_back();
+    }
+    names[row] += name;
+    kinds[row] += kind;
+  }
+  for (std::size_t row = 0; row < in.sources.size(); ++row) {
+    QStringList unique = kinds[row];
+    unique.removeDuplicates();
+    QStringList parts;
+    if (unique.size() == 1) {
+      parts += names[row].join(QStringLiteral(", "));
+      if (!unique.front().isEmpty()) parts.back() += QStringLiteral(" (%1)").arg(unique.front());
+    } else {
+      for (qsizetype i = 0; i < names[row].size(); ++i) {
+        parts += kinds[row][i].isEmpty() ? names[row][i] : QStringLiteral("%1 (%2)").arg(names[row][i], kinds[row][i]);
+      }
+    }
+    in.sources[row].label = parts.join(QStringLiteral(", "));
+  }
+  return in;
+}
+
+void CanvasView::show_legend(bool shown) {
+  if (!shown) {
+    if (legend_ != nullptr) legend_->hide();
+    return;
+  }
+  if (legend_ == nullptr) {
+    legend_ = new CanvasLegend(this);
+    // The button follows the window both ways: it also hides and comes back
+    // with the window it belongs to.
+    connect(legend_, &CanvasLegend::shown_changed, legend_button_, &QToolButton::setChecked);
+  }
+  legend_->set_entries(legend_entries(legend_inputs()));
+  legend_->show();  // checks the button (shown_changed)
+  legend_->raise();
+}
+
+void CanvasView::place_legend_button() {
+  constexpr int kMargin = 8;
+  legend_button_->adjustSize();
+  legend_button_->move(viewport()->width() - legend_button_->width() - kMargin, kMargin);
+  legend_button_->raise();
 }
 
 void CanvasView::set_gauge_rest_ms(int ms) { gauge_rest_timer_.setInterval(std::max(ms, 0)); }
@@ -156,11 +265,13 @@ void CanvasView::scrollContentsBy(int dx, int dy) {
 
 void CanvasView::resizeEvent(QResizeEvent* event) {
   QGraphicsView::resizeEvent(event);
+  place_legend_button();
   fit();
 }
 
 void CanvasView::showEvent(QShowEvent* event) {
   QGraphicsView::showEvent(event);
+  place_legend_button();
   fit();
 }
 
@@ -603,11 +714,13 @@ void CanvasView::apply_state() {
 void CanvasView::set_valve_style(canvas::ValveStyle style) {
   valve_style_ = style;
   for (auto& [name, item] : valves_) item->set_style(style);
+  if (legend_ != nullptr) legend_->set_entries(legend_entries(legend_inputs()));
 }
 
 void CanvasView::set_open_valve_color(canvas::OpenValveColor mode) {
   open_valve_color_ = mode;
   apply_regions();
+  if (legend_ != nullptr) legend_->set_entries(legend_entries(legend_inputs()));
 }
 
 void CanvasView::apply_regions() {
@@ -633,13 +746,7 @@ void CanvasView::apply_regions() {
     if (source == nullptr) continue;
     // A pipette holds its tank's gas: it is drawn as the tank is, unless
     // the file gives it a colour of its own.
-    const canvas::Source* shown = source;
-    if (!source->color && !source->tank.empty()) {
-      if (auto tank = sources_.find(source->tank); tank != sources_.end()) shown = &tank->second;
-    }
-    QColor color = shown->color ? QColor(QString::fromStdString(*shown->color))
-                                : source_color(shown->kind, shown->ordinal);
-    if (!color.isValid()) color = source_color(shown->kind, shown->ordinal);
+    const QColor color = source_display_color(*source, sources_);
     for (const auto& volume : region.volumes) colors[volume] = color;
     for (const auto& valve : region.valves) colors[valve] = color;
   }
