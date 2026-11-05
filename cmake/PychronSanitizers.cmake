@@ -15,5 +15,5 @@ if(PYCHRON_SANITIZE)
     # second; each ignores the other's.
     add_compile_definitions(_GLIBCXX_ASSERTIONS _LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE)
   endif()
-  message(STATUS "pychron: sanitizers enabled: ${PYCHRON_SANITIZE}")
+  message(STATUS "nobion: sanitizers enabled: ${PYCHRON_SANITIZE}")
 endif()

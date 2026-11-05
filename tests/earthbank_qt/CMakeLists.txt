@@ -51,7 +51,7 @@ ${_alt}
     set(PYCHRON_TLS_READY ON)
   endif()
 endif()
-message(STATUS "pychron: earthbank_qt TLS tests: ${PYCHRON_TLS_READY}")
+message(STATUS "nobion: earthbank_qt TLS tests: ${PYCHRON_TLS_READY}")
 
 add_executable(pychron_earthbank_qt_tests test_qt_http_client.cpp)
 target_compile_definitions(pychron_earthbank_qt_tests PRIVATE QT_NO_KEYWORDS)

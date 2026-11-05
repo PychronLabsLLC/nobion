@@ -28,5 +28,5 @@ if(PYCHRON_COVERAGE)
   add_compile_options(-fprofile-instr-generate -fcoverage-mapping
     "-fcoverage-compilation-dir=${CMAKE_BINARY_DIR}")
   add_link_options(-fprofile-instr-generate)
-  message(STATUS "pychron: clang source-based coverage enabled")
+  message(STATUS "nobion: clang source-based coverage enabled")
 endif()

@@ -50,7 +50,7 @@ endif()
 if(PYCHRON_EARTHBANK_SECRET_STORE STREQUAL "memory")
   set(PYCHRON_EARTHBANK_HAS_SYSTEM_SECRET_STORE 0)
 endif()
-message(STATUS "pychron: EarthBank passwords are kept in: ${PYCHRON_EARTHBANK_SECRET_STORE}")
+message(STATUS "nobion: EarthBank passwords are kept in: ${PYCHRON_EARTHBANK_SECRET_STORE}")
 
 add_library(pychron_earthbank STATIC ${PYCHRON_EARTHBANK_SOURCES})
 add_library(pychron::earthbank ALIAS pychron_earthbank)
