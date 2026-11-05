@@ -95,6 +95,9 @@ CanvasView::CanvasView(ICanvasState& state, CoreBridge* bridge, QWidget* parent)
   legend_button_->setToolTip(tr("Show what the canvas symbols mean"));
   legend_button_->setCheckable(true);
   legend_button_->setCursor(Qt::ArrowCursor);
+  // A button standing on the drawing: framed at rest, not only under the
+  // pointer as a toolbar's are.
+  style::make_outlined(legend_button_);
   connect(legend_button_, &QToolButton::toggled, this, [this](bool on) {
     if (on != (legend_ != nullptr && legend_->isVisible())) show_legend(on);
   });
@@ -720,6 +723,7 @@ void CanvasView::apply_state() {
 void CanvasView::set_valve_style(canvas::ValveStyle style) {
   valve_style_ = style;
   for (auto& [name, item] : valves_) item->set_style(style);
+  apply_regions();  // hmi boxes take their section's colour, redgreen only when asked
   if (legend_ != nullptr) legend_->set_entries(legend_entries(legend_inputs()));
 }
 
@@ -756,11 +760,13 @@ void CanvasView::apply_regions() {
     for (const auto& volume : region.volumes) colors[volume] = color;
     for (const auto& valve : region.valves) colors[valve] = color;
   }
-  // Open valves joining a shared region wear its colour when asked to; every
-  // other valve keeps its state colour.
+  // An open valve's box wears the colour of the section it joins: always in
+  // the hmi style, in redgreen when the canvas asks (open_valve_color =
+  // "inherit"). Every other valve keeps its state colour.
+  const bool take = valve_style_ == canvas::ValveStyle::Hmi || open_valve_color_ == canvas::OpenValveColor::Inherit;
   for (auto& [name, item] : valves_) {
     auto it = colors.find(name);
-    const bool inherit = open_valve_color_ == canvas::OpenValveColor::Inherit && it != colors.end();
+    const bool inherit = take && it != colors.end();
     item->set_inherited_color(inherit ? std::optional<QColor>(it->second) : std::nullopt);
   }
   for (auto& [name, item] : stages_) {

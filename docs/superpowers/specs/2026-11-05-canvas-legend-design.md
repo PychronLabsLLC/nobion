@@ -24,7 +24,7 @@ Out:
 - `[legend]` table of `canvas.toml` (parsed, `Canvas::legend`, never
   drawn): stays parsed and undrawn. Legend drawn inside the drawing is
   separate spec if wanted.
-- Menu item or shortcut for legend.
+- Shortcut for legend.
 - `[[label]]` and `[[image]]`: decoration, no meaning to explain.
 
 ## 3. Button
@@ -32,6 +32,12 @@ Out:
 - `QToolButton` "Legend", checkable, child of `viewport()`, top-right
   corner, 8 px margin, raised over scene; moved in `resizeEvent`. Object
   name `canvasLegendButton`. Tooltip "Show what the canvas symbols mean".
+  Framed at rest (`style::make_outlined`, property `outlined`): app sheet
+  draws a bare `QToolButton` as text (changed 2026-11-05, developer's
+  review). No icon.
+- Help > Canvas Legend (`MainWindow::legend_action()`, app-wide: in every
+  window's Help menu) does `show_legend(true)` on main window's canvas.
+  Rehearsal window's canvas: button only.
 - Click toggles legend. Button checked exactly while legend visible
   (close by title bar or Esc unchecks it; window shown again with its
   parent checks it).
@@ -107,10 +113,13 @@ Valves:
 | `valve.locked` | Valve, Closed, locked | Locked in software: refuses open and close until unlocked from faceplate. |
 | `valve.failed` | Valve, Closed, `flash("")` | Flashing: last command refused or failed; reason in tooltip and faceplate. |
 
-Open text by style: hmi "Open (filled)."; redgreen "Open (green)." Closed:
-hmi "Closed (hollow)."; redgreen "Closed (red).". With
-`open_valve_color = "inherit"` the open row adds "Takes the colour of the
-section it joins.". Open glyph uses style fill (inherit has no one colour).
+Open and closed texts name box and glyph (boxed valves,
+`2026-11-04-hmi-valves-design.md` §4): hmi open "filled glyph, box in the
+colour of the section it joins (light grey when that section has no
+source)", closed "grey box, hollow glyph"; redgreen "green box" / "red
+box", open in section colour with `open_valve_color = "inherit"`. Open
+glyph's box takes first of `LegendInputs::sources` (pump's colour when
+none) whenever open box would take a section's colour.
 
 Gauges (`GaugeLabelItem`, name "IG"):
 

@@ -32,7 +32,7 @@ Related pages: [getting started](01-getting-started.md),
 
 ## The status band and the alarm strip
 
-A dark band runs across the top of the canvas. Left to right:
+A light grey band runs across the top of the canvas. Left to right:
 
 | Field | What it says |
 |---|---|
@@ -59,12 +59,12 @@ while you work; press the button again, or Esc, to close it.
 
 | What you see | What it means |
 |---|---|
-| A bow-tie (two triangles tip to tip) with a small dome on a stem | An actuated valve (`[[valve]]` / `[[rough_valve]]` in the canvas). It lies along its pipe; one whose pipes leave only above and below stands upright, its stem to the left. Its name is written beside it, on a side no pipe leaves by. |
-| A bow-tie with a T bar on its stem | A manual valve: nobody can drive it, you tell Nobion what you did (see below). |
-| A circle | A switch (`[[switch]]`): pump power, a heater relay, a shutter. |
-| Filled grey valve | Open. With `valve_style = "redgreen"` in `[canvas]`: green. |
-| Hollow valve | Closed. With `valve_style = "redgreen"`: red. |
-| Hatched valve | State unknown (not read yet, or the last command or read-back failed). |
+| A box holding a bow-tie (two triangles tip to tip) with a small dome on a stem | An actuated valve (`[[valve]]` / `[[rough_valve]]` in the canvas). It lies along its pipe; one whose pipes leave only above and below stands upright, its stem to the left. Its name is written beside it, on a side no pipe leaves by. |
+| A box holding a bow-tie with a T bar on its stem | A manual valve: nobody can drive it, you tell Nobion what you did (see below). |
+| A box holding a circle | A switch (`[[switch]]`): pump power, a heater relay, a shutter. |
+| Box in a section's colour, glyph filled | Open: the box takes the colour of the gas it joins (see [Colors](#colors-show-where-gas-can-go)); light grey when that section has no source. With `valve_style = "redgreen"` in `[canvas]`: a green box. |
+| Grey box, glyph hollow | Closed. With `valve_style = "redgreen"`: a red box. |
+| White hatched box | State unknown (not read yet, or the last command or read-back failed). |
 | Dashed outline around a valve | A command is in flight (waiting on the controller, the settle time and the read-back). |
 | Accent outline around a valve | Its faceplate is open (or, in a rehearsal, the last step changed it). |
 | Blue padlock on a valve's corner | The valve is **locked** in software. |
@@ -95,9 +95,9 @@ prep line and a pumped turbo visibly turns the prep line the pump color, and
 opening a pipette shows whose gas it holds. A pipette wears the color of the
 tank across its valve unless the canvas gives it a color of its own.
 
-If `open_valve_color = "inherit"` is set in `[canvas]`, open valves take the
-color of the region they join instead of their style's fill (grey, or green
-with `valve_style = "redgreen"`).
+An open valve's box takes the color of the region it joins. With
+`valve_style = "redgreen"` open valves are green instead, unless
+`open_valve_color = "inherit"` is also set in `[canvas]`.
 
 ### A tour of the example line
 
@@ -655,8 +655,8 @@ is plumbed to what. Positions are pixels in a box of `[canvas] size`.
 origin = [0, 0]
 size = [1000, 700]               # the drawing area
 connection_width = 6             # pipe thickness
-# open_valve_color = "inherit"   # open valves wear the region color
-# valve_style = "redgreen"        # legacy fills: open green, closed red (default "hmi")
+# valve_style = "redgreen"        # legacy boxes: open green, closed red (default "hmi": open in the region color, closed grey)
+# open_valve_color = "inherit"   # with "redgreen": open valves wear the region color
 
 [colors]
 # background = "#f4f6f8"        # behind the drawing; left out: the application's own

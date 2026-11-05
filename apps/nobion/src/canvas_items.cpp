@@ -31,14 +31,16 @@ QColor valve_fill(ValveState state, canvas::ValveStyle style) {
   const bool hmi = style == canvas::ValveStyle::Hmi;
   switch (state) {
     case ValveState::Open:
-      return hmi ? theme().muted_text : theme().ok;
+      return hmi ? theme().neutral_fill : theme().ok;
     case ValveState::Closed:
-      return hmi ? theme().base : theme().error;
+      return hmi ? theme().inactive : theme().error;
     case ValveState::Unknown:
       break;
   }
   return theme().base;
 }
+
+QColor valve_tie_fill(ValveState state) { return state == ValveState::Open ? theme().muted_text : theme().base; }
 
 // ---- ValveItem --------------------------------------------------------------
 
@@ -53,6 +55,8 @@ constexpr double kBarY = -12.0;         // a manual valve's T bar
 constexpr double kBarHalf = 7.0;
 constexpr double kSwitchRadius = 13.0;
 constexpr double kRingRadius = 4.0;     // the pending, marked and selected rings' corners
+constexpr double kBoxRadius = 3.0;      // the body box's corners
+constexpr double kGlyphScale = 0.72;    // the glyph inside the box
 
 QPainterPath tie_path() {
   QPainterPath path;
@@ -236,24 +240,34 @@ QPainterPath ValveItem::shape() const {
 
 void ValveItem::paint_glyph(QPainter& painter) const {
   painter.save();
+  // The box carries the state's colour (spec 2026-11-04-hmi-valves §4).
+  const QRectF box(-kSize / 2, -kSize / 2, kSize, kSize);
+  QPainterPath outline;
+  outline.addRoundedRect(box, kBoxRadius, kBoxRadius);
+  painter.fillPath(outline, fill_color());
+  if (state_ == ValveState::Unknown && !is_flashing()) {
+    painter.fillPath(outline, QBrush(theme().muted_text, Qt::BDiagPattern));
+  }
+  painter.strokePath(outline, QPen(theme().outline, 1.0));
+
+  // The glyph inside it: its shape says the state without colour (filled
+  // open, hollow closed).
+  painter.scale(kGlyphScale, kGlyphScale);
   if (vertical()) painter.rotate(-90);  // the stem to the left
-  const QPen line(theme().text, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+  const QPen line(theme().text, 1.5 / kGlyphScale, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
   QPainterPath body;
   if (kind_ == canvas::ValveKind::Switch) {
     body.addEllipse(QPointF(0, 0), kSwitchRadius, kSwitchRadius);
   } else {
     body = tie_path();
   }
-  painter.fillPath(body, fill_color());
-  if (state_ == ValveState::Unknown && !is_flashing()) {
-    painter.fillPath(body, QBrush(theme().muted_text, Qt::BDiagPattern));
-  }
+  painter.fillPath(body, valve_tie_fill(state_));
   painter.strokePath(body, line);
   if (kind_ != canvas::ValveKind::Switch) {
     painter.setPen(line);
     if (kind_ == canvas::ValveKind::Manual) {
       painter.drawLine(QPointF(0, 0), QPointF(0, kBarY));
-      painter.setPen(QPen(theme().text, 2.0, Qt::SolidLine, Qt::RoundCap));
+      painter.setPen(QPen(theme().text, 2.0 / kGlyphScale, Qt::SolidLine, Qt::RoundCap));
       painter.drawLine(QPointF(-kBarHalf, kBarY), QPointF(kBarHalf, kBarY));
     } else {
       painter.drawLine(QPointF(0, 0), QPointF(0, kStemTop));
@@ -271,9 +285,11 @@ void ValveItem::paint_glyph(QPainter& painter) const {
 void ValveItem::paint_padlock(QPainter& painter) const {
   const QRectF badge = badge_rect();
   painter.save();
-  painter.setPen(Qt::NoPen);
+  // On the box's corner: outlined, so it stands off any box, a white one too.
+  painter.setPen(QPen(theme().outline, 0.8));
   painter.setBrush(theme().base);
   painter.drawRoundedRect(badge, 2, 2);
+  painter.setPen(Qt::NoPen);
   painter.setBrush(lock_color());
   painter.drawRoundedRect(QRectF(badge.left() + 1.5, badge.top() + 5, badge.width() - 3, badge.height() - 5.5), 1.2, 1.2);
   painter.setBrush(Qt::NoBrush);
@@ -289,11 +305,7 @@ void ValveItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidge
   const auto draw_ring = [&](const QPen& pen) {
     painter->setBrush(Qt::NoBrush);
     painter->setPen(pen);
-    if (kind_ == canvas::ValveKind::Switch) {
-      painter->drawEllipse(ring);
-    } else {
-      painter->drawRoundedRect(ring, kRingRadius, kRingRadius);
-    }
+    painter->drawRoundedRect(ring, kRingRadius, kRingRadius);
   };
   if (marked_ || selected_) draw_ring(QPen(theme().accent, 2));
   if (pending_) draw_ring(QPen(theme().text, 1.5, Qt::DashLine));

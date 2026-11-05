@@ -54,8 +54,11 @@ valve_style = "redgreen"
 
 ## 4. Glyph (`ValveItem::paint`)
 
-Body box unchanged: `kSize` 30 x 30, centred on element position; what a
-click hits (`shape()`). Pipes still join any side. Inside it:
+Body box: `kSize` 30 x 30, centred on element position, drawn (changed
+2026-11-05, developer's review of the first build): rounded rect, radius 3,
+1 px `theme().outline`, filled with state's box colour (below). What a click
+hits (`shape()`). Pipes still join any side. Glyph inside it, scaled 0.72
+(`kGlyphScale`), its sizes below before scaling:
 
 - Bow-tie: two triangles tip to tip at centre, each 13 wide, 18 tall, axis
   along the pipe. 1.5 px outline in `theme().text`.
@@ -71,20 +74,26 @@ click hits (`shape()`). Pipes still join any side. Inside it:
   `ValveItem::set_pipe_sides(mask)` after all pipes.
 - Orientation: vertical when sides non-empty and none left or right; stem
   then to left. A switch joining nothing (`pump_power`) has no sides.
-- Fill by state:
+- Box colour by state (`fill_color()`; `valve_fill(state, style)` when no
+  section colour):
 
 | State | `hmi` | `redgreen` |
 |---|---|---|
-| Open | `theme().muted_text` | `theme().ok` |
-| Closed | `theme().base` (hollow) | `theme().error` |
+| Open | section colour of region it joins; `theme().neutral_fill` when region has no source | `theme().ok`; section colour with `open_valve_color = "inherit"` |
+| Closed | `theme().inactive` (grey) | `theme().error` |
 | Unknown | hatch: `theme().muted_text` 45° lines on `theme().base` | same |
+
+- Glyph fill, both styles (`valve_tie_fill(state)`): Open
+  `theme().muted_text` (filled), else `theme().base` (hollow). State reads
+  by shape too: open valve in a sourceless region has a grey box as a
+  closed one does, but a filled glyph.
 
 Pending (command in flight): dashed ring around body, fill unchanged (item
 does not know target state).
 
-- `open_valve_color = "inherit"`: open fill is region colour in both
-  styles (rule as today, `set_inherited_color`).
-- Flash on rejection unchanged: fill alternates with `theme().flash`.
+- hmi: open box always takes region colour (`set_inherited_color`, pushed
+  by `apply_regions`); `open_valve_color` matters only for `redgreen`.
+- Flash on rejection: box alternates with `theme().flash`.
 - Marked (rehearsal) unchanged: accent outline outside body.
 - Label: never on face (bow-tie has no room). Always caption, scene font
   unshrunk, on first side of below, above, right, left that no pipe leaves
@@ -97,8 +106,10 @@ does not know target state).
     removed.
   - interlocked: not drawn on glyph (popup shows it).
 
-`ValveKind::Switch` (not a valve: pump, heater power) keeps circle body, no
-bow-tie, no stem; fill, pending, badge and label rules as above.
+`ValveKind::Switch` (not a valve: pump, heater power): same box, a circle
+inside it, no bow-tie, no stem; box, glyph fill, pending, badge and label
+rules as above. Rings (pending, selected, marked) rounded rects for all
+kinds.
 
 `valve_color(ValveState)` becomes `valve_fill(ValveState, ValveStyle)`;
 only callers besides `ValveItem::fill_color` are in
@@ -189,7 +200,8 @@ Interlock partners: `ICanvasState::interlocks(name)` returns
 `tests/systems/test_canvas_loader.cpp` beside `open_valve_color` cases:
 
 - `valve_style` parsed; default `Hmi`; bad value refused.
-- Fill per state per style; inherit wins for open in both.
+- Box colour per state per style; hmi open takes section colour always,
+  redgreen only with inherit; glyph filled only when open.
 - Plain click: no actuation, `valve_selected` emitted. Alt-click: actuation
   as old click test.
 - Right click: no menu, no lock.

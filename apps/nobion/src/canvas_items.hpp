@@ -29,10 +29,15 @@
 namespace pychron::ui {
 
 QPointF to_qpoint(const canvas::Point& p);
-// A valve's fill for its state in a style (spec 2026-11-04-hmi-valves §4):
-// hmi open grey and closed hollow, redgreen open green and closed red; an
-// unknown state is the base in both, hatched when painted.
+// A valve's box for its state in a style when it takes no section colour
+// (spec 2026-11-04-hmi-valves §4): hmi open the isolated volume's grey and
+// closed a darker grey, redgreen open green and closed red; an unknown
+// state is the base in both, hatched when painted. An open hmi valve in a
+// section with a source wears that section's colour instead.
 QColor valve_fill(ValveState state, canvas::ValveStyle style);
+// The glyph's fill inside the box, the same in both styles: filled open,
+// hollow otherwise, so the state reads without colour.
+QColor valve_tie_fill(ValveState state);
 
 // An ISA-5.1 valve (spec 2026-11-04-hmi-valves): a bow-tie along its pipe
 // with the actuator on a stem, a dome for a valve Nobion drives and a T bar

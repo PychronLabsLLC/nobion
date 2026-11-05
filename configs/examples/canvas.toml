@@ -28,10 +28,11 @@
 origin = [0, 0]
 size = [1240, 630]
 connection_width = 6
-# open valves: "green" (default) or "inherit" the colour of the region they join
-# open_valve_color = "inherit"
-# valve fill: "hmi" (default; open grey, closed hollow) or "redgreen"
+# valve boxes: "hmi" (default; open in the colour of the region it joins,
+# closed grey) or "redgreen" (open green, closed red)
 # valve_style = "redgreen"
+# with "redgreen": "green" (default) or "inherit" the colour of the region
+# open_valve_color = "inherit"
 
 [colors]
 valve = "#1e90ff"

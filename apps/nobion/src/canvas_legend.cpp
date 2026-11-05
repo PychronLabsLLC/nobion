@@ -123,22 +123,26 @@ std::vector<LegendEntry> legend_entries(const LegendInputs& in) {
 
   const QString valves = tr("Valves");
   add(valves, QStringLiteral("valve.actuated"),
-      tr("Valve Nobion drives (dome on its stem). It lies along its pipe, upright when its pipes leave only above "
-         "and below."),
+      tr("Valve Nobion drives (dome on its stem), in a box that shows its state. It lies along its pipe, upright "
+         "when its pipes leave only above and below."),
       valve_glyph(in, ValveKind::Valve, ValveState::Closed));
   add(valves, QStringLiteral("valve.manual"), tr("Manual valve (T bar): moved by hand, its state told to Nobion."),
       valve_glyph(in, ValveKind::Manual, ValveState::Closed));
   add(valves, QStringLiteral("valve.switch"), tr("Switch: pump power, a heater relay, a shutter."),
       valve_glyph(in, ValveKind::Switch, ValveState::Closed));
-  QString open = redgreen ? tr("Open (green).") : tr("Open (filled).");
-  if (in.open_valve_color == canvas::OpenValveColor::Inherit) {
-    open += QLatin1Char(' ') + tr("Takes the colour of the section it joins.");
-  }
-  add(valves, QStringLiteral("valve.open"), open, valve_glyph(in, ValveKind::Valve, ValveState::Open));
-  add(valves, QStringLiteral("valve.closed"), redgreen ? tr("Closed (red).") : tr("Closed (hollow)."),
+  // An open box in a section's colour: this line's best source's, or a pump's.
+  const bool inherit = !redgreen || in.open_valve_color == canvas::OpenValveColor::Inherit;
+  const QColor section = in.sources.empty() ? theme().sources.pump : in.sources.front().color;
+  QString open = redgreen ? tr("Open: green box, filled glyph.") : tr("Open: filled glyph, box in the colour of the section it joins (light grey when that section has no source).");
+  if (redgreen && inherit) open = tr("Open: filled glyph, box in the colour of the section it joins.");
+  add(valves, QStringLiteral("valve.open"), open, valve_glyph(in, ValveKind::Valve, ValveState::Open, [&](ValveItem& v) {
+        if (inherit) v.set_inherited_color(section);
+      }));
+  add(valves, QStringLiteral("valve.closed"),
+      redgreen ? tr("Closed: red box, hollow glyph.") : tr("Closed: grey box, hollow glyph."),
       valve_glyph(in, ValveKind::Valve, ValveState::Closed));
   add(valves, QStringLiteral("valve.unknown"),
-      tr("State unknown (hatched): not read yet, or the last command or read-back failed."),
+      tr("State unknown (white, hatched box): not read yet, or the last command or read-back failed."),
       valve_glyph(in, ValveKind::Valve, ValveState::Unknown));
   add(valves, QStringLiteral("valve.pending"), tr("Command in flight (dashed ring)."),
       valve_glyph(in, ValveKind::Valve, ValveState::Closed, [](ValveItem& v) { v.set_pending(true); }));
@@ -149,7 +153,7 @@ std::vector<LegendEntry> legend_entries(const LegendInputs& in) {
       tr("Locked in software (padlock): refuses open and close until unlocked from its faceplate."),
       valve_glyph(in, ValveKind::Valve, ValveState::Closed, [](ValveItem& v) { v.set_locked(true); }));
   add(valves, QStringLiteral("valve.failed"),
-      tr("Flashing: the last command was refused or failed. The reason is in its tooltip and faceplate."),
+      tr("Flashing yellow: the last command was refused or failed. The reason is in its tooltip and faceplate."),
       valve_glyph(in, ValveKind::Valve, ValveState::Closed, [](ValveItem& v) { v.flash(QString()); }));
 
   const QString gauges = tr("Gauges");
