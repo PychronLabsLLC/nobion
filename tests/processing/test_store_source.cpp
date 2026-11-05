@@ -136,6 +136,46 @@ TEST_F(StoreSourceTest, BrowsesByUuid) {
   EXPECT_FALSE(source().facet(Facet::AnalysisType, q));
 }
 
+TEST_F(StoreSourceTest, PositionsCarryUuidKeys) {
+  auto rows = source().positions({});
+  ASSERT_TRUE(rows) << to_string(rows.error());
+  ASSERT_EQ(rows->size(), 2u);
+  EXPECT_EQ((*rows)[0].identifier, "77000");
+  EXPECT_EQ((*rows)[0].irradiation_key, irr_.str());
+  EXPECT_EQ((*rows)[0].level_key, level_.str());
+  EXPECT_EQ((*rows)[0].irradiation, "NM-300");
+  EXPECT_EQ((*rows)[0].level, "A");
+  EXPECT_EQ((*rows)[1].identifier, "66574");
+  EXPECT_TRUE((*rows)[1].irradiation_key.empty());
+
+  BrowseQuery q;
+  q.positions = PositionSelection{.levels = {level_.str()}};
+  auto page = source().browse(q);
+  ASSERT_TRUE(page) << to_string(page.error());
+  ASSERT_EQ(page->rows.size(), 1u);
+  EXPECT_EQ(page->rows[0].uuid, unknown_.str());
+  EXPECT_EQ(page->rows[0].irradiation_uuid, irr_.str());
+  EXPECT_EQ(page->rows[0].level_uuid, level_.str());
+  EXPECT_EQ(irradiation_key(page->rows[0]), irr_.str());
+  q.positions = PositionSelection{.not_irradiated = true};
+  page = source().browse(q);
+  ASSERT_TRUE(page);
+  ASSERT_EQ(page->rows.size(), 1u);
+  EXPECT_EQ(page->rows[0].uuid, air_.str());
+  EXPECT_TRUE(page->rows[0].level_uuid.empty());
+}
+
+TEST_F(StoreSourceTest, ANameKeyIsAnError) {
+  BrowseQuery q;
+  q.positions = PositionSelection{.levels = {"NM-300/A"}};
+  auto page = source().browse(q);
+  ASSERT_FALSE(page);
+  EXPECT_EQ(page.error().kind, ErrorKind::Protocol);
+  EXPECT_NE(page.error().what.find("NM-300/A"), std::string::npos);
+  EXPECT_FALSE(source().facet(Facet::AnalysisType, q));
+  EXPECT_FALSE(source().positions(q));
+}
+
 // What the experiment window's References dock asks after each saved run: the
 // newest blanks (of every kind), or airs, of the session's spectrometer since
 // a time.

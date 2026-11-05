@@ -177,6 +177,21 @@ TEST(RecordSource, BrowsesNewestFirstWithPaging) {
   EXPECT_EQ(*ids, (std::vector<pp::FacetValue>{{"air", "air"}}));
 }
 
+// A record folder keeps no irradiation rows: the keys are names.
+TEST(RecordSource, PositionsUseNameKeys) {
+  TempDir dir;
+  write(dir.path, record("u1", "66001", 1, "", "unknown", "2026-09-30T10:00:00Z"));
+  write(dir.path, record("u2", "66001", 2, "", "unknown", "2026-09-30T11:00:00Z"));
+  pp::RecordDirectorySource src(dir.path);
+  auto rows = src.positions({});
+  ASSERT_TRUE(rows) << rows.error().what;
+  ASSERT_EQ(rows->size(), 1u);
+  EXPECT_EQ((*rows)[0].identifier, "66001");
+  EXPECT_EQ((*rows)[0].irradiation_key, "NM-300");
+  EXPECT_EQ((*rows)[0].level_key, "NM-300/A");
+  EXPECT_EQ((*rows)[0].level, "A");
+}
+
 // A record names its PI and keeps no PI rows: the name is value and label,
 // and what the filter takes (PI spec 7).
 TEST(RecordSource, APiIsItsName) {

@@ -90,6 +90,7 @@ class StoreSource final : public IAnalysisSource, public IRevisionSource, public
   Result<void> refresh() override;
   Result<BrowsePage> browse(const BrowseQuery& query) override;
   Result<std::vector<FacetValue>> facet(Facet facet, const BrowseQuery& query) override;
+  Result<std::vector<PositionRow>> positions(const BrowseQuery& query) override;
   Result<AnalysisPtr> load(const std::string& uuid) override;
   // load(uuid) as of `bookmark` (data publishing spec 4.3): heads, payloads
   // and references from its entries. Not cached; `input_fingerprint` is of

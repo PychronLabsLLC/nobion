@@ -300,6 +300,18 @@ Result<std::vector<FacetValue>> RecordDirectorySource::facet(Facet f, const Brow
   return facet_values(rows, f, query);
 }
 
+Result<std::vector<PositionRow>> RecordDirectorySource::positions(const BrowseQuery& query) {
+  if (!scanned_)
+    if (auto ok = refresh(); !ok) return fail(ok.error());
+  std::lock_guard lock(mutex_);
+  std::vector<AnalysisSummary> rows;
+  rows.reserve(by_path_.size());
+  for (const auto& [_, e] : by_path_) rows.push_back(e.summary);
+  double newest = 0;
+  for (const auto& r : rows) newest = std::max(newest, r.timestamp);
+  return position_rows(rows, query, newest);
+}
+
 Result<AnalysisPtr> RecordDirectorySource::load(const std::string& uuid) {
   if (!scanned_)
     if (auto ok = refresh(); !ok) return fail(ok.error());

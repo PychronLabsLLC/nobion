@@ -295,6 +295,19 @@ Result<std::vector<ps::Uuid>> store_uuids(const std::vector<std::string>& texts)
   return out;
 }
 
+// The keys of an irradiation tree selection on a store are uuids; a name is a
+// caller's mistake, never dropped quietly.
+Result<std::vector<ps::Uuid>> position_uuids(const std::vector<std::string>& keys) {
+  std::vector<ps::Uuid> out;
+  out.reserve(keys.size());
+  for (const auto& key : keys) {
+    auto id = ps::Uuid::parse(key);
+    if (!id) return fail(ErrorKind::Protocol, "browse: a store takes uuids as irradiation tree keys, not \"" + key + "\"");
+    out.push_back(*id);
+  }
+  return out;
+}
+
 // to_store_filter with what can be refused: the lists of uuids.
 Result<ps::BrowseFilter> checked_store_filter(const BrowseQuery& q) {
   ps::BrowseFilter f = to_store_filter(q);
@@ -304,6 +317,18 @@ Result<ps::BrowseFilter> checked_store_filter(const BrowseQuery& q) {
   auto pis = store_uuids(q.principal_investigators);
   if (!pis) return fail(pis.error());
   f.principal_investigators = std::move(*pis);
+  if (q.positions) {
+    ps::PositionFilter p;
+    p.identifiers = q.positions->identifiers;
+    p.not_irradiated = q.positions->not_irradiated;
+    auto irradiations = position_uuids(q.positions->irradiations);
+    if (!irradiations) return fail(irradiations.error());
+    p.irradiations = std::move(*irradiations);
+    auto levels = position_uuids(q.positions->levels);
+    if (!levels) return fail(levels.error());
+    p.levels = std::move(*levels);
+    f.positions = std::move(p);
+  }
   return f;
 }
 
@@ -342,6 +367,8 @@ AnalysisSummary summary_from_row(const ps::BrowseRow& r) {
   s.material = r.material;
   s.principal_investigator = r.principal_investigator;
   if (r.principal_investigator_uuid) s.principal_investigator_uuid = r.principal_investigator_uuid->str();
+  if (r.irradiation_uuid) s.irradiation_uuid = r.irradiation_uuid->str();
+  if (r.level_uuid) s.level_uuid = r.level_uuid->str();
   s.extract_device = r.extract_device;
   s.load = r.load;
   s.irradiation = r.irradiation;
@@ -912,6 +939,21 @@ Result<std::vector<FacetValue>> StoreSource::facet(Facet f, const BrowseQuery& q
   std::vector<FacetValue> out;
   out.reserve(values->size());
   for (auto& v : *values) out.push_back({std::move(v.value), std::move(v.label)});
+  return out;
+}
+
+Result<std::vector<PositionRow>> StoreSource::positions(const BrowseQuery& query) {
+  auto filter = checked_store_filter(query);
+  if (!filter) return fail(filter.error());
+  auto listing = impl_->call<std::vector<ps::PositionListing>>(
+      [filter = std::move(*filter)](ps::IStore& s) { return s.positions(filter); });
+  if (!listing) return fail(listing.error());
+  std::vector<PositionRow> out;
+  out.reserve(listing->size());
+  for (auto& l : *listing)
+    out.push_back({l.irradiation_uuid ? l.irradiation_uuid->str() : std::string{}, std::move(l.irradiation),
+                   l.level_uuid ? l.level_uuid->str() : std::string{}, std::move(l.level), std::move(l.identifier),
+                   std::move(l.sample), std::move(l.project)});
   return out;
 }
 

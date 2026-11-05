@@ -59,6 +59,7 @@ class RecordDirectorySource final : public IAnalysisSource {
   Result<void> refresh() override;
   Result<BrowsePage> browse(const BrowseQuery& query) override;
   Result<std::vector<FacetValue>> facet(Facet facet, const BrowseQuery& query) override;
+  Result<std::vector<PositionRow>> positions(const BrowseQuery& query) override;
   Result<AnalysisPtr> load(const std::string& uuid) override;
   Result<RawData> load_raw(const std::string& uuid) override;
 

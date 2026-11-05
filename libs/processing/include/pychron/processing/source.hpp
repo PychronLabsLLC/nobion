@@ -26,6 +26,16 @@ struct BrowseCursor {
   friend bool operator==(const BrowseCursor&, const BrowseCursor&) = default;
 };
 
+// The irradiation tree's ticks (irradiation tree design section 4). An
+// analysis matches when any one list matches; a selection with every part
+// empty matches nothing. Keys are irradiation_key and level_key of a summary:
+// uuid text on a source that keeps uuids, names elsewhere.
+struct PositionSelection {
+  std::vector<std::string> irradiations = {}, levels = {}, identifiers = {};
+  bool not_irradiated = false;  // identifiers with no irradiation position
+  friend bool operator==(const PositionSelection&, const PositionSelection&) = default;
+};
+
 struct BrowseQuery {
   std::string text;  // case-insensitive prefix of run id, identifier or sample
   // Every list holds FacetValue::value. For principal_investigators that is
@@ -38,6 +48,9 @@ struct BrowseQuery {
   // Cached age (Ma), inclusive. An analysis without one matches no bound.
   std::optional<double> age_min, age_max;
   std::vector<std::string> uuids;  // non-empty: only these analyses
+  // Set: only analyses at the ticked places of the irradiation tree, ANDed
+  // with every other filter. Unset: the tree filters nothing.
+  std::optional<PositionSelection> positions;
   int limit = 200;
   std::optional<BrowseCursor> after;
 };
@@ -48,6 +61,9 @@ struct AnalysisSummary {
   // The PI's uuid, where the source keeps PIs (a store); empty otherwise, and
   // the name then stands for the PI.
   std::string principal_investigator_uuid;
+  // The irradiation's and the level's uuids, where the source keeps them (a
+  // store); empty otherwise, and the names then stand for them.
+  std::string irradiation_uuid, level_uuid;
   int aliquot = 0;
   int increment = -1;
   double timestamp = 0.0;
@@ -96,6 +112,19 @@ struct FacetValue {
 bool matches(const BrowseQuery& q, const AnalysisSummary& s, double newest,
              std::optional<Facet> ignore = std::nullopt);
 std::string facet_value(const AnalysisSummary& s, Facet f);
+
+// What a PositionSelection holds for the summary's place: the uuid where it
+// has one, else the irradiation's name, and the level's `<irradiation>/<level>`.
+// Empty when the analysis has no irradiation, or no level.
+std::string irradiation_key(const AnalysisSummary& s);
+std::string level_key(const AnalysisSummary& s);
+
+// One identifier of the irradiation tree: where it sits and what it is.
+// Keys are empty, with the names, for an identifier with no position.
+struct PositionRow {
+  std::string irradiation_key, irradiation, level_key, level, identifier, sample, project;
+  friend bool operator==(const PositionRow&, const PositionRow&) = default;
+};
 
 class IRevisionSource;  // revisions.hpp
 
@@ -147,6 +176,10 @@ class IAnalysisSource {
   // Distinct non-empty values of `facet` among analyses matching every other
   // filter of `query`, in the order to list them.
   virtual Result<std::vector<FacetValue>> facet(Facet facet, const BrowseQuery& query) = 0;
+  // One row per identifier left by every filter of `query` but `positions`,
+  // ordered by irradiation, level and identifier (names), identifiers with no
+  // irradiation last.
+  virtual Result<std::vector<PositionRow>> positions(const BrowseQuery& query) = 0;
   virtual Result<AnalysisPtr> load(const std::string& uuid) = 0;
   virtual Result<RawData> load_raw(const std::string& uuid) = 0;
   // Where reductions of this source's analyses leave their ages, for a source
@@ -173,6 +206,7 @@ class MemorySource : public IAnalysisSource {
   Result<void> refresh() override { return {}; }
   Result<BrowsePage> browse(const BrowseQuery& query) override;
   Result<std::vector<FacetValue>> facet(Facet facet, const BrowseQuery& query) override;
+  Result<std::vector<PositionRow>> positions(const BrowseQuery& query) override;
   Result<AnalysisPtr> load(const std::string& uuid) override;
   Result<RawData> load_raw(const std::string& uuid) override;
 
@@ -193,5 +227,8 @@ AnalysisSummary summarize(const Analysis& a);
 // browse() over in-memory summaries, newest first, keyset paged.
 BrowsePage browse_summaries(const std::vector<AnalysisSummary>& rows, const BrowseQuery& q);
 std::vector<FacetValue> facet_values(const std::vector<AnalysisSummary>& rows, Facet f, const BrowseQuery& q);
+// positions() over in-memory summaries: `matches` with `q.positions` left out.
+// `newest` is the newest timestamp in the source (for last_hours).
+std::vector<PositionRow> position_rows(const std::vector<AnalysisSummary>& rows, const BrowseQuery& q, double newest);
 
 }  // namespace pychron::processing

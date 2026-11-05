@@ -397,6 +397,117 @@ TEST(MemorySource, BrowsesByUuid) {
   EXPECT_EQ(empty->total, 0u);
 }
 
+// Three identifiers on an irradiation tree: 77000 in NM-300/A, 88000 in
+// NM-301/A and 66574, an air, in none.
+std::unique_ptr<pp::MemorySource> positioned_source() {
+  auto src = std::make_unique<pp::MemorySource>();
+  auto add = [&](int index, const char* identifier, const char* type, const char* irradiation, const char* level) {
+    auto a = make_air(index, 295.5, type, identifier);
+    a->irradiation = irradiation;
+    a->level = level;
+    src->add(a);
+  };
+  add(0, "77000", "unknown", "NM-300", "A");
+  add(1, "88000", "unknown", "NM-301", "A");
+  add(2, "66574", "air", "", "");
+  return src;
+}
+
+std::vector<std::string> identifiers_of(const pp::BrowsePage& page) {
+  std::vector<std::string> ids;
+  ids.reserve(page.rows.size());
+  for (const auto& r : page.rows) ids.push_back(r.identifier);
+  std::sort(ids.begin(), ids.end());
+  return ids;
+}
+
+TEST(MemorySource, AKeyIsTheNameWithoutAStore) {
+  pp::AnalysisSummary s;
+  s.identifier = "77000";
+  s.irradiation = "NM-300";
+  s.level = "A";
+  EXPECT_EQ(pp::irradiation_key(s), "NM-300");
+  EXPECT_EQ(pp::level_key(s), "NM-300/A");
+  s.level_uuid = "u1";
+  s.irradiation_uuid = "u0";
+  EXPECT_EQ(pp::level_key(s), "u1");
+  EXPECT_EQ(pp::irradiation_key(s), "u0");
+  pp::AnalysisSummary none;
+  EXPECT_TRUE(pp::irradiation_key(none).empty());
+  EXPECT_TRUE(pp::level_key(none).empty());
+}
+
+TEST(MemorySource, PositionsFilterByLevelKeyNotName) {
+  auto src = positioned_source();
+  pp::BrowseQuery q;
+  q.positions = pp::PositionSelection{.levels = {"NM-300/A"}};
+  auto page = src->browse(q);
+  ASSERT_TRUE(page) << page.error().what;
+  EXPECT_EQ(identifiers_of(*page), (std::vector<std::string>{"77000"}));
+  q.positions = pp::PositionSelection{.levels = {"A"}};  // a name is no key
+  page = src->browse(q);
+  ASSERT_TRUE(page);
+  EXPECT_TRUE(page->rows.empty());
+}
+
+TEST(MemorySource, PositionsBranchesCombineByOrAndTheTreeByAnd) {
+  auto src = positioned_source();
+  pp::BrowseQuery q;
+  q.positions = pp::PositionSelection{.irradiations = {"NM-301"}, .not_irradiated = true};
+  auto page = src->browse(q);
+  ASSERT_TRUE(page) << page.error().what;
+  EXPECT_EQ(identifiers_of(*page), (std::vector<std::string>{"66574", "88000"}));
+  q.analysis_types = {"air"};
+  page = src->browse(q);
+  ASSERT_TRUE(page);
+  EXPECT_EQ(identifiers_of(*page), (std::vector<std::string>{"66574"}));
+  q.analysis_types.clear();
+  q.positions = pp::PositionSelection{.identifiers = {"77000"}, .not_irradiated = true};
+  page = src->browse(q);
+  ASSERT_TRUE(page);
+  EXPECT_EQ(identifiers_of(*page), (std::vector<std::string>{"66574", "77000"}));
+}
+
+TEST(MemorySource, AnEmptyPositionSelectionMatchesNothing) {
+  auto src = positioned_source();
+  pp::BrowseQuery q;
+  q.positions = pp::PositionSelection{};
+  auto page = src->browse(q);
+  ASSERT_TRUE(page);
+  EXPECT_TRUE(page->rows.empty());
+  q.positions.reset();
+  page = src->browse(q);
+  ASSERT_TRUE(page);
+  EXPECT_EQ(page->rows.size(), 3u);
+}
+
+TEST(MemorySource, PositionRowsIgnoreTheTreeAndPutNotIrradiatedLast) {
+  auto src = positioned_source();
+  {
+    auto a = make_air(6, 295.5, "unknown", "77000");  // a second analysis of 77000, in the same place
+    a->irradiation = "NM-300";
+    a->level = "A";
+    src->add(a);
+  }
+  pp::BrowseQuery q;
+  q.positions = pp::PositionSelection{.levels = {"NM-300/A"}};
+  const auto rows = src->positions(q);
+  ASSERT_TRUE(rows) << rows.error().what;
+  ASSERT_EQ(rows->size(), 3u);
+  EXPECT_EQ((*rows)[0].irradiation_key, "NM-300");
+  EXPECT_EQ((*rows)[0].irradiation, "NM-300");
+  EXPECT_EQ((*rows)[0].level_key, "NM-300/A");
+  EXPECT_EQ((*rows)[0].level, "A");
+  EXPECT_EQ((*rows)[0].identifier, "77000");
+  EXPECT_EQ((*rows)[1].irradiation_key, "NM-301");
+  EXPECT_EQ((*rows)[1].identifier, "88000");
+  EXPECT_EQ((*rows)[2].identifier, "66574");
+  EXPECT_TRUE((*rows)[2].irradiation_key.empty());
+  EXPECT_TRUE((*rows)[2].irradiation.empty());
+  EXPECT_TRUE((*rows)[2].level_key.empty());
+  EXPECT_TRUE((*rows)[2].level.empty());
+}
+
 TEST(MemorySource, RemoveDropsTheAnalysisAndMovesTheGeneration) {
   auto src = source();
   auto all = src->browse(pp::BrowseQuery{});
