@@ -299,6 +299,28 @@ const std::vector<std::string> kBlankTypes{"blank_unknown", "blank_air", "blank_
 
 }  // namespace
 
+// The irradiation tree's clause (spec 5.1) is a subquery on the identifier,
+// found by the unique indexes of identifier, irradiation_position and level; no
+// table of the subquery is read whole, in the page, the count or a facet.
+TEST(SchemaIndexes, APositionSelectionIsFoundByIndexes) {
+  TestDatabase tdb("sqlite", true);
+  ASSERT_TRUE(open_or_die(tdb.url()));
+  auto db = raw(tdb.url());
+  ASSERT_TRUE(db);
+  BrowseFilter f;
+  f.positions = PositionFilter{{Uuid::v7()}, {Uuid::v7()}, {"77000"}, true};
+  std::vector<std::pair<std::string, std::string>> plans;
+  plans.emplace_back("page", plan_of(*db, page_statement(*db, f)));
+  plans.emplace_back("count", plan_of(*db, pd::browse_count_statement(*db, Dialect::Sqlite, f)));
+  plans.emplace_back("facet", plan_of(*db, pd::facet_statement(*db, Dialect::Sqlite, BrowseFacet::Sample, f)));
+  plans.emplace_back("listing", plan_of(*db, pd::positions_statement(*db, Dialect::Sqlite, f)));
+  for (const auto& [what, plan] : plans) {
+    ASSERT_FALSE(plan.empty()) << what;
+    for (const char* scan : {"SCAN identifier", "SCAN irradiation_position", "SCAN ip", "SCAN level", "SCAN lv", "SCAN i "})
+      EXPECT_EQ(plan.find(scan), std::string::npos) << what << " has " << scan << ":\n" << plan;
+  }
+}
+
 TEST(SchemaIndexes, TheReferenceSeriesBrowseUsesAnIndexAndDoesNotSortInATempTree) {
   TestDatabase tdb("sqlite", true);
   ASSERT_TRUE(open_or_die(tdb.url()));

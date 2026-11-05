@@ -177,11 +177,15 @@ a.identifier_uuid IN (
 ```sql
 SELECT DISTINCT ir.uuid AS irradiation_uuid, ir.name AS irradiation,
        lv.uuid AS level_uuid, lv.name AS level,
-       i.identifier AS identifier, s.name AS sample, p.name AS project
+       i.identifier AS identifier, s.name AS sample, p.name AS project,
+       (ir.name IS NULL) AS unplaced
 <kBrowseFrom, as from_for_aggregate>
 <build_where, positions ignored>
 ORDER BY (ir.name IS NULL), ir.name, lv.name, i.identifier
 ```
+
+`unplaced` is selected only because PostgreSQL wants an `ORDER BY` expression
+of a `SELECT DISTINCT` in the select list; not read.
 
 New `Store::positions(const BrowseFilter&)` → `std::vector<PositionListing>`
 (persistence's twin of `PositionRow`, uuids as `Uuid`). Both dialects, one

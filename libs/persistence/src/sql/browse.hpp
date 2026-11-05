@@ -15,7 +15,7 @@ inline const QString kBrowseSelect = QStringLiteral(
     "SELECT a.uuid, a.runid_text, i.identifier, a.aliquot, a.increment, a.provisional, a.analysis_type, "
     "%1 AS ts, m.name AS mass_spectrometer, a.signals_state, "
     "s.name AS sample, s.uuid AS sample_uuid, p.name AS project, mt.name AS material, pi.display_name AS principal_investigator, "
-    "p.pi_uuid AS principal_investigator_uuid, "
+    "p.pi_uuid AS principal_investigator_uuid, ir.uuid AS irradiation_uuid, lv.uuid AS level_uuid, "
     "ed.name AS extract_device, ld.name AS load_name, ir.name AS irradiation, lv.name AS level, "
     "ip.position AS position, a.extract_value, a.extract_units, tv.name AS tag, "
     "dv.value AS age, dv.error AS age_err, "
@@ -74,6 +74,31 @@ inline const QString kColIdentifier = QStringLiteral("i.identifier");
 inline const QString kColIrradiation = QStringLiteral("ir.name");
 inline const QString kColLevel = QStringLiteral("lv.name");
 inline const QString kColLoad = QStringLiteral("ld.name");
+
+// The irradiation tree (spec 5.1): the analysis's identifier is one of the
+// identifiers chosen by any branch. A branch per non-empty part, joined by
+// UNION (never an OR across tables); each reaches its rows by an index.
+// %1: placeholders.
+inline const QString kPositionByIrradiation = QStringLiteral(
+    "SELECT i.uuid FROM identifier i JOIN irradiation_position ip ON ip.uuid = i.position_uuid "
+    "JOIN level lv ON lv.uuid = ip.level_uuid WHERE lv.irradiation_uuid IN (%1)");
+inline const QString kPositionByLevel = QStringLiteral(
+    "SELECT i.uuid FROM identifier i JOIN irradiation_position ip ON ip.uuid = i.position_uuid "
+    "WHERE ip.level_uuid IN (%1)");
+inline const QString kPositionByIdentifier = QStringLiteral("SELECT uuid FROM identifier WHERE identifier IN (%1)");
+inline const QString kPositionNotIrradiated = QStringLiteral("SELECT uuid FROM identifier WHERE position_uuid IS NULL");
+// %1: the branches, joined by UNION.
+inline const QString kPositionIn = QStringLiteral("a.identifier_uuid IN (%1)");
+// A selection with nothing in it.
+inline const QString kPositionNone = QStringLiteral("1 = 0");
+
+// The positions listing (spec 5.2). Follow with kBrowseFrom, the where clause
+// and kPositionsOrder. `unplaced` is in the list only because PostgreSQL
+// requires an ORDER BY expression of a SELECT DISTINCT to be selected.
+inline const QString kPositionsSelect = QStringLiteral(
+    "SELECT DISTINCT ir.uuid AS irradiation_uuid, ir.name AS irradiation, lv.uuid AS level_uuid, lv.name AS level, "
+    "i.identifier AS identifier, s.name AS sample, p.name AS project, (ir.name IS NULL) AS unplaced ");
+inline const QString kPositionsOrder = QStringLiteral(" ORDER BY (ir.name IS NULL), ir.name, lv.name, i.identifier");
 
 // %1: placeholders.
 inline const QString kBrowseUuidIn = QStringLiteral("a.uuid IN (%1)");

@@ -507,6 +507,17 @@ struct AppliedMigration {
 // ---------------------------------------------------------------- browsing
 // (data browsing and visualization design, section 9.2)
 
+// The irradiation tree's selection, by key (a uuid for an irradiation or a
+// level, so that two levels named "A" stay apart; an identifier's text for a
+// position). Any part matches; a set `positions` with every part empty matches
+// nothing.
+struct PositionFilter {
+  // Defaulted so a designated initializer may leave parts out.
+  std::vector<Uuid> irradiations = {}, levels = {};
+  std::vector<std::string> identifiers = {};
+  bool not_irradiated = false;  // identifiers with no irradiation position
+};
+
 // Every list is "any of"; empty lists do not filter. Sample, project, PI and
 // material come from the identifier's sample or its irradiation position's.
 struct BrowseFilter {
@@ -521,6 +532,8 @@ struct BrowseFilter {
   // cached age, or one cached as having none, matches no bound.
   std::optional<double> age_min, age_max;
   std::vector<Uuid> uuids;  // non-empty: only these analyses
+  // The irradiation tree; ANDed with every other part. Unset: no filter.
+  std::optional<PositionFilter> positions;
 };
 
 struct BrowseCursorKey {
@@ -549,6 +562,9 @@ struct BrowseRow {
   std::optional<Uuid> sample_uuid = std::nullopt;
   // The project's PI (`principal_investigator` is what it is shown as).
   std::optional<Uuid> principal_investigator_uuid = std::nullopt;
+  // The irradiation and level of the analysis's position (`irradiation` and
+  // `level` are their names); unset where it has none.
+  std::optional<Uuid> irradiation_uuid = std::nullopt, level_uuid = std::nullopt;
   // The cached age and its 1 sigma error (Ma), when derived_value has one.
   // It may be out of date: nothing here says whether its inputs changed.
   std::optional<double> age = std::nullopt, age_err = std::nullopt;
@@ -558,6 +574,15 @@ struct BrowseResult {
   std::vector<BrowseRow> rows;  // newest first
   std::optional<BrowseCursorKey> next;
   std::optional<std::int64_t> total;
+};
+
+// One position of the tree: an identifier with where it was irradiated, as
+// the analyses matching a filter show it. Uuids and names unset for an
+// identifier with no position.
+struct PositionListing {
+  std::optional<Uuid> irradiation_uuid, level_uuid;
+  std::string irradiation, level, identifier, sample, project;
+  friend bool operator==(const PositionListing&, const PositionListing&) = default;
 };
 
 enum class BrowseFacet {
@@ -802,6 +827,9 @@ class IStore {
   // Distinct non-empty values of `facet` among analyses matching every other
   // filter of `filter`, sorted (PIs by family name, then given name).
   virtual Result<std::vector<FacetValue>> facet(BrowseFacet facet, const BrowseFilter& filter) = 0;
+  // The positions of the analyses matching `filter` but for its `positions`,
+  // by irradiation, level and identifier; identifiers with no position last.
+  virtual Result<std::vector<PositionListing>> positions(const BrowseFilter& filter) = 0;
   virtual Result<std::optional<AnalysisDetail>> load_analysis_detail(Uuid analysis) = 0;
   // A content-addressed raw series; nullopt when not (yet) uploaded.
   virtual Result<std::optional<BlobData>> load_blob(const Sha256Digest& sha) = 0;

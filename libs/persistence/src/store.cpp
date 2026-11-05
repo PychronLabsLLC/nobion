@@ -726,6 +726,10 @@ class TinyStore final : public IStore {
     return detail::facet(*db_, dialect(), f, filter);
   }
 
+  Result<std::vector<PositionListing>> positions(const BrowseFilter& filter) override {
+    return detail::positions(*db_, dialect(), filter);
+  }
+
   Result<std::optional<AnalysisDetail>> load_analysis_detail(Uuid analysis) override {
     return detail::load_analysis_detail(*db_, dialect(), analysis);
   }

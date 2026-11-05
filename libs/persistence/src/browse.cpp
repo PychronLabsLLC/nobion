@@ -64,7 +64,33 @@ struct Where {
   QString sql() const { return clauses.isEmpty() ? QString() : QStringLiteral("WHERE ") + clauses.join(QStringLiteral(" AND ")); }
 };
 
-Result<Where> build_where(Db& db, Dialect dialect, const BrowseFilter& f, std::optional<BrowseFacet> ignore) {
+// The clause of the irradiation tree: one UNION branch per non-empty part.
+void add_positions(Where& w, const PositionFilter& p) {
+  QStringList branches;
+  auto branch = [&](const QString& select, std::size_t n) {
+    branches << select.arg(sql::placeholders(static_cast<qsizetype>(n)));
+  };
+  if (!p.irradiations.empty()) {
+    branch(sql::kPositionByIrradiation, p.irradiations.size());
+    for (const Uuid& id : p.irradiations) w.bindings << qv(id);
+  }
+  if (!p.levels.empty()) {
+    branch(sql::kPositionByLevel, p.levels.size());
+    for (const Uuid& id : p.levels) w.bindings << qv(id);
+  }
+  if (!p.identifiers.empty()) {
+    branch(sql::kPositionByIdentifier, p.identifiers.size());
+    for (const auto& id : p.identifiers) w.bindings << qv(id);
+  }
+  if (p.not_irradiated) branches << sql::kPositionNotIrradiated;
+  w.clauses << (branches.isEmpty() ? sql::kPositionNone
+                                   : sql::kPositionIn.arg(branches.join(QStringLiteral(" UNION "))));
+}
+
+// `with_positions` false: the listing of positions, which ignores its own
+// filter as a facet does.
+Result<Where> build_where(Db& db, Dialect dialect, const BrowseFilter& f, std::optional<BrowseFacet> ignore,
+                          bool with_positions = true) {
   Where w;
   auto list = [&](BrowseFacet facet, const std::vector<std::string>& values) {
     if (values.empty() || ignore == facet) return;
@@ -130,6 +156,7 @@ Result<Where> build_where(Db& db, Dialect dialect, const BrowseFilter& f, std::o
     w.clauses << sql::kBrowseUuidIn.arg(sql::placeholders(static_cast<qsizetype>(f.uuids.size())));
     for (const Uuid& id : f.uuids) w.bindings << qv(id);
   }
+  if (with_positions && f.positions) add_positions(w, *f.positions);
   return w;
 }
 
@@ -163,6 +190,8 @@ BrowseRow row_from(const Row& r) {
   b.material = to_std(r.value("material"));
   b.principal_investigator = to_std(r.value("principal_investigator"));
   b.principal_investigator_uuid = opt_uuid(r.value("principal_investigator_uuid"));
+  b.irradiation_uuid = opt_uuid(r.value("irradiation_uuid"));
+  b.level_uuid = opt_uuid(r.value("level_uuid"));
   b.extract_device = to_std(r.value("extract_device"));
   b.load = to_std(r.value("load_name"));
   b.irradiation = to_std(r.value("irradiation"));
@@ -242,6 +271,13 @@ Result<BrowseStatement> facet_statement(Db& db, Dialect dialect, BrowseFacet f, 
                          std::move(w.bindings)};
 }
 
+Result<BrowseStatement> positions_statement(Db& db, Dialect dialect, const BrowseFilter& filter) {
+  auto where = build_where(db, dialect, filter, std::nullopt, false);
+  if (!where) return fail(where.error());
+  return BrowseStatement{sql::kPositionsSelect + from_for_aggregate(filter) + where->sql() + sql::kPositionsOrder,
+                         std::move(where->bindings)};
+}
+
 Result<BrowseResult> browse(Db& db, Dialect dialect, const BrowseRequest& req) {
   if (req.limit <= 0) return fail(ErrorKind::Protocol, "browse: limit must be positive");
   if (req.filter.uuids.size() > kUuidPart) return browse_uuids_in_parts(db, dialect, req);
@@ -290,6 +326,20 @@ Result<std::vector<FacetValue>> facet(Db& db, Dialect dialect, BrowseFacet f, co
       out.push_back({std::move(v), std::move(label)});
     }
   }
+  return out;
+}
+
+Result<std::vector<PositionListing>> positions(Db& db, Dialect dialect, const BrowseFilter& filter) {
+  auto st = positions_statement(db, dialect, filter);
+  if (!st) return fail(st.error());
+  auto rows = db.select(st->sql, st->bindings);
+  if (!rows) return fail(rows.error());
+  std::vector<PositionListing> out;
+  out.reserve(rows->size());
+  for (const auto& r : *rows)
+    out.push_back({opt_uuid(r.value("irradiation_uuid")), opt_uuid(r.value("level_uuid")), to_std(r.value("irradiation")),
+                   to_std(r.value("level")), to_std(r.value("identifier")), to_std(r.value("sample")),
+                   to_std(r.value("project"))});
   return out;
 }
 

@@ -95,7 +95,24 @@ class BrowseTest : public StoreTest {
     return f;
   }
 
-  Uuid pi_, project_, material_, sample_, a1_, a2_, a3_, a4_, a5_;
+  // A second irradiation whose level is also named "A", with position 1
+  // holding 88000 and one unknown analysis of it.
+  void add_second_irradiation() {
+    const Uuid c = lab_.acquisition_client;
+    nm301_ = *store_->add_irradiation(c, "NM-301");
+    level301_ = *store_->add_level(c, {nm301_, "A", std::nullopt, 0.5, std::nullopt, std::nullopt});
+    const Uuid pos = *store_->add_irradiation_position(c, {level301_, 1, std::nullopt, std::nullopt, {}, {}, std::nullopt});
+    ASSERT_TRUE(store_->add_identifier(c, {"88000", "unknown", std::nullopt, std::nullopt, pos, std::nullopt, std::nullopt}));
+    a6_ = add("88000", 1, "unknown", "2026-10-02T15:00:00Z");
+  }
+
+  BrowseFilter with_positions(PositionFilter p) {
+    BrowseFilter f;
+    f.positions = std::move(p);
+    return f;
+  }
+
+  Uuid pi_, project_, material_, sample_, a1_, a2_, a3_, a4_, a5_, a6_, nm301_, level301_;
 };
 
 TEST_P(BrowseTest, NewestFirstWithPagingAndTotals) {
@@ -427,6 +444,81 @@ TEST_P(BrowseTest, NoUuidsLeavesTheStatementAlone) {
                            detail::browse_count_statement(**db, dialect, with));
   expect_same_unless_uuids(detail::facet_statement(**db, dialect, BrowseFacet::Sample, plain),
                            detail::facet_statement(**db, dialect, BrowseFacet::Sample, with));
+}
+
+// The irradiation tree. Levels are keyed by uuid: both irradiations have a
+// level named "A".
+TEST_P(BrowseTest, PositionsFilterByLevelKeyNotName) {
+  add_second_irradiation();
+  auto r = browse(with_positions({.levels = {lab_.level}}));
+  // NM-300 level A holds 77000 (a1, a2) and 66573 (a5); NM-301's level A is not it.
+  EXPECT_EQ(uuids(r), (std::vector<Uuid>{a5_, a2_, a1_}));
+  EXPECT_EQ(uuids(browse(with_positions({.levels = {level301_}}))), (std::vector<Uuid>{a6_}));
+  EXPECT_EQ(uuids(browse(with_positions({.irradiations = {lab_.irradiation}}))), (std::vector<Uuid>{a5_, a2_, a1_}));
+}
+
+TEST_P(BrowseTest, PositionsBranchesCombineByOr) {
+  add_second_irradiation();
+  BrowseFilter f = with_positions({.irradiations = {nm301_}, .not_irradiated = true});
+  f.exclude_tags = {"invalid"};  // the browser's view: a4 is hidden
+  EXPECT_EQ(uuids(browse(f)), (std::vector<Uuid>{a6_, a3_}));  // 66574 has no position; 66573 has one
+  EXPECT_EQ(uuids(browse(with_positions({.identifiers = {"77000"}}))), (std::vector<Uuid>{a2_, a1_}));
+  EXPECT_EQ(uuids(browse(with_positions({.irradiations = {nm301_}, .levels = {lab_.level}, .identifiers = {"66573"}}))),
+            (std::vector<Uuid>{a6_, a5_, a2_, a1_}));
+}
+
+TEST_P(BrowseTest, PositionsCombineByAndWithOtherFilters) {
+  add_second_irradiation();
+  BrowseFilter f = with_positions({.not_irradiated = true});
+  f.analysis_types = {"air"};
+  f.exclude_tags = {"invalid"};
+  EXPECT_EQ(uuids(browse(f)), (std::vector<Uuid>{a3_}));
+  // The lists respect the tree.
+  EXPECT_EQ(values(store_->facet(BrowseFacet::AnalysisType, with_positions({.not_irradiated = true}))),
+            (std::vector<std::string>{"air"}));
+  EXPECT_EQ(values(store_->facet(BrowseFacet::AnalysisType, with_positions({.irradiations = {lab_.irradiation}}))),
+            (std::vector<std::string>{"blank_unknown", "unknown"}));
+}
+
+TEST_P(BrowseTest, AnEmptyPositionSelectionMatchesNothing) {
+  add_second_irradiation();
+  auto r = browse(with_positions(PositionFilter{}));
+  EXPECT_TRUE(r.rows.empty());
+  EXPECT_EQ(r.total, 0);
+}
+
+TEST_P(BrowseTest, PositionListingIgnoresItsOwnFilterAndOrders) {
+  add_second_irradiation();
+  auto listing = store_->positions(with_positions({.levels = {lab_.level}}));
+  ASSERT_TRUE(listing) << to_string(listing.error());
+  const std::vector<PositionListing> want{
+      {lab_.irradiation, lab_.level, "NM-300", "A", "66573", "", ""},
+      {lab_.irradiation, lab_.level, "NM-300", "A", "77000", "FC-2", "Fish Canyon"},
+      {nm301_, level301_, "NM-301", "A", "88000", "", ""},
+      {std::nullopt, std::nullopt, "", "", "66574", "", ""},
+  };
+  EXPECT_EQ(*listing, want);
+  // Other filters still narrow it.
+  BrowseFilter f = with_positions({.levels = {lab_.level}});
+  f.analysis_types = {"air"};
+  auto air = store_->positions(f);
+  ASSERT_TRUE(air);
+  ASSERT_EQ(air->size(), 1u);
+  EXPECT_EQ(air->front().identifier, "66574");
+}
+
+TEST_P(BrowseTest, BrowseRowsCarryIrradiationAndLevelUuids) {
+  const auto r = browse({});
+  for (const auto& row : r.rows) {
+    if (row.summary.uuid == a1_) {
+      EXPECT_EQ(row.irradiation_uuid, lab_.irradiation);
+      EXPECT_EQ(row.level_uuid, lab_.level);
+    }
+    if (row.summary.uuid == a3_) {
+      EXPECT_FALSE(row.irradiation_uuid);
+      EXPECT_FALSE(row.level_uuid);
+    }
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(Engines, BrowseTest, ::testing::ValuesIn(engines()), [](const auto& p) { return p.param; });
