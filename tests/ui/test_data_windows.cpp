@@ -1014,6 +1014,25 @@ class TestDataWindows : public QObject {
     QCOMPARE(nm300->checkState(0), Qt::PartiallyChecked);
   }
 
+  void irradiation_tree_identifier_without_level_sits_under_its_irradiation() {
+    ui::IrradiationTree tree(QStringLiteral("Irradiation"));
+    auto row = position_row("NM-400", "", "99000", "FC-2", "Fish Canyon");
+    row.level_key.clear();  // memory and record sources give no level key when there is no level
+    auto other = position_row("NM-400", "", "99001", "FC-2", "Fish Canyon");
+    other.level_key.clear();  // a second one, so ticking 99000 leaves the irradiation partly ticked
+    tree.set_rows({row, other});
+    auto* irradiation = find_node(tree.tree(), QStringLiteral("NM-400"));
+    auto* identifier = find_node(tree.tree(), QStringLiteral("99000"));
+    QVERIFY(irradiation != nullptr);
+    QVERIFY(identifier != nullptr);
+    QCOMPARE(identifier->parent(), irradiation);
+    QCOMPARE(irradiation->childCount(), 2);
+    identifier->setCheckState(0, Qt::Checked);
+    const auto sel = tree.selection();
+    QVERIFY(sel.has_value());
+    QCOMPARE(*sel, (pychron::processing::PositionSelection{.identifiers = {"99000"}}));
+  }
+
   void irradiation_tree_selection_is_the_highest_full_node() {
     namespace pp = pychron::processing;
     ui::IrradiationTree tree(QStringLiteral("Irradiation"));

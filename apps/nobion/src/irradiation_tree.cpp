@@ -186,13 +186,16 @@ void IrradiationTree::set_rows(const std::vector<processing::PositionRow>& rows)
         irradiation = make_item(Kind::Irradiation, ikey, qs(row.irradiation));
         add(irradiation, nullptr);
       }
-      const QString lkey = qs(row.level_key);
-      QTreeWidgetItem*& level = by_id[QStringLiteral("1:") + lkey];
-      if (level == nullptr) {
-        level = make_item(Kind::Level, lkey, qs(row.level));
-        add(level, irradiation);
+      parent = irradiation;  // an identifier with no level sits directly under its irradiation
+      if (!row.level_key.empty()) {
+        const QString lkey = qs(row.level_key);
+        QTreeWidgetItem*& level = by_id[QStringLiteral("1:") + lkey];
+        if (level == nullptr) {
+          level = make_item(Kind::Level, lkey, qs(row.level));
+          add(level, irradiation);
+        }
+        parent = level;
       }
-      parent = level;
     }
     auto* identifier = make_item(Kind::Identifier, qs(row.identifier), qs(row.identifier));
     const QString sample = qs(row.sample), project = qs(row.project);
@@ -262,8 +265,13 @@ std::optional<processing::PositionSelection> IrradiationTree::selection() const 
     } else {
       for (int j = 0; j < top->childCount(); ++j) {
         const QTreeWidgetItem* level = top->child(j);
-        if (level->checkState(0) == Qt::Checked) out.levels.push_back(key_of(level).toStdString());
-        else if (level->checkState(0) == Qt::PartiallyChecked) identifiers_under(level);
+        if (kind_of(level) == Kind::Identifier) {
+          if (level->checkState(0) == Qt::Checked) out.identifiers.push_back(key_of(level).toStdString());
+        } else if (level->checkState(0) == Qt::Checked) {
+          out.levels.push_back(key_of(level).toStdString());
+        } else if (level->checkState(0) == Qt::PartiallyChecked) {
+          identifiers_under(level);
+        }
       }
     }
   }
