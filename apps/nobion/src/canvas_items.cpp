@@ -169,7 +169,7 @@ void ValveItem::set_details(const QStringList& lines) {
 void ValveItem::update_tip() {
   QStringList lines{QString::fromStdString(name_)};
   lines += details_;
-  if (!last_failure_.isEmpty()) lines += tr("Last failure: %1").arg(last_failure_);
+  if (!last_failure_.isEmpty()) lines += tr("Last failure") + QLatin1Char('\t') + last_failure_;
   setToolTip(style::tip_text(lines.join(QLatin1Char('\n'))));
 }
 

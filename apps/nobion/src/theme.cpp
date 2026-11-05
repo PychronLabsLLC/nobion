@@ -550,21 +550,42 @@ bool rounded_popups(const QString& platform) {
 }
 
 QString tip_text(const QString& plain) {
-  const qsizetype cut = plain.indexOf(QLatin1Char('\n'));
-  if (cut < 0) return plain;
-  QString rest = plain.mid(cut + 1).toHtmlEscaped();
-  rest.replace(QLatin1Char('\n'), QStringLiteral("<br>"));
+  const QStringList lines = plain.split(QLatin1Char('\n'));
+  if (lines.size() == 1) return plain;
   // Details in the tooltip's text colour, faded toward its ink ground.
   const Theme& t = theme();
-  QColor detail = t.on_chrome;
+  QColor faded;
   constexpr double kept = 0.68;
-  detail.setRgbF(static_cast<float>(t.on_chrome.redF() * kept + t.chrome.redF() * (1 - kept)),
-                 static_cast<float>(t.on_chrome.greenF() * kept + t.chrome.greenF() * (1 - kept)),
-                 static_cast<float>(t.on_chrome.blueF() * kept + t.chrome.blueF() * (1 - kept)));
-  return QStringLiteral(
-             "<p style=\"white-space:pre; margin:0\"><span style=\"font-weight:600\">%1</span></p>"
-             "<p style=\"white-space:pre; margin:3px 0 0 0; color:%3\">%2</p>")
-      .arg(plain.left(cut).toHtmlEscaped(), rest, detail.name());
+  faded.setRgbF(static_cast<float>(t.on_chrome.redF() * kept + t.chrome.redF() * (1 - kept)),
+                static_cast<float>(t.on_chrome.greenF() * kept + t.chrome.greenF() * (1 - kept)),
+                static_cast<float>(t.on_chrome.blueF() * kept + t.chrome.blueF() * (1 - kept)));
+  const QString detail = faded.name();
+  const auto is_row = [](const QString& line) { return line.contains(QLatin1Char('\t')); };
+
+  QString out = QStringLiteral("<p style=\"white-space:pre; margin:0\"><span style=\"font-weight:600\">%1</span></p>")
+                    .arg(lines.front().toHtmlEscaped());
+  // Runs of plain lines are faded prose; runs of label-tab-value lines are a
+  // table, labels faded, values in the text colour.
+  qsizetype i = 1;
+  while (i < lines.size()) {
+    if (!is_row(lines[i])) {
+      QStringList run;
+      while (i < lines.size() && !is_row(lines[i])) run << lines[i++].toHtmlEscaped();
+      out += QStringLiteral("<p style=\"white-space:pre; margin:3px 0 0 0; color:%1\">%2</p>")
+                 .arg(detail, run.join(QStringLiteral("<br>")));
+      continue;
+    }
+    QString rows;
+    while (i < lines.size() && is_row(lines[i])) {
+      const QString& line = lines[i++];
+      const qsizetype tab = line.indexOf(QLatin1Char('\t'));
+      rows += QStringLiteral("<tr><td style=\"white-space:pre; padding-right:12px; color:%1\">%2</td>"
+                             "<td style=\"white-space:pre\">%3</td></tr>")
+                  .arg(detail, line.left(tab).toHtmlEscaped(), line.mid(tab + 1).toHtmlEscaped());
+    }
+    out += QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" style=\"margin-top:3px\">%1</table>").arg(rows);
+  }
+  return out;
 }
 
 QFont title_font(const QFont& base) {

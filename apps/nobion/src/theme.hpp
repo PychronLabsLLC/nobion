@@ -162,7 +162,9 @@ void set_font_sizes(int ui_pt, int code_pt);
 [[nodiscard]] bool rounded_popups(const QString& platform);
 
 // Tooltip text from plain lines: the first line is the subject and is set
-// heavier, the rest are its details. A single line comes back as it is.
+// heavier, the rest are its details, fainter. A detail line "label\tvalue" is
+// a row of a two-column table (label faded, value plain); consecutive rows
+// share one table, so their values line up. A single line comes back as it is.
 QString tip_text(const QString& plain);
 
 // Window headline: larger and bold.

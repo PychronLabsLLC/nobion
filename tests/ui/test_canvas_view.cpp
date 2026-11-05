@@ -209,13 +209,13 @@ class TestCanvasView : public QObject {
     bridge_->actuate("A", SwitchOp::Open);
     ui::ValveItem* a = view_->valve("A");
     QTRY_VERIFY(a->is_flashing());
-    QVERIFY(a->toolTip().contains(QStringLiteral("Last failure: ")));
+    QVERIFY(a->toolTip().contains(QStringLiteral(">Last failure</td>")));
     QVERIFY(a->toolTip().contains(QStringLiteral("interlocked")));
     QCOMPARE(a->state(), ValveState::Closed);
     // A refusal is in the valve's history, apart from the commands that failed.
-    QTRY_VERIFY2(a->toolTip().contains(QStringLiteral("Opened 0, closed 0, failed 0, refused 1")), qPrintable(a->toolTip()));
+    QTRY_VERIFY2(a->toolTip().contains(QStringLiteral("0 opened · 0 closed · 0 failed · 1 refused")), qPrintable(a->toolTip()));
     bridge_->actuate("A", SwitchOp::Open);
-    QTRY_VERIFY2(a->toolTip().contains(QStringLiteral("refused 2")), qPrintable(a->toolTip()));
+    QTRY_VERIFY2(a->toolTip().contains(QStringLiteral("2 refused")), qPrintable(a->toolTip()));
   }
 
   // The tooltip says what the valve is, its state and since when, and what
@@ -224,7 +224,7 @@ class TestCanvasView : public QObject {
     ui::ValveItem* b = view_->valve("B");
     // Earlier tests have used this valve, and its history is kept.
     const auto counts = [b] {
-      const auto m = QRegularExpression(QStringLiteral("Opened ([\\d,]+), closed ([\\d,]+), failed ([\\d,]+)")).match(b->toolTip());
+      const auto m = QRegularExpression(QStringLiteral("([\\d,]+) opened · ([\\d,]+) closed · ([\\d,]+) failed")).match(b->toolTip());
       return std::array<int, 3>{m.captured(1).remove(QLatin1Char(',')).toInt(), m.captured(2).remove(QLatin1Char(',')).toInt(),
                                 m.captured(3).remove(QLatin1Char(',')).toInt()};
     };
@@ -239,8 +239,8 @@ class TestCanvasView : public QObject {
     QTRY_VERIFY(b->toolTip().contains(QStringLiteral("Open since ")));
     QCOMPARE(counts(), (std::array<int, 3>{before[0] + 1, before[1], before[2]}));
     QVERIFY(b->toolTip().contains(QStringLiteral("Prep to spectrometer")));
-    QVERIFY(b->toolTip().contains(QStringLiteral("Last actuated ")));
-    QVERIFY(b->toolTip().contains(QStringLiteral("Time open ")));
+    QVERIFY(b->toolTip().contains(QStringLiteral(">Last actuated</td>")));
+    QVERIFY(b->toolTip().contains(QStringLiteral(">Time open</td>")));
   }
 
   // "Since" is counted on the line's clock, which stamped the actuation: on a
@@ -360,7 +360,7 @@ class TestCanvasView : public QObject {
     state.switches["V"] = v;
     state.valves["V"] = ValveState::Closed;
     QCOMPARE(ui::CanvasView::valve_details(state, "V", now),
-             (QStringList{QStringLiteral("Bone to turbo"), QStringLiteral("Closed, locked"), QStringLiteral("Never actuated")}));
+             (QStringList{QStringLiteral("Bone to turbo"), QStringLiteral("State\tClosed, locked"), QStringLiteral("Actuations\tNone")}));
 
     systems::SwitchStats& h = state.switches["V"].stats;
     h.opens = 1204;
@@ -371,14 +371,17 @@ class TestCanvasView : public QObject {
     h.last_actuation = ago(3 * 86400);
     h.open_time = seconds(40 * 3600);
     state.switches["V"].locked = false;
+    state.switches["V"].owner = "laser";
     state.valves["V"] = ValveState::Open;
     const QLocale locale;
     QCOMPARE(ui::CanvasView::valve_details(state, "V", now),
-             (QStringList{QStringLiteral("Bone to turbo"), QStringLiteral("Open since 12:47:00 (2 h 13 min)"),
-                          QStringLiteral("Last actuated %1").arg(locale.toString(now.addDays(-3), QStringLiteral("d MMM yyyy HH:mm"))),
-                          QStringLiteral("Opened %1, closed %2, failed 3, refused 12").arg(locale.toString(1204), locale.toString(1203)),
-                          QStringLiteral("Time open 1 d 18 h")}));  // 40 h ended, 2 h 13 min running
-    QCOMPARE(ui::CanvasView::valve_details(state, "nope", now), QStringList{QStringLiteral("State unknown")});
+             (QStringList{QStringLiteral("Bone to turbo"), QStringLiteral("State\tOpen since 12:47:00 (2 h 13 min)"),
+                          QStringLiteral("Owner\tlaser"),
+                          QStringLiteral("Last actuated\t%1").arg(locale.toString(now.addDays(-3), QStringLiteral("d MMM yyyy HH:mm"))),
+                          QStringLiteral("Actuations\t%1 opened · %2 closed · 3 failed · 12 refused")
+                              .arg(locale.toString(1204), locale.toString(1203)),
+                          QStringLiteral("Time open\t1 d 18 h")}));  // 40 h ended, 2 h 13 min running
+    QCOMPARE(ui::CanvasView::valve_details(state, "nope", now), QStringList{QStringLiteral("State\tUnknown")});
   }
 
   // A command that was sent and failed is in the valve's history at once.
@@ -400,9 +403,9 @@ class TestCanvasView : public QObject {
     line->transport("valve_bus")->close();
     bridge.actuate("C", SwitchOp::Open);
     QTRY_VERIFY(c->is_flashing());
-    QTRY_VERIFY2(c->toolTip().contains(QStringLiteral("failed 1, refused 0")), qPrintable(c->toolTip()));
+    QTRY_VERIFY2(c->toolTip().contains(QStringLiteral("1 failed · 0 refused")), qPrintable(c->toolTip()));
     bridge.actuate("C", SwitchOp::Open);
-    QTRY_VERIFY2(c->toolTip().contains(QStringLiteral("failed 2, refused 0")), qPrintable(c->toolTip()));
+    QTRY_VERIFY2(c->toolTip().contains(QStringLiteral("2 failed · 0 refused")), qPrintable(c->toolTip()));
     line->stop();
   }
 

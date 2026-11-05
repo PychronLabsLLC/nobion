@@ -291,6 +291,19 @@ class TestTheme : public QObject {
     QVERIFY(detail.lightness() > theme().chrome.lightness());
   }
 
+  // "label\tvalue" lines are rows of one table, so their values line up;
+  // plain lines around them stay prose.
+  void tip_text_sets_label_value_lines_as_table_rows() {
+    const QString tip = style::tip_text(QStringLiteral("C\nBone to <inlet>\nState\tOpen\nTime open\t41 h\nnote"));
+    QCOMPARE(tip.count(QStringLiteral("<table")), 1);
+    QCOMPARE(tip.count(QStringLiteral("<tr>")), 2);
+    QVERIFY(tip.contains(QStringLiteral(">State</td><td style=\"white-space:pre\">Open</td>")));
+    QVERIFY(tip.contains(QStringLiteral(">Time open</td><td style=\"white-space:pre\">41 h</td>")));
+    QVERIFY(tip.contains(QStringLiteral(">Bone to &lt;inlet&gt;</p>")));
+    QVERIFY(tip.indexOf(QStringLiteral(">note</p>")) > tip.indexOf(QStringLiteral("</table>")));
+    QVERIFY(!tip.contains(QLatin1Char('\t')));
+  }
+
   void fonts() {
     QFont base;
     base.setPointSizeF(10);

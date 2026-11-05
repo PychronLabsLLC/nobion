@@ -121,7 +121,8 @@ class CanvasView : public QGraphicsView {
   [[nodiscard]] LegendInputs legend_inputs() const;
 
   // The lines of a valve's tooltip under its name, as of `now`: description,
-  // state and how long it has held, last actuation, counts and time open.
+  // then "label\tvalue" rows (style::tip_text): state and how long it has
+  // held, owner, last actuation, counts and time open.
   static QStringList valve_details(const CoreBridge::State& state, const std::string& name, const QDateTime& now);
 
   // Colour of an isolated volume.

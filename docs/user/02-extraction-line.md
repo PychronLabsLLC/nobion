@@ -136,7 +136,7 @@ shot from the cocktail pipette.
 |---|---|
 | **Left-click** a valve | Opens its faceplate beside it: what it is, its state and since when, the valves its opening waits on (each *met* or *not met*), its history, the last failure, and the buttons **Open** / **Close** and **Lock** / **Unlock**. Nothing moves until you press one. Unlocking asks "Unlock X? It will accept open and close commands again." A locked valve's Open and Close are greyed out. Esc or a click elsewhere closes the faceplate. A manual valve's faceplate, and any in a rehearsal, has no buttons. |
 | **Option-click** (Alt-click) a valve | Toggles it at once: closed or unknown opens it, open closes it. A second click while the first is still pending is ignored. |
-| **Hover** a valve | Tooltip: name, description, state and since when, whether it is locked or owned, last actuation time, counts of opens / closes / failures, total time open, and the last failure message. |
+| **Hover** a valve | Tooltip: name and description, then one row each for state and since when (and whether it is locked), owner, last actuation time, counts of opens / closes / failures / refusals, total time open, and the last failure message. |
 
 The tooltip history (counts, time open) is kept between runs.
 
@@ -149,7 +149,7 @@ running experiment, goes through one gatekeeper in this order:
    Refusal text: `'X' is software locked`.
 2. **Owner.** A valve can be claimed by one user of the line; a claimed valve
    accepts commands only from its owner (`'X' is owned by 'a', not 'b'`).
-   The tooltip shows `owned by ...`. Nobion's own windows act as `ui` and do
+   The tooltip shows it on its **Owner** row. Nobion's own windows act as `ui` and do
    not claim valves, so you will normally never meet an owner. Ownership is
    not saved: it is gone after a restart.
 3. **Interlocks**, only when **opening** (closing is never interlocked):

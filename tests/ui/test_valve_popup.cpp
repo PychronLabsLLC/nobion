@@ -54,6 +54,10 @@ class TestValvePopup : public QObject {
     const QStringList text = popup->text();
     QVERIFY2(text.first().startsWith(QStringLiteral("B")), qPrintable(text.join('|')));
     QVERIFY2(text.join('\n').contains(QStringLiteral("Closed")), qPrintable(text.join('|')));
+    // The tooltip's label-value rows read as plain lines here.
+    QVERIFY2(!text.join('\n').contains(QLatin1Char('\t')), qPrintable(text.join('|')));
+    QVERIFY2(!text.join('\n').contains(QStringLiteral("State")), qPrintable(text.join('|')));
+    QVERIFY2(text.join('\n').contains(QStringLiteral("Actuations: ")), qPrintable(text.join('|')));
     QVERIFY(popup->open_button()->isVisible());
     QVERIFY(popup->open_button()->isEnabled());
     QVERIFY(!popup->close_button()->isVisible());

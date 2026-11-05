@@ -610,7 +610,10 @@ ValveFaceplate CanvasView::faceplate(const std::string& name) const {
   if (info != state.switches.end() && !info->second.description.empty() && !lines.isEmpty()) {
     f.description = lines.takeFirst();
   }
-  if (!lines.isEmpty()) f.state_line = lines.takeFirst();
+  // The tooltip's rows read as lines here: the state row's value alone, the
+  // others "Label: value".
+  if (!lines.isEmpty()) f.state_line = lines.takeFirst().section(QLatin1Char('\t'), 1);
+  for (QString& line : lines) line.replace(QLatin1Char('\t'), QStringLiteral(": "));
   f.history = lines;
   const auto state_of = [&](const std::string& partner) {
     const auto it = state.valves.find(partner);
@@ -665,6 +668,9 @@ QString moment(systems::WallTime t, const QDateTime& now) {
 // The lines of a valve's tooltip under its name: what it is, the state it is
 // in and since when, and its history (kept between runs).
 QStringList CanvasView::valve_details(const CoreBridge::State& state, const std::string& name, const QDateTime& now) {
+  // Description as a line of its own, the rest label-tab-value rows
+  // (style::tip_text lines them up).
+  const auto row = [](const QString& label, const QString& value) { return label + QLatin1Char('\t') + value; };
   QStringList lines;
   const auto info = state.switches.find(name);
   if (info != state.switches.end() && !info->second.description.empty())
@@ -676,24 +682,29 @@ QStringList CanvasView::valve_details(const CoreBridge::State& state, const std:
   switch (valve) {
     case ValveState::Open: line = tr("Open"); break;
     case ValveState::Closed: line = tr("Closed"); break;
-    default: line = tr("State unknown"); break;
+    default: line = tr("Unknown"); break;
   }
-  if (info == state.switches.end()) return lines << line;
+  if (info == state.switches.end()) return lines << row(tr("State"), line);
   const systems::SwitchStats& h = info->second.stats;
   const systems::WallTime wall{std::chrono::seconds(now.toSecsSinceEpoch())};
   if (h.since && valve != ValveState::Unknown)
     line += tr(" since %1 (%2)").arg(moment(*h.since, now), span(wall - *h.since));
   if (info->second.locked) line += tr(", locked");
-  if (!info->second.owner.empty()) line += tr(", owned by %1").arg(QString::fromStdString(info->second.owner));
-  lines += line;
+  lines += row(tr("State"), line);
+  if (!info->second.owner.empty()) lines += row(tr("Owner"), QString::fromStdString(info->second.owner));
 
-  if (h.opens == 0 && h.closes == 0 && h.failures == 0 && h.refusals == 0) return lines << tr("Never actuated");
-  if (h.last_actuation) lines += tr("Last actuated %1").arg(moment(*h.last_actuation, now));
-  lines += tr("Opened %L1, closed %L2, failed %L3, refused %L4").arg(h.opens).arg(h.closes).arg(h.failures).arg(h.refusals);
+  if (h.opens == 0 && h.closes == 0 && h.failures == 0 && h.refusals == 0)
+    return lines << row(tr("Actuations"), tr("None"));
+  if (h.last_actuation) lines += row(tr("Last actuated"), moment(*h.last_actuation, now));
+  lines += row(tr("Actuations"), tr("%L1 opened · %L2 closed · %L3 failed · %L4 refused")
+                                     .arg(h.opens)
+                                     .arg(h.closes)
+                                     .arg(h.failures)
+                                     .arg(h.refusals));
   // A spell still running counts up to now.
   std::chrono::seconds open = h.open_time;
   if (valve == ValveState::Open && h.since && wall > *h.since) open += wall - *h.since;
-  lines += tr("Time open %1").arg(span(open));
+  lines += row(tr("Time open"), span(open));
   return lines;
 }
 
