@@ -194,6 +194,18 @@ std::unique_ptr<pp::MemorySource> make_source(int n) {
   return src;
 }
 
+// make_source with an identifier per position (the tree lists an identifier at
+// the place its newest analysis sits), so each irradiation and level shows.
+std::unique_ptr<pp::MemorySource> make_placed_source(int n) {
+  auto src = std::make_unique<pp::MemorySource>();
+  for (int i = 0; i < n; ++i) {
+    auto a = analysis(i);
+    if (!a->irradiation.empty()) a->identifier = "air-" + a->irradiation + "-" + a->level;
+    src->add(a, raw_for(*a));
+  }
+  return src;
+}
+
 // A source that counts how often it was asked to look again.
 struct CountingSource : pp::MemorySource {
   int refreshes = 0;
@@ -824,26 +836,41 @@ class TestDataWindows : public QObject {
     QVERIFY(!w.status()->text().contains(QStringLiteral("cached age")));
   }
 
-  void browser_filters_by_irradiation_and_level() {
+  void browser_has_a_tree_in_place_of_three_lists() {
     auto src = make_source(60);
     DataBrowserWindow w(*src, arar_);
+    QVERIFY(!w.facet_box(pp::Facet::Irradiation));
+    QVERIFY(!w.facet_box(pp::Facet::Level));
+    QVERIFY(!w.facet_box(pp::Facet::Identifier));
+    QVERIFY(w.irradiation_tree());
+    QVERIFY(w.facet_box(pp::Facet::Sample));
+  }
+
+  void browser_query_takes_the_tree_ticks() {
+    auto src = make_placed_source(60);
+    DataBrowserWindow w(*src, arar_);
     QVERIFY(!w.table()->isColumnHidden(ui::AnalysisTableModel::Irradiation));
-    auto* irradiations = w.facet_list(pp::Facet::Irradiation);
-    auto* levels = w.facet_list(pp::Facet::Level);
-    QVERIFY(irradiations && levels);
-    QCOMPARE(irradiations->count(), 2);
-    QCOMPARE(levels->count(), 3);
-    find_item(irradiations, QStringLiteral("NM-293"))->setCheckState(Qt::Checked);
-    QCOMPARE(w.query().irradiations, std::vector<std::string>{"NM-293"});
+    QVERIFY(!w.query().positions);
+    auto* tree = w.irradiation_tree();
+    QVERIFY(find_node(tree->tree(), QStringLiteral("NM-293")));
+    QVERIFY(find_node(tree->tree(), QStringLiteral("NM-300")));
+    const int all = w.model()->analysis_count();
+    auto* level = find_node(tree->tree(), QStringLiteral("B"));
+    QVERIFY(level);
+    level->setCheckState(0, Qt::Checked);
+    QCOMPARE(*w.query().positions, (pp::PositionSelection{.levels = {"NM-293/B"}}));
+    // The reload is queued: it runs once the tick's own signal has returned.
+    QTRY_VERIFY(w.model()->analysis_count() < all);
     QVERIFY(w.model()->analysis_count() > 0);
-    for (const auto& r : w.model()->rows()) QCOMPARE(r.irradiation, std::string("NM-293"));
-    // Level offers what the ticked irradiation has; Irradiation still offers both.
-    QCOMPARE(w.facet_list(pp::Facet::Level)->count(), 2);
-    QVERIFY(!find_item(w.facet_list(pp::Facet::Level), QStringLiteral("C")));
-    QCOMPARE(w.facet_list(pp::Facet::Irradiation)->count(), 2);
-    find_item(w.facet_list(pp::Facet::Level), QStringLiteral("B"))->setCheckState(Qt::Checked);
-    QCOMPARE(w.query().levels, std::vector<std::string>{"B"});
-    for (const auto& r : w.model()->rows()) QCOMPARE(r.level, std::string("B"));
+    for (const auto& r : w.model()->rows()) {
+      QCOMPARE(r.irradiation, std::string("NM-293"));
+      QCOMPARE(r.level, std::string("B"));
+    }
+    // The tree is offered again after the reload and still holds the tick.
+    QCOMPARE(find_node(tree->tree(), QStringLiteral("B"))->checkState(0), Qt::Checked);
+    find_node(tree->tree(), QStringLiteral("B"))->setCheckState(0, Qt::Unchecked);
+    QVERIFY(!w.query().positions);
+    QTRY_COMPARE(w.model()->analysis_count(), all);
   }
 
   // PI spec 7: the box shows labels and filters by values. Two lines may read
@@ -1085,18 +1112,18 @@ class TestDataWindows : public QObject {
   }
 
   void browser_list_filter_survives_a_reload() {
-    auto src = make_source(60);
+    auto src = make_placed_source(60);
     DataBrowserWindow w(*src, arar_);
-    auto* box = w.facet_box(pp::Facet::Irradiation);
-    QVERIFY(box);
-    box->filter()->setText(QStringLiteral("300"));
-    QVERIFY(find_item(box->list(), QStringLiteral("NM-293"))->isHidden());
+    auto* tree = w.irradiation_tree();
+    QVERIFY(tree);
+    tree->filter()->setText(QStringLiteral("300"));
+    QVERIFY(find_node(tree->tree(), QStringLiteral("NM-293"))->isHidden());
     const int shown = w.model()->analysis_count();
-    w.search()->setText(QStringLiteral("air"));  // the lists are fetched again
-    QCOMPARE(box->filter()->text(), QStringLiteral("300"));
-    QVERIFY(find_item(box->list(), QStringLiteral("NM-293"))->isHidden());
-    QVERIFY(!find_item(box->list(), QStringLiteral("NM-300"))->isHidden());
-    // Narrowing a list asks the source nothing: only a tick filters the table.
+    w.search()->setText(QStringLiteral("air"));  // the tree is fetched again
+    QCOMPARE(tree->filter()->text(), QStringLiteral("300"));
+    QVERIFY(find_node(tree->tree(), QStringLiteral("NM-293"))->isHidden());
+    QVERIFY(!find_node(tree->tree(), QStringLiteral("NM-300"))->isHidden());
+    // Narrowing the tree asks the source nothing: only a tick filters the table.
     w.search()->clear();
     QCOMPARE(w.model()->analysis_count(), shown);
   }

@@ -43,6 +43,7 @@
 
 #include "analysis_table_model.hpp"
 #include "facet_box.hpp"
+#include "irradiation_tree.hpp"
 #include "preferences.hpp"
 #include "selection_list.hpp"
 #include "pychron/processing/domain.hpp"
@@ -113,6 +114,8 @@ class DataBrowserWindow : public QWidget {
   QComboBox* date_preset() const noexcept { return dates_; }
   QListWidget* facet_list(processing::Facet f) const;
   FacetBox* facet_box(processing::Facet f) const;
+  // The filter by irradiation, level and identifier, in place of three lists.
+  IrradiationTree* irradiation_tree() const noexcept { return tree_; }
   QComboBox* color_by_box() const noexcept { return color_by_; }
   // The date range (shown when the preset is "Range…"): each end counts only
   // while its box is ticked.
@@ -254,6 +257,7 @@ class DataBrowserWindow : public QWidget {
   QComboBox* color_by_;
   QCheckBox* exclude_invalid_;
   std::map<processing::Facet, FacetBox*> facets_;
+  IrradiationTree* tree_;
   QPushButton* more_;
   QToolBar* toolbar_;
   QAction* recall_;

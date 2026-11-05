@@ -51,10 +51,7 @@ const std::pair<pp::Facet, const char*> kFacets[] = {
     {pp::Facet::AnalysisType, "Analysis type"},
     {pp::Facet::MassSpectrometer, "Spectrometer"},
     {pp::Facet::Sample, "Sample"},
-    {pp::Facet::Identifier, "Identifier"},
     {pp::Facet::PrincipalInvestigator, "PI"},
-    {pp::Facet::Irradiation, "Irradiation"},
-    {pp::Facet::Level, "Level"},
 };
 
 // The date drop-down's entry for a range typed in, among hours counted back.
@@ -169,6 +166,12 @@ DataBrowserWindow::DataBrowserWindow(pp::IAnalysisSource& source, const pp::Doma
     facets_[facet] = box;
     connect(box, &FacetBox::changed, this, [this] { reload(); });
   }
+  tree_ = new IrradiationTree(tr("Irradiation"));
+  fl->addWidget(tree_);
+  // Queued: changed() comes from inside the tree's itemChanged, and reload()
+  // rebuilds the tree (clear()), which deletes the item Qt is still emitting
+  // dataChanged for to the views connected after us.
+  connect(tree_, &IrradiationTree::changed, this, [this] { reload(); }, Qt::QueuedConnection);
   auto* refresh_button = new QPushButton(tr("Rescan"));
   fl->addWidget(refresh_button);
   fl->addStretch();
@@ -423,22 +426,14 @@ pp::BrowseQuery DataBrowserWindow::query() const {
       case pp::Facet::Sample:
         q.samples = checked;
         break;
-      case pp::Facet::Identifier:
-        q.identifiers = checked;
-        break;
       case pp::Facet::PrincipalInvestigator:
         q.principal_investigators = checked;
-        break;
-      case pp::Facet::Irradiation:
-        q.irradiations = checked;
-        break;
-      case pp::Facet::Level:
-        q.levels = checked;
         break;
       default:
         break;
     }
   }
+  q.positions = tree_->selection();
   return q;
 }
 
@@ -665,6 +660,13 @@ void DataBrowserWindow::update_facets() {
     if (values)
       for (const auto& v : *values) items.push_back({qs(v.value), qs(v.label)});
     box->set_items(items);
+  }
+  auto rows = source_.positions(q);
+  if (rows) {
+    tree_->set_rows(*rows);
+  } else {
+    tree_->set_rows({});
+    log_shown("data", tr("Irradiation tree"), rows.error());
   }
 }
 
