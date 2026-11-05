@@ -97,12 +97,16 @@ struct BrowseQuery {
 - `irradiations`, `levels`, `identifiers` of `BrowseQuery` (by name) stay;
   browser stops filling them.
 
-`AnalysisSummary` gains `irradiation_key`, `level_key`: uuid text from store
-(`row_from` reads `ir.uuid`, `lv.uuid`), name keys (above) from record
-folder source; empty when not irradiated. `matches()` tests `positions`
-against them, `identifier`, and "not irradiated" = `level_key` empty.
+`AnalysisSummary` gains `irradiation_uuid`, `level_uuid`: uuid text from
+store (`row_from` reads `ir.uuid`, `lv.uuid`), empty elsewhere, as
+`principal_investigator_uuid`. Key of a summary (free functions beside
+`facet_value`): `irradiation_key(s)` = `irradiation_uuid`, else
+`irradiation`; `level_key(s)` = `level_uuid`, else `<irradiation>/<level>`,
+empty when `level` empty. Record folder source needs no change.
+`matches()` tests `positions` against those keys, `identifier`, and "not
+irradiated" = `irradiation_key(s)` empty.
 
-New on `Source`:
+New on `IAnalysisSource`:
 
 ```cpp
 // One row per identifier left by every filter of `query` but `positions`.
@@ -216,6 +220,8 @@ Measured before landing, numbers in commit message:
   irradiation is matched.
 - `positions()` ignores `positions`, as a facet ignores its own list.
 - Store never filters positions by name.
+- `tests/ingest/forwarding_store.hpp` (`ForwardingStore`) forwards
+  `Store::positions` as it forwards `facet`.
 
 ## 9. Tests
 
