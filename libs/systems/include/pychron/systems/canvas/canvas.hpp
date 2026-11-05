@@ -34,11 +34,16 @@ struct Size {
 // shared region it joins (a lone open valve joining nothing stays green).
 enum class OpenValveColor { Green, Inherit };
 
+// How a valve's state is filled: "hmi" (open grey, closed hollow; ISA-101
+// keeps colour for what is wrong) or the legacy "redgreen".
+enum class ValveStyle { Hmi, Redgreen };
+
 struct CanvasSection : Located {
   Point origin{0, 0};
   Size size{1000, 700};
   std::int64_t connection_width = 5;
   OpenValveColor open_valve_color = OpenValveColor::Green;
+  ValveStyle valve_style = ValveStyle::Hmi;
 };
 
 // Every switchable element shares one struct; `kind` records which array it

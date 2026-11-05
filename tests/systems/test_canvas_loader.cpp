@@ -479,5 +479,32 @@ TEST(CanvasLoader, BadOpenValveColorIsDiagnosticWithLine) {
   EXPECT_FALSE(wrong_type.ok());
 }
 
+TEST(CanvasLoader, ValveStyleDefaultsToHmi) {
+  auto r = load("[[stage]]\nname = \"bone\"\npos = [0, 0]\n");
+  ASSERT_TRUE(r.ok()) << config::to_error(r.diagnostics).what;
+  EXPECT_EQ(r.canvas->canvas.valve_style, ValveStyle::Hmi);
+}
+
+TEST(CanvasLoader, ValveStyleParsesHmiAndRedgreen) {
+  auto redgreen = load("[canvas]\nvalve_style = \"redgreen\"\n");
+  ASSERT_TRUE(redgreen.ok()) << config::to_error(redgreen.diagnostics).what;
+  EXPECT_EQ(redgreen.canvas->canvas.valve_style, ValveStyle::Redgreen);
+  auto hmi = load("[canvas]\nvalve_style = \"hmi\"\n");
+  ASSERT_TRUE(hmi.ok());
+  EXPECT_EQ(hmi.canvas->canvas.valve_style, ValveStyle::Hmi);
+}
+
+TEST(CanvasLoader, BadValveStyleIsDiagnosticWithLine) {
+  const std::string text = "[canvas]\nsize = [100, 100]\nvalve_style = \"blue\"\n";
+  auto r = load(text);
+  ASSERT_FALSE(r.ok());
+  ASSERT_TRUE(has_diag(r, "canvas.valve_style", "hmi | redgreen"));
+  for (const auto& d : r.diagnostics) {
+    if (d.field == "canvas.valve_style") {
+      EXPECT_EQ(d.loc.line, line_of(text, "valve_style"));
+    }
+  }
+}
+
 }  // namespace
 }  // namespace pychron::canvas
