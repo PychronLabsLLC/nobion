@@ -12,6 +12,7 @@
 // intervals ([system].scan_interval_ms) is an Io error naming its age:
 // a gauge that stopped answering never passes off its last number as now.
 
+#include <chrono>
 #include <cstdint>
 #include <string_view>
 
@@ -20,10 +21,19 @@
 
 namespace pychron::systems {
 
+// A reading older than this many scans is stale.
+inline constexpr int kGaugeStaleScans = 3;
+
+// How old a gauge's latest reading may be before it is stale: `scans`
+// (at least 1) times the line's scan interval (at least 1 ms). The one rule
+// for scripts (LinePressureService) and the canvas's stale mark.
+[[nodiscard]] std::chrono::milliseconds gauge_stale_after(const config::SystemSection& system,
+                                                          int scans = kGaugeStaleScans);
+
 class LinePressureService final : public extraction::IPressureService {
  public:
   // `line` must outlive the service.
-  explicit LinePressureService(const ExtractionLine& line, int stale_after = 3);
+  explicit LinePressureService(const ExtractionLine& line, int stale_after = kGaugeStaleScans);
 
   Result<double> get_pressure(std::string_view controller, std::string_view gauge) override;
   // A manometer is a gauge here: the same as get_pressure("", name).

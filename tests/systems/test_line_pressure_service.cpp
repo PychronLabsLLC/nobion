@@ -99,3 +99,15 @@ TEST(LinePressureService, AStaleReadingIsNeverPassedOffAsNow) {
   ASSERT_TRUE(l.line->read_gauge("IG"));  // a fresh read clears it
   EXPECT_TRUE(pressure.get_pressure("", "IG"));
 }
+
+// One rule for scripts and the canvas: three scans, never under one scan of
+// one millisecond.
+TEST(LinePressureService, StaleAfterIsThreeScans) {
+  config::SystemSection system;
+  system.scan_interval_ms = 1000;
+  EXPECT_EQ(gauge_stale_after(system), 3000ms);
+  EXPECT_EQ(gauge_stale_after(system, 5), 5000ms);
+  EXPECT_EQ(gauge_stale_after(system, 0), 1000ms);
+  system.scan_interval_ms = 0;
+  EXPECT_EQ(gauge_stale_after(system), 3ms);
+}
