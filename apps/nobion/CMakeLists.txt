@@ -68,6 +68,7 @@ add_library(pychron_ui_lib STATIC
   src/domain_pipeline.cpp
   src/analysis_table_model.cpp
   src/facet_box.cpp
+  src/irradiation_tree.cpp
   src/row_colors.cpp
   src/data_browser_window.cpp
   src/selection_list.cpp
@@ -180,6 +181,7 @@ add_library(pychron_ui_lib STATIC
   src/domain_pipeline.hpp
   src/analysis_table_model.hpp
   src/facet_box.hpp
+  src/irradiation_tree.hpp
   src/row_colors.hpp
   src/data_browser_window.hpp
   src/selection_list.hpp

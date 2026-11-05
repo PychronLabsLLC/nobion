@@ -34,6 +34,7 @@
 #include <QToolButton>
 #include <QTableView>
 #include <QTableWidget>
+#include <QTreeWidget>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
@@ -47,6 +48,7 @@
 #include "theme.hpp"
 #include "data_workspace.hpp"
 #include "figure_window.hpp"
+#include "irradiation_tree.hpp"
 #include "pychron/arar/r_values.hpp"
 #include "r_values_panel.hpp"
 #include "main_window.hpp"
@@ -577,6 +579,30 @@ QListWidgetItem* find_item(QListWidget* list, const QString& text) {
   return nullptr;
 }
 
+namespace {
+// The tree item whose first column reads `text`, at any depth; null when none.
+QTreeWidgetItem* find_node(QTreeWidget* tree, const QString& text) {
+  for (QTreeWidgetItemIterator it(tree); *it; ++it)
+    if ((*it)->text(0) == text) return *it;
+  return nullptr;
+}
+
+pychron::processing::PositionRow position_row(const std::string& irradiation, const std::string& level, std::string identifier,
+                                              std::string sample, std::string project) {
+  const std::string level_key = irradiation.empty() ? std::string{} : irradiation + "/" + level;
+  return {irradiation, irradiation, level_key, level, std::move(identifier), std::move(sample), std::move(project)};
+}
+
+std::vector<pychron::processing::PositionRow> tree_rows() {
+  return {position_row("NM-300", "A", "77000", "FC-2", "Fish Canyon"),
+          position_row("NM-300", "A", "77001", "GA1550", ""),
+          position_row("NM-300", "B", "77002", "FC-2", "Fish Canyon"),  // a second level: A alone is not all of NM-300
+          position_row("NM-301", "A", "88000", "FC-2", "Fish Canyon"),
+          position_row("", "", "66574", "air", "")};
+}
+}  // namespace
+
+
 bool wait_runs(FigureWindow& w, ProcessingBridge& bridge, int runs) {
   QElapsedTimer t;
   t.start();
@@ -937,6 +963,118 @@ class TestDataWindows : public QObject {
     }
     qApp->setStyleSheet(before);
   }
+
+  void irradiation_tree_starts_folded_and_lists_by_node() {
+    ui::IrradiationTree tree(QStringLiteral("Irradiation"));
+    tree.set_rows(tree_rows());
+    QVERIFY(!tree.is_expanded());
+    QCOMPARE(tree.tree()->topLevelItemCount(), 3);
+    QCOMPARE(tree.tree()->topLevelItem(2)->text(0), QStringLiteral("Not irradiated"));
+    QCOMPARE(find_node(tree.tree(), QStringLiteral("77000"))->text(1), QStringLiteral("FC-2 \u00b7 Fish Canyon"));
+    QCOMPARE(find_node(tree.tree(), QStringLiteral("77001"))->text(1), QStringLiteral("GA1550"));
+  }
+
+  void irradiation_tree_parent_tick_sets_children_and_shows_partial() {
+    ui::IrradiationTree tree(QStringLiteral("Irradiation"));
+    tree.set_rows(tree_rows());
+    auto* nm300 = find_node(tree.tree(), QStringLiteral("NM-300"));
+    auto* level = nm300->child(0);
+    nm300->setCheckState(0, Qt::Checked);
+    QCOMPARE(level->checkState(0), Qt::Checked);
+    QCOMPARE(find_node(tree.tree(), QStringLiteral("77000"))->checkState(0), Qt::Checked);
+    QCOMPARE(find_node(tree.tree(), QStringLiteral("77001"))->checkState(0), Qt::Checked);
+    find_node(tree.tree(), QStringLiteral("77001"))->setCheckState(0, Qt::Unchecked);
+    QCOMPARE(level->checkState(0), Qt::PartiallyChecked);
+    QCOMPARE(nm300->checkState(0), Qt::PartiallyChecked);
+  }
+
+  void irradiation_tree_selection_is_the_highest_full_node() {
+    namespace pp = pychron::processing;
+    ui::IrradiationTree tree(QStringLiteral("Irradiation"));
+    tree.set_rows(tree_rows());
+    QVERIFY(!tree.selection().has_value());
+    auto node = [&](const char* text) { return find_node(tree.tree(), QString::fromLatin1(text)); };
+
+    node("NM-300")->setCheckState(0, Qt::Checked);
+    QCOMPARE(*tree.selection(), (pp::PositionSelection{.irradiations = {"NM-300"}}));
+    node("NM-300")->setCheckState(0, Qt::Unchecked);
+    QVERIFY(!tree.selection().has_value());
+
+    node("A")->setCheckState(0, Qt::Checked);  // first "A" is NM-300's
+    QCOMPARE(*tree.selection(), (pp::PositionSelection{.levels = {"NM-300/A"}}));
+    node("A")->setCheckState(0, Qt::Unchecked);
+
+    node("77000")->setCheckState(0, Qt::Checked);
+    QCOMPARE(*tree.selection(), (pp::PositionSelection{.identifiers = {"77000"}}));
+    node("77001")->setCheckState(0, Qt::Checked);
+    QCOMPARE(*tree.selection(), (pp::PositionSelection{.levels = {"NM-300/A"}}));
+    node("77000")->setCheckState(0, Qt::Unchecked);
+    node("77001")->setCheckState(0, Qt::Unchecked);
+
+    node("Not irradiated")->setCheckState(0, Qt::Checked);
+    const auto sel = tree.selection();
+    QVERIFY(sel.has_value());
+    QVERIFY(sel->not_irradiated);
+    QVERIFY(sel->irradiations.empty() && sel->levels.empty() && sel->identifiers.empty());
+  }
+
+  void irradiation_tree_filter_shows_matches_and_ancestors() {
+    ui::IrradiationTree tree(QStringLiteral("Irradiation"));
+    tree.set_rows(tree_rows());
+    tree.filter()->setText(QStringLiteral("ga15"));
+    auto* match = find_node(tree.tree(), QStringLiteral("77001"));
+    QVERIFY(!match->isHidden());
+    QVERIFY(match->parent()->isExpanded());
+    QVERIFY(match->parent()->parent()->isExpanded());
+    QVERIFY(!match->parent()->isHidden());
+    QVERIFY(!match->parent()->parent()->isHidden());
+    QVERIFY(find_node(tree.tree(), QStringLiteral("88000"))->isHidden());
+    QVERIFY(find_node(tree.tree(), QStringLiteral("NM-301"))->isHidden());
+    // A ticked identifier is never hidden, nor the ancestors that hold it.
+    find_node(tree.tree(), QStringLiteral("88000"))->setCheckState(0, Qt::Checked);
+    QVERIFY(!find_node(tree.tree(), QStringLiteral("88000"))->isHidden());
+    QVERIFY(!find_node(tree.tree(), QStringLiteral("NM-301"))->isHidden());
+  }
+
+  void irradiation_tree_keeps_a_tick_no_longer_listed() {
+    namespace pp = pychron::processing;
+    ui::IrradiationTree tree(QStringLiteral("Irradiation"));
+    QSignalSpy changed(&tree, &ui::IrradiationTree::changed);
+    tree.set_rows(tree_rows());
+    find_node(tree.tree(), QStringLiteral("A"))->setCheckState(0, Qt::Checked);
+    QCOMPARE(changed.count(), 1);
+    tree.set_rows({position_row("NM-301", "A", "88000", "FC-2", "Fish Canyon"),
+                   position_row("", "", "66574", "air", "")});
+    QCOMPARE(changed.count(), 1);
+    const int n = tree.tree()->topLevelItemCount();
+    QCOMPARE(n, 3);
+    QCOMPARE(tree.tree()->topLevelItem(n - 1)->text(0), QStringLiteral("Not irradiated"));
+    auto* kept = tree.tree()->topLevelItem(n - 2);
+    QCOMPARE(kept->text(0), QStringLiteral("NM-300"));
+    QCOMPARE(kept->childCount(), 1);
+    QCOMPARE(kept->child(0)->text(0), QStringLiteral("A"));
+    QCOMPARE(kept->child(0)->checkState(0), Qt::Checked);
+    QCOMPARE(*tree.selection(), (pp::PositionSelection{.levels = {"NM-300/A"}}));
+  }
+
+  void irradiation_tree_header_counts_and_clear() {
+    ui::IrradiationTree tree(QStringLiteral("Irradiation"));
+    tree.set_rows(tree_rows());
+    QSignalSpy changed(&tree, &ui::IrradiationTree::changed);
+    QVERIFY(!tree.clear_button()->isEnabled());
+    find_node(tree.tree(), QStringLiteral("77000"))->setCheckState(0, Qt::Checked);
+    find_node(tree.tree(), QStringLiteral("88000"))->setCheckState(0, Qt::Checked);
+    QCOMPARE(tree.title(), QStringLiteral("Irradiation (2)"));
+    QVERIFY(tree.clear_button()->isEnabled());
+    changed.clear();
+    tree.clear_button()->click();
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(tree.title(), QStringLiteral("Irradiation"));
+    QVERIFY(!tree.selection().has_value());
+    tree.clear_checked();
+    QCOMPARE(changed.count(), 1);
+  }
+
 
   void browser_list_filter_survives_a_reload() {
     auto src = make_source(60);
