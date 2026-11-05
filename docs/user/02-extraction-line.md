@@ -34,14 +34,15 @@ Related pages: [getting started](01-getting-started.md),
 
 | What you see | What it means |
 |---|---|
-| A rounded square labelled with a name | An actuated valve (`[[valve]]` / `[[rough_valve]]` in the canvas). |
-| A rounded square with a small handwheel in the corner | A manual valve: nobody can drive it, you tell Nobion what you did (see below). |
+| A bow-tie (two triangles tip to tip) with a small dome on a stem | An actuated valve (`[[valve]]` / `[[rough_valve]]` in the canvas). It lies along its pipe; one whose pipes leave only above and below stands upright, its stem to the left. Its name is written beside it, on a side no pipe leaves by. |
+| A bow-tie with a T bar on its stem | A manual valve: nobody can drive it, you tell Nobion what you did (see below). |
 | A circle | A switch (`[[switch]]`): pump power, a heater relay, a shutter. |
-| Green valve | Open. |
-| Red valve | Closed. |
-| Grey valve | State unknown (not read yet, or the last command or read-back failed). |
+| Filled grey valve | Open. With `valve_style = "redgreen"` in `[canvas]`: green. |
+| Hollow valve | Closed. With `valve_style = "redgreen"`: red. |
+| Hatched valve | State unknown (not read yet, or the last command or read-back failed). |
 | Dashed outline around a valve | A command is in flight (waiting on the controller, the settle time and the read-back). |
-| Thick colored border on a valve | The valve is **locked** in software. |
+| Accent outline around a valve | Its faceplate is open (or, in a rehearsal, the last step changed it). |
+| Blue padlock on a valve's corner | The valve is **locked** in software. |
 | Valve flashes yellow | The last command was refused or failed. Hover for the reason. |
 | A rounded chip with a small dial and `IG1: 1.20e-08 torr` | A gauge and its latest reading. The chip text turns red while the reading is outside `alarm_high` / `alarm_low`. Rest the pointer on it for a moment (under a second) and a small chart of its last 10 minutes appears beside it (it goes when the pointer moves off, the canvas scrolls or a button is pressed). Click it to open the gauge's own window (see [Gauges](#gauges)). |
 | A gauge chip that shows only its name | The canvas draws a gauge that `extraction_line.toml` does not define; it is decoration and never shows a reading. Resting on it or clicking it does nothing. |
@@ -69,7 +70,8 @@ opening a pipette shows whose gas it holds. A pipette wears the color of the
 tank across its valve unless the canvas gives it a color of its own.
 
 If `open_valve_color = "inherit"` is set in `[canvas]`, open valves take the
-color of the region they join instead of green. By default they stay green.
+color of the region they join instead of their style's fill (grey, or green
+with `valve_style = "redgreen"`).
 
 ### A tour of the example line
 
@@ -106,8 +108,8 @@ shot from the cocktail pipette.
 
 | Action | What happens |
 |---|---|
-| **Left-click** a valve | Toggles it: closed or unknown opens it, open closes it. A second click while the first is still pending is ignored. |
-| **Right-click** a valve | Menu with **Lock valve** or **Unlock valve**. Unlocking asks "Unlock X? It will accept open and close commands again." |
+| **Left-click** a valve | Opens its faceplate beside it: what it is, its state and since when, the valves its opening waits on (each *met* or *not met*), its history, the last failure, and the buttons **Open** / **Close** and **Lock** / **Unlock**. Nothing moves until you press one. Unlocking asks "Unlock X? It will accept open and close commands again." A locked valve's Open and Close are greyed out. Esc or a click elsewhere closes the faceplate. A manual valve's faceplate, and any in a rehearsal, has no buttons. |
+| **Option-click** (Alt-click) a valve | Toggles it at once: closed or unknown opens it, open closes it. A second click while the first is still pending is ignored. |
 | **Hover** a valve | Tooltip: name, description, state and since when, whether it is locked or owned, last actuation time, counts of opens / closes / failures, total time open, and the last failure message. |
 
 The tooltip history (counts, time open) is kept between runs.
@@ -162,7 +164,7 @@ Important consequences:
 A lock is written to a state file beside `extraction_line.toml`
 (`<config name>.state.toml`, for example `extraction_line.state.toml`) and is
 restored the next time the line starts. If a valve refuses everything and you
-do not know why, it is probably locked: right-click it. Manual valves cannot
+do not know why, it is probably locked: click it and look at its faceplate. Manual valves cannot
 be locked.
 
 The state file also holds each valve's history, and the last state of
@@ -625,6 +627,7 @@ origin = [0, 0]
 size = [1000, 700]               # the drawing area
 connection_width = 6             # pipe thickness
 # open_valve_color = "inherit"   # open valves wear the region color
+# valve_style = "redgreen"        # legacy fills: open green, closed red (default "hmi")
 
 [colors]
 # background = "#f4f6f8"        # behind the drawing; left out: the application's own

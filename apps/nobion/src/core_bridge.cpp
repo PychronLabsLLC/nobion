@@ -49,7 +49,7 @@ void CoreBridge::relay(void (CoreBridge::*apply)(const E&)) {
 }
 
 CoreBridge::CoreBridge(systems::ExtractionLine& line, QObject* parent)
-    : QObject(parent), line_(line), gate_(std::make_shared<Gate>()) {
+    : QObject(parent), line_(line), interlocks_(line.switches().interlock_sets()), gate_(std::make_shared<Gate>()) {
   gate_->target = this;
   relay<ValveChanged>(&CoreBridge::on_valve);
   relay<PressureSample>(&CoreBridge::on_pressure);
@@ -136,6 +136,11 @@ void CoreBridge::actuate(const QString& qname, systems::SwitchOp op) {
 Result<void> CoreBridge::set_locked(const QString& name, bool locked) {
   log_action((locked ? QStringLiteral("lock %1") : QStringLiteral("unlock %1")).arg(name));
   return line_.set_locked(name.toStdString(), locked);
+}
+
+systems::InterlockSet CoreBridge::interlocks(const std::string& name) const {
+  const auto it = interlocks_.find(name);
+  return it == interlocks_.end() ? systems::InterlockSet{} : it->second;
 }
 
 std::vector<std::string> CoreBridge::cryo_inputs() const {

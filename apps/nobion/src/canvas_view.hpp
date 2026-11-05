@@ -1,8 +1,9 @@
 #pragma once
 
 // CanvasView: builds the scene from the loaded canvas.toml and keeps it in
-// step with the CoreBridge snapshot. Clicking a valve toggles it through
-// CoreBridge::actuate; rejections flash the valve. Clicking a gauge the line
+// step with the CoreBridge snapshot. A left click on a valve selects it and
+// opens its faceplate (ValvePopup); with Alt (Option on a Mac) it toggles the
+// valve through CoreBridge::actuate. Rejections flash the valve. Clicking a gauge the line
 // defines, or resting the pointer on it, is said by a signal; what follows is
 // the window's. Stages and pipettes are
 // coloured by NetworkGraph region (volumes sharing gas share a colour).
@@ -27,6 +28,7 @@
 #include "canvas_items.hpp"
 #include "canvas_state.hpp"
 #include "core_bridge.hpp"
+#include "valve_popup.hpp"
 
 namespace pychron::ui {
 
@@ -47,6 +49,13 @@ class CanvasView : public QGraphicsView {
   // the view is read-only: clicks and lock requests do nothing, and nothing
   // here has a path to an actuator.
   CanvasView(ICanvasState& state, CoreBridge* bridge, QWidget* parent = nullptr);
+  // Takes the faceplate down first: hiding it ends the selection, which
+  // reads the valves, gone once this body has run.
+  ~CanvasView() override;
+  CanvasView(const CanvasView&) = delete;
+  CanvasView& operator=(const CanvasView&) = delete;
+  CanvasView(CanvasView&&) = delete;
+  CanvasView& operator=(CanvasView&&) = delete;
 
   [[nodiscard]] bool read_only() const noexcept { return bridge_ == nullptr; }
 
@@ -69,6 +78,25 @@ class CanvasView : public QGraphicsView {
   // Initialised from canvas.toml's open_valve_color; changing it repaints.
   canvas::OpenValveColor open_valve_color() const noexcept { return open_valve_color_; }
   void set_open_valve_color(canvas::OpenValveColor mode);
+  // Initialised from canvas.toml's valve_style; changing it repaints.
+  canvas::ValveStyle valve_style() const noexcept { return valve_style_; }
+  void set_valve_style(canvas::ValveStyle style);
+
+  // Sends `op` for a valve or switch. False, sending nothing, when the view
+  // is read-only, the name unknown or a command for it already in flight.
+  bool actuate(const std::string& name, systems::SwitchOp op);
+  // Alt-click: closes an open valve, opens any other (as one click did
+  // before the faceplate).
+  bool toggle(const std::string& name);
+  // Selects a valve (its accent ring) and shows its faceplate beside it;
+  // an unknown name selects nothing. The selection ends when the faceplate
+  // closes.
+  void select(const std::string& name);
+  [[nodiscard]] const std::string& selected() const noexcept { return selected_; }
+  // The faceplate; null until a valve was first selected.
+  [[nodiscard]] ValvePopup* valve_popup() const noexcept { return popup_; }
+  // What the faceplate shows for a valve, as of the state now.
+  [[nodiscard]] ValveFaceplate faceplate(const std::string& name) const;
 
   // The lines of a valve's tooltip under its name, as of `now`: description,
   // state and how long it has held, last actuation, counts and time open.
@@ -92,6 +120,8 @@ class CanvasView : public QGraphicsView {
   // After a rest: the pointer moved off, the view scrolled or was fitted
   // again (a resize), or a button went down or a wheel turned over the view.
   void gauge_left();
+  // A valve was selected by a click (its faceplate is open).
+  void valve_selected(const QString& name);
 
  protected:
   void scrollContentsBy(int dx, int dy) override;
@@ -119,7 +149,9 @@ class CanvasView : public QGraphicsView {
   std::vector<QPointF> oriented(QPointF a, const std::string& a_name, QPointF b, const std::string& b_name,
                                 bool vertical) const;
 
-  void on_click(const std::string& name);
+  // Records the side a pipe leaves a valve by; `run` starts at the valve's end.
+  void note_pipe_side(const std::string& name, const std::vector<QPointF>& run);
+  void end_selection();
   void apply_state();
   void apply_regions();
   void on_pressure(const PressureSample& sample);
@@ -131,6 +163,10 @@ class CanvasView : public QGraphicsView {
   CoreBridge* bridge_;  // null: read-only
   std::function<bool(const QString&)> confirm_unlock_;
   canvas::OpenValveColor open_valve_color_ = canvas::OpenValveColor::Green;
+  canvas::ValveStyle valve_style_ = canvas::ValveStyle::Hmi;
+  std::map<std::string, unsigned> pipe_sides_;  // valves, while the pipes are laid
+  std::string selected_;
+  ValvePopup* popup_ = nullptr;  // child; made on the first selection
   QGraphicsScene scene_;
   std::map<std::string, QPointF> positions_;
   std::map<std::string, ValveItem*> valves_;

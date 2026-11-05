@@ -7,12 +7,9 @@
 
 #include <QCursor>
 #include <QFontMetricsF>
-#include <QAction>
 #include <QGraphicsScene>
-#include <QGraphicsSceneContextMenuEvent>
 #include <QGraphicsSceneHoverEvent>
 #include <QGraphicsSceneMouseEvent>
-#include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPen>
@@ -30,19 +27,43 @@ constexpr int kFlashIntervalMs = 150;
 
 QPointF to_qpoint(const canvas::Point& p) { return {p.x, p.y}; }
 
-QColor valve_color(ValveState state) {
+QColor valve_fill(ValveState state, canvas::ValveStyle style) {
+  const bool hmi = style == canvas::ValveStyle::Hmi;
   switch (state) {
     case ValveState::Open:
-      return theme().ok;
+      return hmi ? theme().muted_text : theme().ok;
     case ValveState::Closed:
-      return theme().error;
+      return hmi ? theme().base : theme().error;
     case ValveState::Unknown:
       break;
   }
-  return theme().inactive;
+  return theme().base;
 }
 
 // ---- ValveItem --------------------------------------------------------------
+
+namespace {
+
+// The glyph, horizontal, centred on the origin (spec 2026-11-04-hmi-valves §4).
+constexpr double kTieHalfWidth = 13.0;  // each triangle, base to tip
+constexpr double kTieHalfHeight = 9.0;
+constexpr double kStemTop = -10.0;      // where the dome sits
+constexpr double kDomeRadius = 5.0;
+constexpr double kBarY = -12.0;         // a manual valve's T bar
+constexpr double kBarHalf = 7.0;
+constexpr double kSwitchRadius = 13.0;
+constexpr double kRingRadius = 4.0;     // the pending, marked and selected rings' corners
+
+QPainterPath tie_path() {
+  QPainterPath path;
+  path.addPolygon(QPolygonF({QPointF(-kTieHalfWidth, -kTieHalfHeight), QPointF(0, 0),
+                             QPointF(-kTieHalfWidth, kTieHalfHeight), QPointF(-kTieHalfWidth, -kTieHalfHeight)}));
+  path.addPolygon(QPolygonF({QPointF(kTieHalfWidth, -kTieHalfHeight), QPointF(0, 0),
+                             QPointF(kTieHalfWidth, kTieHalfHeight), QPointF(kTieHalfWidth, -kTieHalfHeight)}));
+  return path;
+}
+
+}  // namespace
 
 ValveItem::ValveItem(std::string name, canvas::ValveKind kind, QGraphicsItem* parent)
     : QGraphicsObject(parent), name_(std::move(name)), label_(QString::fromStdString(name_)), kind_(kind) {
@@ -67,7 +88,7 @@ QColor ValveItem::fill_color() const {
   if (state_ == ValveState::Open && inherited_) {
     return *inherited_;
   }
-  return valve_color(state_);
+  return valve_fill(state_, style_);
 }
 
 void ValveItem::set_inherited_color(std::optional<QColor> color) {
@@ -76,6 +97,22 @@ void ValveItem::set_inherited_color(std::optional<QColor> color) {
     update();
   }
 }
+
+void ValveItem::set_style(canvas::ValveStyle style) {
+  if (style_ == style) return;
+  style_ = style;
+  update();
+}
+
+void ValveItem::set_pipe_sides(unsigned sides) {
+  if (pipe_sides_ == sides) return;
+  prepareGeometryChange();  // the caption may move to another side
+  pipe_sides_ = sides;
+  cache_.reset();
+  update();
+}
+
+bool ValveItem::vertical() const noexcept { return pipe_sides_ != 0 && (pipe_sides_ & (Left | Right)) == 0; }
 
 void ValveItem::set_state(ValveState state) {
   state_ = state;
@@ -95,6 +132,12 @@ void ValveItem::set_pending(bool pending) {
 void ValveItem::set_marked(bool marked) {
   if (marked_ == marked) return;
   marked_ = marked;
+  update();
+}
+
+void ValveItem::set_selected(bool selected) {
+  if (selected_ == selected) return;
+  selected_ = selected;
   update();
 }
 
@@ -134,61 +177,56 @@ void ValveItem::set_label(QString label) {
 QFont ValveItem::item_font() const { return scene() != nullptr ? scene()->font() : QFont(); }
 
 const ValveItem::Cached& ValveItem::cached(const QFont& font) const {
-  if (cache_ && cache_->font == font && cache_->label == label_) {
+  if (cache_ && cache_->font == font && cache_->label == label_ && cache_->sides == pipe_sides_) {
     return *cache_;
   }
-  constexpr double kFloor = 0.7;   // the face's font is never shrunk below this
-  constexpr double kStep = 0.95;
   constexpr double kCaptionGap = 5.0;  // from the body, clear of the outlines
   constexpr double kCaptionPad = 2.0;
-  const double room = kSize - 4;
-  Cached made{font, label_, {font, label_, false}, {}};
-  QFont shrunk = font;
-  bool fits = QFontMetricsF(font).horizontalAdvance(label_) <= room;
-  for (int step = 1; !fits && std::pow(kStep, step) >= kFloor; ++step) {
-    const double ratio = std::pow(kStep, step);
-    if (font.pointSizeF() > 0) {
-      shrunk.setPointSizeF(font.pointSizeF() * ratio);
-    } else {
-      shrunk.setPixelSize(std::max(1, static_cast<int>(font.pixelSize() * ratio)));
-    }
-    fits = QFontMetricsF(shrunk).horizontalAdvance(label_) <= room;
-    if (fits) {
-      made.layout.font = shrunk;
-    }
-  }
-  if (!fits) {
+  Cached made{font, label_, pipe_sides_, {}};
+  if (!label_.isEmpty()) {
     const QFontMetricsF metrics(font);
-    const double width = metrics.horizontalAdvance(label_) + 2 * kCaptionPad;
-    made.layout.caption = true;
-    made.caption = QRectF(-width / 2, kSize / 2 + kCaptionGap, width, metrics.height());
+    const double w = metrics.horizontalAdvance(label_) + 2 * kCaptionPad;
+    const double h = metrics.height();
+    const double half = kSize / 2;
+    constexpr std::array kOrder{Bottom, Top, Right, Left};
+    const auto* open_side =
+        std::find_if(kOrder.begin(), kOrder.end(), [this](Side s) { return (pipe_sides_ & s) == 0; });
+    switch (open_side == kOrder.end() ? Bottom : *open_side) {
+      case Top:
+        made.caption = QRectF(-w / 2, -half - kCaptionGap - h, w, h);
+        break;
+      case Right:
+        made.caption = QRectF(half + kCaptionGap, -h / 2, w, h);
+        break;
+      case Left:
+        made.caption = QRectF(-half - kCaptionGap - w, -h / 2, w, h);
+        break;
+      case Bottom:
+        made.caption = QRectF(-w / 2, half + kCaptionGap, w, h);
+        break;
+    }
   }
   cache_ = std::move(made);
   return *cache_;
 }
 
-ValveItem::NameLayout ValveItem::name_layout(const QFont& font) const { return cached(font).layout; }
+ValveItem::NameLayout ValveItem::name_layout(const QFont& font) const {
+  return {font, label_, !label_.isEmpty()};
+}
 
 QRectF ValveItem::caption_rect() const { return cached(item_font()).caption; }
 
-QRectF ValveItem::wheel_rect() const {
-  if (kind_ != canvas::ValveKind::Manual) {
-    return {};
-  }
-  if (label_.isEmpty()) {
-    return {-kWheelRadius, -kWheelRadius, 2 * kWheelRadius, 2 * kWheelRadius};
-  }
-  const double r = kCornerWheelRadius;
-  const QPointF c(kSize / 2 - r - 2.5, -kSize / 2 + r + 2.5);
-  return {c.x() - r, c.y() - r, 2 * r, 2 * r};
-}
+QRectF ValveItem::badge_rect() { return {kSize / 2 - 10, -kSize / 2 - 2, kBadgeSize, kBadgeSize}; }
 
 QRectF ValveItem::body_box() {
-  const double half = kSize / 2 + 4;  // room for the pending outline and the lock border
+  const double half = kSize / 2 + 4;  // room for the rings and the badge
   return {-half, -half, 2 * half, 2 * half};
 }
 
-QRectF ValveItem::boundingRect() const { return body_box().united(caption_rect()); }
+QRectF ValveItem::boundingRect() const {
+  const QRectF caption = caption_rect();
+  return caption.isEmpty() ? body_box() : body_box().united(caption);
+}
 
 QPainterPath ValveItem::shape() const {
   QPainterPath path;
@@ -196,104 +234,91 @@ QPainterPath ValveItem::shape() const {
   return path;
 }
 
-void ValveItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
-  const QRectF body(-kSize / 2, -kSize / 2, kSize, kSize);
-  painter->setRenderHint(QPainter::Antialiasing, true);
-  painter->setPen(QPen(theme().text, 1));
-  painter->setBrush(fill_color());
+void ValveItem::paint_glyph(QPainter& painter) const {
+  painter.save();
+  if (vertical()) painter.rotate(-90);  // the stem to the left
+  const QPen line(theme().text, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+  QPainterPath body;
   if (kind_ == canvas::ValveKind::Switch) {
-    painter->drawEllipse(body);
+    body.addEllipse(QPointF(0, 0), kSwitchRadius, kSwitchRadius);
   } else {
-    painter->drawRoundedRect(body, kCornerRadius, kCornerRadius);
+    body = tie_path();
   }
-  if (kind_ == canvas::ValveKind::Manual) {
-    // A handwheel: rim, hub and four spokes, set on the diagonal so it does
-    // not read as a crosshair.
-    const QRectF wheel = wheel_rect();
-    const QPointF c = wheel.center();
-    const double r = wheel.width() / 2;
-    const bool small = r < kWheelRadius;
-    painter->save();
-    painter->setBrush(Qt::NoBrush);
-    painter->setPen(QPen(theme().text, small ? 1.2 : 2.0));
-    painter->drawEllipse(c, r, r);
-    painter->setPen(QPen(theme().text, small ? 1.0 : 1.6, Qt::SolidLine, Qt::RoundCap));
-    const double d = r * 0.7071;
-    for (const QPointF& spoke : {QPointF(d, d), QPointF(d, -d)}) {
-      painter->drawLine(c - spoke, c + spoke);
+  painter.fillPath(body, fill_color());
+  if (state_ == ValveState::Unknown && !is_flashing()) {
+    painter.fillPath(body, QBrush(theme().muted_text, Qt::BDiagPattern));
+  }
+  painter.strokePath(body, line);
+  if (kind_ != canvas::ValveKind::Switch) {
+    painter.setPen(line);
+    if (kind_ == canvas::ValveKind::Manual) {
+      painter.drawLine(QPointF(0, 0), QPointF(0, kBarY));
+      painter.setPen(QPen(theme().text, 2.0, Qt::SolidLine, Qt::RoundCap));
+      painter.drawLine(QPointF(-kBarHalf, kBarY), QPointF(kBarHalf, kBarY));
+    } else {
+      painter.drawLine(QPointF(0, 0), QPointF(0, kStemTop));
+      QPainterPath dome;
+      dome.moveTo(-kDomeRadius, kStemTop);
+      dome.arcTo(QRectF(-kDomeRadius, kStemTop - kDomeRadius, 2 * kDomeRadius, 2 * kDomeRadius), 180, -180);
+      dome.closeSubpath();
+      painter.fillPath(dome, theme().base);
+      painter.strokePath(dome, line);
     }
-    if (!small) {
-      painter->setPen(Qt::NoPen);
-      painter->setBrush(theme().text);
-      painter->drawEllipse(c, 2.6, 2.6);
-    }
-    painter->restore();
   }
-  // A labelled manual valve keeps its label clear of the wheel in the corner.
-  const bool under_wheel = kind_ == canvas::ValveKind::Manual && !label_.isEmpty();
-  const QFont font = item_font();
-  const NameLayout& name = cached(font).layout;
-  painter->save();
-  painter->setFont(name.font);
-  if (!name.caption) {
-    // NOLINTNEXTLINE(bugprone-narrowing-conversions): Qt's alignment flags, which drawText takes as an int
-    painter->drawText(body.adjusted(0, 0, 0, -1), under_wheel ? Qt::AlignHCenter | Qt::AlignBottom : Qt::AlignCenter,
-                      name.text);
-  }
-  painter->restore();
+  painter.restore();
+}
 
-  if (pending_) {
+void ValveItem::paint_padlock(QPainter& painter) const {
+  const QRectF badge = badge_rect();
+  painter.save();
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(theme().base);
+  painter.drawRoundedRect(badge, 2, 2);
+  painter.setBrush(lock_color());
+  painter.drawRoundedRect(QRectF(badge.left() + 1.5, badge.top() + 5, badge.width() - 3, badge.height() - 5.5), 1.2, 1.2);
+  painter.setBrush(Qt::NoBrush);
+  painter.setPen(QPen(lock_color(), 1.6));
+  painter.drawArc(QRectF(badge.left() + 3, badge.top() + 1, badge.width() - 6, 8), 0, 180 * 16);
+  painter.restore();
+}
+
+void ValveItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
+  const QRectF ring(-kSize / 2 - 3, -kSize / 2 - 3, kSize + 6, kSize + 6);
+  painter->setRenderHint(QPainter::Antialiasing, true);
+  paint_glyph(*painter);
+  const auto draw_ring = [&](const QPen& pen) {
     painter->setBrush(Qt::NoBrush);
-    painter->setPen(QPen(theme().text, 2, Qt::DashLine));
-    painter->drawRoundedRect(body.adjusted(-3, -3, 3, 3), kCornerRadius + 2, kCornerRadius + 2);
-  }
-  if (marked_) {
-    painter->setBrush(Qt::NoBrush);
-    painter->setPen(QPen(theme().accent, 2));  // inside the bounding rect, as the pending outline
-    const QRectF ring = body.adjusted(-3, -3, 3, 3);
+    painter->setPen(pen);
     if (kind_ == canvas::ValveKind::Switch) {
       painter->drawEllipse(ring);
     } else {
-      painter->drawRoundedRect(ring, kCornerRadius + 2, kCornerRadius + 2);
+      painter->drawRoundedRect(ring, kRingRadius, kRingRadius);
     }
-  }
-  if (locked_) {
-    painter->setBrush(Qt::NoBrush);
-    painter->setPen(QPen(lock_color(), kLockBorderWidth));
-    if (kind_ == canvas::ValveKind::Switch) {
-      painter->drawEllipse(body);
-    } else {
-      painter->drawRoundedRect(body, kCornerRadius, kCornerRadius);
-    }
-  }
-  if (name.caption) {
+  };
+  if (marked_ || selected_) draw_ring(QPen(theme().accent, 2));
+  if (pending_) draw_ring(QPen(theme().text, 1.5, Qt::DashLine));
+  if (locked_) paint_padlock(*painter);
+  const QFont font = item_font();
+  const Cached& made = cached(font);
+  if (!made.caption.isEmpty()) {
     painter->setFont(font);
     painter->setPen(theme().text);
     // NOLINTNEXTLINE(bugprone-narrowing-conversions): Qt's alignment flags, which drawText takes as an int
-    painter->drawText(cached(font).caption, Qt::AlignCenter | Qt::TextSingleLine, name.text);
+    painter->drawText(made.caption, Qt::AlignCenter | Qt::TextSingleLine, label_);
   }
-}
-
-void ValveItem::contextMenuEvent(QGraphicsSceneContextMenuEvent* event) {
-  if (kind_ == canvas::ValveKind::Manual || !on_lock_request_) {
-    event->ignore();
-    return;
-  }
-  QMenu menu;
-  QAction* toggle = menu.addAction(locked_ ? tr("Unlock valve") : tr("Lock valve"));
-  if (menu.exec(event->screenPos()) == toggle) {
-    on_lock_request_(name_, !locked_);
-  }
-  event->accept();
 }
 
 void ValveItem::mousePressEvent(QGraphicsSceneMouseEvent* event) {
-  if (event->button() == Qt::LeftButton && on_click_) {
-    on_click_(name_);
-    event->accept();
+  if (event->button() != Qt::LeftButton) {
+    event->ignore();
     return;
   }
-  QGraphicsObject::mousePressEvent(event);
+  if (event->modifiers().testFlag(Qt::AltModifier)) {
+    if (on_actuate_) on_actuate_(name_);
+  } else if (on_select_) {
+    on_select_(name_);
+  }
+  event->accept();
 }
 
 // ---- StageItem --------------------------------------------------------------

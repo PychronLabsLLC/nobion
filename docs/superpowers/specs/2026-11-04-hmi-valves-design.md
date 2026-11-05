@@ -1,6 +1,6 @@
 # HMI valves on the extraction line canvas
 
-Date 2026-11-04. Status: draft. Mockup agreed in session 2026-11-04.
+Date 2026-11-04. Status: built. Mockup agreed in session 2026-11-04.
 
 ## 1. Why
 
@@ -47,8 +47,8 @@ valve_style = "redgreen"
   `read_enum` beside `open_valve_color`; added to the `reject_unknown` key
   list. Unknown value: load error, as `open_valve_color`.
 - Default `Hmi`: every line without the key changes look on upgrade. Wanted.
-- `configs/examples/canvas.toml` and `configs/examples/nmgrl/canvas.toml`
-  get the commented key.
+- `configs/examples/canvas.toml` gets commented key. NMGRL example left as
+  is: written by `tools/rebuild_nmgrl_example.py`, takes default.
 - `CanvasView::valve_style()` / `set_valve_style()`, mirror of
   `open_valve_color` pair: initialised from file, setter repaints.
 
@@ -59,34 +59,42 @@ click hits (`shape()`). Pipes still join any side. Inside it:
 
 - Bow-tie: two triangles tip to tip at centre, each 13 wide, 18 tall, axis
   along the pipe. 1.5 px outline in `theme().text`.
-- Actuator mark on stem from centre, perpendicular to axis, to box edge:
-  - pneumatic (every kind but Manual): half-disc dome, radius 7, fill
-    `theme().base`.
-  - Manual: T bar 16 wide (handwheel), replaces face handwheel and
-    `kWheelRadius`, `kCornerWheelRadius`, `wheel_rect()`.
-- Orientation: horizontal unless every pipe meeting the valve leaves it
-  through top or bottom of body box (first segment of its polyline at the
-  valve); then vertical, stem to left. Worked out in `CanvasView::build`
-  after pipes, pushed with `ValveItem::set_vertical(bool)`.
+- Actuator mark on stem from centre, perpendicular to axis:
+  - pneumatic (every kind but Manual): stem to 10 from centre, half-disc
+    dome radius 5 on it (top at box edge), fill `theme().base`.
+  - Manual: stem to 12, T bar 14 wide, 2 px (handwheel); replaces face
+    handwheel and `kWheelRadius`, `kCornerWheelRadius`, `wheel_rect()`.
+- Pipe sides: `CanvasView::build`, as each pipe is laid
+  (`note_pipe_side`), records side each pipe leaves valve by: first point of
+  its run more than 1 unit from valve centre, dominant axis. Pipe end more
+  than `kSize` from valve (tee stem meeting bar) counts no side. Pushed with
+  `ValveItem::set_pipe_sides(mask)` after all pipes.
+- Orientation: vertical when sides non-empty and none left or right; stem
+  then to left. A switch joining nothing (`pump_power`) has no sides.
 - Fill by state:
 
 | State | `hmi` | `redgreen` |
 |---|---|---|
 | Open | `theme().muted_text` | `theme().ok` |
 | Closed | `theme().base` (hollow) | `theme().error` |
-| Unknown | hatch: `theme().faint_text` 45° lines on `theme().base` | same |
-| Pending (moving) | half: target side filled, outline dashed | same, colours of style |
+| Unknown | hatch: `theme().muted_text` 45° lines on `theme().base` | same |
+
+Pending (command in flight): dashed ring around body, fill unchanged (item
+does not know target state).
 
 - `open_valve_color = "inherit"`: open fill is region colour in both
   styles (rule as today, `set_inherited_color`).
 - Flash on rejection unchanged: fill alternates with `theme().flash`.
 - Marked (rehearsal) unchanged: accent outline outside body.
-- Label: never on face (bow-tie has no room). Always caption under body, as
-  today's long-name caption (`caption_rect()`, `boundingRect()` takes it
-  in). `NameLayout` keeps shrink rule for caption width only.
+- Label: never on face (bow-tie has no room). Always caption, scene font
+  unshrunk, on first side of below, above, right, left that no pipe leaves
+  by; below when all four have one. Empty label (manual valve without
+  `display_name`): no caption. `caption_rect()`, `boundingRect()` takes it
+  in; click area stays body (`shape()`).
 - Badges, top-right corner of body box, 12 x 12, over glyph:
-  - locked: padlock, outline `theme().lock`. Replaces 5 px lock border;
-    `kLockBorderWidth` removed.
+  - locked: padlock (body filled, shackle stroked, `theme().lock`) on a
+    `theme().base` square. Replaces 5 px lock border; `kLockBorderWidth`
+    removed.
   - interlocked: not drawn on glyph (popup shows it).
 
 `ValveKind::Switch` (not a valve: pump, heater power) keeps circle body, no
@@ -101,10 +109,10 @@ only callers besides `ValveItem::fill_color` are in
 `ValveItem::mousePressEvent`, left button:
 
 - Alt held (`Qt::AltModifier`; Option on macOS): `on_actuate_(name)`. Same
-  path as today's click: `CanvasView::on_click` renamed `actuate_toggle`,
+  path as today's click: `CanvasView::on_click` renamed `toggle`,
   rules unchanged (read-only, pending, unknown name: nothing).
-- No modifier: `on_select_(name, global body rect)`. View emits
-  `valve_selected(name, global_rect)`; main window shows `ValvePopup`.
+- No modifier: `on_select_(name)`. View emits
+  `valve_selected(name)`; the view shows its `ValvePopup` (§6).
 - Other modifiers: as no modifier.
 
 Right button: ignored (event passes on). `contextMenuEvent` and
@@ -116,41 +124,53 @@ operate or lock buttons; Alt-click does nothing.
 
 Tooltip: unchanged (name, `valve_details`, last rejection).
 
-Selected valve shows accent outline (as marked) while its popup is open.
+Selected valve shows accent ring (as marked) while its popup is open.
+
+Popup owned by `CanvasView` (made on first `select`), not main window: the
+rehearsal window's read-only canvas gets it too. `CanvasView::select(name)`
+selects and shows it; `valve_selected` signal says so on a click;
+`ValvePopup::closed` ends selection. `CanvasView::faceplate(name)` builds
+what it shows (`ValveFaceplate`); popup holds no line state.
 
 ## 6. `ValvePopup`
 
 New `apps/nobion/src/valve_popup.{hpp,cpp}`. `QFrame`, `Qt::Popup` window
 (takes focus; Esc or click outside closes it; unlike `GaugePopup`, which
-must not take clicks). Parented to main window. One at a time: selecting
-another valve moves it. Placed beside valve's global rect, kept on screen.
+must not take clicks). Parented to canvas view. One at a time: selecting
+another valve moves it. Placed beside valve's global rect, kept on screen
+(`GaugePopup::placed`).
 
 Content, top to bottom:
 
 1. Name (label if set), description, kind ("pneumatic", "manual").
 2. State line: `valve_details` state line ("Open since 13:41:07 (22 min)",
    owner).
-3. Interlocks (valves with partners only): one row per partner, "<name>
-   must be closed" (exclusive) or "<name> must be open" (positive), mark
-   met / not met against current state, rule of
+3. Interlocks (valves with partners only): one row per partner, "Opens
+   only with <name> closed: met" (exclusive) or "... <name> open: ..."
+   (positive), met / not met against current state, rule of
    `check_switch_interlocks` (Unknown never meets). Closing never
-   interlocked: rows say "to open".
+   interlocked.
 4. History: rest of `valve_details` (last actuated, counts, time open).
 5. Last rejection reason, if any (what flash shows), in `error_text`.
 6. Buttons (not in read-only, not for Manual):
    - Operate: "Close" when Open, "Open" when Closed, both when Unknown.
      Calls `CanvasView::actuate(name, op)` (explicit op, no toggle).
-     Disabled while pending, label "Moving…". Disabled while locked, with
+     Disabled while pending, line "Moving…". Disabled while locked, with
      line "Locked: unlock to operate". Popup stays open after operate.
-   - Lock / Unlock: `request_lock(name, !locked)`.
+   - Lock / Unlock: `request_lock(name, !locked)`. Unlock question is a
+     dialog, which closes a popup: view selects valve again after it.
+
+Popup sets `Qt::WA_NoMouseReplay`: click outside that closes it is not
+replayed (on the valve it would reopen it). View destructor disconnects and
+deletes popup first (its hide ends selection, which reads valves).
 
 Live: view pushes `ValvePopup::refresh()` from `apply_state()` while shown;
 popup reads state through `ICanvasState`, never a clock of its own
 (`wall_now()`).
 
 Interlock partners: `ICanvasState::interlocks(name)` returns
-`systems::InterlockSet` (empty when none); `CoreBridge` fills it from
-`SwitchManager::interlock_sets()`, fixed at load, read once.
+`systems::InterlockSet` (empty when none); `CoreBridge` reads
+`SwitchManager::interlock_sets()` once, in its constructor.
 
 ## 7. Rules that must hold
 
@@ -166,7 +186,7 @@ Interlock partners: `ICanvasState::interlocks(name)` returns
 ## 8. Tests
 
 `tests/ui/test_canvas_view.cpp`, `tests/ui/test_valve_popup.cpp` (new),
-loader test beside existing `open_valve_color` cases:
+`tests/systems/test_canvas_loader.cpp` beside `open_valve_color` cases:
 
 - `valve_style` parsed; default `Hmi`; bad value refused.
 - Fill per state per style; inherit wins for open in both.

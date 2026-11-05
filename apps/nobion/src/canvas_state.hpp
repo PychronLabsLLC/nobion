@@ -11,6 +11,7 @@
 #include <QObject>
 
 #include "core_bridge.hpp"
+#include "pychron/systems/switch_rules.hpp"
 
 namespace pychron::ui {
 
@@ -29,6 +30,9 @@ class ICanvasState : public QObject {
   // Whether the line defines a gauge of this name. A defined gauge shows its
   // value on the canvas; one that is not is drawn as its name only.
   [[nodiscard]] virtual bool gauge_defined(const std::string& name) const = 0;
+  // The partners a valve's opening waits on (its faceplate lists them); none
+  // by default.
+  [[nodiscard]] virtual systems::InterlockSet interlocks(const std::string& /*name*/) const { return {}; }
 
  signals:
   // Something the painting reads has changed.
@@ -48,6 +52,7 @@ class CoreBridgeCanvasState final : public ICanvasState {
   [[nodiscard]] const canvas::Canvas* canvas() const override { return bridge_.canvas(); }
   [[nodiscard]] const systems::NetworkGraph* network() const override { return bridge_.network(); }
   [[nodiscard]] bool gauge_defined(const std::string& name) const override;
+  [[nodiscard]] systems::InterlockSet interlocks(const std::string& name) const override;
 
  private:
   CoreBridge& bridge_;

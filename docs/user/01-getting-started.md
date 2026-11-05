@@ -295,7 +295,7 @@ The main window is the extraction line. Its title is
 +--------------------------------------------+-----------------+
 |                                            | Alarms          |
 |   canvas: the drawing of the line          | Heaters (if any)|
-|   (click a valve to open or close it)      | Cryo (if any)   |
+|   (click a valve for its faceplate)        | Cryo (if any)   |
 |                                            |                 |
 +--------------------------------------------+-----------------+
 | Log dock                                                     |
@@ -309,13 +309,17 @@ The main window is the extraction line. Its title is
 The canvas draws the line from `canvas.toml`: valves, stages, pipettes, gauge
 readouts and labels.
 
-- **Click a valve** to open it if it is closed, or close it if it is open.
+- **Click a valve** to open its faceplate: its state, the interlocks its
+  opening waits on, its history, and the buttons **Open** / **Close** and
+  **Lock** / **Unlock**. Nothing moves until you press one.
+- **Option-click (Alt-click) a valve** to open it if it is closed, or close it
+  if it is open, at once.
   Commands go through the same lock and interlock checks as `elctl open` and
   `elctl close`; a refused command appears in the Log dock as
   `ERROR [ui] <valve> rejected: ...` and the valve flashes the reason.
-- **Right-click a valve** for *Lock valve* / *Unlock valve*. A locked valve
-  refuses open and close commands until it is unlocked; unlocking asks for
-  confirmation. Manual valves cannot be locked.
+- A locked valve refuses open and close commands until it is unlocked from
+  its faceplate; unlocking asks for confirmation. Manual valves cannot be
+  locked.
 - **Hover a valve** to see its state and how long it has been in it, whether it
   is locked or owned, when it was last actuated, and how many times it has
   opened, closed or failed.
@@ -724,11 +728,12 @@ simulated time run 50 times faster than the clock on the wall.
    on the splash screen. Look at the status bar: one health chip per
    simulated transport (`valve_bus`, `gauge_net`, `cg_controller`,
    `laser_pc`, `cryostat`, `bakeout_plc`).
-2. Click a valve, for example **P1**. It changes state (or is refused if an
-   interlock applies; the reason appears in the Log dock). Click it again.
-3. Right-click a valve and choose **Lock valve**, then try clicking it; the
-   command is refused. Right-click again and **Unlock valve** (confirm the
-   question).
+2. Click a valve, for example **P1**: its faceplate opens. Press **Open**.
+   It changes state (or is refused if an interlock applies; the reason
+   appears on the faceplate and in the Log dock). Option-click (Alt-click)
+   it to close it again in one click.
+3. Click a valve and press **Lock**, then Option-click it; the command is
+   refused. Click it again and press **Unlock** (confirm the question).
 4. Hover a valve to read its history. In the Log dock, type `transport` in
    the logger filter, then clear it.
 

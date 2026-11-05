@@ -24,6 +24,7 @@
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
 
+#include "canvas_state.hpp"
 #include "canvas_view.hpp"
 #include "core_bridge.hpp"
 #include "pychron/core/config/local_file.hpp"
@@ -39,19 +40,27 @@ using pychron::ui::CoreBridge;
 
 namespace {
 
-// True when the pixel just outside the left edge of the valve body, rendered
-// over white, is the lock colour (the border is 3 px wide, centered on the edge).
-bool hasLockBorder(ui::ValveItem* item) {
+// The valve painted alone over white, its centre at (30, 30).
+QImage painted(ui::ValveItem* item) {
   QImage image(60, 60, QImage::Format_ARGB32);
   image.fill(Qt::white);
   QPainter painter(&image);
   painter.translate(30, 30);
   item->paint(&painter, nullptr, nullptr);
   painter.end();
-  const QColor px = image.pixelColor(30 - static_cast<int>(ui::ValveItem::kSize / 2) - 1, 30);
-  const QColor want = ui::ValveItem::lock_color();
-  return std::abs(px.red() - want.red()) < 8 && std::abs(px.green() - want.green()) < 8 &&
-         std::abs(px.blue() - want.blue()) < 8;
+  return image;
+}
+
+bool near(const QColor& a, const QColor& b) {
+  return std::abs(a.red() - b.red()) < 8 && std::abs(a.green() - b.green()) < 8 && std::abs(a.blue() - b.blue()) < 8;
+}
+
+// True when the padlock's body, low in the badge, is painted in the lock colour.
+bool hasLockBadge(ui::ValveItem* item) {
+  const QRectF badge = ui::ValveItem::badge_rect();
+  const QImage image = painted(item);
+  const QPointF at = QPointF(30, 30) + QPointF(badge.center().x(), badge.bottom() - 3);
+  return near(image.pixelColor(at.toPoint()), ui::ValveItem::lock_color());
 }
 
 }  // namespace
@@ -135,16 +144,63 @@ class TestCanvasView : public QObject {
     QVERIFY(view_->gauge("IG1")->text().contains(QStringLiteral("torr")));
   }
 
-  void clickingAValveActuatesIt() {
+  // Option-click (Alt) is the one-click actuation.
+  void altClickingAValveActuatesIt() {
     ui::ValveItem* b = view_->valve("B");
     QCOMPARE(b->state(), ValveState::Closed);
     view_->show();
     QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
     const QPoint at = view_->mapFromScene(b->scenePos());
-    QTest::mouseClick(view_->viewport(), Qt::LeftButton, {}, at);
+    QTest::mouseClick(view_->viewport(), Qt::LeftButton, Qt::AltModifier, at);
     QVERIFY(b->is_pending());
     QTRY_COMPARE(b->state(), ValveState::Open);
     QTRY_VERIFY(!b->is_pending());
+  }
+
+  // A plain click selects the valve and opens its faceplate; nothing moves.
+  void aPlainClickSelectsAndDoesNotActuate() {
+    ui::ValveItem* b = view_->valve("B");
+    view_->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
+    QSignalSpy selected(view_.get(), &CanvasView::valve_selected);
+    QTest::mouseClick(view_->viewport(), Qt::LeftButton, {}, view_->mapFromScene(b->scenePos()));
+    QCOMPARE(selected.count(), 1);
+    QCOMPARE(selected.at(0).at(0).toString(), QStringLiteral("B"));
+    QCOMPARE(view_->selected(), std::string("B"));
+    QVERIFY(b->is_selected());
+    QVERIFY(!b->is_pending());
+    QTest::qWait(50);
+    QCOMPARE(b->state(), ValveState::Closed);
+    QCOMPARE(bridge_->state().switches.at("B").stats.opens, 0);
+  }
+
+  // A right click has no menu any more: it neither locks nor actuates.
+  void aRightClickNeitherLocksNorActuates() {
+    ui::ValveItem* a = view_->valve("A");
+    view_->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
+    QTest::mouseClick(view_->viewport(), Qt::RightButton, {}, view_->mapFromScene(a->scenePos()));
+    QTest::qWait(50);
+    QVERIFY(!a->locked());
+    QVERIFY(!a->is_pending());
+    QVERIFY(view_->selected().empty());
+  }
+
+  // A read-only view selects (its faceplate only reads) and never actuates.
+  void aReadOnlyViewSelectsButNeverActuates() {
+    ui::CoreBridgeCanvasState state(*bridge_);
+    CanvasView ro(state, nullptr);
+    ro.resize(1100, 800);
+    ro.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&ro));
+    ui::ValveItem* b = ro.valve("B");
+    QTest::mouseClick(ro.viewport(), Qt::LeftButton, Qt::AltModifier, ro.mapFromScene(b->scenePos()));
+    QVERIFY(!b->is_pending());
+    QVERIFY(!ro.actuate("B", SwitchOp::Open));
+    QTest::mouseClick(ro.viewport(), Qt::LeftButton, {}, ro.mapFromScene(b->scenePos()));
+    QCOMPARE(ro.selected(), std::string("B"));
+    QTest::qWait(50);
+    QCOMPARE(bridge_->state().valves.at("B"), ValveState::Closed);
   }
 
   void interlockRejectionFlashesWithReason() {
@@ -285,21 +341,21 @@ class TestCanvasView : public QObject {
     line->stop();
   }
 
-  void lockedValveDrawsBlueBorderAndUnlockClearsIt() {
+  void lockedValveWearsAPadlockAndUnlockTakesItOff() {
     ui::ValveItem* a = view_->valve("A");
     QVERIFY(!a->locked());
-    QVERIFY(!hasLockBorder(a));
+    QVERIFY(!hasLockBadge(a));
 
     view_->set_confirm_unlock([](const QString&) { return true; });
     QVERIFY(view_->request_lock("A", true));
     QTRY_VERIFY(a->locked());
     QVERIFY(line_->is_locked("A"));
-    QVERIFY(hasLockBorder(a));
+    QVERIFY(hasLockBadge(a));
 
     QVERIFY(view_->request_lock("A", false));
     QTRY_VERIFY(!a->locked());
     QVERIFY(!line_->is_locked("A"));
-    QVERIFY(!hasLockBorder(a));
+    QVERIFY(!hasLockBadge(a));
   }
 
   void unlockAsksForConfirmationAndCanBeDeclined() {
@@ -335,7 +391,7 @@ class TestCanvasView : public QObject {
     view_->show();
     QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
     ui::ValveItem* b = view_->valve("B");
-    QTest::mouseClick(view_->viewport(), Qt::LeftButton, {}, view_->mapFromScene(b->scenePos()));
+    QTest::mouseClick(view_->viewport(), Qt::LeftButton, Qt::AltModifier, view_->mapFromScene(b->scenePos()));
     QTRY_VERIFY(b->is_flashing());
     QCOMPARE(b->state(), ValveState::Closed);
     QVERIFY(b->locked());
@@ -352,10 +408,28 @@ class TestCanvasView : public QObject {
     QTRY_VERIFY(view_->valve("pump_power")->locked());
   }
 
-  void openValveStaysGreenByDefault() {
+  // The example sets no valve_style: hmi. Changing it repaints every valve.
+  void anOpenValveTakesItsStylesFill() {
+    QCOMPARE(view_->valve_style(), canvas::ValveStyle::Hmi);
     bridge_->actuate("A", SwitchOp::Open);
     QTRY_COMPARE_WITH_TIMEOUT(view_->valve("A")->state(), ValveState::Open, 5000);
-    QCOMPARE(view_->valve("A")->fill_color(), ui::valve_color(ValveState::Open));
+    QCOMPARE(view_->valve("A")->fill_color(), ui::valve_fill(ValveState::Open, canvas::ValveStyle::Hmi));
+    view_->set_valve_style(canvas::ValveStyle::Redgreen);
+    QCOMPARE(view_->valve("A")->style(), canvas::ValveStyle::Redgreen);
+    QCOMPARE(view_->valve("A")->fill_color(), ui::theme().ok);
+    QCOMPARE(view_->valve("B")->fill_color(), ui::theme().error);
+  }
+
+  // hmi keeps colour for what is wrong: open is grey, closed hollow; the
+  // legacy style is green and red. Unknown is hatched over the base in both.
+  void eachStyleFillsEachState() {
+    using canvas::ValveStyle;
+    QCOMPARE(ui::valve_fill(ValveState::Open, ValveStyle::Hmi), ui::theme().muted_text);
+    QCOMPARE(ui::valve_fill(ValveState::Closed, ValveStyle::Hmi), ui::theme().base);
+    QCOMPARE(ui::valve_fill(ValveState::Unknown, ValveStyle::Hmi), ui::theme().base);
+    QCOMPARE(ui::valve_fill(ValveState::Open, ValveStyle::Redgreen), ui::theme().ok);
+    QCOMPARE(ui::valve_fill(ValveState::Closed, ValveStyle::Redgreen), ui::theme().error);
+    QCOMPARE(ui::valve_fill(ValveState::Unknown, ValveStyle::Redgreen), ui::theme().base);
   }
 
   void inheritModeColoursOpenValveWithItsRegion() {
@@ -366,16 +440,16 @@ class TestCanvasView : public QObject {
     const QColor region = view_->stage("prep")->region_color();
     QCOMPARE(region, CanvasView::source_color(canvas::SourceKind::Spectrometer));
     QCOMPARE(b->fill_color(), region);
-    QVERIFY(b->fill_color() != ui::valve_color(ValveState::Open));
+    QVERIFY(b->fill_color() != ui::valve_fill(ValveState::Open, view_->valve_style()));
 
     bridge_->actuate("B", SwitchOp::Close);
     QTRY_COMPARE_WITH_TIMEOUT(b->state(), ValveState::Closed, 5000);
-    QCOMPARE(b->fill_color(), ui::valve_color(ValveState::Closed));
+    QCOMPARE(b->fill_color(), ui::valve_fill(ValveState::Closed, view_->valve_style()));
 
     view_->set_open_valve_color(canvas::OpenValveColor::Green);
     bridge_->actuate("B", SwitchOp::Open);
     QTRY_COMPARE_WITH_TIMEOUT(b->state(), ValveState::Open, 5000);
-    QCOMPARE(b->fill_color(), ui::valve_color(ValveState::Open));
+    QCOMPARE(b->fill_color(), ui::valve_fill(ValveState::Open, view_->valve_style()));
   }
 
   // A valve joining volumes with no source among them has no colour to take.
@@ -383,7 +457,7 @@ class TestCanvasView : public QObject {
     view_->set_open_valve_color(canvas::OpenValveColor::Inherit);
     bridge_->actuate("A", SwitchOp::Open);  // stage1 to prep: two plain volumes
     QTRY_COMPARE_WITH_TIMEOUT(view_->valve("A")->state(), ValveState::Open, 5000);
-    QCOMPARE(view_->valve("A")->fill_color(), ui::valve_color(ValveState::Open));
+    QCOMPARE(view_->valve("A")->fill_color(), ui::valve_fill(ValveState::Open, view_->valve_style()));
     QCOMPARE(view_->stage("stage1")->region_color(), CanvasView::isolated_color());
   }
 
@@ -393,17 +467,17 @@ class TestCanvasView : public QObject {
     bridge_->actuate("pump_power", SwitchOp::Open);
     ui::ValveItem* p = view_->valve("pump_power");
     QTRY_COMPARE_WITH_TIMEOUT(p->state(), ValveState::Open, 5000);
-    QCOMPARE(p->fill_color(), ui::valve_color(ValveState::Open));
+    QCOMPARE(p->fill_color(), ui::valve_fill(ValveState::Open, view_->valve_style()));
   }
 
-  void inheritModeKeepsLockBorderAndFlash() {
+  void inheritModeKeepsLockBadgeAndFlash() {
     view_->set_open_valve_color(canvas::OpenValveColor::Inherit);
     view_->set_confirm_unlock([](const QString&) { return true; });
     bridge_->actuate("A", SwitchOp::Open);
     QTRY_COMPARE_WITH_TIMEOUT(view_->valve("A")->state(), ValveState::Open, 5000);
     QVERIFY(view_->request_lock("A", true));
     QTRY_VERIFY(view_->valve("A")->locked());
-    QVERIFY(hasLockBorder(view_->valve("A")));
+    QVERIFY(hasLockBadge(view_->valve("A")));
     view_->valve("A")->flash("x");
     QVERIFY(view_->valve("A")->is_flashing());
   }
@@ -826,61 +900,103 @@ class TestCanvasView : public QObject {
     QCOMPARE(view_->stage("air_tank")->region_color(), CanvasView::source_color(SourceKind::Tank, 0));
   }
 
-  // A manual valve wears a handwheel on its face: nothing sticks out of the
-  // body, so pipes can join any side. A name too long for the body is drawn
-  // under it (see the caption tests below); the tooltip keeps it whole.
-  void manualValvesWearAHandwheel() {
+  // Every valve but a switch is a bow-tie with its actuator on a stem: a
+  // dome for one Nobion drives, a T bar (the handwheel) for a manual one.
+  // The tooltip keeps the name whole.
+  void manualValvesWearATBarAndTheRestADome() {
     ui::ValveItem manual("MiniBoneGP5Manual", canvas::ValveKind::Manual);
     ui::ValveItem valve("A", canvas::ValveKind::Valve);
-    QVERIFY(valve.wheel_rect().isEmpty());
-    const QRectF body(-ui::ValveItem::kSize / 2, -ui::ValveItem::kSize / 2, ui::ValveItem::kSize, ui::ValveItem::kSize);
     QCOMPARE(manual.toolTip(), QStringLiteral("MiniBoneGP5Manual"));
-
-    // labelled: a small wheel in the top-right corner, clear of the label
-    const QRectF corner = manual.wheel_rect();
-    QVERIFY(body.contains(corner));
-    QVERIFY(corner.left() > 0 && corner.bottom() < 0);
-    // blank: the wheel fills the face
     manual.set_label(QString());
-    const QRectF wheel = manual.wheel_rect();
-    QCOMPARE(wheel.center(), QPointF(0, 0));
-    QCOMPARE(wheel.width(), 2 * ui::ValveItem::kWheelRadius);
-    QVERIFY(body.contains(wheel));
+    valve.set_label(QString());
+    // (36, 18): on the T bar's right arm, wide of the dome
+    QVERIFY(painted(&manual).pixelColor(36, 18).lightness() < 110);
+    QVERIFY(painted(&valve).pixelColor(36, 18).lightness() > 200);
+    // the dome's top, above the centre
+    QVERIFY(painted(&valve).pixelColor(30, 15).lightness() < 140);
+    // a bow-tie: the triangles' outer edge on the left, nothing at the
+    // top-left corner of the box
+    for (auto* item : {&manual, &valve}) {
+      const QImage image = painted(item);
+      QVERIFY(image.pixelColor(30 - 13, 30).lightness() < 140);
+      QVERIFY(image.pixelColor(30 - 13, 30 - 13).lightness() > 200);
+    }
 
-    // painted: the dark hub at the center and rim to its right, on a blank face
-    QImage image(60, 60, QImage::Format_ARGB32);
-    image.fill(Qt::white);
-    QPainter painter(&image);
-    painter.translate(30, 30);
-    manual.paint(&painter, nullptr, nullptr);
-    painter.end();
-    QVERIFY(image.pixelColor(30, 30).lightness() < 100);
-    QVERIFY(image.pixelColor(30 + static_cast<int>(ui::ValveItem::kWheelRadius), 30).lightness() < 110);
-    QVERIFY(image.pixelColor(30 + 4, 30 - 4).lightness() < 110);  // a spoke, on the diagonal
-    QVERIFY(image.pixelColor(30 + 6, 30).lightness() > 120);      // between the spokes: the face
-
-    // On the canvas a manual valve's face is blank unless it is given a
+    // On the canvas a manual valve has no label unless it is given a
     // display_name; other valves show their name.
     QCOMPARE(view_->valve("M1")->label(), QString());
     QVERIFY(view_->valve("M1")->toolTip().contains(QStringLiteral(">M1<")));
     QCOMPARE(view_->valve("A")->label(), QStringLiteral("A"));
   }
 
-  // A name that fits the body (its font shrunk by at most 30%) stays on the
-  // face and adds nothing to the item's rectangle.
-  void aShortValveNameStaysInsideTheBody() {
-    const QRectF plain(-ui::ValveItem::kSize / 2 - 4, -ui::ValveItem::kSize / 2 - 4, ui::ValveItem::kSize + 8,
-                       ui::ValveItem::kSize + 8);
-    for (const char* name : {"A", "P1"}) {
-      for (const auto kind : {canvas::ValveKind::Valve, canvas::ValveKind::Switch, canvas::ValveKind::Manual}) {
-        ui::ValveItem item(name, kind);
-        const auto layout = item.name_layout(QFont());
-        QVERIFY2(!layout.caption, name);
-        QCOMPARE(layout.text, QString::fromLatin1(name));
-        QVERIFY(item.caption_rect().isEmpty());
-        QCOMPARE(item.boundingRect(), plain);
+  // An unknown valve is hatched: light and dark inside one triangle.
+  void anUnknownValveIsHatched() {
+    ui::ValveItem item("A", canvas::ValveKind::Valve);
+    item.set_label(QString());
+    QCOMPARE(item.state(), ValveState::Unknown);
+    const QImage image = painted(&item);
+    int dark = 0;
+    int light = 0;
+    for (int x = 30 - 10; x <= 30 - 4; ++x) {
+      for (int y = 30 - 2; y <= 30 + 2; ++y) {
+        (image.pixelColor(x, y).lightness() < 200 ? dark : light) += 1;
       }
     }
+    QVERIFY2(dark > 0 && light > 0, qPrintable(QStringLiteral("%1 dark, %2 light").arg(dark).arg(light)));
+  }
+
+  // The label is a caption beside the glyph, on the first side no pipe
+  // leaves by: below, above, right, left (below when every side has one).
+  void theCaptionGoesWhereNoPipeLeaves() {
+    using Side = ui::ValveItem::Side;
+    ui::ValveItem item("A", canvas::ValveKind::Valve);
+    const double half = ui::ValveItem::kSize / 2;
+    QVERIFY(item.caption_rect().top() > half);
+    item.set_pipe_sides(Side::Bottom);
+    QVERIFY(item.caption_rect().bottom() < -half);
+    item.set_pipe_sides(Side::Bottom | Side::Top);
+    QVERIFY(item.caption_rect().left() > half);
+    item.set_pipe_sides(Side::Bottom | Side::Top | Side::Right);
+    QVERIFY(item.caption_rect().right() < -half);
+    item.set_pipe_sides(Side::Bottom | Side::Top | Side::Right | Side::Left);
+    QVERIFY(item.caption_rect().top() > half);
+    QVERIFY(item.boundingRect().contains(item.caption_rect()));
+
+    // no label, no caption: the item is its body
+    const QRectF body_box(-half - 4, -half - 4, ui::ValveItem::kSize + 8, ui::ValveItem::kSize + 8);
+    item.set_label(QString());
+    QVERIFY(item.caption_rect().isEmpty());
+    QCOMPARE(item.boundingRect(), body_box);
+  }
+
+  // A valve whose pipes all leave above and below stands upright; the view
+  // works the sides out from the pipes it lays.
+  void aValveJoinedOnlyAboveAndBelowIsVertical() {
+    using Side = ui::ValveItem::Side;
+    ui::ValveItem item("A", canvas::ValveKind::Valve);
+    QVERIFY(!item.vertical());
+    item.set_pipe_sides(Side::Top | Side::Bottom);
+    QVERIFY(item.vertical());
+    item.set_pipe_sides(Side::Top | Side::Right);
+    QVERIFY(!item.vertical());
+
+    int vertical = 0;
+    int horizontal = 0;
+    for (QGraphicsItem* it : view_->scene()->items()) {
+      auto* valve = dynamic_cast<ui::ValveItem*>(it);
+      if (valve == nullptr) continue;
+      const unsigned sides = valve->pipe_sides();
+      if (sides == 0) {  // a switch need join nothing (pump_power)
+        QVERIFY2(valve->kind() == canvas::ValveKind::Switch, valve->name().c_str());
+        QVERIFY(!valve->vertical());
+        continue;
+      }
+      const bool upright = (sides & (Side::Left | Side::Right)) == 0;
+      QCOMPARE(valve->vertical(), upright);
+      (upright ? vertical : horizontal) += 1;
+    }
+    QVERIFY(vertical > 0);
+    QVERIFY(horizontal > 0);
   }
 
   // The example's switch pump_power cannot fit a 30-unit circle: it is drawn
@@ -906,8 +1022,8 @@ class TestCanvasView : public QObject {
                           ui::ValveItem::kSize + 8);
     QVERIFY(item->boundingRect().contains(body_box));
 
-    // a new label can make a caption, and take it away
-    item->set_label(QStringLiteral("x"));
+    // no label takes the caption away, a label brings it back
+    item->set_label(QString());
     QVERIFY(item->caption_rect().isEmpty());
     QCOMPARE(item->boundingRect(), body_box);
     item->set_label(QStringLiteral("pump_power"));
@@ -938,17 +1054,16 @@ class TestCanvasView : public QObject {
     QVERIFY(item->shape().contains(QPointF(0, 0)));
     QVERIFY(!item->shape().contains(item->caption_rect().center()));
     const QPoint at = view_->mapFromScene(item->mapToScene(item->caption_rect().center()));
-    QTest::mouseClick(view_->viewport(), Qt::LeftButton, {}, at);
+    QTest::mouseClick(view_->viewport(), Qt::LeftButton, Qt::AltModifier, at);
     QVERIFY(!item->is_pending());
-    QTest::mouseClick(view_->viewport(), Qt::LeftButton, {}, view_->mapFromScene(item->scenePos()));
+    QTest::mouseClick(view_->viewport(), Qt::LeftButton, Qt::AltModifier, view_->mapFromScene(item->scenePos()));
     QVERIFY(item->is_pending());
   }
 
-  // The lock border is blue and thick enough to read at a glance.
-  void lockBorderIsBlueAndThick() {
+  // The padlock is blue, apart from every state fill.
+  void thePadlockIsBlue() {
     const QColor lock = ui::ValveItem::lock_color();
     QVERIFY(lock.blue() > 200 && lock.blue() > lock.red() + 100 && lock.blue() > lock.green() + 80);
-    QVERIFY(ui::ValveItem::kLockBorderWidth >= 5.0);
   }
 
   void boxEntryFindsWhereALineCrossesIntoABox() {

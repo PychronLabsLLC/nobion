@@ -17,4 +17,8 @@ bool CoreBridgeCanvasState::gauge_defined(const std::string& name) const {
   return std::any_of(defined.begin(), defined.end(), [&](const auto& d) { return d.name == name; });
 }
 
+systems::InterlockSet CoreBridgeCanvasState::interlocks(const std::string& name) const {
+  return bridge_.interlocks(name);
+}
+
 }  // namespace pychron::ui

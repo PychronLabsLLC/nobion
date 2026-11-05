@@ -67,6 +67,9 @@ class CoreBridge : public QObject {
   const canvas::Canvas* canvas() const noexcept { return line_.canvas(); }
   const systems::NetworkGraph* network() const noexcept { return line_.network(); }
   const config::SystemConfig& config() const noexcept { return line_.config(); }
+  // A valve's interlock partners (fixed when the line is built); none for an
+  // unknown name.
+  systems::InterlockSet interlocks(const std::string& name) const;
 
   // The time by the line's clock, for a view that shows when, or how long
   // ago, something the line stamped happened: the real time unless the line
@@ -149,6 +152,8 @@ class CoreBridge : public QObject {
   void refresh_stats(const std::string& name);
 
   systems::ExtractionLine& line_;
+  // Read once: fixed when the line is built.
+  std::map<std::string, systems::InterlockSet, std::less<>> interlocks_;
   State state_;
   std::shared_ptr<Gate> gate_;
   std::vector<SignalBus::Subscription> subscriptions_;

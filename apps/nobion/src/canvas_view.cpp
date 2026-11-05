@@ -88,6 +88,7 @@ CanvasView::CanvasView(ICanvasState& state, CoreBridge* bridge, QWidget* parent)
   connect(&gauge_rest_timer_, &QTimer::timeout, this, &CanvasView::on_gauge_rest);
   viewport()->installEventFilter(this);
   if (const canvas::Canvas* c = state_.canvas()) {
+    valve_style_ = c->canvas.valve_style;
     build(*c);
     open_valve_color_ = c->canvas.open_valve_color;
   }
@@ -104,11 +105,19 @@ CanvasView::CanvasView(ICanvasState& state, CoreBridge* bridge, QWidget* parent)
     connect(bridge_, &CoreBridge::actuationStarted, this, [this](const QString& name) {
       if (ValveItem* v = valve(name.toStdString())) {
         v->set_pending(true);
+        if (popup_ != nullptr && popup_->isVisible() && selected_ == v->name()) popup_->set_faceplate(faceplate(selected_));
       }
     });
     connect(bridge_, &CoreBridge::actuationFinished, this, &CanvasView::on_finished);
   }
   apply_state();
+}
+
+CanvasView::~CanvasView() {
+  if (popup_ != nullptr) {
+    disconnect(popup_, nullptr, this, nullptr);
+    delete popup_;
+  }
 }
 
 void CanvasView::set_gauge_rest_ms(int ms) { gauge_rest_timer_.setInterval(std::max(ms, 0)); }
@@ -198,8 +207,12 @@ void CanvasView::build(const canvas::Canvas& c) {
     auto* item = new ValveItem(v.name, v.kind);
     item->setPos(to_qpoint(v.pos));
     item->set_label(QString::fromStdString(v.label()));
-    item->set_on_click([this](const std::string& name) { on_click(name); });
-    item->set_on_lock_request([this](const std::string& name, bool locked) { request_lock(name, locked); });
+    item->set_style(valve_style_);
+    item->set_on_actuate([this](const std::string& name) { toggle(name); });
+    item->set_on_select([this](const std::string& name) {
+      select(name);
+      emit valve_selected(QString::fromStdString(name));
+    });
     item->set_on_hover([this, item, name = v.name] {
       item->set_details(valve_details(state_.state(), name, state_.wall_now()));
     });
@@ -306,7 +319,27 @@ void CanvasView::build(const canvas::Canvas& c) {
     add_path({x.left, x.right}, width);
     add_path({x.top, x.bottom}, width);
   }
+  for (const auto& [name, sides] : pipe_sides_) valves_.at(name)->set_pipe_sides(sides);
+  pipe_sides_.clear();
   grow_content();
+}
+
+void CanvasView::note_pipe_side(const std::string& name, const std::vector<QPointF>& run) {
+  const auto it = valves_.find(name);
+  if (it == valves_.end() || run.empty()) return;
+  const QPointF at = it->second->pos();
+  // A pipe's end is on the valve or beside it (an offset); one that ends
+  // elsewhere (a tee's stem meets the bar, not the valve) leaves by no side.
+  const QPointF end = run.front() - at;
+  if (std::max(std::abs(end.x()), std::abs(end.y())) > ValveItem::kSize) return;
+  for (const QPointF& p : run) {
+    const QPointF d = p - at;
+    if (std::max(std::abs(d.x()), std::abs(d.y())) < 1.0) continue;
+    const unsigned side = std::abs(d.x()) >= std::abs(d.y()) ? (d.x() > 0 ? ValveItem::Right : ValveItem::Left)
+                                                             : (d.y() > 0 ? ValveItem::Bottom : ValveItem::Top);
+    pipe_sides_[name] |= side;
+    return;
+  }
 }
 
 std::vector<QPointF> CanvasView::oriented(QPointF a, const std::string& a_name, QPointF b, const std::string& b_name,
@@ -350,6 +383,8 @@ ConnectionItem* CanvasView::add_pipe(const std::vector<QPointF>& points, double 
   const auto& names = item->endpoints();
   if (points.size() >= 2 && names.size() >= 2) {
     const std::vector<QPointF> reversed(points.rbegin(), points.rend());
+    note_pipe_side(names[0], points);
+    note_pipe_side(names[1], reversed);
     const std::array<std::pair<const std::vector<QPointF>*, const std::string*>, 2> ends{
         {{&reversed, &names[0]}, {&points, &names[1]}}};
     for (const auto& [run, name] : ends) {
@@ -394,13 +429,81 @@ GaugeLabelItem* CanvasView::gauge(const std::string& name) const {
   return it == gauges_.end() ? nullptr : it->second;
 }
 
-void CanvasView::on_click(const std::string& name) {
-  const ValveItem* item = valve(name);
-  if (read_only() || !item || state_.pending(name)) {
-    return;
+bool CanvasView::actuate(const std::string& name, systems::SwitchOp op) {
+  if (read_only() || valve(name) == nullptr || state_.pending(name)) {
+    return false;
   }
-  const auto op = item->state() == ValveState::Open ? systems::SwitchOp::Close : systems::SwitchOp::Open;
   bridge_->actuate(QString::fromStdString(name), op);
+  return true;
+}
+
+bool CanvasView::toggle(const std::string& name) {
+  const ValveItem* item = valve(name);
+  if (item == nullptr) return false;
+  return actuate(name, item->state() == ValveState::Open ? systems::SwitchOp::Close : systems::SwitchOp::Open);
+}
+
+void CanvasView::select(const std::string& name) {
+  ValveItem* item = valve(name);
+  if (item == nullptr) return;
+  if (ValveItem* before = valve(selected_)) before->set_selected(false);
+  selected_ = name;
+  item->set_selected(true);
+  if (popup_ == nullptr) {
+    popup_ = new ValvePopup(this);
+    popup_->set_on_operate([this](const std::string& valve_name, systems::SwitchOp op) { actuate(valve_name, op); });
+    popup_->set_on_lock([this](const std::string& valve_name, bool locked) {
+      request_lock(valve_name, locked);
+      // The unlock question is a dialog, and a dialog closes a popup: open
+      // the faceplate again on what the answer left.
+      select(valve_name);
+    });
+    connect(popup_, &ValvePopup::closed, this, &CanvasView::end_selection);
+  }
+  popup_->set_faceplate(faceplate(name));
+  const QRect local = mapFromScene(item->mapRectToScene(QRectF(-ValveItem::kSize / 2, -ValveItem::kSize / 2,
+                                                                ValveItem::kSize, ValveItem::kSize)))
+                          .boundingRect();
+  popup_->show_beside(QRect(viewport()->mapToGlobal(local.topLeft()), local.size()));
+}
+
+void CanvasView::end_selection() {
+  if (ValveItem* item = valve(selected_)) item->set_selected(false);
+  selected_.clear();
+}
+
+ValveFaceplate CanvasView::faceplate(const std::string& name) const {
+  ValveFaceplate f;
+  const ValveItem* item = valve(name);
+  if (item == nullptr) return f;
+  const auto& state = state_.state();
+  f.name = name;
+  f.title = item->label().isEmpty() ? QString::fromStdString(name) : item->label();
+  f.kind = item->kind();
+  f.state = item->state();
+  f.locked = item->locked();
+  f.pending = state_.pending(name);
+  f.last_failure = item->last_failure();
+  f.operable = !read_only() && item->kind() != canvas::ValveKind::Manual;
+  QStringList lines = valve_details(state, name, state_.wall_now());
+  const auto info = state.switches.find(name);
+  if (info != state.switches.end() && !info->second.description.empty() && !lines.isEmpty()) {
+    f.description = lines.takeFirst();
+  }
+  if (!lines.isEmpty()) f.state_line = lines.takeFirst();
+  f.history = lines;
+  const auto state_of = [&](const std::string& partner) {
+    const auto it = state.valves.find(partner);
+    return it == state.valves.end() ? ValveState::Unknown : it->second;
+  };
+  const systems::InterlockSet set = state_.interlocks(name);
+  for (const auto& partner : set.exclusive) {
+    f.interlocks.push_back({QString::fromStdString(partner), true, state_of(partner) == ValveState::Closed});
+  }
+  for (const auto& partner : set.positive) {
+    f.interlocks.push_back({QString::fromStdString(partner), false, state_of(partner) == ValveState::Open});
+  }
+  return f;
 }
 
 bool CanvasView::request_lock(const std::string& name, bool locked) {
@@ -486,6 +589,7 @@ void CanvasView::apply_state() {
     item->set_pending(state_.pending(name));
     item->set_details(valve_details(state, name, state_.wall_now()));
   }
+  if (popup_ != nullptr && popup_->isVisible() && !selected_.empty()) popup_->set_faceplate(faceplate(selected_));
   for (auto& [name, item] : gauges_) {
     if (auto it = state.pressures.find(name); it != state.pressures.end()) {
       auto units = state.units.find(name);
@@ -494,6 +598,11 @@ void CanvasView::apply_state() {
   }
   apply_regions();
   grow_content();
+}
+
+void CanvasView::set_valve_style(canvas::ValveStyle style) {
+  valve_style_ = style;
+  for (auto& [name, item] : valves_) item->set_style(style);
 }
 
 void CanvasView::set_open_valve_color(canvas::OpenValveColor mode) {
@@ -593,6 +702,7 @@ void CanvasView::on_finished(const QString& name, const Result<void>& result) {
   if (!result) {
     item->flash(QString::fromStdString(result.error().what));
   }
+  if (popup_ != nullptr && popup_->isVisible() && selected_ == item->name()) popup_->set_faceplate(faceplate(selected_));
 }
 
 }  // namespace pychron::ui

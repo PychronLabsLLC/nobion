@@ -56,7 +56,7 @@ See [extraction line](02-extraction-line.md).
 
 | You see | Meaning | Do |
 |---|---|---|
-| `'X' is software locked` | The valve is locked. Locks persist in `<config>.state.toml` beside `extraction_line.toml`, so a valve that refuses everything after a restart is usually locked. | Right-click > Unlock (asks to confirm). Manual valves cannot be locked. |
+| `'X' is software locked` | The valve is locked. Locks persist in `<config>.state.toml` beside `extraction_line.toml`, so a valve that refuses everything after a restart is usually locked. | Click the valve, then **Unlock** on its faceplate (asks to confirm). Manual valves cannot be locked. |
 | `cannot open 'A': interlocked with 'C' which is open` | Interlock. | Close `C` first. |
 | `... requires 'B' open, it is closed` | Required valve closed. | Open `B` first. |
 | `'X' read back closed after open` | Command sent, hardware reports closed. | Check wiring, relay, air. |
