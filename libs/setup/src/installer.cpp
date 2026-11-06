@@ -25,7 +25,7 @@ Resources find_resources() { return find_resources(executable_dir()); }
 Resources find_resources(const fs::path& exe) {
   Resources r{fs::path(PYCHRON_SETUP_SOURCE_DIR) / "profiles", fs::path(PYCHRON_SETUP_SOURCE_DIR) / "configs" / "examples"};
   if (!exe.empty()) {
-    for (const fs::path& base : {exe / ".." / "share" / "pychron", exe / ".." / "Resources"}) {
+    for (const fs::path& base : {exe / ".." / "share" / "nobion", exe / ".." / "Resources"}) {
       if (!has_profiles(base)) continue;
       std::error_code ec;
       const fs::path canonical = fs::weakly_canonical(base, ec);
@@ -56,7 +56,7 @@ fs::path lab_state_dir(const fs::path& lab, const fs::path& examples, const fs::
     at = at.parent_path();
   }
   fs::path base = user_dir;
-  if (base.empty()) base = fs::absolute(fs::temp_directory_path(ec) / "pychron" / "examples", ec);
+  if (base.empty()) base = fs::absolute(fs::temp_directory_path(ec) / "nobion" / "examples", ec);
   return rel.empty() ? base : base / rel;
 }
 
@@ -98,8 +98,8 @@ std::string default_install_name(const Profile& profile) {
 }
 
 fs::path default_root(const Profile& profile, const std::string& name) {
-  if (profile.kind == ProfileKind::DataReduction) return home_dir() / "Documents" / "Pychron";
-  return home_dir() / "Pychron" / name;
+  if (profile.kind == ProfileKind::DataReduction) return home_dir() / "Documents" / "Nobion";
+  return home_dir() / "Nobion" / name;
 }
 
 std::string_view version() noexcept { return PYCHRON_VERSION; }

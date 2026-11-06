@@ -91,9 +91,9 @@ owner-readable only.
 ### The site file
 
 The per-user list of installs on a computer. Location: `$NOBION_SITE_CONFIG`
-if set, else `~/Library/Application Support/Pychron/site.toml` (macOS),
-`%APPDATA%\Pychron\site.toml` (Windows), `$XDG_CONFIG_HOME/pychron/site.toml`
-or `~/.config/pychron/site.toml` (elsewhere). A missing file is an empty
+if set, else `~/Library/Application Support/Nobion/site.toml` (macOS),
+`%APPDATA%\Nobion\site.toml` (Windows), `$XDG_CONFIG_HOME/nobion/site.toml`
+or `~/.config/nobion/site.toml` (elsewhere). A missing file is an empty
 list. The wizard writes it; `elctl doctor` checks it.
 
 | Key | Type | Meaning |
@@ -110,7 +110,7 @@ list. The wizard writes it; `elctl doctor` checks it.
 | `database` | text | data reduction: the database URL **without a password** |
 
 The password for a `postgresql://` database is in
-`<root>/.pychron/credentials.toml` (see
+`<root>/.nobion/credentials.toml` (see
 [Install files](#install-files-sitetoml-profiles-credentials)).
 
 `domain` says what the data windows and `elctl` offer for the install's
@@ -1044,7 +1044,7 @@ An answers file for `elctl init --answers file.toml` is `id = value`
 
 ### credentials.toml (data-reduction installs)
 
-`<install root>/.pychron/credentials.toml`, written by the wizard for a
+`<install root>/.nobion/credentials.toml`, written by the wizard for a
 server database, readable only by you. The site file holds the database URL
 without the password; the programs add it when they open the database.
 

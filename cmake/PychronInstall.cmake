@@ -3,7 +3,7 @@
 #   Linux, Windows             macOS (with BUILD_UI)
 #   <prefix>/bin/elctl         Nobion.app/Contents/MacOS/Nobion   (nobion)
 #   <prefix>/bin/nobion        Nobion.app/Contents/MacOS/elctl
-#   <prefix>/share/pychron/    Nobion.app/Contents/Resources/
+#   <prefix>/share/nobion/    Nobion.app/Contents/Resources/
 #     profiles/ examples/        profiles/ examples/
 #     earthbank/templates/       earthbank/templates/
 #     python/  (optional)        python/  (optional)
@@ -47,12 +47,12 @@ if(APPLE AND TARGET nobion)
   set(_pychron_python_rpath "@executable_path/../Resources/python/lib")
 else()
   set(PYCHRON_INSTALL_BIN "${CMAKE_INSTALL_BINDIR}")
-  set(PYCHRON_INSTALL_RESOURCES "${CMAKE_INSTALL_DATADIR}/pychron")
+  set(PYCHRON_INSTALL_RESOURCES "${CMAKE_INSTALL_DATADIR}/nobion")
   set(PYCHRON_INSTALL_DOC "${CMAKE_INSTALL_DATADIR}/doc/pychron")
   if(APPLE)
-    set(_pychron_python_rpath "@executable_path/../share/pychron/python/lib")
+    set(_pychron_python_rpath "@executable_path/../share/nobion/python/lib")
   else()
-    set(_pychron_python_rpath "$ORIGIN/../share/pychron/python/lib")
+    set(_pychron_python_rpath "$ORIGIN/../share/nobion/python/lib")
   endif()
 endif()
 

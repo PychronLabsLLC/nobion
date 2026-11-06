@@ -300,7 +300,7 @@ TEST_F(Profiles, ALinkToNothingIsAnErrorNotEmpty) {
 }
 
 TEST_F(Profiles, SaveMakesTheDirectory) {
-  const fs::path deep = dir_ / "pychron" / "earthbank" / "profiles.toml";
+  const fs::path deep = dir_ / "nobion" / "earthbank" / "profiles.toml";
   earthbank::Profiles one;
   one.profiles = {profile("mylab", "r.fixture")};
   const auto saved = save_profiles(one, deep);
@@ -492,9 +492,9 @@ TEST_F(Profiles, DefaultFileIsUnderTheUsersConfigDirectory) {
   // The directory is the one libs/setup keeps the site file in: `Pychron` on
   // macOS and Windows, `pychron` on Linux.
 #if defined(_WIN32) || defined(__APPLE__)
-  const fs::path tail = fs::path("Pychron") / "earthbank" / "profiles.toml";
+  const fs::path tail = fs::path("Nobion") / "earthbank" / "profiles.toml";
 #else
-  const fs::path tail = fs::path("pychron") / "earthbank" / "profiles.toml";
+  const fs::path tail = fs::path("nobion") / "earthbank" / "profiles.toml";
 #endif
 #if defined(_WIN32)
   const ScopedEnv appdata("APPDATA", dir_.string());
@@ -677,7 +677,7 @@ TEST_F(Profiles, ImportRefusesWhatIsNotLegacysFile) {
 // (Markdown) may name it.
 TEST_F(Profiles, TheServiceIsNamedInOneFileOnly) {
   const fs::path root = PYCHRON_EARTHBANK_REPO_DIR;
-  const fs::path home = root / "libs" / "earthbank" / "include" / "pychron" / "earthbank" / "profiles.hpp";
+  const fs::path home = root / "libs" / "earthbank" / "include" / "nobion" / "earthbank" / "profiles.hpp";
   ASSERT_TRUE(fs::exists(home)) << home;
   // Not spelled out here either.
   const std::string host(kDefaultBaseUrl.substr(kDefaultBaseUrl.find("://") + 3));

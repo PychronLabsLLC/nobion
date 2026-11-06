@@ -33,7 +33,7 @@ constexpr std::string_view kCredentialsTemplate =
     "# This computer only (written by pychron setup, owner-readable).\n"
     "[database]\n"
     "password = {{ db_password | toml }}\n";
-constexpr std::string_view kCredentialsFile = ".pychron/credentials.toml";
+constexpr std::string_view kCredentialsFile = ".nobion/credentials.toml";
 
 fs::path resolve(const fs::path& path, const fs::path& root) { return path.is_absolute() ? path : root / path; }
 
@@ -232,7 +232,7 @@ bool writable_without_writing(const fs::path& dir) {
 // Whether a file can be made in `dir` (as doctor's check_writable): one is
 // made and removed.
 bool writable_by_probe(const fs::path& dir) {
-  const fs::path probe = dir / ".pychron-data-source-probe";
+  const fs::path probe = dir / ".nobion-data-source-probe";
   {
     std::ofstream f(probe, std::ios::binary);
     f << "x";
@@ -373,7 +373,7 @@ Result<DataSourceChange> plan_data_source(const SiteInstall& install, const Data
   }
   std::error_code ec;
   if (!fs::exists(record_path(install.root), ec)) {
-    change.notes.push_back("no install record in " + (install.root / ".pychron").generic_string() +
+    change.notes.push_back("no install record in " + (install.root / ".nobion").generic_string() +
                            ": a later elctl init --reconfigure would not know the new data source");
   }
   return change;

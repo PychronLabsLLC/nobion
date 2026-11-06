@@ -722,12 +722,12 @@ class TestPreferences : public QObject {
     QVERIFY(!page->echo()->isChecked());
 
     page->default_level()->setCurrentText(QStringLiteral("debug"));
-    page->folder()->setText(QStringLiteral("/tmp/pychron-logs"));
+    page->folder()->setText(QStringLiteral("/tmp/nobion-logs"));
     page->max_size()->setValue(25);
     page->echo()->setChecked(true);
     const config::LoggingConfig got = d.values().line->logging;
     QCOMPARE(got.default_level, LogLevel::Debug);
-    QCOMPARE(got.dir, fs::path("/tmp/pychron-logs"));
+    QCOMPARE(got.dir, fs::path("/tmp/nobion-logs"));
     QCOMPARE(got.max_size_mb, std::int64_t{25});
     QCOMPARE(got.max_files, std::int64_t{3});
     QVERIFY(got.echo_stderr);

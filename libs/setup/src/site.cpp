@@ -47,15 +47,15 @@ bool SiteConfig::remove(const std::string& name) {
 fs::path default_site_path() {
   if (auto p = env_var("NOBION_SITE_CONFIG"); p && !p->empty()) return *p;
 #if defined(_WIN32)
-  if (auto appdata = env_var("APPDATA")) return fs::path(*appdata) / "Pychron" / "site.toml";
-  return fs::path("Pychron") / "site.toml";
+  if (auto appdata = env_var("APPDATA")) return fs::path(*appdata) / "Nobion" / "site.toml";
+  return fs::path("Nobion") / "site.toml";
 #elif defined(__APPLE__)
   const fs::path home = env_var("HOME").value_or(".");
-  return home / "Library" / "Application Support" / "Pychron" / "site.toml";
+  return home / "Library" / "Application Support" / "Nobion" / "site.toml";
 #else
-  if (auto xdg = env_var("XDG_CONFIG_HOME"); xdg && !xdg->empty()) return fs::path(*xdg) / "pychron" / "site.toml";
+  if (auto xdg = env_var("XDG_CONFIG_HOME"); xdg && !xdg->empty()) return fs::path(*xdg) / "nobion" / "site.toml";
   const fs::path home = env_var("HOME").value_or(".");
-  return home / ".config" / "pychron" / "site.toml";
+  return home / ".config" / "nobion" / "site.toml";
 #endif
 }
 

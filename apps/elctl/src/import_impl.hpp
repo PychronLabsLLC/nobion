@@ -60,7 +60,7 @@ Result<int> positive_int(std::string_view flag, const std::string& text);
 //   url = "https://github.com/NMGRLData/IR1010"   # the --source given to add
 //                                    # (a local path: absolute)
 //   branch = "master"                # repositories only
-//   path = "/home/me/.cache/pychron/import/mirrors/IR1010-1a2b3c4d"
+//   path = "/home/me/.cache/nobion/import/mirrors/IR1010-1a2b3c4d"
 //                                    # what is read: the repository, the
 //                                    # mirror of a url, or the catalog directory
 //   mirror = true                    # `path` is a mirror; `run` fetches it first
@@ -94,7 +94,7 @@ Result<std::optional<SourceSettings>> load_settings(const fs::path& cache, P::Uu
 // values are user names.
 Result<std::map<std::string, std::string>> read_author_map(const fs::path& file);
 
-// <user cache dir>/pychron/import: %LOCALAPPDATA%, ~/Library/Caches,
+// <user cache dir>/nobion/import: %LOCALAPPDATA%, ~/Library/Caches,
 // $XDG_CACHE_HOME or ~/.cache; the system temp directory when none is known.
 fs::path default_cache_dir();
 // True for "scheme://..." and scp-like "user@host:path"; a local path otherwise.

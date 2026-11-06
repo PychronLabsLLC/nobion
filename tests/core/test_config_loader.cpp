@@ -359,7 +359,7 @@ TEST(Logging, ParsesAllKeys) {
 }
 
 TEST(Logging, ExpandsHomeInDir) {
-  const std::string text = std::string(test::kPreamble) + "[logging]\ndir = \"~/pychron-logs\"\n";
+  const std::string text = std::string(test::kPreamble) + "[logging]\ndir = \"~/nobion-logs\"\n";
   auto r = load_system_config_from_string(text, "f.toml");
   ASSERT_TRUE(r) << r.error().what;
 #ifdef _WIN32
@@ -368,7 +368,7 @@ TEST(Logging, ExpandsHomeInDir) {
   const auto home = pychron::env_var("HOME");
 #endif
   if (home && !home->empty()) {
-    EXPECT_EQ(r->logging.dir, std::filesystem::path(*home) / "pychron-logs");
+    EXPECT_EQ(r->logging.dir, std::filesystem::path(*home) / "nobion-logs");
   }
 }
 

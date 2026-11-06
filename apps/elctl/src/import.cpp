@@ -93,7 +93,7 @@ constexpr const char* kHelp =
     "  status, conflicts, verify and run --dry-run need a database that exists.\n"
     "\n"
     "  --cache <dir>   settings of each source (<id>.toml) and mirrors of remote\n"
-    "                  repositories; default: the user's cache directory, pychron/import\n"
+    "                  repositories; default: the user's cache directory, nobion/import\n"
     "\n"
     "Exit codes: 0 ok, also for a paused run and one that left only warnings;\n"
     "            1 verify is not ok, or a run finished with blocking conflicts pending;\n"

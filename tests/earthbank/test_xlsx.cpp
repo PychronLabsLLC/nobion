@@ -1155,7 +1155,7 @@ TEST_F(Xlsx, DefaultTemplateDir) {
 
   // Installed: beside the program, as cmake/PychronInstall.cmake lays it out.
   const fs::path prefix = dir_ / "prefix";
-  const fs::path share = prefix / "share" / "pychron" / "earthbank" / "templates";
+  const fs::path share = prefix / "share" / "nobion" / "earthbank" / "templates";
   fs::create_directories(prefix / "bin");
   EXPECT_TRUE(fs::equivalent(default_template_dir(prefix / "bin"), template_dir()));  // nothing installed there yet
   fs::create_directories(share);
@@ -1818,7 +1818,7 @@ TEST_F(Xlsx, AFailedSaveTakesBackWhatWasWritten) {
 TEST_F(Xlsx, TemplatesThatAreNowhereAreSaidWithEveryPlaceLooked) {
   const fs::path bin = dir_ / "prefix" / "bin";
   fs::create_directories(bin);
-  const fs::path share = dir_ / "prefix" / "share" / "pychron" / "earthbank" / "templates";
+  const fs::path share = dir_ / "prefix" / "share" / "nobion" / "earthbank" / "templates";
   const fs::path bundle = dir_ / "prefix" / "Resources" / "earthbank" / "templates";
   const fs::path source = dir_ / "build-machine" / "src" / "libs" / "earthbank" / "templates";
 

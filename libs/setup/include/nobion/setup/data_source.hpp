@@ -53,7 +53,7 @@ Result<DataSource> current_data_source(const SiteInstall& install);
 std::string database_url(const DataSource& source, const std::filesystem::path& root);
 
 // The URL that opens the store: for a server, the password of `source`, else
-// the one kept in <root>/.pychron/credentials.toml, percent-encoded as
+// the one kept in <root>/.nobion/credentials.toml, percent-encoded as
 // `database_url_for(..., true)`. A local source: as `database_url`.
 Result<std::string> database_url_with_password(const DataSource& source, const std::filesystem::path& root);
 
@@ -73,10 +73,10 @@ struct DataSourceChange {
 Result<DataSourceChange> plan_data_source(const SiteInstall& install, const DataSource& to);
 
 // Writes a planned change, in this order, and nothing else:
-//  1. <root>/.pychron/credentials.toml, owner-only, as the store-common
+//  1. <root>/.nobion/credentials.toml, owner-only, as the store-common
 //     profile renders it: only for a server with a password given. A kept
 //     password (nullopt) and a local source leave the file alone.
-//  2. <root>/.pychron/install.toml, when the install has one: answers
+//  2. <root>/.nobion/install.toml, when the install has one: answers
 //     data_source, db_host, db_port, db_name, db_user, db_file and
 //     data_folder replaced (server keys erased for a local source, db_file
 //     for a server one), and the credentials file's sha256 when step 1 wrote

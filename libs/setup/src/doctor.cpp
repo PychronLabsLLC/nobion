@@ -42,7 +42,7 @@ std::string reconfigure_hint(const SiteInstall& i) { return "elctl init --reconf
 void check_writable(std::vector<Check>& out, const std::string& name, const fs::path& dir) {
   std::error_code ec;
   fs::create_directories(dir, ec);
-  const fs::path probe = dir / ".pychron-doctor-probe";
+  const fs::path probe = dir / ".nobion-doctor-probe";
   {
     std::ofstream f(probe);
     f << "x";
@@ -147,7 +147,7 @@ void check_instrument_database(std::vector<Check>& out, const SiteInstall& insta
   out.push_back(opened ? ok("database", install.database + " (" + *opened + ")")
                        : warn("database", install.database + ": " + first_line(opened.error().what),
                               install.database.starts_with("postgresql")
-                                  ? "check the server, the user and the password in .pychron/credentials.toml"
+                                  ? "check the server, the user and the password in .nobion/credentials.toml"
                                   : reconfigure_hint(install) + " makes a missing local database"));
 }
 
@@ -278,7 +278,7 @@ SiteInstall site_install(const InstallPlan& plan, const std::string& name) {
 }
 
 Result<std::optional<std::string>> read_kept_password(const fs::path& root) {
-  const fs::path creds = root / ".pychron" / "credentials.toml";
+  const fs::path creds = root / ".nobion" / "credentials.toml";
   std::error_code ec;
   if (!fs::exists(creds, ec)) return std::optional<std::string>{};
   auto parsed = toml::parse(read_file(creds), creds.string());

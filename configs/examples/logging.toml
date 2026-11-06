@@ -5,7 +5,7 @@
 
 # Folder of the log file. Unset: <install>/logs for an install, else the
 # system's log folder. dir = "" turns the file off.
-# dir = "~/pychron-logs"
+# dir = "~/nobion-logs"
 
 # Size at which the file rolls over, and how many rolled files are kept.
 # max_size_mb = 50

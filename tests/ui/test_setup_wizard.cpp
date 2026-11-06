@@ -98,7 +98,7 @@ class TestSetupWizard : public QObject {
     w.next();
     QCOMPARE(w.currentId(), int(SetupWizard::kLocation));
     QCOMPARE(w.name_edit()->text(), QStringLiteral("data-reduction"));
-    QVERIFY(w.root_edit()->text().endsWith(QStringLiteral("Pychron")));
+    QVERIFY(w.root_edit()->text().endsWith(QStringLiteral("Nobion")));
     w.root_edit()->setText(QString::fromStdString(dir("dr").string()));
     w.next();
     QCOMPARE(w.currentId(), int(SetupWizard::kFirstGroup));  // Data
@@ -113,7 +113,7 @@ class TestSetupWizard : public QObject {
     QVERIFY(w.installed());
     QCOMPARE(QString::fromStdString(w.installed()->kind), QStringLiteral("data_reduction"));
     QVERIFY(fs::exists(dir("dr") / "README.md"));
-    QVERIFY(!fs::exists(dir("dr") / ".pychron" / "credentials.toml"));
+    QVERIFY(!fs::exists(dir("dr") / ".nobion" / "credentials.toml"));
     if (database_opener()) QVERIFY(fs::exists(dir("dr") / "data" / "pychron.db"));
     QVERIFY(!setup::any_fail(w.checks()));
     QVERIFY(w.open_now());
@@ -165,7 +165,7 @@ class TestSetupWizard : public QObject {
     QCOMPARE(opened.size(), std::size_t{1});
     QVERIFY(opened[0].first.find("p%40ss%20word") != std::string::npos);
     QVERIFY(!opened[0].second);
-    QVERIFY(fs::exists(dir("dr-server") / ".pychron" / "credentials.toml"));
+    QVERIFY(fs::exists(dir("dr-server") / ".nobion" / "credentials.toml"));
     QCOMPARE(QString::fromStdString(w.installed()->database), QStringLiteral("postgresql://pychron@db.lab.edu:5432/pychron"));
   }
 

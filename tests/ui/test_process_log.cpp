@@ -101,7 +101,7 @@ class TestProcessLog : public QObject {
     const auto& hub = opened.hub;
     QVERIFY(hub != nullptr);
     hub->flush();
-    const fs::path expected = fs::path(tmp.path().toStdString()) / "Library" / "Logs" / "pychron" / "pychron.log";
+    const fs::path expected = fs::path(tmp.path().toStdString()) / "Library" / "Logs" / "nobion" / "pychron.log";
     QVERIFY(fs::exists(expected));
     QVERIFY(slurp(expected).find("virtual x10") != std::string::npos);
   }

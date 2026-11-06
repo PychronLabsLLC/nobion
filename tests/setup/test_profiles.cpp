@@ -365,7 +365,7 @@ TEST_P(InstrumentProfile, HasADatabaseOnThisComputerByDefault) {
   auto site = install(lib, name, {{"simulation", Value{simulation}}}, root);
   EXPECT_EQ(site.kind, "instrument");
   EXPECT_EQ(site.database, "sqlite:" + (root / "data" / "pychron.db").generic_string());
-  EXPECT_FALSE(fs::exists(root / ".pychron" / "credentials.toml"));
+  EXPECT_FALSE(fs::exists(root / ".nobion" / "credentials.toml"));
   // A database that is not there, or cannot be opened, is not what stops an instrument.
   DoctorOptions options;
   options.open_database = [](const std::string&) -> Result<std::string> { return fail(ErrorKind::Io, "no such file"); };

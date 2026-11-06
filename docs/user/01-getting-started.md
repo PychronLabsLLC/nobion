@@ -40,7 +40,7 @@ in a database. No instrument is needed and nothing is typed in by hand.
    elctl init argus --yes
    ```
 
-   This writes the install to `~/Pychron/argus`: an example extraction line, a
+   This writes the install to `~/Nobion/argus`: an example extraction line, a
    simulated spectrometer, plans, scripts, a first queue (`queues/experiment.toml`),
    and a SQLite database (`data/pychron.db`) that already holds what the queue
    names. The output ends with a list of checks, each `[OK]`, among them
@@ -221,7 +221,7 @@ appear as a message box and on stderr.
 
 | What | Where |
 |---|---|
-| Site config (the list of installs, the default) | macOS `~/Library/Application Support/Pychron/site.toml`; Windows `%APPDATA%\Pychron\site.toml`; Linux `$XDG_CONFIG_HOME/pychron/site.toml` or `~/.config/pychron/site.toml`. The environment variable `NOBION_SITE_CONFIG` overrides the path. |
+| Site config (the list of installs, the default) | macOS `~/Library/Application Support/Nobion/site.toml`; Windows `%APPDATA%\Nobion\site.toml`; Linux `$XDG_CONFIG_HOME/nobion/site.toml` or `~/.config/nobion/site.toml`. The environment variable `NOBION_SITE_CONFIG` overrides the path. |
 | An install's files | the install's folder (shown in File > Installations) |
 | Preferences, window sizes and positions | the per-user settings store (Qt `QSettings`, organization "PychronLabs", application "nobion") |
 | Figure presets | the user's application config folder under `presets`, plus lab presets in `<lab>/figures` |

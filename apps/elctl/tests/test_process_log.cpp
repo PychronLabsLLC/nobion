@@ -74,7 +74,7 @@ TEST_F(ProcessLog, NoInstallWritesToOsFolder) {
     ASSERT_NE(hub, nullptr) << err.str();
     file = hub->file_path();
   }
-  EXPECT_EQ(file, path("home") / "Library" / "Logs" / "pychron" / "elctl.log");
+  EXPECT_EQ(file, path("home") / "Library" / "Logs" / "nobion" / "elctl.log");
   ASSERT_TRUE(fs::exists(file));
   EXPECT_TRUE(contains(slurp(file), "app=elctl")) << slurp(file);
 }
@@ -193,7 +193,7 @@ TEST_F(ProcessLog, AnUnknownInstallFallsBackToTheOsFolder) {
   std::ostringstream err;
   auto hub = open_process_log({"--install", "nope", "version"}, clock_, pychron::HostOs::Mac, home_env(), err);
   ASSERT_NE(hub, nullptr) << err.str();
-  EXPECT_EQ(hub->file_path(), path("home") / "Library" / "Logs" / "pychron" / "elctl.log");
+  EXPECT_EQ(hub->file_path(), path("home") / "Library" / "Logs" / "nobion" / "elctl.log");
 }
 
 TEST_F(ProcessLog, GlobalOptionsAreSeenInAnyOrder) {

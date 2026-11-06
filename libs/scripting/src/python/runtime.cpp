@@ -198,14 +198,14 @@ void create_runtime() {
 namespace {
 
 // An installed pychron carries its own CPython (python-build-standalone)
-// beside the programs: <prefix>/share/pychron/python, or a macOS bundle's
+// beside the programs: <prefix>/share/nobion/python, or a macOS bundle's
 // Contents/Resources/python. Point the interpreter at it unless PYTHONHOME is
 // already set; a build-tree run uses the Python it was built against.
 void use_bundled_python() {
   if (auto home = env_var("PYTHONHOME"); home && !home->empty()) return;
   const std::filesystem::path exe = executable_dir();
   if (exe.empty()) return;
-  for (const auto& dir : {exe / ".." / "share" / "pychron" / "python", exe / ".." / "Resources" / "python"}) {
+  for (const auto& dir : {exe / ".." / "share" / "nobion" / "python", exe / ".." / "Resources" / "python"}) {
     std::error_code ec;
     if (!std::filesystem::is_directory(dir / "lib", ec) && !std::filesystem::is_directory(dir / "Lib", ec)) continue;
     const std::filesystem::path canonical = std::filesystem::weakly_canonical(dir, ec);

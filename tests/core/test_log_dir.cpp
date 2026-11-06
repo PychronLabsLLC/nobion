@@ -32,27 +32,27 @@ TEST(LogDir, InstallRootWins) {
 
 TEST(LogDir, MacFolder) {
   EXPECT_EQ(generic(default_log_dir(std::nullopt, HostOs::Mac, env_of({{"HOME", "/h"}}))),
-            "/h/Library/Logs/pychron");
+            "/h/Library/Logs/nobion");
 }
 
 TEST(LogDir, LinuxXdg) {
   const auto env = env_of({{"XDG_STATE_HOME", "/s"}, {"HOME", "/h"}});
-  EXPECT_EQ(generic(default_log_dir(std::nullopt, HostOs::Linux, env)), "/s/pychron/logs");
+  EXPECT_EQ(generic(default_log_dir(std::nullopt, HostOs::Linux, env)), "/s/nobion/logs");
 }
 
 TEST(LogDir, LinuxNoXdg) {
   EXPECT_EQ(generic(default_log_dir(std::nullopt, HostOs::Linux, env_of({{"HOME", "/h"}}))),
-            "/h/.local/state/pychron/logs");
+            "/h/.local/state/nobion/logs");
 }
 
 TEST(LogDir, LinuxEmptyXdgCountsAsUnset) {
   const auto env = env_of({{"XDG_STATE_HOME", ""}, {"HOME", "/h"}});
-  EXPECT_EQ(generic(default_log_dir(std::nullopt, HostOs::Linux, env)), "/h/.local/state/pychron/logs");
+  EXPECT_EQ(generic(default_log_dir(std::nullopt, HostOs::Linux, env)), "/h/.local/state/nobion/logs");
 }
 
 TEST(LogDir, WindowsLocalAppData) {
   EXPECT_EQ(generic(default_log_dir(std::nullopt, HostOs::Windows, env_of({{"LOCALAPPDATA", "C:/L"}}))),
-            "C:/L/pychron/logs");
+            "C:/L/nobion/logs");
 }
 
 TEST(LogDir, NoHomeGivesEmpty) {
@@ -78,7 +78,7 @@ TEST(LogDir, ResolveKeepsGivenDir) {
   config::LoggingConfig unset;
   resolve_log_dir(unset, std::nullopt, HostOs::Mac, env);
   ASSERT_TRUE(unset.dir.has_value());
-  EXPECT_EQ(generic(*unset.dir), "/h/Library/Logs/pychron");
+  EXPECT_EQ(generic(*unset.dir), "/h/Library/Logs/nobion");
 }
 
 TEST(LogDir, ProcessEnvReadsTheRealEnvironment) {
@@ -94,14 +94,14 @@ TEST(LogDir, EnvNameIsTheVariableTheOsFolderNeeds) {
 
 TEST(ExamplesStateDir, EachOsFolder) {
   const auto env = env_of({{"HOME", "/h"}, {"XDG_STATE_HOME", "/s"}, {"LOCALAPPDATA", "C:/L"}});
-  EXPECT_EQ(generic(default_examples_state_dir(HostOs::Mac, env)), "/h/Library/Application Support/Pychron/examples");
-  EXPECT_EQ(generic(default_examples_state_dir(HostOs::Linux, env)), "/s/pychron/examples");
-  EXPECT_EQ(generic(default_examples_state_dir(HostOs::Windows, env)), "C:/L/pychron/examples");
+  EXPECT_EQ(generic(default_examples_state_dir(HostOs::Mac, env)), "/h/Library/Application Support/Nobion/examples");
+  EXPECT_EQ(generic(default_examples_state_dir(HostOs::Linux, env)), "/s/nobion/examples");
+  EXPECT_EQ(generic(default_examples_state_dir(HostOs::Windows, env)), "C:/L/nobion/examples");
 }
 
 TEST(ExamplesStateDir, LinuxEmptyXdgCountsAsUnset) {
   const auto env = env_of({{"XDG_STATE_HOME", ""}, {"HOME", "/h"}});
-  EXPECT_EQ(generic(default_examples_state_dir(HostOs::Linux, env)), "/h/.local/state/pychron/examples");
+  EXPECT_EQ(generic(default_examples_state_dir(HostOs::Linux, env)), "/h/.local/state/nobion/examples");
 }
 
 TEST(ExamplesStateDir, NoHomeGivesEmpty) {

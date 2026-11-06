@@ -8,7 +8,7 @@
 // files still exactly as the last install wrote them (by hash) and puts the
 // new version beside an edited one as <name>.new.
 //
-// The root keeps <root>/.pychron/install.toml: the profiles and versions,
+// The root keeps <root>/.nobion/install.toml: the profiles and versions,
 // the answers (secrets left out) and the hash of each file written.
 
 #include <cstdint>

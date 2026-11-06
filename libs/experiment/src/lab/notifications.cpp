@@ -146,7 +146,7 @@ class TempFile {
   static Result<TempFile> write(const std::string& content) {
     std::random_device rd;
     char name[48];
-    std::snprintf(name, sizeof name, "pychron-notify-%08x%08x", rd(), rd());
+    std::snprintf(name, sizeof name, "nobion-notify-%08x%08x", rd(), rd());
     std::error_code ec;
     auto path = std::filesystem::temp_directory_path(ec) / name;
     if (ec) return fail(ErrorKind::Io, "no temporary directory: " + ec.message());

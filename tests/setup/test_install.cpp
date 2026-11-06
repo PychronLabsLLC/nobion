@@ -174,7 +174,7 @@ TEST_F(Fixture, SecretsAreOwnerOnlyAndNeverRecorded) {
   EXPECT_EQ(fs::status(root.dir / "lab/secret.toml").permissions() & (fs::perms::group_all | fs::perms::others_all),
             fs::perms::none);
 #endif
-  EXPECT_EQ(root.read("lab/.pychron/install.toml").find("t0ken"), std::string::npos);
+  EXPECT_EQ(root.read("lab/.nobion/install.toml").find("t0ken"), std::string::npos);
   auto record = read_install_record(root.dir / "lab");
   ASSERT_TRUE(record);
   EXPECT_FALSE(record->answers.count("token"));
@@ -351,18 +351,18 @@ TEST(Installer, TheKeptPasswordIsReadFromTheCredentialsFile) {
   ASSERT_TRUE(none) << none.error().what;
   EXPECT_FALSE(none->has_value());
 
-  tmp.write(".pychron/credentials.toml", "[database]\nuser = \"ar\"\n");
+  tmp.write(".nobion/credentials.toml", "[database]\nuser = \"ar\"\n");
   auto no_key = read_kept_password(tmp.dir);
   ASSERT_TRUE(no_key) << no_key.error().what;
   EXPECT_FALSE(no_key->has_value());
 
-  tmp.write(".pychron/credentials.toml", "[database]\npassword = \"p@ss:w/rd\"\n");
+  tmp.write(".nobion/credentials.toml", "[database]\npassword = \"p@ss:w/rd\"\n");
   auto kept = read_kept_password(tmp.dir);
   ASSERT_TRUE(kept) << kept.error().what;
   ASSERT_TRUE(kept->has_value());
   EXPECT_EQ(**kept, "p@ss:w/rd");
 
-  tmp.write(".pychron/credentials.toml", "[database");
+  tmp.write(".nobion/credentials.toml", "[database");
   auto bad = read_kept_password(tmp.dir);
   ASSERT_FALSE(bad);
   EXPECT_EQ(bad.error().kind, ErrorKind::Config);
@@ -385,10 +385,10 @@ TEST(Installer, TheShippedProfilesAreFoundAndEnvironmentWins) {
   EXPECT_TRUE(fs::exists(r.examples / "extraction_line.toml")) << r.examples;
   // An installed layout next to the program wins over the source tree.
   Tmp tmp;
-  fs::create_directories(tmp.dir / "share" / "pychron" / "profiles");
-  fs::create_directories(tmp.dir / "share" / "pychron" / "examples");
+  fs::create_directories(tmp.dir / "share" / "nobion" / "profiles");
+  fs::create_directories(tmp.dir / "share" / "nobion" / "examples");
   fs::create_directories(tmp.dir / "bin");
-  EXPECT_EQ(find_resources(tmp.dir / "bin").profiles, fs::weakly_canonical(tmp.dir / "share" / "pychron") / "profiles");
+  EXPECT_EQ(find_resources(tmp.dir / "bin").profiles, fs::weakly_canonical(tmp.dir / "share" / "nobion") / "profiles");
 }
 
 TEST(Installer, TheExamplesKeepTheirStateInTheUserFolder) {
@@ -417,7 +417,7 @@ TEST(Installer, TheExamplesKeepTheirStateInTheUserFolder) {
   EXPECT_EQ(lab_state_dir(tmp.dir / "lab", fs::path(), user), tmp.dir / "lab");
   // No user folder: the system's temporary one, never the examples.
   EXPECT_EQ(lab_state_dir(examples / "nmgrl", examples, fs::path()),
-            fs::temp_directory_path() / "pychron" / "examples" / "nmgrl");
+            fs::temp_directory_path() / "nobion" / "examples" / "nmgrl");
 }
 
 TEST(Installer, TheExamplesKeepTheirStateInTheUserFolderFromARelativePath) {

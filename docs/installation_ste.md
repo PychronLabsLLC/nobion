@@ -36,9 +36,9 @@ becomes the default installation.
 
 | Platform | Site configuration file |
 |---|---|
-| macOS | `~/Library/Application Support/Pychron/site.toml` |
-| Linux | `$XDG_CONFIG_HOME/pychron/site.toml`, else `~/.config/pychron/site.toml` |
-| Windows | `%APPDATA%\Pychron\site.toml` |
+| macOS | `~/Library/Application Support/Nobion/site.toml` |
+| Linux | `$XDG_CONFIG_HOME/nobion/site.toml`, else `~/.config/nobion/site.toml` |
+| Windows | `%APPDATA%\Nobion\site.toml` |
 
 The environment variable `NOBION_SITE_CONFIG` changes the location of the
 site configuration file.
@@ -224,7 +224,7 @@ You can make an installation in two ways. The two ways give the same result:
 1. Type this command:
 
    ```bash
-   elctl init data-reduction --root ~/Documents/Pychron --yes
+   elctl init data-reduction --root ~/Documents/Nobion --yes
    ```
 
    Setup makes an empty SQLite database and prepares it.
@@ -238,14 +238,14 @@ You can make an installation in two ways. The two ways give the same result:
 1. Type this command. Use the values of your server:
 
    ```bash
-   elctl init data-reduction --root ~/Documents/Pychron \
+   elctl init data-reduction --root ~/Documents/Nobion \
      --set data_source=server --set db_host=labdb.example.org --set db_port=5432 \
      --set db_name=pychron --set db_user=pychron
    ```
 
 2. When setup asks for the password, type the password.
 
-   Setup keeps the password in `<root>/.pychron/credentials.toml`. Only the
+   Setup keeps the password in `<root>/.nobion/credentials.toml`. Only the
    owner of the file can read it.
 3. Do the check in 6.3.
 
@@ -281,7 +281,7 @@ This procedure uses the `argus` profile. For a Helix or an NGX, use `helix` or
 1. Type this command:
 
    ```bash
-   elctl init argus --root ~/Pychron/argus
+   elctl init argus --root ~/Nobion/argus
    ```
 
 2. Push Enter to accept each default value.

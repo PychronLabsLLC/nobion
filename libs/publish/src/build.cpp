@@ -91,7 +91,7 @@ struct Progress {
   }
 };
 
-// The licence text shipped with the program: beside it (share/pychron or the
+// The licence text shipped with the program: beside it (share/nobion or the
 // bundle's Resources), else the source tree it was built from.
 std::optional<fs::path> licence_file(std::string_view spdx) {
   const std::string name = std::string(spdx) + ".txt";
@@ -100,7 +100,7 @@ std::optional<fs::path> licence_file(std::string_view spdx) {
     candidates.emplace_back(fs::path(*named) / name);
   const fs::path program = executable_dir();
   if (!program.empty()) {
-    candidates.push_back(program / ".." / "share" / "pychron" / "publish" / "licences" / name);
+    candidates.push_back(program / ".." / "share" / "nobion" / "publish" / "licences" / name);
     candidates.push_back(program / ".." / "Resources" / "publish" / "licences" / name);
   }
 #ifdef PYCHRON_PUBLISH_SOURCE_LICENCE_DIR

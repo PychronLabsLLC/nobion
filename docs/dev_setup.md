@@ -931,18 +931,18 @@ NOBION_TEST_CAMERA=0 ctest --test-dir build/dev -R RealCamera
 
 `elctl init` installs a setup profile (`profiles/`: `argus`, `helix`, `ngx`,
 `data-reduction`) into a folder and records it in your site config
-(`~/.config/pychron/site.toml` on Linux; `$NOBION_SITE_CONFIG` overrides):
+(`~/.config/nobion/site.toml` on Linux; `$NOBION_SITE_CONFIG` overrides):
 
 ```bash
 elctl init --list
-elctl init argus --root ~/Pychron/argus     # asks; Enter accepts [defaults]
+elctl init argus --root ~/Nobion/argus     # asks; Enter accepts [defaults]
 elctl doctor                                # checks the default install
 elctl --install argus exp run experiment.toml --sim-speed 50   # runs go to the install's database
 elctl init --reconfigure --set simulation=no --set qtegra_host=10.0.0.5
 elctl doctor --probe                        # connects: the drivers' connect step
-elctl init helix --root ~/Pychron/helix --set line_source=import \
+elctl init helix --root ~/Nobion/helix --set line_source=import \
   --set line_file=old/extraction_line.toml --set canvas_file=old/canvas.toml
-elctl init helix --root ~/Pychron/helix --set line_source=legacy \
+elctl init helix --root ~/Nobion/helix --set line_source=legacy \
   --set legacy_folder=~/Pychron/setupfiles   # converts a legacy Pychron line
 elctl import-line ~/Pychron/setupfiles       # prints the conversion; --out DIR writes it
 ```

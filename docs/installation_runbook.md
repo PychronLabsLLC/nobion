@@ -194,17 +194,17 @@ class, goes there.
 
   | Platform | Site config |
   |---|---|
-  | macOS | `~/Library/Application Support/Pychron/site.toml` |
-  | Linux | `$XDG_CONFIG_HOME/pychron/site.toml`, else `~/.config/pychron/site.toml` |
-  | Windows | `%APPDATA%\Pychron\site.toml` |
+  | macOS | `~/Library/Application Support/Nobion/site.toml` |
+  | Linux | `$XDG_CONFIG_HOME/nobion/site.toml`, else `~/.config/nobion/site.toml` |
+  | Windows | `%APPDATA%\Nobion\site.toml` |
 
   `NOBION_SITE_CONFIG` overrides the location. The file is safe to edit.
-- Each install folder holds `.pychron/install.toml`: the profile, the answers
+- Each install folder holds `.nobion/install.toml`: the profile, the answers
   given (no secrets) and a hash of every file setup wrote. `doctor` and
   `--reconfigure` read it.
 - Secrets (a database password, an NGX login) are written only to
   owner-readable files inside the install folder
-  (`.pychron/credentials.toml`, `spectrometer.local.toml`), never to the site
+  (`.nobion/credentials.toml`, `spectrometer.local.toml`), never to the site
   config.
 
 There are two ways to make an install, and they do the same thing:
@@ -221,19 +221,19 @@ With a database on this computer (SQLite, created empty and migrated by
 setup):
 
 ```bash
-elctl init data-reduction --root ~/Documents/Pychron --yes
+elctl init data-reduction --root ~/Documents/Nobion --yes
 ```
 
 With the lab's PostgreSQL server:
 
 ```bash
-elctl init data-reduction --root ~/Documents/Pychron \
+elctl init data-reduction --root ~/Documents/Nobion \
   --set data_source=server --set db_host=labdb.example.org --set db_port=5432 \
   --set db_name=pychron --set db_user=pychron
 ```
 
 Setup asks for the password and keeps it in
-`<root>/.pychron/credentials.toml`.
+`<root>/.nobion/credentials.toml`.
 
 Setup and the application never create or migrate a **server** database. Its
 schema is made by the importer (part 3.3: `elctl import add` and
@@ -255,7 +255,7 @@ data-reduction install opens the data browser.
 ### 2.3 An instrument install
 
 ```bash
-elctl init argus --root ~/Pychron/argus
+elctl init argus --root ~/Nobion/argus
 ```
 
 Press Enter to accept each default. The install starts in simulation. It
@@ -531,8 +531,8 @@ Set the store and the cache once. For the local database of a data-reduction
 install the store is `<root>/data/pychron.db`:
 
 ```bash
-DB=sqlite:$HOME/Documents/Pychron/data/pychron.db
-CACHE=$HOME/Documents/Pychron/import-cache
+DB=sqlite:$HOME/Documents/Nobion/data/pychron.db
+CACHE=$HOME/Documents/Nobion/import-cache
 ```
 
 For a server use `DB=postgresql://pychron@labdb.example.org/pychron`, with the
@@ -638,7 +638,7 @@ elctl import-line ~/Pychron/setupfiles
 ```
 
 ```bash
-elctl init helix --root ~/Pychron/helix --set line_source=legacy --set legacy_folder=~/Pychron/setupfiles
+elctl init helix --root ~/Nobion/helix --set line_source=legacy --set legacy_folder=~/Pychron/setupfiles
 ```
 
 The report lists what was not carried over. Valve controllers that have no

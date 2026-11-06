@@ -16,7 +16,7 @@ namespace pychron::setup {
 
 // The shipped profiles and example configs. $NOBION_PROFILES_DIR and
 // $NOBION_EXAMPLES_DIR win; then an installed layout next to the program
-// (<prefix>/bin/x -> <prefix>/share/pychron, a macOS bundle's
+// (<prefix>/bin/x -> <prefix>/share/nobion, a macOS bundle's
 // Contents/MacOS/x -> Contents/Resources); then the source tree the program
 // was built from.
 struct Resources {
@@ -32,7 +32,7 @@ Resources find_resources(const std::filesystem::path& executable_dir);
 // examples are never written to. Folders are compared as files
 // (fs::equivalent, from `lab` up), so a relative or linked path, or other
 // letter case on a disk that ignores it, is still the examples. An empty
-// `user_dir` is <temp>/pychron/examples.
+// `user_dir` is <temp>/nobion/examples.
 [[nodiscard]] std::filesystem::path lab_state_dir(const std::filesystem::path& lab,
                                                   const std::filesystem::path& examples,
                                                   const std::filesystem::path& user_dir);
@@ -54,7 +54,7 @@ std::string_view version() noexcept;
 std::filesystem::path home_dir();
 // "data-reduction" for data reduction, else the profile's name.
 std::string default_install_name(const Profile& profile);
-// ~/Documents/Pychron for data reduction, ~/Pychron/<name> for an instrument.
+// ~/Documents/Nobion for data reduction, ~/Nobion/<name> for an instrument.
 std::filesystem::path default_root(const Profile& profile, const std::string& name);
 // What the templates get besides the answers: install_name and root.
 Answers builtin_answers(const std::string& name, const std::filesystem::path& root);

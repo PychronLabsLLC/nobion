@@ -106,7 +106,7 @@ TEST_F(ElctlSetupTest, ReconfigureRewritesWhatWasNotEdited) {
 }
 
 TEST_F(ElctlSetupTest, DataReductionIsTwoAnswersAndADatabase) {
-  const auto root = path("Pychron");
+  const auto root = path("Nobion");
   auto o = run_raw({"init", "data-reduction", "--root", root.string(), "--yes"});
   ASSERT_EQ(o.code, 0) << o.out << o.err;
   const auto config = site();  // find() points into it
@@ -414,7 +414,7 @@ TEST_F(ElctlSetupTest, SetServerUnreachableIsRefused) {
   EXPECT_TRUE(contains(o.err, "postgresql://u@127.0.0.1:1/pychron")) << o.err;
   EXPECT_FALSE(contains(o.out + o.err, "pw@")) << "the password is never said: " << o.out << o.err;
   EXPECT_EQ(bytes_of(path("site.toml")), before);
-  EXPECT_FALSE(fs::exists(root / ".pychron" / "credentials.toml"));
+  EXPECT_FALSE(fs::exists(root / ".nobion" / "credentials.toml"));
 }
 #endif
 
@@ -427,11 +427,11 @@ TEST_F(ElctlSetupTest, SetServerWithNoCheckIsWritten) {
   ASSERT_EQ(o.code, 0) << o.out << o.err;
   EXPECT_TRUE(contains(o.out, "skip  check: --no-check")) << o.out;
   EXPECT_EQ(site().find("data-reduction")->database, "postgresql://u@127.0.0.1:1/pychron");
-  const std::string credentials = bytes_of(root / ".pychron" / "credentials.toml");
+  const std::string credentials = bytes_of(root / ".nobion" / "credentials.toml");
   EXPECT_TRUE(contains(credentials, "password = \"pw\"")) << credentials;
   EXPECT_FALSE(contains(bytes_of(path("site.toml")), "pw\""));
   EXPECT_FALSE(contains(bytes_of(path("site.toml")), ":pw"));
-  EXPECT_FALSE(contains(bytes_of(root / ".pychron" / "install.toml"), "\"pw\""));
+  EXPECT_FALSE(contains(bytes_of(root / ".nobion" / "install.toml"), "\"pw\""));
 }
 
 TEST_F(ElctlSetupTest, SetServerWithoutPasswordStdinKeepsThePassword) {
@@ -442,7 +442,7 @@ TEST_F(ElctlSetupTest, SetServerWithoutPasswordStdinKeepsThePassword) {
                     "pw\n")
                 .code,
             0);
-  const fs::path file = root / ".pychron" / "credentials.toml";
+  const fs::path file = root / ".nobion" / "credentials.toml";
   const std::string before = bytes_of(file);
   // Another database on the same server; standard input is no terminal, so
   // nothing is asked and the password is kept.
@@ -463,7 +463,7 @@ TEST_F(ElctlSetupTest, AnEmptyPasswordOnStandardInputIsRefused) {
                     "pw\n")
                 .code,
             0);
-  const fs::path file = root / ".pychron" / "credentials.toml";
+  const fs::path file = root / ".nobion" / "credentials.toml";
   const std::string before = bytes_of(file);
   const std::string site_before = bytes_of(path("site.toml"));
   for (const char* input : {"\n", "\r\n"}) {

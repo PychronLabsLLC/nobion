@@ -364,8 +364,8 @@ here too (`ERROR [ui] spectrometer not loaded: ...`).
 Every record is also written to a log file, `pychron.log` for the window and
 `elctl.log` for `elctl`, whether or not a line is open. The file is kept by
 default: for an install it is `<install>/logs`; without one it is
-`~/Library/Logs/pychron` on macOS, `$XDG_STATE_HOME/pychron/logs` (or
-`~/.local/state/pychron/logs`) on Linux and `%LOCALAPPDATA%\pychron\logs` on
+`~/Library/Logs/nobion` on macOS, `$XDG_STATE_HOME/nobion/logs` (or
+`~/.local/state/nobion/logs`) on Linux and `%LOCALAPPDATA%\nobion\logs` on
 Windows.
 
 How it is kept is set in `logging.toml` in the install folder, and
@@ -377,7 +377,7 @@ default_level = "debug"   # everything not named below; debug when not set
 dock_level = "info"       # what the Log panel shows
 max_size_mb = 50          # start a new file at this size
 max_files = 10            # files kept
-dir = "D:/pychron-logs"   # another folder; dir = "" writes no file
+dir = "D:/nobion-logs"   # another folder; dir = "" writes no file
 echo_stderr = false       # also print to the terminal
 
 [levels]
@@ -538,7 +538,7 @@ name = "example"            # shown in the window title
 scan_interval_ms = 1000     # how often gauges/heaters/cryo are read
 
 [logging]                   # optional; older place, see "The log file"
-# dir = "~/pychron-logs"    # no dir = the default log folder; dir = "" = no file
+# dir = "~/nobion-logs"    # no dir = the default log folder; dir = "" = no file
 default_level = "info"      # trace|debug|info|warn|error
 # [logging.levels]
 # "*.wire" = "trace"        # per-logger overrides, glob on logger name

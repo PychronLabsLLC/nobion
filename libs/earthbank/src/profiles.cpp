@@ -490,9 +490,9 @@ Result<void> save_profiles(const Profiles& profiles, const fs::path& file) {
 fs::path default_profiles_file() {
   // The directory libs/setup keeps the site file in (default_site_path).
 #if defined(_WIN32) || defined(__APPLE__)
-  const fs::path tail = fs::path("Pychron") / "earthbank" / "profiles.toml";
+  const fs::path tail = fs::path("Nobion") / "earthbank" / "profiles.toml";
 #else
-  const fs::path tail = fs::path("pychron") / "earthbank" / "profiles.toml";
+  const fs::path tail = fs::path("nobion") / "earthbank" / "profiles.toml";
 #endif
   const auto set = [](const char* name) -> std::optional<fs::path> {
     auto value = env_var(name);

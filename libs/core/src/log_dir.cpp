@@ -35,14 +35,14 @@ fs::path default_log_dir(const std::optional<fs::path>& install_root, HostOs os,
   if (install_root) return *install_root / "logs";
   switch (os) {
     case HostOs::Mac:
-      if (const auto home = non_empty(env, "HOME")) return *home / "Library" / "Logs" / "pychron";
+      if (const auto home = non_empty(env, "HOME")) return *home / "Library" / "Logs" / "nobion";
       break;
     case HostOs::Linux:
-      if (const auto state = non_empty(env, "XDG_STATE_HOME")) return *state / "pychron" / "logs";
-      if (const auto home = non_empty(env, "HOME")) return *home / ".local" / "state" / "pychron" / "logs";
+      if (const auto state = non_empty(env, "XDG_STATE_HOME")) return *state / "nobion" / "logs";
+      if (const auto home = non_empty(env, "HOME")) return *home / ".local" / "state" / "nobion" / "logs";
       break;
     case HostOs::Windows:
-      if (const auto local = non_empty(env, "LOCALAPPDATA")) return *local / "pychron" / "logs";
+      if (const auto local = non_empty(env, "LOCALAPPDATA")) return *local / "nobion" / "logs";
       break;
   }
   return {};
@@ -52,14 +52,14 @@ fs::path default_examples_state_dir(HostOs os, const EnvLookup& env) {
   switch (os) {
     case HostOs::Mac:
       // Beside the site file (setup's site.toml).
-      if (const auto home = non_empty(env, "HOME")) return *home / "Library" / "Application Support" / "Pychron" / "examples";
+      if (const auto home = non_empty(env, "HOME")) return *home / "Library" / "Application Support" / "Nobion" / "examples";
       break;
     case HostOs::Linux:
-      if (const auto state = non_empty(env, "XDG_STATE_HOME")) return *state / "pychron" / "examples";
-      if (const auto home = non_empty(env, "HOME")) return *home / ".local" / "state" / "pychron" / "examples";
+      if (const auto state = non_empty(env, "XDG_STATE_HOME")) return *state / "nobion" / "examples";
+      if (const auto home = non_empty(env, "HOME")) return *home / ".local" / "state" / "nobion" / "examples";
       break;
     case HostOs::Windows:
-      if (const auto local = non_empty(env, "LOCALAPPDATA")) return *local / "pychron" / "examples";
+      if (const auto local = non_empty(env, "LOCALAPPDATA")) return *local / "nobion" / "examples";
       break;
   }
   return {};

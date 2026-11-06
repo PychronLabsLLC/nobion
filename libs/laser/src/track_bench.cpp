@@ -239,7 +239,7 @@ class Scratch {
  public:
   Scratch() {
     std::random_device rd;
-    dir_ = fs::temp_directory_path(ec_) / ("pychron_track_" + std::to_string(rd()) + std::to_string(rd()));
+    dir_ = fs::temp_directory_path(ec_) / ("nobion_track_" + std::to_string(rd()) + std::to_string(rd()));
     if (!ec_) fs::create_directories(dir_ / "tray_maps", ec_);
     if (!ec_) fs::create_directories(dir_ / "patterns", ec_);
   }
@@ -551,7 +551,7 @@ Result<void> check_frames(const fs::path& dir, bool keep) {
   std::error_code ec;
   const bool made = fs::create_directories(dir, ec);
   if (ec) return fail(ErrorKind::Io, "cannot make " + dir.string() + ": " + ec.message());
-  const fs::path probe = dir / ".pychron_track_probe";
+  const fs::path probe = dir / ".nobion_track_probe";
   auto written = put(probe, "");
   fs::remove(probe, ec);
   if (!written) return written;

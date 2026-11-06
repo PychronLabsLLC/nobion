@@ -28,7 +28,7 @@ namespace {
 
 struct TempDir {
   fs::path dir;
-  TempDir() : dir(fs::temp_directory_path() / ("pychron_track_test_" + std::to_string(std::random_device{}()))) {
+  TempDir() : dir(fs::temp_directory_path() / ("nobion_track_test_" + std::to_string(std::random_device{}()))) {
     fs::create_directories(dir);
   }
   TempDir(const TempDir&) = delete;

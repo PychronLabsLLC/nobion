@@ -91,7 +91,7 @@ struct DataSourceFixture : ::testing::Test {
   }
 
   [[nodiscard]] std::string no_record_note() const {
-    return "no install record in " + (root / ".pychron").generic_string() +
+    return "no install record in " + (root / ".nobion").generic_string() +
            ": a later elctl init --reconfigure would not know the new data source";
   }
 };
@@ -191,7 +191,7 @@ TEST_F(DataSourceFixture, TheUrlWithPasswordUsesTheGivenOrTheKeptOne) {
   ASSERT_TRUE(none) << none.error().what;
   EXPECT_EQ(*none, "postgresql://u@h:5433/n");
 
-  write_text(root / ".pychron" / "credentials.toml", "[database]\npassword = \"k\"\n");
+  write_text(root / ".nobion" / "credentials.toml", "[database]\npassword = \"k\"\n");
   auto from_file = database_url_with_password(kept, root);
   ASSERT_TRUE(from_file) << from_file.error().what;
   EXPECT_EQ(*from_file, "postgresql://u:k@h:5433/n");
@@ -309,7 +309,7 @@ ServerDatabase server_with(std::optional<std::string> password) {
 
 // The fixture with the site file and real data-reduction installs.
 struct DataSourceApply : DataSourceFixture {
-  fs::path creds = root / ".pychron" / "credentials.toml";
+  fs::path creds = root / ".nobion" / "credentials.toml";
 
   // Installs the shipped data-reduction profile into `root` and records it
   // in the site file as "lab".
@@ -413,7 +413,7 @@ TEST_F(DataSourceApply, ApplyLocalToServerWritesTheThreeFiles) {
   EXPECT_EQ(record->answers.at("data_folder"), Value{std::string("runs")});
   EXPECT_FALSE(record->answers.contains("db_file"));
   EXPECT_FALSE(record->answers.contains("db_password"));
-  EXPECT_EQ(record->files.at(".pychron/credentials.toml"), sha256_hex(read_text(creds)));
+  EXPECT_EQ(record->files.at(".nobion/credentials.toml"), sha256_hex(read_text(creds)));
 
   auto site = load_site(site_path);
   ASSERT_TRUE(site) << site.error().what;
@@ -447,7 +447,7 @@ TEST_F(DataSourceApply, AKeptPasswordLeavesTheCredentialsFileAlone) {
   EXPECT_EQ(read_text(creds), bytes);
   auto after = read_install_record(root);
   ASSERT_TRUE(after) << after.error().what;
-  EXPECT_EQ(after->files.at(".pychron/credentials.toml"), before->files.at(".pychron/credentials.toml"));
+  EXPECT_EQ(after->files.at(".nobion/credentials.toml"), before->files.at(".nobion/credentials.toml"));
   EXPECT_EQ(after->answers.at("db_host"), Value{std::string("h")});
 }
 
@@ -487,7 +487,7 @@ TEST_F(DataSourceApply, AReconfigureKeepsTheNewSource) {
   EXPECT_EQ(site_install(again, "lab").database, applied.database);
   EXPECT_EQ(site_install(again, "lab").data, applied.data);
   expect_no_conflict(again);
-  const auto it = std::ranges::find(again.files, fs::path(".pychron/credentials.toml"), &PlannedFile::to);
+  const auto it = std::ranges::find(again.files, fs::path(".nobion/credentials.toml"), &PlannedFile::to);
   ASSERT_NE(it, again.files.end());
   EXPECT_TRUE(it->action == PlannedFile::Action::Update || it->action == PlannedFile::Action::Same)
       << to_string(it->action);
@@ -526,7 +526,7 @@ TEST_F(DataSourceApply, OnlyTheThreeFilesChange) {
   }
   for (const auto& [name, hash] : root_before)
     if (!root_after.contains(name)) changed.push_back("removed " + name);
-  EXPECT_EQ(changed, (std::vector<std::string>{".pychron/credentials.toml", ".pychron/install.toml"}));
+  EXPECT_EQ(changed, (std::vector<std::string>{".nobion/credentials.toml", ".nobion/install.toml"}));
   EXPECT_EQ(site_after.size(), site_before.size());
   EXPECT_NE(site_after.at("site.toml"), site_before.at("site.toml"));
 }
@@ -673,7 +673,7 @@ TEST_F(DataSourceCheckTest, AServerIsOpenedWithThePasswordGivenOrKept) {
     EXPECT_FALSE(checked->made_file);
     EXPECT_FALSE(any_contains(checked->said, "given"));
   }
-  write_text(root / ".pychron" / "credentials.toml", "[database]\npassword = \"kept-pw\"\n");
+  write_text(root / ".nobion" / "credentials.toml", "[database]\npassword = \"kept-pw\"\n");
   const DataSource kept = server_source(std::nullopt);
   {
     FakeOpeners fake;
@@ -821,7 +821,7 @@ TEST_F(DataSourceCheckTest, ASeedErrorDoesNotShowThePassword) {
     EXPECT_TRUE(any_contains(said, "seed skipped: cannot seed postgresql://ana:"));
     EXPECT_FALSE(any_contains(said, "given-pw"));
   }
-  write_text(root / ".pychron" / "credentials.toml", "[database]\npassword = \"kept-pw\"\n");
+  write_text(root / ".nobion" / "credentials.toml", "[database]\npassword = \"kept-pw\"\n");
   const DataSource kept = server_source(std::nullopt);
   FakeOpeners fake;
   fake.seed_reply = fail(ErrorKind::Io, "cannot seed with ana:kept-pw");

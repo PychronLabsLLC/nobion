@@ -150,7 +150,7 @@ Result<std::vector<std::string>> check_against_template(const std::vector<Submis
 // Where the templates are, the first of: the directory the environment
 // variable NOBION_EARTHBANK_TEMPLATES names (taken at its word); the
 // installed ones beside the running program
-// (`../share/pychron/earthbank/templates`, or in a macOS bundle
+// (`../share/nobion/earthbank/templates`, or in a macOS bundle
 // `../Resources/earthbank/templates`, from the program's directory); the
 // source tree's, when that directory is on this machine, which is what a
 // program that is not installed finds. Empty when none of them is there: an

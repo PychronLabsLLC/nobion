@@ -17,9 +17,9 @@
 //   database = "sqlite:..."             # data reduction: the DVC store URL (no password)
 //
 // Location: $NOBION_SITE_CONFIG when set, else the platform's per-user
-// config directory: ~/Library/Application Support/Pychron/site.toml (macOS),
-// %APPDATA%\Pychron\site.toml (Windows), $XDG_CONFIG_HOME/pychron/site.toml
-// or ~/.config/pychron/site.toml (elsewhere).
+// config directory: ~/Library/Application Support/Nobion/site.toml (macOS),
+// %APPDATA%\Nobion\site.toml (Windows), $XDG_CONFIG_HOME/nobion/site.toml
+// or ~/.config/nobion/site.toml (elsewhere).
 
 #include <filesystem>
 #include <optional>

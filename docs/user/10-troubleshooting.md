@@ -29,7 +29,7 @@ differ slightly.
 | `nothing is installed yet` | No install exists | Run the setup wizard (`nobion --setup` or `elctl init`). |
 | `installation 'X': ... elctl doctor --install X says more` | Install config fails to load | Run the command it names. |
 | `nobion --setup can set it up again` | A data-reduction install cannot open its database, and has nothing else to show, so the program does not start. An instrument install starts anyway (next row). | Re-run setup, check the database server is up and credentials are right. |
-| The window opens, the data window has a banner `The database could not be opened: <reason>` and `Showing the records folder <path>.`, the Log dock has `ERROR [ui]` with the reason, and no queue will start | An instrument install's database could not be opened (the server is away, its password could not be read, or the schema is behind). The line can still be worked; the data window shows only the record files that folder holds, not the install's analyses, and the Entry and Fit menus are missing. A queue is refused with `the queue cannot be saved:` and `the database cannot be reached: <reason>`. | Put right what the reason names: start the server, check `<root>/.pychron/credentials.toml`; for `database schema is out of date` run `elctl db migrate --db <url>` (the reason names it), with nobion closed. Then restart `nobion`. `elctl doctor --install <name>` says more. |
+| The window opens, the data window has a banner `The database could not be opened: <reason>` and `Showing the records folder <path>.`, the Log dock has `ERROR [ui]` with the reason, and no queue will start | An instrument install's database could not be opened (the server is away, its password could not be read, or the schema is behind). The line can still be worked; the data window shows only the record files that folder holds, not the install's analyses, and the Entry and Fit menus are missing. A queue is refused with `the queue cannot be saved:` and `the database cannot be reached: <reason>`. | Put right what the reason names: start the server, check `<root>/.nobion/credentials.toml`; for `database schema is out of date` run `elctl db migrate --db <url>` (the reason names it), with nobion closed. Then restart `nobion`. `elctl doctor --install <name>` says more. |
 | `--db` exits 2, "database schema is out of date" | The store was made by an older nobion (the UI never migrates). | `elctl db migrate --db <url>` (see [elctl reference](08-elctl-reference.md#the-stores-schema)), with nobion closed. |
 | `--db` exits 2, "built without persistence" | The build has no database support. | Use a build with persistence. |
 | `built without the DVC store` / `elctl was built without persistence` | The build skipped persistence. `import`, `export`, `entry` are unavailable. Exit 2. | Install a build with persistence (Windows CI builds have none). |
@@ -182,7 +182,7 @@ See [data analysis](06-data-analysis.md) and the
 | Run override of a plan parameter refused | Parameter not in `parameters.expose`. | Mark the run `advanced` or expose it. |
 | Calibration invalid after editing a tray map | Stage calibration is tied to the tray map by SHA-256. | Recalibrate. |
 | Camera `use = "view"` or `source = "recorded"` cannot drive follow-glow | Also, simulated and live camera/laser mixes are refused. | |
-| Database password problems | The password lives in `<root>/.pychron/credentials.toml`; an invalid file stops a data-reduction install's startup. On an instrument install the program starts and shows the banner above. The `postgresql://` URL needs a user part. | |
+| Database password problems | The password lives in `<root>/.nobion/credentials.toml`; an invalid file stops a data-reduction install's startup. On an instrument install the program starts and shows the banner above. The `postgresql://` URL needs a user part. | |
 
 ## Interface quirks
 
@@ -207,8 +207,8 @@ Both programs write a log file as they run, with no setup.
 - **Where it is.** An install keeps its logs in `<install>/logs`:
   `pychron.log` for the window, `elctl.log` for `elctl`. Without an install
   (the examples, or config files given on the command line) the file is in
-  `~/Library/Logs/pychron` on macOS, `$XDG_STATE_HOME/pychron/logs` (or
-  `~/.local/state/pychron/logs`) on Linux and `%LOCALAPPDATA%\pychron\logs` on
+  `~/Library/Logs/nobion` on macOS, `$XDG_STATE_HOME/nobion/logs` (or
+  `~/.local/state/nobion/logs`) on Linux and `%LOCALAPPDATA%\nobion\logs` on
   Windows. File > Preferences > Logging can move it or turn it off. To go back
   to the default folder after a `dir` was set, remove `dir` from
   `logging.toml` (or the `[logging]` table of `extraction_line.toml`): a file

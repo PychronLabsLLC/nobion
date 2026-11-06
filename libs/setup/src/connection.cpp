@@ -40,7 +40,7 @@ struct Scratch {
   fs::path dir;
   Scratch() {
     std::random_device rd;
-    dir = fs::temp_directory_path() / ("pychron-connect-" + std::to_string(rd()) + std::to_string(rd()));
+    dir = fs::temp_directory_path() / ("nobion-connect-" + std::to_string(rd()) + std::to_string(rd()));
   }
   ~Scratch() {
     std::error_code ec;

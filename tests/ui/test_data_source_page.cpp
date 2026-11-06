@@ -284,7 +284,7 @@ class TestDataSourcePage : public QObject {
   // applied, whatever OK or Apply is pressed for (review finding 1).
   void anUnreadableSourceIsNeverApplied() {
     const Lab lab;
-    const fs::path record = lab.root / ".pychron" / "install.toml";
+    const fs::path record = lab.root / ".nobion" / "install.toml";
     { std::ofstream(record, std::ios::trunc) << "[answers\n"; }
     const auto before = tree(lab.dir);
     const std::string site_before = read_text(lab.site_path);

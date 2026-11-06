@@ -1018,8 +1018,8 @@ class ElctlExpUnreadableDatabaseTest : public ElctlExpStoreTest {
     const auto end = site.find('\n', at);
     site.replace(at, end - at, "database = 'postgresql://jross@db.lab/pychron'");
     std::ofstream(path("site.toml")) << site;
-    fs::create_directories(root_ / ".pychron");
-    std::ofstream(root_ / ".pychron" / "credentials.toml") << "[database\npassword = \"s3cret\n";
+    fs::create_directories(root_ / ".nobion");
+    std::ofstream(root_ / ".nobion" / "credentials.toml") << "[database\npassword = \"s3cret\n";
   }
 };
 

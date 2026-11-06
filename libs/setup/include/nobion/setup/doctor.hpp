@@ -39,10 +39,10 @@ bool any_warn(const std::vector<Check>& checks);
 SiteInstall site_install(const InstallPlan& plan, const std::string& name);
 
 // The install's database URL with its password (from
-// <root>/.pychron/credentials.toml) for a server, as the store opens it.
+// <root>/.nobion/credentials.toml) for a server, as the store opens it.
 Result<std::string> database_url(const SiteInstall& install);
 
-// `[database] password` of <root>/.pychron/credentials.toml; nullopt when the
+// `[database] password` of <root>/.nobion/credentials.toml; nullopt when the
 // file or the key is missing, Config when the file does not parse.
 Result<std::optional<std::string>> read_kept_password(const std::filesystem::path& root);
 

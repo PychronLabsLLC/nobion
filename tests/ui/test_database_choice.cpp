@@ -30,13 +30,13 @@ class TestDatabaseChoice : public QObject {
     return i;
   }
   void write_credentials(const std::string& text) const {
-    const auto dir = std::filesystem::path(tmp_.path().toStdString()) / ".pychron";
+    const auto dir = std::filesystem::path(tmp_.path().toStdString()) / ".nobion";
     std::filesystem::create_directories(dir);
     std::ofstream(dir / "credentials.toml") << text;
   }
 
  private slots:
-  void cleanup() { std::filesystem::remove_all(std::filesystem::path(tmp_.path().toStdString()) / ".pychron"); }
+  void cleanup() { std::filesystem::remove_all(std::filesystem::path(tmp_.path().toStdString()) / ".nobion"); }
 
   void dbWinsOverTheInstall() {
     CommandLine cli;

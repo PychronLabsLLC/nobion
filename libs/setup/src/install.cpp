@@ -109,7 +109,7 @@ std::string sha256_hex(std::string_view bytes) {
   return to_hex(digest);
 }
 
-fs::path record_path(const fs::path& root) { return root / ".pychron" / "install.toml"; }
+fs::path record_path(const fs::path& root) { return root / ".nobion" / "install.toml"; }
 
 Result<InstallPlan> plan_install(const ProfileLibrary& library, const ResolvedProfile& profile, const Answers& answers,
                                  const fs::path& root, PlanOptions options) {

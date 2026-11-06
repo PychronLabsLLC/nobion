@@ -74,7 +74,7 @@ development build puts the two programs: [docs/dev_setup.md](docs/dev_setup.md))
 elctl init argus --yes
 ```
 
-makes an instrument install in `~/Pychron/argus`, set up for simulation, with
+makes an instrument install in `~/Nobion/argus`, set up for simulation, with
 a SQLite database of its own that already holds what its first queue names.
 
 ```bash

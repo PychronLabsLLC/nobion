@@ -67,7 +67,7 @@ Result<StoreVerify> verify_against_store(ps::IStore& store, processing::StoreSou
   auto files = verify_files(dir);
   if (!files) return fail(files.error());
   out.files = *files;
-  const fs::path scratch = fs::temp_directory_path() / ("pychron_verify_" + std::to_string(std::random_device{}()) +
+  const fs::path scratch = fs::temp_directory_path() / ("nobion_verify_" + std::to_string(std::random_device{}()) +
                                                         "_" + std::to_string(std::random_device{}()));
   std::error_code ec;
   fs::create_directories(scratch, ec);

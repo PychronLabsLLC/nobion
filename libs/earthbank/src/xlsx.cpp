@@ -1090,9 +1090,9 @@ TemplateSearch find_templates(const std::optional<std::string>& named, const fs:
   if (program_dir.empty()) {
     out.tried.emplace_back("beside the program (where it runs from is not known)");
   } else {
-    // As cmake/PychronInstall.cmake lays an install out: share/pychron beside
+    // As cmake/PychronInstall.cmake lays an install out: share/nobion beside
     // bin, or the Resources of a macOS bundle.
-    for (const fs::path& base : {program_dir / ".." / "share" / "pychron", program_dir / ".." / "Resources"}) {
+    for (const fs::path& base : {program_dir / ".." / "share" / "nobion", program_dir / ".." / "Resources"}) {
       fs::path dir = base / "earthbank" / "templates";
       if (const fs::path canonical = fs::weakly_canonical(dir, ec); !ec) dir = canonical;
       out.tried.push_back(dir.string());

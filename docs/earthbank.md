@@ -57,9 +57,9 @@ elctl earthbank packages --create "Ar-Ar results 2031"
 ```
 
 The profiles are one file, written when you press OK or Apply:
-`~/Library/Application Support/Pychron/earthbank/profiles.toml` on macOS,
-`%APPDATA%\Pychron\earthbank\profiles.toml` on Windows,
-`~/.config/pychron/earthbank/profiles.toml` on Linux. **A password is never
+`~/Library/Application Support/Nobion/earthbank/profiles.toml` on macOS,
+`%APPDATA%\Nobion\earthbank\profiles.toml` on Windows,
+`~/.config/nobion/earthbank/profiles.toml` on Linux. **A password is never
 in it.** The operating system keeps it: the login keychain on macOS, the
 Credential Manager on Windows, the secret service on Linux. The page says
 which under the password field. Where there is none it says `Passwords are

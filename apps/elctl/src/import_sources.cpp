@@ -166,7 +166,7 @@ fs::path default_cache_dir() {
     base = fs::temp_directory_path(code);
     if (code) base = fs::path(".");
   }
-  return *base / "pychron" / "import";
+  return *base / "nobion" / "import";
 }
 
 bool is_url(std::string_view source) {

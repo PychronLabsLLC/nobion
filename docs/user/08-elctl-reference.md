@@ -307,8 +307,8 @@ asks `Write them? [Y/n]` unless `--yes`, then checks:
   written.
 
 It then writes three files and nothing else: the password, when one was
-given, to `.pychron/credentials.toml` in the install folder (readable by you
-alone); the new source to the install record `.pychron/install.toml`, so a
+given, to `.nobion/credentials.toml` in the install folder (readable by you
+alone); the new source to the install record `.nobion/install.toml`, so a
 later `elctl init --reconfigure` keeps it; and the install's entry in the
 site config. It finishes with doctor's checks of the install.
 
@@ -727,7 +727,7 @@ elctl import <add|run|status|conflicts|verify> --db <url> [--cache <dir>] [optio
 `--db` is required. `--db` is `sqlite:/path/to/file.db` or
 `postgresql://user:password@host/db`. `--cache DIR` is where each source's
 settings (`<id>.toml`) and mirrors of remote repositories are kept (default: the
-user's cache directory, `pychron/import`). Only `add` and a real `run` create or
+user's cache directory, `nobion/import`). Only `add` and a real `run` create or
 migrate a database; the other subcommands need one that exists (a missing or
 empty SQLite file is an error).
 
@@ -1154,9 +1154,9 @@ persistence.
 A **profile** names an account: the server, your login, and the institution
 and data package uploads go to. Profiles live in one file (the one the
 Nobion window uses, so a login made here is a login there):
-`~/Library/Application Support/Pychron/earthbank/profiles.toml` on macOS,
-`%APPDATA%\Pychron\earthbank\profiles.toml` on Windows,
-`~/.config/pychron/earthbank/profiles.toml` on Linux. Every subcommand takes
+`~/Library/Application Support/Nobion/earthbank/profiles.toml` on macOS,
+`%APPDATA%\Nobion\earthbank\profiles.toml` on Windows,
+`~/.config/nobion/earthbank/profiles.toml` on Linux. Every subcommand takes
 `--profiles FILE` for another. The file never holds a password: it is kept by
 the operating system (the login keychain on macOS, the Credential Manager on
 Windows, the secret service on Linux; where there is none, until the program

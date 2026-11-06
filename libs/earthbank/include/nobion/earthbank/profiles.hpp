@@ -90,9 +90,9 @@ Result<Profiles> load_profiles(const std::filesystem::path& file);
 Result<void> save_profiles(const Profiles& profiles, const std::filesystem::path& file);
 
 // The file both programs use unless told otherwise:
-//   Linux    $XDG_CONFIG_HOME/pychron/earthbank/profiles.toml, or under ~/.config
-//   macOS    ~/Library/Application Support/Pychron/earthbank/profiles.toml
-//   Windows  %APPDATA%\Pychron\earthbank\profiles.toml
+//   Linux    $XDG_CONFIG_HOME/nobion/earthbank/profiles.toml, or under ~/.config
+//   macOS    ~/Library/Application Support/Nobion/earthbank/profiles.toml
+//   Windows  %APPDATA%\Nobion\earthbank\profiles.toml
 // The directory is the one the site file is in (libs/setup,
 // `default_site_path`), hence its capital on macOS and Windows. This is not what Qt calls the application's config location, which has the
 // program's name in it: the UI asks here and does not work out a path of its
