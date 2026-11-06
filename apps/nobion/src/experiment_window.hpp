@@ -55,7 +55,6 @@ class QLabel;
 class QMenu;
 class QSplitter;
 class QTableView;
-class QToolBar;
 class QToolButton;
 class QWidget;
 
@@ -268,7 +267,6 @@ class ExperimentWindow : public QMainWindow {
   };
   std::vector<Later> later_;
   QTimer later_clock_;  // looks at the session's clock while something waits in later_
-  QToolBar* toolbar_ = nullptr;
   QueueTableModel model_;
   QueueProxy queue_proxy_{model_};
   ExecutedProxy executed_proxy_{model_};
@@ -302,7 +300,6 @@ class ExperimentWindow : public QMainWindow {
   PickFile pick_open_file_;
   PickFile pick_save_file_;
 
-  QAction* open_ = nullptr;
   QAction* save_ = nullptr;
   QAction* save_as_ = nullptr;
   QAction* revalidate_ = nullptr;

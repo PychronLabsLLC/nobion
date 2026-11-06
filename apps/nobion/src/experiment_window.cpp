@@ -29,7 +29,6 @@
 #include <QScrollBar>
 #include <QSplitter>
 #include <QTableView>
-#include <QToolBar>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -301,7 +300,7 @@ ExperimentWindow::ExperimentWindow(ExperimentBridge& bridge, bool simulation, st
   on_executed_changed();  // ends with update_state()
 }
 
-// The panels and the toolbar as installed. Run again by Reset Layout, so it
+// The panels as installed. Run again by Reset Layout, so it
 // undoes whatever was done to them.
 void ExperimentWindow::default_layout() {
   for (QDockWidget* dock : {executor_dock_, evolutions_dock_, factory_dock_, measurement_dock_}) dock->setFloating(false);
@@ -322,8 +321,6 @@ void ExperimentWindow::default_layout() {
   }
   resizeDocks({evolutions_dock_, factory_dock_}, {500, 380}, Qt::Horizontal);
   resizeDocks({executor_dock_}, {300}, Qt::Vertical);
-  addToolBar(Qt::TopToolBarArea, toolbar_);
-  toolbar_->show();
 }
 
 void ExperimentWindow::set_references(ProcessingBridge* bridge, processing::PresetStore* presets) {
@@ -411,21 +408,16 @@ void ExperimentWindow::build_actions() {
   };
 
   const Menu file = Menu::Queue;
-  toolbar_ = addToolBar(tr("Queue"));
-  QToolBar* bar = toolbar_;
-  bar->setObjectName(QStringLiteral("ExperimentToolBar"));
-  // Save and Save As are the File menu's (MenuHub), which has their keys:
-  // these are what it does while this window is in front. File > New and
-  // File > Open are the main window's, and call new_dialog() and
-  // open_dialog(); Open is here too for the toolbar.
+  // The window has no toolbar: everything is in the menu bar. Save and Save
+  // As are the File menu's (MenuHub), which has their keys: these are what it
+  // does while this window is in front. File > New and File > Open are the
+  // main window's, and call new_dialog() and open_dialog().
   auto file_action = [this](MenuHub::FileRole role, const QString& text, std::function<void()> f) {
     auto* a = new QAction(text, this);
     connect(a, &QAction::triggered, this, [f = std::move(f)] { f(); });
     MenuHub::instance().set_file_action(this, role, a, tr("Queue"));
     return a;
   };
-  open_ = new QAction(tr("&Open..."), this);
-  connect(open_, &QAction::triggered, this, [this] { open_dialog(); });
   save_ = file_action(MenuHub::FileRole::Save, tr("&Save"), [this] {
     if (!path_) {
       save_as_dialog();
@@ -456,9 +448,6 @@ void ExperimentWindow::build_actions() {
     if (offer_resume(&e)) return;
     inform_(e == tr("a queue is running") ? tr("A queue is running.") : tr("Nothing to resume."));
   });
-  bar->addAction(open_);
-  bar->addAction(save_);
-  bar->addAction(revalidate_);
 
   const Menu rows = Menu::Rows;
   auto add_row_action = [&](const QString& name, const QKeySequence& key, std::function<void()> f) {
@@ -1062,8 +1051,6 @@ void ExperimentWindow::update_state() {
   int runnable_rows = 0;
   for (const auto& r : model_.queue().runs) runnable_rows += r.skip ? 0 : 1;
   pane_->set_runnable(model_.runnable(), runnable_rows);
-  const bool running = bridge_.running() || pane_->running();
-  open_->setEnabled(!running);
   sync_queue_conditionals();
 }
 

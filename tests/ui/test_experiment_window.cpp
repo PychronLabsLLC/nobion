@@ -261,7 +261,7 @@ class TestExperimentWindow : public QObject {
  private slots:
   // ---- the panel layout -------------------------------------------------------
 
-  void resetPutsTheDocksAndTheToolbarBack() {
+  void resetPutsTheDocksBack() {
     pychron::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
@@ -271,13 +271,9 @@ class TestExperimentWindow : public QObject {
     auto* evolutions = window.findChild<QDockWidget*>(QStringLiteral("ExperimentEvolutionsDock"));
     auto* factory = window.findChild<QDockWidget*>(QStringLiteral("ExperimentFactoryDock"));
     auto* measurement = window.findChild<QDockWidget*>(QStringLiteral("ExperimentMeasurementDock"));
-    auto* toolbar = window.findChild<QToolBar*>(QStringLiteral("ExperimentToolBar"));
     QVERIFY(executor != nullptr && evolutions != nullptr && factory != nullptr && measurement != nullptr);
-    QVERIFY(toolbar != nullptr);
     evolutions->close();
     measurement->setFloating(true);
-    toolbar->hide();
-    window.addToolBar(Qt::BottomToolBarArea, toolbar);
     window.addDockWidget(Qt::TopDockWidgetArea, executor);
 
     QVERIFY(window.dock_layouts() != nullptr);
@@ -291,8 +287,27 @@ class TestExperimentWindow : public QObject {
     QCOMPARE(window.dockWidgetArea(factory), Qt::LeftDockWidgetArea);
     QVERIFY(window.tabifiedDockWidgets(factory).contains(measurement));
     QVERIFY(factory->isVisible());  // in front of Measurement
-    QVERIFY(toolbar->isVisible());
-    QCOMPARE(window.toolBarArea(toolbar), Qt::TopToolBarArea);
+    QVERIFY(window.findChildren<QToolBar*>().isEmpty());  // and no toolbar comes back with them
+  }
+
+  // The window has no toolbar: Open, Save and Revalidate are the menu bar's
+  // (File > Open > Open Queue..., File > Save Queue, Experiment > Queue >
+  // Revalidate). fileNewAndOpenBringUpTheWindowTheyActIn holds Open and Save.
+  void noToolbarItsCommandsAreInTheMenuBar() {
+    using pychron::ui::MenuHub;
+    pychron::ui::test::SimLab sim;
+    ExperimentBridge bridge(*sim.session, sim.line->bus());
+    ExperimentWindow window(bridge, true, settings());
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QVERIFY(window.findChildren<QToolBar*>().isEmpty());
+
+    QAction* revalidate = nullptr;
+    for (const MenuHub::Command& c : MenuHub::instance().commands())
+      if (c.action != nullptr && c.menu == MenuHub::Menu::Queue && c.action->text() == QStringLiteral("&Revalidate"))
+        revalidate = c.action;
+    QVERIFY(revalidate != nullptr);
+    QCOMPARE(revalidate->parent(), static_cast<QObject*>(&window));
   }
 
   // A staged release's prepare and pump-out (spec 11.4) are named with their gas.
