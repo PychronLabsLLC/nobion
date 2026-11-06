@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "pychron/metrics/registry.hpp"
+#include "nobion/metrics/registry.hpp"
 
 namespace pychron::metrics {
 

@@ -11,7 +11,7 @@
 #include <QDialog>
 #include <QString>
 
-#include "pychron/systems/spectrometer/field_table_check.hpp"
+#include "nobion/systems/spectrometer/field_table_check.hpp"
 
 class QCheckBox;
 class QComboBox;

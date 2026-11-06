@@ -8,7 +8,7 @@
 #include <fstream>
 
 #include "example_lab.hpp"
-#include "pychron/experiment/lab/scripts.hpp"
+#include "nobion/experiment/lab/scripts.hpp"
 #include "temp_path.hpp"
 
 namespace pychron::experiment::lab {

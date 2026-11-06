@@ -9,8 +9,8 @@
 #include <sstream>
 #include <string>
 
-#include "pychron/core/env.hpp"
-#include "pychron/processing/scene.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/processing/scene.hpp"
 
 namespace pychron::processing::testing {
 

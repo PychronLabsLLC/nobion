@@ -1,7 +1,7 @@
 // Building a release directory from the store (data publishing design,
 // sections 5 and 6.1).
 
-#include "pychron/publish/build.hpp"
+#include "nobion/publish/build.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -11,18 +11,18 @@
 #include <set>
 #include <sstream>
 
-#include "pychron/core/env.hpp"
-#include "pychron/core/process.hpp"
-#include "pychron/core/user_file.hpp"
-#include "pychron/arar/domain.hpp"
-#include "pychron/arar/report.hpp"
-#include "pychron/processing/domain.hpp"
-#include "pychron/processing/source.hpp"
-#include "pychron/processing/units.hpp"
-#include "pychron/publish/figures.hpp"
-#include "pychron/publish/parquet.hpp"
-#include "pychron/publish/records.hpp"
-#include "pychron/arar/arar_types.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/process.hpp"
+#include "nobion/core/user_file.hpp"
+#include "nobion/arar/domain.hpp"
+#include "nobion/arar/report.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/source.hpp"
+#include "nobion/processing/units.hpp"
+#include "nobion/publish/figures.hpp"
+#include "nobion/publish/parquet.hpp"
+#include "nobion/publish/records.hpp"
+#include "nobion/arar/arar_types.hpp"
 
 #include "members.hpp"
 

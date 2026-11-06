@@ -2,12 +2,12 @@
 // running the neutral units on data with no argon. The Ar-Ar domain's cases
 // are tests/arar/test_domain_arar.cpp.
 
-#include "pychron/processing/domain.hpp"
+#include "nobion/processing/domain.hpp"
 
 #include <gtest/gtest.h>
 
 #include "fixtures.hpp"
-#include "pychron/processing/time_series.hpp"
+#include "nobion/processing/time_series.hpp"
 
 namespace pp = pychron::processing;
 using pp::test::make_unknown;

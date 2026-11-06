@@ -5,9 +5,9 @@
 
 #include <chrono>
 
-#include "pychron/devices/proxr_board_sim.hpp"
-#include "pychron/devices/proxr_relay.hpp"
-#include "pychron/devices/sim_valves.hpp"
+#include "nobion/devices/proxr_board_sim.hpp"
+#include "nobion/devices/proxr_relay.hpp"
+#include "nobion/devices/sim_valves.hpp"
 #include "valve_conformance.hpp"
 
 using namespace pychron;

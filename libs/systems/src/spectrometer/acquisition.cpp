@@ -1,11 +1,11 @@
-#include "pychron/systems/spectrometer/acquisition.hpp"
+#include "nobion/systems/spectrometer/acquisition.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <string>
 
-#include "pychron/core/log_context.hpp"
+#include "nobion/core/log_context.hpp"
 
 namespace pychron::spectrometer {
 

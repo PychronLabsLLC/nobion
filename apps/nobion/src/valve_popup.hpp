@@ -20,9 +20,9 @@
 #include <QString>
 #include <QStringList>
 
-#include "pychron/devices/types.hpp"
-#include "pychron/systems/canvas/canvas.hpp"
-#include "pychron/systems/switch_manager.hpp"
+#include "nobion/devices/types.hpp"
+#include "nobion/systems/canvas/canvas.hpp"
+#include "nobion/systems/switch_manager.hpp"
 
 class QLabel;
 class QPushButton;

@@ -1,7 +1,7 @@
 // Without Apache Arrow there is no Parquet writer: a build writes everything
 // but data/*.parquet and says so (PYCHRON_PUBLISH, libs/publish/CMakeLists.txt).
 
-#include "pychron/publish/parquet.hpp"
+#include "nobion/publish/parquet.hpp"
 
 #ifndef PYCHRON_PUBLISH_ARROW_ENABLED
 

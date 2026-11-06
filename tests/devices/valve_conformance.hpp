@@ -21,8 +21,8 @@
 #include <optional>
 #include <string>
 
-#include "pychron/devices/capabilities.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/transport/sim_transport.hpp"
 
 namespace pychron::test {
 

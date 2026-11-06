@@ -1,6 +1,6 @@
-#include "pychron/systems/spectrometer/field_table_store.hpp"
+#include "nobion/systems/spectrometer/field_table_store.hpp"
 
-#include "pychron/systems/spectrometer/data_dir.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
 
 #include <gtest/gtest.h>
 

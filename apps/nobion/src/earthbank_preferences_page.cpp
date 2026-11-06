@@ -19,7 +19,7 @@
 #include "earthbank_package_dialog.hpp"
 #include "error_report.hpp"
 #include "preferences_dialog.hpp"
-#include "pychron/core/error.hpp"
+#include "nobion/core/error.hpp"
 #include "theme.hpp"
 
 namespace pychron::ui {

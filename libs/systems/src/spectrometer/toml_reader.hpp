@@ -13,8 +13,8 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/core/config/diagnostic.hpp"
-#include "pychron/core/config/system_config.hpp"
+#include "nobion/core/config/diagnostic.hpp"
+#include "nobion/core/config/system_config.hpp"
 
 namespace pychron::spectrometer::cfg::detail {
 

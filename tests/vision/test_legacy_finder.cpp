@@ -9,12 +9,12 @@
 #include <system_error>
 #include <vector>
 
-#include "pychron/vision/finder.hpp"
-#include "pychron/vision/fixture.hpp"
-#include "pychron/vision/legacy_finder.hpp"
-#include "pychron/vision/opencv_source.hpp"
-#include "pychron/vision/pgm.hpp"
-#include "pychron/vision/synth.hpp"
+#include "nobion/vision/finder.hpp"
+#include "nobion/vision/fixture.hpp"
+#include "nobion/vision/legacy_finder.hpp"
+#include "nobion/vision/opencv_source.hpp"
+#include "nobion/vision/pgm.hpp"
+#include "nobion/vision/synth.hpp"
 
 using namespace pychron::vision;
 

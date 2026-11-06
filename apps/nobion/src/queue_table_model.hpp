@@ -32,10 +32,10 @@
 #include <QString>
 #include <QStringList>
 
-#include "pychron/experiment/executor/executor.hpp"
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/experiment/model/experiment_queue.hpp"
-#include "pychron/experiment/run/state.hpp"
+#include "nobion/experiment/executor/executor.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/model/experiment_queue.hpp"
+#include "nobion/experiment/run/state.hpp"
 
 namespace pychron::ui {
 

@@ -2,8 +2,8 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/devices/spectrometer/thermo_qtegra.hpp"
-#include "pychron/devices/spectrometer/thermo_qtegra_sim.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra_sim.hpp"
 #include "spectrometer/conformance.hpp"
 #include "spectrometer/legacy/sim_util.hpp"
 

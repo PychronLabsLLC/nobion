@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "fake_http.hpp"
-#include "pychron/setup/installer.hpp"
+#include "nobion/setup/installer.hpp"
 
 namespace {
 

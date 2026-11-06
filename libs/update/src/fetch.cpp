@@ -1,8 +1,8 @@
 #include <chrono>
 #include <string>
 
-#include "pychron/core/http.hpp"
-#include "pychron/update/update.hpp"
+#include "nobion/core/http.hpp"
+#include "nobion/update/update.hpp"
 
 namespace pychron::update {
 

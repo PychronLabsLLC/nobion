@@ -1,9 +1,9 @@
-#include "pychron/codecs/modbus_adc.hpp"
+#include "nobion/codecs/modbus_adc.hpp"
 
 #include <cmath>
 #include <string>
 
-#include "pychron/codecs/modbus.hpp"
+#include "nobion/codecs/modbus.hpp"
 
 namespace pychron::codec::modbus_adc {
 

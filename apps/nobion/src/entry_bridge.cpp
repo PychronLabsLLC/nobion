@@ -2,9 +2,9 @@
 
 #include <future>
 
-#include "pychron/core/env.hpp"
-#include "pychron/core/host_name.hpp"
-#include "pychron/core/log_context.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/host_name.hpp"
+#include "nobion/core/log_context.hpp"
 
 namespace pychron::ui {
 

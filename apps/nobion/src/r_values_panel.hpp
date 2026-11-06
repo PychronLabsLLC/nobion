@@ -10,8 +10,8 @@
 #include <QList>
 #include <QWidget>
 
-#include "pychron/processing/options.hpp"
-#include "pychron/arar/r_values.hpp"
+#include "nobion/processing/options.hpp"
+#include "nobion/arar/r_values.hpp"
 
 class QLabel;
 class QTableWidget;

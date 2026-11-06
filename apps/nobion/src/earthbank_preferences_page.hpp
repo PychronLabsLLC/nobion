@@ -23,8 +23,8 @@
 #include <QWidget>
 
 #include "earthbank_worker.hpp"
-#include "pychron/earthbank/profiles.hpp"
-#include "pychron/earthbank/secret_store.hpp"
+#include "nobion/earthbank/profiles.hpp"
+#include "nobion/earthbank/secret_store.hpp"
 
 class QLabel;
 class QLineEdit;

@@ -11,8 +11,8 @@
 #include "host_call_trace.hpp"
 #include "log_capture.hpp"
 #include "rehearse_fakes.hpp"
-#include "pychron/core/process_log.hpp"
-#include "pychron/scripting/script_host.hpp"
+#include "nobion/core/process_log.hpp"
+#include "nobion/scripting/script_host.hpp"
 
 using namespace pychron;
 using namespace pychron::scripting;

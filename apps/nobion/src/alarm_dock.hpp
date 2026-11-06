@@ -12,7 +12,7 @@
 #include <QPushButton>
 #include <QTreeWidget>
 
-#include "pychron/core/events.hpp"
+#include "nobion/core/events.hpp"
 
 namespace pychron::ui {
 

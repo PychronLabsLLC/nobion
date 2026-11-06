@@ -18,9 +18,9 @@
 
 #include "jobs_fakes.hpp"
 #include "temp_path.hpp"
-#include "pychron/systems/jobs/job_runner.hpp"
-#include "pychron/systems/jobs/peak_center.hpp"
-#include "pychron/systems/spectrometer/field_table_store.hpp"
+#include "nobion/systems/jobs/job_runner.hpp"
+#include "nobion/systems/jobs/peak_center.hpp"
+#include "nobion/systems/spectrometer/field_table_store.hpp"
 
 using namespace pychron;
 using namespace pychron::jobs;

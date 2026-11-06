@@ -9,8 +9,8 @@
 #include <filesystem>
 #include <string>
 
-#include "pychron/experiment/persist/persister.hpp"
-#include "pychron/experiment/record/types.hpp"
+#include "nobion/experiment/persist/persister.hpp"
+#include "nobion/experiment/record/types.hpp"
 
 namespace pychron::processing::test {
 

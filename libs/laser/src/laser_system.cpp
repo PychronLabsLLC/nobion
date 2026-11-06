@@ -1,6 +1,6 @@
-#include "pychron/laser/laser_system.hpp"
+#include "nobion/laser/laser_system.hpp"
 
-#include "pychron/laser/pattern_runner.hpp"
+#include "nobion/laser/pattern_runner.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -14,9 +14,9 @@
 #include <system_error>
 #include <utility>
 
-#include "pychron/vision/finder.hpp"
-#include "pychron/vision/live_feed.hpp"
-#include "pychron/vision/png.hpp"
+#include "nobion/vision/finder.hpp"
+#include "nobion/vision/live_feed.hpp"
+#include "nobion/vision/png.hpp"
 
 namespace pychron::laser {
 

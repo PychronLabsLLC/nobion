@@ -7,8 +7,8 @@
 #include <fstream>
 #include <sstream>
 
-#include "pychron/entry/package_edit.hpp"
-#include "pychron/entry/seed.hpp"
+#include "nobion/entry/package_edit.hpp"
+#include "nobion/entry/seed.hpp"
 #include "store_fixture.hpp"
 
 using namespace pychron;

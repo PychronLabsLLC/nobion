@@ -1,4 +1,4 @@
-#include "pychron/sim/spectrometer/beam_model.hpp"
+#include "nobion/sim/spectrometer/beam_model.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <utility>
 
-#include "pychron/core/keyed_noise.hpp"
+#include "nobion/core/keyed_noise.hpp"
 
 namespace pychron::sim {
 

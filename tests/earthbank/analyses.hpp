@@ -13,8 +13,8 @@
 #include <vector>
 
 #include "arar/arar_fixtures.hpp"
-#include "pychron/processing/model.hpp"
-#include "pychron/arar/arar_types.hpp"
+#include "nobion/processing/model.hpp"
+#include "nobion/arar/arar_types.hpp"
 
 namespace pychron::earthbank::testing {
 

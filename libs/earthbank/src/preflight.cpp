@@ -1,4 +1,4 @@
-#include "pychron/earthbank/preflight.hpp"
+#include "nobion/earthbank/preflight.hpp"
 
 #include <algorithm>
 #include <array>
@@ -12,7 +12,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/earthbank/vocab.hpp"
+#include "nobion/earthbank/vocab.hpp"
 #include "text_detail.hpp"
 
 namespace pychron::earthbank {

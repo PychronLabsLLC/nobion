@@ -1,6 +1,6 @@
 // One Qtegra connection shared by the spectrometer driver and borrowers on a
 // kind = "link" transport (plan 2026-10-05, task 0.3).
-#include "pychron/devices/spectrometer/qtegra_link.hpp"
+#include "nobion/devices/spectrometer/qtegra_link.hpp"
 
 #include <gtest/gtest.h>
 
@@ -8,12 +8,12 @@
 #include <thread>
 #include <utility>
 
-#include "pychron/devices/capabilities.hpp"
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/devices/spectrometer/thermo_qtegra.hpp"
-#include "pychron/devices/spectrometer/thermo_qtegra_sim.hpp"
-#include "pychron/transport/link_transport.hpp"
-#include "pychron/transport/udp_transport.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra_sim.hpp"
+#include "nobion/transport/link_transport.hpp"
+#include "nobion/transport/udp_transport.hpp"
 #include "spectrometer/legacy/sim_util.hpp"
 
 using namespace pychron;

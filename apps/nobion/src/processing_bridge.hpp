@@ -20,8 +20,8 @@
 
 #include <QObject>
 
-#include "pychron/processing/domain.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/units.hpp"
 
 namespace pychron::ui {
 

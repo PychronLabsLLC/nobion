@@ -1,4 +1,4 @@
-#include "pychron/sim/linear_flow.hpp"
+#include "nobion/sim/linear_flow.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -14,8 +14,8 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/error.hpp"
-#include "pychron/sim/gas.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/sim/gas.hpp"
 
 namespace {
 

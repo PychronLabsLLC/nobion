@@ -1,6 +1,6 @@
 // The layout of a scene (data publishing design, section 5.6).
 
-#include "pychron/processing/scene_layout.hpp"
+#include "nobion/processing/scene_layout.hpp"
 
 #include <algorithm>
 #include <array>

@@ -1,4 +1,4 @@
-#include "pychron/experiment/measurement/results.hpp"
+#include "nobion/experiment/measurement/results.hpp"
 
 #include <algorithm>
 #include <array>
@@ -10,9 +10,9 @@
 #include <tuple>
 #include <utility>
 
-#include "pychron/core/number.hpp"
-#include "pychron/experiment/conditionals/evaluator.hpp"
-#include "pychron/experiment/record/names.hpp"
+#include "nobion/core/number.hpp"
+#include "nobion/experiment/conditionals/evaluator.hpp"
+#include "nobion/experiment/record/names.hpp"
 
 namespace pychron::experiment::measurement {
 

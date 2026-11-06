@@ -1,6 +1,6 @@
 // MeasurementPlan -> JSON golden form (see plan_json.hpp).
 
-#include "pychron/experiment/plan/plan_json.hpp"
+#include "nobion/experiment/plan/plan_json.hpp"
 
 #include <map>
 #include <optional>

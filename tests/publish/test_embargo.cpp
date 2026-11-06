@@ -1,6 +1,6 @@
 // Embargoes by name (data publishing design, section 4.2).
 
-#include "pychron/publish/embargo.hpp"
+#include "nobion/publish/embargo.hpp"
 
 #include <gtest/gtest.h>
 

@@ -17,7 +17,7 @@
 #include <QTimer>
 #include <QWidget>
 
-#include "pychron/core/events.hpp"
+#include "nobion/core/events.hpp"
 
 #include "theme.hpp"
 

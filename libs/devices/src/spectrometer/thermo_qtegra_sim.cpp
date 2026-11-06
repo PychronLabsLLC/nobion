@@ -1,9 +1,9 @@
-#include "pychron/devices/spectrometer/thermo_qtegra_sim.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra_sim.hpp"
 
 #include <algorithm>
 #include <optional>
 
-#include "pychron/codecs/thermo_qtegra.hpp"
+#include "nobion/codecs/thermo_qtegra.hpp"
 
 namespace pychron::spectrometer {
 

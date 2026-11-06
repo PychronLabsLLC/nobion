@@ -1,4 +1,4 @@
-#include "pychron/systems/spectrometer/config_validate.hpp"
+#include "nobion/systems/spectrometer/config_validate.hpp"
 
 #include <algorithm>
 #include <set>

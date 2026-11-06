@@ -1,4 +1,4 @@
-#include "pychron/laser/calibration_store.hpp"
+#include "nobion/laser/calibration_store.hpp"
 
 #include <cmath>
 #include <bit>
@@ -11,7 +11,7 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/core/sha256.hpp"
+#include "nobion/core/sha256.hpp"
 
 namespace pychron::laser {
 

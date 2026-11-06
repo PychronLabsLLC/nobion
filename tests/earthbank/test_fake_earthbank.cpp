@@ -18,9 +18,9 @@
 
 #include "fake_earthbank.hpp"
 #include "ooxml.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/http.hpp"
-#include "pychron/earthbank/vocab.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/http.hpp"
+#include "nobion/earthbank/vocab.hpp"
 
 namespace pychron::earthbank {
 namespace {

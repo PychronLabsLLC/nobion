@@ -28,9 +28,9 @@
 #include "canvas_state.hpp"
 #include "canvas_view.hpp"
 #include "core_bridge.hpp"
-#include "pychron/core/config/local_file.hpp"
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/systems/canvas/loader.hpp"
+#include "nobion/core/config/local_file.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/systems/canvas/loader.hpp"
 #include "theme.hpp"
 #include "ui_fixture.hpp"
 

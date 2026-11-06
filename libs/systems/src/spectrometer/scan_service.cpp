@@ -1,4 +1,4 @@
-#include "pychron/systems/spectrometer/scan_service.hpp"
+#include "nobion/systems/spectrometer/scan_service.hpp"
 
 namespace pychron::spectrometer {
 

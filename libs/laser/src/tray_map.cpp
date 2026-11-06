@@ -1,12 +1,12 @@
-#include "pychron/laser/tray_map.hpp"
+#include "nobion/laser/tray_map.hpp"
 
 #include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <system_error>
 
-#include "pychron/codecs/codec.hpp"
-#include "pychron/core/sha256.hpp"
+#include "nobion/codecs/codec.hpp"
+#include "nobion/core/sha256.hpp"
 
 namespace pychron::laser {
 

@@ -1,4 +1,4 @@
-#include "pychron/processing/time_series.hpp"
+#include "nobion/processing/time_series.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -7,10 +7,10 @@
 #include <ctime>
 #include <map>
 
-#include "pychron/processing/quantity.hpp"
-#include "pychron/processing/units.hpp"
-#include "pychron/reduction/fits.hpp"
-#include "pychron/reduction/stats.hpp"
+#include "nobion/processing/quantity.hpp"
+#include "nobion/processing/units.hpp"
+#include "nobion/reduction/fits.hpp"
+#include "nobion/reduction/stats.hpp"
 #include "figure_common.hpp"
 #include "schema_builder.hpp"
 

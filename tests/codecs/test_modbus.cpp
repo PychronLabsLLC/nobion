@@ -1,6 +1,6 @@
 // codec::modbus. Frames are the Modbus Application Protocol spec's own
 // examples (V1.1b3, section 6) in an MBAP header.
-#include "pychron/codecs/modbus.hpp"
+#include "nobion/codecs/modbus.hpp"
 
 #include <gtest/gtest.h>
 

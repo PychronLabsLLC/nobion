@@ -12,7 +12,7 @@
 #include <filesystem>
 #include <thread>
 
-#include "pychron/processing/store_source.hpp"
+#include "nobion/processing/store_source.hpp"
 #include "store_source_fixture.hpp"
 
 namespace pychron::processing {

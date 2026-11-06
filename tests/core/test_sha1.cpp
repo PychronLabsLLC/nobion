@@ -1,4 +1,4 @@
-#include "pychron/core/sha1.hpp"
+#include "nobion/core/sha1.hpp"
 
 #include <gtest/gtest.h>
 
@@ -6,7 +6,7 @@
 #include <string>
 #include <utility>
 
-#include "pychron/core/sha256.hpp"  // to_hex
+#include "nobion/core/sha256.hpp"  // to_hex
 
 using pychron::sha1;
 using pychron::to_hex;

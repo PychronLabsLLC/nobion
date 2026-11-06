@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
-#include "pychron/experiment/model/queue_toml.hpp"
-#include "pychron/experiment/model/rules.hpp"
+#include "nobion/experiment/model/queue_toml.hpp"
+#include "nobion/experiment/model/rules.hpp"
 
 using namespace pychron::experiment;
 

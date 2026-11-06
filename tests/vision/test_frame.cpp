@@ -3,7 +3,7 @@
 #include <cmath>
 #include <limits>
 
-#include "pychron/vision/frame.hpp"
+#include "nobion/vision/frame.hpp"
 
 using namespace pychron::vision;
 

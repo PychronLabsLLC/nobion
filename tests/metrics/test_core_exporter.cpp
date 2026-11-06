@@ -1,4 +1,4 @@
-#include "pychron/metrics/core_exporter.hpp"
+#include "nobion/metrics/core_exporter.hpp"
 
 #include <gtest/gtest.h>
 
@@ -12,9 +12,9 @@
 #include <vector>
 
 #include "metrics_text.hpp"
-#include "pychron/core/events.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/metrics/registry.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/metrics/registry.hpp"
 
 using namespace pychron;
 using namespace pychron::metrics;

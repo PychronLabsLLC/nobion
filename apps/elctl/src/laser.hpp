@@ -43,7 +43,7 @@
 
 #include "cli.hpp"
 #include "exp.hpp"
-#include "pychron/laser/track_bench.hpp"
+#include "nobion/laser/track_bench.hpp"
 
 namespace elctl {
 

@@ -8,10 +8,10 @@
 
 #include "figure_common.hpp"
 #include "isochron_scene.hpp"
-#include "pychron/arar/arar_figures.hpp"
-#include "pychron/arar/reduce.hpp"
-#include "pychron/arar/arar_groups.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/arar/arar_figures.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/arar/arar_groups.hpp"
+#include "nobion/processing/units.hpp"
 #include "schema_builder.hpp"
 
 namespace pychron::processing {

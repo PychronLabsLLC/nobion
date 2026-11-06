@@ -1,13 +1,13 @@
 // plc2000_valves over a simulated PLC coil bank (plan 2026-10-05, task A7).
-#include "pychron/devices/plc2000_valves.hpp"
+#include "nobion/devices/plc2000_valves.hpp"
 
 #include <gtest/gtest.h>
 
 #include <chrono>
 #include <map>
 
-#include "pychron/codecs/modbus.hpp"
-#include "pychron/devices/modbus_device_sim.hpp"
+#include "nobion/codecs/modbus.hpp"
+#include "nobion/devices/modbus_device_sim.hpp"
 #include "valve_conformance.hpp"
 
 using namespace pychron;

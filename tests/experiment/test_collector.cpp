@@ -2,8 +2,8 @@
 
 #include <chrono>
 
-#include "pychron/experiment/collect/collector.hpp"
-#include "pychron/reduction/arar.hpp"
+#include "nobion/experiment/collect/collector.hpp"
+#include "nobion/reduction/arar.hpp"
 
 using namespace pychron;
 using namespace pychron::experiment;

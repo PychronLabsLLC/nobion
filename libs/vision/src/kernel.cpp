@@ -1,4 +1,4 @@
-#include "pychron/vision/kernel.hpp"
+#include "nobion/vision/kernel.hpp"
 
 #include <algorithm>
 #include <array>

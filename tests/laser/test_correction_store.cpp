@@ -1,6 +1,6 @@
 // Per-hole corrections on disk (laser autocenter design, section 5).
 
-#include "pychron/laser/correction_store.hpp"
+#include "nobion/laser/correction_store.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -11,8 +11,8 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/sha256.hpp"
-#include "pychron/laser/calibration_store.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/laser/calibration_store.hpp"
 
 using namespace pychron;
 using namespace pychron::laser;

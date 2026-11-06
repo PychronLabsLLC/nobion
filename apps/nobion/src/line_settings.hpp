@@ -18,8 +18,8 @@
 
 #include <QString>
 
-#include "pychron/core/config/logging_config.hpp"
-#include "pychron/core/config/metrics_config.hpp"
+#include "nobion/core/config/logging_config.hpp"
+#include "nobion/core/config/metrics_config.hpp"
 
 namespace pychron::ui {
 

@@ -6,9 +6,9 @@
 #include <memory>
 #include <string>
 
-#include "pychron/processing/model.hpp"
-#include "pychron/processing/reduced.hpp"
-#include "pychron/processing/source.hpp"
+#include "nobion/processing/model.hpp"
+#include "nobion/processing/reduced.hpp"
+#include "nobion/processing/source.hpp"
 
 namespace pychron::processing::test {
 

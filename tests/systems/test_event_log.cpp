@@ -7,14 +7,14 @@
 #include <vector>
 
 #include "log_capture.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/devices/spectrometer/detectors.hpp"
-#include "pychron/systems/event_log.hpp"
-#include "pychron/systems/jobs/job.hpp"
-#include "pychron/systems/jobs/peak_center.hpp"
-#include "pychron/systems/spectrometer/acquisition.hpp"
-#include "pychron/systems/spectrometer/scan_service.hpp"
-#include "pychron/systems/spectrometer/spectrometer.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/devices/spectrometer/detectors.hpp"
+#include "nobion/systems/event_log.hpp"
+#include "nobion/systems/jobs/job.hpp"
+#include "nobion/systems/jobs/peak_center.hpp"
+#include "nobion/systems/spectrometer/acquisition.hpp"
+#include "nobion/systems/spectrometer/scan_service.hpp"
+#include "nobion/systems/spectrometer/spectrometer.hpp"
 
 namespace pychron::systems {
 namespace {

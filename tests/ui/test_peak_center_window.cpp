@@ -18,7 +18,7 @@
 #include "peak_center_panel.hpp"
 #include "peak_center_view.hpp"
 #include "peak_center_window.hpp"
-#include "pychron/core/virtual_clock.hpp"
+#include "nobion/core/virtual_clock.hpp"
 #include "settings_guard.hpp"
 #include "spectrometer_bridge.hpp"
 #include "spectrometer_fixture.hpp"

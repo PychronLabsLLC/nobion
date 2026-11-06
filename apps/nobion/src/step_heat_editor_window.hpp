@@ -21,8 +21,8 @@
 #include <QMainWindow>
 #include <QSettings>
 
-#include "pychron/experiment/factory/step_heat_template.hpp"
-#include "pychron/experiment/lab/lab.hpp"
+#include "nobion/experiment/factory/step_heat_template.hpp"
+#include "nobion/experiment/lab/lab.hpp"
 #include "step_heat_table_model.hpp"
 
 class QAction;

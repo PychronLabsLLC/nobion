@@ -1,4 +1,4 @@
-#include "pychron/systems/spectrometer/bringup.hpp"
+#include "nobion/systems/spectrometer/bringup.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -11,8 +11,8 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/sim/sim_system.hpp"
-#include "pychron/systems/spectrometer/assembler.hpp"
+#include "nobion/sim/sim_system.hpp"
+#include "nobion/systems/spectrometer/assembler.hpp"
 
 namespace pychron::spectrometer {
 

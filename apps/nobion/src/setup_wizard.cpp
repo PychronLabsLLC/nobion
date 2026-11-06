@@ -18,8 +18,8 @@
 #include <QVBoxLayout>
 #include <QWizardPage>
 
-#include "pychron/setup/connection.hpp"
-#include "pychron/setup/installer.hpp"
+#include "nobion/setup/connection.hpp"
+#include "nobion/setup/installer.hpp"
 #include "error_report.hpp"
 #include "question_editor.hpp"
 #include "theme.hpp"

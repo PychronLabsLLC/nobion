@@ -24,8 +24,8 @@
 #include <QStringList>
 #include <QWidget>
 
-#include "pychron/core/error.hpp"
-#include "pychron/processing/options.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/processing/options.hpp"
 
 class QFormLayout;
 class QListWidget;

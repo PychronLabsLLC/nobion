@@ -1,4 +1,4 @@
-#include "pychron/processing/time_series.hpp"
+#include "nobion/processing/time_series.hpp"
 
 #include <gtest/gtest.h>
 
@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "fixtures.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/processing/units.hpp"
 
 namespace pp = pychron::processing;
 using pp::test::make_air;

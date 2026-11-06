@@ -17,13 +17,13 @@
 #include <thread>
 #include <vector>
 
-#include "pychron/core/config/logging_config.hpp"
+#include "nobion/core/config/logging_config.hpp"
 #include "log_capture.hpp"
-#include "pychron/core/log_hub.hpp"
-#include "pychron/core/process_log.hpp"
-#include "pychron/core/scheduler.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/core/virtual_clock.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/process_log.hpp"
+#include "nobion/core/scheduler.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/core/virtual_clock.hpp"
 #include "virtual_time.hpp"
 
 using namespace pychron;

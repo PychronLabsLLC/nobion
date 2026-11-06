@@ -1,6 +1,6 @@
 // The part of a *.local.toml the application writes (File > Preferences):
 // one table replaced, the rest of the file left exactly as it was.
-#include "pychron/core/config/local_file.hpp"
+#include "nobion/core/config/local_file.hpp"
 
 #include <gtest/gtest.h>
 
@@ -9,8 +9,8 @@
 #include <sstream>
 #include <string>
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/config/logging_file.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/config/logging_file.hpp"
 
 using namespace pychron;
 using namespace pychron::config;

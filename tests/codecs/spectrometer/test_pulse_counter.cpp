@@ -1,4 +1,4 @@
-#include "pychron/codecs/pulse_counter.hpp"
+#include "nobion/codecs/pulse_counter.hpp"
 
 #include <gtest/gtest.h>
 

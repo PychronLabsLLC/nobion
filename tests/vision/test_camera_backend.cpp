@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/vision/camera_backend.hpp"
+#include "nobion/vision/camera_backend.hpp"
 
 using namespace pychron;
 using namespace pychron::vision;

@@ -11,7 +11,7 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/earthbank/model.hpp"
+#include "nobion/earthbank/model.hpp"
 #include "records_support.hpp"
 
 namespace pychron::earthbank {

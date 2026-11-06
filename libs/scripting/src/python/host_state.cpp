@@ -6,7 +6,7 @@
 
 #include "internal.hpp"
 #include "host_call_trace.hpp"
-#include "pychron/scripting/vocabulary.hpp"
+#include "nobion/scripting/vocabulary.hpp"
 
 namespace pychron::scripting::python {
 namespace {

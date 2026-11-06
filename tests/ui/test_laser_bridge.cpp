@@ -23,10 +23,10 @@
 #include <QtTest/QtTest>
 
 #include "laser_fixture.hpp"
-#include "pychron/core/clock.hpp"
-#include "pychron/core/log_hub.hpp"
-#include "pychron/core/process_log.hpp"
-#include "pychron/core/virtual_clock.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/process_log.hpp"
+#include "nobion/core/virtual_clock.hpp"
 
 using namespace pychron;
 using namespace pychron::ui;

@@ -15,8 +15,8 @@
 #include <QAbstractTableModel>
 #include <QStringList>
 
-#include "pychron/processing/source.hpp"
-#include "pychron/processing/time_breaks.hpp"
+#include "nobion/processing/source.hpp"
+#include "nobion/processing/time_breaks.hpp"
 #include "row_colors.hpp"
 
 namespace pychron::ui {

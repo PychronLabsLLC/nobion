@@ -1,6 +1,6 @@
 // The ProXR board model SimSystem puts behind a hooked SimTransport.
 
-#include "pychron/devices/proxr_board_sim.hpp"
+#include "nobion/devices/proxr_board_sim.hpp"
 
 #include <gtest/gtest.h>
 

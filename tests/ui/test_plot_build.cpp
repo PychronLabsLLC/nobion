@@ -9,11 +9,11 @@
 
 #include <qcustomplot.h>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/scheduler.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/systems/spectrometer/assembler.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/scheduler.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/systems/spectrometer/assembler.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
 
 using namespace pychron;
 using namespace pychron::spectrometer;

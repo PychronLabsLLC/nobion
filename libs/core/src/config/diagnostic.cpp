@@ -1,4 +1,4 @@
-#include "pychron/core/config/diagnostic.hpp"
+#include "nobion/core/config/diagnostic.hpp"
 
 namespace pychron::config {
 

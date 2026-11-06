@@ -44,7 +44,7 @@
 #include "pattern_maker_window.hpp"
 #include "log_dock.hpp"
 #include "preferences_dialog.hpp"
-#include "pychron/core/log_hub.hpp"
+#include "nobion/core/log_hub.hpp"
 #include "processing_bridge.hpp"
 #include "reading_history.hpp"
 #include "rehearsal_window.hpp"
@@ -52,8 +52,8 @@
 #include "field_table_editor_window.hpp"
 #include "peak_center_window.hpp"
 #include "spectrometer_window.hpp"
-#include "pychron/processing/options.hpp"
-#include "pychron/processing/source.hpp"
+#include "nobion/processing/options.hpp"
+#include "nobion/processing/source.hpp"
 
 namespace pychron::ui {
 

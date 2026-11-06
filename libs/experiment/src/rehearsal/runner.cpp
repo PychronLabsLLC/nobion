@@ -1,8 +1,8 @@
-#include "pychron/experiment/rehearsal/runner.hpp"
+#include "nobion/experiment/rehearsal/runner.hpp"
 
 #include <utility>
 
-#include "pychron/core/log_context.hpp"
+#include "nobion/core/log_context.hpp"
 
 namespace pychron::experiment::rehearsal {
 

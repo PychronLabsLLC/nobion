@@ -5,8 +5,8 @@
 #include <string>
 
 #include "config_fixtures.hpp"
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/env.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/env.hpp"
 
 using namespace pychron;
 using namespace pychron::config;

@@ -9,9 +9,9 @@
 #include <cstdlib>
 #include <string>
 
-#include "pychron/core/env.hpp"
-#include "pychron/vision/camera_backend.hpp"
-#include "pychron/vision/live_feed.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/vision/camera_backend.hpp"
+#include "nobion/vision/live_feed.hpp"
 
 using namespace pychron;
 using namespace pychron::vision;

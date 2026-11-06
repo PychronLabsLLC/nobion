@@ -8,7 +8,7 @@
 #include <QSortFilterProxyModel>
 #include <QString>
 
-#include "pychron/core/events.hpp"
+#include "nobion/core/events.hpp"
 
 namespace pychron::ui {
 

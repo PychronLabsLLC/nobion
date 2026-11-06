@@ -1,4 +1,4 @@
-#include "pychron/experiment/rehearsal/rehearsal.hpp"
+#include "nobion/experiment/rehearsal/rehearsal.hpp"
 
 #include <algorithm>
 #include <array>
@@ -6,7 +6,7 @@
 #include <string_view>
 #include <utility>
 
-#include "pychron/experiment/lab/script_actor.hpp"
+#include "nobion/experiment/lab/script_actor.hpp"
 
 namespace pychron::experiment::rehearsal {
 

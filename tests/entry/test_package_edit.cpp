@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "pychron/entry/package_edit.hpp"
+#include "nobion/entry/package_edit.hpp"
 #include "store_fixture.hpp"
 
 using namespace pychron;

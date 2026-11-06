@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <string_view>
 
-#include "pychron/core/log_hub.hpp"
+#include "nobion/core/log_hub.hpp"
 
 namespace pychron::detail {
 

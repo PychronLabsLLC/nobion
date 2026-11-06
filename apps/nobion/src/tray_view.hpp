@@ -16,8 +16,8 @@
 #include <QStringList>
 #include <QWidget>
 
-#include "pychron/laser/calibration.hpp"
-#include "pychron/laser/tray_map.hpp"
+#include "nobion/laser/calibration.hpp"
+#include "nobion/laser/tray_map.hpp"
 
 namespace pychron::ui {
 

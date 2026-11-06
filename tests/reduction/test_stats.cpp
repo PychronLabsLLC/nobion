@@ -1,4 +1,4 @@
-#include "pychron/reduction/stats.hpp"
+#include "nobion/reduction/stats.hpp"
 
 #include <gtest/gtest.h>
 

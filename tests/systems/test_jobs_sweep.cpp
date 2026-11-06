@@ -8,7 +8,7 @@
 #include <string>
 
 #include "jobs_fakes.hpp"
-#include "pychron/systems/jobs/sweep.hpp"
+#include "nobion/systems/jobs/sweep.hpp"
 
 using namespace pychron;
 using namespace pychron::jobs;

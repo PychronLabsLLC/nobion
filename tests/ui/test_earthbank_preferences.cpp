@@ -32,9 +32,9 @@
 #include "earthbank_fixture.hpp"
 #include "earthbank_worker.hpp"
 #include "preferences_dialog.hpp"
-#include "pychron/earthbank/http.hpp"
-#include "pychron/earthbank/profiles.hpp"
-#include "pychron/earthbank/secret_store.hpp"
+#include "nobion/earthbank/http.hpp"
+#include "nobion/earthbank/profiles.hpp"
+#include "nobion/earthbank/secret_store.hpp"
 #include "settings_guard.hpp"
 
 using namespace pychron;

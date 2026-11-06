@@ -12,7 +12,7 @@
 #include <QStringList>
 #include <QWidget>
 
-#include "pychron/experiment/conditionals/conditional.hpp"
+#include "nobion/experiment/conditionals/conditional.hpp"
 
 class QCheckBox;
 class QComboBox;

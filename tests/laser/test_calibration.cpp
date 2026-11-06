@@ -1,7 +1,7 @@
 // Stage calibration from (hole, stage position) points (laser system design,
 // section 3.2).
 
-#include "pychron/laser/calibration.hpp"
+#include "nobion/laser/calibration.hpp"
 
 #include <cmath>
 #include <filesystem>

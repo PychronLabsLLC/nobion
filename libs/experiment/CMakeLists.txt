@@ -1,5 +1,5 @@
 # pychron::experiment. Sources are globbed so units landing in parallel only add
-# files under src/ and include/pychron/experiment/ and never edit this list.
+# files under src/ and include/nobion/experiment/ and never edit this list.
 file(GLOB_RECURSE PYCHRON_EXPERIMENT_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 
 # src/metrics/ reports runs and queues to the Prometheus registry; without

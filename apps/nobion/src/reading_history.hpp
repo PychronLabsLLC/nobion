@@ -7,8 +7,8 @@
 
 #include <QString>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/time_series_ring.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/time_series_ring.hpp"
 
 namespace pychron::ui {
 

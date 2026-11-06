@@ -1,4 +1,4 @@
-#include "pychron/core/event_recorder.hpp"
+#include "nobion/core/event_recorder.hpp"
 
 #include <array>
 #include <chrono>
@@ -8,8 +8,8 @@
 #include <mutex>
 #include <sstream>
 
-#include "pychron/core/error.hpp"
-#include "pychron/core/log_summary.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/core/log_summary.hpp"
 
 namespace pychron {
 namespace {

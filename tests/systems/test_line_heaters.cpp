@@ -9,9 +9,9 @@
 #include <vector>
 
 #include "log_capture.hpp"
-#include "pychron/core/config/loader.hpp"
-#include "pychron/devices/extraction/capability.hpp"
-#include "pychron/systems/extraction_line.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/devices/extraction/capability.hpp"
+#include "nobion/systems/extraction_line.hpp"
 
 namespace {
 

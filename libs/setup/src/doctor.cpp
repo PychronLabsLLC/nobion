@@ -1,18 +1,18 @@
-#include "pychron/setup/doctor.hpp"
-#include "pychron/setup/connection.hpp"
-#include "pychron/setup/installer.hpp"
+#include "nobion/setup/doctor.hpp"
+#include "nobion/setup/connection.hpp"
+#include "nobion/setup/installer.hpp"
 
 #include <fstream>
 #include <sstream>
 
 #include <toml++/toml.hpp>
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/process.hpp"
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/systems/canvas/loader.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
-#include "pychron/transport/tcp_transport.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/process.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/systems/canvas/loader.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
+#include "nobion/transport/tcp_transport.hpp"
 
 namespace pychron::setup {
 

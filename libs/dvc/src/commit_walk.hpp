@@ -25,8 +25,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "pychron/core/error.hpp"
-#include "pychron/dvc/git_reader.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/dvc/git_reader.hpp"
 
 namespace pychron::dvc::detail {
 

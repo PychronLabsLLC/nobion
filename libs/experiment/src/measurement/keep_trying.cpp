@@ -1,9 +1,9 @@
-#include "pychron/experiment/measurement/keep_trying.hpp"
+#include "nobion/experiment/measurement/keep_trying.hpp"
 
 #include <algorithm>
 #include <utility>
 
-#include "pychron/devices/link.hpp"
+#include "nobion/devices/link.hpp"
 
 namespace pychron::experiment::measurement {
 

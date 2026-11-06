@@ -1,16 +1,16 @@
 // The steps elctl publish and the Publish window share (data publishing
 // design, sections 4.4, 5.8 and 6.2).
 
-#include "pychron/publish/workflow.hpp"
+#include "nobion/publish/workflow.hpp"
 
 #include <algorithm>
 #include <fstream>
 #include <random>
 #include <sstream>
 
-#include "pychron/core/sha256.hpp"
-#include "pychron/publish/build.hpp"
-#include "pychron/publish/release.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/publish/build.hpp"
+#include "nobion/publish/release.hpp"
 
 namespace pychron::publish {
 

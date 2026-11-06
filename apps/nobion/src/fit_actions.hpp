@@ -29,7 +29,7 @@
 #include <QPointer>
 #include <QString>
 
-#include "pychron/processing/options.hpp"
+#include "nobion/processing/options.hpp"
 
 class QAction;
 class QWidget;

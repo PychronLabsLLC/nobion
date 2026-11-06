@@ -1,8 +1,8 @@
 #include <chrono>
 #include <utility>
 
-#include "pychron/vision/fixture.hpp"
-#include "pychron/vision/pgm.hpp"
+#include "nobion/vision/fixture.hpp"
+#include "nobion/vision/pgm.hpp"
 
 namespace pychron::vision {
 

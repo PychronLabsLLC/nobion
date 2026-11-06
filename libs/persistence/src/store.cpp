@@ -1,4 +1,4 @@
-#include "pychron/persistence/store.hpp"
+#include "nobion/persistence/store.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -10,7 +10,7 @@
 
 #include "catalog_impl.hpp"
 #include "migrate.hpp"
-#include "pychron/core/calendar.hpp"
+#include "nobion/core/calendar.hpp"
 #include "sql/errors.hpp"
 #include "sql/geometry.hpp"
 #include "sql/statements.hpp"

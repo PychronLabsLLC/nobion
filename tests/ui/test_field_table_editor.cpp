@@ -27,7 +27,7 @@
 #include "field_table_dialogs.hpp"
 #include "field_table_editor_window.hpp"
 #include "field_table_model.hpp"
-#include "pychron/systems/spectrometer/field_table_store.hpp"
+#include "nobion/systems/spectrometer/field_table_store.hpp"
 #include "shortcuts.hpp"
 #include "spectrometer_bridge.hpp"
 #include "spectrometer_fixture.hpp"

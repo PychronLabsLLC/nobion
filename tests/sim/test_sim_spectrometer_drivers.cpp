@@ -1,4 +1,4 @@
-#include "pychron/sim/spectrometer/sim_drivers.hpp"
+#include "nobion/sim/spectrometer/sim_drivers.hpp"
 
 #include <chrono>
 #include <cmath>
@@ -9,8 +9,8 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/transport/sim_transport.hpp"
 #include "virtual_time.hpp"
 
 namespace {

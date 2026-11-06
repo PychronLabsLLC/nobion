@@ -1,4 +1,4 @@
-#include "pychron/arar/report.hpp"
+#include "nobion/arar/report.hpp"
 
 #include <gtest/gtest.h>
 
@@ -9,8 +9,8 @@
 #include <sstream>
 
 #include "arar_fixtures.hpp"
-#include "pychron/arar/reduce.hpp"
-#include "pychron/processing/quantity.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/processing/quantity.hpp"
 
 namespace pp = pychron::processing;
 namespace r = pychron::reduction;

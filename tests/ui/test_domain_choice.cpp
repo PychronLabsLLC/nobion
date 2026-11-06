@@ -6,7 +6,7 @@
 #include <QtTest/QtTest>
 
 #include "domain_choice.hpp"
-#include "pychron/processing/domain.hpp"
+#include "nobion/processing/domain.hpp"
 
 using pychron::ui::choose_domain;
 namespace pp = pychron::processing;

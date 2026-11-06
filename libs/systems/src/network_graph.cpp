@@ -1,9 +1,9 @@
-#include "pychron/systems/network_graph.hpp"
+#include "nobion/systems/network_graph.hpp"
 
 #include <deque>
 #include <initializer_list>
 
-#include "pychron/systems/canvas/canvas.hpp"
+#include "nobion/systems/canvas/canvas.hpp"
 
 namespace pychron::systems {
 namespace {

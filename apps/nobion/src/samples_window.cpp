@@ -16,7 +16,7 @@
 #include <QToolBar>
 #include <QVBoxLayout>
 
-#include "pychron/entry/names.hpp"
+#include "nobion/entry/names.hpp"
 #include "error_report.hpp"
 #include "sample_import_dialog.hpp"
 #include "theme.hpp"

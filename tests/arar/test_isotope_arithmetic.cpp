@@ -1,7 +1,7 @@
 // Ar-Ar isotope arithmetic: E4 abundance sensitivity over the five argon
 // isotopes and the isotope_arithmetic.json golden vectors (E1-E5). The
 // per-signal cases are in tests/reduction/test_isotope_arithmetic.cpp.
-#include "pychron/arar/arar_reduction.hpp"
+#include "nobion/arar/arar_reduction.hpp"
 
 #include <gtest/gtest.h>
 

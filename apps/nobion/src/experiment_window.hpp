@@ -38,7 +38,7 @@
 #include "evolutions_view.hpp"
 #include "executor_pane.hpp"
 #include "experiment_bridge.hpp"
-#include "pychron/core/clock.hpp"
+#include "nobion/core/clock.hpp"
 #include "queue_table_model.hpp"
 #include "queue_views.hpp"
 #include "resume_offer.hpp"

@@ -3,8 +3,8 @@
 #include <algorithm>
 
 #include "catalog_fixture.hpp"
-#include "pychron/entry/sample_import.hpp"
-#include "pychron/entry/sample_search.hpp"
+#include "nobion/entry/sample_import.hpp"
+#include "nobion/entry/sample_search.hpp"
 
 using namespace pychron;
 using namespace pychron::entry;

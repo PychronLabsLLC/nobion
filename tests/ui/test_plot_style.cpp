@@ -6,7 +6,7 @@
 
 #include <QtTest/QtTest>
 
-#include <pychron/processing/scene.hpp>
+#include <nobion/processing/scene.hpp>
 #include <qcustomplot.h>
 
 #include "plot_style.hpp"

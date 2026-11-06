@@ -5,9 +5,9 @@
 #include <iterator>
 #include <string>
 
-#include "pychron/experiment/record/builder.hpp"
-#include "pychron/experiment/record/serialize.hpp"
-#include "pychron/experiment/record/sha256.hpp"
+#include "nobion/experiment/record/builder.hpp"
+#include "nobion/experiment/record/serialize.hpp"
+#include "nobion/experiment/record/sha256.hpp"
 
 using namespace pychron::experiment::record;
 

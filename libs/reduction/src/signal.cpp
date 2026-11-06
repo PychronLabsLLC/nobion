@@ -1,9 +1,9 @@
-#include "pychron/reduction/signal.hpp"
+#include "nobion/reduction/signal.hpp"
 
 #include <cmath>
 #include <string>
 
-#include "pychron/reduction/detail/arar_kernels.hpp"
+#include "nobion/reduction/detail/arar_kernels.hpp"
 
 namespace pychron::reduction {
 

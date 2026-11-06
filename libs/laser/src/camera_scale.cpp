@@ -1,4 +1,4 @@
-#include "pychron/laser/camera_scale.hpp"
+#include "nobion/laser/camera_scale.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -11,8 +11,8 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/laser/calibration_store.hpp"
-#include "pychron/laser/laser_system.hpp"
+#include "nobion/laser/calibration_store.hpp"
+#include "nobion/laser/laser_system.hpp"
 
 namespace pychron::laser {
 

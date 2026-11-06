@@ -9,10 +9,10 @@
 #include <string>
 #include <thread>
 
-#include "pychron/core/events.hpp"
-#include "pychron/core/log_context.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/transport/transport.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/log_context.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/transport/transport.hpp"
 
 namespace pychron {
 

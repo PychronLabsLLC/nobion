@@ -10,7 +10,7 @@
 #include <QMessageBox>
 #include <QString>
 
-#include "pychron/core/error.hpp"
+#include "nobion/core/error.hpp"
 
 class QWidget;
 

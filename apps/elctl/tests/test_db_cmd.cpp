@@ -27,7 +27,7 @@ TEST(DbCmd, StubWithoutPersistence) {
 #include <QSqlQuery>
 #include <QString>
 
-#include "pychron/persistence/store.hpp"
+#include "nobion/persistence/store.hpp"
 #include "store_fixture.hpp"
 
 namespace {

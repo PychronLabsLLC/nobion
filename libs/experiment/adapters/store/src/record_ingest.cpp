@@ -1,4 +1,4 @@
-#include "pychron/experiment/store/record_ingest.hpp"
+#include "nobion/experiment/store/record_ingest.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -10,10 +10,10 @@
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/core/sha256.hpp"
-#include "pychron/experiment/record/names.hpp"
-#include "pychron/persistence/blob.hpp"
-#include "pychron/reduction/fits.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/experiment/record/names.hpp"
+#include "nobion/persistence/blob.hpp"
+#include "nobion/reduction/fits.hpp"
 
 namespace pychron::experiment::store {
 

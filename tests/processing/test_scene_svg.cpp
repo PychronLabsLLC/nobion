@@ -5,8 +5,8 @@
 
 #include <string>
 
-#include "pychron/processing/scene_draw.hpp"
-#include "pychron/processing/scene_svg.hpp"
+#include "nobion/processing/scene_draw.hpp"
+#include "nobion/processing/scene_svg.hpp"
 #include "scene_fixture.hpp"
 
 namespace pychron::processing {

@@ -21,8 +21,8 @@
 #include <QStringList>
 #include <QTimer>
 
-#include "pychron/processing/options.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/processing/options.hpp"
+#include "nobion/processing/units.hpp"
 #include "processing_bridge.hpp"
 #include "scene_view.hpp"
 

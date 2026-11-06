@@ -1,7 +1,7 @@
 // Creating, publishing and withdrawing a release (data publishing design,
 // sections 4.3 and 4.4).
 
-#include "pychron/publish/release.hpp"
+#include "nobion/publish/release.hpp"
 
 #include <nlohmann/json.hpp>
 

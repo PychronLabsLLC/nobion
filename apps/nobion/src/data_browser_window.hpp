@@ -46,8 +46,8 @@
 #include "irradiation_tree.hpp"
 #include "preferences.hpp"
 #include "selection_list.hpp"
-#include "pychron/processing/domain.hpp"
-#include "pychron/processing/source.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/source.hpp"
 
 class QComboBox;
 class QCheckBox;

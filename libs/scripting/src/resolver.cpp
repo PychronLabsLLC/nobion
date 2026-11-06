@@ -3,7 +3,7 @@
 #include <sstream>
 #include <vector>
 
-#include "pychron/scripting/services.hpp"
+#include "nobion/scripting/services.hpp"
 
 namespace pychron::scripting {
 

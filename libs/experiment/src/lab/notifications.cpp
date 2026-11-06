@@ -1,4 +1,4 @@
-#include "pychron/experiment/lab/notifications.hpp"
+#include "nobion/experiment/lab/notifications.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -10,7 +10,7 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/core/env.hpp"
+#include "nobion/core/env.hpp"
 
 namespace pychron::experiment::lab {
 

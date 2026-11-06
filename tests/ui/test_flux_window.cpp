@@ -65,17 +65,17 @@ class FluxWindowTest : public QObject {
 #include "options_editor.hpp"
 #include "packages_window.hpp"
 #include "preset_bar.hpp"
-#include "pychron/arar/flux_view.hpp"
-#include "pychron/processing/options.hpp"
+#include "nobion/arar/flux_view.hpp"
+#include "nobion/processing/options.hpp"
 #include "scene_view.hpp"
 
 // Qt's `signals` keyword macro would rewrite persistence::CollectionRoots::signals.
 #pragma push_macro("signals")
 #undef signals
 #include "flux_seed.hpp"
-#include "pychron/arar/flux_store.hpp"
-#include "pychron/arar/store_loader.hpp"
-#include "pychron/processing/store_source.hpp"
+#include "nobion/arar/flux_store.hpp"
+#include "nobion/arar/store_loader.hpp"
+#include "nobion/processing/store_source.hpp"
 #pragma pop_macro("signals")
 
 using namespace pychron;

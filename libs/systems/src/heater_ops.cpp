@@ -1,9 +1,9 @@
-#include "pychron/systems/heater_ops.hpp"
+#include "nobion/systems/heater_ops.hpp"
 
 #include <algorithm>
 #include <cmath>
 
-#include "pychron/devices/extraction/capability.hpp"
+#include "nobion/devices/extraction/capability.hpp"
 
 namespace pychron::systems {
 

@@ -1,4 +1,4 @@
-#include "pychron/setup/install.hpp"
+#include "nobion/setup/install.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -9,11 +9,11 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/sha256.hpp"
-#include "pychron/setup/legacy_line.hpp"
-#include "pychron/systems/canvas/cross_validate.hpp"
-#include "pychron/systems/canvas/loader.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/setup/legacy_line.hpp"
+#include "nobion/systems/canvas/cross_validate.hpp"
+#include "nobion/systems/canvas/loader.hpp"
 
 #include "file_io.hpp"
 

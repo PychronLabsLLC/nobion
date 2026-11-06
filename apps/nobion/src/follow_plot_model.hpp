@@ -13,8 +13,8 @@
 #include <cstddef>
 #include <optional>
 
-#include "pychron/core/time_series_ring.hpp"
-#include "pychron/laser/laser_system.hpp"
+#include "nobion/core/time_series_ring.hpp"
+#include "nobion/laser/laser_system.hpp"
 
 namespace pychron::ui {
 

@@ -18,12 +18,12 @@
 #include <variant>
 #include <vector>
 
-#include "pychron/devices/extraction/interfaces.hpp"
-#include "pychron/experiment/measurement/ports.hpp"
-#include "pychron/experiment/persist/persister.hpp"
-#include "pychron/experiment/plan/plan_library.hpp"
-#include "pychron/experiment/run/run.hpp"
-#include "pychron/scripting/script_host.hpp"
+#include "nobion/devices/extraction/interfaces.hpp"
+#include "nobion/experiment/measurement/ports.hpp"
+#include "nobion/experiment/persist/persister.hpp"
+#include "nobion/experiment/plan/plan_library.hpp"
+#include "nobion/experiment/run/run.hpp"
+#include "nobion/scripting/script_host.hpp"
 #include "temp_path.hpp"
 
 namespace pychron::experiment::fakes {

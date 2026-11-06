@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "fakes.hpp"
-#include "pychron/scripting/rehearsal.hpp"
+#include "nobion/scripting/rehearsal.hpp"
 
 namespace pychron::scripting::testing {
 

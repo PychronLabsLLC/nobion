@@ -1,10 +1,10 @@
-#include "pychron/devices/spectrometer/legacy/serial_hv.hpp"
+#include "nobion/devices/spectrometer/legacy/serial_hv.hpp"
 
 #include <cmath>
 #include <mutex>
 
-#include "pychron/codecs/hv_supply.hpp"
-#include "pychron/devices/spectrometer/legacy/polled_acquirer.hpp"
+#include "nobion/codecs/hv_supply.hpp"
+#include "nobion/devices/spectrometer/legacy/polled_acquirer.hpp"
 
 namespace pychron::spectrometer {
 

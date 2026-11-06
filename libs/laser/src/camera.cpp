@@ -1,4 +1,4 @@
-#include "pychron/laser/camera.hpp"
+#include "nobion/laser/camera.hpp"
 
 #include <cmath>
 #include <fstream>

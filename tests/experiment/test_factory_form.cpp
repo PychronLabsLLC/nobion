@@ -4,9 +4,9 @@
 
 #include <filesystem>
 
-#include "pychron/experiment/factory/form.hpp"
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/experiment/model/positions.hpp"
+#include "nobion/experiment/factory/form.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/model/positions.hpp"
 
 namespace pychron::experiment {
 namespace {

@@ -6,14 +6,14 @@
 #include <string>
 #include <vector>
 
-#include "pychron/codecs/lakeshore.hpp"
-#include "pychron/codecs/maxigauge.hpp"
-#include "pychron/codecs/modbus.hpp"
-#include "pychron/codecs/proxr.hpp"
-#include "pychron/core/clock.hpp"
-#include "pychron/core/config/system_config.hpp"
-#include "pychron/sim/sim_system.hpp"
-#include "pychron/sim/wire_sim.hpp"
+#include "nobion/codecs/lakeshore.hpp"
+#include "nobion/codecs/maxigauge.hpp"
+#include "nobion/codecs/modbus.hpp"
+#include "nobion/codecs/proxr.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/config/system_config.hpp"
+#include "nobion/sim/sim_system.hpp"
+#include "nobion/sim/wire_sim.hpp"
 
 namespace {
 

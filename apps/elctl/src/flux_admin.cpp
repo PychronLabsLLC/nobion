@@ -17,11 +17,11 @@
 #include <nlohmann/json.hpp>
 
 #include "flux.hpp"
-#include "pychron/persistence/store.hpp"
-#include "pychron/arar/flux_fit.hpp"
-#include "pychron/arar/flux_view.hpp"
-#include "pychron/arar/flux_store.hpp"
-#include "pychron/processing/store_source.hpp"
+#include "nobion/persistence/store.hpp"
+#include "nobion/arar/flux_fit.hpp"
+#include "nobion/arar/flux_view.hpp"
+#include "nobion/arar/flux_store.hpp"
+#include "nobion/processing/store_source.hpp"
 
 namespace elctl {
 

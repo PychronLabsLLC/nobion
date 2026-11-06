@@ -23,9 +23,9 @@
 #include <QAbstractTableModel>
 #include <QUndoStack>
 
-#include "pychron/core/error.hpp"
-#include "pychron/systems/spectrometer/field_table.hpp"
-#include "pychron/systems/spectrometer/molecular_weights.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/systems/spectrometer/field_table.hpp"
+#include "nobion/systems/spectrometer/molecular_weights.hpp"
 
 namespace pychron::ui {
 

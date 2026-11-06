@@ -11,8 +11,8 @@
 #include <future>
 #include <mutex>
 
-#include "pychron/systems/spectrometer/data_dir.hpp"
-#include "pychron/systems/spectrometer/spectrometer.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
+#include "nobion/systems/spectrometer/spectrometer.hpp"
 #include "spectrometer_fakes.hpp"
 
 namespace pychron::spectrometer::testing {

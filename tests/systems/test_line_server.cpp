@@ -1,6 +1,6 @@
 // LineServer: a line's config served on sockets (sim serve spec 4, 5). Real
 // sockets on loopback, real time; nothing here waits on them.
-#include "pychron/systems/line_server.hpp"
+#include "nobion/systems/line_server.hpp"
 
 #include <gtest/gtest.h>
 
@@ -11,10 +11,10 @@
 #include <string>
 
 #include "hardware_style.hpp"
-#include "pychron/core/config/loader.hpp"
-#include "pychron/systems/canvas/loader.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
-#include "pychron/transport/tcp_transport.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/systems/canvas/loader.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
+#include "nobion/transport/tcp_transport.hpp"
 
 namespace {
 

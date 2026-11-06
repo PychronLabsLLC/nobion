@@ -9,7 +9,7 @@
 #include <QSyntaxHighlighter>
 #include <QTextCharFormat>
 
-#include "pychron/scripting/script.hpp"
+#include "nobion/scripting/script.hpp"
 
 namespace pychron::ui {
 

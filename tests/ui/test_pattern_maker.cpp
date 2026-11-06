@@ -16,7 +16,7 @@
 #include <QtTest/QtTest>
 
 #include "pattern_maker_window.hpp"
-#include "pychron/laser/pattern.hpp"
+#include "nobion/laser/pattern.hpp"
 
 using namespace pychron;
 using namespace pychron::ui;

@@ -2,8 +2,8 @@
 
 #include <string_view>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/error.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/error.hpp"
 
 namespace elctl {
 

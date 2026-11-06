@@ -11,10 +11,10 @@
 #include <sstream>
 
 #include "fakes.hpp"
-#include "pychron/devices/extraction/capability.hpp"
-#include "pychron/scripting/rehearsal.hpp"
-#include "pychron/scripting/script_host.hpp"
-#include "pychron/scripting/vocabulary.hpp"
+#include "nobion/devices/extraction/capability.hpp"
+#include "nobion/scripting/rehearsal.hpp"
+#include "nobion/scripting/script_host.hpp"
+#include "nobion/scripting/vocabulary.hpp"
 #include "rehearse_fakes.hpp"
 
 using namespace pychron;

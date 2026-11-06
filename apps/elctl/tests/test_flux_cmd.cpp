@@ -31,9 +31,9 @@ TEST(FluxCmd, StubWithoutPersistence) {
 #include <vector>
 
 #include "flux_seed.hpp"
-#include "pychron/core/sha256.hpp"
-#include "pychron/persistence/store.hpp"
-#include "pychron/arar/flux_view.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/persistence/store.hpp"
+#include "nobion/arar/flux_view.hpp"
 
 namespace {
 

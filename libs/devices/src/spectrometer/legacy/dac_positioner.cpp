@@ -1,9 +1,9 @@
-#include "pychron/devices/spectrometer/legacy/dac_positioner.hpp"
+#include "nobion/devices/spectrometer/legacy/dac_positioner.hpp"
 
 #include <cmath>
 
-#include "pychron/codecs/map215.hpp"
-#include "pychron/devices/spectrometer/legacy/polled_acquirer.hpp"
+#include "nobion/codecs/map215.hpp"
+#include "nobion/devices/spectrometer/legacy/polled_acquirer.hpp"
 
 namespace pychron::spectrometer {
 

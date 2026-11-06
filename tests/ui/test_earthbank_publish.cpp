@@ -34,10 +34,10 @@
 #include "earthbank_package_dialog.hpp"
 #include "earthbank_publish_panel.hpp"
 #include "earthbank_worker.hpp"
-#include "pychron/processing/options.hpp"
-#include "pychron/arar/domain.hpp"
-#include "pychron/processing/domain.hpp"
-#include "pychron/processing/source.hpp"
+#include "nobion/processing/options.hpp"
+#include "nobion/arar/domain.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/source.hpp"
 #include "settings_guard.hpp"
 
 using namespace pychron;

@@ -6,8 +6,8 @@
 #include <fstream>
 #include <iterator>
 
-#include "pychron/experiment/record/serialize.hpp"
-#include "pychron/core/virtual_clock.hpp"
+#include "nobion/experiment/record/serialize.hpp"
+#include "nobion/core/virtual_clock.hpp"
 #include "log_capture.hpp"
 #include "run_fakes.hpp"
 #include "virtual_time.hpp"

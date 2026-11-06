@@ -8,9 +8,9 @@ device want* and *what do its replies mean*. It never touches I/O.
 1. **Pure.** No I/O, threads, clocks, sleeps, logging, config or globals.
    Every function is deterministic in its arguments.
 2. **Layout.** One vendor per namespace and directory:
-   `include/pychron/codecs/<vendor>.hpp`, `src/<vendor>.cpp`,
+   `include/nobion/codecs/<vendor>.hpp`, `src/<vendor>.cpp`,
    namespace `pychron::codec::<vendor>`. Shared helpers live only in
-   `pychron/codecs/codec.hpp`; add there rather than copy between vendors.
+   `nobion/codecs/codec.hpp`; add there rather than copy between vendors.
 3. **Encode** returns `codec::Command` — the tx bytes plus the `ReadSpec`
    that frames the reply (`std::nullopt` when the device sends nothing).
    Terminators, checksums and handshakes (e.g. ENQ/ACK) are encoded here.

@@ -17,10 +17,10 @@
 
 #include "data_browser_window.hpp"
 #include "preferences.hpp"
-#include "pychron/processing/domain.hpp"
+#include "nobion/processing/domain.hpp"
 #include "processing_bridge.hpp"
-#include "pychron/processing/options.hpp"
-#include "pychron/processing/source.hpp"
+#include "nobion/processing/options.hpp"
+#include "nobion/processing/source.hpp"
 
 namespace pychron::ui {
 

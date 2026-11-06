@@ -1,6 +1,6 @@
 // feed_qtegra_from_beam, feed_ngx_from_beam: the wire emulators measure a
 // simulated beam (sim serve spec, phase B). ManualClock, hook level.
-#include "pychron/sim/spectrometer/wire_beam.hpp"
+#include "nobion/sim/spectrometer/wire_beam.hpp"
 
 #include <gtest/gtest.h>
 
@@ -8,8 +8,8 @@
 #include <memory>
 #include <string>
 
-#include "pychron/codecs/isotopx_ngx.hpp"
-#include "pychron/codecs/thermo_qtegra.hpp"
+#include "nobion/codecs/isotopx_ngx.hpp"
+#include "nobion/codecs/thermo_qtegra.hpp"
 
 namespace {
 

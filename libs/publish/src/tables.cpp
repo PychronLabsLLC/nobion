@@ -1,7 +1,7 @@
 // The row tables of a release and their canonical text (data publishing
 // design, sections 5.3 and 5.7).
 
-#include "pychron/publish/tables.hpp"
+#include "nobion/publish/tables.hpp"
 
 #include <algorithm>
 #include <array>
@@ -12,9 +12,9 @@
 #include <set>
 #include <utility>
 
-#include "pychron/arar/reduce.hpp"
-#include "pychron/processing/reduced.hpp"
-#include "pychron/reduction/fits.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/processing/reduced.hpp"
+#include "nobion/reduction/fits.hpp"
 
 namespace pychron::publish {
 

@@ -42,11 +42,11 @@
 #include <QStringList>
 
 #include "follow_mailbox.hpp"
-#include "pychron/core/clock.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/experiment/lab/lasers.hpp"
-#include "pychron/laser/laser_system.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/lab/lasers.hpp"
+#include "nobion/laser/laser_system.hpp"
 
 namespace pychron::ui {
 

@@ -1,10 +1,10 @@
-#include "pychron/devices/device.hpp"
+#include "nobion/devices/device.hpp"
 
 #include <chrono>
 #include <string>
 
-#include "pychron/core/log_context.hpp"
-#include "pychron/core/process_log.hpp"
+#include "nobion/core/log_context.hpp"
+#include "nobion/core/process_log.hpp"
 
 namespace pychron {
 namespace {

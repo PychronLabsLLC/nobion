@@ -8,8 +8,8 @@
 #include <cmath>
 
 #include "fixtures.hpp"
-#include "pychron/processing/isotope_evolution_fit.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/processing/isotope_evolution_fit.hpp"
+#include "nobion/processing/units.hpp"
 
 namespace pychron::processing {
 namespace {

@@ -1,6 +1,6 @@
 // MetricsServer over a real socket on the loopback interface. Every server
 // asks the OS for its port: tests run in parallel.
-#include "pychron/metrics/server.hpp"
+#include "nobion/metrics/server.hpp"
 
 #include <gtest/gtest.h>
 
@@ -11,7 +11,7 @@
 
 #include "http_client.hpp"
 #include "metrics_text.hpp"
-#include "pychron/metrics/registry.hpp"
+#include "nobion/metrics/registry.hpp"
 
 using namespace pychron;
 using namespace pychron::metrics;

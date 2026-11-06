@@ -1,4 +1,4 @@
-#include "pychron/systems/jobs/peak_center.hpp"
+#include "nobion/systems/jobs/peak_center.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -10,7 +10,7 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/core/logger.hpp"
+#include "nobion/core/logger.hpp"
 
 namespace pychron::jobs {
 

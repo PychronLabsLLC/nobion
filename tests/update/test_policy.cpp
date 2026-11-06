@@ -2,7 +2,7 @@
 
 #include <chrono>
 
-#include <pychron/update/update.hpp>
+#include <nobion/update/update.hpp>
 
 namespace pychron::update {
 namespace {

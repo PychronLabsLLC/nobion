@@ -8,8 +8,8 @@
 
 #include <qcustomplot.h>
 
-#include "pychron/processing/scene.hpp"
-#include "pychron/processing/scene_draw.hpp"
+#include "nobion/processing/scene.hpp"
+#include "nobion/processing/scene_draw.hpp"
 #include "scene_view.hpp"
 
 namespace pp = pychron::processing;

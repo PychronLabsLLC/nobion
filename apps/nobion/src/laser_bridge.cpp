@@ -13,8 +13,8 @@
 #include <QMetaType>
 
 #include "error_report.hpp"
-#include "pychron/core/log_context.hpp"
-#include "pychron/core/process.hpp"
+#include "nobion/core/log_context.hpp"
+#include "nobion/core/process.hpp"
 
 namespace pychron::ui {
 

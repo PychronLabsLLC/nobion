@@ -32,11 +32,11 @@
 
 #include "field_table_model.hpp"
 #include "field_table_plot.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/systems/spectrometer/config.hpp"
-#include "pychron/systems/spectrometer/field_table_check.hpp"
-#include "pychron/systems/spectrometer/field_table_store.hpp"
-#include "pychron/systems/spectrometer/molecular_weights.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/systems/spectrometer/config.hpp"
+#include "nobion/systems/spectrometer/field_table_check.hpp"
+#include "nobion/systems/spectrometer/field_table_store.hpp"
+#include "nobion/systems/spectrometer/molecular_weights.hpp"
 
 class QAction;
 class QComboBox;

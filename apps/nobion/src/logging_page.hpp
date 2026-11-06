@@ -7,7 +7,7 @@
 
 #include <QWidget>
 
-#include "pychron/core/config/logging_config.hpp"
+#include "nobion/core/config/logging_config.hpp"
 
 class QCheckBox;
 class QComboBox;

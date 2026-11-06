@@ -1,6 +1,6 @@
 // The figures of a release (data publishing design, section 5.6).
 
-#include "pychron/publish/figures.hpp"
+#include "nobion/publish/figures.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -8,10 +8,10 @@
 #include <set>
 #include <utility>
 
-#include "pychron/arar/arar_figures.hpp"
-#include "pychron/processing/scene_pdf.hpp"
-#include "pychron/processing/scene_svg.hpp"
-#include "pychron/publish/tables.hpp"
+#include "nobion/arar/arar_figures.hpp"
+#include "nobion/processing/scene_pdf.hpp"
+#include "nobion/processing/scene_svg.hpp"
+#include "nobion/publish/tables.hpp"
 
 namespace pychron::publish {
 

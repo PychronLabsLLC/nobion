@@ -20,8 +20,8 @@
 
 #include <QString>
 
-#include "pychron/persistence/store.hpp"
-#include "pychron/core/number.hpp"
+#include "nobion/persistence/store.hpp"
+#include "nobion/core/number.hpp"
 
 namespace pychron::persistence::detail {
 

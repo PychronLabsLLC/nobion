@@ -1,4 +1,4 @@
-#include "pychron/laser/correction_store.hpp"
+#include "nobion/laser/correction_store.hpp"
 
 #include <cmath>
 #include <fstream>
@@ -7,7 +7,7 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/laser/calibration_store.hpp"
+#include "nobion/laser/calibration_store.hpp"
 
 namespace pychron::laser {
 

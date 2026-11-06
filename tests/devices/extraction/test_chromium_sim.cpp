@@ -2,7 +2,7 @@
 // answer with a CR-terminated line, actions answer nothing, errors are ?<n>,
 // and the stage takes distance / speed on the injected clock.
 
-#include "pychron/devices/extraction/chromium_sim.hpp"
+#include "nobion/devices/extraction/chromium_sim.hpp"
 
 #include <chrono>
 #include <string>
@@ -10,7 +10,7 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/clock.hpp"
+#include "nobion/core/clock.hpp"
 
 using namespace pychron;
 using namespace std::chrono_literals;

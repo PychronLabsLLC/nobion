@@ -1,7 +1,7 @@
 // The Ar-Ar domain over today's code (domain seam spec 4): its answers are
 // what the application hard-codes now.
 
-#include "pychron/arar/domain.hpp"
+#include "nobion/arar/domain.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -11,14 +11,14 @@
 #include <string_view>
 #include <utility>
 
-#include "pychron/arar/analysis_data.hpp"
-#include "pychron/arar/arar_figures.hpp"
-#include "pychron/arar/derived.hpp"
-#include "pychron/arar/quantities.hpp"
-#include "pychron/arar/reduce.hpp"
-#include "pychron/arar/report.hpp"
-#include "pychron/processing/domain.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/arar/analysis_data.hpp"
+#include "nobion/arar/arar_figures.hpp"
+#include "nobion/arar/derived.hpp"
+#include "nobion/arar/quantities.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/arar/report.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/units.hpp"
 
 namespace pychron::processing {
 

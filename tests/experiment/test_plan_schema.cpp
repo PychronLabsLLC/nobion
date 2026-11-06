@@ -13,9 +13,9 @@
 #include <variant>
 #include <vector>
 
-#include "pychron/experiment/plan/duration.hpp"
-#include "pychron/experiment/plan/plan_library.hpp"
-#include "pychron/experiment/plan/plan_loader.hpp"
+#include "nobion/experiment/plan/duration.hpp"
+#include "nobion/experiment/plan/plan_library.hpp"
+#include "nobion/experiment/plan/plan_loader.hpp"
 // Internal to the plan loader (libs/experiment/src on the test target's
 // include path): worked v2 plans load past the unbuilt-feature gate.
 #include "plan/plan_parse.hpp"

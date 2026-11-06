@@ -12,8 +12,8 @@
 #include <vector>
 
 #include "example_lab.hpp"
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/experiment/model/queue_file.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/model/queue_file.hpp"
 
 namespace pychron::experiment::lab {
 namespace {

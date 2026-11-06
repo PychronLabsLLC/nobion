@@ -2,7 +2,7 @@
 // wire and on a real loopback socket that hangs up after every reply
 // (plan 2026-10-05, task A4).
 
-#include "pychron/devices/pychron_valves.hpp"
+#include "nobion/devices/pychron_valves.hpp"
 
 #include <gtest/gtest.h>
 
@@ -11,9 +11,9 @@
 #include <chrono>
 #include <thread>
 
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/devices/pychron_valve_server_sim.hpp"
-#include "pychron/transport/tcp_transport.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/devices/pychron_valve_server_sim.hpp"
+#include "nobion/transport/tcp_transport.hpp"
 #include "valve_conformance.hpp"
 
 using namespace pychron;

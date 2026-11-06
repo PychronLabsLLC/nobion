@@ -1,4 +1,4 @@
-#include "pychron/codecs/varian_xgs600.hpp"
+#include "nobion/codecs/varian_xgs600.hpp"
 
 #include <gtest/gtest.h>
 

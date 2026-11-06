@@ -1,8 +1,8 @@
-#include "pychron/systems/gauge_scanner.hpp"
+#include "nobion/systems/gauge_scanner.hpp"
 
 #include <sstream>
 
-#include "pychron/core/log_context.hpp"
+#include "nobion/core/log_context.hpp"
 
 namespace pychron {
 

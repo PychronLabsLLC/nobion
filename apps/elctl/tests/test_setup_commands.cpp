@@ -11,14 +11,14 @@
 #include <vector>
 
 #include "elctl_fixture.hpp"
-#include "pychron/setup/site.hpp"
+#include "nobion/setup/site.hpp"
 
 #ifdef PYCHRON_ELCTL_HAS_STORE
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QString>
 
-#include "pychron/persistence/store.hpp"
+#include "nobion/persistence/store.hpp"
 #endif
 
 namespace elctl::testing {

@@ -1,8 +1,8 @@
 #include "script_highlighter.hpp"
 #include "theme.hpp"
 
-#include "pychron/experiment/lab/scripts.hpp"
-#include "pychron/scripting/vocabulary.hpp"
+#include "nobion/experiment/lab/scripts.hpp"
+#include "nobion/scripting/vocabulary.hpp"
 
 namespace pychron::ui {
 

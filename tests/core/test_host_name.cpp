@@ -8,7 +8,7 @@
 #include <unistd.h>
 #endif
 
-#include "pychron/core/host_name.hpp"
+#include "nobion/core/host_name.hpp"
 
 // The machine's name comes from the machine, not from HOSTNAME, which a
 // shell sets for itself and rarely exports: with it every program was

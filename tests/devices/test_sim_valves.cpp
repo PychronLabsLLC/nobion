@@ -1,12 +1,12 @@
 // SimValves: the in-memory valve actuator legacy-line imports stand in with.
 
-#include "pychron/devices/sim_valves.hpp"
+#include "nobion/devices/sim_valves.hpp"
 
 #include <gtest/gtest.h>
 
-#include "pychron/devices/capabilities.hpp"
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/transport/sim_transport.hpp"
 
 using namespace pychron;
 

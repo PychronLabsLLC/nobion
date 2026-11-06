@@ -1,7 +1,7 @@
 // The shared codec vocabulary (libs/codecs) lives with device_kit; vendor
 // codecs get their own tests under tests/codecs.
 
-#include "pychron/codecs/codec.hpp"
+#include "nobion/codecs/codec.hpp"
 
 #include <gtest/gtest.h>
 

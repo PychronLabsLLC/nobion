@@ -1,0 +1,31 @@
+#pragma once
+
+// The time-series figure (design section 8.3): stacked panels of quantities
+// against time, one graph per graph index, one colour per group, optional fit
+// with envelope and per-group statistics.
+
+#include <memory>
+
+#include "nobion/core/error.hpp"
+#include "nobion/processing/dataset.hpp"
+#include "nobion/processing/options.hpp"
+#include "nobion/processing/scene.hpp"
+
+namespace pychron::processing {
+
+class Unit;
+class Domain;  // domain.hpp
+
+// Schema "figure.time_series" with the factory presets "Default",
+// "Air monitor", "Blanks", "Unknowns" and "Spectrometer".
+const SchemaPtr& time_series_schema();
+
+// `now` (UTC epoch seconds) is used only when x.kind = relative and
+// x.origin = now; pass it explicitly to keep the scene reproducible.
+// `domain` (may be null) labels the panels of its quantities (Quantity::parse).
+Result<Scene> build_time_series(const Dataset& dataset, const Options& options, double now = 0.0,
+                                const Domain* domain = nullptr);
+
+std::unique_ptr<Unit> make_time_series_unit();
+
+}  // namespace pychron::processing

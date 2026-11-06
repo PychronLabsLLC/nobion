@@ -12,10 +12,10 @@
 #include <system_error>
 #include <vector>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/config/logging_config.hpp"
-#include "pychron/core/log_hub.hpp"
-#include "pychron/core/process_log.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/config/logging_config.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/process_log.hpp"
 #include "temp_path.hpp"
 
 namespace pychron::testing {

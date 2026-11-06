@@ -4,7 +4,7 @@
 #include <fstream>
 
 #include "config_fixtures.hpp"
-#include "pychron/core/config/loader.hpp"
+#include "nobion/core/config/loader.hpp"
 
 using namespace pychron;
 using namespace pychron::config;

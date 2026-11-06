@@ -26,7 +26,7 @@
 #include <QVBoxLayout>
 
 #include "camera_view.hpp"
-#include "pychron/laser/pattern.hpp"
+#include "nobion/laser/pattern.hpp"
 #include "error_report.hpp"
 #include "follow_plot_view.hpp"
 #include "theme.hpp"

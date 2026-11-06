@@ -20,8 +20,8 @@
 #include <gtest/gtest.h>
 
 #include "git_fixture.hpp"
-#include "pychron/core/env.hpp"
-#include "pychron/dvc/git_reader.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/dvc/git_reader.hpp"
 
 namespace pychron::dvc {
 namespace {

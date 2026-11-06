@@ -6,7 +6,7 @@
 
 #include <QWidget>
 
-#include "pychron/core/config/metrics_config.hpp"
+#include "nobion/core/config/metrics_config.hpp"
 
 class QCheckBox;
 class QComboBox;

@@ -6,12 +6,12 @@
 #include <map>
 #include <utility>
 
-#include "pychron/processing/domain.hpp"
-#include "pychron/processing/isotope_evolution_fit.hpp"
-#include "pychron/processing/quantity.hpp"
-#include "pychron/processing/reference_fit.hpp"
-#include "pychron/processing/time_series.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/isotope_evolution_fit.hpp"
+#include "nobion/processing/quantity.hpp"
+#include "nobion/processing/reference_fit.hpp"
+#include "nobion/processing/time_series.hpp"
+#include "nobion/processing/units.hpp"
 #include "schema_builder.hpp"
 
 namespace pychron::processing {

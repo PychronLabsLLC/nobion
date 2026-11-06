@@ -8,7 +8,7 @@
 #include <QBrush>
 #include <QFont>
 
-#include "pychron/experiment/model/positions.hpp"
+#include "nobion/experiment/model/positions.hpp"
 
 namespace pychron::ui {
 

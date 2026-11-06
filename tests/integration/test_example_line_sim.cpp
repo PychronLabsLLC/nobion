@@ -28,11 +28,11 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/sim/sim_system.hpp"
-#include "pychron/systems/canvas/loader.hpp"
-#include "pychron/systems/extraction_line.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/sim/sim_system.hpp"
+#include "nobion/systems/canvas/loader.hpp"
+#include "nobion/systems/extraction_line.hpp"
 #include "virtual_time.hpp"
 
 namespace {

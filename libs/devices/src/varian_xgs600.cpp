@@ -1,4 +1,4 @@
-#include "pychron/devices/varian_xgs600.hpp"
+#include "nobion/devices/varian_xgs600.hpp"
 
 #include <set>
 #include <utility>

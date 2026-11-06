@@ -15,8 +15,8 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/systems/spectrometer/field_table_store.hpp"
-#include "pychron/systems/spectrometer/spectrometer.hpp"
+#include "nobion/systems/spectrometer/field_table_store.hpp"
+#include "nobion/systems/spectrometer/spectrometer.hpp"
 #include "spectrometer_fakes.hpp"
 
 using namespace pychron;

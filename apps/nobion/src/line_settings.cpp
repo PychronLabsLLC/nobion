@@ -1,8 +1,8 @@
 #include "line_settings.hpp"
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/config/logging_file.hpp"
-#include "pychron/core/config/local_file.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/config/logging_file.hpp"
+#include "nobion/core/config/local_file.hpp"
 
 #include <string>
 

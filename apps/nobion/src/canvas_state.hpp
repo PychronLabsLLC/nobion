@@ -11,7 +11,7 @@
 #include <QObject>
 
 #include "core_bridge.hpp"
-#include "pychron/systems/switch_rules.hpp"
+#include "nobion/systems/switch_rules.hpp"
 
 namespace pychron::ui {
 

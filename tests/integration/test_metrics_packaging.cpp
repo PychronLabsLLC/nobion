@@ -15,11 +15,11 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/config/metrics_config.hpp"
-#include "pychron/core/scheduler.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/experiment/metrics/service.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/config/metrics_config.hpp"
+#include "nobion/core/scheduler.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/experiment/metrics/service.hpp"
 
 #ifdef PYCHRON_TEST_HAS_JSON
 #include <nlohmann/json.hpp>

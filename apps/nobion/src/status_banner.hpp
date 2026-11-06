@@ -18,7 +18,7 @@
 
 #include "alarm_dock.hpp"
 #include "health_bar.hpp"
-#include "pychron/experiment/executor/executor.hpp"
+#include "nobion/experiment/executor/executor.hpp"
 
 class QLabel;
 class QToolButton;

@@ -11,8 +11,8 @@
 #include <string_view>
 #include <vector>
 
-#include "pychron/processing/options.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/processing/options.hpp"
+#include "nobion/processing/units.hpp"
 
 namespace pychron::ui {
 

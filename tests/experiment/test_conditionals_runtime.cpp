@@ -3,11 +3,11 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/experiment/conditionals/library.hpp"
-#include "pychron/experiment/conditionals/metrics.hpp"
-#include "pychron/experiment/conditionals/queue_actions.hpp"
-#include "pychron/experiment/conditionals/validate.hpp"
-#include "pychron/experiment/measurement/results.hpp"
+#include "nobion/experiment/conditionals/library.hpp"
+#include "nobion/experiment/conditionals/metrics.hpp"
+#include "nobion/experiment/conditionals/queue_actions.hpp"
+#include "nobion/experiment/conditionals/validate.hpp"
+#include "nobion/experiment/measurement/results.hpp"
 
 using namespace pychron;
 using namespace pychron::experiment;

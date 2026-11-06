@@ -1,4 +1,4 @@
-#include "pychron/entry/package_edit.hpp"
+#include "nobion/entry/package_edit.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -6,7 +6,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/entry/names.hpp"
+#include "nobion/entry/names.hpp"
 
 namespace pychron::entry {
 

@@ -12,8 +12,8 @@
 #include "brand.hpp"
 #include "data_main_window.hpp"
 #include "main_window.hpp"
-#include "pychron/arar/domain.hpp"
-#include "pychron/processing/domain.hpp"
+#include "nobion/arar/domain.hpp"
+#include "nobion/processing/domain.hpp"
 #include "theme.hpp"
 #include "ui_fixture.hpp"
 

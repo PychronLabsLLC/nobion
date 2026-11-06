@@ -5,7 +5,7 @@
 #include <optional>
 #include <string>
 
-#include "pychron/earthbank/model.hpp"
+#include "nobion/earthbank/model.hpp"
 
 namespace pychron::earthbank::testing {
 

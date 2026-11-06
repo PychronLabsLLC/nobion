@@ -27,8 +27,8 @@
 #include <QStatusBar>
 
 #include "experiment_bridge.hpp"
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/experiment/lab/scripts.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/lab/scripts.hpp"
 
 namespace pychron::ui {
 

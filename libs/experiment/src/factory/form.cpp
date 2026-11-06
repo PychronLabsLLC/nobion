@@ -1,13 +1,13 @@
-#include "pychron/experiment/factory/form.hpp"
+#include "nobion/experiment/factory/form.hpp"
 
 #include <algorithm>
 #include <charconv>
 #include <cmath>
 #include <iterator>
 
-#include "pychron/experiment/model/positions.hpp"
-#include "pychron/experiment/model/rules.hpp"
-#include "pychron/core/number.hpp"
+#include "nobion/experiment/model/positions.hpp"
+#include "nobion/experiment/model/rules.hpp"
+#include "nobion/core/number.hpp"
 
 namespace pychron::experiment {
 

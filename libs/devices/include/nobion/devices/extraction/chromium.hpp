@@ -1,0 +1,172 @@
+#pragma once
+
+// A Photon Machines Chromium laser system as an extraction device (config
+// kind "chromium"): the Chromium program on the laser PC owns the laser, the
+// stage and the camera, and this driver sends it commands over one open TCP
+// connection. See docs/superpowers/specs/2026-10-04-chromium-protocol-survey.md.
+//
+// Chromium answers a query with one line and an action with nothing, unless
+// the action is refused ("?<n>"). So every action is followed at once by a
+// query, in one Transport transaction: if the first line back is "?<n>" the
+// action failed (and the query's reply is read and dropped); otherwise it is
+// the query's reply and the action stood. Nothing waits on silence.
+//
+// Chromium's replies carry no echo of the command, so a reply that arrives
+// after its read timed out cannot be told from the next command's. Input left
+// unread is discarded before every query and every action, which covers a
+// line that is late by less than the gap between commands; a line later than
+// that would be read as the next query's answer. After a failure whose effect
+// is unknown (a fire or an output whose confirm never came), the driver
+// stops the beam or zeroes the output rather than guess.
+//
+// What the driver checks that legacy pychron did not: that the program on
+// the port is a Chromium (prepare), that no interlock is tripped (enable and
+// every fire), and that an output setpoint took (read back).
+//
+// The stage is Chromium's: millimetres here, whole microns on the wire. A
+// named position is a scan Chromium has defined ("s3": Scans.MoveTo 3); holes
+// on a tray are resolved above the driver, by the laser system
+// (pychron/laser), which then calls set_xy. A move is started, then moving()
+// polled: it reads the position (or Scans.InPos?) once per call and
+// reports arrival after three good polls in a row, as legacy pychron did.
+// An xy move may name a speed (a pattern's). Chromium takes a speed for each
+// axis and runs them independently, so the speed is shared between x and y
+// in proportion to how far each has to go: the move is a straight line at
+// that speed. Whole microns per second, never above the configured travel
+// speed and never 0.
+// stop() halts the stage where it is (Stage.Stop).
+// Moves outside the configured travel are refused before anything is sent.
+//
+// Output is percent, 0 to 100: the only unit. Calls block and are made from
+// one thread at a time (the script host's); state queries may come from
+// another.
+
+#include <array>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "nobion/codecs/chromium.hpp"
+#include "nobion/devices/device.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/devices/extraction/interfaces.hpp"
+#include "nobion/transport/transport.hpp"
+
+namespace pychron::extraction {
+
+struct ChromiumOptions {
+  // Stage travel, mm, per axis (x, y, z): a move outside it is refused.
+  std::array<std::pair<double, double>, 3> limits_mm{{{0, 50}, {0, 50}, {0, 50}}};
+  // +1 or -1 per axis: stage mm times this is what Chromium is sent.
+  std::array<int, 3> signs{1, 1, 1};
+  codec::chromium::Microns move_speed{5000, 5000, 100};  // microns per second
+  double in_position_um = 10;
+  // false for a unit that refuses Laser.Enable: enabling then only checks
+  // the interlocks, and "enabled" is the driver's own flag.
+  bool use_enable = true;
+};
+
+// May each command be sent twice (Repeat, link.hpp)? Each query is one wire
+// call; each action is one wire call with its confirming query, in one
+// transaction (act), and is repeated as that unit.
+//
+//   Safe    every query (Sys.ID?, Laser.Status?, Laser.Interlocks?,
+//           Laser.Enable?, Laser.Output?, Stage.Pos?, Stage.Status?,
+//           Scans.InPos?); Laser.Enable 0|1, Laser.Output, Stage.MoveTo,
+//           Scans.MoveTo, Laser.Stop, Stage.Stop, Scans.Stop,
+//           Scans.Status_Verbosity
+//   Unsafe  Laser.Fire (starts the output; its confirm does not say whether
+//           it fired)
+//
+// Laser.Fire lost (outcome_unknown), or a transient failure after it:
+// fire_laser() sends Laser.Stop, tried for kCriticalWindow, and returns the
+// error. Nothing is fired twice.
+class ChromiumLaser final : public Device, public IExtractionDevice, public ILaserDevice, public IStage {
+ public:
+  ChromiumLaser(std::string name, Transport& transport, ChromiumOptions options = {}, DeviceOptions device = {});
+
+  static DriverSchema schema();
+  // Config error, naming the key, for an option out of range.
+  static Result<std::unique_ptr<ChromiumLaser>> create(const DriverArgs& args);
+
+  // What Sys.ID? answered; empty before prepare().
+  std::string chromium_id() const;
+
+  // IExtractionDevice
+  const std::string& device_name() const override { return name(); }
+  Result<void> prepare() override;
+  Result<void> enable() override;
+  Result<void> disable() override;
+  Result<bool> is_enabled() override;
+  Result<void> extract(double value, ExtractUnits units) override;
+  Result<void> end_extract() override;
+  Result<double> output() override;
+  bool supports(ExtractUnits units) const override { return units == ExtractUnits::Percent; }
+  ILaserDevice* laser() override { return this; }
+  IStage* stage() override { return this; }
+
+  // ILaserDevice
+  Result<void> fire_laser() override;
+  Result<void> stop_laser() override;
+  Result<bool> is_firing() override;
+  Result<void> warmup() override { return {}; }
+  Result<std::vector<std::string>> tripped_interlocks() override;
+
+  // IStage
+  Result<void> move_to_position(std::string_view position, bool autocenter) override;
+  Result<void> set_axis(Axis axis, double value) override;
+  Result<void> set_xy(double x, double y, double speed_mm_s = 0) override;
+  Result<void> stop() override;
+  Result<StagePosition> position() override;
+  Result<bool> moving() override;
+  Result<void> set_tray(std::string_view tray) override;
+  std::vector<std::string> positions() const override;
+
+ private:
+  // One reply line for a query; input left unread before it is discarded.
+  Result<Bytes> query(const codec::Command& q);
+  // `action`, then `confirm`'s reply. See the header comment. The whole
+  // transaction is one wire call: repeated as a unit when Safe.
+  Result<Bytes> act(const codec::Command& action, const codec::Command& confirm, Repeat repeat = Repeat::Safe,
+                    std::optional<Duration> window = std::nullopt);
+  Result<Bytes> act_once(const codec::Command& action, const codec::Command& confirm);
+  // Laser.Output 0, and the read-back says 0.
+  Result<void> zero_output();
+  // Interlock error naming what is tripped, if anything is.
+  Result<void> check_interlocks(std::string_view doing);
+  // A refusal made here, before anything is sent: not a device failure.
+  Unexpected<Error> refuse(ErrorKind kind, std::string what) const;
+
+  // What moving() is waiting for.
+  struct Target {
+    std::optional<int> scan;        // a scan's start, or
+    codec::chromium::Microns at{};  // a point, as sent
+  };
+  Result<StagePosition> read_position();
+  // Config error if `mm` is outside the travel of axis 0 (x), 1 (y) or 2 (z).
+  Result<void> check_travel(std::size_t axis, double mm) const;
+  // Checks the travel limits, then starts a move to `to` (mm).
+  // `speed_mm_s` 0: the configured travel speed. Else `speed_mm_s` along the
+  // straight line from `from`, shared between the x and y speeds.
+  Result<void> start_move(const StagePosition& to, double speed_mm_s = 0, const StagePosition* from = nullptr);
+  codec::chromium::Microns to_wire(const StagePosition& mm) const;
+  StagePosition from_wire(const codec::chromium::Microns& um) const;
+
+  Transport& transport_;
+  ChromiumOptions options_;
+  mutable std::mutex state_;
+  std::string id_;
+  bool enabled_ = false;
+  bool firing_ = false;
+  double output_ = 0;
+  std::optional<Target> target_;
+  int good_polls_ = 0;
+  std::string tray_;
+};
+
+}  // namespace pychron::extraction

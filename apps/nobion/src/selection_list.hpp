@@ -8,7 +8,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "pychron/processing/source.hpp"
+#include "nobion/processing/source.hpp"
 
 namespace pychron::ui {
 

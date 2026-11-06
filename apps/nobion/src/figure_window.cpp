@@ -27,10 +27,10 @@
 #include "options_editor.hpp"
 #include "preset_bar.hpp"
 #include "r_values_panel.hpp"
-#include "pychron/arar/arar_figures.hpp"
-#include "pychron/processing/quantity.hpp"
-#include "pychron/arar/r_values.hpp"
-#include "pychron/arar/report.hpp"
+#include "nobion/arar/arar_figures.hpp"
+#include "nobion/processing/quantity.hpp"
+#include "nobion/arar/r_values.hpp"
+#include "nobion/arar/report.hpp"
 #include "scene_view.hpp"
 
 namespace pychron::ui {

@@ -28,8 +28,8 @@
 #include <gio/gio.h>
 #include <libsecret/secret.h>
 
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/secret_store.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/secret_store.hpp"
 #include "secret_store_detail.hpp"
 
 namespace pychron::earthbank {

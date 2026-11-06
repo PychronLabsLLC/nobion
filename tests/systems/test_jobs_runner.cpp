@@ -9,7 +9,7 @@
 #include <thread>
 
 #include "jobs_fakes.hpp"
-#include "pychron/systems/jobs/job_runner.hpp"
+#include "nobion/systems/jobs/job_runner.hpp"
 
 using namespace pychron;
 using namespace pychron::jobs;

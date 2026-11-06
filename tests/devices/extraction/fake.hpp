@@ -10,8 +10,8 @@
 #include <string_view>
 #include <vector>
 
-#include "pychron/devices/extraction/interfaces.hpp"
-#include "pychron/devices/extraction/services.hpp"
+#include "nobion/devices/extraction/interfaces.hpp"
+#include "nobion/devices/extraction/services.hpp"
 
 namespace pychron::extraction::testing {
 

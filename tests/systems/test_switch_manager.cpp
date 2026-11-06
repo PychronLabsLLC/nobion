@@ -1,7 +1,7 @@
 // SwitchManager: lock, owner, interlocks, settle, read-back and events,
 // against an in-memory actuator, plus one run over the real ProXR driver.
 
-#include "pychron/systems/switch_manager.hpp"
+#include "nobion/systems/switch_manager.hpp"
 
 #include <gtest/gtest.h>
 
@@ -20,12 +20,12 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/devices/link.hpp"
-#include "pychron/devices/proxr_board_sim.hpp"
-#include "pychron/devices/proxr_relay.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/devices/link.hpp"
+#include "nobion/devices/proxr_board_sim.hpp"
+#include "nobion/devices/proxr_relay.hpp"
+#include "nobion/transport/sim_transport.hpp"
 #include "virtual_time.hpp"
 
 using namespace pychron;

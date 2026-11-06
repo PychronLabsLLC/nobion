@@ -1,10 +1,10 @@
-#include "pychron/experiment/lab/scripts.hpp"
+#include "nobion/experiment/lab/scripts.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <set>
 
-#include "pychron/scripting/vocabulary.hpp"
+#include "nobion/scripting/vocabulary.hpp"
 
 namespace pychron::experiment::lab {
 

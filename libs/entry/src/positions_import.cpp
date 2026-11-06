@@ -1,10 +1,10 @@
-#include "pychron/entry/positions_import.hpp"
+#include "nobion/entry/positions_import.hpp"
 
 #include <charconv>
 #include <cmath>
 
-#include "pychron/entry/names.hpp"
-#include "pychron/core/number.hpp"
+#include "nobion/entry/names.hpp"
+#include "nobion/core/number.hpp"
 
 namespace pychron::entry {
 

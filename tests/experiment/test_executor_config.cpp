@@ -10,7 +10,7 @@
 #include <sstream>
 #include <string>
 
-#include "pychron/experiment/lab/executor_config.hpp"
+#include "nobion/experiment/lab/executor_config.hpp"
 #include "temp_path.hpp"
 
 using namespace pychron;

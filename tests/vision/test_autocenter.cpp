@@ -5,7 +5,7 @@
 #include <span>
 #include <vector>
 
-#include "pychron/vision/autocenter.hpp"
+#include "nobion/vision/autocenter.hpp"
 #include "sim_loop.hpp"
 
 using namespace pychron::vision;

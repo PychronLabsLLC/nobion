@@ -2,7 +2,7 @@
 // what the application hard-codes, its registry of units (core's plus the
 // Ar-Ar figures, which core's no longer holds), its age cache and its export.
 
-#include "pychron/arar/domain.hpp"
+#include "nobion/arar/domain.hpp"
 
 #include <gtest/gtest.h>
 
@@ -17,11 +17,11 @@
 #include <sstream>
 
 #include "arar_fixtures.hpp"
-#include "pychron/arar/derived.hpp"
-#include "pychron/arar/reduce.hpp"
-#include "pychron/arar/report.hpp"
-#include "pychron/processing/domain.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/arar/derived.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/arar/report.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/units.hpp"
 
 namespace pp = pychron::processing;
 using pychron::arar::test::make_air;

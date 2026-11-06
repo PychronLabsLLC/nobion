@@ -1,11 +1,11 @@
-#include "pychron/setup/installer.hpp"
+#include "nobion/setup/installer.hpp"
 
 #include <cctype>
 #include <cstdio>
 #include <system_error>
 
-#include "pychron/core/env.hpp"
-#include "pychron/core/process.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/process.hpp"
 
 namespace pychron::setup {
 

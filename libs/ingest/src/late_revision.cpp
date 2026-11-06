@@ -8,9 +8,9 @@
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/core/sha256.hpp"
+#include "nobion/core/sha256.hpp"
 #include "membership.hpp"
-#include "pychron/ingest/ids.hpp"
+#include "nobion/ingest/ids.hpp"
 
 namespace pychron::ingest::detail {
 

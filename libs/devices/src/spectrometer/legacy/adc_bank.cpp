@@ -1,9 +1,9 @@
-#include "pychron/devices/spectrometer/legacy/adc_bank.hpp"
+#include "nobion/devices/spectrometer/legacy/adc_bank.hpp"
 
 #include <cmath>
 #include <mutex>
 
-#include "pychron/codecs/modbus_adc.hpp"
+#include "nobion/codecs/modbus_adc.hpp"
 
 namespace pychron::spectrometer {
 

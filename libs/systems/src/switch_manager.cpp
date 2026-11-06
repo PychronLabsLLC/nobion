@@ -1,4 +1,4 @@
-#include "pychron/systems/switch_manager.hpp"
+#include "nobion/systems/switch_manager.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -6,9 +6,9 @@
 #include <set>
 #include <utility>
 
-#include "pychron/devices/link.hpp"
-#include "pychron/devices/types.hpp"
-#include "pychron/systems/switch_rules.hpp"
+#include "nobion/devices/link.hpp"
+#include "nobion/devices/types.hpp"
+#include "nobion/systems/switch_rules.hpp"
 
 namespace pychron::systems {
 

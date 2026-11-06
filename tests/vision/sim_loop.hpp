@@ -8,9 +8,9 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/vision/frame.hpp"
-#include "pychron/vision/synth.hpp"
-#include "pychron/vision/types.hpp"
+#include "nobion/vision/frame.hpp"
+#include "nobion/vision/synth.hpp"
+#include "nobion/vision/types.hpp"
 
 namespace pychron::vision::sim {
 

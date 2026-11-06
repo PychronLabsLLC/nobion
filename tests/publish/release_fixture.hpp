@@ -17,8 +17,8 @@
 
 #include "persistence/store_fixture.hpp"
 #include "release_seed.hpp"
-#include "pychron/arar/store_loader.hpp"
-#include "pychron/persistence/store.hpp"
+#include "nobion/arar/store_loader.hpp"
+#include "nobion/persistence/store.hpp"
 
 namespace pychron::publish::testing {
 

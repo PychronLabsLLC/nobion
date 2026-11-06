@@ -1,8 +1,8 @@
 #include "options_editor.hpp"
 #include "flow_layout.hpp"
 #include "theme.hpp"
-#include "pychron/processing/domain.hpp"
-#include "pychron/processing/quantity.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/quantity.hpp"
 
 #include <algorithm>
 #include <cmath>

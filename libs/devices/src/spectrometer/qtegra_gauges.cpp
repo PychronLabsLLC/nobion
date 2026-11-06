@@ -1,9 +1,9 @@
-#include "pychron/devices/spectrometer/qtegra_gauges.hpp"
+#include "nobion/devices/spectrometer/qtegra_gauges.hpp"
 
 #include <set>
 #include <utility>
 
-#include "pychron/codecs/thermo_qtegra.hpp"
+#include "nobion/codecs/thermo_qtegra.hpp"
 
 namespace pychron::spectrometer {
 

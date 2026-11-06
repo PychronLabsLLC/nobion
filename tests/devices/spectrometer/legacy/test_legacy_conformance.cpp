@@ -5,10 +5,10 @@
 
 #include <atomic>
 
-#include "pychron/devices/spectrometer/legacy/adc_bank.hpp"
-#include "pychron/devices/spectrometer/legacy/dac_positioner.hpp"
-#include "pychron/devices/spectrometer/legacy/pulse_counter.hpp"
-#include "pychron/devices/spectrometer/legacy/serial_hv.hpp"
+#include "nobion/devices/spectrometer/legacy/adc_bank.hpp"
+#include "nobion/devices/spectrometer/legacy/dac_positioner.hpp"
+#include "nobion/devices/spectrometer/legacy/pulse_counter.hpp"
+#include "nobion/devices/spectrometer/legacy/serial_hv.hpp"
 #include "spectrometer/conformance.hpp"
 #include "spectrometer/legacy/sim_util.hpp"
 

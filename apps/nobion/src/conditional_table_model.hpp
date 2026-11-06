@@ -13,7 +13,7 @@
 #include <QAbstractTableModel>
 #include <QStringList>
 
-#include "pychron/experiment/conditionals/conditional.hpp"
+#include "nobion/experiment/conditionals/conditional.hpp"
 
 namespace pychron::ui {
 

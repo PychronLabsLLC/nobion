@@ -1,4 +1,4 @@
-#include "pychron/setup/legacy_line.hpp"
+#include "nobion/setup/legacy_line.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -14,10 +14,10 @@
 #include <utility>
 
 #include "legacy/lite.hpp"
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/number.hpp"
-#include "pychron/systems/canvas/cross_validate.hpp"
-#include "pychron/systems/canvas/loader.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/number.hpp"
+#include "nobion/systems/canvas/cross_validate.hpp"
+#include "nobion/systems/canvas/loader.hpp"
 
 namespace pychron::setup {
 

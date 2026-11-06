@@ -1,14 +1,14 @@
-#include "pychron/systems/event_log.hpp"
+#include "nobion/systems/event_log.hpp"
 
 #include <array>
 #include <optional>
 
-#include "pychron/core/error.hpp"
-#include "pychron/devices/spectrometer/detectors.hpp"
-#include "pychron/systems/jobs/job.hpp"
-#include "pychron/systems/jobs/peak_center.hpp"
-#include "pychron/systems/spectrometer/scan_service.hpp"
-#include "pychron/systems/spectrometer/spectrometer.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/devices/spectrometer/detectors.hpp"
+#include "nobion/systems/jobs/job.hpp"
+#include "nobion/systems/jobs/peak_center.hpp"
+#include "nobion/systems/spectrometer/scan_service.hpp"
+#include "nobion/systems/spectrometer/spectrometer.hpp"
 
 namespace pychron::systems {
 namespace {

@@ -7,9 +7,9 @@
 #include <cmath>
 
 #include "fixtures.hpp"
-#include "pychron/processing/reference_fit.hpp"
-#include "pychron/processing/units.hpp"
-#include "pychron/reduction/stats.hpp"
+#include "nobion/processing/reference_fit.hpp"
+#include "nobion/processing/units.hpp"
+#include "nobion/reduction/stats.hpp"
 
 namespace pychron::processing {
 namespace {

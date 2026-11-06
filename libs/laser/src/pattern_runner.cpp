@@ -1,4 +1,4 @@
-#include "pychron/laser/pattern_runner.hpp"
+#include "nobion/laser/pattern_runner.hpp"
 
 #include <chrono>
 #include <cmath>
@@ -9,7 +9,7 @@
 #include <sstream>
 #include <utility>
 
-#include "pychron/vision/dragonfly.hpp"
+#include "nobion/vision/dragonfly.hpp"
 
 namespace pychron::laser {
 

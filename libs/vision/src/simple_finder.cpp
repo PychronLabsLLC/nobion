@@ -7,8 +7,8 @@
 #include <optional>
 #include <utility>
 
-#include "pychron/vision/finder.hpp"
-#include "pychron/vision/kernel.hpp"
+#include "nobion/vision/finder.hpp"
+#include "nobion/vision/kernel.hpp"
 
 namespace pychron::vision {
 

@@ -12,8 +12,8 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/journal.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/journal.hpp"
 #include "upload_support.hpp"
 
 namespace pychron::earthbank {

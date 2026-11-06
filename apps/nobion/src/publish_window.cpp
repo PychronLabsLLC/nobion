@@ -38,12 +38,12 @@
 // Qt's `signals` keyword macro would rewrite persistence::CollectionRoots::signals.
 #pragma push_macro("signals")
 #undef signals
-#include "pychron/processing/store_source.hpp"
-#include "pychron/publish/build.hpp"
-#include "pychron/publish/embargo.hpp"
-#include "pychron/publish/release.hpp"
-#include "pychron/publish/workflow.hpp"
-#include "pychron/arar/arar_types.hpp"
+#include "nobion/processing/store_source.hpp"
+#include "nobion/publish/build.hpp"
+#include "nobion/publish/embargo.hpp"
+#include "nobion/publish/release.hpp"
+#include "nobion/publish/workflow.hpp"
+#include "nobion/arar/arar_types.hpp"
 #pragma pop_macro("signals")
 
 namespace pychron::ui {

@@ -7,10 +7,10 @@
 #include <string_view>
 #include <vector>
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/systems/canvas/cross_validate.hpp"
-#include "pychron/systems/canvas/loader.hpp"
-#include "pychron/systems/network_graph.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/systems/canvas/cross_validate.hpp"
+#include "nobion/systems/canvas/loader.hpp"
+#include "nobion/systems/network_graph.hpp"
 
 namespace pychron::canvas {
 namespace {

@@ -14,7 +14,7 @@
 #include <string_view>
 #include <vector>
 
-#include "pychron/codecs/thermo_qtegra.hpp"
+#include "nobion/codecs/thermo_qtegra.hpp"
 
 using namespace pychron;
 namespace q = pychron::codec::qtegra;

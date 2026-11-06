@@ -12,7 +12,7 @@
 #include <gtest/gtest.h>
 
 #include "laser_harness.hpp"
-#include "pychron/laser/pattern_runner.hpp"
+#include "nobion/laser/pattern_runner.hpp"
 
 using namespace pychron;
 using namespace pychron::extraction;

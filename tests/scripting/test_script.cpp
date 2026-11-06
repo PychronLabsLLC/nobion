@@ -7,11 +7,11 @@
 #include <fstream>
 #include <thread>
 
-#include "pychron/scripting/cancel_token.hpp"
-#include "pychron/scripting/duration_accumulator.hpp"
-#include "pychron/scripting/script.hpp"
-#include "pychron/scripting/services.hpp"
-#include "pychron/scripting/vocabulary.hpp"
+#include "nobion/scripting/cancel_token.hpp"
+#include "nobion/scripting/duration_accumulator.hpp"
+#include "nobion/scripting/script.hpp"
+#include "nobion/scripting/services.hpp"
+#include "nobion/scripting/vocabulary.hpp"
 #include "temp_path.hpp"
 
 using namespace pychron;

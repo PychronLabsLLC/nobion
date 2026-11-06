@@ -1,7 +1,7 @@
 // build_line_sim: the simulated lab of a line without the line (sim serve
 // spec 4.2). That ExtractionLine still builds the same lab through it is
 // what the line's own sim tests check.
-#include "pychron/systems/line_sim.hpp"
+#include "nobion/systems/line_sim.hpp"
 
 #include <gtest/gtest.h>
 
@@ -9,8 +9,8 @@
 #include <fstream>
 #include <string>
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/systems/canvas/loader.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/systems/canvas/loader.hpp"
 
 namespace {
 

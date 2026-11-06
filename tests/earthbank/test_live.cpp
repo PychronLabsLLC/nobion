@@ -12,7 +12,7 @@
 
 #include "fake_earthbank.hpp"
 #include "live_round_trip.hpp"
-#include "pychron/earthbank/session.hpp"
+#include "nobion/earthbank/session.hpp"
 
 namespace pychron::earthbank::testing {
 namespace {

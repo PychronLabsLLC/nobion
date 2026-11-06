@@ -10,11 +10,11 @@
 #include <utility>
 #include <variant>
 
-#include "pychron/setup/data_source.hpp"
-#include "pychron/setup/doctor.hpp"
-#include "pychron/setup/installer.hpp"
-#include "pychron/setup/profile.hpp"
-#include "pychron/setup/site.hpp"
+#include "nobion/setup/data_source.hpp"
+#include "nobion/setup/doctor.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/setup/profile.hpp"
+#include "nobion/setup/site.hpp"
 #include "password_prompt.hpp"
 #include "setup.hpp"
 

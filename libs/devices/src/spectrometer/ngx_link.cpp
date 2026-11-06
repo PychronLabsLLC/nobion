@@ -1,11 +1,11 @@
-#include "pychron/devices/spectrometer/ngx_link.hpp"
+#include "nobion/devices/spectrometer/ngx_link.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <system_error>
 
-#include "pychron/core/log_context.hpp"
-#include "pychron/transport/link_transport.hpp"
+#include "nobion/core/log_context.hpp"
+#include "nobion/transport/link_transport.hpp"
 
 namespace pychron::spectrometer {
 

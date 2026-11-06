@@ -11,9 +11,9 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/core/error.hpp"
-#include "pychron/experiment/model/types.hpp"
-#include "pychron/experiment/plan/plan.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/experiment/model/types.hpp"
+#include "nobion/experiment/plan/plan.hpp"
 
 namespace pychron::experiment::plan::detail {
 

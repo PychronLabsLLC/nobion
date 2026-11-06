@@ -7,7 +7,7 @@
 #include <string>
 #include <string_view>
 
-#include "pychron/systems/spectrometer/config_loader.hpp"
+#include "nobion/systems/spectrometer/config_loader.hpp"
 
 namespace pychron::spectrometer::cfg {
 namespace {

@@ -1,4 +1,4 @@
-#include "pychron/systems/spectrometer/spectrometer.hpp"
+#include "nobion/systems/spectrometer/spectrometer.hpp"
 
 #include <algorithm>
 #include <array>
@@ -12,8 +12,8 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/systems/spectrometer/field_table_check.hpp"
-#include "pychron/systems/spectrometer/field_table_store.hpp"
+#include "nobion/systems/spectrometer/field_table_check.hpp"
+#include "nobion/systems/spectrometer/field_table_store.hpp"
 
 namespace pychron::spectrometer {
 

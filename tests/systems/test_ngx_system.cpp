@@ -19,12 +19,12 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/devices/spectrometer/ngx_sim.hpp"
-#include "pychron/systems/extraction_line.hpp"
-#include "pychron/systems/spectrometer/assembler.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/devices/spectrometer/ngx_sim.hpp"
+#include "nobion/systems/extraction_line.hpp"
+#include "nobion/systems/spectrometer/assembler.hpp"
+#include "nobion/transport/sim_transport.hpp"
 #include "virtual_time.hpp"
 
 using namespace pychron;

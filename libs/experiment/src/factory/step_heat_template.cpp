@@ -1,4 +1,4 @@
-#include "pychron/experiment/factory/step_heat_template.hpp"
+#include "nobion/experiment/factory/step_heat_template.hpp"
 
 #include <algorithm>
 #include <array>
@@ -14,7 +14,7 @@
 #include <toml++/toml.hpp>
 
 #include "model/toml_text.hpp"
-#include "pychron/experiment/factory/increments.hpp"
+#include "nobion/experiment/factory/increments.hpp"
 
 namespace pychron::experiment {
 namespace {

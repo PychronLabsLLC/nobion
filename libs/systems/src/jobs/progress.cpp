@@ -1,8 +1,8 @@
-#include "pychron/systems/jobs/progress.hpp"
+#include "nobion/systems/jobs/progress.hpp"
 
 #include <algorithm>
 
-#include "pychron/systems/jobs/cancel.hpp"
+#include "nobion/systems/jobs/cancel.hpp"
 
 namespace pychron::jobs {
 

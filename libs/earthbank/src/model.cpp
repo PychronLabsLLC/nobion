@@ -1,4 +1,4 @@
-#include "pychron/earthbank/model.hpp"
+#include "nobion/earthbank/model.hpp"
 
 #include <cmath>
 #include <cstdint>
@@ -8,7 +8,7 @@
 #include <string_view>
 #include <vector>
 
-#include "pychron/core/sha256.hpp"
+#include "nobion/core/sha256.hpp"
 
 namespace pychron::earthbank {
 namespace {

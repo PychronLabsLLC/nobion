@@ -1,4 +1,4 @@
-#include "pychron/codecs/thermo_qtegra.hpp"
+#include "nobion/codecs/thermo_qtegra.hpp"
 
 #include <array>
 #include <charconv>

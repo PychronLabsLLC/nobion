@@ -9,10 +9,10 @@
 #include <set>
 
 #include "arar/arar_fixtures.hpp"
-#include "pychron/arar/arar_figures.hpp"
-#include "pychron/processing/reduced.hpp"
-#include "pychron/arar/reduce.hpp"
-#include "pychron/publish/figures.hpp"
+#include "nobion/arar/arar_figures.hpp"
+#include "nobion/processing/reduced.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/publish/figures.hpp"
 
 namespace pychron::publish {
 namespace {

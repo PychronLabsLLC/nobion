@@ -1,4 +1,4 @@
-#include "pychron/devices/spectrometer/types.hpp"
+#include "nobion/devices/spectrometer/types.hpp"
 
 namespace pychron::spectrometer {
 

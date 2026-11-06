@@ -16,7 +16,7 @@
 #include <vector>
 
 #include "golden.hpp"
-#include "pychron/arar/arar_reduction.hpp"
+#include "nobion/arar/arar_reduction.hpp"
 
 namespace pychron::reduction::golden {
 

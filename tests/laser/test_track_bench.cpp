@@ -2,7 +2,7 @@
 // manual clock in a scratch directory of its own (grain simulator design,
 // section 7).
 
-#include "pychron/laser/track_bench.hpp"
+#include "nobion/laser/track_bench.hpp"
 
 #include <algorithm>
 #include <array>

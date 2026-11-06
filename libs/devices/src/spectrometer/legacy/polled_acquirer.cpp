@@ -1,4 +1,4 @@
-#include "pychron/devices/spectrometer/legacy/polled_acquirer.hpp"
+#include "nobion/devices/spectrometer/legacy/polled_acquirer.hpp"
 
 #include <algorithm>
 #include <cstddef>

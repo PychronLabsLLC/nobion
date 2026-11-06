@@ -23,7 +23,7 @@
 #include <QPointer>
 
 #include "entry_headers.hpp"
-#include "pychron/core/error.hpp"
+#include "nobion/core/error.hpp"
 
 namespace pychron::ui {
 

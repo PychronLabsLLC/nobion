@@ -2,7 +2,7 @@
 
 #include <set>
 
-#include "pychron/devices/spectrometer/params.hpp"
+#include "nobion/devices/spectrometer/params.hpp"
 #include "spectrometer/fakes.hpp"
 
 namespace {

@@ -1,7 +1,7 @@
 // GeoParquet tables (data publishing design, section 5.2). The Arrow cases
 // run only in a build with Arrow (PYCHRON_PUBLISH); the last one only without.
 
-#include "pychron/publish/parquet.hpp"
+#include "nobion/publish/parquet.hpp"
 
 #include <gtest/gtest.h>
 

@@ -17,8 +17,8 @@
 
 #include <QMessageBox>
 
-#include "pychron/systems/line_pressure_service.hpp"
-#include "pychron/systems/network_graph.hpp"
+#include "nobion/systems/line_pressure_service.hpp"
+#include "nobion/systems/network_graph.hpp"
 
 namespace pychron::ui {
 

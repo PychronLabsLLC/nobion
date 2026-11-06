@@ -12,15 +12,15 @@
 #ifdef PYCHRON_UI_HAS_STORE
 #pragma push_macro("signals")
 #undef signals
-#include "pychron/entry/seed.hpp"
-#include "pychron/persistence/store.hpp"
+#include "nobion/entry/seed.hpp"
+#include "nobion/persistence/store.hpp"
 #pragma pop_macro("signals")
 #endif
 
 #include "brand.hpp"
-#include "pychron/core/env.hpp"
-#include "pychron/core/host_name.hpp"
-#include "pychron/setup/installer.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/host_name.hpp"
+#include "nobion/setup/installer.hpp"
 
 namespace pychron::ui {
 

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "pychron/core/log_hub.hpp"
-#include "pychron/core/logger.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/logger.hpp"
 
 namespace pychron::ui {
 

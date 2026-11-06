@@ -28,13 +28,13 @@
 #include <gtest/gtest.h>
 
 #include "analyses.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/http.hpp"
-#include "pychron/earthbank/lookup.hpp"
-#include "pychron/earthbank/mapping.hpp"
-#include "pychron/earthbank/preflight.hpp"
-#include "pychron/earthbank/session.hpp"
-#include "pychron/earthbank/uploader.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/http.hpp"
+#include "nobion/earthbank/lookup.hpp"
+#include "nobion/earthbank/mapping.hpp"
+#include "nobion/earthbank/preflight.hpp"
+#include "nobion/earthbank/session.hpp"
+#include "nobion/earthbank/uploader.hpp"
 #include "upload_support.hpp"
 
 namespace pychron::earthbank::testing {

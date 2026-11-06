@@ -10,7 +10,7 @@
 
 #include "command_line.hpp"
 #include "database_choice.hpp"
-#include "pychron/setup/site.hpp"
+#include "nobion/setup/site.hpp"
 
 using pychron::ui::choose_database;
 using pychron::ui::CommandLine;

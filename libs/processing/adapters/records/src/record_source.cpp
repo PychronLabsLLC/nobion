@@ -1,4 +1,4 @@
-#include "pychron/processing/record_source.hpp"
+#include "nobion/processing/record_source.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -8,8 +8,8 @@
 #include <system_error>
 #include <utility>
 
-#include "pychron/experiment/record/names.hpp"
-#include "pychron/experiment/record/serialize.hpp"
+#include "nobion/experiment/record/names.hpp"
+#include "nobion/experiment/record/serialize.hpp"
 
 namespace pychron::processing {
 

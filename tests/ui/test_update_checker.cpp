@@ -15,7 +15,7 @@
 #include <QtTest/QtTest>
 
 #include "fake_http.hpp"
-#include "pychron/update/update.hpp"
+#include "nobion/update/update.hpp"
 #include "settings_guard.hpp"
 #include "update_checker.hpp"
 

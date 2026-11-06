@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
-#include "pychron/experiment/conditionals/expr.hpp"
-#include "pychron/experiment/conditionals/metrics.hpp"
+#include "nobion/experiment/conditionals/expr.hpp"
+#include "nobion/experiment/conditionals/metrics.hpp"
 
 using namespace pychron::experiment;
 

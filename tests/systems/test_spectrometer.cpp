@@ -8,9 +8,9 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
-#include "pychron/systems/spectrometer/spectrometer.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
+#include "nobion/systems/spectrometer/spectrometer.hpp"
 #include "spectrometer_fakes.hpp"
 #include "virtual_time.hpp"
 

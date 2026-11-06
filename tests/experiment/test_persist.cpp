@@ -12,11 +12,11 @@
 #include <thread>
 #include <vector>
 
-#include "pychron/experiment/persist/persister.hpp"
-#include "pychron/experiment/record/serialize.hpp"
-#include "pychron/core/scheduler.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/core/virtual_clock.hpp"
+#include "nobion/experiment/persist/persister.hpp"
+#include "nobion/experiment/record/serialize.hpp"
+#include "nobion/core/scheduler.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/core/virtual_clock.hpp"
 #include "log_capture.hpp"
 #include "temp_path.hpp"
 #include "virtual_time.hpp"

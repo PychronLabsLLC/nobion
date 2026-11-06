@@ -13,16 +13,16 @@
 #include <system_error>
 #include <utility>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/systems/spectrometer/config.hpp"
-#include "pychron/systems/spectrometer/config_loader.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
-#include "pychron/systems/spectrometer/field_table.hpp"
-#include "pychron/systems/spectrometer/field_table_check.hpp"
-#include "pychron/systems/spectrometer/field_table_store.hpp"
-#include "pychron/systems/spectrometer/mftable_csv.hpp"
-#include "pychron/systems/spectrometer/molecular_weights.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/systems/spectrometer/config.hpp"
+#include "nobion/systems/spectrometer/config_loader.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
+#include "nobion/systems/spectrometer/field_table.hpp"
+#include "nobion/systems/spectrometer/field_table_check.hpp"
+#include "nobion/systems/spectrometer/field_table_store.hpp"
+#include "nobion/systems/spectrometer/mftable_csv.hpp"
+#include "nobion/systems/spectrometer/molecular_weights.hpp"
 
 namespace elctl {
 

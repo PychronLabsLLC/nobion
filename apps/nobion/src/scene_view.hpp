@@ -24,8 +24,8 @@
 #include <QStringList>
 #include <QWidget>
 
-#include "pychron/processing/scene.hpp"
-#include "pychron/processing/scene_layout.hpp"
+#include "nobion/processing/scene.hpp"
+#include "nobion/processing/scene_layout.hpp"
 
 class QCustomPlot;
 class QCPAxisRect;

@@ -1,14 +1,14 @@
 // What one reduction gives the store's derived cache (age cache spec 4.1, 4.4).
 
-#include "pychron/arar/derived.hpp"
+#include "nobion/arar/derived.hpp"
 
 #include <gtest/gtest.h>
 
 #include <limits>
 
 #include "arar_fixtures.hpp"
-#include "pychron/arar/reduce.hpp"
-#include "pychron/processing/reduced.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/processing/reduced.hpp"
 
 namespace pp = pychron::processing;
 namespace r = pychron::reduction;

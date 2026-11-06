@@ -6,7 +6,7 @@
 #include <string>
 #include <string_view>
 
-#include "pychron/core/logger.hpp"
+#include "nobion/core/logger.hpp"
 
 namespace elctl {
 

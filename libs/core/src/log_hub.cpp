@@ -1,6 +1,6 @@
-#include "pychron/core/log_hub.hpp"
+#include "nobion/core/log_hub.hpp"
 
-#include "pychron/core/log_dir.hpp"
+#include "nobion/core/log_dir.hpp"
 
 #include <spdlog/async_logger.h>
 #include <spdlog/details/thread_pool.h>
@@ -47,10 +47,10 @@
 #endif
 
 #include "log_hub_internal.hpp"
-#include "pychron/core/log_context.hpp"
-#include "pychron/core/log_match.hpp"
-#include "pychron/core/logger.hpp"
-#include "pychron/core/signal_bus.hpp"
+#include "nobion/core/log_context.hpp"
+#include "nobion/core/log_match.hpp"
+#include "nobion/core/logger.hpp"
+#include "nobion/core/signal_bus.hpp"
 
 namespace pychron {
 namespace {

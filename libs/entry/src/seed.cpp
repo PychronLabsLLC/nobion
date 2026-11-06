@@ -1,4 +1,4 @@
-#include "pychron/entry/seed.hpp"
+#include "nobion/entry/seed.hpp"
 
 #include <algorithm>
 #include <array>
@@ -11,8 +11,8 @@
 #include <nlohmann/json.hpp>
 #include <toml++/toml.hpp>
 
-#include "pychron/entry/names.hpp"
-#include "pychron/entry/package_edit.hpp"
+#include "nobion/entry/names.hpp"
+#include "nobion/entry/package_edit.hpp"
 
 namespace pychron::entry {
 namespace ps = pychron::persistence;

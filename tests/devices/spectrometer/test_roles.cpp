@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "pychron/devices/spectrometer/roles.hpp"
+#include "nobion/devices/spectrometer/roles.hpp"
 #include "spectrometer/fakes.hpp"
 
 namespace {

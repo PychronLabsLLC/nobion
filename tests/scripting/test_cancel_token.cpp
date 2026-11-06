@@ -15,8 +15,8 @@
 #include <stdexcept>
 #include <thread>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/scripting/cancel_token.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/scripting/cancel_token.hpp"
 #include "virtual_time.hpp"
 
 using namespace pychron;

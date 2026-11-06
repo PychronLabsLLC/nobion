@@ -5,11 +5,11 @@
 #include <string>
 #include <utility>
 
-#include "pychron/setup/installer.hpp"
-#include "pychron/update/update.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/update/update.hpp"
 
 #ifdef PYCHRON_ELCTL_HAS_STORE
-#include "pychron/earthbank/http.hpp"
+#include "nobion/earthbank/http.hpp"
 #endif
 
 namespace elctl {

@@ -16,7 +16,7 @@
 #include <QString>
 #include <QStringList>
 
-#include "pychron/core/error.hpp"
+#include "nobion/core/error.hpp"
 
 class QAction;
 class QMainWindow;

@@ -5,11 +5,11 @@
 #include <numeric>
 
 #include "figure_common.hpp"
-#include "pychron/arar/arar_figures.hpp"
-#include "pychron/arar/arar_groups.hpp"
-#include "pychron/arar/domain.hpp"
-#include "pychron/processing/quantity.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/arar/arar_figures.hpp"
+#include "nobion/arar/arar_groups.hpp"
+#include "nobion/arar/domain.hpp"
+#include "nobion/processing/quantity.hpp"
+#include "nobion/processing/units.hpp"
 #include "schema_builder.hpp"
 
 namespace pychron::processing {

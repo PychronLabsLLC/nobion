@@ -1,7 +1,7 @@
 // The manifest of a release directory and its verification (data publishing
 // design, sections 5.7 and 5.8).
 
-#include "pychron/publish/manifest.hpp"
+#include "nobion/publish/manifest.hpp"
 
 #include <gtest/gtest.h>
 

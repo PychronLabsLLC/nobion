@@ -19,10 +19,10 @@
 #include <thread>
 #include <vector>
 
-#include "pychron/devices/extraction/capability.hpp"
-#include "pychron/experiment/rehearsal/rehearsal.hpp"
-#include "pychron/experiment/rehearsal/runner.hpp"
-#include "pychron/scripting/script_host.hpp"
+#include "nobion/devices/extraction/capability.hpp"
+#include "nobion/experiment/rehearsal/rehearsal.hpp"
+#include "nobion/experiment/rehearsal/runner.hpp"
+#include "nobion/scripting/script_host.hpp"
 
 namespace rh = pychron::experiment::rehearsal;
 using pychron::ErrorKind;

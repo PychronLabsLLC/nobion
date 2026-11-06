@@ -1,5 +1,5 @@
 // MetricsService: what the application builds from `[metrics]`.
-#include "pychron/experiment/metrics/service.hpp"
+#include "nobion/experiment/metrics/service.hpp"
 
 #include <gtest/gtest.h>
 
@@ -10,12 +10,12 @@
 
 #include "http_client.hpp"
 #include "metrics_text.hpp"
-#include "pychron/core/clock.hpp"
-#include "pychron/core/config/metrics_config.hpp"
-#include "pychron/core/events.hpp"
-#include "pychron/core/scheduler.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/metrics/server.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/config/metrics_config.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/scheduler.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/metrics/server.hpp"
 
 using namespace pychron;
 using namespace std::chrono_literals;

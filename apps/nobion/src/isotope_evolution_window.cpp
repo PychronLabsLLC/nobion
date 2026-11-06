@@ -23,9 +23,9 @@
 #include "error_report.hpp"
 #include "options_editor.hpp"
 #include "preset_bar.hpp"
-#include "pychron/processing/isotope_classifier.hpp"
-#include "pychron/processing/recall.hpp"
-#include "pychron/processing/revisions.hpp"
+#include "nobion/processing/isotope_classifier.hpp"
+#include "nobion/processing/recall.hpp"
+#include "nobion/processing/revisions.hpp"
 #include "scene_view.hpp"
 #include "theme.hpp"
 

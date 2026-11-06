@@ -31,14 +31,14 @@
 #include <string_view>
 #include <vector>
 
-#include "pychron/arar/reduce.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/processing/domain.hpp"
-#include "pychron/processing/model.hpp"
-#include "pychron/processing/reduced.hpp"
-#include "pychron/processing/store_source.hpp"
-#include "pychron/processing/units.hpp"
-#include "pychron/reduction/stats.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/model.hpp"
+#include "nobion/processing/reduced.hpp"
+#include "nobion/processing/store_source.hpp"
+#include "nobion/processing/units.hpp"
+#include "nobion/reduction/stats.hpp"
 
 namespace elctl {
 

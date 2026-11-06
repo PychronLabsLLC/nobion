@@ -27,9 +27,9 @@
 #include <QString>
 #include <QThread>
 
-#include "pychron/core/events.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/systems/extraction_line.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/systems/extraction_line.hpp"
 
 namespace pychron::ui {
 

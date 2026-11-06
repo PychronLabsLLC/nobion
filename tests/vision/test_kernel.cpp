@@ -5,7 +5,7 @@
 #include <numbers>
 #include <vector>
 
-#include "pychron/vision/kernel.hpp"
+#include "nobion/vision/kernel.hpp"
 
 using namespace pychron::vision;
 

@@ -1,4 +1,4 @@
-#include "pychron/devices/spectrometer/params.hpp"
+#include "nobion/devices/spectrometer/params.hpp"
 
 #include <array>
 

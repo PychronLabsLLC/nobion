@@ -1,4 +1,4 @@
-#include "pychron/arar/r_values.hpp"
+#include "nobion/arar/r_values.hpp"
 
 #include <gtest/gtest.h>
 
@@ -8,10 +8,10 @@
 #include <vector>
 
 #include "arar_fixtures.hpp"
-#include "pychron/arar/reduce.hpp"
-#include "pychron/arar/arar_figures.hpp"
-#include "pychron/reduction/stats.hpp"
-#include "pychron/reduction/ufloat.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/arar/arar_figures.hpp"
+#include "nobion/reduction/stats.hpp"
+#include "nobion/reduction/ufloat.hpp"
 
 namespace pp = pychron::processing;
 namespace r = pychron::reduction;

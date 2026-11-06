@@ -29,8 +29,8 @@
 
 #include "brand.hpp"
 #include "earthbank_package_dialog.hpp"
-#include "pychron/earthbank/vocab.hpp"
-#include "pychron/earthbank/xlsx.hpp"
+#include "nobion/earthbank/vocab.hpp"
+#include "nobion/earthbank/xlsx.hpp"
 #include "error_report.hpp"
 #include "theme.hpp"
 

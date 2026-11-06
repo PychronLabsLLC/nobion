@@ -8,8 +8,8 @@
 #include <unordered_set>
 #include <utility>
 
-#include "pychron/core/path_text.hpp"
-#include "pychron/core/sha256.hpp"
+#include "nobion/core/path_text.hpp"
+#include "nobion/core/sha256.hpp"
 
 namespace pychron::dvc::detail {
 

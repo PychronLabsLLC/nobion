@@ -24,8 +24,8 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
-#include "pychron/experiment/factory/blocks.hpp"
-#include "pychron/experiment/model/positions.hpp"
+#include "nobion/experiment/factory/blocks.hpp"
+#include "nobion/experiment/model/positions.hpp"
 
 namespace pychron::ui {
 

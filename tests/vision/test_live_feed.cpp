@@ -9,7 +9,7 @@
 #include <mutex>
 #include <thread>
 
-#include "pychron/vision/live_feed.hpp"
+#include "nobion/vision/live_feed.hpp"
 
 using namespace pychron;
 using namespace pychron::vision;

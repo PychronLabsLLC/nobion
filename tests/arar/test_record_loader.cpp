@@ -3,7 +3,7 @@
 // identifier and the production and chronology of its irradiation, and a
 // changed file is read again on the next refresh.
 
-#include "pychron/arar/record_loader.hpp"
+#include "nobion/arar/record_loader.hpp"
 
 #include <gtest/gtest.h>
 
@@ -11,10 +11,10 @@
 #include <filesystem>
 #include <fstream>
 
-#include "pychron/arar/analysis_data.hpp"
-#include "pychron/arar/reduce.hpp"
-#include "pychron/processing/quantity.hpp"
-#include "pychron/processing/record_source.hpp"
+#include "nobion/arar/analysis_data.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/processing/quantity.hpp"
+#include "nobion/processing/record_source.hpp"
 #include "record_fixtures.hpp"
 
 namespace {

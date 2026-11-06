@@ -30,7 +30,7 @@
 #include <string>
 #include <utility>
 
-#include "pychron/devices/spectrometer/roles.hpp"
+#include "nobion/devices/spectrometer/roles.hpp"
 
 namespace pychron::spectrometer::conformance {
 

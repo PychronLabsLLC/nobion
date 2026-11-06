@@ -1,4 +1,4 @@
-#include "pychron/processing/record_source.hpp"
+#include "nobion/processing/record_source.hpp"
 
 #include <gtest/gtest.h>
 
@@ -8,7 +8,7 @@
 #include <thread>
 #include <vector>
 
-#include "pychron/experiment/record/serialize.hpp"
+#include "nobion/experiment/record/serialize.hpp"
 #include "record_fixtures.hpp"
 
 namespace pp = pychron::processing;

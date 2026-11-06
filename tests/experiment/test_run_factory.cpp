@@ -1,11 +1,11 @@
 #include <gtest/gtest.h>
 
-#include "pychron/experiment/factory/blocks.hpp"
-#include "pychron/experiment/factory/defaults.hpp"
-#include "pychron/experiment/factory/increments.hpp"
-#include "pychron/experiment/factory/special_runs.hpp"
-#include "pychron/experiment/model/positions.hpp"
-#include "pychron/experiment/model/rules.hpp"
+#include "nobion/experiment/factory/blocks.hpp"
+#include "nobion/experiment/factory/defaults.hpp"
+#include "nobion/experiment/factory/increments.hpp"
+#include "nobion/experiment/factory/special_runs.hpp"
+#include "nobion/experiment/model/positions.hpp"
+#include "nobion/experiment/model/rules.hpp"
 
 using namespace pychron::experiment;
 using namespace std::chrono_literals;

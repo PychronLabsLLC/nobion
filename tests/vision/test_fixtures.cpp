@@ -11,13 +11,13 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/env.hpp"
-#include "pychron/vision/autocenter.hpp"
-#include "pychron/vision/dragonfly.hpp"
-#include "pychron/vision/finder.hpp"
-#include "pychron/vision/fixture.hpp"
-#include "pychron/vision/pgm.hpp"
-#include "pychron/vision/synth.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/vision/autocenter.hpp"
+#include "nobion/vision/dragonfly.hpp"
+#include "nobion/vision/finder.hpp"
+#include "nobion/vision/fixture.hpp"
+#include "nobion/vision/pgm.hpp"
+#include "nobion/vision/synth.hpp"
 
 using namespace pychron;
 using namespace pychron::vision;

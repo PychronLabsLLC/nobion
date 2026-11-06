@@ -1,5 +1,5 @@
 // plc2000_gauges over a simulated Modbus PLC (plan 2026-10-05, task B7).
-#include "pychron/devices/plc2000_gauges.hpp"
+#include "nobion/devices/plc2000_gauges.hpp"
 
 #include <gtest/gtest.h>
 
@@ -7,8 +7,8 @@
 #include <limits>
 #include <map>
 
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/devices/modbus_device_sim.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/devices/modbus_device_sim.hpp"
 
 using namespace pychron;
 using namespace std::chrono_literals;

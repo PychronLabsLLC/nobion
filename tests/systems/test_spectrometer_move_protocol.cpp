@@ -4,7 +4,7 @@
 #include <chrono>
 #include <random>
 
-#include "pychron/systems/spectrometer/move_protocol.hpp"
+#include "nobion/systems/spectrometer/move_protocol.hpp"
 #include "spectrometer_fakes.hpp"
 
 using namespace pychron;

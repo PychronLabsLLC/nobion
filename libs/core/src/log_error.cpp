@@ -1,9 +1,9 @@
-#include "pychron/core/log_error.hpp"
+#include "nobion/core/log_error.hpp"
 
 #include <string>
 
-#include "pychron/core/events.hpp"
-#include "pychron/core/process_log.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/process_log.hpp"
 
 namespace pychron {
 namespace {

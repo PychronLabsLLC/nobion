@@ -1,4 +1,4 @@
-#include "pychron/earthbank/mapping.hpp"
+#include "nobion/earthbank/mapping.hpp"
 
 #include <algorithm>
 #include <array>
@@ -14,20 +14,20 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/core/error.hpp"
-#include "pychron/core/expected.hpp"
-#include "pychron/earthbank/model.hpp"
-#include "pychron/earthbank/vocab.hpp"
-#include "pychron/arar/arar_groups.hpp"
-#include "pychron/processing/dataset.hpp"
-#include "pychron/arar/group_ages.hpp"
-#include "pychron/processing/model.hpp"
-#include "pychron/processing/reduced.hpp"
-#include "pychron/arar/arar_reduction.hpp"
-#include "pychron/arar/arar_types.hpp"
-#include "pychron/arar/reduce.hpp"
-#include "pychron/reduction/stats.hpp"
-#include "pychron/reduction/ufloat.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/core/expected.hpp"
+#include "nobion/earthbank/model.hpp"
+#include "nobion/earthbank/vocab.hpp"
+#include "nobion/arar/arar_groups.hpp"
+#include "nobion/processing/dataset.hpp"
+#include "nobion/arar/group_ages.hpp"
+#include "nobion/processing/model.hpp"
+#include "nobion/processing/reduced.hpp"
+#include "nobion/arar/arar_reduction.hpp"
+#include "nobion/arar/arar_types.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/reduction/stats.hpp"
+#include "nobion/reduction/ufloat.hpp"
 
 namespace pychron::earthbank {
 

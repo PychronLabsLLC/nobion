@@ -1,11 +1,11 @@
-#include "pychron/vision/grain.hpp"
+#include "nobion/vision/grain.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <numbers>
 
-#include "pychron/core/keyed_noise.hpp"
+#include "nobion/core/keyed_noise.hpp"
 
 namespace pychron::vision {
 

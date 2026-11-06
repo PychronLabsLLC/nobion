@@ -4,10 +4,10 @@
 #include <cmath>
 #include <numbers>
 
-#include "pychron/vision/finder.hpp"
-#include "pychron/vision/grain.hpp"
-#include "pychron/vision/source.hpp"
-#include "pychron/vision/synth.hpp"
+#include "nobion/vision/finder.hpp"
+#include "nobion/vision/grain.hpp"
+#include "nobion/vision/source.hpp"
+#include "nobion/vision/synth.hpp"
 
 using namespace pychron::vision;
 

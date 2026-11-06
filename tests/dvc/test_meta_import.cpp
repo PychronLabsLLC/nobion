@@ -16,10 +16,10 @@
 
 #include "fixture_files.hpp"
 #include "git_fixture.hpp"
-#include "pychron/core/sha256.hpp"
-#include "pychron/dvc/meta_adapter.hpp"
-#include "pychron/ingest/ids.hpp"
-#include "pychron/ingest/writer.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/dvc/meta_adapter.hpp"
+#include "nobion/ingest/ids.hpp"
+#include "nobion/ingest/writer.hpp"
 #include "store_fixture.hpp"
 #include "verify_support.hpp"
 

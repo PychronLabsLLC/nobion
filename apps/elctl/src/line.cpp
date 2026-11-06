@@ -6,15 +6,15 @@
 #include <deque>
 #include <memory>
 
-#include "pychron/core/process_log.hpp"
-#include "pychron/devices/capabilities.hpp"
-#include "pychron/devices/channel_gauge.hpp"
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/devices/gp_microion.hpp"
-#include "pychron/devices/pfeiffer_maxigauge.hpp"
-#include "pychron/devices/plc2000_heater.hpp"
-#include "pychron/devices/proxr_board_sim.hpp"
-#include "pychron/transport/factory.hpp"
+#include "nobion/core/process_log.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/devices/channel_gauge.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/devices/gp_microion.hpp"
+#include "nobion/devices/pfeiffer_maxigauge.hpp"
+#include "nobion/devices/plc2000_heater.hpp"
+#include "nobion/devices/proxr_board_sim.hpp"
+#include "nobion/transport/factory.hpp"
 
 namespace elctl {
 

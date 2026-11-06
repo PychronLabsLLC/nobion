@@ -8,11 +8,11 @@
 #include <ostream>
 #include <utility>
 
-#include "pychron/core/env.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/core/host_name.hpp"
-#include "pychron/persistence/store.hpp"
-#include "pychron/publish/embargo.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/core/host_name.hpp"
+#include "nobion/persistence/store.hpp"
+#include "nobion/publish/embargo.hpp"
 
 namespace elctl {
 

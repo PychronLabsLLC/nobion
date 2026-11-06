@@ -1,12 +1,12 @@
-#include "pychron/processing/recall.hpp"
+#include "nobion/processing/recall.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <ctime>
 
-#include "pychron/processing/fit_edit.hpp"
-#include "pychron/reduction/fits.hpp"
+#include "nobion/processing/fit_edit.hpp"
+#include "nobion/reduction/fits.hpp"
 
 namespace pychron::processing {
 

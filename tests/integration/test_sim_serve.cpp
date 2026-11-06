@@ -13,11 +13,11 @@
 #include <thread>
 
 #include "hardware_style.hpp"
-#include "pychron/core/config/loader.hpp"
-#include "pychron/systems/canvas/loader.hpp"
-#include "pychron/systems/extraction_line.hpp"
-#include "pychron/systems/line_server.hpp"
-#include "pychron/transport/endpoints.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/systems/canvas/loader.hpp"
+#include "nobion/systems/extraction_line.hpp"
+#include "nobion/systems/line_server.hpp"
+#include "nobion/transport/endpoints.hpp"
 #include "temp_path.hpp"
 
 namespace {

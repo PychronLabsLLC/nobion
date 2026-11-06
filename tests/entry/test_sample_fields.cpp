@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "pychron/entry/sample_fields.hpp"
+#include "nobion/entry/sample_fields.hpp"
 
 using namespace pychron::entry;
 

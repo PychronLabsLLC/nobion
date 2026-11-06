@@ -15,11 +15,11 @@
 #include "cli.hpp"
 #include "earthbank.hpp"
 #include "password_prompt.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/http.hpp"
-#include "pychron/earthbank/profiles.hpp"
-#include "pychron/earthbank/secret_store.hpp"
-#include "pychron/earthbank/session.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/http.hpp"
+#include "nobion/earthbank/profiles.hpp"
+#include "nobion/earthbank/secret_store.hpp"
+#include "nobion/earthbank/session.hpp"
 
 namespace elctl::earthbank_cli {
 

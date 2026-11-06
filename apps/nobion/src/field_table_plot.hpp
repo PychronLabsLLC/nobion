@@ -18,7 +18,7 @@
 #include <QStringList>
 #include <QWidget>
 
-#include "pychron/systems/spectrometer/field_table.hpp"
+#include "nobion/systems/spectrometer/field_table.hpp"
 
 class QCustomPlot;
 class QMouseEvent;

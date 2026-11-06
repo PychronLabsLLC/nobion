@@ -6,11 +6,11 @@
 #include "cli.hpp"
 #include "exp.hpp"
 #include "log_tee.hpp"
-#include "pychron/core/clock.hpp"
-#include "pychron/core/log_context.hpp"
-#include "pychron/core/log_dir.hpp"
-#include "pychron/core/log_hub.hpp"
-#include "pychron/core/process_log.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/log_context.hpp"
+#include "nobion/core/log_dir.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/process_log.hpp"
 #include "process_log.hpp"
 
 extern "C" void elctl_on_interrupt(int) { ++elctl::interrupt_count(); }

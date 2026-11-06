@@ -1,4 +1,4 @@
-#include "pychron/sim/spectrometer/beam_model.hpp"
+#include "nobion/sim/spectrometer/beam_model.hpp"
 
 #include <chrono>
 #include <cmath>

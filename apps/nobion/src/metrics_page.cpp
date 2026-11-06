@@ -10,7 +10,7 @@
 #include <QSpinBox>
 
 #include "preferences_dialog.hpp"
-#include "pychron/core/config/loader.hpp"
+#include "nobion/core/config/loader.hpp"
 
 namespace pychron::ui {
 

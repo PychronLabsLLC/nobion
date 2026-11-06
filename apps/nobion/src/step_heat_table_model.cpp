@@ -9,8 +9,8 @@
 #include <QGuiApplication>
 #include <QPalette>
 
-#include "pychron/experiment/factory/form.hpp"
-#include "pychron/experiment/factory/increments.hpp"
+#include "nobion/experiment/factory/form.hpp"
+#include "nobion/experiment/factory/increments.hpp"
 
 namespace pychron::ui {
 

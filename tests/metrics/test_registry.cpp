@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "metrics_text.hpp"
-#include "pychron/metrics/registry.hpp"
+#include "nobion/metrics/registry.hpp"
 
 using namespace pychron::metrics;
 using metrics_text::has;

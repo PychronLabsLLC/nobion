@@ -1,4 +1,4 @@
-#include "pychron/earthbank/profiles.hpp"
+#include "nobion/earthbank/profiles.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -28,9 +28,9 @@
 #include <unistd.h>
 #endif
 
-#include "pychron/core/env.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/core/path_text.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/core/path_text.hpp"
 
 namespace pychron::earthbank {
 namespace {

@@ -1,13 +1,13 @@
-#include "pychron/systems/spectrometer/assembler.hpp"
+#include "nobion/systems/spectrometer/assembler.hpp"
 
 #include <algorithm>
 #include <filesystem>
 
-#include "pychron/devices/capabilities.hpp"
-#include "pychron/devices/connectable.hpp"
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/systems/spectrometer/config_validate.hpp"
-#include "pychron/transport/factory.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/devices/connectable.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/systems/spectrometer/config_validate.hpp"
+#include "nobion/transport/factory.hpp"
 
 namespace pychron::spectrometer {
 

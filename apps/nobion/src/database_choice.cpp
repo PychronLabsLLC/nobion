@@ -1,11 +1,11 @@
 #include "database_choice.hpp"
 
-#include "pychron/setup/doctor.hpp"
+#include "nobion/setup/doctor.hpp"
 #ifdef PYCHRON_UI_HAS_STORE
 // Qt's `signals` keyword macro would rewrite CollectionRoots::signals.
 #pragma push_macro("signals")
 #undef signals
-#include "pychron/experiment/store/store_persister.hpp"
+#include "nobion/experiment/store/store_persister.hpp"
 #pragma pop_macro("signals")
 #endif
 

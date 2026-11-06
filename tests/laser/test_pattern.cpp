@@ -1,7 +1,7 @@
 // Laser patterns: the files, and the points each kind generates (laser
 // patterns design, sections 3 to 5). The geometry is legacy pychron's.
 
-#include "pychron/laser/pattern.hpp"
+#include "nobion/laser/pattern.hpp"
 
 #include <cmath>
 #include <filesystem>

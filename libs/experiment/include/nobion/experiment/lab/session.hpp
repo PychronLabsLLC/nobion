@@ -1,0 +1,200 @@
+#pragma once
+
+// LabSession (experiment-window design 4.2): runs queues against a lab on
+// live (or simulated) hardware. Shared by `elctl exp run` and the UI.
+//
+// The run services (script host, valve services, spectrometer and peak-center
+// ports, instrument metrics, persisters, aliquots) are assembled once, in the
+// constructor. start() runs Executor::execute on a session-owned thread on a
+// private copy of the queue; events go to the line's bus as usual, plus
+// QueueEnded when the executor returns. A free-running ScanService is paused
+// for the queue (measurement needs the acquisition engine) and resumed after.
+//
+// Controls are thread-safe and non-blocking. The destructor aborts a running
+// queue and joins it.
+//
+// The lab's notifications (Lab::notifications) go out from a session-owned
+// Notifier: a failed run as it finishes, a hold and the return from it, the
+// queue's end after QueueEnded. What cannot be sent waits in <data>/outbox.
+// Each delivery is published as NotificationSent.
+
+#include <condition_variable>
+#include "nobion/core/process_log.hpp"
+#include <filesystem>
+#include <functional>
+#include <map>
+#include <string_view>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <thread>
+#include <vector>
+#include <cstdint>
+#include <cstddef>
+
+#include "nobion/core/error.hpp"
+#include "nobion/experiment/executor/executor.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/lab/notifier.hpp"
+
+namespace pychron::systems {
+class ExtractionLine;
+}
+namespace pychron::spectrometer {
+class Spectrometer;
+class ScanService;
+}  // namespace pychron::spectrometer
+
+namespace pychron::experiment::lab {
+
+class Lasers;
+
+struct SessionHardware {
+  systems::ExtractionLine& line;  // started; its clock, scheduler and bus are the session's
+  spectrometer::Spectrometer* spectrometer = nullptr;
+  spectrometer::ScanService* scan = nullptr;  // paused while a queue runs
+  // Whether the extraction device `driver` is simulated (a simulated camera
+  // may only center holes on a simulated stage). Empty: asked of the line.
+  std::function<bool(std::string_view driver)> simulated;
+  // The lab's laser systems, when something else drives them too (the laser
+  // window); it must outlive the session, and `simulated` is then its own.
+  // Null: the session builds its own.
+  Lasers* lasers = nullptr;
+  // The hardware is a simulator's (spectrometer::simulated_session says when):
+  // every record the session makes says so (record::InstrumentMeta::simulated).
+  bool simulation = false;
+};
+
+struct SessionOptions {
+  std::filesystem::path data;            // records/, spool/, outbox/, executor_state.json
+  executor::ExecutorOptions executor;    // state_file defaults to <data>/executor_state.json
+  ProcessRunner notify;                  // runs the notification programs; empty: run_process
+  persist::IAnalysisPersister* persister = nullptr;  // not owned; nullptr: files under <data>/records
+};
+
+// Published on the line's bus when a session starts a queue, before the
+// executor runs. An unedited queue publishes no QueueEdited, so this is how a
+// subscriber learns how much there is to do.
+struct QueueStarted {
+  std::size_t rows = 0;      // QueueSpec::runs.size()
+  std::size_t from_row = 0;  // the row the queue starts at
+};
+
+// Published on the line's bus when a queue started by a session ends, after
+// any paused scan has been resumed.
+struct QueueEnded {
+  executor::QueueResult result;
+};
+
+class LabSession {
+ public:
+  // `lab` and the hardware must outlive the session.
+  LabSession(const Lab& lab, SessionHardware hardware, SessionOptions options);
+  ~LabSession();
+  LabSession(const LabSession&) = delete;
+  LabSession& operator=(const LabSession&) = delete;
+
+  // Config error if a queue is running or `queue` does not check against the
+  // lab (the message names the first error and how many there are); if the
+  // persister would not save a row from `from_row` on ("the queue cannot be
+  // saved:" and its lines; earlier rows are not asked about); also
+  // while a laser is being driven by hand, while a laser's emergency stop
+  // has not been reset, and while a laser's beam is on.
+  Result<void> start(QueueSpec queue, std::size_t from_row = 0);
+
+  void stop();
+  void cancel();
+  void abort();
+  void truncate(bool quick = false);
+  // While the queue holds (Executor::resume, Executor::skip): try the held
+  // row now, without waiting for its links to settle; or drop the held row,
+  // which has not started, and go on. skip() is refused (Config) when no
+  // queue holds or its run has started.
+  void resume();
+  Result<void> skip();
+  // Replaces the running queue's runs with `queue.runs` (Executor::edit:
+  // rows the executor has reached must be unchanged, `base` is the version
+  // the edit was made against). The whole queue must check against the lab,
+  // and the rows the executor has not reached must be ones the persister
+  // would save, as at start().
+  // Queue-level fields are not editable while running and are ignored.
+  Result<std::uint64_t> edit(std::uint64_t base, const QueueSpec& queue);
+
+  // check_lab_queue against the named peak-center sets start() or edit()
+  // would check `queue` against: while a queue runs, those it started with;
+  // otherwise peak_center.toml read again for this call (a small file; a set
+  // saved since the lab was loaded counts, its load-time error does not). A
+  // file that does not parse is an error (field "lab") with the text start()
+  // refuses with, first among the lab's; plan references are then checked
+  // against the sets of the last start. For what a window shows before Start.
+  LabCheck check_queue(const QueueSpec& queue) const;
+
+  bool running() const;
+  executor::ExecutorState state() const;
+  // Joins the queue thread; the last queue's result, nullopt if none ran.
+  // start() and wait() are called from one thread (the owner's).
+  std::optional<executor::QueueResult> wait();
+  std::size_t pending_saves() const;  // records still in the spool
+  // Why the last record that was not taken is still in the spool
+  // ("<record uuid>: <the persister's text>"); empty when none was refused
+  // or that record has since been sent.
+  std::optional<std::string> last_save_error() const;
+  TimePoint now() const;              // the line's clock (simulated or not)
+  WallTime wall_now() const;          // the same clock's date and time
+  // Sends a test message on every configured channel (non-blocking).
+  void notify_test();
+  Notifier& notifier() noexcept { return *notifier_; }
+
+  // What the lab asks of an extraction device that this session cannot do:
+  // a camera that cannot be used to center holes on it (a simulated camera
+  // over a real laser, frames that cannot be opened). Fixed for the session.
+  // A queue that uses such a device is not started: the lab is put right
+  // first, rather than run uncentered without anyone having said so.
+  std::vector<std::string> problems() const;
+
+  const Lab& lab() const noexcept { return lab_; }
+  const std::filesystem::path& data() const noexcept { return options_.data; }
+  bool has_spectrometer() const noexcept;
+  static Result<std::size_t> resume_row(const std::filesystem::path& data);
+
+ private:
+  struct Services;
+
+  void run(QueueSpec queue, std::size_t from_row);
+  void join();  // the queue thread, once it is done; the owner's thread only
+  Result<void> check(const QueueSpec& queue) const;  // against the lab; names the first error
+  // Asks the persister about a queue as it will run (persist::rows_from);
+  // what it would not save refuses the queue, one line each.
+  Result<void> check_saves(const QueueSpec& will_run);
+
+  Logger log_ = process_logger("experiment");
+  const Lab& lab_;
+  // The lab's named peak-center configs as of the last queue start (the file
+  // can change between queues); under mutex_.
+  std::map<std::string, jobs::PeakCenterConfig> peak_centers_;
+  SessionHardware hardware_;
+  SessionOptions options_;
+  std::unique_ptr<Lasers> own_lasers_;  // when none were given
+  Lasers* lasers_ = nullptr;
+  std::unique_ptr<Services> services_;
+  std::unique_ptr<Notifier> notifier_;
+
+  mutable std::mutex mutex_;
+  // The current or last queue's. Controls call it outside mutex_, so a bus
+  // subscriber may call back into the session.
+  std::shared_ptr<executor::Executor> executor_;
+  std::shared_ptr<executor::Executor> active() const;  // executor_ while running
+  std::optional<executor::QueueResult> result_;
+  QueueSpec started_;  // the current or last queue without its rows: what an edit cannot change; under mutex_
+  bool running_ = false;
+  struct QueueLease;
+  std::unique_ptr<QueueLease> lease_;  // the lasers are the queue's while it runs; under mutex_
+  std::thread thread_;
+  // The queue thread's last word, under mutex_; waited on and notified
+  // through the line's clock.
+  bool thread_done_ = false;
+  std::condition_variable thread_done_cv_;
+};
+
+}  // namespace pychron::experiment::lab

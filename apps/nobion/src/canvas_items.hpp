@@ -21,8 +21,8 @@
 #include <QPointF>
 #include <QTimer>
 
-#include "pychron/core/events.hpp"
-#include "pychron/systems/canvas/canvas.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/systems/canvas/canvas.hpp"
 
 #include "theme.hpp"
 

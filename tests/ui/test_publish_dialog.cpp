@@ -26,20 +26,20 @@
 
 #include "earthbank_fixture.hpp"
 #include "entry_bridge.hpp"
-#include "pychron/core/sha256.hpp"
-#include "pychron/persistence/store.hpp"
-#include "pychron/arar/store_loader.hpp"
-#include "pychron/processing/store_source.hpp"
-#include "pychron/publish/embargo.hpp"
-#include "pychron/publish/publication.hpp"
-#include "pychron/publish/release.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/persistence/store.hpp"
+#include "nobion/arar/store_loader.hpp"
+#include "nobion/processing/store_source.hpp"
+#include "nobion/publish/embargo.hpp"
+#include "nobion/publish/publication.hpp"
+#include "nobion/publish/release.hpp"
 #include "release_seed.hpp"
 // The dialog's EarthBank tab; keyword-safe headers (Q_SIGNALS), as this
 // suite is built with QT_NO_KEYWORDS.
 #include "earthbank_publish_panel.hpp"
 #include "publish_actions.hpp"
 #include "publish_dialog.hpp"
-#include "pychron/earthbank/secret_store.hpp"
+#include "nobion/earthbank/secret_store.hpp"
 
 namespace ps = pychron::persistence;
 namespace pp = pychron::processing;

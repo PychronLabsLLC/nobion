@@ -1,7 +1,7 @@
 #include "log_filter_proxy.hpp"
 
 #include "log_model.hpp"
-#include "pychron/core/log_match.hpp"
+#include "nobion/core/log_match.hpp"
 
 namespace pychron::ui {
 

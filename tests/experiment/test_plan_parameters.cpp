@@ -6,7 +6,7 @@
 #include <fstream>
 #include <sstream>
 
-#include "pychron/experiment/plan/parameters.hpp"
+#include "nobion/experiment/plan/parameters.hpp"
 
 namespace pychron::experiment::plan {
 namespace {

@@ -1,4 +1,4 @@
-#include "pychron/devices/spectrometer/thermo_qtegra.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -6,8 +6,8 @@
 #include <cstddef>
 #include <string_view>
 
-#include "pychron/devices/spectrometer/legacy/polled_acquirer.hpp"
-#include "pychron/transport/link_transport.hpp"
+#include "nobion/devices/spectrometer/legacy/polled_acquirer.hpp"
+#include "nobion/transport/link_transport.hpp"
 
 namespace pychron::spectrometer {
 

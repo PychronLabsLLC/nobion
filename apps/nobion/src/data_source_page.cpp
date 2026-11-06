@@ -18,9 +18,9 @@
 #include <QStringList>
 #include <QVBoxLayout>
 
-#include "pychron/setup/doctor.hpp"
-#include "pychron/setup/installer.hpp"
-#include "pychron/setup/template.hpp"
+#include "nobion/setup/doctor.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/setup/template.hpp"
 #include "error_report.hpp"
 #include "question_editor.hpp"
 #include "theme.hpp"

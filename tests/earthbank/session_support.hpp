@@ -13,8 +13,8 @@
 #include <nlohmann/json.hpp>
 
 #include "fake_earthbank.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/http.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/http.hpp"
 
 namespace pychron::earthbank::testing {
 

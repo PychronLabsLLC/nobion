@@ -10,7 +10,7 @@
 #include <utility>
 
 #include "../processing/fixtures.hpp"
-#include "pychron/arar/analysis_data.hpp"
+#include "nobion/arar/analysis_data.hpp"
 
 namespace pychron::arar::test {
 

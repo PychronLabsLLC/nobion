@@ -2,7 +2,7 @@
 
 #include <set>
 
-#include "pychron/experiment/model/queue_validation.hpp"
+#include "nobion/experiment/model/queue_validation.hpp"
 
 using namespace pychron::experiment;
 

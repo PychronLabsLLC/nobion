@@ -6,7 +6,7 @@
 #include <mutex>
 #include <thread>
 
-#include "pychron/core/clock.hpp"
+#include "nobion/core/clock.hpp"
 
 using namespace pychron;
 using namespace std::chrono_literals;

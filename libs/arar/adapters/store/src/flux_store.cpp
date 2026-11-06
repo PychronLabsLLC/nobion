@@ -13,10 +13,10 @@
 #include <tuple>
 #include <variant>
 
-#include "pychron/arar/flux_store.hpp"
-#include "pychron/arar/analysis_data.hpp"
-#include "pychron/arar/reduce.hpp"
-#include "pychron/processing/reduced.hpp"
+#include "nobion/arar/flux_store.hpp"
+#include "nobion/arar/analysis_data.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/processing/reduced.hpp"
 
 namespace pychron::processing {
 

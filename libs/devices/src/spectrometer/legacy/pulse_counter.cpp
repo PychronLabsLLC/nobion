@@ -1,8 +1,8 @@
-#include "pychron/devices/spectrometer/legacy/pulse_counter.hpp"
+#include "nobion/devices/spectrometer/legacy/pulse_counter.hpp"
 
 #include <mutex>
 
-#include "pychron/codecs/pulse_counter.hpp"
+#include "nobion/codecs/pulse_counter.hpp"
 
 namespace pychron::spectrometer {
 

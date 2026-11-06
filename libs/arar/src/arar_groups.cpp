@@ -1,9 +1,9 @@
-#include "pychron/arar/arar_groups.hpp"
+#include "nobion/arar/arar_groups.hpp"
 
 #include <cmath>
 
-#include "pychron/arar/arar_reduction.hpp"
-#include "pychron/arar/reduce.hpp"
+#include "nobion/arar/arar_reduction.hpp"
+#include "nobion/arar/reduce.hpp"
 
 namespace pychron::processing {
 

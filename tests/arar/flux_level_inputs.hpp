@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "flux_golden.hpp"
-#include "pychron/arar/flux_fit.hpp"
+#include "nobion/arar/flux_fit.hpp"
 
 namespace pychron::processing::flux_test {
 

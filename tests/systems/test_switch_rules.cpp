@@ -1,7 +1,7 @@
 // The switch access and interlock rule as pure functions, and the interlock
 // topology SwitchManager hands out.
 
-#include "pychron/systems/switch_rules.hpp"
+#include "nobion/systems/switch_rules.hpp"
 
 #include <gtest/gtest.h>
 
@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/systems/switch_manager.hpp"
+#include "nobion/systems/switch_manager.hpp"
 
 using namespace pychron;
 using namespace pychron::systems;

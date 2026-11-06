@@ -10,8 +10,8 @@
 #include <string>
 #include <system_error>
 
-#include "pychron/vision/legacy_finder.hpp"
-#include "pychron/vision/opencv_source.hpp"
+#include "nobion/vision/legacy_finder.hpp"
+#include "nobion/vision/opencv_source.hpp"
 
 #ifdef PYCHRON_VISION_OPENCV_ENABLED
 #include <opencv2/core.hpp>

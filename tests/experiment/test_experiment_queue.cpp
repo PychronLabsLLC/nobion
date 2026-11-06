@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include "pychron/experiment/model/experiment_queue.hpp"
+#include "nobion/experiment/model/experiment_queue.hpp"
 
 using namespace pychron::experiment;
 

@@ -1,11 +1,11 @@
-#include "pychron/devices/driver_registry.hpp"
+#include "nobion/devices/driver_registry.hpp"
 
 #include <gtest/gtest.h>
 
 #include <algorithm>
 
-#include "pychron/devices/capabilities.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/transport/sim_transport.hpp"
 
 using namespace pychron;
 

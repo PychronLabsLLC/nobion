@@ -12,8 +12,8 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/systems/extraction_line.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/systems/extraction_line.hpp"
 
 namespace {
 

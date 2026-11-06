@@ -13,7 +13,7 @@
 #include <QMainWindow>
 #include <QString>
 
-#include "pychron/laser/pattern.hpp"
+#include "nobion/laser/pattern.hpp"
 
 class QComboBox;
 class QFormLayout;

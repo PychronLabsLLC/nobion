@@ -1,4 +1,4 @@
-#include "pychron/codecs/isotopx_ngx.hpp"
+#include "nobion/codecs/isotopx_ngx.hpp"
 
 #include <gtest/gtest.h>
 

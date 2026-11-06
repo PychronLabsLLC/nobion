@@ -21,7 +21,7 @@
 
 #include "canvas_view.hpp"
 #include "code_editor.hpp"
-#include "pychron/experiment/lab/scripts.hpp"
+#include "nobion/experiment/lab/scripts.hpp"
 #include "error_report.hpp"
 #include "script_highlighter.hpp"
 #include "shortcuts.hpp"

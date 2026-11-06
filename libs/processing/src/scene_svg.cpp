@@ -1,6 +1,6 @@
 // A scene written as SVG (data publishing design, section 5.6).
 
-#include "pychron/processing/scene_svg.hpp"
+#include "nobion/processing/scene_svg.hpp"
 
 namespace pychron::processing {
 

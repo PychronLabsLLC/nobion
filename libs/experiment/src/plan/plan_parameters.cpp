@@ -1,4 +1,4 @@
-#include "pychron/experiment/plan/parameters.hpp"
+#include "nobion/experiment/plan/parameters.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -6,7 +6,7 @@
 #include <set>
 
 #include "plan_toml.hpp"
-#include "pychron/core/number.hpp"
+#include "nobion/core/number.hpp"
 
 namespace pychron::experiment::plan {
 

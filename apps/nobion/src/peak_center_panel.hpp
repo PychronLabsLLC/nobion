@@ -23,8 +23,8 @@
 #include <QStringList>
 #include <QWidget>
 
-#include "pychron/core/error.hpp"
-#include "pychron/systems/jobs/peak_center.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/systems/jobs/peak_center.hpp"
 
 class QCheckBox;
 class QComboBox;

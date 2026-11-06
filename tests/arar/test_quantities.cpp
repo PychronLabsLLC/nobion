@@ -12,10 +12,10 @@
 #include <vector>
 
 #include "arar_fixtures.hpp"
-#include "pychron/arar/domain.hpp"
-#include "pychron/arar/reduce.hpp"
-#include "pychron/processing/domain.hpp"
-#include "pychron/processing/quantity.hpp"
+#include "nobion/arar/domain.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/quantity.hpp"
 
 namespace pp = pychron::processing;
 using pychron::arar::test::make_air;

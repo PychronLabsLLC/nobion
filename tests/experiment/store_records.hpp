@@ -9,7 +9,7 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/experiment/record/builder.hpp"
+#include "nobion/experiment/record/builder.hpp"
 
 namespace pychron::experiment::testing {
 

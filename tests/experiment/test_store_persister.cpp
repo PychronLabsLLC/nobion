@@ -14,9 +14,9 @@
 
 #include "failing_store.hpp"
 #include "log_capture.hpp"
-#include "pychron/experiment/persist/persister.hpp"
-#include "pychron/experiment/store/record_ingest.hpp"
-#include "pychron/experiment/store/store_persister.hpp"
+#include "nobion/experiment/persist/persister.hpp"
+#include "nobion/experiment/store/record_ingest.hpp"
+#include "nobion/experiment/store/store_persister.hpp"
 #include "store_fixture.hpp"
 #include "store_records.hpp"
 

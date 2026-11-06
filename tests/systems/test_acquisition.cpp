@@ -14,9 +14,9 @@
 #include <thread>
 #include <vector>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/sim/spectrometer/sim_drivers.hpp"
-#include "pychron/systems/spectrometer/acquisition.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/sim/spectrometer/sim_drivers.hpp"
+#include "nobion/systems/spectrometer/acquisition.hpp"
 #include "spectrometer_fakes.hpp"
 #include "virtual_time.hpp"
 

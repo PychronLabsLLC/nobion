@@ -1,4 +1,4 @@
-#include "pychron/experiment/measurement/engine.hpp"
+#include "nobion/experiment/measurement/engine.hpp"
 
 #include <algorithm>
 #include <array>
@@ -10,11 +10,11 @@
 #include <utility>
 #include <variant>
 
-#include "pychron/core/events.hpp"
-#include "pychron/core/log_error.hpp"
-#include "pychron/devices/link.hpp"
-#include "pychron/experiment/conditionals/library.hpp"
-#include "pychron/reduction/fits.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/log_error.hpp"
+#include "nobion/devices/link.hpp"
+#include "nobion/experiment/conditionals/library.hpp"
+#include "nobion/reduction/fits.hpp"
 
 namespace pychron::experiment::measurement {
 

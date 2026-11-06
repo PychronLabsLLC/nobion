@@ -11,7 +11,7 @@
 #include <QObject>
 #include <QPointer>
 
-#include "pychron/core/error.hpp"
+#include "nobion/core/error.hpp"
 
 class QAction;
 class QWidget;

@@ -1,4 +1,4 @@
-#include "pychron/entry/sample_import.hpp"
+#include "nobion/entry/sample_import.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -8,9 +8,9 @@
 #include <set>
 #include <tuple>
 
-#include "pychron/entry/names.hpp"
-#include "pychron/entry/sample_fields.hpp"
-#include "pychron/core/number.hpp"
+#include "nobion/entry/names.hpp"
+#include "nobion/entry/sample_fields.hpp"
+#include "nobion/core/number.hpp"
 
 namespace pychron::entry {
 

@@ -3,8 +3,8 @@
 #include <filesystem>
 #include <fstream>
 
-#include "pychron/experiment/model/queue_file.hpp"
-#include "pychron/experiment/model/queue_toml.hpp"
+#include "nobion/experiment/model/queue_file.hpp"
+#include "nobion/experiment/model/queue_toml.hpp"
 
 using namespace pychron::experiment;
 

@@ -1,4 +1,4 @@
-#include "pychron/systems/spectrometer/field_table_check.hpp"
+#include "nobion/systems/spectrometer/field_table_check.hpp"
 
 #include <gtest/gtest.h>
 
@@ -9,9 +9,9 @@
 #include <string>
 #include <vector>
 
-#include "pychron/systems/spectrometer/config.hpp"
-#include "pychron/systems/spectrometer/field_table.hpp"
-#include "pychron/systems/spectrometer/molecular_weights.hpp"
+#include "nobion/systems/spectrometer/config.hpp"
+#include "nobion/systems/spectrometer/field_table.hpp"
+#include "nobion/systems/spectrometer/molecular_weights.hpp"
 
 namespace ps = pychron::spectrometer;
 namespace cfg = pychron::spectrometer::cfg;

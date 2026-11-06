@@ -11,7 +11,7 @@
 
 #include "elctl_fixture.hpp"
 #include "hardware_style.hpp"
-#include "pychron/transport/endpoints.hpp"
+#include "nobion/transport/endpoints.hpp"
 #include "sim_serve.hpp"
 
 namespace {

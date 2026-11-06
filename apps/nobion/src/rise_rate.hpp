@@ -12,8 +12,8 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/systems/spectrometer/acquisition.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/systems/spectrometer/acquisition.hpp"
 
 namespace pychron::ui {
 

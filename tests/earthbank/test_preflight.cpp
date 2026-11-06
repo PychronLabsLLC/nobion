@@ -15,12 +15,12 @@
 #include <nlohmann/json.hpp>
 
 #include "fake_earthbank.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/lookup.hpp"
-#include "pychron/earthbank/model.hpp"
-#include "pychron/earthbank/preflight.hpp"
-#include "pychron/earthbank/session.hpp"
-#include "pychron/earthbank/vocab.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/lookup.hpp"
+#include "nobion/earthbank/model.hpp"
+#include "nobion/earthbank/preflight.hpp"
+#include "nobion/earthbank/session.hpp"
+#include "nobion/earthbank/vocab.hpp"
 #include "records_support.hpp"
 #include "session_support.hpp"
 

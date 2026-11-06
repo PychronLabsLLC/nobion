@@ -27,8 +27,8 @@
 #include <QVBoxLayout>
 
 #include "error_report.hpp"
-#include "pychron/core/log_hub.hpp"
-#include "pychron/core/process_log.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/process_log.hpp"
 
 namespace pychron::ui {
 

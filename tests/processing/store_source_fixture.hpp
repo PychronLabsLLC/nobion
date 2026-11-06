@@ -16,8 +16,8 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/sha256.hpp"
-#include "pychron/processing/store_source.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/processing/store_source.hpp"
 
 namespace pychron::processing::test {
 

@@ -1,8 +1,8 @@
 // The host installed when PYCHRON_SCRIPTING is off: rejects every scripted
 // run so a build without Python still links and fails loudly, not silently.
 
-#include "pychron/devices/extraction/capability.hpp"
-#include "pychron/scripting/script_host.hpp"
+#include "nobion/devices/extraction/capability.hpp"
+#include "nobion/scripting/script_host.hpp"
 
 namespace pychron::scripting {
 namespace {

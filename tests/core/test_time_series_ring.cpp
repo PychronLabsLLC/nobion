@@ -3,7 +3,7 @@
 #include <cmath>
 #include <limits>
 
-#include "pychron/core/time_series_ring.hpp"
+#include "nobion/core/time_series_ring.hpp"
 
 using namespace pychron;
 

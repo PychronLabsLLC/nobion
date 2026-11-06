@@ -24,7 +24,7 @@
 #include <QVector>
 #include <QWidget>
 
-#include "pychron/systems/jobs/peak_center.hpp"
+#include "nobion/systems/jobs/peak_center.hpp"
 
 class QCPRange;
 class QCustomPlot;

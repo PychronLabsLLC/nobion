@@ -1,7 +1,7 @@
 // SwitchValveService: the script host's valve vocabulary routed through
 // SwitchManager, so locks, ownership and interlocks apply to scripts.
 
-#include "pychron/systems/switch_valve_service.hpp"
+#include "nobion/systems/switch_valve_service.hpp"
 
 #include <gtest/gtest.h>
 

@@ -1,6 +1,6 @@
-#include "pychron/devices/pychron_valve_server_sim.hpp"
+#include "nobion/devices/pychron_valve_server_sim.hpp"
 
-#include "pychron/codecs/pychron_tx.hpp"
+#include "nobion/codecs/pychron_tx.hpp"
 
 namespace pychron {
 

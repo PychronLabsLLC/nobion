@@ -18,13 +18,13 @@
 #include <unistd.h>
 #endif
 
-#include "pychron/setup/data_source.hpp"
-#include "pychron/setup/doctor.hpp"
-#include "pychron/setup/install.hpp"
-#include "pychron/setup/installer.hpp"
-#include "pychron/setup/profile.hpp"
-#include "pychron/setup/site.hpp"
-#include "pychron/setup/template.hpp"
+#include "nobion/setup/data_source.hpp"
+#include "nobion/setup/doctor.hpp"
+#include "nobion/setup/install.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/setup/profile.hpp"
+#include "nobion/setup/site.hpp"
+#include "nobion/setup/template.hpp"
 #include "temp_path.hpp"
 
 using namespace pychron;

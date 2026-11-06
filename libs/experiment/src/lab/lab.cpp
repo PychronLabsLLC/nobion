@@ -1,6 +1,6 @@
-#include "pychron/experiment/lab/lab.hpp"
+#include "nobion/experiment/lab/lab.hpp"
 
-#include "pychron/devices/driver_registry.hpp"
+#include "nobion/devices/driver_registry.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -10,9 +10,9 @@
 #include <system_error>
 #include <utility>
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/experiment/model/identifiers.hpp"
-#include "pychron/experiment/model/rules.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/experiment/model/identifiers.hpp"
+#include "nobion/experiment/model/rules.hpp"
 
 namespace pychron::experiment::lab {
 

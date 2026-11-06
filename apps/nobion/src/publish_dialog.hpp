@@ -49,9 +49,9 @@
 // Qt's `signals` keyword macro would rewrite persistence::CollectionRoots::signals.
 #pragma push_macro("signals")
 #undef signals
-#include "pychron/persistence/ids.hpp"
-#include "pychron/publish/publication.hpp"
-#include "pychron/publish/release.hpp"
+#include "nobion/persistence/ids.hpp"
+#include "nobion/publish/publication.hpp"
+#include "nobion/publish/release.hpp"
 #pragma pop_macro("signals")
 
 class QCheckBox;

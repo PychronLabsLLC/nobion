@@ -24,7 +24,7 @@
 #include <QStringList>
 
 #include "earthbank_worker.hpp"
-#include "pychron/persistence/ids.hpp"
+#include "nobion/persistence/ids.hpp"
 
 class QAction;
 class QWidget;

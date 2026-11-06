@@ -1,4 +1,4 @@
-#include "pychron/experiment/conditionals/conditional.hpp"
+#include "nobion/experiment/conditionals/conditional.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -9,7 +9,7 @@
 #include <toml++/toml.hpp>
 
 #include "number.hpp"
-#include "pychron/experiment/record/sha256.hpp"
+#include "nobion/experiment/record/sha256.hpp"
 
 namespace pychron::experiment {
 namespace {

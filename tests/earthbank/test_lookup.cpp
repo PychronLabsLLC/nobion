@@ -13,10 +13,10 @@
 #include <nlohmann/json.hpp>
 
 #include "fake_earthbank.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/lookup.hpp"
-#include "pychron/earthbank/session.hpp"
-#include "pychron/earthbank/vocab.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/lookup.hpp"
+#include "nobion/earthbank/session.hpp"
+#include "nobion/earthbank/vocab.hpp"
 #include "session_support.hpp"
 
 namespace pychron::earthbank {

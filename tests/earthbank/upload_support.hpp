@@ -8,8 +8,8 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/earthbank/model.hpp"
-#include "pychron/earthbank/vocab.hpp"
+#include "nobion/earthbank/model.hpp"
+#include "nobion/earthbank/vocab.hpp"
 #include "support/temp_path.hpp"
 
 namespace pychron::earthbank::testing {

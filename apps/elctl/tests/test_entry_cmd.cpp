@@ -23,7 +23,7 @@ TEST(EntryCmd, StubWithoutPersistence) {
 #include <string>
 #include <vector>
 
-#include "pychron/persistence/store.hpp"
+#include "nobion/persistence/store.hpp"
 
 namespace ps = pychron::persistence;
 

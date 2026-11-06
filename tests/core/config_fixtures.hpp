@@ -5,7 +5,7 @@
 #include <string_view>
 #include <vector>
 
-#include "pychron/core/config/diagnostic.hpp"
+#include "nobion/core/config/diagnostic.hpp"
 
 namespace pychron::test {
 

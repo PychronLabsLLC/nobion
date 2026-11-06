@@ -1,11 +1,11 @@
-#include "pychron/arar/flux.hpp"
+#include "nobion/arar/flux.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <numeric>
 
-#include "pychron/reduction/detail/least_squares.hpp"
+#include "nobion/reduction/detail/least_squares.hpp"
 
 namespace pychron::reduction {
 

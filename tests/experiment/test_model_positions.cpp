@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "pychron/experiment/model/positions.hpp"
+#include "nobion/experiment/model/positions.hpp"
 
 using namespace pychron::experiment;
 

@@ -16,10 +16,10 @@
 #include <QString>
 #include <QVariant>
 
-#include "pychron/core/error.hpp"
-#include "pychron/experiment/factory/step_heat_template.hpp"
-#include "pychron/experiment/model/run_spec.hpp"
-#include "pychron/experiment/model/types.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/experiment/factory/step_heat_template.hpp"
+#include "nobion/experiment/model/run_spec.hpp"
+#include "nobion/experiment/model/types.hpp"
 
 namespace pychron::ui {
 

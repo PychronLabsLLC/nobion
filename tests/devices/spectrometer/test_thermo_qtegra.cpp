@@ -1,13 +1,13 @@
-#include "pychron/devices/spectrometer/thermo_qtegra.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra.hpp"
 
 #include <gtest/gtest.h>
 
 #include <atomic>
 #include <mutex>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/devices/spectrometer/thermo_qtegra_sim.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra_sim.hpp"
 #include "spectrometer/legacy/sim_util.hpp"
 #include "spectrometer/qtegra_session.hpp"
 #include "virtual_time.hpp"

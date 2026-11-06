@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "pychron/entry/names.hpp"
+#include "nobion/entry/names.hpp"
 
 using namespace pychron::entry;
 using pychron::persistence::PiKind;

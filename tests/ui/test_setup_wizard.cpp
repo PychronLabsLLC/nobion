@@ -24,11 +24,11 @@
 
 #include "data_main_window.hpp"
 #include "installations_dialog.hpp"
-#include "pychron/arar/domain.hpp"
-#include "pychron/processing/domain.hpp"
-#include "pychron/processing/record_source.hpp"
-#include "pychron/setup/installer.hpp"
-#include "pychron/setup/site.hpp"
+#include "nobion/arar/domain.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/record_source.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/setup/site.hpp"
 #include "setup_support.hpp"
 #include "setup_wizard.hpp"
 

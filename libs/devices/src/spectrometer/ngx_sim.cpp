@@ -1,10 +1,10 @@
-#include "pychron/devices/spectrometer/ngx_sim.hpp"
+#include "nobion/devices/spectrometer/ngx_sim.hpp"
 
 #include <cstdio>
 #include <ranges>
 #include <sstream>
 
-#include "pychron/codecs/isotopx_ngx.hpp"
+#include "nobion/codecs/isotopx_ngx.hpp"
 
 namespace pychron::spectrometer {
 

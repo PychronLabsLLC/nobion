@@ -8,12 +8,12 @@
 #include <system_error>
 
 #include "derive_summary.hpp"
-#include "pychron/setup/doctor.hpp"
+#include "nobion/setup/doctor.hpp"
 #include "setup.hpp"
-#include "pychron/persistence/store.hpp"
-#include "pychron/processing/derive.hpp"
-#include "pychron/processing/domain.hpp"
-#include "pychron/processing/store_source.hpp"
+#include "nobion/persistence/store.hpp"
+#include "nobion/processing/derive.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/store_source.hpp"
 #include "selection.hpp"
 
 namespace elctl {

@@ -19,11 +19,11 @@
 
 #include "flux_golden.hpp"
 #include "flux_store_fixture.hpp"
-#include "pychron/arar/domain.hpp"
-#include "pychron/arar/flux_store.hpp"
-#include "pychron/arar/reduce.hpp"
-#include "pychron/processing/reduced.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/arar/domain.hpp"
+#include "nobion/arar/flux_store.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/processing/reduced.hpp"
+#include "nobion/processing/units.hpp"
 
 namespace pychron::processing {
 namespace {

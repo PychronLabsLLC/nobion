@@ -10,8 +10,8 @@
 #include "derive_summary.hpp"
 #include "import.hpp"
 #include "import_impl.hpp"
-#include "pychron/processing/derive.hpp"
-#include "pychron/processing/store_source.hpp"
+#include "nobion/processing/derive.hpp"
+#include "nobion/processing/store_source.hpp"
 #include "selection.hpp"
 
 // Last, so that its macros reach nothing but this file.

@@ -20,14 +20,14 @@
 #include "example_lab.hpp"
 #include "exp.hpp"
 #include "log_capture.hpp"
-#include "pychron/core/clock.hpp"
-#include "pychron/core/events.hpp"
-#include "pychron/core/log_dir.hpp"
-#include "pychron/core/log_hub.hpp"
-#include "pychron/core/process_log.hpp"
-#include "pychron/experiment/executor/executor.hpp"
-#include "pychron/experiment/measurement/engine.hpp"
-#include "pychron/scripting/script_host.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/log_dir.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/process_log.hpp"
+#include "nobion/experiment/executor/executor.hpp"
+#include "nobion/experiment/measurement/engine.hpp"
+#include "nobion/scripting/script_host.hpp"
 
 #ifdef PYCHRON_ELCTL_HAS_STORE
 #include <algorithm>
@@ -36,7 +36,7 @@
 #include <QSqlQuery>
 #include <QString>
 
-#include "pychron/persistence/store.hpp"
+#include "nobion/persistence/store.hpp"
 #endif
 
 namespace elctl::testing {

@@ -1,8 +1,8 @@
-#include "pychron/devices/spectrometer/qtegra_link.hpp"
+#include "nobion/devices/spectrometer/qtegra_link.hpp"
 
 #include <mutex>
 
-#include "pychron/transport/udp_transport.hpp"
+#include "nobion/transport/udp_transport.hpp"
 
 namespace pychron::spectrometer {
 

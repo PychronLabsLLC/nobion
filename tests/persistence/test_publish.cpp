@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "pychron/persistence/publish.hpp"
+#include "nobion/persistence/publish.hpp"
 #include "store_fixture.hpp"
 #include "store_impl.hpp"
 

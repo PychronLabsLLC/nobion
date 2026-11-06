@@ -20,7 +20,7 @@
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
 
-#include "pychron/core/virtual_clock.hpp"
+#include "nobion/core/virtual_clock.hpp"
 
 #include "peak_center_panel.hpp"
 #include "spectrometer_bridge.hpp"

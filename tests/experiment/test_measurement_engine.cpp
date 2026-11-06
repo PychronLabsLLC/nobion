@@ -22,10 +22,10 @@
 #include <variant>
 #include <vector>
 
-#include "pychron/experiment/measurement/engine.hpp"
-#include "pychron/devices/link.hpp"
-#include "pychron/experiment/measurement/results.hpp"
-#include "pychron/experiment/plan/plan_loader.hpp"
+#include "nobion/experiment/measurement/engine.hpp"
+#include "nobion/devices/link.hpp"
+#include "nobion/experiment/measurement/results.hpp"
+#include "nobion/experiment/plan/plan_loader.hpp"
 
 using namespace pychron;
 using namespace pychron::experiment;

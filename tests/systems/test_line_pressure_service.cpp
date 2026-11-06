@@ -1,12 +1,12 @@
 // LinePressureService: scripts' get_pressure over the line's gauges
 // (plan 2026-10-05, task B0).
-#include "pychron/systems/line_pressure_service.hpp"
+#include "nobion/systems/line_pressure_service.hpp"
 
 #include <gtest/gtest.h>
 
 #include <chrono>
 
-#include "pychron/core/config/loader.hpp"
+#include "nobion/core/config/loader.hpp"
 
 namespace {
 

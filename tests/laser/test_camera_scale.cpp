@@ -7,7 +7,7 @@
 #include <gtest/gtest.h>
 
 #include "laser_harness.hpp"
-#include "pychron/laser/camera_scale.hpp"
+#include "nobion/laser/camera_scale.hpp"
 
 using namespace pychron;
 using namespace pychron::laser;

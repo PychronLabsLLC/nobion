@@ -1,7 +1,7 @@
 // Building a release directory from the store (data publishing design,
 // sections 5 and 6.1).
 
-#include "pychron/publish/build.hpp"
+#include "nobion/publish/build.hpp"
 
 #include <gtest/gtest.h>
 
@@ -17,9 +17,9 @@
 #include <sys/xattr.h>
 #endif
 
-#include "pychron/processing/store_source.hpp"
-#include "pychron/publish/records.hpp"
-#include "pychron/publish/release.hpp"
+#include "nobion/processing/store_source.hpp"
+#include "nobion/publish/records.hpp"
+#include "nobion/publish/release.hpp"
 #include "release_fixture.hpp"
 
 namespace fs = std::filesystem;

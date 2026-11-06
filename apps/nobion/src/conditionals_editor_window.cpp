@@ -22,8 +22,8 @@
 
 #include "error_report.hpp"
 #include "menu_hub.hpp"
-#include "pychron/experiment/conditionals/validate.hpp"
-#include "pychron/experiment/model/identifiers.hpp"
+#include "nobion/experiment/conditionals/validate.hpp"
+#include "nobion/experiment/model/identifiers.hpp"
 #include "theme.hpp"
 #include "toml_comments.hpp"
 

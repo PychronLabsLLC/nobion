@@ -19,9 +19,9 @@
 #include <vector>
 
 #include "cli.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/setup/profile.hpp"
-#include "pychron/setup/site.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/setup/profile.hpp"
+#include "nobion/setup/site.hpp"
 
 namespace elctl {
 

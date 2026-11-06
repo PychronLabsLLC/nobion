@@ -1,4 +1,4 @@
-#include "pychron/systems/spectrometer/field_table.hpp"
+#include "nobion/systems/spectrometer/field_table.hpp"
 
 #include <gtest/gtest.h>
 

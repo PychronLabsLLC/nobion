@@ -1,8 +1,8 @@
 // Compiled into a separate static library that nothing references by symbol.
 // Its REGISTER_DRIVER must still run: see pychron_link_drivers().
 
-#include "pychron/devices/capabilities.hpp"
-#include "pychron/devices/driver_registry.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/devices/driver_registry.hpp"
 
 namespace {
 

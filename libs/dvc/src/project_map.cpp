@@ -8,9 +8,9 @@
 
 #include "legacy_json.hpp"
 #include "project_import.hpp"
-#include "pychron/core/sha256.hpp"
-#include "pychron/ingest/conflict_markers.hpp"
-#include "pychron/ingest/ids.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/ingest/conflict_markers.hpp"
+#include "nobion/ingest/ids.hpp"
 
 namespace pychron::dvc::detail {
 

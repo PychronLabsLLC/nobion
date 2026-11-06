@@ -1,6 +1,6 @@
 #include <utility>
 
-#include "pychron/devices/proxr_board_sim.hpp"
+#include "nobion/devices/proxr_board_sim.hpp"
 
 namespace pychron {
 

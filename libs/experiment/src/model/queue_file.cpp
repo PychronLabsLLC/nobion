@@ -1,4 +1,4 @@
-#include "pychron/experiment/model/queue_file.hpp"
+#include "nobion/experiment/model/queue_file.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -6,8 +6,8 @@
 #include <fstream>
 #include <sstream>
 
-#include "pychron/experiment/model/positions.hpp"
-#include "pychron/experiment/model/queue_toml.hpp"
+#include "nobion/experiment/model/positions.hpp"
+#include "nobion/experiment/model/queue_toml.hpp"
 #include "model/toml_text.hpp"
 
 namespace pychron::experiment {

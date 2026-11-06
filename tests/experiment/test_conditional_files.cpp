@@ -12,8 +12,8 @@
 #include <unistd.h>
 #endif
 
-#include "pychron/experiment/conditionals/library.hpp"
-#include "pychron/experiment/lab/lab.hpp"
+#include "nobion/experiment/conditionals/library.hpp"
+#include "nobion/experiment/lab/lab.hpp"
 #include "temp_path.hpp"
 
 namespace pychron::experiment {

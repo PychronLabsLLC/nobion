@@ -13,9 +13,9 @@
 #include <string>
 
 #include "flux_seed.hpp"
-#include "pychron/persistence/store.hpp"
-#include "pychron/arar/store_loader.hpp"
-#include "pychron/processing/store_source.hpp"
+#include "nobion/persistence/store.hpp"
+#include "nobion/arar/store_loader.hpp"
+#include "nobion/processing/store_source.hpp"
 #include "store_fixture.hpp"
 
 namespace pychron::processing::testing {

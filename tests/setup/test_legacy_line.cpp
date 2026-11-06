@@ -3,7 +3,7 @@
 // survey found (docs/superpowers/specs/2026-10-03-legacy-extraction-line-
 // survey.md). No lab file is used.
 
-#include "pychron/setup/legacy_line.hpp"
+#include "nobion/setup/legacy_line.hpp"
 
 #include <gtest/gtest.h>
 
@@ -16,8 +16,8 @@
 #include <vector>
 
 #include "legacy/lite.hpp"
-#include "pychron/core/config/loader.hpp"
-#include "pychron/systems/canvas/loader.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/systems/canvas/loader.hpp"
 #include "temp_path.hpp"
 
 using namespace pychron;

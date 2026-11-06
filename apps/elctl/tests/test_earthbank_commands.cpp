@@ -54,11 +54,11 @@ TEST(ElctlEarthbank, TheNetworkCommandsWithoutPersistence) {
 
 #include "fake_earthbank.hpp"
 #include "ooxml.hpp"
-#include "pychron/earthbank/profiles.hpp"
-#include "pychron/earthbank/secret_store.hpp"
-#include "pychron/publish/build.hpp"
-#include "pychron/publish/publication.hpp"
-#include "pychron/publish/release.hpp"
+#include "nobion/earthbank/profiles.hpp"
+#include "nobion/earthbank/secret_store.hpp"
+#include "nobion/publish/build.hpp"
+#include "nobion/publish/publication.hpp"
+#include "nobion/publish/release.hpp"
 #include "session_support.hpp"
 #include "store_fixture.hpp"
 

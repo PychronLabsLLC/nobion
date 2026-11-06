@@ -14,9 +14,9 @@
 #include "fixture_files.hpp"
 #include "git_fixture.hpp"
 #include "legacy_repo_builder.hpp"
-#include "pychron/dvc/meta_adapter.hpp"
-#include "pychron/dvc/project_adapter.hpp"
-#include "pychron/ingest/writer.hpp"
+#include "nobion/dvc/meta_adapter.hpp"
+#include "nobion/dvc/project_adapter.hpp"
+#include "nobion/ingest/writer.hpp"
 #include "store_fixture.hpp"
 #include "verify_support.hpp"
 

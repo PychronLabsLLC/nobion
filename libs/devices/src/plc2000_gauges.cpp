@@ -1,9 +1,9 @@
-#include "pychron/devices/plc2000_gauges.hpp"
+#include "nobion/devices/plc2000_gauges.hpp"
 
 #include <algorithm>
 #include <cmath>
 
-#include "pychron/devices/modbus_ids.hpp"
+#include "nobion/devices/modbus_ids.hpp"
 
 namespace pychron {
 

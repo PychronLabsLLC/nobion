@@ -3,7 +3,7 @@
 # the Spectrometer. Vendor-blind: depends on pychron::devices interfaces only.
 #
 # Sources are globbed so units landing in parallel only add files under
-# src/ and include/pychron/systems/ and never edit this list.
+# src/ and include/nobion/systems/ and never edit this list.
 file(GLOB_RECURSE PYCHRON_SYSTEMS_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 
 add_library(pychron_systems STATIC ${PYCHRON_SYSTEMS_SOURCES})

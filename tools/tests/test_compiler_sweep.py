@@ -21,8 +21,8 @@ BUILD = Path("/repo/build/dev")
 DEPS = """\
 libs/core/CMakeFiles/pychron_core.dir/src/a.cpp.o: #deps 3, deps mtime 1 (VALID)
     ../../libs/core/src/a.cpp
-    ../../libs/core/include/pychron/core/a.hpp
-    ../../libs/core/include/pychron/core/base.hpp
+    ../../libs/core/include/nobion/core/a.hpp
+    ../../libs/core/include/nobion/core/base.hpp
 
 libs/core/CMakeFiles/pychron_core.dir/src/b.cpp.o: #deps 2, deps mtime 1 (VALID)
     ../../libs/core/src/b.cpp
@@ -30,7 +30,7 @@ libs/core/CMakeFiles/pychron_core.dir/src/b.cpp.o: #deps 2, deps mtime 1 (VALID)
 
 libs/core/CMakeFiles/pychron_core.dir/src/c.cpp.o: #deps 2, deps mtime 1 (STALE)
     ../../libs/core/src/c.cpp
-    ../../libs/core/include/pychron/core/a.hpp
+    ../../libs/core/include/nobion/core/a.hpp
 
 libs/core/CMakeFiles/pychron_core.dir/src/e.cpp.o: #deps 0, deps mtime 0 (VALID)
 
@@ -56,7 +56,7 @@ class ParseDeps(unittest.TestCase):
     def test_records_by_object(self):
         deps = cs.parse_ninja_deps(DEPS, BUILD)
         a = deps[BUILD / "libs/core/CMakeFiles/pychron_core.dir/src/a.cpp.o"]
-        self.assertIn(Path("/repo/libs/core/include/pychron/core/base.hpp"), a)
+        self.assertIn(Path("/repo/libs/core/include/nobion/core/base.hpp"), a)
         self.assertIn(Path("/repo/libs/core/src/a.cpp"), a)
 
     def test_stale_and_empty_records_are_unknown(self):
@@ -76,7 +76,7 @@ class Select(unittest.TestCase):
         self.assertIsNone(why)
 
     def test_header_reached_through_another_header(self):
-        selected, _ = self.select({"libs/core/include/pychron/core/base.hpp"})
+        selected, _ = self.select({"libs/core/include/nobion/core/base.hpp"})
         self.assertEqual(names(selected), ["a", "c", "d", "e"])
 
     def test_unrelated_change_selects_only_unknowns(self):

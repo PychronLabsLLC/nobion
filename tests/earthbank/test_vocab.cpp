@@ -14,11 +14,11 @@
 #include <gtest/gtest.h>
 
 #include "ooxml.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/model.hpp"
-#include "pychron/earthbank/vocab.hpp"
-#include "pychron/arar/arar_types.hpp"
-#include "pychron/reduction/stats.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/model.hpp"
+#include "nobion/earthbank/vocab.hpp"
+#include "nobion/arar/arar_types.hpp"
+#include "nobion/reduction/stats.hpp"
 #include "records_support.hpp"
 
 namespace pychron::earthbank {

@@ -12,8 +12,8 @@
 #include <QAbstractTableModel>
 #include <QString>
 
-#include "pychron/arar/flux_fit.hpp"
-#include "pychron/arar/flux_view.hpp"
+#include "nobion/arar/flux_fit.hpp"
+#include "nobion/arar/flux_view.hpp"
 
 namespace pychron::ui {
 

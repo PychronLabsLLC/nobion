@@ -1,6 +1,6 @@
 // Tray maps in the legacy pychron format (laser system design, section 3.1).
 
-#include "pychron/laser/tray_map.hpp"
+#include "nobion/laser/tray_map.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -11,7 +11,7 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/sha256.hpp"
+#include "nobion/core/sha256.hpp"
 
 using namespace pychron;
 using namespace pychron::laser;

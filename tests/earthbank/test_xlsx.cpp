@@ -1,5 +1,5 @@
 // Submissions written into the vendor's two workbooks
-// (pychron/earthbank/xlsx.hpp): every value under the column that is its
+// (nobion/earthbank/xlsx.hpp): every value under the column that is its
 // own, the rows of a data point tied together by its name, and everything
 // that is not a data row left as the template has it.
 //
@@ -37,10 +37,10 @@
 
 #include "analyses.hpp"
 #include "ooxml.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/mapping.hpp"
-#include "pychron/earthbank/model.hpp"
-#include "pychron/earthbank/xlsx.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/mapping.hpp"
+#include "nobion/earthbank/model.hpp"
+#include "nobion/earthbank/xlsx.hpp"
 #include "records_support.hpp"
 #include "xlsx_detail.hpp"
 #include "zip_support.hpp"

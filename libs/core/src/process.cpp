@@ -1,4 +1,4 @@
-#include "pychron/core/process.hpp"
+#include "nobion/core/process.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -8,7 +8,7 @@
 #include <system_error>
 #include <thread>
 
-#include "pychron/core/log_context.hpp"
+#include "nobion/core/log_context.hpp"
 
 #if defined(__APPLE__)
 #include <pthread.h>

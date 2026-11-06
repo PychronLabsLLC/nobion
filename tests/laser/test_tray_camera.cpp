@@ -1,7 +1,7 @@
 // The simulated camera: the tray as a camera looking down the beam path
 // would see it (laser autocenter design, section 4).
 
-#include "pychron/laser/tray_camera.hpp"
+#include "nobion/laser/tray_camera.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -12,10 +12,10 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/vision/finder.hpp"
-#include "pychron/vision/fixture.hpp"
-#include "pychron/vision/synth.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/vision/finder.hpp"
+#include "nobion/vision/fixture.hpp"
+#include "nobion/vision/synth.hpp"
 
 using namespace pychron;
 using namespace pychron::laser;

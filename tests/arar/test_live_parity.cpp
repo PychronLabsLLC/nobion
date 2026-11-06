@@ -9,9 +9,9 @@
 #include <string>
 
 #include "golden.hpp"
-#include "pychron/arar/arar_reduction.hpp"
-#include "pychron/arar/live_parity.hpp"
-#include "pychron/reduction/arar.hpp"
+#include "nobion/arar/arar_reduction.hpp"
+#include "nobion/arar/live_parity.hpp"
+#include "nobion/reduction/arar.hpp"
 #include "reduce_golden.hpp"
 
 using namespace pychron::reduction;

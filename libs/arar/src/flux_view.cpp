@@ -1,4 +1,4 @@
-#include "pychron/arar/flux_view.hpp"
+#include "nobion/arar/flux_view.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -7,7 +7,7 @@
 #include <sstream>
 
 #include "figure_common.hpp"
-#include "pychron/arar/report.hpp"
+#include "nobion/arar/report.hpp"
 #include "schema_builder.hpp"
 
 namespace pychron::processing {

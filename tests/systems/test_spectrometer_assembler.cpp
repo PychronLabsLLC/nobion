@@ -4,10 +4,10 @@
 #include <fstream>
 #include <map>
 
-#include "pychron/devices/connectable.hpp"
-#include "pychron/sim/spectrometer/beam_model.hpp"
-#include "pychron/transport/sim_transport.hpp"
-#include "pychron/systems/spectrometer/assembler.hpp"
+#include "nobion/devices/connectable.hpp"
+#include "nobion/sim/spectrometer/beam_model.hpp"
+#include "nobion/transport/sim_transport.hpp"
+#include "nobion/systems/spectrometer/assembler.hpp"
 #include "spectrometer_fakes.hpp"
 
 using namespace pychron;

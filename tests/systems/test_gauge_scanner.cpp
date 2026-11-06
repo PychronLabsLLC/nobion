@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "pychron/systems/gauge_scanner.hpp"
+#include "nobion/systems/gauge_scanner.hpp"
 
 using namespace pychron;
 using namespace std::chrono_literals;

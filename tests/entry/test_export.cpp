@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
 
 #include "catalog_fixture.hpp"
-#include "pychron/entry/export.hpp"
-#include "pychron/entry/identifier_plan.hpp"
-#include "pychron/entry/positions_import.hpp"
+#include "nobion/entry/export.hpp"
+#include "nobion/entry/identifier_plan.hpp"
+#include "nobion/entry/positions_import.hpp"
 
 using namespace pychron;
 using namespace pychron::entry;

@@ -4,8 +4,8 @@
 #include <set>
 #include <string>
 
-#include "pychron/systems/canvas/loader.hpp"
-#include "pychron/systems/network_graph.hpp"
+#include "nobion/systems/canvas/loader.hpp"
+#include "nobion/systems/network_graph.hpp"
 
 namespace pychron::systems {
 namespace {

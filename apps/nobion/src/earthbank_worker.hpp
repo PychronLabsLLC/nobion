@@ -44,16 +44,16 @@
 #include <QString>
 #include <QStringList>
 
-#include "pychron/earthbank/http.hpp"
-#include "pychron/earthbank/mapping.hpp"
-#include "pychron/earthbank/preflight.hpp"
-#include "pychron/earthbank/profiles.hpp"
-#include "pychron/earthbank/secret_store.hpp"
-#include "pychron/earthbank/session.hpp"
-#include "pychron/earthbank/uploader.hpp"
-#include "pychron/earthbank/vocab.hpp"
-#include "pychron/earthbank/xlsx.hpp"
-#include "pychron/processing/model.hpp"
+#include "nobion/earthbank/http.hpp"
+#include "nobion/earthbank/mapping.hpp"
+#include "nobion/earthbank/preflight.hpp"
+#include "nobion/earthbank/profiles.hpp"
+#include "nobion/earthbank/secret_store.hpp"
+#include "nobion/earthbank/session.hpp"
+#include "nobion/earthbank/uploader.hpp"
+#include "nobion/earthbank/vocab.hpp"
+#include "nobion/earthbank/xlsx.hpp"
+#include "nobion/processing/model.hpp"
 
 class QThread;
 

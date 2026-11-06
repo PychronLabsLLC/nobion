@@ -7,9 +7,9 @@
 #include <string>
 #include <vector>
 
-#include "pychron/experiment/factory/form.hpp"
-#include "pychron/experiment/factory/increments.hpp"
-#include "pychron/experiment/factory/step_heat_template.hpp"
+#include "nobion/experiment/factory/form.hpp"
+#include "nobion/experiment/factory/increments.hpp"
+#include "nobion/experiment/factory/step_heat_template.hpp"
 #include "temp_path.hpp"
 
 using namespace pychron;

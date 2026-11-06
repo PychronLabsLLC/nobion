@@ -27,7 +27,7 @@
 #include <QVariant>
 #include <QWidget>
 
-#include "pychron/core/clock.hpp"
+#include "nobion/core/clock.hpp"
 #include "reading_history.hpp"
 
 class QCheckBox;

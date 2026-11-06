@@ -1,4 +1,4 @@
-#include "pychron/sim/sim_config.hpp"
+#include "nobion/sim/sim_config.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -17,10 +17,10 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/sim/gas.hpp"
-#include "pychron/sim/sim_system.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/sim/gas.hpp"
+#include "nobion/sim/sim_system.hpp"
 
 namespace {
 

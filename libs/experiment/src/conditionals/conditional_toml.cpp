@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "number.hpp"
-#include "pychron/experiment/conditionals/conditional.hpp"
+#include "nobion/experiment/conditionals/conditional.hpp"
 
 namespace pychron::experiment {
 namespace {

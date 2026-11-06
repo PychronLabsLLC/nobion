@@ -9,8 +9,8 @@
 #include <cmath>
 #include <map>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/devices/spectrometer/roles.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/devices/spectrometer/roles.hpp"
 
 namespace pychron::spectrometer::fakes {
 

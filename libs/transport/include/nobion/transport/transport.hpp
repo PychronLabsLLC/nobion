@@ -1,0 +1,156 @@
+#pragma once
+
+#include <chrono>
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
+#include <type_traits>
+
+#include "nobion/core/clock.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/transport/bytes.hpp"
+#include "nobion/transport/health.hpp"
+#include "nobion/transport/read_spec.hpp"
+
+namespace pychron {
+
+class SignalBus;
+
+// Whether exchange() may send its bytes again when no reply came. Only the
+// caller knows if the command behind them may arrive twice.
+enum class Resend { Never, Allowed };
+
+// One physical channel (serial port, socket, simulated wire). Knows how bytes
+// reach the wire; never what they mean or which device sent them.
+//
+// All calls may be made from any thread. Implementations serialize them so
+// that exchange() is atomic on the bus: no other traffic interleaves between
+// its write and its read.
+class Transport {
+ public:
+  // Pass as `timeout` to use the transport's configured timeout.
+  static constexpr Duration kDefaultTimeout = Duration::zero();
+
+  virtual ~Transport() = default;
+
+  virtual const std::string& name() const = 0;
+
+  virtual Result<void> open() = 0;
+  virtual void close() = 0;
+
+  // Discard stale input, write `tx`, read one reply framed by `rs`. With
+  // Resend::Allowed a transport that has retries configured sends `tx` again
+  // after a Timeout; nothing is ever resent otherwise.
+  virtual Result<Bytes> exchange(Bytes tx, ReadSpec rs, Duration timeout = kDefaultTimeout,
+                                 Resend resend = Resend::Never) = 0;
+  virtual Result<void> write(Bytes tx) = 0;
+  virtual Result<Bytes> read(ReadSpec rs, Duration timeout = kDefaultTimeout) = 0;
+  // read() for a reader that waits on unsolicited input (an instrument's
+  // event stream): no complete frame within `timeout` is nullopt, not a
+  // failure, and leaves health alone. Other errors are read()'s.
+  virtual Result<std::optional<Bytes>> poll(ReadSpec rs, Duration timeout = kDefaultTimeout) {
+    auto r = read(std::move(rs), timeout);
+    if (r) return std::optional<Bytes>(std::move(*r));
+    if (r.error().kind == ErrorKind::Timeout) return std::optional<Bytes>{};
+    return fail(std::move(r).error());
+  }
+
+  // Runs `body` with exclusive use of the bus: exchange()/write()/read() calls
+  // it makes on this transport run back to back, and no other caller's
+  // traffic interleaves until it returns. For multi-step protocols ("select
+  // bank, then switch relay"; "send mnemonic, then ENQ") so drivers need no
+  // locks of their own. Each call inside keeps its own resend and health
+  // handling; the sequence as a whole is not retried. Nested transactions
+  // run inline. Returns body's result, or Cancelled if the transport shut
+  // down before body could run. Prefer the typed transact() helper.
+  virtual Result<void> transaction(std::function<Result<void>()> body) = 0;
+
+  virtual Health health() const = 0;
+};
+
+// Typed wrapper over Transport::transaction: returns whatever `body`
+// returns (a Result<T>), unchanged, or the transport's error if body never ran.
+template <class F>
+auto transact(Transport& transport, F&& body) -> std::invoke_result_t<F&> {
+  using R = std::invoke_result_t<F&>;
+  std::optional<R> out;
+  auto r = transport.transaction([&]() -> Result<void> {
+    out.emplace(body());
+    if (!*out) return fail(out->error());
+    return {};
+  });
+  if (out) return std::move(*out);
+  return R(fail(std::move(r).error()));
+}
+
+struct TransportOptions {
+  std::string name;
+  // Per-attempt reply timeout used when a call passes kDefaultTimeout.
+  Duration timeout = std::chrono::milliseconds(500);
+  // Extra attempts for an exchange() made with Resend::Allowed, each after a
+  // Timeout. A write() is sent once, and so is any other exchange().
+  int retries = 0;
+  // Consecutive failed calls after which health() reports Down.
+  std::uint64_t down_after = 3;
+  // Time source for Health::last_ok and for the waits of the queue (its
+  // worker is a participant of it); a SteadyClock is used when null.
+  const Clock* clock = nullptr;
+  // When set, a TransportHealth event is published on every state change.
+  SignalBus* bus = nullptr;
+};
+
+// Base for concrete channels. Owns one worker thread and a FIFO job queue:
+// every public call is enqueued and the caller blocks until the worker has
+// run it. Retries, default timeouts, error attribution and health tracking
+// are applied here, once; subclasses implement only the raw primitives,
+// which always run on the worker thread. A primitive that fails with
+// ErrorKind::Io closes the channel: the calls after it fail NotConnected
+// until open() succeeds again.
+//
+// Subclasses must call shutdown() from their destructor so the worker stops
+// before their primitives are destroyed.
+class QueuedTransport : public Transport {
+ public:
+  explicit QueuedTransport(TransportOptions options);
+  ~QueuedTransport() override;
+
+  QueuedTransport(const QueuedTransport&) = delete;
+  QueuedTransport& operator=(const QueuedTransport&) = delete;
+
+  const std::string& name() const final;
+  Result<void> open() final;
+  void close() final;
+  Result<Bytes> exchange(Bytes tx, ReadSpec rs, Duration timeout = kDefaultTimeout,
+                         Resend resend = Resend::Never) final;
+  Result<void> write(Bytes tx) final;
+  Result<Bytes> read(ReadSpec rs, Duration timeout = kDefaultTimeout) final;
+  Result<std::optional<Bytes>> poll(ReadSpec rs, Duration timeout = kDefaultTimeout) final;
+  // One queued job that runs `body` on the worker; calls body makes run inline.
+  Result<void> transaction(std::function<Result<void>()> body) final;
+  Health health() const final;
+
+  const TransportOptions& options() const noexcept;
+
+ protected:
+  // Stops the worker, fails queued calls with Cancelled and closes the
+  // channel. Idempotent.
+  void shutdown();
+
+  virtual Result<void> do_open() = 0;
+  virtual void do_close() = 0;
+  // Drop any unread input before an exchange. Default: nothing buffered.
+  virtual void do_discard_input() {}
+  virtual Result<void> do_write(const Bytes& tx, Duration timeout) = 0;
+  virtual Result<Bytes> do_read(const ReadSpec& rs, Duration timeout) = 0;
+
+ private:
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
+
+  template <class T>
+  Result<T> settle(Result<T> r);
+};
+
+}  // namespace pychron

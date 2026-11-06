@@ -11,8 +11,8 @@
 #include <thread>
 #include <vector>
 
-#include "pychron/core/clock_mutex.hpp"
-#include "pychron/core/virtual_clock.hpp"
+#include "nobion/core/clock_mutex.hpp"
+#include "nobion/core/virtual_clock.hpp"
 #include "virtual_time.hpp"
 
 using namespace std::chrono_literals;

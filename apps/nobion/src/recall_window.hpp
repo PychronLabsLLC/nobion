@@ -24,11 +24,11 @@
 #include <QString>
 #include <QWidget>
 
-#include "pychron/processing/domain.hpp"
-#include "pychron/processing/fit_edit.hpp"
-#include "pychron/processing/recall.hpp"
-#include "pychron/processing/revisions.hpp"
-#include "pychron/processing/source.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/fit_edit.hpp"
+#include "nobion/processing/recall.hpp"
+#include "nobion/processing/revisions.hpp"
+#include "nobion/processing/source.hpp"
 
 class QCheckBox;
 class QComboBox;

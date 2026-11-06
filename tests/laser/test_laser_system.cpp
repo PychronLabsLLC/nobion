@@ -2,7 +2,7 @@
 // stage millimetres through the tray map and its calibration (laser system
 // design, section 3.4).
 
-#include "pychron/laser/laser_system.hpp"
+#include "nobion/laser/laser_system.hpp"
 
 #include "laser_harness.hpp"
 
@@ -24,11 +24,11 @@
 
 #include "extraction/conformance.hpp"
 #include "extraction/fake.hpp"
-#include "pychron/core/clock.hpp"
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/devices/extraction/chromium.hpp"
-#include "pychron/devices/extraction/chromium_sim.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/devices/extraction/chromium.hpp"
+#include "nobion/devices/extraction/chromium_sim.hpp"
+#include "nobion/transport/sim_transport.hpp"
 #include "virtual_time.hpp"
 
 using namespace pychron;

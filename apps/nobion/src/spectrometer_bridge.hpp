@@ -54,12 +54,12 @@
 #include <QStringList>
 #include <QThread>
 
-#include "pychron/core/error.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/systems/jobs/cancel.hpp"
-#include "pychron/systems/jobs/peak_center.hpp"
-#include "pychron/systems/spectrometer/scan_service.hpp"
-#include "pychron/systems/spectrometer/spectrometer.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/systems/jobs/cancel.hpp"
+#include "nobion/systems/jobs/peak_center.hpp"
+#include "nobion/systems/spectrometer/scan_service.hpp"
+#include "nobion/systems/spectrometer/spectrometer.hpp"
 #include "strip_chart_model.hpp"
 
 namespace pychron::ui {

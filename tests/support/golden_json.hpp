@@ -27,7 +27,7 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/core/number.hpp"
+#include "nobion/core/number.hpp"
 
 #ifndef PYCHRON_REDUCTION_GOLDEN_DIR
 #error "PYCHRON_REDUCTION_GOLDEN_DIR must be defined (the test target's CMakeLists.txt)"

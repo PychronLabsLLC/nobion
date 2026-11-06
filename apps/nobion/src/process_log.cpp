@@ -4,9 +4,9 @@
 #include <string>
 #include <utility>
 
-#include "pychron/core/config/logging_file.hpp"
-#include "pychron/core/logger.hpp"
-#include "pychron/setup/installer.hpp"
+#include "nobion/core/config/logging_file.hpp"
+#include "nobion/core/logger.hpp"
+#include "nobion/setup/installer.hpp"
 
 namespace pychron::ui {
 

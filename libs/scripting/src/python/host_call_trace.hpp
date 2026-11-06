@@ -26,10 +26,10 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/core/log_summary.hpp"
-#include "pychron/core/logger.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/core/log_summary.hpp"
+#include "nobion/core/logger.hpp"
 
 namespace pychron::scripting::python {
 

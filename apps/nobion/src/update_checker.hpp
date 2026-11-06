@@ -22,9 +22,9 @@
 #include <QObject>
 #include <QString>
 
-#include "pychron/core/error.hpp"
-#include "pychron/core/http.hpp"
-#include "pychron/update/update.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/core/http.hpp"
+#include "nobion/update/update.hpp"
 
 class QSettings;
 

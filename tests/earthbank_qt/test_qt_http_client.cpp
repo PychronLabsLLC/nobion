@@ -35,9 +35,9 @@
 #define PYCHRON_TEST_HAS_SSL_SERVER 1
 #endif
 
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/http.hpp"
-#include "pychron/earthbank/qt_http_client.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/http.hpp"
+#include "nobion/earthbank/qt_http_client.hpp"
 
 namespace pychron::earthbank {
 namespace {

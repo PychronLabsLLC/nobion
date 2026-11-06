@@ -13,7 +13,7 @@
 #include <QTextBlock>
 #include <QToolTip>
 
-#include "pychron/experiment/lab/scripts.hpp"
+#include "nobion/experiment/lab/scripts.hpp"
 
 namespace pychron::ui {
 

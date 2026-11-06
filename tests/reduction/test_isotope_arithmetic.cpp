@@ -1,6 +1,6 @@
 // Isotope arithmetic E1-E3 and E5 (spec 3.1, D4) on one signal. The
 // isotope_arithmetic.json golden vectors and E4 are in tests/arar.
-#include "pychron/reduction/signal.hpp"
+#include "nobion/reduction/signal.hpp"
 
 #include <gtest/gtest.h>
 

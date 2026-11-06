@@ -17,11 +17,11 @@
 #include <variant>
 #include <vector>
 
-#include "pychron/experiment/plan/plan.hpp"
-#include "pychron/experiment/plan/duration.hpp"
-#include "pychron/experiment/plan/plan_json.hpp"
-#include "pychron/experiment/plan/plan_loader.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
+#include "nobion/experiment/plan/plan.hpp"
+#include "nobion/experiment/plan/duration.hpp"
+#include "nobion/experiment/plan/plan_json.hpp"
+#include "nobion/experiment/plan/plan_loader.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
 // Internal to the plan loader (the test target has libs/experiment/src on its
 // include path): the schema is tested without the unbuilt-feature gate.
 #include "plan/plan_parse.hpp"

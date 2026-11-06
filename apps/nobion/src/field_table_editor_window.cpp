@@ -32,7 +32,7 @@
 #include "field_table_dialogs.hpp"
 #include "menu_hub.hpp"
 #include "shortcuts.hpp"
-#include "pychron/systems/spectrometer/mftable_csv.hpp"
+#include "nobion/systems/spectrometer/mftable_csv.hpp"
 #include "spectrometer_bridge.hpp"
 
 namespace pychron::ui {

@@ -1,4 +1,4 @@
-#include "pychron/experiment/factory/blocks.hpp"
+#include "nobion/experiment/factory/blocks.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -6,8 +6,8 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/experiment/model/queue_toml.hpp"
-#include "pychron/experiment/model/rules.hpp"
+#include "nobion/experiment/model/queue_toml.hpp"
+#include "nobion/experiment/model/rules.hpp"
 
 namespace pychron::experiment {
 

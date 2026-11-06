@@ -3,7 +3,7 @@
 // vendor's command reference says a Chromium does; see
 // docs/superpowers/specs/2026-10-04-chromium-protocol-survey.md.
 
-#include "pychron/devices/extraction/chromium.hpp"
+#include "nobion/devices/extraction/chromium.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -18,9 +18,9 @@
 #include <gtest/gtest.h>
 
 #include "extraction/conformance.hpp"
-#include "pychron/core/clock.hpp"
-#include "pychron/devices/extraction/chromium_sim.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/devices/extraction/chromium_sim.hpp"
+#include "nobion/transport/sim_transport.hpp"
 
 using namespace pychron;
 using namespace pychron::extraction;

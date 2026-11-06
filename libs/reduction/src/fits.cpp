@@ -1,4 +1,4 @@
-#include "pychron/reduction/fits.hpp"
+#include "nobion/reduction/fits.hpp"
 
 #include <algorithm>
 #include <array>
@@ -7,7 +7,7 @@
 #include <set>
 #include <string>
 
-#include "pychron/reduction/detail/least_squares.hpp"
+#include "nobion/reduction/detail/least_squares.hpp"
 
 // Port of pychron.core.regression. Error model shared by every kind:
 //   sef     = sqrt(SSR / (n - q))                 (BaseRegressor.calculate_standard_error_fit)

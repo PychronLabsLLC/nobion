@@ -15,7 +15,7 @@
 #include "experiment_fixture.hpp"
 #include "health_bar.hpp"
 #include "main_window.hpp"
-#include "pychron/core/virtual_clock.hpp"
+#include "nobion/core/virtual_clock.hpp"
 #include "status_banner.hpp"
 #include "ui_fixture.hpp"
 

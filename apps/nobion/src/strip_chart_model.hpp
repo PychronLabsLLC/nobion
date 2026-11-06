@@ -19,9 +19,9 @@
 #include <QColor>
 #include <QString>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/time_series_ring.hpp"
-#include "pychron/systems/spectrometer/acquisition.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/time_series_ring.hpp"
+#include "nobion/systems/spectrometer/acquisition.hpp"
 
 namespace pychron::ui {
 

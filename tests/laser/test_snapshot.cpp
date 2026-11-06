@@ -6,7 +6,7 @@
 #include <string>
 
 #include "laser_harness.hpp"
-#include "pychron/vision/pgm.hpp"
+#include "nobion/vision/pgm.hpp"
 
 using namespace pychron;
 using namespace pychron::laser;

@@ -63,11 +63,11 @@
 #include <vector>
 
 #include "import_impl.hpp"
-#include "pychron/arar/analysis_data.hpp"
-#include "pychron/arar/reduce.hpp"
-#include "pychron/arar/store_loader.hpp"
-#include "pychron/processing/reduced.hpp"
-#include "pychron/processing/store_source.hpp"
+#include "nobion/arar/analysis_data.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/arar/store_loader.hpp"
+#include "nobion/processing/reduced.hpp"
+#include "nobion/processing/store_source.hpp"
 
 namespace elctl::import_detail {
 

@@ -8,11 +8,11 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/error.hpp"
-#include "pychron/persistence/store.hpp"
-#include "pychron/processing/dataset.hpp"
-#include "pychron/processing/model.hpp"
-#include "pychron/publish/build.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/persistence/store.hpp"
+#include "nobion/processing/dataset.hpp"
+#include "nobion/processing/model.hpp"
+#include "nobion/publish/build.hpp"
 
 namespace pychron::publish::detail {
 

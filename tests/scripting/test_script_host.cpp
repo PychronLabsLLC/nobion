@@ -10,8 +10,8 @@
 #include <thread>
 
 #include "fakes.hpp"
-#include "pychron/scripting/script_host.hpp"
-#include "pychron/scripting/vocabulary.hpp"
+#include "nobion/scripting/script_host.hpp"
+#include "nobion/scripting/vocabulary.hpp"
 
 using namespace pychron;
 using namespace pychron::scripting;

@@ -15,7 +15,7 @@
 
 #include "code_editor.hpp"
 #include "experiment_fixture.hpp"
-#include "pychron/scripting/script_host.hpp"
+#include "nobion/scripting/script_host.hpp"
 #include "menu_hub.hpp"
 #include "script_editor_window.hpp"
 #include "script_highlighter.hpp"

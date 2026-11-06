@@ -1,14 +1,14 @@
-#include "pychron/laser/tray_camera.hpp"
+#include "nobion/laser/tray_camera.hpp"
 
-#include "pychron/vision/camera_backend.hpp"
-#include "pychron/vision/live_feed.hpp"
+#include "nobion/vision/camera_backend.hpp"
+#include "nobion/vision/live_feed.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
-#include "pychron/core/keyed_noise.hpp"
-#include "pychron/vision/fixture.hpp"
+#include "nobion/core/keyed_noise.hpp"
+#include "nobion/vision/fixture.hpp"
 
 namespace pychron::laser {
 

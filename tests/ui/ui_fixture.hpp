@@ -12,10 +12,10 @@
 
 #include <QtTest/QtTest>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/config/loader.hpp"
-#include "pychron/systems/canvas/loader.hpp"
-#include "pychron/systems/extraction_line.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/systems/canvas/loader.hpp"
+#include "nobion/systems/extraction_line.hpp"
 #include "temp_path.hpp"
 
 namespace pychron::ui::test {

@@ -6,8 +6,8 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/arar/reduce.hpp"
-#include "pychron/processing/domain.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/processing/domain.hpp"
 #include "schema_builder.hpp"
 
 namespace pychron::arar {

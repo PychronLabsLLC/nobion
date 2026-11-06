@@ -11,8 +11,8 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/logger.hpp"
-#include "pychron/scripting/script_host.hpp"
+#include "nobion/core/logger.hpp"
+#include "nobion/scripting/script_host.hpp"
 
 namespace pychron::scripting::python {
 

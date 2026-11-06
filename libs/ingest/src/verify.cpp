@@ -1,7 +1,7 @@
 // `import verify`: accounting, idempotence, pending conflicts and age parity
 // of one source (verify.hpp). The parts are in verify_parts.hpp.
 
-#include "pychron/ingest/verify.hpp"
+#include "nobion/ingest/verify.hpp"
 
 #include <algorithm>
 #include <exception>
@@ -11,8 +11,8 @@
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/ingest/conflict_markers.hpp"
-#include "pychron/ingest/ids.hpp"
+#include "nobion/ingest/conflict_markers.hpp"
+#include "nobion/ingest/ids.hpp"
 #include "verify_parts.hpp"
 
 namespace pychron::ingest {

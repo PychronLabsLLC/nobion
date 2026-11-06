@@ -1,13 +1,13 @@
-#include "pychron/experiment/lab/lasers.hpp"
+#include "nobion/experiment/lab/lasers.hpp"
 
 #include <optional>
 #include <utility>
 
-#include "pychron/devices/extraction/interfaces.hpp"
-#include "pychron/laser/tray_camera.hpp"
-#include "pychron/sim/sim_system.hpp"
-#include "pychron/systems/extraction_line.hpp"
-#include "pychron/vision/live_feed.hpp"
+#include "nobion/devices/extraction/interfaces.hpp"
+#include "nobion/laser/tray_camera.hpp"
+#include "nobion/sim/sim_system.hpp"
+#include "nobion/systems/extraction_line.hpp"
+#include "nobion/vision/live_feed.hpp"
 
 namespace pychron::experiment::lab {
 

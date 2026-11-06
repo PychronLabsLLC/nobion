@@ -32,9 +32,9 @@
 
 #include "canvas_state.hpp"
 #include "core_bridge.hpp"
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/experiment/rehearsal/runner.hpp"
-#include "pychron/scripting/script_host.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/rehearsal/runner.hpp"
+#include "nobion/scripting/script_host.hpp"
 
 class QAction;
 class QFormLayout;

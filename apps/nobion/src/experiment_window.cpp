@@ -32,7 +32,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
-#include "pychron/experiment/model/queue_file.hpp"
+#include "nobion/experiment/model/queue_file.hpp"
 #include "reference_series_dock.hpp"
 #include "strip_chart_model.hpp"
 #include "theme.hpp"

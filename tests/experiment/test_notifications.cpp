@@ -12,8 +12,8 @@
 #include <sstream>
 #include <vector>
 
-#include "pychron/core/events.hpp"
-#include "pychron/experiment/lab/notifier.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/experiment/lab/notifier.hpp"
 #include "temp_path.hpp"
 
 using namespace pychron;

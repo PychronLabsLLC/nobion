@@ -20,10 +20,10 @@
 #include <thread>
 #include <vector>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/devices/spectrometer/ngx.hpp"
-#include "pychron/devices/spectrometer/ngx_sim.hpp"
-#include "pychron/transport/link_transport.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/devices/spectrometer/ngx.hpp"
+#include "nobion/devices/spectrometer/ngx_sim.hpp"
+#include "nobion/transport/link_transport.hpp"
 #include "valve_conformance.hpp"
 #include "virtual_time.hpp"
 

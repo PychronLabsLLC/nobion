@@ -25,7 +25,7 @@
 #include <QVariant>
 #include <QWidget>
 
-#include "pychron/setup/template.hpp"
+#include "nobion/setup/template.hpp"
 
 namespace pychron::ui {
 

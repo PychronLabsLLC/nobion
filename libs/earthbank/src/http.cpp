@@ -1,4 +1,4 @@
-#include "pychron/earthbank/http.hpp"
+#include "nobion/earthbank/http.hpp"
 
 #include <cstddef>
 #include <initializer_list>
@@ -7,7 +7,7 @@
 #include <string_view>
 #include <utility>
 
-#include "pychron/core/error.hpp"
+#include "nobion/core/error.hpp"
 
 namespace pychron::earthbank {
 namespace {

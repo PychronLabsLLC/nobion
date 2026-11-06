@@ -1,4 +1,4 @@
-#include "pychron/experiment/lab/executor_config.hpp"
+#include "nobion/experiment/lab/executor_config.hpp"
 
 #include <cmath>
 #include <cstdio>

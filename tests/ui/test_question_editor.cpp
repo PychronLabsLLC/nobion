@@ -15,8 +15,8 @@
 #include <memory>
 #include <string>
 
-#include "pychron/setup/profile.hpp"
-#include "pychron/setup/template.hpp"
+#include "nobion/setup/profile.hpp"
+#include "nobion/setup/template.hpp"
 #include "question_editor.hpp"
 
 using namespace pychron;

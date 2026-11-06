@@ -1,4 +1,4 @@
-#include "pychron/devices/lakeshore.hpp"
+#include "nobion/devices/lakeshore.hpp"
 
 #include <algorithm>
 #include <cmath>

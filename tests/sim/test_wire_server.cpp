@@ -1,7 +1,7 @@
 // WireServer on the loopback interface, in real time (sim serve spec 7). The
 // clients are the real transports. Bounds are upper bounds of 5 s or more,
 // there only to tell an answer from a stall.
-#include "pychron/sim/wire_server.hpp"
+#include "nobion/sim/wire_server.hpp"
 
 #include <gtest/gtest.h>
 
@@ -11,9 +11,9 @@
 #include <random>
 #include <thread>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/transport/tcp_transport.hpp"
-#include "pychron/transport/udp_transport.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/transport/tcp_transport.hpp"
+#include "nobion/transport/udp_transport.hpp"
 
 namespace {
 

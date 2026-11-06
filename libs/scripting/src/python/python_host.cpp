@@ -5,8 +5,8 @@
 #include <set>
 
 #include "internal.hpp"
-#include "pychron/core/process_log.hpp"
-#include "pychron/scripting/vocabulary.hpp"
+#include "nobion/core/process_log.hpp"
+#include "nobion/scripting/vocabulary.hpp"
 
 namespace pychron::scripting {
 namespace {

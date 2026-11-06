@@ -1,12 +1,12 @@
 // The plan of a Publish run: order, dependencies and the rules it is checked
 // by (publication workflow design, sections 4 and 5.1).
 
-#include "pychron/publish/publication.hpp"
+#include "nobion/publish/publication.hpp"
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/sha256.hpp"
-#include "pychron/publish/embargo.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/publish/embargo.hpp"
 #include "ingest/forwarding_store.hpp"
 #include "release_fixture.hpp"
 

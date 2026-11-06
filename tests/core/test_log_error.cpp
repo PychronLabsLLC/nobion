@@ -3,11 +3,11 @@
 #include <algorithm>
 #include <vector>
 
-#include "pychron/core/log_error.hpp"
-#include "pychron/core/logger.hpp"
-#include "pychron/core/process_log.hpp"
+#include "nobion/core/log_error.hpp"
+#include "nobion/core/logger.hpp"
+#include "nobion/core/process_log.hpp"
 #include "log_capture.hpp"
-#include "pychron/core/signal_bus.hpp"
+#include "nobion/core/signal_bus.hpp"
 
 using namespace pychron;
 

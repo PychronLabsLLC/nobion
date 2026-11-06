@@ -3,7 +3,7 @@
 // ACK "\x06\r\n" (or NAK "\x15\r\n"); host then sends ENQ "\x05" and the
 // gauge answers with the data line.
 
-#include "pychron/codecs/maxigauge.hpp"
+#include "nobion/codecs/maxigauge.hpp"
 
 #include <gtest/gtest.h>
 

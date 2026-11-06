@@ -4,8 +4,8 @@
 
 #include "entry.hpp"
 
-#include "pychron/core/number.hpp"
-#include "pychron/core/user_file.hpp"
+#include "nobion/core/number.hpp"
+#include "nobion/core/user_file.hpp"
 
 #include <cctype>
 #include <charconv>
@@ -19,21 +19,21 @@
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/core/env.hpp"
-#include "pychron/core/host_name.hpp"
-#include "pychron/dvc/meta_files.hpp"
-#include "pychron/entry/csv.hpp"
-#include "pychron/entry/export.hpp"
-#include "pychron/entry/holder_import.hpp"
-#include "pychron/entry/identifier_plan.hpp"
-#include "pychron/entry/level_sheet.hpp"
-#include "pychron/entry/names.hpp"
-#include "pychron/entry/package_edit.hpp"
-#include "pychron/entry/positions_import.hpp"
-#include "pychron/entry/sample_import.hpp"
-#include "pychron/entry/seed.hpp"
-#include "pychron/entry/settings.hpp"
-#include "pychron/persistence/store.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/host_name.hpp"
+#include "nobion/dvc/meta_files.hpp"
+#include "nobion/entry/csv.hpp"
+#include "nobion/entry/export.hpp"
+#include "nobion/entry/holder_import.hpp"
+#include "nobion/entry/identifier_plan.hpp"
+#include "nobion/entry/level_sheet.hpp"
+#include "nobion/entry/names.hpp"
+#include "nobion/entry/package_edit.hpp"
+#include "nobion/entry/positions_import.hpp"
+#include "nobion/entry/sample_import.hpp"
+#include "nobion/entry/seed.hpp"
+#include "nobion/entry/settings.hpp"
+#include "nobion/persistence/store.hpp"
 
 namespace elctl {
 

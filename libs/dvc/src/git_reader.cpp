@@ -1,4 +1,4 @@
-#include "pychron/dvc/git_reader.hpp"
+#include "nobion/dvc/git_reader.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -15,9 +15,9 @@
 #include <unordered_set>
 #include <utility>
 
-#include "pychron/core/path_text.hpp"
-#include "pychron/core/process.hpp"
-#include "pychron/core/sha256.hpp"
+#include "nobion/core/path_text.hpp"
+#include "nobion/core/process.hpp"
+#include "nobion/core/sha256.hpp"
 
 namespace pychron::dvc {
 namespace {

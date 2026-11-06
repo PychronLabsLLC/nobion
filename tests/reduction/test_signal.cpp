@@ -1,5 +1,5 @@
 // Neutral isotope signals (noble gas spec 3.3): tags carry the label passed in.
-#include "pychron/reduction/signal.hpp"
+#include "nobion/reduction/signal.hpp"
 
 #include <gtest/gtest.h>
 

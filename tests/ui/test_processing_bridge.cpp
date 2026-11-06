@@ -16,10 +16,10 @@
 
 #include "arar_fixtures.hpp"
 #include "processing_bridge.hpp"
-#include "pychron/arar/domain.hpp"
-#include "pychron/processing/domain.hpp"
-#include "pychron/processing/source.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/arar/domain.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/source.hpp"
+#include "nobion/processing/units.hpp"
 
 namespace pp = pychron::processing;
 using pychron::ui::PipelineResult;

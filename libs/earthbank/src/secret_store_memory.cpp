@@ -1,7 +1,7 @@
 // The memory store, the choice between it and the system's, and the name a
 // profile's password is kept under.
 
-#include "pychron/earthbank/secret_store.hpp"
+#include "nobion/earthbank/secret_store.hpp"
 
 #include <cctype>
 #include <map>
@@ -12,8 +12,8 @@
 #include <string_view>
 #include <utility>
 
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/profiles.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/profiles.hpp"
 #include "secret_store_detail.hpp"
 
 namespace pychron::earthbank {

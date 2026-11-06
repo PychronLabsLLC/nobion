@@ -1,14 +1,14 @@
-#include "pychron/sim/spectrometer/wire_beam.hpp"
+#include "nobion/sim/spectrometer/wire_beam.hpp"
 
 #include <chrono>
 #include <map>
 #include <optional>
 #include <utility>
 
-#include "pychron/codecs/codec.hpp"
-#include "pychron/codecs/isotopx_ngx.hpp"
-#include "pychron/codecs/thermo_qtegra.hpp"
-#include "pychron/devices/spectrometer/params.hpp"
+#include "nobion/codecs/codec.hpp"
+#include "nobion/codecs/isotopx_ngx.hpp"
+#include "nobion/codecs/thermo_qtegra.hpp"
+#include "nobion/devices/spectrometer/params.hpp"
 
 namespace pychron::sim {
 

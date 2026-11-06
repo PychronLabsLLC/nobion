@@ -18,8 +18,8 @@
 
 #include <QCoreApplication>
 
-#include "pychron/core/env.hpp"
-#include "pychron/persistence/store.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/persistence/store.hpp"
 #include "tiny/db.hpp"
 
 namespace pychron::persistence::testing {

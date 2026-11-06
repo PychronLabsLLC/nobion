@@ -1,11 +1,11 @@
-#include "pychron/devices/device.hpp"
+#include "nobion/devices/device.hpp"
 
 #include <gtest/gtest.h>
 
 #include <algorithm>
 
 #include "log_capture.hpp"
-#include "pychron/core/log_context.hpp"
+#include "nobion/core/log_context.hpp"
 
 using namespace pychron;
 using namespace std::chrono_literals;

@@ -2,7 +2,7 @@
 // design, section 5.2). The only translation unit that sees Arrow; without
 // PYCHRON_PUBLISH_ARROW_ENABLED it is empty and parquet_stub.cpp stands in.
 
-#include "pychron/publish/parquet.hpp"
+#include "nobion/publish/parquet.hpp"
 
 #ifdef PYCHRON_PUBLISH_ARROW_ENABLED
 

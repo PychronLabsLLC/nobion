@@ -5,7 +5,7 @@
 #include <string>
 #include <string_view>
 
-#include "pychron/scripting/script.hpp"
+#include "nobion/scripting/script.hpp"
 
 namespace pychron::scripting {
 namespace {

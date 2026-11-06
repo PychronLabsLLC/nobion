@@ -21,12 +21,12 @@
 
 #include "example_lab.hpp"
 #include "laser_bridge.hpp"
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/devices/extraction/chromium_sim.hpp"
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/experiment/lab/lasers.hpp"
-#include "pychron/sim/sim_system.hpp"
-#include "pychron/systems/extraction_line.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/devices/extraction/chromium_sim.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/lab/lasers.hpp"
+#include "nobion/sim/sim_system.hpp"
+#include "nobion/systems/extraction_line.hpp"
 #include "temp_path.hpp"
 
 namespace pychron::ui::test {

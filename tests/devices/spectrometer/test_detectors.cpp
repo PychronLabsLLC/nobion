@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "pychron/devices/spectrometer/detectors.hpp"
+#include "nobion/devices/spectrometer/detectors.hpp"
 
 namespace {
 

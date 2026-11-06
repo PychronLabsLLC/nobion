@@ -1,14 +1,14 @@
-#include "pychron/devices/gp_microion.hpp"
+#include "nobion/devices/gp_microion.hpp"
 
 #include <gtest/gtest.h>
 
 #include <atomic>
 #include <thread>
 
-#include "pychron/devices/capabilities.hpp"
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/devices/pfeiffer_maxigauge.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/devices/pfeiffer_maxigauge.hpp"
+#include "nobion/transport/sim_transport.hpp"
 
 using namespace pychron;
 using namespace std::chrono_literals;

@@ -4,9 +4,9 @@
 #include <cmath>
 #include <limits>
 
-#include "pychron/vision/finder.hpp"
-#include "pychron/vision/kernel.hpp"
-#include "pychron/vision/synth.hpp"
+#include "nobion/vision/finder.hpp"
+#include "nobion/vision/kernel.hpp"
+#include "nobion/vision/synth.hpp"
 
 using namespace pychron::vision;
 

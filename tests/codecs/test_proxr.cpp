@@ -2,7 +2,7 @@
 // pychron's hardware/ncd/relay.py: 254 prefix, 49 = select bank, 0-7 = relay
 // off, 8-15 = relay on, 16-23 = relay status, 'U' (0x55) = ack.
 
-#include "pychron/codecs/proxr.hpp"
+#include "nobion/codecs/proxr.hpp"
 
 #include <gtest/gtest.h>
 

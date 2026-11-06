@@ -24,14 +24,14 @@
 
 #include <QObject>
 
-#include "pychron/core/error.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/experiment/collect/collector.hpp"
-#include "pychron/experiment/executor/executor.hpp"
-#include "pychron/experiment/lab/session.hpp"
-#include "pychron/experiment/measurement/engine.hpp"
-#include "pychron/experiment/run/state.hpp"
-#include "pychron/systems/jobs/peak_center.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/experiment/collect/collector.hpp"
+#include "nobion/experiment/executor/executor.hpp"
+#include "nobion/experiment/lab/session.hpp"
+#include "nobion/experiment/measurement/engine.hpp"
+#include "nobion/experiment/run/state.hpp"
+#include "nobion/systems/jobs/peak_center.hpp"
 
 namespace pychron::ui {
 

@@ -24,7 +24,7 @@
 #include <QTimer>
 
 #include "code_editor.hpp"
-#include "pychron/experiment/lab/scripts.hpp"
+#include "nobion/experiment/lab/scripts.hpp"
 #include "script_highlighter.hpp"
 
 class QAction;

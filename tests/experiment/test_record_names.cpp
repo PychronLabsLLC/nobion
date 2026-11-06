@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "pychron/experiment/record/names.hpp"
+#include "nobion/experiment/record/names.hpp"
 
 using namespace pychron::experiment::record;
 

@@ -8,9 +8,9 @@
 #include <string>
 
 #include "example_lab.hpp"
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/experiment/model/queue_file.hpp"
-#include "pychron/experiment/factory/step_heat_template.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/model/queue_file.hpp"
+#include "nobion/experiment/factory/step_heat_template.hpp"
 #include "temp_path.hpp"
 
 namespace pychron::experiment::lab {

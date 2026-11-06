@@ -26,8 +26,8 @@
 
 #include <QWidget>
 
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/experiment/plan/parameters.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/plan/parameters.hpp"
 #include "queue_table_model.hpp"
 
 class QCheckBox;

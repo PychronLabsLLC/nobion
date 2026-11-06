@@ -1,4 +1,4 @@
-#include "pychron/experiment/executor/executor.hpp"
+#include "nobion/experiment/executor/executor.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -10,11 +10,11 @@
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/core/events.hpp"
-#include "pychron/core/log_context.hpp"
-#include "pychron/experiment/conditionals/metrics.hpp"
-#include "pychron/systems/spectrometer/spectrometer.hpp"
-#include "pychron/transport/transport.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/log_context.hpp"
+#include "nobion/experiment/conditionals/metrics.hpp"
+#include "nobion/systems/spectrometer/spectrometer.hpp"
+#include "nobion/transport/transport.hpp"
 
 namespace pychron::experiment::executor {
 

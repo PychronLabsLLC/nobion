@@ -3,7 +3,7 @@
 // variables with core's, and it carries the Ar-Ar result as the domain's part
 // of the reduced analysis.
 
-#include "pychron/arar/reduce.hpp"
+#include "nobion/arar/reduce.hpp"
 
 #include <gtest/gtest.h>
 
@@ -15,10 +15,10 @@
 #include <vector>
 
 #include "arar_fixtures.hpp"
-#include "pychron/arar/domain.hpp"
-#include "pychron/processing/domain.hpp"
-#include "pychron/processing/quantity.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/arar/domain.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/quantity.hpp"
+#include "nobion/processing/units.hpp"
 #include "reduce_golden.hpp"
 
 namespace pp = pychron::processing;

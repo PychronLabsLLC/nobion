@@ -7,8 +7,8 @@
 #include <system_error>
 
 #include "internal.hpp"
-#include "pychron/core/env.hpp"
-#include "pychron/core/process.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/process.hpp"
 
 namespace pychron::scripting::python {
 namespace {

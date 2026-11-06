@@ -1,4 +1,4 @@
-#include "pychron/vision/fixture.hpp"
+#include "nobion/vision/fixture.hpp"
 
 #include <charconv>
 #include <cmath>
@@ -7,7 +7,7 @@
 #include <sstream>
 #include <toml++/toml.hpp>
 
-#include "pychron/vision/pgm.hpp"
+#include "nobion/vision/pgm.hpp"
 
 namespace pychron::vision {
 namespace {

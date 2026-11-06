@@ -22,10 +22,10 @@
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/core/sha256.hpp"
-#include "pychron/dvc/catalog_adapter.hpp"
-#include "pychron/ingest/ids.hpp"
-#include "pychron/ingest/writer.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/dvc/catalog_adapter.hpp"
+#include "nobion/ingest/ids.hpp"
+#include "nobion/ingest/writer.hpp"
 #include "sql/geometry.hpp"
 #include "store_fixture.hpp"
 #include "verify_support.hpp"

@@ -44,10 +44,10 @@
 #include <QVector>
 #include <QWidget>
 
-#include "pychron/experiment/collect/collector.hpp"
-#include "pychron/experiment/executor/executor.hpp"
-#include "pychron/reduction/fits.hpp"
-#include "pychron/systems/jobs/peak_center.hpp"
+#include "nobion/experiment/collect/collector.hpp"
+#include "nobion/experiment/executor/executor.hpp"
+#include "nobion/reduction/fits.hpp"
+#include "nobion/systems/jobs/peak_center.hpp"
 
 class QCustomPlot;
 class QCPAxisRect;

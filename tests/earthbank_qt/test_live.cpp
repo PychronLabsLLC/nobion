@@ -23,8 +23,8 @@
 #include <gtest/gtest.h>
 
 #include "live_round_trip.hpp"
-#include "pychron/earthbank/profiles.hpp"
-#include "pychron/earthbank/qt_http_client.hpp"
+#include "nobion/earthbank/profiles.hpp"
+#include "nobion/earthbank/qt_http_client.hpp"
 
 namespace pychron::earthbank::testing {
 namespace {

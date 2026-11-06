@@ -13,8 +13,8 @@
 // Qt's `signals` keyword macro would rewrite persistence::CollectionRoots::signals.
 #pragma push_macro("signals")
 #undef signals
-#include "pychron/arar/store_loader.hpp"
-#include "pychron/processing/store_source.hpp"
+#include "nobion/arar/store_loader.hpp"
+#include "nobion/processing/store_source.hpp"
 #pragma pop_macro("signals")
 
 namespace pychron::ui {

@@ -1,10 +1,10 @@
-#include "pychron/core/logger.hpp"
+#include "nobion/core/logger.hpp"
 
 #include <ostream>
 
 #include "log_hub_internal.hpp"
-#include "pychron/core/log_context.hpp"
-#include "pychron/core/signal_bus.hpp"
+#include "nobion/core/log_context.hpp"
+#include "nobion/core/signal_bus.hpp"
 
 namespace pychron {
 

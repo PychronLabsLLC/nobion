@@ -17,11 +17,11 @@
 #include <string>
 #include <thread>
 
-#include "pychron/devices/spectrometer/ngx_sim.hpp"
-#include "pychron/setup/connection.hpp"
-#include "pychron/setup/install.hpp"
-#include "pychron/setup/installer.hpp"
-#include "pychron/setup/profile.hpp"
+#include "nobion/devices/spectrometer/ngx_sim.hpp"
+#include "nobion/setup/connection.hpp"
+#include "nobion/setup/install.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/setup/profile.hpp"
 #include "temp_path.hpp"
 
 using namespace pychron;

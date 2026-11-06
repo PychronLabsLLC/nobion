@@ -6,9 +6,9 @@
 #include <numbers>
 #include <vector>
 
-#include "pychron/vision/calibration.hpp"
-#include "pychron/vision/finder.hpp"
-#include "pychron/vision/synth.hpp"
+#include "nobion/vision/calibration.hpp"
+#include "nobion/vision/finder.hpp"
+#include "nobion/vision/synth.hpp"
 
 using namespace pychron::vision;
 using pychron::ErrorKind;

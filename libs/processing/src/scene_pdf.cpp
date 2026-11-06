@@ -1,6 +1,6 @@
 // A scene written as a one-page PDF 1.4 (data publishing design, section 5.6).
 
-#include "pychron/processing/scene_pdf.hpp"
+#include "nobion/processing/scene_pdf.hpp"
 
 #include <algorithm>
 #include <array>
@@ -10,7 +10,7 @@
 #include <map>
 #include <set>
 
-#include "pychron/core/user_file.hpp"
+#include "nobion/core/user_file.hpp"
 
 namespace pychron::processing {
 

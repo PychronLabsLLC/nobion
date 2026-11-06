@@ -1,4 +1,4 @@
-#include "pychron/systems/line_server.hpp"
+#include "nobion/systems/line_server.hpp"
 
 #include <algorithm>
 #include <filesystem>
@@ -7,12 +7,12 @@
 #include <tuple>
 #include <utility>
 
-#include "pychron/codecs/isotopx_ngx.hpp"
-#include "pychron/codecs/thermo_qtegra.hpp"
-#include "pychron/devices/spectrometer/ngx_sim.hpp"
-#include "pychron/devices/spectrometer/thermo_qtegra_sim.hpp"
-#include "pychron/sim/spectrometer/wire_beam.hpp"
-#include "pychron/systems/spectrometer/bringup.hpp"
+#include "nobion/codecs/isotopx_ngx.hpp"
+#include "nobion/codecs/thermo_qtegra.hpp"
+#include "nobion/devices/spectrometer/ngx_sim.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra_sim.hpp"
+#include "nobion/sim/spectrometer/wire_beam.hpp"
+#include "nobion/systems/spectrometer/bringup.hpp"
 
 namespace pychron::systems {
 

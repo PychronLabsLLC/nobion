@@ -1,7 +1,7 @@
 // The row tables of a release and their canonical text (data publishing
 // design, sections 5.3 and 5.7).
 
-#include "pychron/publish/tables.hpp"
+#include "nobion/publish/tables.hpp"
 
 #include <gtest/gtest.h>
 

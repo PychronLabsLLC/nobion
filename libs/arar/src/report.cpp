@@ -1,4 +1,4 @@
-#include "pychron/arar/report.hpp"
+#include "nobion/arar/report.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -11,12 +11,12 @@
 #include <utility>
 
 #include "figure_common.hpp"
-#include "pychron/core/user_file.hpp"
-#include "pychron/arar/analysis_data.hpp"
-#include "pychron/arar/arar_groups.hpp"
-#include "pychron/arar/group_ages.hpp"
-#include "pychron/arar/arar_reduction.hpp"
-#include "pychron/arar/reduce.hpp"
+#include "nobion/core/user_file.hpp"
+#include "nobion/arar/analysis_data.hpp"
+#include "nobion/arar/arar_groups.hpp"
+#include "nobion/arar/group_ages.hpp"
+#include "nobion/arar/arar_reduction.hpp"
+#include "nobion/arar/reduce.hpp"
 
 namespace pychron::processing {
 

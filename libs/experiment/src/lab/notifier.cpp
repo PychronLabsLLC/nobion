@@ -1,4 +1,4 @@
-#include "pychron/experiment/lab/notifier.hpp"
+#include "nobion/experiment/lab/notifier.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -9,9 +9,9 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/core/events.hpp"
-#include "pychron/core/log_error.hpp"
-#include "pychron/core/log_context.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/log_error.hpp"
+#include "nobion/core/log_context.hpp"
 
 namespace pychron::experiment::lab {
 

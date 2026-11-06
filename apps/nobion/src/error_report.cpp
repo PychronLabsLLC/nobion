@@ -2,8 +2,8 @@
 
 #include <string>
 
-#include "pychron/core/log_error.hpp"
-#include "pychron/core/process_log.hpp"
+#include "nobion/core/log_error.hpp"
+#include "nobion/core/process_log.hpp"
 
 namespace pychron::ui {
 namespace {

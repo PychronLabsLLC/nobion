@@ -16,8 +16,8 @@
 #include <gtest/gtest.h>
 
 #include "elctl_fixture.hpp"
-#include "pychron/core/sha256.hpp"
-#include "pychron/persistence/store.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/persistence/store.hpp"
 
 namespace elctl::testing {
 

@@ -11,9 +11,9 @@
 #include <QDateTime>
 #include <QString>
 
-#include "pychron/experiment/executor/executor.hpp"
-#include "pychron/experiment/model/run_spec.hpp"
-#include "pychron/experiment/run/state.hpp"
+#include "nobion/experiment/executor/executor.hpp"
+#include "nobion/experiment/model/run_spec.hpp"
+#include "nobion/experiment/run/state.hpp"
 
 namespace pychron::ui {
 

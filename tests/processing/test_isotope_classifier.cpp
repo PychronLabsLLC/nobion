@@ -8,8 +8,8 @@
 #include <random>
 
 #include "fixtures.hpp"
-#include "pychron/processing/isotope_classifier.hpp"
-#include "pychron/processing/isotope_evolution_fit.hpp"
+#include "nobion/processing/isotope_classifier.hpp"
+#include "nobion/processing/isotope_evolution_fit.hpp"
 
 namespace pychron::processing {
 namespace {

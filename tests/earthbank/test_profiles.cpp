@@ -26,9 +26,9 @@
 #include <unistd.h>
 #endif
 
-#include "pychron/core/env.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/profiles.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/profiles.hpp"
 
 // A namespace of its own: the suite is called Profiles, as the type is.
 namespace pychron::earthbank::profiles_test {

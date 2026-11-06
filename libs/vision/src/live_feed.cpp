@@ -1,11 +1,11 @@
-#include "pychron/vision/live_feed.hpp"
+#include "nobion/vision/live_feed.hpp"
 
 #include <condition_variable>
 #include <mutex>
 #include <thread>
 #include <utility>
 
-#include "pychron/core/log_context.hpp"
+#include "nobion/core/log_context.hpp"
 
 namespace pychron::vision {
 

@@ -11,9 +11,9 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/error.hpp"
-#include "pychron/experiment/plan/plan.hpp"
-#include "pychron/experiment/plan/plan_loader.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/experiment/plan/plan.hpp"
+#include "nobion/experiment/plan/plan_loader.hpp"
 
 namespace pychron::experiment::plan::detail {
 

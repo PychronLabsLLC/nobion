@@ -6,10 +6,10 @@
 #include <set>
 #include <string>
 
-#include "pychron/core/error.hpp"
-#include "pychron/processing/dataset.hpp"
-#include "pychron/processing/options.hpp"
-#include "pychron/processing/scene.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/processing/dataset.hpp"
+#include "nobion/processing/options.hpp"
+#include "nobion/processing/scene.hpp"
 
 namespace pychron::processing::detail {
 

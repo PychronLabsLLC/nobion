@@ -1,6 +1,6 @@
 // ExperimentMetrics against events published by hand: what each event of a
 // queue's life does to the registry.
-#include "pychron/experiment/metrics/experiment_metrics.hpp"
+#include "nobion/experiment/metrics/experiment_metrics.hpp"
 
 #include <gtest/gtest.h>
 
@@ -11,15 +11,15 @@
 #include <string>
 
 #include "metrics_text.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/experiment/executor/executor.hpp"
-#include "pychron/experiment/lab/notifier.hpp"
-#include "pychron/experiment/lab/session.hpp"
-#include "pychron/experiment/measurement/engine.hpp"
-#include "pychron/experiment/persist/persister.hpp"
-#include "pychron/experiment/run/state.hpp"
-#include "pychron/metrics/registry.hpp"
-#include "pychron/systems/jobs/job.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/experiment/executor/executor.hpp"
+#include "nobion/experiment/lab/notifier.hpp"
+#include "nobion/experiment/lab/session.hpp"
+#include "nobion/experiment/measurement/engine.hpp"
+#include "nobion/experiment/persist/persister.hpp"
+#include "nobion/experiment/run/state.hpp"
+#include "nobion/metrics/registry.hpp"
+#include "nobion/systems/jobs/job.hpp"
 
 using namespace pychron;
 using namespace pychron::experiment;

@@ -4,15 +4,15 @@
 #include <iostream>
 #include <sstream>
 
-#include "pychron/core/env.hpp"
-#include "pychron/setup/doctor.hpp"
-#include "pychron/setup/install.hpp"
-#include "pychron/setup/installer.hpp"
-#include "pychron/setup/legacy_line.hpp"
-#include "pychron/setup/profile.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/setup/doctor.hpp"
+#include "nobion/setup/install.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/setup/legacy_line.hpp"
+#include "nobion/setup/profile.hpp"
 
 #ifdef PYCHRON_ELCTL_HAS_STORE
-#include "pychron/persistence/store.hpp"
+#include "nobion/persistence/store.hpp"
 #include "entry.hpp"
 #endif
 

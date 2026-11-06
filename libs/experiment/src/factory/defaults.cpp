@@ -1,4 +1,4 @@
-#include "pychron/experiment/factory/defaults.hpp"
+#include "nobion/experiment/factory/defaults.hpp"
 
 #include <fstream>
 #include <initializer_list>
@@ -7,7 +7,7 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/experiment/model/rules.hpp"
+#include "nobion/experiment/model/rules.hpp"
 
 namespace pychron::experiment {
 namespace {

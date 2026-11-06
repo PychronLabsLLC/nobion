@@ -11,8 +11,8 @@
 
 #include <QDialog>
 
-#include "pychron/setup/profile.hpp"
-#include "pychron/setup/site.hpp"
+#include "nobion/setup/profile.hpp"
+#include "nobion/setup/site.hpp"
 #include "setup_wizard.hpp"
 
 class QLabel;

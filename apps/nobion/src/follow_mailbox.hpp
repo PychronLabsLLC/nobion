@@ -10,7 +10,7 @@
 #include <mutex>
 #include <vector>
 
-#include "pychron/laser/laser_system.hpp"
+#include "nobion/laser/laser_system.hpp"
 
 namespace pychron::ui {
 

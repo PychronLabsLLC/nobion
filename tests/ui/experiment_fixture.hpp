@@ -17,14 +17,14 @@
 #include <QtTest/QtTest>
 
 #include "example_lab.hpp"
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/experiment/lab/session.hpp"
-#include "pychron/experiment/model/queue_file.hpp"
-#include "pychron/scripting/script_host.hpp"
-#include "pychron/sim/spectrometer/beam_model.hpp"
-#include "pychron/systems/extraction_line.hpp"
-#include "pychron/systems/spectrometer/bringup.hpp"
-#include "pychron/systems/spectrometer/scan_service.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/experiment/lab/session.hpp"
+#include "nobion/experiment/model/queue_file.hpp"
+#include "nobion/scripting/script_host.hpp"
+#include "nobion/sim/spectrometer/beam_model.hpp"
+#include "nobion/systems/extraction_line.hpp"
+#include "nobion/systems/spectrometer/bringup.hpp"
+#include "nobion/systems/spectrometer/scan_service.hpp"
 #include "temp_path.hpp"
 
 namespace pychron::ui::test {

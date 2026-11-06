@@ -82,12 +82,12 @@ class Summarize(unittest.TestCase):
     def test_keeps_libs_only_with_paths_relative_to_the_source_tree(self):
         data = export_json({
             "/repo/libs/core/src/a.cpp": (10, 8, 4, 2),
-            "/repo/libs/core/include/pychron/core/a.hpp": (5, 5, 0, 0),
+            "/repo/libs/core/include/nobion/core/a.hpp": (5, 5, 0, 0),
             "/repo/tests/core/test_a.cpp": (50, 50, 2, 2),
             "/repo/build/coverage/_deps/x.cpp": (100, 1, 10, 1),
         })
         s = cr.summarize(data, ROOT)
-        self.assertEqual(sorted(s["files"]), ["libs/core/include/pychron/core/a.hpp", "libs/core/src/a.cpp"])
+        self.assertEqual(sorted(s["files"]), ["libs/core/include/nobion/core/a.hpp", "libs/core/src/a.cpp"])
         self.assertEqual(s["files"]["libs/core/src/a.cpp"]["lines"], {"count": 10, "covered": 8, "percent": 80.0})
         self.assertEqual(s["totals"]["lines"], {"count": 15, "covered": 13, "percent": 86.67})
         self.assertEqual(s["totals"]["branches"], {"count": 4, "covered": 2, "percent": 50.0})

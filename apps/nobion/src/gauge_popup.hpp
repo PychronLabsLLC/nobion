@@ -21,7 +21,7 @@
 #include <QRect>
 #include <QString>
 
-#include "pychron/core/clock.hpp"
+#include "nobion/core/clock.hpp"
 #include "reading_history.hpp"
 
 class QLabel;

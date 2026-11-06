@@ -37,9 +37,9 @@
 #include <QTimer>
 #include <QWidget>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/experiment/executor/executor.hpp"
-#include "pychron/experiment/run/state.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/experiment/executor/executor.hpp"
+#include "nobion/experiment/run/state.hpp"
 
 class QAction;
 class QToolButton;

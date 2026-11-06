@@ -25,9 +25,9 @@
 #include <QString>
 #include <QWidget>
 
-#include "pychron/processing/options.hpp"
+#include "nobion/processing/options.hpp"
 #include "processing_bridge.hpp"
-#include "pychron/processing/scene.hpp"
+#include "nobion/processing/scene.hpp"
 #include "reference_series.hpp"
 
 class QDialog;

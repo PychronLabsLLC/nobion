@@ -16,18 +16,18 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/experiment/factory/defaults.hpp"
-#include "pychron/experiment/model/identifiers.hpp"
+#include "nobion/experiment/factory/defaults.hpp"
+#include "nobion/experiment/model/identifiers.hpp"
 
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/experiment/model/queue_file.hpp"
-#include "pychron/experiment/plan/parameters.hpp"
-#include "pychron/experiment/plan/plan_loader.hpp"
-#include "pychron/setup/doctor.hpp"
-#include "pychron/setup/install.hpp"
-#include "pychron/setup/installer.hpp"
-#include "pychron/setup/profile.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/model/queue_file.hpp"
+#include "nobion/experiment/plan/parameters.hpp"
+#include "nobion/experiment/plan/plan_loader.hpp"
+#include "nobion/setup/doctor.hpp"
+#include "nobion/setup/install.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/setup/profile.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
 #include "temp_path.hpp"
 
 using namespace pychron;

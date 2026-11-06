@@ -1,6 +1,6 @@
-#include "pychron/vision/opencv_source.hpp"
+#include "nobion/vision/opencv_source.hpp"
 
-#include "pychron/vision/camera_backend.hpp"
+#include "nobion/vision/camera_backend.hpp"
 
 #include <cctype>
 #include <chrono>

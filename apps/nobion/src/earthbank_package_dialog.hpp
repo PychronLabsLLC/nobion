@@ -17,8 +17,8 @@
 #include <QDialog>
 #include <QString>
 
-#include "pychron/earthbank/profiles.hpp"
-#include "pychron/earthbank/session.hpp"
+#include "nobion/earthbank/profiles.hpp"
+#include "nobion/earthbank/session.hpp"
 
 class QDialogButtonBox;
 class QLabel;

@@ -9,7 +9,7 @@
 #include <QString>
 #include <QWidget>
 
-#include "pychron/processing/options.hpp"
+#include "nobion/processing/options.hpp"
 
 class QComboBox;
 

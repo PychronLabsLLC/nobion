@@ -15,7 +15,7 @@
 #include <QString>
 #include <QWidget>
 
-#include "pychron/processing/source.hpp"
+#include "nobion/processing/source.hpp"
 
 class QLineEdit;
 class QToolButton;

@@ -1,13 +1,13 @@
-#include "pychron/arar/r_values.hpp"
+#include "nobion/arar/r_values.hpp"
 
 #include <array>
 #include <charconv>
 #include <cmath>
 
 #include "figure_common.hpp"
-#include "pychron/arar/domain.hpp"
-#include "pychron/processing/quantity.hpp"
-#include "pychron/arar/report.hpp"
+#include "nobion/arar/domain.hpp"
+#include "nobion/processing/quantity.hpp"
+#include "nobion/arar/report.hpp"
 
 namespace pychron::processing {
 

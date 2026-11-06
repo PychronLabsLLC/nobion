@@ -8,10 +8,10 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/log_dir.hpp"
-#include "pychron/core/log_hub.hpp"
-#include "pychron/setup/site.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/log_dir.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/setup/site.hpp"
 
 namespace pychron::ui {
 

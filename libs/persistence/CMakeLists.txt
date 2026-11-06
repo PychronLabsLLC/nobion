@@ -1,6 +1,6 @@
 # pychron::persistence — the DVC store (DVC schema spec, section 12) on
 # TinyORM/QtSql. Depends on core only. TinyORM and Qt are PRIVATE: the public
-# headers under include/pychron/persistence/ are std-only.
+# headers under include/nobion/persistence/ are std-only.
 if(NOT PYCHRON_PERSISTENCE_ENABLED)
   return()
 endif()

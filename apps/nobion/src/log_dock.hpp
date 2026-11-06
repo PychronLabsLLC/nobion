@@ -17,7 +17,7 @@
 
 #include "log_filter_proxy.hpp"
 #include "log_model.hpp"
-#include "pychron/core/events.hpp"
+#include "nobion/core/events.hpp"
 
 class QAction;
 class QCheckBox;

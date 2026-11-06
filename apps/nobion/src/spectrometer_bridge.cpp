@@ -17,9 +17,9 @@
 #include <QMetaObject>
 #include <QSemaphore>
 
-#include "pychron/core/config/local_file.hpp"
-#include "pychron/core/log_context.hpp"
-#include "pychron/systems/spectrometer/field_table_store.hpp"
+#include "nobion/core/config/local_file.hpp"
+#include "nobion/core/log_context.hpp"
+#include "nobion/systems/spectrometer/field_table_store.hpp"
 
 namespace pychron::ui {
 

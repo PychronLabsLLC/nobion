@@ -1,4 +1,4 @@
-#include "pychron/setup/data_source.hpp"
+#include "nobion/setup/data_source.hpp"
 
 #include <charconv>
 #include <cstdint>
@@ -7,10 +7,10 @@
 #include <system_error>
 #include <utility>
 
-#include "pychron/setup/doctor.hpp"
-#include "pychron/setup/install.hpp"
-#include "pychron/setup/installer.hpp"
-#include "pychron/setup/template.hpp"
+#include "nobion/setup/doctor.hpp"
+#include "nobion/setup/install.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/setup/template.hpp"
 
 #include "file_io.hpp"
 

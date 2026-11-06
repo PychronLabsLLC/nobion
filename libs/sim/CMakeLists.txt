@@ -1,5 +1,5 @@
 # pychron::sim. Sources are globbed so units landing in parallel only add
-# files under src/ and include/pychron/sim/ and never edit this list.
+# files under src/ and include/nobion/sim/ and never edit this list.
 file(GLOB_RECURSE PYCHRON_SIM_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 
 add_library(pychron_sim STATIC ${PYCHRON_SIM_SOURCES})

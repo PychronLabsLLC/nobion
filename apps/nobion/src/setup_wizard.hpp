@@ -24,11 +24,11 @@
 
 #include <QWizard>
 
-#include "pychron/core/error.hpp"
-#include "pychron/setup/doctor.hpp"
-#include "pychron/setup/install.hpp"
-#include "pychron/setup/profile.hpp"
-#include "pychron/setup/site.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/setup/doctor.hpp"
+#include "nobion/setup/install.hpp"
+#include "nobion/setup/profile.hpp"
+#include "nobion/setup/site.hpp"
 
 class QButtonGroup;
 class QCheckBox;

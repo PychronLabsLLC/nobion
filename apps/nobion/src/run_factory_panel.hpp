@@ -35,8 +35,8 @@
 #include <QWidget>
 
 #include "identifier_source.hpp"
-#include "pychron/experiment/factory/form.hpp"
-#include "pychron/experiment/lab/lab.hpp"
+#include "nobion/experiment/factory/form.hpp"
+#include "nobion/experiment/lab/lab.hpp"
 #include "queue_table_model.hpp"
 
 class QCheckBox;

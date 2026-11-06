@@ -1,7 +1,7 @@
 // elctl laser: trays, calibrate, goto, on a scratch copy of the example lab
 // (its "co2" is a Chromium driver on a simulated transport).
 
-#include "pychron/vision/camera_backend.hpp"
+#include "nobion/vision/camera_backend.hpp"
 #include <gtest/gtest.h>
 
 #include <filesystem>
@@ -13,10 +13,10 @@
 
 #include "elctl_fixture.hpp"
 #include "example_lab.hpp"
-#include "pychron/laser/calibration_store.hpp"
-#include "pychron/laser/tray_map.hpp"
-#include "pychron/vision/fixture.hpp"
-#include "pychron/vision/synth.hpp"
+#include "nobion/laser/calibration_store.hpp"
+#include "nobion/laser/tray_map.hpp"
+#include "nobion/vision/fixture.hpp"
+#include "nobion/vision/synth.hpp"
 
 namespace elctl::testing {
 namespace {

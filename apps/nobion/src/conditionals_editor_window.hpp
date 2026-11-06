@@ -25,7 +25,7 @@
 
 #include "conditional_form.hpp"
 #include "conditional_table_model.hpp"
-#include "pychron/experiment/lab/lab.hpp"
+#include "nobion/experiment/lab/lab.hpp"
 
 class QAction;
 class QLabel;

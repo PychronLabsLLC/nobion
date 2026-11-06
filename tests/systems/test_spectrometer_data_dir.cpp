@@ -5,8 +5,8 @@
 #include <string>
 #include <string_view>
 
-#include "pychron/systems/spectrometer/config_validate.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
+#include "nobion/systems/spectrometer/config_validate.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
 
 namespace pychron::spectrometer::cfg {
 namespace {

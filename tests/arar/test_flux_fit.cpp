@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "flux_level_inputs.hpp"
-#include "pychron/arar/flux_fit.hpp"
+#include "nobion/arar/flux_fit.hpp"
 
 namespace pychron::processing {
 namespace {

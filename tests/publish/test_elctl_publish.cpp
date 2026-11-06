@@ -9,7 +9,7 @@
 #include <sstream>
 
 #include "cli.hpp"
-#include "pychron/publish/manifest.hpp"
+#include "nobion/publish/manifest.hpp"
 #include "release_fixture.hpp"
 
 namespace fs = std::filesystem;

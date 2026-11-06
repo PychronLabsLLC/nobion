@@ -6,7 +6,7 @@
 
 #include <QAbstractTableModel>
 
-#include "pychron/arar/flux_fit.hpp"
+#include "nobion/arar/flux_fit.hpp"
 
 namespace pychron::ui {
 

@@ -1,11 +1,11 @@
-#include "pychron/systems/spectrometer/data_dir.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
 
 #include <algorithm>
 #include <array>
 #include <set>
 
-#include "pychron/systems/spectrometer/config_loader.hpp"
-#include "pychron/systems/spectrometer/config_validate.hpp"
+#include "nobion/systems/spectrometer/config_loader.hpp"
+#include "nobion/systems/spectrometer/config_validate.hpp"
 #include "toml_reader.hpp"
 
 namespace pychron::spectrometer::cfg {

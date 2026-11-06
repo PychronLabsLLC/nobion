@@ -1,4 +1,4 @@
-#include "pychron/reduction/fits.hpp"
+#include "nobion/reduction/fits.hpp"
 
 #include <gtest/gtest.h>
 

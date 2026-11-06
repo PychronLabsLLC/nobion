@@ -1,4 +1,4 @@
-#include "pychron/arar/group_ages.hpp"
+#include "nobion/arar/group_ages.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -7,9 +7,9 @@
 #include <span>
 #include <vector>
 
-#include "pychron/arar/arar_reduction.hpp"
-#include "pychron/arar/reduce.hpp"
-#include "pychron/reduction/ufloat.hpp"
+#include "nobion/arar/arar_reduction.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/reduction/ufloat.hpp"
 
 namespace pychron::processing {
 

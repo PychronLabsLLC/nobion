@@ -1,4 +1,4 @@
-#include "pychron/laser/pattern.hpp"
+#include "nobion/laser/pattern.hpp"
 
 #include <algorithm>
 #include <array>

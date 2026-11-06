@@ -1,4 +1,4 @@
-#include "pychron/vision/legacy_finder.hpp"
+#include "nobion/vision/legacy_finder.hpp"
 
 #include <algorithm>
 #include <climits>

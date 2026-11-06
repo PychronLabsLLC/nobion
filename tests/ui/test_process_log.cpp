@@ -11,11 +11,11 @@
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/log_dir.hpp"
-#include "pychron/core/log_hub.hpp"
-#include "pychron/core/process_log.hpp"
-#include "pychron/setup/site.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/log_dir.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/process_log.hpp"
+#include "nobion/setup/site.hpp"
 #include "process_log.hpp"
 #include "qt_log_handler.hpp"
 

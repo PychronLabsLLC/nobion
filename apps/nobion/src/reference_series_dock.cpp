@@ -20,7 +20,7 @@
 #include "error_report.hpp"
 #include "options_editor.hpp"
 #include "preset_bar.hpp"
-#include "pychron/processing/time_series.hpp"
+#include "nobion/processing/time_series.hpp"
 #include "scene_view.hpp"
 
 namespace pychron::ui {

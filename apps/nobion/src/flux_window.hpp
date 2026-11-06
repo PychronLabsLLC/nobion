@@ -27,10 +27,10 @@
 #include <QStringList>
 
 #include "entry_bridge.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/arar/flux_fit.hpp"
-#include "pychron/processing/options.hpp"
-#include "pychron/processing/source.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/arar/flux_fit.hpp"
+#include "nobion/processing/options.hpp"
+#include "nobion/processing/source.hpp"
 
 class QAction;
 class QCheckBox;

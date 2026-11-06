@@ -13,9 +13,9 @@
 #include <variant>
 #include <vector>
 
-#include "pychron/experiment/conditionals/conditional.hpp"
-#include "pychron/experiment/plan/parameters.hpp"
-#include "pychron/experiment/plan/plan_loader.hpp"
+#include "nobion/experiment/conditionals/conditional.hpp"
+#include "nobion/experiment/plan/parameters.hpp"
+#include "nobion/experiment/plan/plan_loader.hpp"
 #include "plan_desugar.hpp"
 #include "plan_parse.hpp"
 #include "plan_toml.hpp"

@@ -3,8 +3,8 @@
 #include <string>
 
 #include "config_fixtures.hpp"
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/config/validate.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/config/validate.hpp"
 
 using namespace pychron;
 using namespace pychron::config;

@@ -1,4 +1,4 @@
-#include "pychron/systems/spectrometer/config_loader.hpp"
+#include "nobion/systems/spectrometer/config_loader.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -7,7 +7,7 @@
 #include <cctype>
 #include <utility>
 
-#include "pychron/core/config/loader.hpp"
+#include "nobion/core/config/loader.hpp"
 #include "toml_reader.hpp"
 
 namespace pychron::spectrometer::cfg {

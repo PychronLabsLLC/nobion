@@ -1,7 +1,7 @@
 // The steps elctl publish and the Publish window share: publishing a built
 // directory, and verifying one against a rebuild from the store.
 
-#include "pychron/publish/workflow.hpp"
+#include "nobion/publish/workflow.hpp"
 
 #include <gtest/gtest.h>
 
@@ -10,10 +10,10 @@
 #include <random>
 #include <sstream>
 
-#include "pychron/core/sha256.hpp"
-#include "pychron/processing/store_source.hpp"
-#include "pychron/publish/build.hpp"
-#include "pychron/publish/release.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/processing/store_source.hpp"
+#include "nobion/publish/build.hpp"
+#include "nobion/publish/release.hpp"
 #include "release_fixture.hpp"
 
 namespace fs = std::filesystem;

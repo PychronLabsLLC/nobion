@@ -18,9 +18,9 @@
 #include <iostream>
 #include <random>
 
-#include "pychron/processing/store_source.hpp"
-#include "pychron/publish/build.hpp"
-#include "pychron/publish/release.hpp"
+#include "nobion/processing/store_source.hpp"
+#include "nobion/publish/build.hpp"
+#include "nobion/publish/release.hpp"
 #include "release_fixture.hpp"
 
 namespace fs = std::filesystem;

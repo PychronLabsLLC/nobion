@@ -8,8 +8,8 @@
 #include <string>
 
 #include "arar/arar_fixtures.hpp"
-#include "pychron/arar/reduce.hpp"
-#include "pychron/publish/tables.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/publish/tables.hpp"
 
 namespace pychron::publish::testing {
 

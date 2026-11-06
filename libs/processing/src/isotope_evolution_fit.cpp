@@ -1,4 +1,4 @@
-#include "pychron/processing/isotope_evolution_fit.hpp"
+#include "nobion/processing/isotope_evolution_fit.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -10,7 +10,7 @@
 #include <utility>
 
 #include "figure_common.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/processing/units.hpp"
 #include "schema_builder.hpp"
 
 namespace pychron::processing {

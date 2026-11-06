@@ -1,9 +1,9 @@
-#include "pychron/devices/extraction/capability.hpp"
+#include "nobion/devices/extraction/capability.hpp"
 
 #include <array>
 
-#include "pychron/devices/extraction/interfaces.hpp"
-#include "pychron/devices/extraction/services.hpp"
+#include "nobion/devices/extraction/interfaces.hpp"
+#include "nobion/devices/extraction/services.hpp"
 
 namespace pychron::extraction {
 namespace {

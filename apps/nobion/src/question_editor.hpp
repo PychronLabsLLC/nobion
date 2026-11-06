@@ -16,8 +16,8 @@
 
 #include <functional>
 
-#include "pychron/core/error.hpp"
-#include "pychron/setup/profile.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/setup/profile.hpp"
 
 class QWidget;
 

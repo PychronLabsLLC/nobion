@@ -1,7 +1,7 @@
 // cameras.toml: the camera of each extraction device (laser autocenter
 // design, section 3).
 
-#include "pychron/laser/camera.hpp"
+#include "nobion/laser/camera.hpp"
 
 #include <chrono>
 #include <filesystem>

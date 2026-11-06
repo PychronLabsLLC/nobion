@@ -14,10 +14,10 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/sim/spectrometer/beam_model.hpp"
-#include "pychron/systems/spectrometer/assembler.hpp"
-#include "pychron/systems/spectrometer/bringup.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/sim/spectrometer/beam_model.hpp"
+#include "nobion/systems/spectrometer/assembler.hpp"
+#include "nobion/systems/spectrometer/bringup.hpp"
 #include "virtual_time.hpp"
 
 using namespace pychron;

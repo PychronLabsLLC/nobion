@@ -13,7 +13,7 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/ingest/adapter.hpp"
+#include "nobion/ingest/adapter.hpp"
 
 namespace pychron::ingest::testing {
 

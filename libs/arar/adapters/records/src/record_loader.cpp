@@ -1,4 +1,4 @@
-#include "pychron/arar/record_loader.hpp"
+#include "nobion/arar/record_loader.hpp"
 
 #include <cstdint>
 #include <fstream>
@@ -14,7 +14,7 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/arar/analysis_data.hpp"
+#include "nobion/arar/analysis_data.hpp"
 
 namespace pychron::arar {
 

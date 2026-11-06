@@ -25,7 +25,7 @@
 #include <vector>
 
 #include "cli.hpp"
-#include "pychron/core/error.hpp"
+#include "nobion/core/error.hpp"
 
 namespace elctl {
 

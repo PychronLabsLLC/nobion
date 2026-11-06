@@ -6,9 +6,9 @@
 #include <gtest/gtest.h>
 
 #include "fixtures.hpp"
-#include "pychron/processing/fit_edit.hpp"
-#include "pychron/processing/recall.hpp"
-#include "pychron/processing/revisions.hpp"
+#include "nobion/processing/fit_edit.hpp"
+#include "nobion/processing/recall.hpp"
+#include "nobion/processing/revisions.hpp"
 
 namespace pychron::processing {
 namespace {

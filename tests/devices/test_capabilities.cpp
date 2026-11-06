@@ -1,10 +1,10 @@
-#include "pychron/devices/capabilities.hpp"
+#include "nobion/devices/capabilities.hpp"
 
 #include <gtest/gtest.h>
 
 #include <map>
 
-#include "pychron/devices/device.hpp"
+#include "nobion/devices/device.hpp"
 
 using namespace pychron;
 

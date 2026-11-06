@@ -4,7 +4,7 @@
 
 #include <QBrush>
 
-#include "pychron/arar/flux_view.hpp"
+#include "nobion/arar/flux_view.hpp"
 #include "theme.hpp"
 
 namespace pychron::ui {

@@ -6,7 +6,7 @@
 #include <QMetaObject>
 #include <QSettings>
 
-#include "pychron/core/log_context.hpp"
+#include "nobion/core/log_context.hpp"
 
 namespace pychron::ui {
 

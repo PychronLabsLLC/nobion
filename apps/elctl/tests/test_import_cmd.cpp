@@ -38,8 +38,8 @@ TEST(ImportCmd, StubWithoutPersistence) {
 #include "git_fixture.hpp"
 #include "import_impl.hpp"
 #include "legacy_repo_builder.hpp"
-#include "pychron/ingest/ids.hpp"
-#include "pychron/persistence/store.hpp"
+#include "nobion/ingest/ids.hpp"
+#include "nobion/persistence/store.hpp"
 #include "tiny/db.hpp"
 
 using namespace pychron;

@@ -3,7 +3,7 @@
 
 #include <memory>
 
-#include "pychron/earthbank/http.hpp"
+#include "nobion/earthbank/http.hpp"
 
 namespace pychron::earthbank {
 

@@ -1,4 +1,4 @@
-#include "pychron/processing/reference_fit.hpp"
+#include "nobion/processing/reference_fit.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -11,9 +11,9 @@
 #include <utility>
 
 #include "figure_common.hpp"
-#include "pychron/processing/units.hpp"
-#include "pychron/reduction/fits.hpp"
-#include "pychron/reduction/stats.hpp"
+#include "nobion/processing/units.hpp"
+#include "nobion/reduction/fits.hpp"
+#include "nobion/reduction/stats.hpp"
 #include "schema_builder.hpp"
 
 namespace pychron::processing {

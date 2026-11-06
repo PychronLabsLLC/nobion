@@ -1,15 +1,15 @@
 // qtegra_valves: valves through Qtegra, alone or on the spectrometer's
 // connection (plan 2026-10-05, task A2).
-#include "pychron/devices/spectrometer/qtegra_valves.hpp"
+#include "nobion/devices/spectrometer/qtegra_valves.hpp"
 
 #include <gtest/gtest.h>
 
 #include <chrono>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/devices/spectrometer/thermo_qtegra_sim.hpp"
-#include "pychron/transport/link_transport.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra_sim.hpp"
+#include "nobion/transport/link_transport.hpp"
 #include "spectrometer/legacy/sim_util.hpp"
 #include "valve_conformance.hpp"
 #include "virtual_time.hpp"

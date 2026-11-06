@@ -10,7 +10,7 @@
 
 #include "core_bridge.hpp"
 #include "log_capture.hpp"
-#include "pychron/sim/sim_system.hpp"
+#include "nobion/sim/sim_system.hpp"
 #include "ui_fixture.hpp"
 
 using namespace pychron;

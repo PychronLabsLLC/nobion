@@ -9,8 +9,8 @@
 #include <set>
 #include <string>
 
-#include "pychron/systems/canvas/canvas.hpp"
-#include "pychron/systems/canvas/loader.hpp"
+#include "nobion/systems/canvas/canvas.hpp"
+#include "nobion/systems/canvas/loader.hpp"
 
 using namespace pychron;
 using namespace pychron::canvas;

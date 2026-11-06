@@ -1,4 +1,4 @@
-#include "pychron/metrics/scheduler_metrics.hpp"
+#include "nobion/metrics/scheduler_metrics.hpp"
 
 #include <gtest/gtest.h>
 
@@ -6,9 +6,9 @@
 #include <string>
 
 #include "metrics_text.hpp"
-#include "pychron/core/clock.hpp"
-#include "pychron/core/scheduler.hpp"
-#include "pychron/metrics/registry.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/scheduler.hpp"
+#include "nobion/metrics/registry.hpp"
 
 using namespace pychron;
 using namespace pychron::metrics;

@@ -11,8 +11,8 @@
 #include <QDateTime>
 #include <QString>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/events.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/events.hpp"
 
 namespace pychron::ui {
 

@@ -22,8 +22,8 @@
 // Qt's `signals` keyword macro would rewrite persistence::CollectionRoots::signals.
 #pragma push_macro("signals")
 #undef signals
-#include "pychron/persistence/publish.hpp"
-#include "pychron/publish/release.hpp"
+#include "nobion/persistence/publish.hpp"
+#include "nobion/publish/release.hpp"
 #pragma pop_macro("signals")
 
 class QLabel;

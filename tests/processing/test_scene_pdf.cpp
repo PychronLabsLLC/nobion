@@ -11,8 +11,8 @@
 #include <sstream>
 #include <string>
 
-#include "pychron/processing/scene_pdf.hpp"
-#include "pychron/processing/scene_svg.hpp"
+#include "nobion/processing/scene_pdf.hpp"
+#include "nobion/processing/scene_svg.hpp"
 #include "scene_fixture.hpp"
 #include "temp_path.hpp"
 

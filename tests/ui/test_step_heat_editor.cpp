@@ -19,7 +19,7 @@
 #include <QtTest/QtTest>
 
 #include "experiment_fixture.hpp"
-#include "pychron/experiment/factory/form.hpp"
+#include "nobion/experiment/factory/form.hpp"
 #include "settings_guard.hpp"
 #include "step_heat_editor_window.hpp"
 #include "step_heat_table_model.hpp"

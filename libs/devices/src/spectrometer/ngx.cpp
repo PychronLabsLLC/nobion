@@ -1,12 +1,12 @@
-#include "pychron/devices/spectrometer/ngx.hpp"
+#include "nobion/devices/spectrometer/ngx.hpp"
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
 
-#include "pychron/core/env.hpp"
-#include "pychron/devices/spectrometer/legacy/polled_acquirer.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/devices/spectrometer/legacy/polled_acquirer.hpp"
 
 namespace pychron::spectrometer {
 

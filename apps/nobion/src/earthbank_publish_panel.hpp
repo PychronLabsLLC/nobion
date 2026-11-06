@@ -46,11 +46,11 @@
 #include <QString>
 
 #include "earthbank_worker.hpp"
-#include "pychron/earthbank/preflight.hpp"
-#include "pychron/earthbank/profiles.hpp"
-#include "pychron/earthbank/secret_store.hpp"
-#include "pychron/earthbank/uploader.hpp"
-#include "pychron/processing/model.hpp"
+#include "nobion/earthbank/preflight.hpp"
+#include "nobion/earthbank/profiles.hpp"
+#include "nobion/earthbank/secret_store.hpp"
+#include "nobion/earthbank/uploader.hpp"
+#include "nobion/processing/model.hpp"
 
 class QCheckBox;
 class QComboBox;

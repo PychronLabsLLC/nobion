@@ -1,8 +1,8 @@
-#include "pychron/devices/spectrometer/legacy/dac_output.hpp"
+#include "nobion/devices/spectrometer/legacy/dac_output.hpp"
 
 #include <mutex>
 
-#include "pychron/codecs/map215.hpp"
+#include "nobion/codecs/map215.hpp"
 
 namespace pychron::spectrometer {
 

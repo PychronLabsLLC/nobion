@@ -1,6 +1,6 @@
 // What a rehearsal refuses: an environment with a live service in it.
 
-#include "pychron/scripting/script_host.hpp"
+#include "nobion/scripting/script_host.hpp"
 
 namespace pychron::scripting {
 

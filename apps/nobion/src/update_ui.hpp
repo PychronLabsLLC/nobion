@@ -11,7 +11,7 @@
 #include <QString>
 #include <QToolButton>
 
-#include "pychron/update/update.hpp"
+#include "nobion/update/update.hpp"
 
 class QLabel;
 class QMainWindow;

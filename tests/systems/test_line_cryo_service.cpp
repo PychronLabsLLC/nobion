@@ -1,6 +1,6 @@
 // The line's cryostat: [cryo], the scan, and the scripts' cryo commands
 // (plan 2026-10-05, tasks C1 and C4).
-#include "pychron/systems/line_cryo_service.hpp"
+#include "nobion/systems/line_cryo_service.hpp"
 
 #include <gtest/gtest.h>
 
@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "log_capture.hpp"
-#include "pychron/core/config/loader.hpp"
+#include "nobion/core/config/loader.hpp"
 
 namespace {
 

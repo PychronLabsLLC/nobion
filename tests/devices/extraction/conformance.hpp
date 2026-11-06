@@ -25,7 +25,7 @@
 #include <stdexcept>
 #include <string>
 
-#include "pychron/devices/extraction/interfaces.hpp"
+#include "nobion/devices/extraction/interfaces.hpp"
 
 namespace pychron::extraction::conformance {
 

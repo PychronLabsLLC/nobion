@@ -1,6 +1,6 @@
 // logging.toml and logging.local.toml in the install folder, over the line's
 // legacy [logging] table.
-#include "pychron/core/config/logging_file.hpp"
+#include "nobion/core/config/logging_file.hpp"
 
 #include <gtest/gtest.h>
 
@@ -11,7 +11,7 @@
 #include <random>
 #include <string>
 
-#include "pychron/core/env.hpp"
+#include "nobion/core/env.hpp"
 
 using namespace pychron;
 using namespace pychron::config;
