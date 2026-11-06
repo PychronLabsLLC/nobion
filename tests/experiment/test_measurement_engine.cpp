@@ -1885,6 +1885,14 @@ TEST_F(EngineTest, PeakCenterStepOncePerDetector) {
     EXPECT_EQ(peak_.requests[i].write_table, "ic_run");
   }
   EXPECT_EQ(r.peak_centers.size(), 3u);
+  // One trace entry a detector, each naming its own, in the step's segment.
+  std::vector<std::string> steps;
+  for (const auto& e : r.trace)
+    if (e.what == "step" && e.detail.starts_with("peak_center")) {
+      steps.push_back(e.detail);
+      EXPECT_EQ(e.segment, 0) << e.detail;
+    }
+  EXPECT_EQ(steps, (std::vector<std::string>{"peak_center Ar40@H1", "peak_center Ar40@AX", "peak_center Ar40@L2"}));
   // The positions then run on the run's table.
   EXPECT_EQ(std::count(spec_.log.begin(), spec_.log.end(), "table ic_run"), 1);
   EXPECT_EQ(peak_.dropped, 1);  // the run's tables end with it

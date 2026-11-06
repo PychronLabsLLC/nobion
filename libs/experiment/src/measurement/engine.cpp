@@ -614,12 +614,8 @@ void MeasurementEngine::set_cycles(int cycles) {
 
 Result<void> MeasurementEngine::run_step(std::size_t segment) {
   const auto& seg = gas_->segments[segment];
-  if (seg.kind == plan::SegmentKind::PeakCenter && seg.peak_center) {
-    const auto& pc = *seg.peak_center;
-    const auto& det = pc.detectors.empty() ? in_.plan.detectors.reference : pc.detectors.front();
-    trace(static_cast<int>(segment), -1, "step", "peak_center " + pc.label + "@" + det);
-    return peak_center(pc);
-  }
+  if (seg.kind == plan::SegmentKind::PeakCenter && seg.peak_center)
+    return peak_center(*seg.peak_center, static_cast<int>(segment));
   const int si = static_cast<int>(segment);
   switch (seg.kind) {
     case plan::SegmentKind::Set:
@@ -714,13 +710,15 @@ Result<void> MeasurementEngine::set_step(const plan::SetStep& set, int segment) 
   return {};
 }
 
-Result<void> MeasurementEngine::peak_center(const plan::PeakCenterStep& step) {
+Result<void> MeasurementEngine::peak_center(const plan::PeakCenterStep& step, int segment) {
   const auto& p = in_.plan;
   std::vector<std::string> detectors = step.detectors;
   if (detectors.empty()) detectors.push_back(p.detectors.reference);
-  // With several detectors the job runs once on each, in order (worked plan 7.3).
+  // With several detectors the job runs once on each, in order (worked plan
+  // 7.3), and each run has its own trace entry naming its detector.
   for (const auto& det : detectors) {
     if (stopping()) return {};
+    trace(segment, -1, "step", "peak_center " + step.label + "@" + det);
     PeakCenterRequest req;
     req.isotope = step.label;
     req.detector = det;

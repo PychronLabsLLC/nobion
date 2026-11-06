@@ -355,7 +355,7 @@ class MeasurementEngine {
   // A segment of the running gas: a step, or `cycles` x its positions.
   Result<void> run_segment(std::size_t segment);
   Result<void> run_step(std::size_t segment);
-  Result<void> peak_center(const plan::PeakCenterStep& step);
+  Result<void> peak_center(const plan::PeakCenterStep& step, int segment);
   Result<void> peak_center_on(PeakCenterRequest request, double min_signal);  // one detector
   Result<void> set_step(const plan::SetStep& set, int segment);
   // A deflection that stands until the run ends (a set step's, a hook's).
