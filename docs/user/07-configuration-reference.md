@@ -509,7 +509,7 @@ any detector's `deflection.control` or `protection`.
 | `isotope` | text | none | the isotope normally on it |
 | `color` | `"#rrggbb"` | none | |
 | `active` | true/false | true | an inactive detector needs no column in the field table |
-| `deflection` | `{ control, correction = [c0, c1, ...], sign = 1 or -1, max, per_volt }` | | deflection with a polynomial correction (lowest order first); `max` > 0 |
+| `deflection` | `{ control, correction = [c0, c1, ...], sign = 1 or -1, max, per_volt }` | | deflection with a polynomial correction (lowest order first); `max` > 0, the largest absolute deflection taken: a value past it is refused (by the plan when it is checked, by the spectrometer when it is set), never run as `max` |
 | `protection` | `{ threshold > 0, on_move }` | | protect against a beam over this intensity; `on_move` also while the magnet moves |
 | `saturation` | number > 0 | none | |
 | `dead_time_ns` | number >= 0 | none | |

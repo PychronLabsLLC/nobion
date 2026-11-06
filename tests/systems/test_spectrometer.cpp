@@ -120,8 +120,7 @@ TEST(Spectrometer, PositionIsotopeRunsPipeline) {
 TEST(Spectrometer, DeflectionCorrectionUsesRuntimeDeflectionAndRoundTrips) {
   Rig r;
   r.build();
-  auto clamped = r.spec->set_deflection("L1", 100.0);
-  ASSERT_TRUE(clamped.has_value());
+  ASSERT_TRUE(r.spec->set_deflection("L1", 100.0).has_value());
   auto native = r.spec->native_for(39.9623831237, "L1");
   ASSERT_TRUE(native.has_value());
   EXPECT_NEAR(*native, 4.750 - 0.0012 * 100.0, 1e-9);  // L1 sign = -1
@@ -476,14 +475,25 @@ TEST(Spectrometer, DetectorOpsGuardedByCaps) {
   EXPECT_TRUE(r.spec->detector_state("H1")->protected_);
 }
 
-TEST(Spectrometer, DeflectionClampedToMax) {
+TEST(Spectrometer, DeflectionPastMaxIsRefused) {
   Rig r;
   r.build();
-  auto defl = r.spec->set_deflection("H1", 2000.0);
-  ASSERT_TRUE(defl.has_value());
-  EXPECT_DOUBLE_EQ(*defl, 800.0);
-  EXPECT_DOUBLE_EQ(r.control.deflection["H1"], 800.0);
-  EXPECT_EQ(*r.spec->detector_state("H1")->deflection, 800.0);
+  ASSERT_TRUE(r.spec->set_deflection("H1", 10.0).has_value());
+  for (const double asked : {2000.0, -800.5}) {
+    auto defl = r.spec->set_deflection("H1", asked);
+    ASSERT_FALSE(defl.has_value()) << asked;
+    EXPECT_EQ(defl.error().kind, ErrorKind::Config);
+    // The message names the detector, what was asked and the configured max.
+    EXPECT_NE(defl.error().what.find("'H1'"), std::string::npos) << defl.error().what;
+    EXPECT_NE(defl.error().what.find(asked > 0 ? "2000" : "-800.5"), std::string::npos) << defl.error().what;
+    EXPECT_NE(defl.error().what.find("800"), std::string::npos) << defl.error().what;
+  }
+  // Nothing reached the control and the recorded deflection is the last one set.
+  EXPECT_DOUBLE_EQ(r.control.deflection["H1"], 10.0);
+  EXPECT_EQ(*r.spec->detector_state("H1")->deflection, 10.0);
+  // The max itself is allowed, on either side.
+  EXPECT_DOUBLE_EQ(*r.spec->set_deflection("H1", 800.0), 800.0);
+  EXPECT_DOUBLE_EQ(*r.spec->set_deflection("H1", -800.0), -800.0);
 }
 
 TEST(Spectrometer, ReadDeflectionReadsTheControlAndRecordsIt) {

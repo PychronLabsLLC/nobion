@@ -1083,6 +1083,28 @@ class NoRawPositioning final : public plan::ISpectrometerCatalog {
   bool has_source_output() const override { return false; }
 };
 
+// The catalog of the worked plans, with the CDD's deflection limited to
+// |800| (spectrometer.toml `deflection.max`).
+class CddMax800 final : public plan::ISpectrometerCatalog {
+ public:
+  bool has_detector(std::string_view name) const override { return kCatalog.has_detector(name); }
+  std::optional<std::string> isotope_of(std::string_view detector) const override {
+    return kCatalog.isotope_of(detector);
+  }
+  std::optional<double> mass_of(std::string_view label) const override { return kCatalog.mass_of(label); }
+  bool supports_deflection(std::string_view detector) const override {
+    return kCatalog.supports_deflection(detector);
+  }
+  std::optional<double> deflection_max(std::string_view detector) const override {
+    return detector == "CDD" ? std::optional<double>(800.0) : std::nullopt;
+  }
+  bool has_optics(std::string_view name) const override { return kCatalog.has_optics(name); }
+  bool has_table(std::string_view name) const override { return kCatalog.has_table(name); }
+  bool positions_by_dac() const override { return true; }
+  bool positions_by_hv() const override { return true; }
+  bool has_source_output() const override { return true; }
+};
+
 }  // namespace
 
 TEST(PlanV2Rules, ALabelPositionedByMassNeedsNoMass) {
@@ -1162,6 +1184,44 @@ counts = 5
   EXPECT_NE(what.find("segment[0].set.gain.YY: unknown detector 'YY'"), std::string::npos) << what;
   EXPECT_NE(what.find("segment[1].peak_center.detectors[1]: unknown detector 'ZZ'"), std::string::npos) << what;
   EXPECT_NE(what.find("unknown detector 'QQ'"), std::string::npos) << what;
+}
+
+TEST(PlanV2Rules, ADeflectionPastTheDetectorsMaxIsRefused) {
+  const CddMax800 catalog;
+  const std::string text = std::string(kHeader) + std::string(kReferenceH1) + R"(
+[[segment]]
+kind = "set"
+when = "before_inlet"
+set = { deflection = { CDD = 2000 } }
+[[segment]]
+[[segment.positions]]
+collect = [ { label = "Ar40", detector = "H1" }, { label = "Ar36", detector = "CDD", deflection = -900 } ]
+counts = 5
+)";
+  auto r = plan::detail::resolve_plan_ungated(text, plan::PlanResolvers{nullptr, &catalog}, "v2");
+  ASSERT_FALSE(r.has_value());
+  const auto& what = r.error().what;
+  EXPECT_NE(what.find("segment[0].set.deflection.CDD: deflection 2000 of detector 'CDD' is past its max 800"),
+            std::string::npos)
+      << what;
+  EXPECT_NE(what.find("segment[1].positions[0].collect[1].deflection: deflection -900 of detector 'CDD' is past its "
+                      "max 800"),
+            std::string::npos)
+      << what;
+
+  // At the max, on either side, it resolves.
+  const std::string at_max = std::string(kHeader) + std::string(kReferenceH1) + R"(
+[[segment]]
+kind = "set"
+when = "before_inlet"
+set = { deflection = { CDD = 800 } }
+[[segment]]
+[[segment.positions]]
+collect = [ { label = "Ar40", detector = "H1" }, { label = "Ar36", detector = "CDD", deflection = -800 } ]
+counts = 5
+)";
+  auto ok = plan::detail::resolve_plan_ungated(at_max, plan::PlanResolvers{nullptr, &catalog}, "v2");
+  EXPECT_TRUE(ok.has_value()) << (ok ? "" : ok.error().what);
 }
 
 TEST(PlanV2Rules, ATableWrittenInAnEarlierGasMayBeUsed) {

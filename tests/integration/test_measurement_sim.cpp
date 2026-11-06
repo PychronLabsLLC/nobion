@@ -1134,13 +1134,13 @@ TEST_P(MeasurementSimV2Worked, EveryWorkedPlanRunsWithItsTrace) {
     EXPECT_EQ(readings(r.data, "mass35", "CDD"), 20u * 8u);
     EXPECT_EQ(readings(r.data, "", "H1", collect::kBaseline), 120u);
   } else if (name == "argus_ic_table") {  // 7.3
-    // Before the inlet: the deflection (2000 V asked; the example CDD's
-    // `max` is 800 and the facade clamps to it), then one peak-center step
+    // Before the inlet: the deflection (2000 V, the example CDD's `max`: a
+    // value past it is refused, never run as the max), then one peak-center step
     // centring on H1, AX and L2 in turn into the run's table, which the
     // signal segment then selects.
     ASSERT_GE(what.size(), 4u);
     EXPECT_EQ(std::vector<std::string>(what.begin(), what.begin() + 4),
-              (std::vector<std::string>{"step set", "deflect CDD=800", "step peak_center Ar40@H1", "table ic_run"}));
+              (std::vector<std::string>{"step set", "deflect CDD=2000", "step peak_center Ar40@H1", "table ic_run"}));
     for (const auto& note : r.notes) EXPECT_FALSE(note.starts_with("table ic_run not written")) << note;
     for (const char* det : {"H2", "H1", "AX", "L1", "L2"}) {
       EXPECT_EQ(readings(r.data, "Ar40", det), 6u * 10u) << det;

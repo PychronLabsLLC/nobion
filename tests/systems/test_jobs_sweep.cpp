@@ -218,7 +218,7 @@ TEST(Sweep, CddVoltageAxisDrivesDetectorControl) {
   EXPECT_EQ(r.spec->detector_state("CDD")->cdd_voltage, 1500);
 }
 
-TEST(Sweep, DeflectionAxisRecordsClampedValue) {
+TEST(Sweep, DeflectionAxisPastMaxEndsTheSweep) {
   JobRig r;
   ASSERT_TRUE(r.spec);
   r.acquirer.signal = [](const ChannelId&) { return 1.0; };
@@ -233,8 +233,10 @@ TEST(Sweep, DeflectionAxisRecordsClampedValue) {
   CancelToken cancel;
   auto fut = std::async(std::launch::async, [&] { return sweep.run(*r.spec, s, progress, cancel); });
   auto result = r.drive(fut);
-  ASSERT_TRUE(result.has_value()) << to_string(result.error());
-  expect_near(xs(*result), {700, 800, 800});
+  // 900 is past the detector's max: refused, not run as 800.
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error().kind, ErrorKind::Config);
+  EXPECT_NE(result.error().what.find("900"), std::string::npos) << result.error().what;
 }
 
 TEST(Sweep, BidirectionalVisitsBothDirections) {

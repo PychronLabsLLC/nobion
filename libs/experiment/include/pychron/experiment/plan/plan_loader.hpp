@@ -45,6 +45,10 @@ class ISpectrometerCatalog {
   virtual std::optional<double> mass_of(std::string_view label) const = 0;
   // The detector's deflection can be set (spectrometer.toml `deflection.control`).
   virtual bool supports_deflection(std::string_view detector) const = 0;
+  // The largest |deflection| the detector takes (spectrometer.toml
+  // `deflection.max`); nullopt: no limit. The facade refuses a value past it,
+  // so a plan asking for one is refused when it is resolved.
+  virtual std::optional<double> deflection_max(std::string_view /*detector*/) const { return std::nullopt; }
   // A named optics preset the driver applies (none before the optics phase).
   virtual bool has_optics(std::string_view name) const = 0;
   // A named field table loaded with the spectrometer.

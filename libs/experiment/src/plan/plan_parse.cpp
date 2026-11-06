@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "pychron/experiment/conditionals/conditional.hpp"
+#include "pychron/experiment/plan/parameters.hpp"
 #include "pychron/experiment/plan/plan_loader.hpp"
 #include "plan_desugar.hpp"
 #include "plan_parse.hpp"
@@ -1032,9 +1033,15 @@ class V2Rules {
       p_.add(where, "label '" + label + "' has no mass");
   }
 
-  void deflection(const std::string& det, const std::string& where) {
-    if (cat_ != nullptr && cat_->has_detector(det) && !cat_->supports_deflection(det))
+  void deflection(const std::string& det, double value, const std::string& where) {
+    if (cat_ == nullptr || !cat_->has_detector(det)) return;
+    if (!cat_->supports_deflection(det)) {
       p_.add(where, "detector '" + det + "' has no deflection control");
+      return;
+    }
+    if (const auto max = cat_->deflection_max(det); max && std::abs(value) > *max)
+      p_.add(where, "deflection " + format_param(value) + " of detector '" + det + "' is past its max " +
+                        format_param(*max));
   }
 
   // The reference detector is in `collect` itself or as one of its modes
@@ -1063,7 +1070,7 @@ class V2Rules {
       const auto at = join(path, "set");
       for (const auto& kv : seg.set->deflection) {
         const auto where = join(join(at, "deflection"), kv.first);
-        if (known(kv.first, where)) deflection(kv.first, where);
+        if (known(kv.first, where)) deflection(kv.first, kv.second, where);
       }
       for (const auto& kv : seg.set->gain) known(kv.first, join(join(at, "gain"), kv.first));
     }
@@ -1084,7 +1091,7 @@ class V2Rules {
         p_.add(join(path, "collect"), "detector '" + e.detector + "' appears twice in position");
       if (e.label.empty()) p_.add(where, "collect entry needs a label");
       else if (!at_mass) mass(e.label, where);
-      if (known(e.detector, where) && e.deflection) deflection(e.detector, join(where, "deflection"));
+      if (known(e.detector, where) && e.deflection) deflection(e.detector, *e.deflection, join(where, "deflection"));
     }
     if (!pos.optics.empty() && cat_ != nullptr && !cat_->has_optics(pos.optics))
       p_.add(join(path, "optics"), "unknown optics '" + pos.optics + "'");

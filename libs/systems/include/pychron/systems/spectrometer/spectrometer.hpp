@@ -321,10 +321,10 @@ class Spectrometer {
   Result<DetectorState> detector_state(const DetectorId& det) const;
   Result<void> set_active(const DetectorId& det, bool active);
   Result<void> set_isotope(const DetectorId& det, std::string isotope);
-  // Guarded by caps(); unsupported ops fail with Config. Deflection is
-  // clamped to the detector's `max`.
+  // Guarded by caps(); unsupported ops fail with Config. A deflection past
+  // the detector's `max` (|value| > max) fails with Config and sends nothing.
   Result<void> protect(const DetectorId& det, bool on);
-  Result<double> set_deflection(const DetectorId& det, double value);  // returns the clamped value
+  Result<double> set_deflection(const DetectorId& det, double value);  // returns the value set
   // Reads the deflection back from the detector control and records it.
   Result<double> read_deflection(const DetectorId& det);
   Result<void> set_gain(const DetectorId& det, double value);

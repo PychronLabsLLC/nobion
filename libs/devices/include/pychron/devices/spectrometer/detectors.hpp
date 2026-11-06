@@ -31,7 +31,7 @@ struct DeflectionConfig {
   bool control = false;
   std::vector<double> correction;  // polynomial coefficients, lowest order first
   int sign = 1;
-  std::optional<double> max;       // |deflection| clamp
+  std::optional<double> max;       // largest |deflection|; the facade refuses past it
   double per_volt = 0.0;
 
   // `value` clamped to [-max, max] when max is set.

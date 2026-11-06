@@ -121,6 +121,7 @@ class SpectrometerCatalog final : public plan::ISpectrometerCatalog {
   std::optional<std::string> isotope_of(std::string_view detector) const override;
   std::optional<double> mass_of(std::string_view label) const override;
   bool supports_deflection(std::string_view detector) const override;
+  std::optional<double> deflection_max(std::string_view detector) const override;
   bool has_optics(std::string_view name) const override;
   bool has_table(std::string_view name) const override;
   bool positions_by_dac() const override;
@@ -131,6 +132,7 @@ class SpectrometerCatalog final : public plan::ISpectrometerCatalog {
  private:
   std::map<std::string, std::string, std::less<>> detectors_;  // name -> configured isotope
   std::set<std::string, std::less<>> deflectable_;
+  std::map<std::string, double, std::less<>> deflection_max_;  // detectors with a `deflection.max`
   spectrometer::cfg::MolecularWeights weights_;  // label -> mass (amu)
   std::set<std::string, std::less<>> tables_;
   bool by_dac_ = false;

@@ -1,10 +1,14 @@
 #include "pychron/systems/spectrometer/spectrometer.hpp"
 
 #include <algorithm>
+#include <array>
 #include <bit>
+#include <charconv>
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <string>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -18,6 +22,13 @@ namespace {
 constexpr const char* kDevice = "spectrometer";
 
 Unexpected<Error> config_error(std::string what) { return fail(ErrorKind::Config, std::move(what), kDevice); }
+
+// Shortest text that reads back as `v` ("2000", "-800.5"), for messages.
+std::string number_text(double v) {
+  std::array<char, 32> buf{};
+  const auto [end, ec] = std::to_chars(buf.data(), buf.data() + buf.size(), v);
+  return ec == std::errc{} ? std::string(buf.data(), end) : std::to_string(v);
+}
 
 // Presents an acquirer's channels as "<driver>:<channel>", the form detector
 // `channel` keys use, so two drivers may reuse a channel name.
@@ -802,8 +813,12 @@ Result<double> Spectrometer::set_deflection(const DetectorId& det, double value)
   auto ch = control_channel(det);
   if (!ch) return fail(ch.error());
   if (!detector_caps().has(DetectorCap::Deflection)) return fail(unsupported(DetectorCap::Deflection));
+  // Past the configured max is refused, as a magnet target outside its limits
+  // is: run as the max, it would measure something the caller did not ask for.
   const auto* cfg = detectors_->find(det);
-  if (cfg->deflection) value = cfg->deflection->clamp(value);
+  if (cfg->deflection && cfg->deflection->max && std::abs(value) > *cfg->deflection->max)
+    return config_error("deflection " + number_text(value) + " of detector '" + det + "' is past its max " +
+                        number_text(*cfg->deflection->max));
   if (auto r = roles_.detector_control->set_deflection(*ch, value); !r) return fail(r.error());
   if (auto r = detectors_->record_deflection(det, value); !r) return fail(r.error());
   return value;

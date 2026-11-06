@@ -154,6 +154,7 @@ SpectrometerCatalog::SpectrometerCatalog(const spectrometer::cfg::SpectrometerCo
   for (const auto& d : config.detectors) {
     detectors_.emplace(d.name, d.isotope);
     if (d.deflection && d.deflection->control) deflectable_.insert(d.name);
+    if (d.deflection && d.deflection->max) deflection_max_.emplace(d.name, *d.deflection->max);
   }
   for (const auto& [name, dc] : config.drivers) optics_control_ |= dc.has_role(spectrometer::cfg::Role::Optics);
   for (const auto& [name, preset] : config.optics) optics_.insert(name);
@@ -182,6 +183,12 @@ std::optional<double> SpectrometerCatalog::mass_of(std::string_view label) const
 
 bool SpectrometerCatalog::supports_deflection(std::string_view detector) const {
   return deflectable_.contains(detector);
+}
+
+std::optional<double> SpectrometerCatalog::deflection_max(std::string_view detector) const {
+  const auto it = deflection_max_.find(detector);
+  if (it == deflection_max_.end()) return std::nullopt;
+  return it->second;
 }
 
 bool SpectrometerCatalog::has_optics(std::string_view name) const {
