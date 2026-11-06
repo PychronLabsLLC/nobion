@@ -57,12 +57,12 @@ not search Homebrew's Qt, so use `dev-ui` or pass
 `-DCMAKE_PREFIX_PATH=$(brew --prefix qt)`. Persistence tests always run on
 SQLite. To also run them on PostgreSQL (this needs Qt's QPSQL driver plugin
 and PostGIS, which the schema uses for sample locations), point
-`PYCHRON_TEST_PG_URL` at an empty database:
+`NOBION_TEST_PG_URL` at an empty database:
 
 ```bash
 brew install postgresql@16 postgis && brew services start postgresql@16
 createdb pychron_test
-export PYCHRON_TEST_PG_URL=postgresql://$USER@localhost/pychron_test
+export NOBION_TEST_PG_URL=postgresql://$USER@localhost/pychron_test
 ```
 
 On Ubuntu the PostGIS package is `postgresql-16-postgis-3`. The first
@@ -924,14 +924,14 @@ picture that is there.
 To check a real camera through the same code the window uses:
 
 ```sh
-PYCHRON_TEST_CAMERA=0 ctest --test-dir build/dev -R RealCamera
+NOBION_TEST_CAMERA=0 ctest --test-dir build/dev -R RealCamera
 ```
 
 ## 6. Set up an install
 
 `elctl init` installs a setup profile (`profiles/`: `argus`, `helix`, `ngx`,
 `data-reduction`) into a folder and records it in your site config
-(`~/.config/pychron/site.toml` on Linux; `$PYCHRON_SITE_CONFIG` overrides):
+(`~/.config/pychron/site.toml` on Linux; `$NOBION_SITE_CONFIG` overrides):
 
 ```bash
 elctl init --list

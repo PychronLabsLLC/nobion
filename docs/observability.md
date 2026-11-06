@@ -154,11 +154,11 @@ To install:
 1. Find the data source's identifier. In Grafana, **Connections > Data
    sources**, click the Prometheus one. The address in the browser ends
    `/datasources/edit/XXXXXXXX`: that last part is the identifier.
-2. Give it to Grafana as `PYCHRON_PROM_UID`. With the Debian and Ubuntu
+2. Give it to Grafana as `NOBION_PROM_UID`. With the Debian and Ubuntu
    packages, add a line to `/etc/default/grafana-server`:
 
    ```
-   PYCHRON_PROM_UID=XXXXXXXX
+   NOBION_PROM_UID=XXXXXXXX
    ```
 
 3. Copy the rules and restart:

@@ -68,7 +68,7 @@ TEST(Db, FailedCommitIsRolledBackAndTheConnectionStaysUsable) {
 }
 
 TEST(Db, ConnectionLostInsideATransactionNeverCommitsHalfOfIt) {
-  if (pg_url().empty()) GTEST_SKIP() << "PYCHRON_TEST_PG_URL not set";
+  if (pg_url().empty()) GTEST_SKIP() << "NOBION_TEST_PG_URL not set";
   TestDatabase tdb("pg", false);
   auto admin = std::move(*pd::Db::open(StoreConfig{tdb.url(), false}));
   ASSERT_TRUE(admin->unprepared("CREATE TABLE t (x int PRIMARY KEY)"));

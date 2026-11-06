@@ -2,7 +2,7 @@
 // analyses (data publishing design, section 6.1; libs/persistence/AGENTS.md
 // "How to know"). Does nothing unless told how many analyses to make:
 //
-//   PYCHRON_BENCH_N=400 build/dev/tests/publish/pychron_publish_tests --gtest_filter='BuildTiming.*'
+//   NOBION_BENCH_N=400 build/dev/tests/publish/pychron_publish_tests --gtest_filter='BuildTiming.*'
 //
 // Ingests N unknowns of five isotopes on one irradiated level into a temp
 // SQLite store, creates a release of them and builds it, printing the time
@@ -40,13 +40,13 @@ double seconds_since(std::chrono::steady_clock::time_point t0) {
 }  // namespace
 
 TEST_P(BuildTiming, CreateAndBuildScaleWithTheCount) {
-  const char* n_text = std::getenv("PYCHRON_BENCH_N");
-  if (!n_text) GTEST_SKIP() << "set PYCHRON_BENCH_N";
+  const char* n_text = std::getenv("NOBION_BENCH_N");
+  if (!n_text) GTEST_SKIP() << "set NOBION_BENCH_N";
   if (GetParam() != "sqlite") GTEST_SKIP();
   int n = 0;
   const std::string_view n_view(n_text);
   if (std::from_chars(n_view.data(), n_view.data() + n_view.size(), n).ec != std::errc{} || n <= 0)
-    GTEST_SKIP() << "PYCHRON_BENCH_N is not a count";
+    GTEST_SKIP() << "NOBION_BENCH_N is not a count";
   auto t0 = std::chrono::steady_clock::now();
   std::vector<std::string> uuids;
   uuids.reserve(static_cast<std::size_t>(n));

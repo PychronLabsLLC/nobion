@@ -235,13 +235,13 @@ TEST(Fixture, CommittedCasesWithinTolerance) {
 }
 
 TEST(Fixture, ExternalCasesWithinTolerance) {
-  const auto set = pychron::env_var("PYCHRON_VISION_FIXTURES");
-  if (!set || set->empty()) GTEST_SKIP() << "PYCHRON_VISION_FIXTURES is not set";
+  const auto set = pychron::env_var("NOBION_VISION_FIXTURES");
+  if (!set || set->empty()) GTEST_SKIP() << "NOBION_VISION_FIXTURES is not set";
   const std::string& env = *set;
   std::error_code ec;
-  ASSERT_TRUE(std::filesystem::is_directory(env, ec)) << "PYCHRON_VISION_FIXTURES is not a directory: " << env;
+  ASSERT_TRUE(std::filesystem::is_directory(env, ec)) << "NOBION_VISION_FIXTURES is not a directory: " << env;
   const auto r = check_cases(env);
-  EXPECT_GT(r.cases, 0) << "PYCHRON_VISION_FIXTURES contains no case.toml directory: " << env;
+  EXPECT_GT(r.cases, 0) << "NOBION_VISION_FIXTURES contains no case.toml directory: " << env;
 }
 
 namespace {

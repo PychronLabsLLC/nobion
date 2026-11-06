@@ -148,7 +148,7 @@ Result<std::vector<std::string>> check_against_template(const std::vector<Submis
                                                         const XlsxOptions& options = {});
 
 // Where the templates are, the first of: the directory the environment
-// variable PYCHRON_EARTHBANK_TEMPLATES names (taken at its word); the
+// variable NOBION_EARTHBANK_TEMPLATES names (taken at its word); the
 // installed ones beside the running program
 // (`../share/pychron/earthbank/templates`, or in a macOS bundle
 // `../Resources/earthbank/templates`, from the program's directory); the

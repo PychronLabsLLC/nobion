@@ -40,7 +40,7 @@ becomes the default installation.
 | Linux | `$XDG_CONFIG_HOME/pychron/site.toml`, else `~/.config/pychron/site.toml` |
 | Windows | `%APPDATA%\Pychron\site.toml` |
 
-The environment variable `PYCHRON_SITE_CONFIG` changes the location of the
+The environment variable `NOBION_SITE_CONFIG` changes the location of the
 site configuration file.
 
 ### 1.3 Which procedures to do
@@ -377,7 +377,7 @@ computer.
 
 | Message or problem | Cause | Correction |
 |---|---|---|
-| `nothing is installed yet (elctl init --list)` | The site configuration file has no installation. | Make an installation (procedure 6 or 7). Or examine `PYCHRON_SITE_CONFIG`. |
+| `nothing is installed yet (elctl init --list)` | The site configuration file has no installation. | Make an installation (procedure 6 or 7). Or examine `NOBION_SITE_CONFIG`. |
 | `several installs and no default` | There is no default installation. | Add `--install NAME` to the command. Or set the default in File > Installations. |
 | `doctor`: `database ... not checked: built without the database library` | The build does not contain Qt Sql. | Use a release package. Or build again with Qt 6. |
 | `doctor` shows an error for a PostgreSQL database | The server, the user or the password is incorrect. Or the `libqt6sql6-psql` driver is missing. Or the database has no schema. | Correct the value. Install the driver. For the schema, refer to 6.2. |

@@ -38,7 +38,7 @@
 //   --check              say what the export would say and write nothing
 //                        (--out is then not needed)
 //   --templates <dir>    the service's two templates (default: the directory
-//                        $PYCHRON_EARTHBANK_TEMPLATES names, else the installed ones)
+//                        $NOBION_EARTHBANK_TEMPLATES names, else the installed ones)
 //   --overrides <file>   what the analyses cannot say, in TOML:
 //
 //       setup = "..."                 # the lab's analytical set-up, by its name on EarthBank

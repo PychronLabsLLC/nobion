@@ -67,7 +67,7 @@ jobs:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_MAXSIZE: 1G
       # Read when the store tests are discovered (build) and run; empty means SQLite only.
-      PYCHRON_TEST_PG_URL: ${{ matrix.pg_url }}
+      NOBION_TEST_PG_URL: ${{ matrix.pg_url }}
       # A sanitizer build reports a crash with its stack. The programs install
       # their own handler for these signals, which says only "fatal signal 11";
       # the sanitizer keeps its own (2: exclusive). Abort is left to the

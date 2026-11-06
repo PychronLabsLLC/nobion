@@ -313,13 +313,13 @@ TEST(Doctor, RefusesAnUnknownDomain) {
 
 TEST(Site, TheLocationCanBeOverridden) {
 #ifdef _WIN32
-  _putenv_s("PYCHRON_SITE_CONFIG", "C:/somewhere/site.toml");
+  _putenv_s("NOBION_SITE_CONFIG", "C:/somewhere/site.toml");
   EXPECT_EQ(default_site_path(), fs::path("C:/somewhere/site.toml"));
-  _putenv_s("PYCHRON_SITE_CONFIG", "");
+  _putenv_s("NOBION_SITE_CONFIG", "");
 #else
-  setenv("PYCHRON_SITE_CONFIG", "/somewhere/site.toml", 1);
+  setenv("NOBION_SITE_CONFIG", "/somewhere/site.toml", 1);
   EXPECT_EQ(default_site_path(), fs::path("/somewhere/site.toml"));
-  unsetenv("PYCHRON_SITE_CONFIG");
+  unsetenv("NOBION_SITE_CONFIG");
 #endif
   EXPECT_EQ(default_site_path().filename(), "site.toml");
 }

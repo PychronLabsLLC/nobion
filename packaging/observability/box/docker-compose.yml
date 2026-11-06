@@ -42,7 +42,7 @@ services:
     environment:
       # The alert rules name their data source by this (nobion-deadman.yml);
       # datasource.yml gives the Prometheus above the same uid.
-      PYCHRON_PROM_UID: nobion-prometheus
+      NOBION_PROM_UID: nobion-prometheus
       # A box of your own, on this computer only: no sign-in.
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin

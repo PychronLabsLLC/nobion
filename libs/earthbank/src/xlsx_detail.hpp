@@ -20,7 +20,7 @@ struct TemplateSearch {
   std::vector<std::string> tried;
 };
 
-// `named` is what PYCHRON_EARTHBANK_TEMPLATES holds (taken as it is: the user
+// `named` is what NOBION_EARTHBANK_TEMPLATES holds (taken as it is: the user
 // said so); `program_dir` the running program's directory, beside which an
 // install keeps the templates (empty: not known); `source_dir` the source
 // tree's templates, taken only when the directory is there. On a machine

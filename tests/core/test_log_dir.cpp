@@ -83,7 +83,7 @@ TEST(LogDir, ResolveKeepsGivenDir) {
 
 TEST(LogDir, ProcessEnvReadsTheRealEnvironment) {
   const auto env = process_env();
-  EXPECT_FALSE(env("PYCHRON_NO_SUCH_VARIABLE_FOR_TEST").has_value());
+  EXPECT_FALSE(env("NOBION_NO_SUCH_VARIABLE_FOR_TEST").has_value());
 }
 
 TEST(LogDir, EnvNameIsTheVariableTheOsFolderNeeds) {

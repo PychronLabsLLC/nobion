@@ -16,7 +16,7 @@
 # with the service, and its key in an environment variable.
 # [[email]]
 # provider = "brevo"
-# api_key_env = "PYCHRON_MAIL_API_KEY"     # the key is read from this environment variable
+# api_key_env = "NOBION_MAIL_API_KEY"     # the key is read from this environment variable
 # from = "pychron@example.org"             # a sender confirmed with the service
 # to = ["lab-manager@example.org"]
 # queue_user = true                        # also mail the queue's `email`
@@ -28,7 +28,7 @@
 # from = "pychron@example.org"
 # to = ["lab-manager@example.org"]
 # username = "pychron@example.org"
-# password_env = "PYCHRON_SMTP_PASSWORD"   # the password is read from this environment variable
+# password_env = "NOBION_SMTP_PASSWORD"   # the password is read from this environment variable
 # queue_user = true                        # also mail the queue's `email`
 # on = ["run_failed", "queue_ended"]
 
@@ -40,4 +40,4 @@
 
 # [[command]]
 # name = "pager"
-# argv = ["/usr/local/bin/notify-lab"]     # message on stdin; PYCHRON_EVENT, PYCHRON_SUBJECT, PYCHRON_QUEUE, ...
+# argv = ["/usr/local/bin/notify-lab"]     # message on stdin; NOBION_EVENT, NOBION_SUBJECT, NOBION_QUEUE, ...

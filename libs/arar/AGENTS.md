@@ -22,7 +22,7 @@ only this component's. Kept compressed, as that file is.
   position's hole is `ordinal + 1`, never `hole_id`. `elctl flux` is split
   into `flux.cpp` / `flux_admin.cpp` / `flux_stub.cpp`. Flux store tests
   (`tests/arar/test_flux_store.cpp`) run on PostgreSQL too when
-  `PYCHRON_TEST_PG_URL` is set; `elctl`'s flux tests run on SQLite only. A
+  `NOBION_TEST_PG_URL` is set; `elctl`'s flux tests run on SQLite only. A
   level's saved fit (monitor set, sample, all positions) is one revision's,
   and is repeated only under its own monitor set. User guide: `docs/flux.md`.
   Flux window (`apps/nobion` `flux_window.cpp`) computes nothing: its

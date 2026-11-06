@@ -45,7 +45,7 @@ bool SiteConfig::remove(const std::string& name) {
 }
 
 fs::path default_site_path() {
-  if (auto p = env_var("PYCHRON_SITE_CONFIG"); p && !p->empty()) return *p;
+  if (auto p = env_var("NOBION_SITE_CONFIG"); p && !p->empty()) return *p;
 #if defined(_WIN32)
   if (auto appdata = env_var("APPDATA")) return fs::path(*appdata) / "Pychron" / "site.toml";
   return fs::path("Pychron") / "site.toml";

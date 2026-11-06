@@ -1147,7 +1147,7 @@ TEST_F(Xlsx, ATemplateWithoutASheetIsRefused) {
 
 TEST_F(Xlsx, DefaultTemplateDir) {
   // A development build: no installed templates beside the test program.
-  set_env("PYCHRON_EARTHBANK_TEMPLATES", "");
+  set_env("NOBION_EARTHBANK_TEMPLATES", "");
   EXPECT_TRUE(fs::equivalent(default_template_dir(), template_dir())) << default_template_dir();
   options_.template_dir.clear();
   EXPECT_EQ(exported(fixtures()).files.size(), 2u);
@@ -1169,12 +1169,12 @@ TEST_F(Xlsx, DefaultTemplateDir) {
 
   // The environment comes first.
   const fs::path named = dir_ / "named";
-  set_env("PYCHRON_EARTHBANK_TEMPLATES", named.string().c_str());
+  set_env("NOBION_EARTHBANK_TEMPLATES", named.string().c_str());
   EXPECT_EQ(default_template_dir(), named);
   EXPECT_EQ(default_template_dir(prefix / "bin"), named);
   out_ = dir_ / "from-env";
   const auto result = export_xlsx(fixtures(), out_, options_);
-  set_env("PYCHRON_EARTHBANK_TEMPLATES", "");
+  set_env("NOBION_EARTHBANK_TEMPLATES", "");
   ASSERT_FALSE(result.has_value());
   EXPECT_NE(result.error().what.find((named / kArAr).string()), std::string::npos) << result.error().what;
 }
@@ -1827,7 +1827,7 @@ TEST_F(Xlsx, TemplatesThatAreNowhereAreSaidWithEveryPlaceLooked) {
   detail::TemplateSearch search = detail::find_templates(std::nullopt, bin, source);
   EXPECT_TRUE(search.found.empty());
   EXPECT_EQ(search.tried,
-            (std::vector<std::string>{"the directory PYCHRON_EARTHBANK_TEMPLATES names (it is not set)",
+            (std::vector<std::string>{"the directory NOBION_EARTHBANK_TEMPLATES names (it is not set)",
                                       fs::weakly_canonical(share).string(), fs::weakly_canonical(bundle).string(),
                                       "the source tree this program was built from (it is not on this machine)"}));
   const std::string message = detail::templates_not_found(search);
@@ -1840,7 +1840,7 @@ TEST_F(Xlsx, TemplatesThatAreNowhereAreSaidWithEveryPlaceLooked) {
   search = detail::find_templates(std::nullopt, {}, source);
   EXPECT_TRUE(search.found.empty());
   EXPECT_EQ(search.tried,
-            (std::vector<std::string>{"the directory PYCHRON_EARTHBANK_TEMPLATES names (it is not set)",
+            (std::vector<std::string>{"the directory NOBION_EARTHBANK_TEMPLATES names (it is not set)",
                                       "beside the program (where it runs from is not known)",
                                       "the source tree this program was built from (it is not on this machine)"}));
 
@@ -1859,7 +1859,7 @@ TEST_F(Xlsx, TemplatesThatAreNowhereAreSaidWithEveryPlaceLooked) {
   // A named directory is taken at the user's word, there or not.
   search = detail::find_templates((dir_ / "named").string(), bin, source);
   EXPECT_EQ(search.found, dir_ / "named");
-  EXPECT_EQ(search.tried, std::vector<std::string>{"the directory PYCHRON_EARTHBANK_TEMPLATES names (" +
+  EXPECT_EQ(search.tried, std::vector<std::string>{"the directory NOBION_EARTHBANK_TEMPLATES names (" +
                                                    (dir_ / "named").string() + ")"});
 }
 

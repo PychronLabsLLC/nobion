@@ -138,18 +138,18 @@ inline Scene fixture_scene() {
 }
 
 // The committed fixture `name` under fixtures/scene/, compared with `bytes`.
-// With PYCHRON_WRITE_FIXTURES=1 the file is written instead and the result
+// With NOBION_WRITE_FIXTURES=1 the file is written instead and the result
 // says so: the test then fails, so a rewrite is never silent.
 inline std::string compare_with_fixture(const std::string& name, const std::string& bytes) {
   const std::filesystem::path path = std::filesystem::path(PYCHRON_PROCESSING_FIXTURE_DIR) / "scene" / name;
-  if (const auto write = env_var("PYCHRON_WRITE_FIXTURES"); write && *write == "1") {
+  if (const auto write = env_var("NOBION_WRITE_FIXTURES"); write && *write == "1") {
     std::filesystem::create_directories(path.parent_path());
     std::ofstream out(path, std::ios::binary);
     out << bytes;
     return "fixture written: " + path.string();
   }
   std::ifstream in(path, std::ios::binary);
-  if (!in) return "no fixture " + path.string() + " (PYCHRON_WRITE_FIXTURES=1 writes it)";
+  if (!in) return "no fixture " + path.string() + " (NOBION_WRITE_FIXTURES=1 writes it)";
   std::ostringstream ss;
   ss << in.rdbuf();
   const std::string want = ss.str();

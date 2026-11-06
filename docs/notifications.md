@@ -81,14 +81,14 @@ not put it in `notifications.toml`, in email, or in a shared drive.
 ### 4. Give the key to nobion
 
 Nobion reads the key from an environment variable named
-`PYCHRON_MAIL_API_KEY`. Set it for the account that runs nobion on the
+`NOBION_MAIL_API_KEY`. Set it for the account that runs nobion on the
 instrument computer, in the way for that system. Replace `xkeysib-...` with
 your key.
 
 **Windows.** In a Command Prompt:
 
 ```bat
-setx PYCHRON_MAIL_API_KEY "xkeysib-..."
+setx NOBION_MAIL_API_KEY "xkeysib-..."
 ```
 
 Close every nobion window and terminal and open them again.
@@ -97,7 +97,7 @@ Close every nobion window and terminal and open them again.
 line:
 
 ```
-PYCHRON_MAIL_API_KEY=xkeysib-...
+NOBION_MAIL_API_KEY=xkeysib-...
 ```
 
 Then make it private and log out and in again:
@@ -109,7 +109,7 @@ chmod 600 ~/.config/environment.d/pychron.conf
 **macOS.** Add this line to the end of the file `~/.zshrc`:
 
 ```bash
-export PYCHRON_MAIL_API_KEY="xkeysib-..."
+export NOBION_MAIL_API_KEY="xkeysib-..."
 ```
 
 That covers `elctl` and a `nobion` started from a terminal. A
@@ -118,7 +118,7 @@ it, also run this once after each restart of the computer, before opening
 nobion:
 
 ```bash
-launchctl setenv PYCHRON_MAIL_API_KEY "xkeysib-..."
+launchctl setenv NOBION_MAIL_API_KEY "xkeysib-..."
 ```
 
 ### 5. Write notifications.toml
@@ -130,7 +130,7 @@ doctor` prints it as `install folder`), copy `notifications.toml.example` to
 ```toml
 [[email]]
 provider = "brevo"
-api_key_env = "PYCHRON_MAIL_API_KEY"
+api_key_env = "NOBION_MAIL_API_KEY"
 from = "argon-lab@your-university.edu"     # the sender you confirmed in step 2
 to = ["you@your-university.edu"]           # who always gets the messages
 ```
@@ -179,13 +179,13 @@ Several entries are allowed, for example failures to the manager only:
 [[email]]
 name = "everything"
 provider = "brevo"
-api_key_env = "PYCHRON_MAIL_API_KEY"
+api_key_env = "NOBION_MAIL_API_KEY"
 from = "argon-lab@your-university.edu"
 
 [[email]]
 name = "failures"
 provider = "brevo"
-api_key_env = "PYCHRON_MAIL_API_KEY"
+api_key_env = "NOBION_MAIL_API_KEY"
 from = "argon-lab@your-university.edu"
 to = ["manager@your-university.edu"]
 queue_user = false
@@ -211,7 +211,7 @@ records you have added.
 ```toml
 [[email]]
 provider = "resend"
-api_key_env = "PYCHRON_MAIL_API_KEY"
+api_key_env = "NOBION_MAIL_API_KEY"
 from = "nobion@your-domain.org"           # any address at the verified domain
 to = ["you@your-university.edu"]
 ```
@@ -230,7 +230,7 @@ to = ["you@your-university.edu"]
 ```toml
 [[email]]
 provider = "postmark"
-api_key_env = "PYCHRON_MAIL_API_KEY"
+api_key_env = "NOBION_MAIL_API_KEY"
 from = "argon-lab@your-university.edu"     # the confirmed signature
 to = ["you@your-university.edu"]
 ```
@@ -247,7 +247,7 @@ url = "smtp://smtp.your-university.edu:587"  # smtps://host:465 for port 465
 from = "argon-lab@your-university.edu"
 to = ["you@your-university.edu"]
 username = "argon-lab"
-password_env = "PYCHRON_SMTP_PASSWORD"       # set like the key in step 4
+password_env = "NOBION_SMTP_PASSWORD"       # set like the key in step 4
 ```
 
 `smtp://` insists on an encrypted connection (STARTTLS); `tls = false`
@@ -272,7 +272,7 @@ format = "slack"
 ```
 
 A command runs your own program with the message on its standard input and
-the fields as `PYCHRON_EVENT`, `PYCHRON_SUBJECT`, `PYCHRON_QUEUE` and so on.
+the fields as `NOBION_EVENT`, `NOBION_SUBJECT`, `NOBION_QUEUE` and so on.
 
 ```toml
 [[command]]
@@ -320,7 +320,7 @@ Run `elctl exp notify` and match what follows `failed:`.
 |---|---|---|
 | `no notifications are configured` | No `notifications.toml` in this lab folder, or it has no entries | Step 5. Check the folder with `elctl doctor` |
 | `notifications.toml: ... unknown key` or `missing` | A typo in the file | The message names the entry and the key |
-| `PYCHRON_MAIL_API_KEY is not set` | The variable is not set for this program | Step 4, then open a new terminal or restart pychron. On macOS see the note about the Dock |
+| `NOBION_MAIL_API_KEY is not set` | The variable is not set for this program | Step 4, then open a new terminal or restart pychron. On macOS see the note about the Dock |
 | `error: 401` with `Key not found`, `API key is invalid` or `valid Server token` | The key is wrong, deleted, or belongs to another service | Generate a new key (step 3) and set it again. Check `provider` matches the service |
 | `error: 401` with `unrecognised IP address` | Brevo is blocking computers it does not know | Step 3, item 4 |
 | `error: 400`, `403` or `422` mentioning the sender, `from` or a domain | `from` is not an address the service has confirmed | Step 2. `from` must match exactly |

@@ -1,5 +1,5 @@
 // elctl init / doctor / --install against the shipped profiles, with a site
-// config of the test's own (the fixture sets PYCHRON_SITE_CONFIG).
+// config of the test's own (the fixture sets NOBION_SITE_CONFIG).
 
 #include <filesystem>
 #include <fstream>
@@ -510,7 +510,7 @@ TEST_F(ElctlSetupTest, SetServerUsageMistakes) {
 }
 
 // Against the lab-like server of the developer's machine, when there is one:
-// the base database of PYCHRON_TEST_PG_URL, brought up to date first (its
+// the base database of NOBION_TEST_PG_URL, brought up to date first (its
 // public schema; the persistence tests use schemas of their own).
 #ifdef PYCHRON_ELCTL_HAS_STORE
 struct PgParts {
@@ -545,10 +545,10 @@ std::optional<PgParts> parse_pg(std::string url) {
 }
 
 TEST_F(ElctlSetupTest, SetServerAgainstPostgres) {
-  const char* raw = std::getenv("PYCHRON_TEST_PG_URL");
-  if (raw == nullptr || *raw == '\0') GTEST_SKIP() << "PYCHRON_TEST_PG_URL not set";
+  const char* raw = std::getenv("NOBION_TEST_PG_URL");
+  if (raw == nullptr || *raw == '\0') GTEST_SKIP() << "NOBION_TEST_PG_URL not set";
   const auto pg = parse_pg(raw);
-  if (!pg) GTEST_SKIP() << "PYCHRON_TEST_PG_URL is not postgresql://user[:password]@host[:port]/db";
+  if (!pg) GTEST_SKIP() << "NOBION_TEST_PG_URL is not postgresql://user[:password]@host[:port]/db";
   {
     auto store = pychron::persistence::open_store(pychron::persistence::StoreConfig{raw, true});
     ASSERT_TRUE(store) << store.error().what;

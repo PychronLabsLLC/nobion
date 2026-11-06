@@ -23,7 +23,7 @@ if(APPLE)
   set(CPACK_PACKAGE_ICON "${PROJECT_SOURCE_DIR}/packaging/icons/nobion.icns")  # the mounted volume
   set(CPACK_PACKAGE_FILE_NAME "Nobion-${PROJECT_VERSION}-macOS-${CMAKE_SYSTEM_PROCESSOR}")
   # Nobion.app is signed in the staging directory before the image is made,
-  # with the identity in PYCHRON_CODESIGN_IDENTITY (none set: left unsigned).
+  # with the identity in NOBION_CODESIGN_IDENTITY (none set: left unsigned).
   # The release workflow signs, notarizes and staples the image itself.
   set(CPACK_PRE_BUILD_SCRIPTS "${PROJECT_SOURCE_DIR}/packaging/macos/cpack_sign.cmake")
   set(CPACK_PYCHRON_SIGN_SCRIPT "${PROJECT_SOURCE_DIR}/packaging/macos/sign_app.sh")

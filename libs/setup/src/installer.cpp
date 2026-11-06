@@ -34,8 +34,8 @@ Resources find_resources(const fs::path& exe) {
       break;
     }
   }
-  if (auto env = env_var("PYCHRON_PROFILES_DIR"); env && !env->empty()) r.profiles = *env;
-  if (auto env = env_var("PYCHRON_EXAMPLES_DIR"); env && !env->empty()) r.examples = *env;
+  if (auto env = env_var("NOBION_PROFILES_DIR"); env && !env->empty()) r.profiles = *env;
+  if (auto env = env_var("NOBION_EXAMPLES_DIR"); env && !env->empty()) r.examples = *env;
   return r;
 }
 

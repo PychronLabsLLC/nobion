@@ -19,8 +19,8 @@ endif()
 list(GET candidates 0 elctl)
 
 # The source tree's profiles must not be what it finds.
-set(ENV{PYCHRON_PROFILES_DIR} "")
-set(ENV{PYCHRON_EXAMPLES_DIR} "")
+set(ENV{NOBION_PROFILES_DIR} "")
+set(ENV{NOBION_EXAMPLES_DIR} "")
 execute_process(COMMAND "${elctl}" --version RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
 if(NOT rc EQUAL 0)
   message(FATAL_ERROR "${elctl} --version failed (${rc}):\n${out}${err}")

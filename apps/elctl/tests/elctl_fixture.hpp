@@ -46,9 +46,9 @@ class ElctlTest : public ::testing::Test {
     // Never the developer's own installs: a site config of this test's own.
     const std::string site = (dir_ / "site.toml").string();
 #ifdef _WIN32
-    _putenv_s("PYCHRON_SITE_CONFIG", site.c_str());
+    _putenv_s("NOBION_SITE_CONFIG", site.c_str());
 #else
-    setenv("PYCHRON_SITE_CONFIG", site.c_str(), 1);
+    setenv("NOBION_SITE_CONFIG", site.c_str(), 1);
 #endif
     for (const char* f : {"extraction_line.toml", "canvas.toml"}) {
       std::filesystem::copy_file(std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / f, dir_ / f);

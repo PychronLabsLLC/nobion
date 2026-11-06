@@ -1,6 +1,6 @@
 // The password stores (secret_store.hpp). The memory store is tested as it
 // is. The system's store (the keychain here on a Mac) is tested only when
-// asked for, with PYCHRON_TEST_SECRET_STORE=1: it writes to the credential
+// asked for, with NOBION_TEST_SECRET_STORE=1: it writes to the credential
 // store of whoever runs the test, and a locked keychain answers with a
 // dialog. It uses a service name of its own, made up for the run, and takes
 // away what it put there. The account and the passwords are made up.
@@ -209,8 +209,8 @@ class DeadMan {
 };
 
 TEST(SecretStore, PlatformRoundTrip) {
-  if (env_var("PYCHRON_TEST_SECRET_STORE").value_or("") != "1")
-    GTEST_SKIP() << "not asked for: set PYCHRON_TEST_SECRET_STORE=1 to test the system's store (built in: "
+  if (env_var("NOBION_TEST_SECRET_STORE").value_or("") != "1")
+    GTEST_SKIP() << "not asked for: set NOBION_TEST_SECRET_STORE=1 to test the system's store (built in: "
                  << built_in_secret_store()
                  << "). It writes one item under a made-up service name to your own credential store and removes it.";
   if (env_var("CI").has_value()) GTEST_SKIP() << "CI is set: there is no session with a credential store to use";

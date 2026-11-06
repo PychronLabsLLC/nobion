@@ -1,7 +1,7 @@
 # One test_<component>.cpp per publish component, plus the elctl publish and
 # embargo commands (the first tests to drive pychron_elctl_lib). The release
 # fixture is a store (tests/persistence/store_fixture.hpp, which needs Qt and
-# TinyORM): SQLite always, PostgreSQL as well when PYCHRON_TEST_PG_URL is set.
+# TinyORM): SQLite always, PostgreSQL as well when NOBION_TEST_PG_URL is set.
 if(NOT PYCHRON_PERSISTENCE_ENABLED)
   return()
 endif()

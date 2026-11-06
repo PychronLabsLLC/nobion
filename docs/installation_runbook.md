@@ -198,7 +198,7 @@ class, goes there.
   | Linux | `$XDG_CONFIG_HOME/pychron/site.toml`, else `~/.config/pychron/site.toml` |
   | Windows | `%APPDATA%\Pychron\site.toml` |
 
-  `PYCHRON_SITE_CONFIG` overrides the location. The file is safe to edit.
+  `NOBION_SITE_CONFIG` overrides the location. The file is safe to edit.
 - Each install folder holds `.pychron/install.toml`: the profile, the answers
   given (no secrets) and a hash of every file setup wrote. `doctor` and
   `--reconfigure` read it.
@@ -671,7 +671,7 @@ repository or database, so falling back is a matter of continuing to use it.
 
 | Symptom | Cause and fix |
 |---|---|
-| `nothing is installed yet (elctl init --list)` | No install in the site config. Make one (part 2), or check `PYCHRON_SITE_CONFIG` |
+| `nothing is installed yet (elctl init --list)` | No install in the site config. Make one (part 2), or check `NOBION_SITE_CONFIG` |
 | `several installs and no default` | Pass `--install NAME`, or set the default in File > Installations |
 | `doctor`: `database ... not checked: built without the database library` | Built without Qt Sql. Use a release package, or rebuild with Qt 6 found |
 | `doctor` fails a PostgreSQL database | Server, user or password wrong, the QPSQL plugin is missing (`libqt6sql6-psql`), or the schema was never created (part 2.2) |

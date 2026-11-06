@@ -309,10 +309,10 @@ skipped unless a person sets all four variables, and no build or CI job
 does:
 
 ```bash
-export PYCHRON_TEST_EARTHBANK_URL=https://...       # the service
-export PYCHRON_TEST_EARTHBANK_USER=...
-export PYCHRON_TEST_EARTHBANK_PASSWORD=...
-export PYCHRON_TEST_EARTHBANK_INSTITUTION=...        # the institution's id
+export NOBION_TEST_EARTHBANK_URL=https://...       # the service
+export NOBION_TEST_EARTHBANK_USER=...
+export NOBION_TEST_EARTHBANK_PASSWORD=...
+export NOBION_TEST_EARTHBANK_INSTITUTION=...        # the institution's id
 cmake --build --preset dev --target pychron_earthbank_live_tests
 build/dev/tests/earthbank_qt/pychron_earthbank_live_tests
 ```
@@ -404,5 +404,5 @@ the copy is the template's, byte for byte. A newer template replaces a file
 whole. Update its SHA-256 in `libs/earthbank/templates/README.md`, then run
 `ctest --preset dev -R 'Xlsx|Ooxml'`: the exporter finds columns by the
 field names in row 4 and lists by the template's own data validations, so a
-template that keeps both needs no code. `PYCHRON_EARTHBANK_TEMPLATES` names
+template that keeps both needs no code. `NOBION_EARTHBANK_TEMPLATES` names
 another folder of templates for a program that is already installed.

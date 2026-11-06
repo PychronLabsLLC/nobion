@@ -2,10 +2,10 @@
 //
 // It does nothing unless all four of these are set:
 //
-//   PYCHRON_TEST_EARTHBANK_URL          https://... (the service, or a staging copy of it)
-//   PYCHRON_TEST_EARTHBANK_USER         the login
-//   PYCHRON_TEST_EARTHBANK_PASSWORD     its password
-//   PYCHRON_TEST_EARTHBANK_INSTITUTION  the institution's id on EarthBank
+//   NOBION_TEST_EARTHBANK_URL          https://... (the service, or a staging copy of it)
+//   NOBION_TEST_EARTHBANK_USER         the login
+//   NOBION_TEST_EARTHBANK_PASSWORD     its password
+//   NOBION_TEST_EARTHBANK_INSTITUTION  the institution's id on EarthBank
 //
 // No build, script or CI job sets them; without them the test is skipped and
 // says so. It carries the ctest label `live`, so `ctest -LE live` leaves it
@@ -36,12 +36,12 @@ std::string env(const char* name) {
 
 TEST(EarthbankLive, UploadsTheFixtureSamplesAndRemovesThem) {
   RoundTrip with;
-  with.base_url = env("PYCHRON_TEST_EARTHBANK_URL");
-  with.username = env("PYCHRON_TEST_EARTHBANK_USER");
-  with.password = env("PYCHRON_TEST_EARTHBANK_PASSWORD");
-  const std::string institution = env("PYCHRON_TEST_EARTHBANK_INSTITUTION");
+  with.base_url = env("NOBION_TEST_EARTHBANK_URL");
+  with.username = env("NOBION_TEST_EARTHBANK_USER");
+  with.password = env("NOBION_TEST_EARTHBANK_PASSWORD");
+  const std::string institution = env("NOBION_TEST_EARTHBANK_INSTITUTION");
   if (with.base_url.empty() || with.username.empty() || with.password.empty() || institution.empty()) {
-    GTEST_SKIP() << "not run: set PYCHRON_TEST_EARTHBANK_URL, _USER, _PASSWORD and _INSTITUTION to upload to a real "
+    GTEST_SKIP() << "not run: set NOBION_TEST_EARTHBANK_URL, _USER, _PASSWORD and _INSTITUTION to upload to a real "
                     "EarthBank (docs/earthbank.md, \"The live test\")";
   }
   // The address is held to what a profile's is: https, or http on this machine.
@@ -50,7 +50,7 @@ TEST(EarthbankLive, UploadsTheFixtureSamplesAndRemovesThem) {
   with.base_url = *url;
   char* end = nullptr;
   const long long id = std::strtoll(institution.c_str(), &end, 10);
-  ASSERT_TRUE(end != nullptr && *end == '\0' && id > 0) << "PYCHRON_TEST_EARTHBANK_INSTITUTION is not a number";
+  ASSERT_TRUE(end != nullptr && *end == '\0' && id > 0) << "NOBION_TEST_EARTHBANK_INSTITUTION is not a number";
   with.institution_id = static_cast<std::int64_t>(id);
   with.out = &std::cout;
 

@@ -16,7 +16,7 @@
 //   simulation = true                   # run as --sim
 //   database = "sqlite:..."             # data reduction: the DVC store URL (no password)
 //
-// Location: $PYCHRON_SITE_CONFIG when set, else the platform's per-user
+// Location: $NOBION_SITE_CONFIG when set, else the platform's per-user
 // config directory: ~/Library/Application Support/Pychron/site.toml (macOS),
 // %APPDATA%\Pychron\site.toml (Windows), $XDG_CONFIG_HOME/pychron/site.toml
 // or ~/.config/pychron/site.toml (elsewhere).

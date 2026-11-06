@@ -120,7 +120,7 @@ jobs:
           CERT_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         run: |
           if [ -z "$CERT" ]; then
-            echo "PYCHRON_CODESIGN_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "NOBION_CODESIGN_IDENTITY=-" >> "$GITHUB_ENV"
             if [ -n "${{ inputs.tag }}" ] || [[ "$GITHUB_REF" == refs/tags/v* ]]; then
               echo "::warning::No MACOS_CERTIFICATE_P12_BASE64 secret: this release's .dmg is signed ad hoc and not notarized"
             fi
@@ -144,7 +144,7 @@ jobs:
             security find-identity -v -p codesigning "$kc"
             exit 1
           fi
-          echo "PYCHRON_CODESIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "NOBION_CODESIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
           echo "signing as: $identity"
 
       - name: Configure
@@ -171,11 +171,11 @@ jobs:
           API_ISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
         run: |
           dmg=$(ls build/Nobion-*.dmg)
-          if [ "$PYCHRON_CODESIGN_IDENTITY" = "-" ]; then
+          if [ "$NOBION_CODESIGN_IDENTITY" = "-" ]; then
             echo "signed ad hoc: the image is not signed or notarized"
             exit 0
           fi
-          codesign --force --sign "$PYCHRON_CODESIGN_IDENTITY" --timestamp "$dmg"
+          codesign --force --sign "$NOBION_CODESIGN_IDENTITY" --timestamp "$dmg"
           codesign --verify --verbose=2 "$dmg"
           if [ -z "$API_KEY" ]; then
             echo "::warning::No APPLE_API_KEY_P8_BASE64 secret: the .dmg is signed but not notarized"
@@ -196,7 +196,7 @@ jobs:
           rm -f "$key"
           xcrun stapler staple "$dmg"
           xcrun stapler validate "$dmg"
-          echo "PYCHRON_NOTARIZED=1" >> "$GITHUB_ENV"
+          echo "NOBION_NOTARIZED=1" >> "$GITHUB_ENV"
 
       - name: Smoke test (Linux)
         if: runner.os == 'Linux'
@@ -204,7 +204,7 @@ jobs:
           sudo apt-get install -y ./build/nobion_*.deb
           elctl --version
           QT_QPA_PLATFORM=offscreen nobion --self-test
-          export PYCHRON_SITE_CONFIG="$RUNNER_TEMP/site.toml"
+          export NOBION_SITE_CONFIG="$RUNNER_TEMP/site.toml"
           elctl init data-reduction --root "$RUNNER_TEMP/dr" --yes
           elctl init argus --root "$RUNNER_TEMP/argus" --yes
           elctl --install argus exp run experiment.toml --sim-speed 200
@@ -222,7 +222,7 @@ jobs:
           entitlements=$(codesign --display --entitlements - --xml "$RUNNER_TEMP/Nobion.app")
           grep -q com.apple.security.device.camera <<< "$entitlements"
           codesign --display --verbose=2 "$RUNNER_TEMP/Nobion.app/Contents/MacOS/elctl" 2>&1 | grep -E 'flags=.*runtime'
-          if [ "${PYCHRON_NOTARIZED:-}" = 1 ]; then
+          if [ "${NOBION_NOTARIZED:-}" = 1 ]; then
             # What Gatekeeper decides for a user who downloaded it.
             spctl --assess --type open --context context:primary-signature --verbose=2 build/Nobion-*.dmg
             spctl --assess --type execute --verbose=2 "$RUNNER_TEMP/Nobion.app"
@@ -230,7 +230,7 @@ jobs:
           app="$RUNNER_TEMP/Nobion.app/Contents/MacOS"
           "$app/elctl" --version
           "$app/Nobion" --self-test  # macdeployqt ships the cocoa platform plugin only
-          export PYCHRON_SITE_CONFIG="$RUNNER_TEMP/site.toml"
+          export NOBION_SITE_CONFIG="$RUNNER_TEMP/site.toml"
           "$app/elctl" init argus --root "$RUNNER_TEMP/argus" --yes
           "$app/elctl" --install argus exp run experiment.toml --sim-speed 200
 
@@ -241,7 +241,7 @@ jobs:
           bin=$(ls -d "$RUNNER_TEMP"/zip/*/bin)
           "$bin/elctl.exe" --version
           "$bin/nobion.exe" --self-test  # windeployqt ships the windows platform plugin only
-          export PYCHRON_SITE_CONFIG="$RUNNER_TEMP/site.toml"
+          export NOBION_SITE_CONFIG="$RUNNER_TEMP/site.toml"
           "$bin/elctl.exe" init argus --root "$RUNNER_TEMP/argus" --yes
           "$bin/elctl.exe" --install argus exp run experiment.toml --sim-speed 200
 

@@ -38,7 +38,7 @@ fixtures. `RecordedSource` replays a case in file order (`seq` from 1).
 
 ## External sequences
 
-Full sequences stay outside the repo. Set `PYCHRON_VISION_FIXTURES` to a
+Full sequences stay outside the repo. Set `NOBION_VISION_FIXTURES` to a
 directory holding case directories in the layout above; `ExternalCasesWithinTolerance`
 runs the same assertion on them and is skipped when the variable is unset.
 

@@ -90,7 +90,7 @@ owner-readable only.
 
 ### The site file
 
-The per-user list of installs on a computer. Location: `$PYCHRON_SITE_CONFIG`
+The per-user list of installs on a computer. Location: `$NOBION_SITE_CONFIG`
 if set, else `~/Library/Application Support/Pychron/site.toml` (macOS),
 `%APPDATA%\Pychron\site.toml` (Windows), `$XDG_CONFIG_HOME/pychron/site.toml`
 or `~/.config/pychron/site.toml` (elsewhere). A missing file is an empty
@@ -871,7 +871,7 @@ starter is `configs/examples/notifications.toml.example`. Test with
 | | `queue_user` | true | also the queue's `email` |
 | | `on` | both | `run_failed`, `queue_ended` |
 | `[[webhook]]` | `name`, `url`, `format` (`json` or `slack`), `on` | | |
-| `[[command]]` | `name`, `argv` (list; first is the program), `on` | | the message goes on standard input; `PYCHRON_EVENT`, `PYCHRON_SUBJECT`, `PYCHRON_QUEUE` are set |
+| `[[command]]` | `name`, `argv` (list; first is the program), `on` | | the message goes on standard input; `NOBION_EVENT`, `NOBION_SUBJECT`, `NOBION_QUEUE` are set |
 
 Keep keys and passwords in environment variables (`*_env`), never in the
 file.

@@ -1395,7 +1395,7 @@ std::string read_bytes(const fs::path& p) {
 }
 
 bool update_goldens() {
-  const char* v = std::getenv("PYCHRON_UPDATE_GOLDENS");  // NOLINT(concurrency-mt-unsafe): read once, no setenv in this suite
+  const char* v = std::getenv("NOBION_UPDATE_GOLDENS");  // NOLINT(concurrency-mt-unsafe): read once, no setenv in this suite
   return v != nullptr && std::string_view(v) == "1";
 }
 
@@ -1417,7 +1417,7 @@ TEST(PlanGoldens, EveryValidFixtureMatchesItsGolden) {
       continue;
     }
     ASSERT_TRUE(fs::exists(golden)) << "no golden " << golden.string()
-                                    << "; write it with PYCHRON_UPDATE_GOLDENS=1 and review it";
+                                    << "; write it with NOBION_UPDATE_GOLDENS=1 and review it";
     EXPECT_EQ(json, read_bytes(golden));
   }
 }

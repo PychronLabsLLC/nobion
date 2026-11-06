@@ -78,7 +78,7 @@ by `-c` / `--install`.
   holding the line config), the data
   folder is `<lab>/data`, and `<lab>/spectrometer.toml` is used as the
   spectrometer config if it exists. Command-line flags always win.
-- The environment variable `PYCHRON_SITE_CONFIG` overrides the path of the site
+- The environment variable `NOBION_SITE_CONFIG` overrides the path of the site
   config.
 - Durations (`scan --for`, `--interval`) are a number with an optional unit:
   `500ms`, `10s` or `10`, `2m`, `1h`. A fraction such as `1.5s` is accepted.
@@ -326,7 +326,7 @@ elctl data-source
 # to the lab's server, the password typed at the prompt
 elctl data-source set --server db.lab.example:5432/pychron --user ar
 # from a script
-printf '%s\n' "$PYCHRON_DB_PASSWORD" | elctl data-source set --server db.lab.example/pychron --user ar --password-stdin --yes
+printf '%s\n' "$NOBION_DB_PASSWORD" | elctl data-source set --server db.lab.example/pychron --user ar --password-stdin --yes
 # and back to the file on this computer
 elctl data-source set --local --yes
 # another file and a data folder on a shared disk
@@ -1075,7 +1075,7 @@ aliquot and reports at two sigma.
 | `--per-sample` | One Ar-Ar workbook per sample, not one for all. |
 | `--no-samples` | No Sample workbook. |
 | `--check` | Print what the export would print and write nothing. |
-| `--templates DIR` | The directory holding the service's two templates. Default: the directory the environment variable `PYCHRON_EARTHBANK_TEMPLATES` names; when it is not set, the ones installed with Pychron. |
+| `--templates DIR` | The directory holding the service's two templates. Default: the directory the environment variable `NOBION_EARTHBANK_TEMPLATES` names; when it is not set, the ones installed with Pychron. |
 | `--overrides FILE.toml` | What the analyses cannot say; see below. |
 
 **The age reported for a sample.** A sample with heating steps reports its

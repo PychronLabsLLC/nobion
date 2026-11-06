@@ -5,7 +5,7 @@ only this component's. Kept compressed, as that file is.
 
 - macOS `.dmg` is signed (hardened runtime) by `packaging/macos/sign_app.sh`
   from CPack (`packaging/macos/cpack_sign.cmake`, identity in
-  `PYCHRON_CODESIGN_IDENTITY`, `-` for ad hoc), then signed, notarized and
+  `NOBION_CODESIGN_IDENTITY`, `-` for ad hoc), then signed, notarized and
   stapled in `release.yml` when signing secrets are set
   (`docs/installation_runbook.md` section 1.4). Something the programs newly
   need under hardened runtime (a device, a kind of library) is an

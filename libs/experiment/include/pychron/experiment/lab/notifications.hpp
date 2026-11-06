@@ -13,14 +13,14 @@
 //   from = "pychron@example.org"
 //   to = ["manager@example.org"]
 //   username = "pychron@example.org"       # optional
-//   password_env = "PYCHRON_SMTP_PASSWORD" # the password is read from this variable, never the file
+//   password_env = "NOBION_SMTP_PASSWORD" # the password is read from this variable, never the file
 //   queue_user = true                      # also the queue's email (default true)
 //   on = ["run_failed", "queue_ended"]     # default: every event (run_failed, queue_ended,
 //                                          # queue_holding, queue_resumed, unsafe)
 //
 //   [[email]]
 //   provider = "brevo"                     # a mail service: brevo, resend or postmark, over HTTPS
-//   api_key_env = "PYCHRON_MAIL_API_KEY"   # its key; url, username, password_env and tls are not used
+//   api_key_env = "NOBION_MAIL_API_KEY"   # its key; url, username, password_env and tls are not used
 //   from = "pychron@example.org"           # to, queue_user and on as above
 //
 //   [[webhook]]
@@ -28,7 +28,7 @@
 //   format = "slack"                       # {"text": ...}; "json" (default) posts every field
 //
 //   [[command]]
-//   argv = ["/usr/local/bin/notify-lab"]   # the message on stdin, fields as PYCHRON_* variables
+//   argv = ["/usr/local/bin/notify-lab"]   # the message on stdin, fields as NOBION_* variables
 //
 // Email and webhooks run curl with its options on stdin (`--config -`), so
 // neither the password, the key nor the webhook URL appears on a command
@@ -105,7 +105,7 @@ struct Notification {
   NotifyEvent event = NotifyEvent::Test;
   std::string subject, body;
   // queue, identifier, run_id, state, error, end, reason, ...: the JSON
-  // webhook's fields and the command's PYCHRON_<FIELD> variables.
+  // webhook's fields and the command's NOBION_<FIELD> variables.
   std::map<std::string, std::string> fields;
   std::string queue_email;  // the queue's user, for email channels with queue_user
 };

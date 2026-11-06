@@ -2,13 +2,13 @@
 # signs Nobion.app in the staging directory, after it is installed, stripped
 # and has its Qt runtime, and before the disk image is made from it.
 #
-# The identity is the PYCHRON_CODESIGN_IDENTITY environment variable: a
+# The identity is the NOBION_CODESIGN_IDENTITY environment variable: a
 # "Developer ID Application: ..." certificate, or "-" for ad hoc. Unset, the
 # app is left as the install made it (a local build that is not distributed).
 
-set(_identity "$ENV{PYCHRON_CODESIGN_IDENTITY}")
+set(_identity "$ENV{NOBION_CODESIGN_IDENTITY}")
 if(_identity STREQUAL "")
-  message(STATUS "nobion: PYCHRON_CODESIGN_IDENTITY is not set; Nobion.app is not signed")
+  message(STATUS "nobion: NOBION_CODESIGN_IDENTITY is not set; Nobion.app is not signed")
   return()
 endif()
 

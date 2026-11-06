@@ -2,7 +2,7 @@
 
 // Engine-parameterised store fixture. Every test gets a fresh database: an
 // in-memory or temp-file SQLite database, or a fresh PostgreSQL schema when
-// PYCHRON_TEST_PG_URL is set.
+// NOBION_TEST_PG_URL is set.
 
 #include <gtest/gtest.h>
 
@@ -25,10 +25,10 @@
 namespace pychron::persistence::testing {
 
 inline std::string pg_url() {
-  return env_var("PYCHRON_TEST_PG_URL").value_or("");
+  return env_var("NOBION_TEST_PG_URL").value_or("");
 }
 
-// "sqlite" always; "pg" when PYCHRON_TEST_PG_URL is set.
+// "sqlite" always; "pg" when NOBION_TEST_PG_URL is set.
 inline std::vector<std::string> engines() {
   std::vector<std::string> e{"sqlite"};
   if (!pg_url().empty()) e.emplace_back("pg");

@@ -8,12 +8,12 @@ nothing depends on it.
 
 ## Run it
 
-From the repository root, with `PYCHRON_LAB` the folder holding the lab's
+From the repository root, with `NOBION_LAB` the folder holding the lab's
 `extraction_line.toml` (and, if it has them, `canvas.toml`, `sim.toml`,
 `spectrometer.toml` and `tables/`):
 
 ```bash
-PYCHRON_LAB=$PWD/mylab SIM_ENDPOINTS_DIR=$PWD/mylab-endpoints docker compose -f packaging/sim/compose.yaml up --build
+NOBION_LAB=$PWD/mylab SIM_ENDPOINTS_DIR=$PWD/mylab-endpoints docker compose -f packaging/sim/compose.yaml up --build
 ```
 
 The lab is mounted read-only at `/lab`. The first build fetches the
@@ -41,7 +41,7 @@ published on the host's loopback unless told otherwise. To reach them from
 another machine on a network you trust:
 
 ```bash
-PYCHRON_LAB=$PWD/mylab SIM_PUBLISH_ADDRESS=0.0.0.0 SIM_ADVERTISE=sim-host.example docker compose -f packaging/sim/compose.yaml up
+NOBION_LAB=$PWD/mylab SIM_PUBLISH_ADDRESS=0.0.0.0 SIM_ADVERTISE=sim-host.example docker compose -f packaging/sim/compose.yaml up
 ```
 
 `SIM_ADVERTISE` is the host name written to the endpoints file; copy the file

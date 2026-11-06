@@ -7,8 +7,8 @@
 //   elctl init --reconfigure [--install NAME] [--set id=value]... [--yes]
 //   elctl doctor [--install NAME] [--strict] [--probe]
 //
-// Profiles come from --profiles DIR, else $PYCHRON_PROFILES_DIR, else the
-// copy shipped with elctl; the site config from $PYCHRON_SITE_CONFIG, else
+// Profiles come from --profiles DIR, else $NOBION_PROFILES_DIR, else the
+// copy shipped with elctl; the site config from $NOBION_SITE_CONFIG, else
 // the platform's per-user config directory.
 
 #include <filesystem>

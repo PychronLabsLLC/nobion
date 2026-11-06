@@ -723,7 +723,7 @@ TEST_F(ElctlExpTest, TheShippedExamplesAreLeftAsTheyAre) {
   if (!pychron::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
   const fs::path examples = dir_ / "lab";
   const fs::path user = dir_ / "user";
-  const ScopedEnv shipped("PYCHRON_EXAMPLES_DIR", examples.string());
+  const ScopedEnv shipped("NOBION_EXAMPLES_DIR", examples.string());
   const ScopedEnv home("HOME", user.string());
   const ScopedEnv xdg("XDG_STATE_HOME", (user / "state").string());
   const ScopedEnv local("LOCALAPPDATA", user.string());

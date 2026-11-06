@@ -2,7 +2,7 @@
 // store, for when loading is slow or a change might make it so. It does
 // nothing unless told which store (one command line):
 //
-//   PYCHRON_BENCH_DB=sqlite:/path/to/store.db [PYCHRON_BENCH_N=400]
+//   NOBION_BENCH_DB=sqlite:/path/to/store.db [NOBION_BENCH_N=400]
 //     build/dev/tests/arar/pychron_arar_store_tests --gtest_filter='StoreLoadTiming.*'
 //
 // ReferenceSeries times what the experiment window's reference series dock
@@ -10,7 +10,7 @@
 // since a time (N default 50), then select and reduce of them, on a source
 // whose cache is empty, for the blanks tab, the air tab and both.
 //
-// It writes nothing to the store. It takes the PYCHRON_BENCH_N analyses
+// It writes nothing to the store. It takes the NOBION_BENCH_N analyses
 // (default 24) of the identifiers that have most, and times each node of the
 // pipeline a figure window runs: select (loading from the store), reduce,
 // group, edits and the ideogram. Its first run, on a store of 8700 analyses,
@@ -37,7 +37,7 @@ namespace pychron::processing {
 static double now_s() { return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
 
 TEST(StoreLoadTiming, FigurePipeline) {
-  const char* url = std::getenv("PYCHRON_BENCH_DB");
+  const char* url = std::getenv("NOBION_BENCH_DB");
   if (url == nullptr) return;
   double t0 = now_s();
   auto opened = StoreSource::open(persistence::StoreConfig{url, false}, arar::store_source_options());
@@ -55,7 +55,7 @@ TEST(StoreLoadTiming, FigurePipeline) {
   std::map<std::string, std::vector<std::string>> by_id;
   for (const auto& r : page->rows) by_id[r.identifier].push_back(r.uuid);
   std::vector<std::string> uuids;
-  const std::size_t want = std::getenv("PYCHRON_BENCH_N") ? std::strtoul(std::getenv("PYCHRON_BENCH_N"), nullptr, 10) : 24;
+  const std::size_t want = std::getenv("NOBION_BENCH_N") ? std::strtoul(std::getenv("NOBION_BENCH_N"), nullptr, 10) : 24;
   // The biggest identifiers first, until there are enough analyses.
   std::vector<std::pair<std::size_t, std::string>> sized;
   for (const auto& [id, v] : by_id) sized.emplace_back(v.size(), id);
@@ -168,9 +168,9 @@ double time_tab(StoreSource& source, const Tab& tab, const std::string& spectrom
 }  // namespace
 
 TEST(StoreLoadTiming, ReferenceSeries) {
-  const char* url = std::getenv("PYCHRON_BENCH_DB");
+  const char* url = std::getenv("NOBION_BENCH_DB");
   if (url == nullptr) return;
-  const std::size_t n = std::getenv("PYCHRON_BENCH_N") ? std::strtoul(std::getenv("PYCHRON_BENCH_N"), nullptr, 10) : 50;
+  const std::size_t n = std::getenv("NOBION_BENCH_N") ? std::strtoul(std::getenv("NOBION_BENCH_N"), nullptr, 10) : 50;
   const Tab blanks{"blanks", {"blank_unknown", "blank_air", "blank_cocktail", "blank_extraction_line", "blank_laser"}};
   const Tab air{"air", {"air"}};
   // Not a tab: the same shape over unknowns, for a store with few references.

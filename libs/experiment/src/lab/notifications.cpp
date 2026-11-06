@@ -359,9 +359,9 @@ Delivery send_command(const NotificationConfig& c, const CommandChannel& ch, con
   spec.argv = ch.argv;
   spec.input = n.subject + "\n\n" + n.body;
   spec.timeout = process_timeout(c);
-  spec.env = {{"PYCHRON_EVENT", std::string(to_string(n.event))}, {"PYCHRON_SUBJECT", one_line(n.subject)}};
+  spec.env = {{"NOBION_EVENT", std::string(to_string(n.event))}, {"NOBION_SUBJECT", one_line(n.subject)}};
   for (const auto& [k, v] : n.fields) {
-    std::string name = "PYCHRON_";
+    std::string name = "NOBION_";
     for (const char ch2 : k) name += static_cast<char>(std::toupper(static_cast<unsigned char>(ch2)));
     spec.env.emplace_back(name, one_line(v));
   }

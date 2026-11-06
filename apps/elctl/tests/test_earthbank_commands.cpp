@@ -189,7 +189,7 @@ class ElctlEarthbank : public elctl::testing::StoreTest {
     return path("overrides.toml").string();
   }
 
-  static constexpr const char* kTemplatesVariable = "PYCHRON_EARTHBANK_TEMPLATES";
+  static constexpr const char* kTemplatesVariable = "NOBION_EARTHBANK_TEMPLATES";
   std::optional<std::string> templates_were_;
   ps::Uuid fused_;
   fs::path out_;
@@ -215,7 +215,7 @@ TEST_F(ElctlEarthbank, HelpNamesTheCommandAndTheOverrides) {
   // environment's templates come before the installed ones.
   const std::string text = run_raw({"earthbank", "help"}).out;
   EXPECT_TRUE(contains(text, "--group-by sample --sigma 1")) << text;
-  EXPECT_LT(text.find("$PYCHRON_EARTHBANK_TEMPLATES"), text.find("installed ones")) << text;
+  EXPECT_LT(text.find("$NOBION_EARTHBANK_TEMPLATES"), text.find("installed ones")) << text;
   EXPECT_TRUE(contains(text, "UTC")) << text;
 }
 

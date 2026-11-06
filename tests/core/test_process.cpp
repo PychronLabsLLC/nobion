@@ -60,11 +60,11 @@ TEST(Process, ArgumentsArePassedAsTheyAre) {
 
 TEST(Process, AddsEnvironmentVariables) {
 #ifdef _WIN32
-  auto spec = shell("echo %PYCHRON_PROCESS_TEST%");
+  auto spec = shell("echo %NOBION_PROCESS_TEST%");
 #else
-  auto spec = shell("printf %s \"$PYCHRON_PROCESS_TEST\"");
+  auto spec = shell("printf %s \"$NOBION_PROCESS_TEST\"");
 #endif
-  spec.env = {{"PYCHRON_PROCESS_TEST", "42"}};
+  spec.env = {{"NOBION_PROCESS_TEST", "42"}};
   auto r = run_process(spec);
   ASSERT_TRUE(r) << r.error().what;
   EXPECT_NE(r->output.find("42"), std::string::npos) << r->output;

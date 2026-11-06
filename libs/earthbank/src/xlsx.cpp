@@ -1009,7 +1009,7 @@ Result<std::vector<const Records*>> samples_of(const std::vector<Records>& recor
 Result<fs::path> template_dir_of(const XlsxOptions& options) {
   if (!options.template_dir.empty()) return options.template_dir;
   const detail::TemplateSearch search = detail::find_templates(
-      env_var("PYCHRON_EARTHBANK_TEMPLATES"), executable_dir(), fs::path(PYCHRON_EARTHBANK_SOURCE_TEMPLATE_DIR));
+      env_var("NOBION_EARTHBANK_TEMPLATES"), executable_dir(), fs::path(PYCHRON_EARTHBANK_SOURCE_TEMPLATE_DIR));
   if (search.found.empty()) return fail(ErrorKind::Io, detail::templates_not_found(search));
   return search.found;
 }
@@ -1077,7 +1077,7 @@ namespace detail {
 
 TemplateSearch find_templates(const std::optional<std::string>& named, const fs::path& program_dir,
                               const fs::path& source_dir) {
-  constexpr std::string_view kNamed = "the directory PYCHRON_EARTHBANK_TEMPLATES names";
+  constexpr std::string_view kNamed = "the directory NOBION_EARTHBANK_TEMPLATES names";
   TemplateSearch out;
   if (named && !named->empty()) {
     out.tried.push_back(std::string(kNamed) + " (" + *named + ")");
@@ -1134,7 +1134,7 @@ std::vector<fs::path> take_back(const std::vector<fs::path>& written) {
 fs::path default_template_dir() { return default_template_dir(executable_dir()); }
 
 fs::path default_template_dir(const fs::path& program_dir) {
-  return detail::find_templates(env_var("PYCHRON_EARTHBANK_TEMPLATES"), program_dir,
+  return detail::find_templates(env_var("NOBION_EARTHBANK_TEMPLATES"), program_dir,
                                 fs::path(PYCHRON_EARTHBANK_SOURCE_TEMPLATE_DIR))
       .found;
 }

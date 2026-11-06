@@ -96,7 +96,7 @@ struct Progress {
 std::optional<fs::path> licence_file(std::string_view spdx) {
   const std::string name = std::string(spdx) + ".txt";
   std::vector<fs::path> candidates;
-  if (const auto named = env_var("PYCHRON_PUBLISH_LICENCES"); named && !named->empty())
+  if (const auto named = env_var("NOBION_PUBLISH_LICENCES"); named && !named->empty())
     candidates.emplace_back(fs::path(*named) / name);
   const fs::path program = executable_dir();
   if (!program.empty()) {

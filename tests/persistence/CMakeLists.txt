@@ -1,5 +1,5 @@
 # One test_<component>.cpp per persistence component. PostgreSQL cases run only
-# when PYCHRON_TEST_PG_URL is set (e.g. postgresql://user:pw@localhost/pychron_test);
+# when NOBION_TEST_PG_URL is set (e.g. postgresql://user:pw@localhost/pychron_test);
 # SQLite cases always run.
 if(NOT PYCHRON_PERSISTENCE_ENABLED)
   return()

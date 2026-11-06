@@ -15,11 +15,11 @@
 # Neither rule compares the box's clock with the instrument computer's: the
 # age NobionStuck reads is measured on the instrument computer.
 #
-# Grafana fills ${PYCHRON_PROM_UID} in from its environment and leaves the
+# Grafana fills ${NOBION_PROM_UID} in from its environment and leaves the
 # templates' own {{ $labels... }} alone (seen on Grafana 12.1: written with
 # two dollars, the two dollars are kept and the message is broken).
 #
-# PYCHRON_PROM_UID is the uid of the box's Prometheus data source; Grafana
+# NOBION_PROM_UID is the uid of the box's Prometheus data source; Grafana
 # reads it from its environment (docs/observability.md says where to set it).
 # Both rules go to Grafana's default contact point.
 apiVersion: 1
@@ -45,7 +45,7 @@ groups:
             relativeTimeRange:
               from: 600
               to: 0
-            datasourceUid: ${PYCHRON_PROM_UID}
+            datasourceUid: ${NOBION_PROM_UID}
             model:
               refId: A
               instant: true
@@ -87,7 +87,7 @@ groups:
             relativeTimeRange:
               from: 600
               to: 0
-            datasourceUid: ${PYCHRON_PROM_UID}
+            datasourceUid: ${NOBION_PROM_UID}
             model:
               refId: A
               instant: true

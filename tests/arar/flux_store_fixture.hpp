@@ -4,7 +4,7 @@
 // (seed_level) the seeded level of flux_seed.hpp with a StoreSource over the
 // same database. Parameterised by engine as the persistence tests are: a
 // temp-file SQLite database always, and a throwaway PostgreSQL schema when
-// PYCHRON_TEST_PG_URL is set (persistence's TestDatabase, which needs Qt:
+// NOBION_TEST_PG_URL is set (persistence's TestDatabase, which needs Qt:
 // only this test binary links it).
 
 #include <gtest/gtest.h>

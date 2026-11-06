@@ -191,7 +191,7 @@ TEST(MetricsPackaging, TheVirtualBoxAgreesWithTheRealOnesFiles) {
   EXPECT_NE(targets.find("instrument:"), std::string::npos);
   EXPECT_NE(targets.find(":9464"), std::string::npos);
   // The alert rules' data source is the one the box provisions.
-  EXPECT_NE(compose.find("PYCHRON_PROM_UID: nobion-prometheus"), std::string::npos);
+  EXPECT_NE(compose.find("NOBION_PROM_UID: nobion-prometheus"), std::string::npos);
   EXPECT_NE(datasource.find("uid: nobion-prometheus"), std::string::npos);
   // Every file it mounts from the real box's set exists.
   for (const char* rel : {"grafana/provisioning/dashboards/nobion.yml", "grafana/provisioning/alerting/nobion-deadman.yml",

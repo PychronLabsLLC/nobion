@@ -233,20 +233,20 @@ TEST(Tables, FileSafeReplacesEverythingButWordChars) {
 
 // The row hashes of the fixed in-memory inputs, against the committed
 // fixture (tests/publish/fixtures/README.md): what Windows and Linux CI
-// compare with a file written on macOS. PYCHRON_WRITE_FIXTURE=1 rewrites it.
+// compare with a file written on macOS. NOBION_WRITE_FIXTURE=1 rewrites it.
 TEST(Tables, RowHashesEqualTheCommittedFixture) {
   const auto tables = build_tables(inputs());
   std::string actual;
   for (const Table* t : {&tables.samples, &tables.positions, &tables.analyses, &tables.isotopes, &tables.interpreted_ages})
     actual += t->name + " " + std::to_string(t->rows.size()) + " " + pychron::to_hex(rows_sha256(*t)) + "\n";
   const std::filesystem::path fixture = std::filesystem::path(PYCHRON_PUBLISH_FIXTURE_DIR) / "table-inputs.rows_sha256";
-  if (const char* write = std::getenv("PYCHRON_WRITE_FIXTURE"); write && std::string(write) == "1") {
+  if (const char* write = std::getenv("NOBION_WRITE_FIXTURE"); write && std::string(write) == "1") {
     std::ofstream out(fixture, std::ios::binary);
     out << actual;
     GTEST_SKIP() << "wrote " << fixture;
   }
   std::ifstream in(fixture, std::ios::binary);
-  ASSERT_TRUE(in) << "no fixture at " << fixture << "; write it with PYCHRON_WRITE_FIXTURE=1";
+  ASSERT_TRUE(in) << "no fixture at " << fixture << "; write it with NOBION_WRITE_FIXTURE=1";
   std::stringstream expected;
   expected << in.rdbuf();
   EXPECT_EQ(actual, expected.str()) << "the tables' rows differ from the committed fixture";

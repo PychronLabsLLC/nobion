@@ -101,7 +101,7 @@ url = "smtp://mail.example.org:587"
 from = "pychron@example.org"
 to = ["a@example.org", "b@example.org"]
 username = "pychron"
-password_env = "PYCHRON_TEST_SMTP_PW"
+password_env = "NOBION_TEST_SMTP_PW"
 on = ["run_failed"]
 
 [[webhook]]
@@ -199,14 +199,14 @@ TEST(Notifications, ARunThatWasNotSavedSaysSoAndWhy) {
 }
 
 TEST(Notifications, EmailGoesThroughCurlWithItsOptionsOnStdin) {
-  set_env("PYCHRON_TEST_SMTP_PW", "s3cret");
+  set_env("NOBION_TEST_SMTP_PW", "s3cret");
   auto c = NotificationConfig::from_toml(R"(
 [[email]]
 url = "smtp://mail.example.org:587"
 from = "pychron@example.org"
 to = ["a@example.org"]
 username = "pychron"
-password_env = "PYCHRON_TEST_SMTP_PW"
+password_env = "NOBION_TEST_SMTP_PW"
 )",
                                          "n.toml");
   ASSERT_TRUE(c) << c.error().what;
@@ -237,11 +237,11 @@ password_env = "PYCHRON_TEST_SMTP_PW"
   EXPECT_FALSE(std::filesystem::exists(cfg.substr(at, cfg.find('"', at) - at)));
 
   // A missing password variable fails without running curl.
-  c->email[0].password_env = "PYCHRON_TEST_UNSET_VARIABLE_XYZ";
+  c->email[0].password_env = "NOBION_TEST_UNSET_VARIABLE_XYZ";
   d = deliver(*c, n, fake.runner());
   ASSERT_EQ(d.size(), 1u);
   EXPECT_FALSE(d[0].ok);
-  EXPECT_NE(d[0].error.find("PYCHRON_TEST_UNSET_VARIABLE_XYZ is not set"), std::string::npos);
+  EXPECT_NE(d[0].error.find("NOBION_TEST_UNSET_VARIABLE_XYZ is not set"), std::string::npos);
   EXPECT_EQ(fake.calls.size(), 1u);
 }
 
@@ -249,7 +249,7 @@ TEST(Notifications, ParsesAMailServiceChannel) {
   auto c = NotificationConfig::from_toml(R"(
 [[email]]
 provider = "brevo"
-api_key_env = "PYCHRON_TEST_MAIL_KEY"
+api_key_env = "NOBION_TEST_MAIL_KEY"
 from = "pychron@example.org"
 to = ["a@example.org"]
 )",
@@ -257,7 +257,7 @@ to = ["a@example.org"]
   ASSERT_TRUE(c) << c.error().what;
   ASSERT_EQ(c->email.size(), 1u);
   EXPECT_EQ(c->email[0].provider, EmailChannel::Provider::Brevo);
-  EXPECT_EQ(c->email[0].api_key_env, "PYCHRON_TEST_MAIL_KEY");
+  EXPECT_EQ(c->email[0].api_key_env, "NOBION_TEST_MAIL_KEY");
   EXPECT_TRUE(c->email[0].queue_user);
   EXPECT_EQ(c->channel_names(), std::vector<std::string>{"email"});
 }
@@ -301,9 +301,9 @@ struct ProviderSend {
   std::vector<Delivery> deliveries;
 
   explicit ProviderSend(const std::string& provider) {
-    set_env("PYCHRON_TEST_MAIL_KEY", "k3y-s3cret");
+    set_env("NOBION_TEST_MAIL_KEY", "k3y-s3cret");
     auto c = NotificationConfig::from_toml("[[email]]\nprovider = \"" + provider +
-                                               "\"\napi_key_env = \"PYCHRON_TEST_MAIL_KEY\"\n"
+                                               "\"\napi_key_env = \"NOBION_TEST_MAIL_KEY\"\n"
                                                "from = \"pychron@example.org\"\nto = [\"a@example.org\"]\n",
                                            "n.toml");
     EXPECT_TRUE(c) << c.error().what;
@@ -372,11 +372,11 @@ TEST(Notifications, PostmarkGetsItsJsonAndAServerToken) {
 }
 
 TEST(Notifications, AMailServiceRefusalIsReportedInItsOwnWords) {
-  set_env("PYCHRON_TEST_MAIL_KEY", "k3y-s3cret");
+  set_env("NOBION_TEST_MAIL_KEY", "k3y-s3cret");
   auto c = NotificationConfig::from_toml(R"(
 [[email]]
 provider = "brevo"
-api_key_env = "PYCHRON_TEST_MAIL_KEY"
+api_key_env = "NOBION_TEST_MAIL_KEY"
 from = "pychron@example.org"
 to = ["a@example.org"]
 )",
@@ -392,33 +392,33 @@ to = ["a@example.org"]
   EXPECT_EQ(d[0].error.find("k3y-s3cret"), std::string::npos) << d[0].error;
 
   // An unset key variable fails without running curl.
-  c->email[0].api_key_env = "PYCHRON_TEST_UNSET_VARIABLE_XYZ";
+  c->email[0].api_key_env = "NOBION_TEST_UNSET_VARIABLE_XYZ";
   d = deliver(*c, test_notification("/lab"), fake.runner());
   ASSERT_EQ(d.size(), 1u);
   EXPECT_FALSE(d[0].ok);
-  EXPECT_NE(d[0].error.find("PYCHRON_TEST_UNSET_VARIABLE_XYZ is not set"), std::string::npos) << d[0].error;
+  EXPECT_NE(d[0].error.find("NOBION_TEST_UNSET_VARIABLE_XYZ is not set"), std::string::npos) << d[0].error;
   EXPECT_EQ(fake.calls.size(), 1u);
 }
 
 TEST(Notifications, UnsetSecretsNamesEachChannelWhoseVariableIsMissing) {
-  set_env("PYCHRON_TEST_MAIL_KEY", "k3y-s3cret");
+  set_env("NOBION_TEST_MAIL_KEY", "k3y-s3cret");
   auto c = NotificationConfig::from_toml(R"(
 [[email]]
 name = "service"
 provider = "brevo"
-api_key_env = "PYCHRON_TEST_UNSET_VARIABLE_XYZ"
+api_key_env = "NOBION_TEST_UNSET_VARIABLE_XYZ"
 from = "pychron@example.org"
 [[email]]
 name = "set"
 provider = "resend"
-api_key_env = "PYCHRON_TEST_MAIL_KEY"
+api_key_env = "NOBION_TEST_MAIL_KEY"
 from = "pychron@example.org"
 [[email]]
 name = "smtp"
 url = "smtp://mail.example.org"
 from = "pychron@example.org"
 username = "pychron"
-password_env = "PYCHRON_TEST_UNSET_VARIABLE_ABC"
+password_env = "NOBION_TEST_UNSET_VARIABLE_ABC"
 [[email]]
 name = "open relay"
 url = "smtp://relay.example.org"
@@ -427,8 +427,8 @@ from = "pychron@example.org"
                                          "n.toml");
   ASSERT_TRUE(c) << c.error().what;
   EXPECT_EQ(unset_secrets(*c), (std::vector<std::pair<std::string, std::string>>{
-                                   {"service", "PYCHRON_TEST_UNSET_VARIABLE_XYZ"},
-                                   {"smtp", "PYCHRON_TEST_UNSET_VARIABLE_ABC"}}));
+                                   {"service", "NOBION_TEST_UNSET_VARIABLE_XYZ"},
+                                   {"smtp", "NOBION_TEST_UNSET_VARIABLE_ABC"}}));
 }
 
 TEST(Notifications, WebhooksAndCommandsAndFailures) {
@@ -465,9 +465,9 @@ argv = ["notify-lab"]
       if (n == k) return v;
     return std::string("<unset>");
   };
-  EXPECT_EQ(env("PYCHRON_EVENT"), "run_failed");
-  EXPECT_EQ(env("PYCHRON_IDENTIFIER"), "66001");
-  EXPECT_EQ(env("PYCHRON_ERROR"), "extraction script raised");
+  EXPECT_EQ(env("NOBION_EVENT"), "run_failed");
+  EXPECT_EQ(env("NOBION_IDENTIFIER"), "66001");
+  EXPECT_EQ(env("NOBION_ERROR"), "extraction script raised");
 
   // A test message goes to every channel; a failing program is reported.
   fake.exit_code = 22;
@@ -771,7 +771,7 @@ argv = ["notify-lab"]
 }
 
 TEST(NotifierOutbox, AnOutboxFileHoldsNoSecretOfTheConfig) {
-  set_env("PYCHRON_TEST_OUTBOX_KEY", "k3y-0utb0x-s3cret");
+  set_env("NOBION_TEST_OUTBOX_KEY", "k3y-0utb0x-s3cret");
   OutboxDir out;
   SignalBus bus;
   FakeRunner fake;
@@ -779,7 +779,7 @@ TEST(NotifierOutbox, AnOutboxFileHoldsNoSecretOfTheConfig) {
   const auto config = config_of(R"(
 [[email]]
 provider = "brevo"
-api_key_env = "PYCHRON_TEST_OUTBOX_KEY"
+api_key_env = "NOBION_TEST_OUTBOX_KEY"
 from = "pychron@example.org"
 to = ["a@example.org"]
 [[webhook]]
@@ -793,7 +793,7 @@ url = "https://hooks.example.org/services/T000/B000/XXXX"
   ASSERT_EQ(out.files().size(), 1u);
   const std::string text = read_file(out.files()[0].string());
   EXPECT_NE(text.find("pychron: run 66001-3 failed (queue q1)"), std::string::npos) << text;
-  for (const char* secret : {"k3y-0utb0x-s3cret", "PYCHRON_TEST_OUTBOX_KEY", "hooks.example.org", "T000/B000",
+  for (const char* secret : {"k3y-0utb0x-s3cret", "NOBION_TEST_OUTBOX_KEY", "hooks.example.org", "T000/B000",
                              "a@example.org", "pychron@example.org", "brevo"})
     EXPECT_EQ(text.find(secret), std::string::npos) << secret << " in\n" << text;
 }

@@ -14,8 +14,8 @@
 
 namespace pychron::setup {
 
-// The shipped profiles and example configs. $PYCHRON_PROFILES_DIR and
-// $PYCHRON_EXAMPLES_DIR win; then an installed layout next to the program
+// The shipped profiles and example configs. $NOBION_PROFILES_DIR and
+// $NOBION_EXAMPLES_DIR win; then an installed layout next to the program
 // (<prefix>/bin/x -> <prefix>/share/pychron, a macOS bundle's
 // Contents/MacOS/x -> Contents/Resources); then the source tree the program
 // was built from.

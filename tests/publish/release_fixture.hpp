@@ -4,7 +4,7 @@
 // one project and one of another, each with one unknown of five argon
 // isotopes on a level that has a flux, a production and a chronology (so
 // the analyses have ages and references to pin). Engine-parameterised as the
-// persistence tests are: SQLite always, PostgreSQL when PYCHRON_TEST_PG_URL
+// persistence tests are: SQLite always, PostgreSQL when NOBION_TEST_PG_URL
 // is set.
 
 #include <gtest/gtest.h>

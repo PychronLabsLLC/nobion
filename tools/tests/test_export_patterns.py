@@ -4,7 +4,7 @@ The legacy files are Python pickles of pychron.lasers.pattern.patterns
 classes. The tests make such pickles with stand-in classes of the same module
 and class names, so neither legacy Pychron nor traits is needed. When ELCTL
 names a built elctl, the exported files are also loaded by the real C++
-reader (`elctl laser patterns`). When PYCHRON_LEGACY_PATTERNS names a
+reader (`elctl laser patterns`). When NOBION_LEGACY_PATTERNS names a
 directory of real .lp files, those are exported too.
 """
 
@@ -304,9 +304,9 @@ class AgainstTheRealReader(Scratch):
         for name in ("hept  polygon", "ras  raster", "spi  line_spiral", "walk  random"):
             self.assertIn(name, done.stdout)
 
-    @unittest.skipUnless(os.environ.get("PYCHRON_LEGACY_PATTERNS"), "PYCHRON_LEGACY_PATTERNS is not set")
+    @unittest.skipUnless(os.environ.get("NOBION_LEGACY_PATTERNS"), "NOBION_LEGACY_PATTERNS is not set")
     def test_real_lab_files(self):
-        report = ep.export(Path(os.environ["PYCHRON_LEGACY_PATTERNS"]), self.out)
+        report = ep.export(Path(os.environ["NOBION_LEGACY_PATTERNS"]), self.out)
         print("\nwritten:", report.written, "\nskipped:", report.skipped, "\nnotes:", report.notes)
         self.assertTrue(report.written)
         for name, why in report.skipped.items():

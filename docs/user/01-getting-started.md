@@ -221,7 +221,7 @@ appear as a message box and on stderr.
 
 | What | Where |
 |---|---|
-| Site config (the list of installs, the default) | macOS `~/Library/Application Support/Pychron/site.toml`; Windows `%APPDATA%\Pychron\site.toml`; Linux `$XDG_CONFIG_HOME/pychron/site.toml` or `~/.config/pychron/site.toml`. The environment variable `PYCHRON_SITE_CONFIG` overrides the path. |
+| Site config (the list of installs, the default) | macOS `~/Library/Application Support/Pychron/site.toml`; Windows `%APPDATA%\Pychron\site.toml`; Linux `$XDG_CONFIG_HOME/pychron/site.toml` or `~/.config/pychron/site.toml`. The environment variable `NOBION_SITE_CONFIG` overrides the path. |
 | An install's files | the install's folder (shown in File > Installations) |
 | Preferences, window sizes and positions | the per-user settings store (Qt `QSettings`, organization "PychronLabs", application "nobion") |
 | Figure presets | the user's application config folder under `presets`, plus lab presets in `<lab>/figures` |

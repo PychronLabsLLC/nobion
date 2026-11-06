@@ -160,7 +160,7 @@ class InstallE2E : public pychron::testing::VirtualTimeTest, public ::testing::W
     if (!scripting::scripting_enabled()) GTEST_SKIP() << "the shipped queue's scripts need PYCHRON_SCRIPTING";
     dir_ = pychron::testing::unique_temp_path("pychron-e2e-");
     fs::create_directories(dir_);
-    site_config_.emplace("PYCHRON_SITE_CONFIG", (dir_ / "site.toml").string());
+    site_config_.emplace("NOBION_SITE_CONFIG", (dir_ / "site.toml").string());
     install();
     if (HasFatalFailure()) return;
     make_database();

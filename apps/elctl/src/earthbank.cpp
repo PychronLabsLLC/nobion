@@ -106,7 +106,7 @@ constexpr const char* kUsageText =
     "  --check                    say what the export would say and write nothing\n"
     "                             (--out is then not needed)\n"
     "  --templates <dir>          the service's two template workbooks (default: the\n"
-    "                             directory $PYCHRON_EARTHBANK_TEMPLATES names, and\n"
+    "                             directory $NOBION_EARTHBANK_TEMPLATES names, and\n"
     "                             when it names none the installed ones)\n"
     "  --overrides <file.toml>    what the analyses cannot say. Every key is optional;\n"
     "                             an unknown key, or a sample the selection does not\n"

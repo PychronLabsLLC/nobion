@@ -557,7 +557,7 @@ TEST_P(SchemaTest, ReleaseRowUpdatesOnlyItsStateColumns) {
 }
 
 TEST(SchemaParity, PostgresAndSqliteHaveTheSameTablesColumnsAndKeys) {
-  if (pg_url().empty()) GTEST_SKIP() << "PYCHRON_TEST_PG_URL not set";
+  if (pg_url().empty()) GTEST_SKIP() << "NOBION_TEST_PG_URL not set";
   TestDatabase pg("pg", false), lite("sqlite", true);
   ASSERT_TRUE(open_or_die(pg.url()));
   ASSERT_TRUE(open_or_die(lite.url()));
