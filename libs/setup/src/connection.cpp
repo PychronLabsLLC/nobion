@@ -37,10 +37,15 @@ std::string describe(const spectrometer::cfg::SpectrometerConfig& c) {
 
 // A scratch folder removed when this goes out of scope.
 struct Scratch {
-  fs::path dir;
-  Scratch() {
+  fs::path dir = unique_dir();
+  Scratch() = default;
+  Scratch(const Scratch&) = delete;
+  Scratch& operator=(const Scratch&) = delete;
+  Scratch(Scratch&&) = delete;
+  Scratch& operator=(Scratch&&) = delete;
+  static fs::path unique_dir() {
     std::random_device rd;
-    dir = fs::temp_directory_path() / ("nobion-connect-" + std::to_string(rd()) + std::to_string(rd()));
+    return fs::temp_directory_path() / ("nobion-connect-" + std::to_string(rd()) + std::to_string(rd()));
   }
   ~Scratch() {
     std::error_code ec;
