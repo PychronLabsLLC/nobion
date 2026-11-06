@@ -47,7 +47,7 @@ What this reaches, so nobody is surprised:
    - derived-value fingerprint salt `pychron-derived-fingerprint/1` (`libs/persistence/src/refs.cpp`, `tests/arar/fixtures/fingerprint_before_move.txt`): an opaque hash input; renaming changes every cached fingerprint for no gain;
    - the RAISE texts `tools/ddl_sqlite.py` writes into `migrations/sqlite` (`pychron: … is append-only`, `… of a published release is frozen`): its CI check (`ddl_sqlite.py --check`) compares output with the frozen files;
    - company names (section 3.4 below).
-4. **The company** (open question 1): Pychron Labs LLC, GitHub organisation `PychronLabsLLC`, QSettings organisation `PychronLabs`, bundle identifier domain `com.pychronlabs`, `https://pychronlabs.com/...` (`libs/publish/src/records.cpp`). Kept strings.
+4. **The company** (owner, 2026-11-06: kept): Pychron Labs LLC, GitHub organisation `PychronLabsLLC`, QSettings organisation `PychronLabs`, bundle identifier domain `com.pychronlabs`, `https://pychronlabs.com/...` (`libs/publish/src/records.cpp`). Kept strings.
 5. `elctl` (no pychron in it).
 
 ## 4. No compatibility layer
@@ -97,11 +97,11 @@ Unlanded branches with work (12 at `8d3ad1da`, among them `feat/grains` with 30 
 
 ## 8. Out of scope
 
-- Company, organisation, bundle-id domain (open question 1).
+- Company, organisation, bundle-id domain (kept, 3.4).
 - Renaming `elctl`.
 - Landed specs and plans, `CHANGELOG.md`, applied migrations, a migration rewriting the `pychron:` texts in database functions.
 - Renaming other branches (section 7 gives the steps).
 
 ## Open questions
 
-1. The company names stay as they are: Pychron Labs LLC, GitHub organisation `PychronLabsLLC`, QSettings organisation `PychronLabs` (where nobion keeps its settings), bundle identifier `com.pychronlabs.nobion`, `pychronlabs.com`? Keeping them is assumed above. Changing them is a separate step: a GitHub organisation rename moves the repository URL the update check reads; a new bundle identifier asks macOS camera permission again and moves QSettings once more.
+None. (Company names: owner, 2026-11-06, keep them; section 3.4.)
