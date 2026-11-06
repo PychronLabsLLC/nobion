@@ -60,7 +60,7 @@ Every artifact says exactly which source built it.
   - The archive uploaded as a release asset beside the installers. Never in an installer.
 - `CPACK_STRIP_FILES` stays `ON`: CPack then strips the installed copies (a debuglink section survives strip).
 - Repository public, so symbols public: nothing in them the source does not show.
-- Release builds run tests too: before packaging, `release.yml` builds and runs `ctest` for `arar`, `reduction`, `processing`, `core` suites in the release configuration, so a numeric fixture that differs under `-O2 -g` stops the release (root `AGENTS.md`: a stored format does not depend on the compiler).
+- Release builds run tests too: before packaging, `release.yml` builds and runs `ctest` for `arar`, `reduction`, `processing`, `core`, `vision` suites in the release configuration, so a numeric fixture that differs under `-O2 -g` stops the release (root `AGENTS.md`: a stored format does not depend on the compiler).
 
 ### 3.2 What the crash handler writes
 
@@ -100,7 +100,7 @@ Our code built with the standard library's cheap checks: out-of-range index, emp
 - MSVC: none (`_ITERATOR_DEBUG_LEVEL` changes ABI; Qt built at 0). About features say `hardened_stdlib=off` there.
 - `cmake/PychronHardening.cmake` applies them to `pychron_*` targets and both apps, every build type (a dev build fails the way a lab build does). Not applied when `PYCHRON_SANITIZE` is set: the sanitizer setup already turns on the library checks (root `AGENTS.md`) and wins.
 - Claim: no change to class layout in either library, so prebuilt Qt and Homebrew libraries link unchanged. Inline functions instantiated by both our code and a third-party target get different bodies (ODR); benign in practice, and the full `dev-ui` suite on the macOS UI CI job under the macros is the check.
-- Cost measured before turning on (section 13).
+- Cost measured before turning on (section 14).
 
 ## 5. Flight recorder
 
@@ -122,7 +122,7 @@ Last minutes of everything, in memory, written out when something goes wrong.
 - `Logger` (`logger.hpp`, state packed `(epoch << 9) | (explicit << 8) | level`): `level()` stays the file level. A second cached value, `gate` = min(file level, recorder level), packed the same way; `enabled(l)` compares against `gate`.
 - `log(l, m)`: file, stderr echo and bus (`Log` at or above `dock_level`) only when `l >= level()`, exactly as today; ring when `l >=` recorder level. Bus event records (`trace.<Event>`) follow the same rule.
 - `Logger::set_level` (explicit) changes the file level only; the recorder level follows recorder rules only.
-- Cost: a record below the file level but at the recorder level is now formatted (hex for `*.wire`). Measured (section 13); if over budget, `.wire` loggers format into the ring only, skipping the file formatter's work.
+- Cost: a record below the file level but at the recorder level is now formatted (hex for `*.wire`). Measured (section 14); if over budget, `.wire` loggers format into the ring only, skipping the file formatter's work.
 
 ### 5.2 The ring
 
@@ -230,7 +230,7 @@ One zip a lab sends back.
   - `elctl support-bundle [--install X] [--out file] [--since 72h] [--no-traces]`.
   - nobion Help > Collect Diagnostics…: snapshot for `live` taken on the main thread from `CoreBridge`/`ExperimentBridge`, then the bundle written on a worker thread with progress; the zip revealed in the file manager.
   - the unclean-exit dialog (3.3).
-- Never uploads. Sending is the operator's (email, share). Upload: section 12.
+- Never uploads. Sending is the operator's (email, share). Upload: section 13.
 
 ## 9. Spectrometer wire log
 
@@ -279,7 +279,33 @@ Every open with migration on goes through `persistence::detail::migrate` (`libs/
 - A fresh store (nothing applied): no backup.
 - Tests that migrate temporary stores leave the default (backup beside a temp file is harmless); CLI tests on PostgreSQL pass `--backed-up`.
 
-## 12. Out of scope (later groups)
+## 12. Optional libraries in release packages
+
+Owner, 2026-11-06: ship OpenCV, built trimmed; ship without Arrow for now.
+
+- Measured on the developer Mac: Homebrew `opencv` pulls 105 packages (ffmpeg, vtk, openvino, hdf5, boost, ...), 156 MB of libraries; `apache-arrow` 32 packages, 115 MB. Bundled through `macdeployqt` that would add hundreds of MB to `Nobion.app`, every dylib signed and notarized, and Homebrew bottles only run on the macOS they were built for (runner macOS 15). Not used.
+- Code needs only OpenCV `core`, `imgproc`, `videoio` (`cmake/PychronDependencies.cmake:73`; `geometry` too on 5.x).
+
+### 12.1 OpenCV, trimmed and static
+
+- `packaging/opencv/build.py <src> <prefix>`: configures, builds and installs a pinned OpenCV 4.x release (version in the script; tarball checked by sha256) into `<prefix>`. One script for the three OSes. Options:
+  - `BUILD_LIST=core,imgproc,videoio`, `BUILD_SHARED_LIBS=OFF`, `BUILD_WITH_STATIC_CRT=OFF` (MSVC `/MD`, as ours), `CMAKE_POSITION_INDEPENDENT_CODE=ON`, `CMAKE_BUILD_TYPE=Release`.
+  - Camera backends on: `WITH_AVFOUNDATION` (macOS), `WITH_V4L` (Linux), `WITH_MSMF` and `WITH_DSHOW` (Windows).
+  - Off: `WITH_FFMPEG`, `WITH_GSTREAMER`, `WITH_TBB`, `WITH_OPENMP`, `WITH_OPENCL`, `WITH_IPP`, `WITH_ITT`, `WITH_PROTOBUF`, `WITH_EIGEN`, `WITH_LAPACK`, image codecs (`WITH_JPEG`, `WITH_PNG`, `WITH_TIFF`, `WITH_WEBP`, `WITH_OPENJPEG`, `WITH_OPENEXR`, `WITH_JASPER`, `WITH_IMGCODEC_*`), `BUILD_TESTS`, `BUILD_PERF_TESTS`, `BUILD_EXAMPLES`, `BUILD_DOCS`, `BUILD_opencv_apps`, `BUILD_JAVA`, `BUILD_opencv_python3`. `BUILD_ZLIB=ON` (bundled zlib, static).
+  - macOS: `CMAKE_OSX_DEPLOYMENT_TARGET` and `CMAKE_OSX_ARCHITECTURES` as the app's.
+- `release.yml`: restores `<prefix>` from `actions/cache` keyed on OS, arch, OpenCV version and the script's sha256; on a miss runs the script. Then configures nobion with `-DPYCHRON_VISION_OPENCV=ON -DOpenCV_DIR=<prefix>/<cmake dir>` (`ON`: the release fails if it is not found, never a silent stub).
+- Static: nothing new to bundle, sign, notarize or depend on in the `.deb`. The frameworks and system libraries `videoio` needs (AVFoundation, CoreMedia, CoreVideo; Media Foundation) are linked through OpenCV's exported config.
+- Project CMake unchanged: no fetch fallback (`PychronDependencies.cmake` comment: a source build is too heavy for CI). Dev and CI keep Homebrew's (`ci.yml` `ui` job).
+- OpenCV is Apache-2.0: its license text added to the installer's third-party notices (`packaging/`).
+- Measured in plan: installer size and release job time, before and after, cache cold and warm.
+
+### 12.2 Arrow
+
+- `release.yml` sets `-DPYCHRON_PUBLISH=OFF` explicitly (was `AUTO`, found nothing). A release made by a packaged build writes everything but `data/*.parquet` (`libs/publish`), as today.
+- About `features` shows `publish_parquet=off`; release notes, and a line added to `docs/release_format.md`, say Parquet tables need a build with Arrow.
+- Revisited when hosted publishing (data publishing spec, 2026-10-18) is built; possibly a separate data-reduction build rather than the instrument installer.
+
+## 13. Out of scope (later groups)
 
 - Upload of bundles, telemetry, crash upload (Crashpad, Sentry server). Bundle and dump formats chosen so a later uploader sends them unchanged.
 - Remote diagnostic API in the app, `elctl --attach`, remote level changes.
@@ -290,8 +316,9 @@ Every open with migration on goes through `persistence::detail::migrate` (`libs/
 - JSON log sink; age-based log retention.
 - Release channels; auto-update.
 - Windows code signing; macOS Intel build.
+- Apache Arrow in release packages (12).
 
-## 13. Rules that must hold, and how each is shown
+## 14. Rules that must hold, and how each is shown
 
 - One build id in every artifact (binary, session line, About, metrics, run record, crash file, bundle). Release builds never `unknown` or `.dirty` (release job check, 2).
 - POSIX handler uses only the calls listed in 3.2. Shown by test: a helper executable (`tests/core/crash_helper.cpp`, `posix_spawn`ed by `tests/core/test_crash_capture.cpp`) dies by each signal in turn, by a stack overflow on the main thread and on a thread with `install_signal_stack()`, and by an out-of-range `std::vector::operator[]` under the hardening macros; the parent reads the crash file: `fatal signal`, `build`, `thread`, at least 3 frame addresses, a module map entry for the helper, ring lines.
@@ -309,4 +336,4 @@ Every open with migration on goes through `persistence::detail::migrate` (`libs/
 
 ## Open questions
 
-1. Release packages build without OpenCV and Arrow today (`release.yml` installs neither; `PYCHRON_VISION_OPENCV=AUTO` compiles vision to stubs, so camera, autocenter and focus do not work in a shipped build, and releases write no Parquet). Ship both (macOS: bundle Homebrew's OpenCV and Arrow dylibs into the `.app`; Linux: `.deb` depends on `libopencv-*` and Arrow; Windows: vcpkg `opencv4` and `arrow`, slower release builds), or ship without them and say so (About `features`, release notes)? This spec only makes the choice visible (2) and has `release.yml` set `ON`/`OFF` explicitly instead of `AUTO`.
+None. (OpenCV and Arrow in releases: settled by the owner 2026-11-06, section 12.)
