@@ -1,6 +1,14 @@
 #include "nobion/core/signal_stack.hpp"
 
-#if !defined(_WIN32)
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
 #include <csignal>
 #include <cstddef>
 
@@ -9,7 +17,14 @@
 
 namespace nobion {
 
-#if !defined(_WIN32)
+#if defined(_WIN32)
+namespace {
+
+// What a stack overflow leaves the exception filter (log_hub.cpp).
+constexpr ULONG kStackGuarantee = 64 * 1024;
+
+}  // namespace
+#else
 namespace {
 
 constexpr std::size_t kSignalStackSize = 64 * 1024;
@@ -63,7 +78,12 @@ thread_local SignalStack t_signal_stack;
 #endif
 
 void install_signal_stack() noexcept {
-#if !defined(_WIN32)
+#if defined(_WIN32)
+  // Setting the same size again is accepted; a failure (a larger guarantee
+  // already set) leaves the thread as it was.
+  ULONG guarantee = kStackGuarantee;
+  (void)SetThreadStackGuarantee(&guarantee);
+#else
   t_signal_stack.install();
 #endif
 }

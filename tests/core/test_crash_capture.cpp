@@ -213,19 +213,22 @@ struct WinDeath {
 // Spawns the helper on `dir` in `mode` and waits (at most 30 s) for it to end.
 WinDeath run_helper(const fs::path& dir, const std::string& mode) {
   WinDeath death;
-  // No crash dialog for the helper: the error mode is inherited.
-  const UINT previous = SetErrorMode(0);
-  (void)SetErrorMode(previous | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
   const std::wstring helper = fs::path(NOBION_CRASH_HELPER).wstring();
   // CreateProcessW may write into the command line: a buffer of our own.
+  // The quoting holds for a dir that does not end in a backslash (a temp
+  // dir's name never does): `\"` would escape the closing quote.
   std::wstring command = L"\"" + helper + L"\" \"" + dir.wstring() + L"\" " + fs::path(mode).wstring();
   STARTUPINFOW startup{};
   startup.cb = static_cast<DWORD>(sizeof(startup));
   PROCESS_INFORMATION process{};
-  if (CreateProcessW(helper.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startup,
-                     &process) == FALSE) {
-    return death;
-  }
+  // No crash dialog for the helper: the error mode is inherited when the
+  // process is created, and ours is put back right after.
+  const UINT previous = SetErrorMode(0);
+  (void)SetErrorMode(previous | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
+  const BOOL created = CreateProcessW(helper.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr,
+                                      &startup, &process);
+  (void)SetErrorMode(previous);
+  if (created == FALSE) return death;
   death.spawned = true;
   death.pid = process.dwProcessId;
   if (WaitForSingleObject(process.hProcess, 30000) != WAIT_OBJECT_0) {
@@ -265,10 +268,10 @@ ULONG32 dump_thread_count(const fs::path& path) {
   return threads;
 }
 
-// The helper dies in `mode` by exception `code`; its crash file holds the
-// exception, build and thread lines, and its dump a thread list.
-// (void: ASSERT_* returns from it.)
-void check_windows_crash(const std::string& mode, const std::string& code) {
+// The helper dies in `mode` by exception `code` on the thread tagged
+// `thread`; its crash file holds the exception, build and thread lines, and
+// its dump a thread list. (void: ASSERT_* returns from it.)
+void check_windows_crash(const std::string& mode, const std::string& code, const std::string& thread) {
   TempDir tmp;
   const WinDeath death = run_helper(tmp.path(), mode);
   ASSERT_TRUE(death.spawned) << "could not spawn " << NOBION_CRASH_HELPER;
@@ -286,11 +289,11 @@ void check_windows_crash(const std::string& mode, const std::string& code) {
   for (const auto& line : lines_of(text)) {
     if (line == "fatal exception 0x" + code) exception_line = true;
     if (line == "build " + nobion::build_id()) build_line = true;
-    if (line == "thread crash_helper.main") thread_line = true;
+    if (line == "thread " + thread) thread_line = true;
   }
   EXPECT_TRUE(exception_line) << mode << ": fatal exception 0x" << code << "\n" << text;
   EXPECT_TRUE(build_line) << text;
-  EXPECT_TRUE(thread_line) << text;
+  EXPECT_TRUE(thread_line) << mode << ": thread " << thread << "\n" << text;
   ASSERT_TRUE(fs::exists(dump_file)) << dump_file;
   EXPECT_GE(dump_thread_count(dump_file), 1u) << dump_file;
 }
@@ -368,8 +371,9 @@ TEST(CrashCapture, HardenedWritesACrashFile) {
 
 #endif
 
-// Windows: a null write and a stack overflow on the main thread each leave
-// the text lines and a minidump dbghelp reads.
+// Windows: a null write, a stack overflow on the main thread, and (below) one
+// on a thread of ours (install_signal_stack gave it its stack guarantee) each
+// leave the text lines and a minidump dbghelp reads.
 #ifdef _WIN32
 TEST(CrashCapture, WindowsWritesTextAndDump) {
   // Chosen by the preprocessor, not an if on kAddressSanitizer: MSVC warns of
@@ -377,12 +381,22 @@ TEST(CrashCapture, WindowsWritesTextAndDump) {
 #if defined(__SANITIZE_ADDRESS__)
   GTEST_SKIP() << "AddressSanitizer owns the exceptions";
 #else
-  check_windows_crash("segv", "c0000005");           // STATUS_ACCESS_VIOLATION
-  check_windows_crash("overflow-main", "c00000fd");  // STATUS_STACK_OVERFLOW
+  check_windows_crash("segv", "c0000005", "crash_helper.main");               // STATUS_ACCESS_VIOLATION
+  check_windows_crash("overflow-main", "c00000fd", "crash_helper.main");      // STATUS_STACK_OVERFLOW
+#endif
+}
+
+// A test of its own: three crashes in one could pass the 60 s ctest timeout.
+TEST(CrashCapture, WindowsThreadOverflowWritesTextAndDump) {
+#if defined(__SANITIZE_ADDRESS__)
+  GTEST_SKIP() << "AddressSanitizer owns the exceptions";
+#else
+  check_windows_crash("overflow-thread", "c00000fd", "crash_helper.overflow");
 #endif
 }
 #else
 TEST(CrashCapture, WindowsWritesTextAndDump) { GTEST_SKIP() << "Windows only: the exception filter and minidump"; }
+TEST(CrashCapture, WindowsThreadOverflowWritesTextAndDump) { GTEST_SKIP() << "Windows only"; }
 #endif
 
 TEST(CrashCapture, CrashFilePathIsInTheCrashFolder) {

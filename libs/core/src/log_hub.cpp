@@ -614,7 +614,7 @@ struct CrashState {
   std::weak_ptr<LogHub::Impl> current;  // most recently created hub
   bool installed = false;
 #ifdef _WIN32
-  std::filesystem::path dump_path;  // what g_dump_target is open on; empty = none
+  std::filesystem::path crash_path;  // what g_crash_text (and g_dump_target) is open on; empty = none
 #endif
 };
 CrashState& crash_state() {
@@ -648,23 +648,71 @@ void close_crash_target(CrashTarget target) noexcept {
 #endif
 }
 
+#ifdef _WIN32
+
+// Windows (spec 3.2): the crash file and the minidump are both opened before
+// any crash (at install, when the handlers follow another hub, at
+// begin_session), so the filter only calls WriteFile: CreateFileW goes
+// through the process heap, which a crash may have broken. Read lock-free by
+// the filter and the crash thread.
+std::atomic<HANDLE> g_crash_text{INVALID_HANDLE_VALUE};   // <dir>/crash/<stem>-<pid>.txt
+std::atomic<HANDLE> g_dump_target{INVALID_HANDLE_VALUE};  // <dir>/crash/<stem>-<pid>.dmp
+
+// Marks `file` to go when its last handle closes (true), or to stay (false).
+// A process that does not crash leaves no empty crash file or dump behind;
+// the filter (and the terminate line) clear the mark before writing.
+void set_delete_on_close(HANDLE file, bool remove) noexcept {
+  FILE_DISPOSITION_INFO disposition{};
+  disposition.DeleteFile = static_cast<BOOLEAN>(remove ? TRUE : FALSE);
+  (void)SetFileInformationByHandle(file, FileDispositionInfo, &disposition,
+                                   static_cast<DWORD>(sizeof(disposition)));
+}
+
+// Opens the crash file `crash_path` and the dump beside it (same stem,
+// `.dmp`) unless they are the ones open already, and closes the ones they
+// replace (removed then, if never written). A file already there (a pid used
+// again) is kept: an old crash file is appended to and left unmarked; an old
+// dump is left alone and this process goes without one. Caller holds
+// CrashState::mutex.
+void set_crash_handles(CrashState& state, const std::filesystem::path& crash_path) noexcept {
+  try {
+    if (crash_path.empty() || crash_path == state.crash_path) return;
+    const HANDLE text = CreateFileW(crash_path.c_str(), FILE_APPEND_DATA | DELETE,
+                                    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_ALWAYS,
+                                    FILE_ATTRIBUTE_NORMAL, nullptr);
+    const DWORD text_opened = GetLastError();  // ERROR_ALREADY_EXISTS: it was there before
+    if (text != INVALID_HANDLE_VALUE && text_opened != ERROR_ALREADY_EXISTS) set_delete_on_close(text, true);
+    close_crash_target(g_crash_text.exchange(text));
+
+    std::filesystem::path dump_path = crash_path;
+    dump_path.replace_extension(".dmp");
+    const HANDLE dump = CreateFileW(dump_path.c_str(), GENERIC_WRITE | DELETE, FILE_SHARE_READ | FILE_SHARE_DELETE,
+                                    nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (dump != INVALID_HANDLE_VALUE) set_delete_on_close(dump, true);
+    close_crash_target(g_dump_target.exchange(dump));
+    state.crash_path = crash_path;
+  } catch (...) {  // NOLINT(bugprone-empty-catch): out of memory; the files opened before stay
+  }
+}
+
+#else
+
 // The crash file's path, preformatted outside the handler (at install, when a
-// hub is retargeted, at begin_session), in the path's native characters (wide
-// on Windows). Two buffers: a new path is written into the one the handler is
-// not told about, then named, so the handler never reads one half written.
-// Written only under CrashState::mutex.
-using PathChar = std::filesystem::path::value_type;
+// hub is retargeted, at begin_session); the handler opens it with open(2)
+// only when a crash happens. Two buffers: a new path is written into the one
+// the handler is not told about, then named, so the handler never reads one
+// half written. Written only under CrashState::mutex.
 constexpr std::size_t kCrashPathMax = 4096;
-std::array<std::array<PathChar, kCrashPathMax>, 2> g_crash_paths{};
+std::array<std::array<char, kCrashPathMax>, 2> g_crash_paths{};
 std::atomic<int> g_crash_path_index{-1};  // -1: no crash file
 
 void set_crash_path(const std::filesystem::path& path) noexcept {
-  const auto& text = path.native();  // a reference: nothing allocated
+  const std::string& text = path.native();  // a reference: nothing allocated
   if (text.empty() || text.size() >= kCrashPathMax) return;
   const int next = g_crash_path_index.load() == 0 ? 1 : 0;
   auto& buffer = g_crash_paths[static_cast<std::size_t>(next)];
   std::copy(text.begin(), text.end(), buffer.begin());
-  buffer[text.size()] = PathChar{};
+  buffer[text.size()] = '\0';
   g_crash_path_index.store(next);
 }
 
@@ -675,44 +723,18 @@ CrashTarget open_crash_file_now() noexcept {
   return open_crash_file(g_crash_paths[static_cast<std::size_t>(index)].data());
 }
 
-#ifdef _WIN32
-
-// The minidump (spec 3.2): `<log dir>/crash/<stem>-<pid>.dmp`, opened when the
-// handlers are installed and when they follow another hub, so the crash
-// thread only writes. Read lock-free by the crash thread.
-std::atomic<HANDLE> g_dump_target{INVALID_HANDLE_VALUE};
-
-// Marks `file` to go when its last handle closes (true), or to stay (false).
-// A process that does not crash leaves no empty dump behind; the crash
-// thread clears the mark before it writes.
-void set_delete_on_close(HANDLE file, bool remove) noexcept {
-  FILE_DISPOSITION_INFO disposition{};
-  disposition.DeleteFile = static_cast<BOOLEAN>(remove ? TRUE : FALSE);
-  (void)SetFileInformationByHandle(file, FileDispositionInfo, &disposition,
-                                   static_cast<DWORD>(sizeof(disposition)));
-}
-
-// Opens the dump beside `crash_path` (same stem, `.dmp`) unless it is the one
-// open already. A file already there (a pid used again) is left alone, and
-// this process goes without a dump. Caller holds CrashState::mutex.
-void set_dump_target(CrashState& state, const std::filesystem::path& crash_path) noexcept {
-  try {
-    if (crash_path.empty()) return;
-    std::filesystem::path dump = crash_path;
-    dump.replace_extension(".dmp");
-    if (dump == state.dump_path) return;
-    const HANDLE fresh = CreateFileW(dump.c_str(), GENERIC_WRITE | DELETE, FILE_SHARE_READ | FILE_SHARE_DELETE,
-                                     nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (fresh == INVALID_HANDLE_VALUE) return;
-    set_delete_on_close(fresh, true);
-    // The old dump, never written, goes with its handle.
-    close_crash_target(g_dump_target.exchange(fresh));
-    state.dump_path = std::move(dump);
-  } catch (...) {  // NOLINT(bugprone-empty-catch): out of memory; the dump opened before stays
-  }
-}
-
 #endif
+
+// The crash file (and on Windows the dump) for `impl`. Caller holds
+// CrashState::mutex.
+void set_crash_files(CrashState& state, const LogHub::Impl& impl) noexcept {
+#ifdef _WIN32
+  set_crash_handles(state, impl.crash_path);
+#else
+  (void)state;
+  set_crash_path(impl.crash_path);
+#endif
+}
 
 // Points the handler at `impl`'s log file and crash file (and, on Windows,
 // its dump). Caller holds CrashState::mutex.
@@ -723,10 +745,7 @@ void set_dump_target(CrashState& state, const std::filesystem::path& crash_path)
 // be using is ever closed.
 void retarget_crash_output(const LogHub::Impl& impl) noexcept {
   if (impl.file_path.empty()) return;
-  set_crash_path(impl.crash_path);
-#ifdef _WIN32
-  set_dump_target(crash_state(), impl.crash_path);
-#endif
+  set_crash_files(crash_state(), impl);
   const CrashTarget fresh = open_crash_target(impl.file_path);
   if (fresh == kNoCrashTarget) return;
 #ifdef _WIN32
@@ -772,10 +791,7 @@ void reset_crash_path(const LogHub::Impl& impl) noexcept {
     auto& state = crash_state();
     std::lock_guard lock(state.mutex);
     if (!state.installed || state.current.lock().get() != &impl) return;
-    set_crash_path(impl.crash_path);
-#ifdef _WIN32
-    set_dump_target(state, impl.crash_path);
-#endif
+    set_crash_files(state, impl);
   } catch (...) {  // NOLINT(bugprone-empty-catch): a mutex that cannot be locked; the path set at install stays
   }
 }
@@ -862,13 +878,20 @@ std::string terminate_text() {
 
 // The terminate text as one line of the crash file. Not a signal context
 // (terminate runs on the throwing thread as a normal call), so the line is
-// built here; the file is opened and written as the handler does (POSIX:
-// open(2) and write(2)), so the SIGABRT block that abort() adds next follows
-// it. (MSVC's abort() ends the process without the exception filter: on
-// Windows this line is all the crash file has.)
+// built here; the file is written as the handler writes it (POSIX: open(2)
+// and write(2); Windows: WriteFile on the handle opened in advance), so the
+// SIGABRT block that abort() adds next follows it. (MSVC's abort() ends the
+// process without the exception filter: on Windows this line is all the
+// crash file has.)
 void write_terminate_line(std::string_view text) noexcept {
+#ifdef _WIN32
+  const CrashTarget file = g_crash_text.load();
+  if (file == kNoCrashTarget) return;
+  set_delete_on_close(file, false);
+#else
   const CrashTarget file = open_crash_file_now();
   if (file == kNoCrashTarget) return;
+#endif
   try {
     std::string line;
     append_one_line(line, text);
@@ -876,7 +899,9 @@ void write_terminate_line(std::string_view text) noexcept {
     write_all(file, line.data(), line.size());
   } catch (...) {  // NOLINT(bugprone-empty-catch): out of memory; the SIGABRT block still follows
   }
+#ifndef _WIN32
   close_crash_target(file);
+#endif
 }
 
 [[noreturn]] void on_terminate() noexcept {
@@ -956,9 +981,13 @@ void write_thread_line(const CrashTargets& targets) noexcept {
 // Windows (spec 3.2): the filter writes the text lines on the faulting
 // thread, then hands the EXCEPTION_POINTERS to the crash thread, which writes
 // the minidump: a stack overflow leaves the faulting thread too little stack
-// for dbghelp. Events, thread and dump file are all made at install.
+// for dbghelp. Events and thread are made at install, the crash file and
+// dump handles then too (set_crash_handles). The filter's stack after an
+// overflow is the 64 KiB guarantee install_signal_stack() gives each thread
+// we own.
 constexpr DWORD kDumpWaitMs = 10000;
-constexpr ULONG kFilterStackGuarantee = 64 * 1024;  // left to the filter after a stack overflow
+// A second faulting thread waits this long: past the first's dump wait.
+constexpr DWORD kSecondCrashWaitMs = kDumpWaitMs + 5000;
 std::atomic<HANDLE> g_dump_request{nullptr};  // auto-reset; the filter sets it
 std::atomic<HANDLE> g_dump_done{nullptr};     // manual-reset; the crash thread sets it
 std::atomic<EXCEPTION_POINTERS*> g_dump_pointers{nullptr};
@@ -1004,14 +1033,17 @@ void start_dump_thread() noexcept {
 }
 
 LONG WINAPI on_unhandled_exception(EXCEPTION_POINTERS* info) {
-  // A second thread faulting meanwhile waits for the first to end the
-  // process, then lets its own exception go on.
+  // A second thread faulting meanwhile waits until the first has finished
+  // its dump (and ended the process), then lets its own exception go on.
   if (g_in_crash.exchange(true)) {
-    Sleep(kDumpWaitMs + 5000);
+    Sleep(kSecondCrashWaitMs);
     return EXCEPTION_CONTINUE_SEARCH;
   }
 
-  const CrashTarget crash_file = open_crash_file_now();
+  // Only WriteFile from here on the faulting thread: the handles were opened
+  // in advance, as nothing that may touch the heap is safe now.
+  const CrashTarget crash_file = g_crash_text.load();
+  if (crash_file != kNoCrashTarget) set_delete_on_close(crash_file, false);
   const CrashTargets targets{GetStdHandle(STD_ERROR_HANDLE), g_crash_target.load(), crash_file};
 
   std::array<char, 64> line{};
@@ -1031,7 +1063,6 @@ LONG WINAPI on_unhandled_exception(EXCEPTION_POINTERS* info) {
   pos = put_unsigned(line.data(), pos, static_cast<std::uint64_t>(GetCurrentThreadId()), 10);
   line[pos++] = '\n';
   write_to_all(targets, line.data(), pos);
-  close_crash_target(crash_file);
 
   // More preformatted spans go here (the flight recorder ring, spec 5.4).
 
@@ -1047,10 +1078,6 @@ LONG WINAPI on_unhandled_exception(EXCEPTION_POINTERS* info) {
 
 void install_fatal_handlers() noexcept {
   preformat_build_line();
-  // The calling (main) thread's: after a stack overflow the filter runs on
-  // what is left of the faulting thread's stack.
-  ULONG guarantee = kFilterStackGuarantee;
-  (void)SetThreadStackGuarantee(&guarantee);
   start_dump_thread();
   (void)SetUnhandledExceptionFilter(&on_unhandled_exception);
 }
@@ -1169,7 +1196,7 @@ void LogHub::install_crash_handlers() {
   std::lock_guard lock(state.mutex);
   if (state.installed) return;
   state.installed = true;
-  install_signal_stack();  // the calling (main) thread's
+  install_signal_stack();  // the calling (main) thread's (Windows: its stack guarantee)
   detail::ensure_thread_tag_key();  // the handler reads the thread tag from it
   install_fatal_handlers();  // before the retarget: it preformats what the handler writes
   if (auto hub = state.current.lock()) retarget_crash_output(*hub);
