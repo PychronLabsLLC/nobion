@@ -258,7 +258,6 @@ else()
   target_sources(nobion_ui_lib PRIVATE src/earthbank_no_network.cpp)
 endif()
 nobion_set_warnings(nobion_ui_lib)
-target_compile_definitions(nobion_ui_lib PRIVATE NOBION_VERSION="${PROJECT_VERSION}")
 # --db browses the DVC store; it needs the persistence library.
 if(TARGET nobion_processing_store)
   target_link_libraries(nobion_ui_lib PUBLIC nobion::processing_store nobion::arar_store)
@@ -324,8 +323,6 @@ endif()
 
 add_executable(nobion src/main.cpp)
 target_link_libraries(nobion PRIVATE nobion_ui_lib)
-# main.cpp reports the version in nobion_build_info (the metrics endpoint)
-target_compile_definitions(nobion PRIVATE NOBION_VERSION="${PROJECT_VERSION}")
 # spectrometer sim drivers register from static initializers nothing references
 nobion_link_drivers(nobion nobion_sim)
 nobion_set_warnings(nobion)

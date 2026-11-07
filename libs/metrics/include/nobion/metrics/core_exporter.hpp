@@ -29,10 +29,12 @@ namespace nobion::metrics {
 // What nobion_build_info says about this build.
 struct BuildInfo {
   std::string version, os, compiler;
+  std::string git_sha;  // 12 hex digits, or "unknown"
 };
 
 // `version` with this build's platform ("macos", "linux", "windows") and
-// compiler ("clang 17.0", "gcc 14.2", "msvc 1940").
+// compiler ("clang 17.0", "gcc 14.2", "msvc 1940"), and the git sha the build
+// was made from (`nobion::build_info()`).
 BuildInfo build_info(std::string version);
 
 // What one link (a transport's recovery, `nobion::Link` in libs/devices) has

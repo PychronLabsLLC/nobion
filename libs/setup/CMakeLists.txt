@@ -15,7 +15,6 @@ target_link_libraries(nobion_setup PUBLIC nobion::experiment nobion::systems nob
 
 # The source tree: where a program that is not installed finds the profiles
 # and example configs (setup::find_resources).
-target_compile_definitions(nobion_setup PRIVATE NOBION_SETUP_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
-  NOBION_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(nobion_setup PRIVATE NOBION_SETUP_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
 nobion_set_warnings(nobion_setup)

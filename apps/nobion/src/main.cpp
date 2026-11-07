@@ -91,6 +91,7 @@
 #include "no_database_persister.hpp"
 #include "pattern_maker_window.hpp"
 #include "preferences.hpp"
+#include "nobion/core/build_info.hpp"
 #include "nobion/core/log_context.hpp"
 #include "nobion/setup/doctor.hpp"
 #include "nobion/setup/installer.hpp"
@@ -162,7 +163,7 @@ int fatal(const std::string& what) {
 std::unique_ptr<nobion::ui::UpdateChecker> start_update_check(QMainWindow& window, QSettings& settings,
                                                                nobion::ui::UpdateChecker::Now now,
                                                                const std::function<void(const QString&)>& log) {
-  const auto running = nobion::update::parse_version(NOBION_VERSION);
+  const auto running = nobion::update::parse_version(nobion::build_info().version);
   if (!running) {
     const QString why = QStringLiteral("no update check: ") + QString::fromStdString(running.error().what);
     if (log) {
@@ -430,7 +431,7 @@ int main(int argc, char** argv) {
   // --version needs no display.
   for (int i = 1; i < argc; ++i) {
     if (std::string_view(argv[i]) == "--version") {
-      std::printf("nobion %s\n", std::string(setup::version()).c_str());
+      std::printf("nobion %s\n", nobion::build_id().c_str());
       return 0;
     }
   }
@@ -727,7 +728,7 @@ int main(int argc, char** argv) {
     const auto saving = nobion::ui::choose_run_saving(*cli, database, simulated_session, data_dir);
     if (!saving.to_database) {
       run_saving_note = saving.note;
-    } else if (auto opened = nobion::experiment::store::open_acquisition(database, data_dir, NOBION_VERSION)) {
+    } else if (auto opened = nobion::experiment::store::open_acquisition(database, data_dir, std::string(nobion::build_info().version))) {
       acquisition = std::move(*opened);
     } else {
       no_database = std::make_unique<nobion::ui::NoDatabasePersister>(opened.error().what);
@@ -857,7 +858,7 @@ int main(int argc, char** argv) {
 #ifdef NOBION_EXPERIMENT_HAS_METRICS
     metrics = nobion::experiment::metrics::MetricsService::start(
         (*line)->config().metrics, (*line)->bus(), (*line)->scheduler(), (*line)->clock(), (*line)->log_hub(),
-        NOBION_VERSION);
+        std::string(nobion::build_info().version));
     if (metrics) {
       // Each transport's reconnects and repeats, read from its link at each
       // scrape: the line's, and the spectrometer's (both outlive `metrics`).

@@ -36,6 +36,7 @@
 // Qt's `signals` keyword macro would rewrite persistence::CollectionRoots::signals.
 #pragma push_macro("signals")
 #undef signals
+#include "nobion/core/build_info.hpp"
 #include "nobion/processing/store_source.hpp"
 #include "nobion/publish/earthbank_source.hpp"
 #include "nobion/publish/workflow.hpp"
@@ -1057,11 +1058,7 @@ std::optional<pb::PublicationPlan> PublishDialog::plan() const {
     for (const QString& a : selection_) spec.analyses.push_back(a.toStdString());
     if (spec.options_json.empty()) spec.options_json = pb::release_options_json(pb::ReleaseOptions{});
     spec.reduction_version = std::string(reduction::kReductionVersion);
-#ifdef NOBION_VERSION
-    spec.software_version = std::string("nobion/") + NOBION_VERSION;
-#else
-    spec.software_version = "nobion";
-#endif
+    spec.software_version = std::string("nobion/") + std::string(nobion::build_info().version);
     out.release = pb::NewRelease{std::move(spec)};
   } else {
     const QString chosen = chosen_release();

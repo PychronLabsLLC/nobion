@@ -27,6 +27,7 @@
 
 #include "menu_hub.hpp"
 #include "theme.hpp"
+#include "nobion/core/build_info.hpp"
 
 namespace nobion::ui {
 
@@ -63,11 +64,20 @@ QString compiler() {
 
 }  // namespace
 
-QString app_version() { return QStringLiteral(NOBION_VERSION); }
+QString app_version() { return QString::fromUtf8(nobion::build_info().version.data(), static_cast<qsizetype>(nobion::build_info().version.size())); }
 
 QString build_info() {
   QStringList lines;
   lines << QStringLiteral("nobion: %1").arg(app_version());
+  {
+    const auto& b = nobion::build_info();
+    lines << QStringLiteral("source: %1%2")
+                 .arg(QString::fromUtf8(b.git_sha.data(), static_cast<qsizetype>(b.git_sha.size())),
+                      b.git_dirty ? QStringLiteral(" (modified)") : QString());
+    QStringList names;
+    for (const std::string_view f : b.features) names << QString::fromUtf8(f.data(), static_cast<qsizetype>(f.size()));
+    lines << QStringLiteral("features: %1").arg(names.isEmpty() ? QStringLiteral("none") : names.join(QStringLiteral(", ")));
+  }
   lines << QStringLiteral("Qt: %1 (built with %2)").arg(QString::fromLatin1(qVersion()), QStringLiteral(QT_VERSION_STR));
   lines << QStringLiteral("compiler: %1").arg(compiler());
 #ifdef NDEBUG

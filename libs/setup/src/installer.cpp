@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <system_error>
 
+#include "nobion/core/build_info.hpp"
 #include "nobion/core/env.hpp"
 #include "nobion/core/process.hpp"
 
@@ -102,7 +103,7 @@ fs::path default_root(const Profile& profile, const std::string& name) {
   return home_dir() / "Nobion" / name;
 }
 
-std::string_view version() noexcept { return NOBION_VERSION; }
+std::string_view version() noexcept { return nobion::build_info().version; }
 
 Answers builtin_answers(const std::string& name, const fs::path& root) {
   return {{"install_name", Value{name}}, {"root", Value{root.generic_string()}}};

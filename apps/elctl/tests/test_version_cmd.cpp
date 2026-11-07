@@ -7,7 +7,9 @@
 #include <string>
 #include <vector>
 
+#include "elctl_fixture.hpp"
 #include "fake_http.hpp"
+#include "nobion/core/build_info.hpp"
 #include "nobion/setup/installer.hpp"
 
 namespace {
@@ -97,4 +99,12 @@ TEST(VersionCmd, NoClient) {
                                           elctl::VersionDeps{[] { return std::unique_ptr<nobion::http::IHttpClient>{}; }});
   EXPECT_EQ(code, elctl::kUsage);
   EXPECT_TRUE(contains(err.str(), "this build has no network client")) << err.str();
+}
+
+TEST(ElctlVersion, PrintsTheBuildId) {
+  const auto o = elctl::testing::run_raw({"--version"});
+  EXPECT_EQ(o.code, elctl::kOk) << o.err;
+  EXPECT_EQ(o.out.substr(0, o.out.find('\n')), "elctl " + nobion::build_id()) << o.out;
+  EXPECT_TRUE(o.out.find("\nprofiles: ") != std::string::npos) << o.out;
+  EXPECT_TRUE(o.out.find("\nexamples: ") != std::string::npos) << o.out;
 }

@@ -72,7 +72,7 @@
             "uid": "${datasource}"
           },
           "expr": "nobion_build_info{instrument=\"$instrument\"}",
-          "legendFormat": "{{version}}  {{os}}  {{compiler}}",
+          "legendFormat": "{{version}}  {{git_sha}}  {{os}}  {{compiler}}",
           "instant": true
         }
       ],

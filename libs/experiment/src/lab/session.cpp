@@ -5,6 +5,7 @@
 #include <string>
 #include <utility>
 
+#include "nobion/core/build_info.hpp"
 #include "nobion/core/events.hpp"
 #include "nobion/core/log_error.hpp"
 #include "nobion/core/log_context.hpp"
@@ -220,6 +221,8 @@ Result<void> LabSession::start(QueueSpec queue, std::size_t from_row) {
   auto ctx = services_->ctx;
   ctx.services.instrument.mass_spectrometer = queue.mass_spectrometer;
   ctx.services.instrument.analyst = queue.username;
+  ctx.services.instrument.software_version = std::string(nobion::build_info().version);
+  ctx.services.instrument.software_git_sha = std::string(nobion::build_info().git_sha);
   ctx.services.instrument.simulated = hardware_.simulation;  // travels with each record
   {
     std::lock_guard lock(mutex_);

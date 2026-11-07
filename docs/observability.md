@@ -306,7 +306,7 @@ real time they are simulated seconds.
 
 | Metric | Labels | Meaning |
 |---|---|---|
-| `nobion_build_info` | `version`, `os`, `compiler` | always 1; the labels say what is running |
+| `nobion_build_info` | `version`, `git_sha`, `os`, `compiler` | always 1; the labels say what is running |
 | `nobion_process_uptime_seconds` | | seconds since nobion started |
 | `nobion_log_records_total` | `level`, `component` | log records; `component` is the first part of the logger's name |
 | `nobion_bus_handler_failures_total` | `event` | parts of nobion that failed while handling an event, by the event. It should stay at zero: anything else is a bug, and the log (`bus`) has what was said |

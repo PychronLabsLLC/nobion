@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "metrics_text.hpp"
+#include "nobion/core/build_info.hpp"
 #include "nobion/core/events.hpp"
 #include "nobion/core/signal_bus.hpp"
 #include "nobion/metrics/registry.hpp"
@@ -29,7 +30,7 @@ struct CoreExporterTest : ::testing::Test {
   SignalBus bus;
   double now = 5000.0;  // seconds on a clock that only moves forward
   std::unique_ptr<CoreExporter> exporter =
-      std::make_unique<CoreExporter>(registry, bus, BuildInfo{"0.3.0", "testos", "testcc 1.0"}, [this] { return now; });
+      std::make_unique<CoreExporter>(registry, bus, metrics::BuildInfo{"0.3.0", "testos", "testcc 1.0", std::string(nobion::build_info().git_sha)}, [this] { return now; });
 
   std::string text() { return registry.render(); }
 };
@@ -294,7 +295,9 @@ TEST_F(CoreExporterTest, OddNamesRenderValidly) {
 TEST_F(CoreExporterTest, BuildInfoAndStartTime) {
   now += 30.0;
   const std::string t = text();
-  EXPECT_DOUBLE_EQ(value(t, "nobion_build_info{compiler=\"testcc 1.0\",os=\"testos\",version=\"0.3.0\"}"), 1.0);
+  const std::string sha(nobion::build_info().git_sha);
+  EXPECT_DOUBLE_EQ(
+      value(t, "nobion_build_info{compiler=\"testcc 1.0\",git_sha=\"" + sha + "\",os=\"testos\",version=\"0.3.0\"}"), 1.0);
   EXPECT_DOUBLE_EQ(value(t, "nobion_process_uptime_seconds"), 30.0);
 }
 
@@ -319,7 +322,8 @@ TEST_F(CoreExporterTest, StopsListeningWhenDestroyed) {
 }
 
 TEST(BuildInfo, NamesThisPlatform) {
-  const BuildInfo b = build_info("1.2.3");
+  const metrics::BuildInfo b = metrics::build_info("1.2.3");
+  EXPECT_EQ(b.git_sha, std::string(nobion::build_info().git_sha));
   EXPECT_EQ(b.version, "1.2.3");
   EXPECT_TRUE(b.os == "macos" || b.os == "linux" || b.os == "windows") << b.os;
   EXPECT_FALSE(b.compiler.empty());

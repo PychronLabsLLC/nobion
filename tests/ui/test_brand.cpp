@@ -13,6 +13,7 @@
 #include "data_main_window.hpp"
 #include "main_window.hpp"
 #include "nobion/arar/domain.hpp"
+#include "nobion/core/build_info.hpp"
 #include "nobion/processing/domain.hpp"
 #include "theme.hpp"
 #include "ui_fixture.hpp"
@@ -53,6 +54,13 @@ class TestBrand : public QObject {
     QVERIFY(info.startsWith(QStringLiteral("nobion: ") + nobion::ui::app_version()));
     QVERIFY(info.contains(QStringLiteral("Qt: ") + QString::fromLatin1(qVersion())));
     QVERIFY(info.contains(QStringLiteral("compiler: ")));
+  }
+
+  void buildInfoNamesShaAndFeatures() {
+    const QString info = nobion::ui::build_info();
+    const auto& b = nobion::build_info();
+    QVERIFY(info.contains(QString::fromUtf8(b.git_sha.data(), static_cast<qsizetype>(b.git_sha.size()))));
+    QVERIFY(info.contains(QStringLiteral("features: ")));
   }
 
   void the_banner_draws_the_peaks_in_the_signal_colour() {

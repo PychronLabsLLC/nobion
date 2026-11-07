@@ -32,6 +32,7 @@
 #include "laser.hpp"
 #include "spec_table.hpp"
 #include "import.hpp"
+#include "nobion/core/build_info.hpp"
 #include "nobion/setup/doctor.hpp"
 #include "nobion/setup/installer.hpp"
 #include "setup.hpp"
@@ -830,7 +831,7 @@ int run(const std::vector<std::string>& args, Io io) {
     } else if (a == "--version") {
       // Where the shipped profiles were found: checks an installed layout.
       const auto r = nobion::setup::find_resources();
-      io.out << "elctl " << nobion::setup::version() << "\nprofiles: " << r.profiles.string()
+      io.out << "elctl " << nobion::build_id() << "\nprofiles: " << r.profiles.string()
              << "\nexamples: " << r.examples.string() << "\n";
       return kOk;
     } else {

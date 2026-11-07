@@ -5,6 +5,7 @@
 #include <string>
 #include <utility>
 
+#include "nobion/core/build_info.hpp"
 #include "nobion/setup/installer.hpp"
 #include "nobion/update/update.hpp"
 
@@ -42,7 +43,7 @@ int version_command(const std::vector<std::string>& args, Io io, const VersionDe
     }
   }
   const std::string running_text(nobion::setup::version());
-  io.out << "elctl " << running_text << '\n';
+  io.out << "elctl " << nobion::build_id() << '\n';
   if (!check) return kOk;
 
   auto client = deps.make_client ? deps.make_client() : default_client();

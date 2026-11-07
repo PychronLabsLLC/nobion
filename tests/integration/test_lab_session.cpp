@@ -27,6 +27,7 @@
 #include <cstddef>
 
 #include "example_lab.hpp"
+#include "nobion/core/build_info.hpp"
 #include "nobion/core/virtual_clock.hpp"
 #include "nobion/devices/extraction/chromium_sim.hpp"
 #include "nobion/devices/link.hpp"
@@ -409,6 +410,28 @@ TEST_F(LabSessionTest, ASimulatedSessionMarksItsRecords) {
   ASSERT_TRUE(session_->start(queue_));
   ASSERT_TRUE(session_->wait().has_value());
   EXPECT_EQ(simulated_of(dir_ / "sim-data"), std::vector<bool>{true});
+}
+
+TEST_F(LabSessionTest, ARecordNamesTheBuildThatMadeIt) {
+  queue_.runs.resize(1);
+  ASSERT_TRUE(session_->start(queue_));
+  ASSERT_TRUE(session_->wait().has_value());
+  int seen = 0;
+  for (const auto& dir : fs::directory_iterator(dir_ / "data" / "records")) {
+    if (!dir.is_directory()) continue;
+    for (const auto& f : fs::directory_iterator(dir.path())) {
+      const std::string name = f.path().filename().string();
+      if (!name.ends_with(".json") || name.ends_with(".extraction.json")) continue;
+      std::ifstream in(f.path());
+      const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+      auto rec = record::from_json(text);
+      ASSERT_TRUE(rec.has_value());
+      EXPECT_EQ(rec->instrument.software_git_sha, std::string(nobion::build_info().git_sha));
+      EXPECT_EQ(rec->instrument.software_version, std::string(nobion::build_info().version));
+      ++seen;
+    }
+  }
+  EXPECT_EQ(seen, 1);
 }
 
 // The check is of what will run. Row 0 names something the database lacks:

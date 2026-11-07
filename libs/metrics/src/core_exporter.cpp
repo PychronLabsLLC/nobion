@@ -1,5 +1,7 @@
 #include "nobion/metrics/core_exporter.hpp"
 
+#include "nobion/core/build_info.hpp"
+
 #include <optional>
 #include <utility>
 
@@ -97,6 +99,7 @@ void set_or_remove(Registry& r, const char* name, const char* help, const Labels
 BuildInfo build_info(std::string version) {
   BuildInfo b;
   b.version = std::move(version);
+  b.git_sha = std::string(nobion::build_info().git_sha);
 #if defined(_WIN32)
   b.os = "windows";
 #elif defined(__APPLE__)
@@ -139,7 +142,7 @@ CoreExporter::CoreExporter(Registry& registry, SignalBus& bus, BuildInfo build, 
 
   registry
       .gauge("nobion_build_info", "Always 1; the labels say which build is running.",
-             {{"version", build.version}, {"os", build.os}, {"compiler", build.compiler}})
+             {{"version", build.version}, {"os", build.os}, {"compiler", build.compiler}, {"git_sha", build.git_sha}})
       .set(1);
   started_ = now_();
   registry.gauge(kUptime, kUptimeHelp).set(0);

@@ -29,6 +29,7 @@
 #include <thread>
 #include <vector>
 
+#include "nobion/core/build_info.hpp"
 #include "nobion/core/config/logging_config.hpp"
 #include "nobion/core/env.hpp"
 #include "nobion/core/log_context.hpp"
@@ -1236,6 +1237,22 @@ TEST(LogHub, SessionMarkerFields) {
     EXPECT_NE(text.find(field), std::string::npos) << field << " in " << text;
   }
   EXPECT_NE(text.find("os="), std::string::npos) << text;
+}
+
+TEST(LogHub, SessionStartNamesTheBuild) {
+  TempDir tmp;
+  SteadyClock clock;
+  {
+    auto hub = make_hub(config_for(tmp.path()), clock);
+    ASSERT_TRUE(hub);
+    SessionInfo info;
+    info.app = "elctl";
+    info.version = "0.4.0";
+    info.clock = "steady";
+    hub->begin_session(info);
+  }
+  const auto text = read_bare_file(tmp.path() / "nobion.log");
+  EXPECT_NE(text.find("build=" + nobion::build_id()), std::string::npos) << text;
 }
 
 TEST(LogHub, SessionMarkerQuotesSpacesAndListsRules) {

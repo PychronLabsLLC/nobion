@@ -1,5 +1,6 @@
 #include "nobion/core/log_hub.hpp"
 
+#include "nobion/core/build_info.hpp"
 #include "nobion/core/log_dir.hpp"
 
 #include <spdlog/async_logger.h>
@@ -971,6 +972,7 @@ void LogHub::begin_session(const SessionInfo& info) {
   std::string line = "session start";
   append_field(line, "app", info.app);
   append_field(line, "version", info.version);
+  append_field(line, "build", build_id());
   append_field(line, "os", session_os_name(host_os()));
   append_field(line, "install", info.install_root ? info.install_root->generic_string() : "none");
   append_field(line, "profiles", info.profiles.empty() ? "none" : info.profiles);

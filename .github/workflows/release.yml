@@ -159,6 +159,18 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
+      # A release names the commit it was built from, and a clean one: a build id
+      # ending in ".dirty" or "+unknown" cannot be traced to a source.
+      - name: Check the build id
+        run: |
+          elctl_bin=$(find build -type f \( -name elctl -o -name elctl.exe \) -perm -u+x | head -n 1)
+          if [ -z "$elctl_bin" ]; then echo "no elctl built"; exit 1; fi
+          id=$("$elctl_bin" --version | head -n 1)
+          echo "$id"
+          case "$id" in
+            *.dirty*|*+unknown*) echo "build id is not a clean, known commit: $id"; exit 1 ;;
+          esac
+
       - name: Package
         run: cd build && cpack -C Release
 

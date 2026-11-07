@@ -13,6 +13,7 @@
 // Qt's `signals` keyword macro would rewrite persistence::CollectionRoots::signals.
 #pragma push_macro("signals")
 #undef signals
+#include "nobion/core/build_info.hpp"
 #include "nobion/arar/store_loader.hpp"
 #include "nobion/processing/store_source.hpp"
 #pragma pop_macro("signals")
@@ -53,9 +54,7 @@ bool PublishActions::open_store() {
     EntryBridge::Options options;
     options.url = url_;
     options.role = "publisher";
-#ifdef NOBION_VERSION
-    options.software = std::string("nobion/") + NOBION_VERSION;
-#endif
+    options.software = std::string("nobion/") + std::string(nobion::build_info().version);
     auto opened = EntryBridge::open(std::move(options));
     if (!opened) {
       if (report_error_)
