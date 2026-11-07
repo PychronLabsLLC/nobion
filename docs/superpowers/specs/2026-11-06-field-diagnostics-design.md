@@ -122,10 +122,10 @@ Last minutes of everything, in memory, written out when something goes wrong.
   "*.wire" = "trace"      # default: wire bytes always kept
   ```
 
-- `Logger` (`logger.hpp`, state packed `(epoch << 9) | (explicit << 8) | level`): `level()` stays the file level. A second cached value, `gate` = min(file level, recorder level), packed the same way; `enabled(l)` compares against `gate`.
+- `Logger` (`logger.hpp`, state packed `(epoch << 9) | (explicit << 8) | level`): `level()` stays the file level. A second cached value, the recorder level, packed the same way (`recorder_level()`); `enabled(l)` compares against min(`level()`, `recorder_level()`): two atomic loads, no cached gate. Measured (section 14, plan Task 12 Step 4): no cost worth a third cached value.
 - `log(l, m)`: file, stderr echo and bus (`Log` at or above `dock_level`) only when `l >= level()`, exactly as today; ring when `l >=` recorder level, and every record that goes to file (ring is superset of file while recorder on). Bus event records (`trace.<Event>`) follow the same rule.
 - `Logger::set_level` (explicit) changes the file level only; the recorder level follows recorder rules only.
-- Cost: a record below the file level but at the recorder level is now formatted (hex for `*.wire`). Measured (section 14); if over budget, `.wire` loggers format into the ring only, skipping the file formatter's work.
+- Cost: a record below the file level but at the recorder level is now formatted (hex for `*.wire`), into the ring only. Measured (section 14, plan Task 12 Step 4): example line under `nobion --sim`, about 50 `*.wire` records a second, recorder on vs off within run-to-run noise (0.94% vs 0.92% of one core over 5 min).
 
 ### 5.2 The ring
 
@@ -145,24 +145,34 @@ Last minutes of everything, in memory, written out when something goes wrong.
 
 Limits, on `steady_clock` (real time, whatever the hub's clock): one dump per exact reason per 60 s; any reason at most one per 10 s. A call inside a limit writes nothing, logs one `info` line, returns the last dump's path. So a storm keeps its first dump.
 
-`FlightRecorderTriggers` (`libs/core` `flight_recorder_triggers.hpp`): owns one worker thread (real time, joined in its destructor) that calls `dump_recorder`, so no bus handler does file I/O on the publishing thread.
+`FlightRecorderTriggers` (`libs/core` `flight_recorder_triggers.hpp`): owns one worker thread (real time, never a clock participant: virtual clock spec 4.4; joined in its destructor) that calls `dump_recorder`, so no bus handler does file I/O on the publishing thread.
 
 ```cpp
-class FlightRecorderTriggers {
+struct IDumpRequester {
+  virtual ~IDumpRequester() = default;
+  virtual void request(std::string reason) = 0;
+};
+class FlightRecorderTriggers final : public IDumpRequester {
  public:
-  FlightRecorderTriggers(LogHub& hub, SignalBus& bus);  // subscribes Alarm, DeviceHealthChanged
-  void request(std::string reason);                     // queue a dump; thread-safe, never blocks
+  // dump empty: hub.dump_recorder; tests pass their own
+  FlightRecorderTriggers(LogHub& hub, SignalBus& bus,
+                         std::function<Result<std::filesystem::path>(std::string_view)> dump = {});  // subscribes Alarm
+  void request(std::string reason) override;  // queue a dump; thread-safe, never blocks
 };
 ```
+
+- Queue holds at most 32 requests; one past that dropped (storm keeps its first). Worker takes them in order.
+- Destructor: unsubscribes, makes dumps already queued, then joins: request made just before program ends (unsafe queue end in `elctl exp run`) still written.
+- `nobion::experiment::wire_flight_recorder(SignalBus&, IDumpRequester&)` (`libs/experiment` `flight_recorder_wiring.hpp`) → `std::vector<SignalBus::Subscription>`; tests give a fake requester.
 
 Subscriptions and reasons:
 - `Alarm` (`libs/core/include/nobion/core/events.hpp:63`) with `severity == Critical`: `alarm-<source>`.
 - `DeviceHealthChanged` to `Faulted` (section 7): `faulted-<device>`.
-- `RunFinished` (`libs/experiment/include/nobion/experiment/executor/executor.hpp:129`) with a failed state, and `QueueEnded` (`libs/experiment/include/nobion/experiment/lab/session.hpp:86`) with end `unsafe`: subscribed by the experiment side (`libs/experiment` wires these to `request`): `run-failed-<run id>`, `unsafe`.
+- `RunFinished` (`libs/experiment/include/nobion/experiment/executor/executor.hpp:129`) with state `Failed`, and `QueueEnded` (`libs/experiment/include/nobion/experiment/lab/session.hpp:86`) with end `unsafe`: subscribed by the experiment side (`libs/experiment` wires these to `request`): `run-failed-<run id>`, `unsafe`.
 - Hang monitor (section 6): `hang-<beat>`, calling `request`.
 - Operator: nobion Help > Save Flight Recorder (`manual`); support bundle (`bundle`, synchronous `dump_recorder`).
 
-Both apps construct it in `main` after the hub and bus.
+Both apps construct it after the hub and the line's bus: nobion in `main`; `elctl` in `Line::build` (`apps/elctl/src/line.cpp`, its commands' line) and in `exp run` (`apps/elctl/src/exp.cpp`, whose line is an `ExtractionLine`). Without a hub, none.
 
 ### 5.4 On a crash
 

@@ -24,6 +24,7 @@
 #include "nobion/core/config/system_config.hpp"
 #include "nobion/core/error.hpp"
 #include "nobion/core/event_recorder.hpp"
+#include "nobion/core/flight_recorder_triggers.hpp"
 #include "nobion/core/log_hub.hpp"
 #include "nobion/core/scheduler.hpp"
 #include "nobion/core/signal_bus.hpp"
@@ -105,6 +106,12 @@ class Line {
   std::optional<nobion::EventRecorder> core_events_;
   std::optional<nobion::systems::SystemsEventRecorder> systems_events_;
   std::optional<nobion::experiment::ExperimentEventRecorder> experiment_events_;
+  // Writes out the flight recorder on a critical alarm, a failed run or an
+  // unsafe queue end (spec 2026-11-06-field-diagnostics, 5.3); only with a
+  // hub. After log_hub_ and bus_, so it goes before them; its subscriptions
+  // after it, so they go first.
+  std::optional<nobion::FlightRecorderTriggers> flight_recorder_;
+  std::vector<nobion::SignalBus::Subscription> flight_recorder_subs_;
   std::unique_ptr<Sims> sims_;
   std::vector<std::pair<std::string, std::unique_ptr<nobion::Transport>>> transports_;
   std::vector<std::pair<std::string, std::unique_ptr<nobion::Device>>> devices_;

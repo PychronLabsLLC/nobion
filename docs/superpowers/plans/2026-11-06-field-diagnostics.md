@@ -281,6 +281,25 @@ TEST(BuildInfo, FeaturesNameWhatWasCompiledIn) {
 - [ ] **Step 2: Run** — FAIL.
 - [ ] **Step 3: Implement**; wire in both apps after hub and bus; Help menu action calls `dump_recorder("manual")` and shows the path in the status bar.
 - [ ] **Step 4: Measure** (spec 14): example lab `nobion --sim`, 5 minutes, `*.wire` recorded vs recorder disabled; CPU % (`ps -o %cpu` sampled each second) and records/s; record here. Over 2% added: make `.wire` loggers format only into the ring (spec 5.1) and measure again.
+
+  Measured 2026-11-07, Apple M5 Pro (18 cores), `RelWithDebInfo` `Nobion.app`,
+  `QT_QPA_PLATFORM=offscreen`, `nobion --sim` on a copy of `configs/examples`
+  (line only, no spectrometer, no queue), log folder and `HOME` in a temporary
+  directory; 20 s start-up left out, then 300 samples one second apart:
+
+  | | `ps -o %cpu` mean (max) | CPU time over the 300 s | of one core |
+  |---|---|---|---|
+  | recorder on, `*.wire = "trace"` (default) | 0.699% (2.2) | 2.81 s | 0.94% |
+  | `[logging.recorder] enabled = false` | 0.693% (2.4) | 2.75 s | 0.92% |
+
+  Records: a third run of 60 s with the file at `debug` and `*.wire = "trace"`
+  wrote 5015 lines in 80 s (start-up included), 4015 of them `*.wire`: about
+  50 wire records a second and 62 records a second in all. Added by the
+  recorder: 0.06 s of CPU in 300 s (0.02 percentage points of one core), within
+  run-to-run noise; at most 4 µs a record. Under 2%: the `.wire` path is left
+  as Task 11 built it (a record below the file level is formatted into the ring
+  only), `enabled()` keeps its two atomic loads, and spec 5.1 says so (no cached
+  `gate`).
 - [ ] **Step 5: Run** suites — PASS; TSan run of the two new suites. **Commit** `feat: alarms, failed runs and the operator write out the flight recorder`
 
 ### Task 13: Hang monitor

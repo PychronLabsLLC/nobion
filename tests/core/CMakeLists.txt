@@ -35,6 +35,7 @@ add_executable(nobion_core_tests
   test_keyed_noise.cpp
   test_build_info.cpp
   test_crash_capture.cpp
+  test_flight_recorder_triggers.cpp
 )
 
 # Dies on purpose, in the way its second argument names; test_crash_capture.cpp

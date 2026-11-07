@@ -16,6 +16,7 @@
 #include "nobion/devices/pfeiffer_maxigauge.hpp"
 #include "nobion/devices/plc2000_heater.hpp"
 #include "nobion/devices/proxr_board_sim.hpp"
+#include "nobion/experiment/flight_recorder_wiring.hpp"
 #include "nobion/transport/factory.hpp"
 
 namespace elctl {
@@ -87,6 +88,10 @@ Result<std::unique_ptr<Line>> Line::build(config::SystemConfig config, LineOptio
   line->core_events_.emplace(line->bus_);
   line->systems_events_.emplace(line->bus_);
   line->experiment_events_.emplace(line->bus_);
+  if (line->log_hub_) {
+    line->flight_recorder_.emplace(*line->log_hub_, line->bus_);
+    line->flight_recorder_subs_ = experiment::wire_flight_recorder(line->bus_, *line->flight_recorder_);
+  }
 
   if (options.trace.enabled()) {
     std::error_code ec;

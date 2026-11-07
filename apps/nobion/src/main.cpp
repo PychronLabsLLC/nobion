@@ -100,6 +100,7 @@
 #include "setup_support.hpp"
 #include "setup_wizard.hpp"
 #include "nobion/core/log_dir.hpp"
+#include "nobion/core/flight_recorder_triggers.hpp"
 #include "nobion/core/log_hub.hpp"
 #include "nobion/core/event_recorder.hpp"
 #include "nobion/core/process_log.hpp"
@@ -110,6 +111,7 @@
 #include "nobion/experiment/event_log.hpp"
 #include "nobion/experiment/lab/executor_config.hpp"
 #include "nobion/experiment/lab/lasers.hpp"
+#include "nobion/experiment/flight_recorder_wiring.hpp"
 #include "nobion/experiment/lab/session.hpp"
 #ifdef NOBION_EXPERIMENT_HAS_METRICS
 #include "nobion/experiment/metrics/service.hpp"
@@ -598,6 +600,14 @@ int main(int argc, char** argv) {
   const nobion::EventRecorder core_events((*line)->bus());
   const nobion::systems::SystemsEventRecorder systems_events((*line)->bus());
   const nobion::experiment::ExperimentEventRecorder experiment_events((*line)->bus());
+  // Writes out the flight recorder on a critical alarm, a failed run or an
+  // unsafe queue end (spec 2026-11-06-field-diagnostics, 5.3). After the hub
+  // and the line, so it goes before them, on return, once the session and
+  // everything else that publishes has been reset; its subscriptions first.
+  std::optional<nobion::FlightRecorderTriggers> flight_recorder;
+  if ((*line)->log_hub()) flight_recorder.emplace(*(*line)->log_hub(), (*line)->bus());
+  std::vector<nobion::SignalBus::Subscription> flight_recorder_subs;
+  if (flight_recorder) flight_recorder_subs = nobion::experiment::wire_flight_recorder((*line)->bus(), *flight_recorder);
 
   // The spectrometer shares the line's clock, scheduler and bus. None of these
   // is left to declaration order: the teardown after the event loop resets

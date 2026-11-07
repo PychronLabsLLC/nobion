@@ -18,12 +18,14 @@
 #include "exp_store.hpp"
 #include "nobion/core/config/loader.hpp"
 #include "nobion/core/event_recorder.hpp"
+#include "nobion/core/flight_recorder_triggers.hpp"
 #include "nobion/core/log_dir.hpp"
 #include "nobion/core/process.hpp"
 #include "nobion/core/process_log.hpp"
 #include "nobion/core/virtual_clock.hpp"
 #include "nobion/experiment/event_log.hpp"
 #include "nobion/experiment/executor/executor.hpp"
+#include "nobion/experiment/flight_recorder_wiring.hpp"
 #include "nobion/experiment/lab/lab.hpp"
 #include "nobion/experiment/lab/session.hpp"
 #include "nobion/experiment/measurement/adapters.hpp"
@@ -360,6 +362,15 @@ class Exp {
     const EventRecorder core_events((*line)->bus());
     const systems::SystemsEventRecorder systems_events((*line)->bus());
     const ExperimentEventRecorder experiment_events((*line)->bus());
+    // Writes out the flight recorder on a critical alarm, a failed run or an
+    // unsafe queue end (spec 2026-11-06-field-diagnostics, 5.3). Before the
+    // session, so it outlives every publisher of those; its subscriptions
+    // after it, so they go first.
+    const std::shared_ptr<LogHub> flight_hub = (*line)->log_hub();
+    std::optional<FlightRecorderTriggers> flight_recorder;
+    if (flight_hub) flight_recorder.emplace(*flight_hub, (*line)->bus());
+    std::vector<SignalBus::Subscription> flight_subs;
+    if (flight_recorder) flight_subs = wire_flight_recorder((*line)->bus(), *flight_recorder);
     const Clock& clock = (*line)->clock();
     // A spectrometer is simulated when --sim says so or when its own file
     // is (every transport and driver a simulator's), as the line is when its

@@ -13,6 +13,7 @@
 #include <QActionEvent>
 #include <QApplication>
 #include <QDialog>
+#include <QFile>
 #include <QMainWindow>
 #include <QStatusBar>
 #include <QSettings>
@@ -24,6 +25,7 @@
 #include <QTemporaryDir>
 #include <QVBoxLayout>
 
+#include "brand.hpp"
 #include "dock_layouts.hpp"
 #include "experiment_bridge.hpp"
 #include "experiment_fixture.hpp"
@@ -33,6 +35,11 @@
 #include "shortcuts.hpp"
 #include "settings_guard.hpp"
 #include "ui_fixture.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/config/logging_config.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/logger.hpp"
+#include "nobion/core/process_log.hpp"
 
 using nobion::ui::MenuHub;
 using Menu = MenuHub::Menu;
@@ -141,6 +148,39 @@ class TestMenuHub : public QObject {
     MenuHub::instance().set_arrangement_asks({});  // the dialogs again
     QCoreApplication::processEvents();
     if (MenuHub::instance().bars() != MenuHub::platform_bars()) MenuHub::reset(MenuHub::platform_bars());
+  }
+
+  // Help > Save Flight Recorder writes a dump of the process hub's recorder
+  // and says where in the status bar (spec 2026-11-06-field-diagnostics, 5.3).
+  void help_saves_the_flight_recorder() {
+    QTemporaryDir logs;
+    QVERIFY(logs.isValid());
+    const nobion::SteadyClock clock;
+    nobion::config::LoggingConfig cfg;
+    cfg.dir = logs.path().toStdString();
+    auto hub = nobion::LogHub::create(cfg, clock);
+    QVERIFY(hub.has_value());
+    nobion::set_process_log_hub(*hub);
+    struct Clear {
+      ~Clear() { nobion::set_process_log_hub(nullptr); }
+    } const clear;
+    (*hub)->logger("core").info("before the save");
+
+    QMainWindow window;
+    nobion::ui::brand::add_help_menu(&window);
+    auto* save = window.findChild<QAction*>(QStringLiteral("saveFlightRecorder"));
+    QVERIFY(save != nullptr);
+    window.show();
+    QVERIFY(menu_of(window, Menu::Help)->actions().contains(save));
+    save->trigger();
+
+    const QString said = window.statusBar()->currentMessage();
+    QVERIFY2(said.startsWith(QStringLiteral("Flight recorder saved to ")), qPrintable(said));
+    const QString path = said.mid(QStringLiteral("Flight recorder saved to ").size());
+    QVERIFY2(path.endsWith(QStringLiteral("-manual.log")), qPrintable(path));
+    QFile dump(path);
+    QVERIFY(dump.open(QIODevice::ReadOnly));
+    QVERIFY(dump.readAll().contains("core: before the save"));
   }
 
   void every_window_shows_the_same_menus() {

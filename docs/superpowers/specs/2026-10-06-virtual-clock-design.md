@@ -409,6 +409,10 @@ the only one. Tests that relied on the fallback use a `VirtualClock`.
 - the update check (`apps/pychron-ui` `update_checker.cpp`): its worker
   thread and the request's 10 s timeout. A real socket to GitHub, not on a
   simulated path; the worker is never a participant;
+- the flight recorder's dump worker (`libs/core` `flight_recorder_triggers.cpp`,
+  field diagnostics spec 5.3): its thread waits on its own queue (plain
+  `std::mutex` and `std::condition_variable`) and writes files; never a
+  participant. A bus handler on a participant only pushes onto that queue;
 - the notifier (`lab/notifier.cpp`, and the `Date:` of a mail in
   `lab/notifications.cpp`): it runs programs outside, on its own thread, and
   is not a participant;

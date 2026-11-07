@@ -22,12 +22,15 @@
 #include <QSysInfo>
 #include <QTextDocumentFragment>
 #include <QShowEvent>
+#include <QStatusBar>
 #include <QTimer>
 #include <QVBoxLayout>
 
 #include "menu_hub.hpp"
 #include "theme.hpp"
 #include "nobion/core/build_info.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/process_log.hpp"
 
 namespace nobion::ui {
 
@@ -273,7 +276,23 @@ QAction* add_help_menu(QMainWindow* window) {
   window->setWindowIcon(app_icon());
   auto* about = new QAction(QStringLiteral("About Nobion"), window);
   about->setMenuRole(QAction::AboutRole);
-  MenuHub::instance().contribute(window, MenuHub::Menu::Help, {about}, MenuHub::Scope::App);
+  // Writes the flight recorder out now (spec 2026-11-06-field-diagnostics,
+  // 5.3), on this thread: the operator asked, and waits for the path.
+  auto* flight = new QAction(QStringLiteral("Save Flight Recorder"), window);
+  flight->setObjectName(QStringLiteral("saveFlightRecorder"));
+  MenuHub::instance().contribute(window, MenuHub::Menu::Help, {about, flight}, MenuHub::Scope::App);
+  QObject::connect(flight, &QAction::triggered, window, [window] {
+    const auto hub = nobion::process_log_hub();
+    if (!hub) {
+      window->statusBar()->showMessage(QStringLiteral("Flight recorder not saved: no log"), 10000);
+      return;
+    }
+    const auto dumped = hub->dump_recorder("manual");
+    window->statusBar()->showMessage(
+        dumped ? QStringLiteral("Flight recorder saved to %1").arg(QString::fromStdString(dumped->string()))
+               : QStringLiteral("Flight recorder not saved: %1").arg(QString::fromStdString(dumped.error().what)),
+        dumped ? 0 : 10000);
+  });
   QObject::connect(about, &QAction::triggered, window, [window] {
     auto* dialog = window->findChild<AboutDialog*>(QString(), Qt::FindDirectChildrenOnly);
     if (dialog == nullptr) dialog = new AboutDialog(window);
