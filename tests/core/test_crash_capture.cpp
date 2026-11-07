@@ -379,6 +379,35 @@ TEST(CrashCapture, HardenedWritesACrashFile) {
 
 #endif
 
+// The flight recorder's ring is at the end of the crash file: the helper's
+// `ring marker` record, as the log file has it (spec 5.4).
+TEST(CrashCapture, CrashFileHoldsTheRing) {
+#if defined(__SANITIZE_ADDRESS__)
+  GTEST_SKIP() << "AddressSanitizer owns the fatal signals";
+#else
+  TempDir tmp;
+#ifdef _WIN32
+  const WinDeath death = run_helper(tmp.path(), "segv");
+  ASSERT_TRUE(death.spawned) << "could not spawn " << NOBION_CRASH_HELPER;
+#else
+  CRASH_TEST_PRECONDITIONS();
+  const Death death = run_helper(tmp.path(), "segv");
+  ASSERT_GT(death.pid, 0) << "could not spawn " << NOBION_CRASH_HELPER;
+  ASSERT_TRUE(WIFSIGNALED(death.status));
+#endif
+  const fs::path file = tmp.path() / "crash" / ("crash_helper-" + std::to_string(death.pid) + ".txt");
+  ASSERT_TRUE(fs::exists(file)) << file;
+  const std::string text = read_file(file);
+  // The log file may not have it yet (records below error are written within
+  // about 1 s): the ring has it, in the file's format.
+  const std::regex marker(
+      R"(^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z \[info\] \[crash_helper\.main\] crash_helper: ring marker$)");
+  bool found = false;
+  for (const auto& line : lines_of(text)) found = found || std::regex_match(line, marker);
+  EXPECT_TRUE(found) << text;
+#endif
+}
+
 // Windows: a null write, a stack overflow on the main thread, and (below) one
 // on a thread of ours (install_signal_stack gave it its stack guarantee) each
 // leave the text lines and a minidump dbghelp reads.

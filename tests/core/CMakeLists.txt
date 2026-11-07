@@ -9,6 +9,7 @@ add_executable(nobion_core_tests
   test_logger.cpp
   test_log_match.cpp
   test_log_hub.cpp
+  test_byte_ring.cpp
   test_log_context.cpp
   test_log_error.cpp
   test_log_summary.cpp
@@ -43,8 +44,9 @@ target_link_libraries(nobion_crash_helper PRIVATE nobion::core)
 nobion_set_warnings(nobion_crash_helper)
 
 target_link_libraries(nobion_core_tests PRIVATE nobion::core GTest::gtest_main)
-# virtual_time.hpp
-target_include_directories(nobion_core_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests/support)
+# virtual_time.hpp; byte_ring.hpp (internal to libs/core)
+target_include_directories(nobion_core_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests/support
+  ${PROJECT_SOURCE_DIR}/libs/core/src)
 nobion_set_warnings(nobion_core_tests)
 target_compile_definitions(nobion_core_tests PRIVATE
   NOBION_TEST_PROJECT_VERSION="${PROJECT_VERSION}"

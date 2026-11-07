@@ -1,5 +1,6 @@
 #include "nobion/core/log_hub.hpp"
 
+#include "nobion/core/atomic_file.hpp"
 #include "nobion/core/build_info.hpp"
 #include "nobion/core/log_dir.hpp"
 #include "nobion/core/signal_stack.hpp"
@@ -25,6 +26,7 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
+#include <map>
 #include <mutex>
 #include <shared_mutex>
 #include <string>
@@ -66,6 +68,7 @@
 #endif
 #endif
 
+#include "byte_ring.hpp"
 #include "log_hub_internal.hpp"
 #include "module_map.hpp"
 #include "nobion/core/log_context.hpp"
@@ -83,6 +86,10 @@ constexpr auto kErrorReportInterval = std::chrono::seconds(10);
 constexpr std::size_t kSpdlogMaxRotated = 200000;  // spdlog's rotating_file_sink::MaxFiles
 constexpr auto kCrashFlushTimeout = std::chrono::seconds(2);
 constexpr std::size_t kCrashesKept = 20;  // crash files (and dumps) in <dir>/crash
+constexpr std::size_t kDumpsKept = 20;    // flight recorder dumps in <dir>/flight
+constexpr auto kDumpPerReason = std::chrono::seconds(60);
+constexpr auto kDumpAny = std::chrono::seconds(10);
+constexpr std::size_t kRecordBufferKept = 64 * 1024;  // a thread's record buffer shrinks back past this
 
 // The echo and the writer's error reports go to the C stream, not through
 // std::cerr: a program that tees std::cerr into its log (elctl) would log every
@@ -123,33 +130,100 @@ spdlog::level::level_enum to_spdlog(LogLevel level) noexcept {
   return spdlog::level::err;
 }
 
-// "%*": our level names ("warn", not spdlog's "warning").
-class LevelFlag final : public spdlog::custom_flag_formatter {
- public:
-  void format(const spdlog::details::log_msg& msg, const std::tm&,
-              spdlog::memory_buf_t& dest) override {
-    std::string_view name = "error";
-    switch (msg.level) {
-      case spdlog::level::trace: name = "trace"; break;
-      case spdlog::level::debug: name = "debug"; break;
-      case spdlog::level::info: name = "info"; break;
-      case spdlog::level::warn: name = "warn"; break;
-      default: break;
-    }
-    dest.append(name.data(), name.data() + name.size());
-  }
-  std::unique_ptr<custom_flag_formatter> clone() const override {
-    return std::make_unique<LevelFlag>();
-  }
+// Civil date of a day count from 1970-01-01 (H. Hinnant's algorithm), so a
+// stamp needs neither gmtime nor a lock.
+struct CivilDate {
+  std::int64_t year;
+  unsigned month;
+  unsigned day;
 };
+CivilDate civil_from_days(std::int64_t days) noexcept {
+  days += 719468;
+  const std::int64_t era = (days >= 0 ? days : days - 146096) / 146097;
+  const auto doe = static_cast<unsigned>(days - era * 146097);
+  const unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+  const unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+  const unsigned mp = (5 * doy + 2) / 153;
+  const unsigned day = doy - (153 * mp + 2) / 5 + 1;
+  const unsigned month = mp < 10 ? mp + 3 : mp - 9;
+  return {static_cast<std::int64_t>(yoe) + era * 400 + (month <= 2 ? 1 : 0), month, day};
+}
 
-// `2026-10-01T14:03:22.481Z [warn] transport.serial.ig1: msg`; the payload
-// already carries "<logger>: <message>".
+void append_digits(std::string& out, std::int64_t value, int width) {
+  std::array<char, 24> digits{};
+  int n = 0;
+  auto v = static_cast<std::uint64_t>(value < 0 ? -value : value);
+  do {
+    digits[static_cast<std::size_t>(n++)] = static_cast<char>('0' + v % 10);
+    v /= 10;
+  } while (v != 0 && n < 20);
+  if (value < 0) out.push_back('-');
+  for (int i = n; i < width; ++i) out.push_back('0');
+  while (n > 0) out.push_back(digits[static_cast<std::size_t>(--n)]);
+}
+
+// `2026-10-01T14:03:22.481Z` (UTC, milliseconds); with `compact`,
+// `20261001T140322.481Z`, which a file name may hold on every system.
+void append_stamp(std::string& out, WallTime at, bool compact = false) {
+  const auto ms = std::chrono::floor<std::chrono::milliseconds>(at.time_since_epoch()).count();
+  constexpr std::int64_t kDayMs = 86400000;
+  const std::int64_t days = (ms >= 0 ? ms : ms - (kDayMs - 1)) / kDayMs;
+  const std::int64_t in_day = ms - days * kDayMs;
+  const CivilDate date = civil_from_days(days);
+  const char* date_sep = compact ? "" : "-";
+  const char* time_sep = compact ? "" : ":";
+  append_digits(out, date.year, 4);
+  out.append(date_sep);
+  append_digits(out, date.month, 2);
+  out.append(date_sep);
+  append_digits(out, date.day, 2);
+  out.push_back('T');
+  append_digits(out, in_day / 3600000, 2);
+  out.append(time_sep);
+  append_digits(out, in_day / 60000 % 60, 2);
+  out.append(time_sep);
+  append_digits(out, in_day / 1000 % 60, 2);
+  out.push_back('.');
+  append_digits(out, in_day % 1000, 3);
+  out.push_back('Z');
+}
+
+// One record as the file and the ring both have it, line break included:
+// `2026-10-01T14:03:22.481Z [warn] [executor] run=12345-01A transport.serial.ig1: msg`
+// (no `run=` outside a run). Formatted once, on the calling thread.
+void format_record(std::string& out, WallTime at, LogLevel level, std::string_view thread, std::string_view run,
+                   std::string_view name, std::string_view message) {
+  out.clear();
+  out.reserve(40 + thread.size() + run.size() + name.size() + message.size());
+  append_stamp(out, at);
+  out.append(" [").append(to_string(level)).append("] [").append(thread).append("] ");
+  if (!run.empty()) out.append("run=").append(run).append(" ");
+  out.append(name).append(": ");
+  append_one_line(out, message);
+  out.push_back('\n');
+}
+
+// The calling thread's record buffer: no allocation once it has grown to a
+// record. Nothing that formats into it logs before it is done with it.
+std::string& record_buffer() {
+  thread_local std::string buffer;
+  if (buffer.capacity() > kRecordBufferKept) {
+    buffer.clear();
+    buffer.shrink_to_fit();
+  }
+  return buffer;
+}
+
+// The file sink writes the line format_record made, as it is.
 std::unique_ptr<spdlog::formatter> make_file_formatter() {
   // Explicit "\n": spdlog's default end of line is "\r\n" on Windows.
-  auto f = std::make_unique<spdlog::pattern_formatter>(spdlog::pattern_time_type::utc, "\n");
-  f->add_flag<LevelFlag>('*').set_pattern("%Y-%m-%dT%H:%M:%S.%eZ [%*] %v");
-  return f;
+  return std::make_unique<spdlog::pattern_formatter>("%v", spdlog::pattern_time_type::utc, "\n");
+}
+
+// The line format_record made, without its break, for the file sink (whose
+// formatter adds it).
+spdlog::string_view_t file_payload(const std::string& line) {
+  return {line.data(), line.empty() ? 0 : line.size() - 1};
 }
 
 // Counts barrier records. The writer thread drains the queue in FIFO order, so
@@ -378,6 +452,17 @@ struct LogHub::Impl {
 
   std::atomic<std::int64_t> last_error_report{std::numeric_limits<std::int64_t>::min()};
 
+  // Flight recorder (spec 5.2): null when `[recorder] enabled` is false.
+  // Made in create() and never replaced; the crash handler reads it.
+  std::unique_ptr<detail::ByteRing> ring;
+  // Dumps (spec 5.3). `dump_mutex` guards what follows and is held while a
+  // dump is written; nothing is logged under it.
+  std::mutex dump_mutex;
+  std::function<std::chrono::steady_clock::time_point()> limit_clock;  // empty: steady_clock::now
+  std::map<std::string, std::chrono::steady_clock::time_point, std::less<>> last_dump_by_reason;
+  std::optional<std::chrono::steady_clock::time_point> last_dump_at;
+  std::filesystem::path last_dump;
+
   // spdlog error handler: one stderr line, at most once per 10 s.
   void report_spdlog_error(const std::string& what) noexcept {
     const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -442,13 +527,24 @@ struct LogHub::Impl {
     return resolve_in(recorder_rules, recorder_default, name);
   }
 
-  // Takes a record below the file level but at or above the recorder level:
-  // `line` is its formatted payload (`[thread] run=.. logger: message`, one
-  // line), as the file would get it. Nothing keeps it yet; the ring (spec 5.2)
-  // takes it from here. Never throws.
-  void record_only(LogLevel level, std::string_view line) noexcept {
-    (void)level;
-    (void)line;
+  // A record below the file level but at or above the recorder level: into
+  // the ring only, in the file's line format, stamped from the hub's clock.
+  // Never throws.
+  void record_only(LogLevel level, std::string_view name, std::string_view message) noexcept {
+    if (!ring) return;
+    try {
+      Route route;
+      try {
+        route = pin();
+      } catch (...) {
+        route.clock = base_clock_ref;
+      }
+      const std::string thread = detail::thread_label();
+      std::string& line = record_buffer();
+      format_record(line, route.clock->wall_now(), level, thread, LogContext::run_id(), name, message);
+      ring->append(line);
+    } catch (...) {  // NOLINT(bugprone-empty-catch): out of memory; a record that is only for the recorder is lost
+    }
   }
 
   Route pin() {
@@ -549,16 +645,13 @@ struct LogHub::Impl {
     }
 
     try {
-      // `[executor] run=12345-01A experiment.run: msg`; no `run=` outside a run.
-      std::string payload;
-      payload.reserve(thread.size() + run.size() + name.size() + message.size() + 12);
-      payload.append("[").append(thread).append("] ");
-      if (!run.empty()) payload.append("run=").append(run).append(" ");
-      payload.append(name).append(": ");
-      append_one_line(payload, message);
+      // Formatted once, for the ring and the file (spec 5.2).
+      std::string& line = record_buffer();
+      const WallTime at = clock.wall_now();
+      format_record(line, at, level, thread, run, name, message);
+      if (ring) ring->append(line);
       // Raw string_view overload: the message is never a format string.
-      logger->log(clock.wall_now(), spdlog::source_loc{}, to_spdlog(level),
-                  spdlog::string_view_t(payload.data(), payload.size()));
+      logger->log(at, spdlog::source_loc{}, to_spdlog(level), file_payload(line));
       if (level >= LogLevel::Error) sync_flush();
     } catch (const std::exception& e) {
       report_spdlog_error(e.what());
@@ -610,19 +703,21 @@ struct LogHub::Impl {
     if (!alive.load() || t_is_log_writer) return;
 
     try {
-      // Same line shape as write(): a thread field, then logger and message.
-      std::string payload = "[" + detail::thread_label() + "] nobion: ";
-      append_one_line(payload, text);
-      // System time, not the hub's clock: a clock's wall_now() may take a
-      // mutex (VirtualClock does), and terminate can be raised by the thread
-      // that holds it.
-      logger->log(std::chrono::system_clock::now(), spdlog::source_loc{}, spdlog::level::err,
-                  spdlog::string_view_t(payload.data(), payload.size()));
+      // Same line as write() makes. System time, not the hub's clock: a
+      // clock's wall_now() may take a mutex (VirtualClock does), and
+      // terminate can be raised by the thread that holds it.
+      const std::string thread = detail::thread_label();
+      std::string line;
+      format_record(line, std::chrono::system_clock::now(), LogLevel::Error, thread, LogContext::run_id(),
+                    "nobion", text);
+      if (ring) ring->append(line);
+      logger->log(std::chrono::system_clock::now(), spdlog::source_loc{}, spdlog::level::err, file_payload(line));
       if (echo_stderr) {
         std::lock_guard lock(echo_mutex);
-        write_stderr("[error] ");
-        write_stderr(payload);
-        write_stderr("\n");
+        std::string echo = "[error] [" + thread + "] nobion: ";
+        append_one_line(echo, text);
+        echo.push_back('\n');
+        write_stderr(echo);
       }
 
       const auto deadline = std::chrono::steady_clock::now() + kCrashFlushTimeout;
@@ -688,6 +783,9 @@ constexpr CrashTarget kNoCrashTarget = -1;
 // Descriptor on the registered hub's nobion.log; read lock-free by the
 // signal/exception handler.
 std::atomic<CrashTarget> g_crash_target{kNoCrashTarget};
+// The flight recorder ring of the hub the handlers follow (null: none), read
+// lock-free by the signal handler and the exception filter (spec 5.4).
+std::atomic<const detail::ByteRing*> g_crash_ring{nullptr};
 std::atomic<std::terminate_handler> g_previous_terminate{nullptr};
 
 // Normal-context state. Leaked so it survives static destruction.
@@ -1044,6 +1142,19 @@ void write_to_all(const CrashTargets& targets, const char* data, std::size_t siz
   for (const CrashTarget target : targets) write_all(target, data, size);
 }
 
+// The flight recorder's lines, oldest first, after a `flight recorder` line:
+// its two spans as they are, with no lock (a line torn by a writer running
+// meanwhile is accepted). To the crash file only; nothing without one.
+void write_ring(CrashTarget crash_file) noexcept {
+  const detail::ByteRing* ring = g_crash_ring.load();
+  if (ring == nullptr || crash_file == kNoCrashTarget) return;
+  const detail::ByteRing::Spans spans = ring->spans();
+  static constexpr std::string_view kHeader = "flight recorder\n";
+  write_all(crash_file, kHeader.data(), kHeader.size());
+  write_all(crash_file, spans.first.data(), spans.first.size());
+  write_all(crash_file, spans.second.data(), spans.second.size());
+}
+
 // "thread <tag>\n" from the crashing thread's LogContext tag; "?" if none.
 void write_thread_line(const CrashTargets& targets) noexcept {
   std::array<char, kMaxTagBytes + 16> line{};
@@ -1149,7 +1260,7 @@ LONG WINAPI on_unhandled_exception(EXCEPTION_POINTERS* info) {
   line[pos++] = '\n';
   write_to_all(targets, line.data(), pos);
 
-  // More preformatted spans go here (the flight recorder ring, spec 5.4).
+  write_ring(crash_file);
 
   const HANDLE request = g_dump_request.load();
   const HANDLE done = g_dump_done.load();
@@ -1267,8 +1378,7 @@ void on_fatal_signal(int sig, siginfo_t* /*info*/, void* context) {
   // has it, stderr only when there is no crash file.
   detail::ModuleMap::write_to(crash_fd >= 0 ? crash_fd : STDERR_FILENO);
 
-  // More preformatted spans go here, to crash_fd with write(2) only (the
-  // flight recorder ring, spec 5.4).
+  write_ring(crash_fd);  // write(2) only
 
   struct sigaction default_action {};
   default_action.sa_handler = SIG_DFL;
@@ -1451,6 +1561,15 @@ Result<std::shared_ptr<LogHub>> LogHub::create(const config::LoggingConfig& conf
     for (const auto& [pattern, level] : config.recorder.levels) {
       Impl::put_rule_in(impl->recorder_rules, pattern, level);
     }
+    // Allocated once; its pointer never changes (spec 5.2).
+    const auto mb = std::clamp<std::size_t>(config.recorder.size_mb, static_cast<std::size_t>(config::kRecorderMinMb),
+                                            static_cast<std::size_t>(config::kRecorderMaxMb));
+    try {
+      impl->ring = std::make_unique<detail::ByteRing>(mb * 1024 * 1024);
+    } catch (const std::bad_alloc&) {
+      impl->report_startup_error("cannot allocate the flight recorder (" + std::to_string(mb) +
+                                 " MB); running without it");
+    }
   }
 
   std::string lock_notice;  // written once the back end runs
@@ -1545,6 +1664,7 @@ Result<std::shared_ptr<LogHub>> LogHub::create(const config::LoggingConfig& conf
     auto& state = crash_state();
     std::lock_guard lock(state.mutex);
     state.current = impl;
+    g_crash_ring.store(impl->ring.get());
     if (state.installed) retarget_crash_output(*impl);
   }
   if (!lock_notice.empty()) impl->write(lock_notice_level, "logging", lock_notice);
@@ -1556,6 +1676,14 @@ LogHub::LogHub(std::shared_ptr<Impl> impl) : impl_(std::move(impl)) {}
 
 LogHub::~LogHub() {
   if (impl_->session_begun.load()) impl_->write(LogLevel::Info, "nobion", "session end");
+  {
+    // The crash handlers stop reading this hub's ring before it can go (it
+    // lives on with the Impl while loggers hold it, but nothing follows it).
+    auto& state = crash_state();
+    std::lock_guard lock(state.mutex);
+    const detail::ByteRing* mine = impl_->ring.get();
+    g_crash_ring.compare_exchange_strong(mine, nullptr);
+  }
   impl_->bus_failures.reset();
   // Hub loggers may still hold impl_: stop accepting writes and let the ones
   // in progress finish before the back end goes away.
@@ -1689,6 +1817,119 @@ void LogHub::begin_session(const SessionInfo& info) {
 }
 
 std::optional<PreviousSession> LogHub::previous_session() const { return impl_->previous; }
+
+std::string LogHub::recorder_snapshot() const { return impl_->ring ? impl_->ring->snapshot() : std::string(); }
+
+void LogHub::set_recorder_limit_clock_for_testing(std::function<std::chrono::steady_clock::time_point()> now) {
+  std::lock_guard lock(impl_->dump_mutex);
+  impl_->limit_clock = std::move(now);
+}
+
+namespace {
+
+// A reason as a file name may hold it: letters, digits, `.`, `_`, `-`; any
+// other byte `_`.
+std::string file_safe(std::string_view reason) {
+  std::string out;
+  out.reserve(reason.size());
+  for (const char c : reason) {
+    const bool safe = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' ||
+                      c == '_' || c == '-';
+    out.push_back(safe ? c : '_');
+  }
+  if (out.empty()) out = "unnamed";
+  return out;
+}
+
+// Of the `*.log` files in `dir`, the newest kDumpsKept stay (by modification
+// time, then name). Errors leave files in place.
+void prune_dumps(const std::filesystem::path& dir) noexcept {
+  try {
+    std::vector<std::pair<std::filesystem::file_time_type, std::filesystem::path>> dumps;
+    std::error_code ec;
+    for (std::filesystem::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
+      if (it->path().extension() != ".log" || !it->is_regular_file(ec)) {
+        ec.clear();
+        continue;
+      }
+      const auto time = it->last_write_time(ec);
+      if (ec) {
+        ec.clear();
+        continue;
+      }
+      dumps.emplace_back(time, it->path());
+    }
+    if (dumps.size() <= kDumpsKept) return;
+    std::sort(dumps.begin(), dumps.end(), [](const auto& a, const auto& b) { return a > b; });
+    for (std::size_t i = kDumpsKept; i < dumps.size(); ++i) std::filesystem::remove(dumps[i].second, ec);
+  } catch (...) {  // NOLINT(bugprone-empty-catch): pruning is housekeeping; a failure leaves old dumps
+  }
+}
+
+}  // namespace
+
+Result<std::filesystem::path> LogHub::dump_recorder(std::string_view reason) {
+  Impl& impl = *impl_;
+  if (!impl.ring) return fail(ErrorKind::Config, "the flight recorder is off ([recorder] enabled = false)");
+  if (impl.file_path.empty()) return fail(ErrorKind::Io, "no log folder: nowhere to write a flight recorder dump");
+
+  std::filesystem::path written;
+  std::filesystem::path skipped_for;  // the last dump, when a limit holds
+  std::string failure;
+  try {
+    std::lock_guard lock(impl.dump_mutex);
+    const auto now = impl.limit_clock ? impl.limit_clock() : std::chrono::steady_clock::now();
+    const auto same = impl.last_dump_by_reason.find(reason);
+    const bool limited = (impl.last_dump_at && now - *impl.last_dump_at < kDumpAny) ||
+                         (same != impl.last_dump_by_reason.end() && now - same->second < kDumpPerReason);
+    if (limited) {
+      skipped_for = impl.last_dump;
+    } else {
+      const std::filesystem::path dir = impl.file_path.parent_path() / "flight";
+      std::string stem;
+      append_stamp(stem, impl.pin().clock->wall_now(), true);
+      stem.append("-").append(file_safe(reason));
+      std::filesystem::path path = dir / (stem + ".log");
+      std::error_code ec;
+      for (int n = 2; std::filesystem::exists(path, ec); ++n) path = dir / (stem + "-" + std::to_string(n) + ".log");
+      std::filesystem::create_directories(dir, ec);
+      if (ec) {
+        failure = "cannot create " + dir.string() + ": " + ec.message();
+      } else {
+        std::string bytes = "flight recorder dump: reason=";
+        bytes.append(reason).append(" build=").append(build_id()).append("\n");
+        bytes.append(impl.ring->snapshot());
+        // Power: a dump made for a hang may be followed by a hard reset.
+        if (auto done = write_file_atomic(path, bytes, Durability::Power); !done) {
+          failure = done.error().what;
+        } else {
+          impl.last_dump_at = now;
+          impl.last_dump_by_reason.insert_or_assign(std::string(reason), now);
+          impl.last_dump = path;
+          written = std::move(path);
+          prune_dumps(dir);
+        }
+      }
+    }
+  } catch (const std::exception& e) {
+    failure = e.what();
+  }
+
+  // Logged outside dump_mutex: a Log handler may ask for a dump itself.
+  if (!skipped_for.empty()) {
+    impl.write(LogLevel::Info, "nobion",
+               "flight recorder dump for reason=" + std::string(reason) +
+                   " skipped (at most one a minute per reason, one per 10 s); last dump " + skipped_for.string());
+    return skipped_for;
+  }
+  if (!failure.empty()) {
+    impl.write(LogLevel::Warn, "nobion", "flight recorder dump for reason=" + std::string(reason) + " failed: " + failure);
+    return fail(ErrorKind::Io, "flight recorder dump failed: " + failure);
+  }
+  impl.write(LogLevel::Info, "nobion", "flight recorder dump for reason=" + std::string(reason) + " written to " +
+                                           written.string());
+  return written;
+}
 
 void LogHub::flush() {
   try {
@@ -1829,24 +2070,7 @@ void hub_record_only(LogHub::Impl& hub, LogLevel level, std::string_view logger,
     ~Leave() { n.fetch_sub(1); }
   } leave{hub.in_flight};
   if (!hub.alive.load()) return;
-  // The calling thread's buffer: no allocation once it has grown to a record.
-  thread_local std::string line;
-  try {
-    line.clear();
-    const std::string_view tag = LogContext::thread_tag();
-    line.append("[");
-    if (tag.empty()) {
-      line.append("t").append(std::to_string(LogContext::thread_number()));
-    } else {
-      line.append(tag);
-    }
-    line.append("] ");
-    if (const auto run = LogContext::run_id(); !run.empty()) line.append("run=").append(run).append(" ");
-    line.append(logger).append(": ");
-    append_one_line(line, message);
-    hub.record_only(level, line);
-  } catch (...) {  // NOLINT(bugprone-empty-catch): out of memory; a record that is only for the recorder is lost
-  }
+  hub.record_only(level, logger, message);
 }
 
 }  // namespace detail

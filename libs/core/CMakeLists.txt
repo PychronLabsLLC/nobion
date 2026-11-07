@@ -13,6 +13,7 @@ add_library(nobion_core
   src/log_summary.cpp
   src/log_match.cpp
   src/log_hub.cpp
+  src/byte_ring.cpp
   src/scheduler.cpp
   src/host_name.cpp
   src/process.cpp

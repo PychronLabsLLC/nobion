@@ -1708,3 +1708,267 @@ TEST(LogHub, TheSentinelIsStampedFromTheHubsClock) {
   const std::string text = read_file(tmp.path() / "nobion.session");
   EXPECT_NE(text.find("started=2001-01-02T03:00:00Z\n"), std::string::npos) << text;
 }
+
+// ---- Flight recorder (spec 2026-11-06-field-diagnostics, 5.2-5.4) ---------
+
+namespace {
+
+// What the dump limits are measured on, moved by hand.
+struct LimitClock {
+  std::chrono::steady_clock::time_point now = std::chrono::steady_clock::time_point{} + std::chrono::hours(1);
+  void attach(LogHub& hub) {
+    hub.set_recorder_limit_clock_for_testing([this] { return now; });
+  }
+};
+
+std::vector<fs::path> dumps_in(const fs::path& dir) {
+  std::vector<fs::path> out;
+  std::error_code ec;
+  for (fs::directory_iterator it(dir / "flight", ec), end; !ec && it != end; it.increment(ec)) {
+    out.push_back(it->path());
+  }
+  std::sort(out.begin(), out.end());
+  return out;
+}
+
+}  // namespace
+
+// A wire record below the file level is in the ring, in the file's line
+// format, and not in the file; a record that goes to the file is in both,
+// the same bytes.
+TEST(LogHub, SnapshotHoldsWireTraceNotInTheFile) {
+  TempDir tmp;
+  SteadyClock clock;
+  auto cfg = config_for(tmp.path());
+  cfg.default_level = LogLevel::Info;
+  cfg.recorder.default_level = LogLevel::Debug;
+  cfg.recorder.levels = {{"*.wire", LogLevel::Trace}};
+  auto hub = make_hub(cfg, clock);
+  ASSERT_TRUE(hub);
+
+  const Logger wire = hub->logger("ig1.wire");
+  const Logger core = hub->logger("core");
+  wire.trace("tx 0a 0d");
+  core.info("in both");
+  hub->flush();
+
+  const std::string file = read_file(tmp.path() / "nobion.log");
+  const std::string snap = hub->recorder_snapshot();
+  EXPECT_EQ(file.find("tx 0a 0d"), std::string::npos) << file;
+  EXPECT_EQ(wire.level(), LogLevel::Info);  // the file level is unchanged
+
+  const std::regex wire_line(R"(^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z \[trace\] \[[^\]]+\] ig1\.wire: tx 0a 0d$)");
+  bool found = false;
+  std::istringstream in(snap);
+  for (std::string line; std::getline(in, line);) found = found || std::regex_match(line, wire_line);
+  EXPECT_TRUE(found) << snap;
+
+  std::string both;
+  for (const auto& line : read_lines(tmp.path() / "nobion.log")) {
+    if (line.find("in both") != std::string::npos) both = line;
+  }
+  ASSERT_FALSE(both.empty()) << file;
+  EXPECT_NE(snap.find(both + "\n"), std::string::npos) << "file line: " << both << "\nsnapshot:\n" << snap;
+  // Oldest first.
+  EXPECT_LT(snap.find("tx 0a 0d"), snap.find("in both")) << snap;
+}
+
+TEST(LogHub, ADisabledRecorderHasNothingToDump) {
+  TempDir tmp;
+  SteadyClock clock;
+  auto cfg = config_for(tmp.path());
+  cfg.recorder.enabled = false;
+  auto hub = make_hub(cfg, clock);
+  ASSERT_TRUE(hub);
+  hub->logger("core").info("hello");
+  EXPECT_EQ(hub->recorder_snapshot(), "");
+  const auto dumped = hub->dump_recorder("manual");
+  ASSERT_FALSE(dumped);
+  EXPECT_EQ(dumped.error().kind, ErrorKind::Config);
+  EXPECT_TRUE(dumps_in(tmp.path()).empty());
+}
+
+TEST(LogHub, DumpWritesReasonAndBuildFirst) {
+  TempDir tmp;
+  SteadyClock clock;
+  auto hub = make_hub(config_for(tmp.path()), clock);
+  ASSERT_TRUE(hub);
+  hub->logger("core").info("before the dump");
+  const auto dumped = hub->dump_recorder("manual");
+  ASSERT_TRUE(dumped) << dumped.error().what;
+  EXPECT_EQ(dumped->parent_path(), tmp.path() / "flight");
+  EXPECT_TRUE(dumped->filename().string().ends_with("-manual.log")) << *dumped;
+  const auto lines = read_lines(*dumped);
+  ASSERT_FALSE(lines.empty());
+  EXPECT_EQ(lines.front(), "flight recorder dump: reason=manual build=" + build_id());
+  EXPECT_NE(read_file(*dumped).find("core: before the dump\n"), std::string::npos);
+}
+
+TEST(LogHub, ADumpNameIsStampedFromTheHubsClockAndKeepsItsReasonSafe) {
+  TempDir tmp;
+  const ManualClock clock(TimePoint{}, std::chrono::sys_days(std::chrono::year{2001} / 1 / 2) +
+                                           std::chrono::hours(3) + std::chrono::milliseconds(45));
+  auto hub = make_hub(config_for(tmp.path()), clock);
+  ASSERT_TRUE(hub);
+  const auto dumped = hub->dump_recorder("alarm-ig1/gauge:1");
+  ASSERT_TRUE(dumped) << dumped.error().what;
+  EXPECT_EQ(dumped->filename().string(), "20010102T030000.045Z-alarm-ig1_gauge_1.log");
+  EXPECT_EQ(read_lines(*dumped).front(), "flight recorder dump: reason=alarm-ig1/gauge:1 build=" + build_id());
+}
+
+TEST(LogHub, SameReasonWithinAMinuteWritesNothing) {
+  TempDir tmp;
+  SteadyClock clock;
+  auto hub = make_hub(config_for(tmp.path()), clock);
+  ASSERT_TRUE(hub);
+  LimitClock limit;
+  limit.attach(*hub);
+
+  const auto first = hub->dump_recorder("manual");
+  ASSERT_TRUE(first) << first.error().what;
+  limit.now += std::chrono::seconds(59);
+  const auto again = hub->dump_recorder("manual");
+  ASSERT_TRUE(again) << again.error().what;
+  EXPECT_EQ(*again, *first);  // the last dump's path
+  EXPECT_EQ(dumps_in(tmp.path()).size(), 1u);
+  hub->flush();
+  EXPECT_NE(read_file(tmp.path() / "nobion.log").find("flight recorder dump for reason=manual skipped"),
+            std::string::npos);
+
+  limit.now += std::chrono::seconds(2);
+  const auto later = hub->dump_recorder("manual");
+  ASSERT_TRUE(later) << later.error().what;
+  EXPECT_NE(*later, *first);
+  EXPECT_EQ(dumps_in(tmp.path()).size(), 2u);
+}
+
+TEST(LogHub, AnyReasonWithinTenSecondsWritesNothing) {
+  TempDir tmp;
+  SteadyClock clock;
+  auto hub = make_hub(config_for(tmp.path()), clock);
+  ASSERT_TRUE(hub);
+  LimitClock limit;
+  limit.attach(*hub);
+
+  const auto first = hub->dump_recorder("alarm-ig1");
+  ASSERT_TRUE(first) << first.error().what;
+  limit.now += std::chrono::seconds(9);
+  const auto other = hub->dump_recorder("unsafe");
+  ASSERT_TRUE(other) << other.error().what;
+  EXPECT_EQ(*other, *first);
+  EXPECT_EQ(dumps_in(tmp.path()).size(), 1u);
+
+  limit.now += std::chrono::seconds(2);
+  const auto later = hub->dump_recorder("unsafe");
+  ASSERT_TRUE(later) << later.error().what;
+  EXPECT_TRUE(later->filename().string().ends_with("-unsafe.log")) << *later;
+  EXPECT_EQ(dumps_in(tmp.path()).size(), 2u);
+}
+
+TEST(LogHub, KeepsTheNewestTwentyDumps) {
+  TempDir tmp;
+  SteadyClock clock;
+  auto hub = make_hub(config_for(tmp.path()), clock);
+  ASSERT_TRUE(hub);
+  LimitClock limit;
+  limit.attach(*hub);
+
+  std::vector<fs::path> written;
+  for (int i = 0; i < 25; ++i) {
+    const std::string reason = std::string("r") + (i < 10 ? "0" : "") + std::to_string(i);
+    const auto dumped = hub->dump_recorder(reason);
+    ASSERT_TRUE(dumped) << dumped.error().what;
+    written.push_back(*dumped);
+    limit.now += std::chrono::seconds(11);
+  }
+  EXPECT_EQ(dumps_in(tmp.path()).size(), 20u);
+  for (std::size_t i = 0; i < written.size(); ++i) {
+    EXPECT_EQ(fs::exists(written[i]), i >= 5) << written[i];
+  }
+}
+
+// Review Focus 4: a dump that cannot be written is an Io error that leaves
+// no file, and logging goes on.
+TEST(LogHub, ADumpToAReadOnlyDirectoryFailsCleanly) {
+  TempDir tmp;
+  SteadyClock clock;
+  auto hub = make_hub(config_for(tmp.path()), clock);
+  ASSERT_TRUE(hub);
+  const fs::path flight = tmp.path() / "flight";
+#ifdef _WIN32
+  // A read-only bit does not stop writes into a folder on Windows: a file
+  // where the folder should be does.
+  std::ofstream(flight) << "in the way";
+#else
+  fs::create_directories(flight);
+  fs::permissions(flight, fs::perms::owner_read | fs::perms::owner_exec);
+#endif
+  const auto dumped = hub->dump_recorder("manual");
+#ifndef _WIN32
+  const auto entries = dumps_in(tmp.path());
+  fs::permissions(flight, fs::perms::owner_all);
+  EXPECT_TRUE(entries.empty());
+#endif
+  ASSERT_FALSE(dumped);
+  EXPECT_EQ(dumped.error().kind, ErrorKind::Io);
+
+  hub->logger("core").info("still logging");
+  hub->flush();
+  EXPECT_NE(read_file(tmp.path() / "nobion.log").find("still logging"), std::string::npos);
+  // A failed dump sets no limit: the next one is tried.
+  fs::remove_all(flight);
+  const auto retried = hub->dump_recorder("manual");
+  EXPECT_TRUE(retried) << retried.error().what;
+}
+
+TEST(LogHub, NoFileNoDump) {
+  SteadyClock clock;
+  config::LoggingConfig cfg;
+  cfg.dir = fs::path();
+  auto hub = make_hub(cfg, clock);
+  ASSERT_TRUE(hub);
+  hub->logger("core").info("in memory only");
+  EXPECT_NE(hub->recorder_snapshot().find("core: in memory only\n"), std::string::npos);
+  const auto dumped = hub->dump_recorder("manual");
+  ASSERT_FALSE(dumped);
+  EXPECT_EQ(dumped.error().kind, ErrorKind::Io);
+}
+
+// Writers on several threads while snapshots and dumps are taken: every line
+// of a snapshot is whole. (Run under TSan, root AGENTS.md.)
+TEST(LogHub, ConcurrentWritesSnapshotsAndDumps) {
+  TempDir tmp;
+  SteadyClock clock;
+  auto cfg = config_for(tmp.path());
+  cfg.default_level = LogLevel::Info;
+  cfg.recorder.size_mb = static_cast<std::size_t>(config::kRecorderMinMb);
+  auto hub = make_hub(cfg, clock);
+  ASSERT_TRUE(hub);
+  std::atomic<bool> stop{false};
+  std::vector<std::thread> writers;
+  writers.reserve(4);
+  for (int t = 0; t < 4; ++t) {
+    writers.emplace_back([&, t] {
+      const Logger log = hub->logger("w" + std::to_string(t));
+      for (int i = 0; i < 2000 && !stop.load(); ++i) {
+        if (i % 2 == 0) {
+          log.debug("record " + std::to_string(i) + " end");
+        } else {
+          log.info("record " + std::to_string(i) + " end");
+        }
+      }
+    });
+  }
+  const std::regex whole(R"(^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z \[(debug|info)\] \[[^\]]+\] (w\d: record \d+ end|.*)$)");
+  for (int k = 0; k < 20; ++k) {
+    const std::string snap = hub->recorder_snapshot();
+    if (!snap.empty()) {
+      EXPECT_EQ(snap.back(), '\n');
+      std::istringstream in(snap);
+      for (std::string line; std::getline(in, line);) EXPECT_TRUE(std::regex_match(line, whole)) << line;
+    }
+    (void)hub->dump_recorder("k");
+  }
+  stop.store(true);
+  for (auto& w : writers) w.join();
+}

@@ -3,8 +3,10 @@
 // Process-wide logging back end: owns the rotating file sink and its writer
 // thread. No spdlog type appears here; everything lives behind Impl.
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -41,9 +43,11 @@ struct PreviousSession {
   std::optional<std::filesystem::path> crash_file;    // that process's crash file, if it left one
 };
 
-// File line format: `2026-10-01T14:03:22.481Z [warn] transport.serial.ig1: msg`
-// (UTC wall time, milliseconds). Records are written asynchronously by one
-// writer thread (queue 8192, producers block when full, nothing is dropped).
+// File line format: `2026-10-01T14:03:22.481Z [warn] [thread] run=.. transport.serial.ig1: msg`
+// (UTC wall time, milliseconds; no `run=` outside a run), formatted once on
+// the calling thread for the file and the flight recorder. Records are
+// written asynchronously by one writer thread (queue 8192, producers block
+// when full, nothing is dropped).
 // `error` records are on disk when write() returns; everything else within
 // about one second, or on flush()/destruction.
 //
@@ -127,6 +131,31 @@ class LogHub {
   // Blocks until every record written so far is on disk.
   void flush();
 
+  // Flight recorder (spec 2026-11-06-field-diagnostics, 5.2-5.4). With
+  // `[recorder] enabled`, create() allocates a ring of `size_mb` once. It
+  // holds every record that goes to the file and every record at or above
+  // its logger's recorder level, as lines of the file's format; the oldest
+  // whole lines make room for new ones. A crash writes it at the end of the
+  // crash file.
+
+  // The lines the ring holds, oldest first; empty when the recorder is off.
+  [[nodiscard]] std::string recorder_snapshot() const;
+
+  // Writes the snapshot to `<dir>/flight/<UTC stamp>-<reason>.log` (stamp
+  // from the hub's clock, `20261107T153012.481Z`; characters of `reason`
+  // other than letters, digits, `.`, `_` and `-` written `_`), its first line
+  // `flight recorder dump: reason=<reason> build=<build_id>`, and keeps the
+  // newest 20 dumps there. Limits, in real time whatever the hub's clock: one
+  // dump per reason a minute, one of any reason per 10 s; a call inside a
+  // limit writes nothing, logs one `info` line and returns the last dump's
+  // path. Fails (Io) with no file folder or when the dump cannot be written,
+  // (Config) when the recorder is off. Thread-safe.
+  Result<std::filesystem::path> dump_recorder(std::string_view reason);
+
+  // Tests only: the time the dump limits are measured on (steady_clock::now
+  // until set).
+  void set_recorder_limit_clock_for_testing(std::function<std::chrono::steady_clock::time_point()> now);
+
   // The bus this hub publishes `Log` events on now (null if none). Producers
   // that own a bus use it to avoid delivering a record twice.
   SignalBus* bus() const noexcept;
@@ -208,11 +237,14 @@ class LogHub {
   //   log file (moved onto the live file within about 1 s of a rotation) and
   //   to the crash file (crash_file_path(), opened only then); the module map
   //   (`module <path> 0x<load> 0x<size>`) to the crash file, or to stderr
-  //   when there is none. Then restores the default action and re-raises.
+  //   when there is none; then, to the crash file only, a `flight recorder`
+  //   line and the ring's lines, read without its lock (recorder_snapshot).
+  //   Then restores the default action and re-raises.
   //   No flush (signal-unsafe): records below `error` younger than about
   //   1 s may be lost. Spec 2026-11-06-field-diagnostics, 3.2 and 3.3.
   // - Windows: an unhandled-exception filter writing `fatal exception 0x..`
-  //   the same way, returning EXCEPTION_CONTINUE_SEARCH.
+  //   the same way (the ring after it, to the crash file), returning
+  //   EXCEPTION_CONTINUE_SEARCH.
   static void install_crash_handlers();
 
  private:

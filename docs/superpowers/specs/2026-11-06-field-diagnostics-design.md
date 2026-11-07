@@ -123,18 +123,24 @@ Last minutes of everything, in memory, written out when something goes wrong.
   ```
 
 - `Logger` (`logger.hpp`, state packed `(epoch << 9) | (explicit << 8) | level`): `level()` stays the file level. A second cached value, `gate` = min(file level, recorder level), packed the same way; `enabled(l)` compares against `gate`.
-- `log(l, m)`: file, stderr echo and bus (`Log` at or above `dock_level`) only when `l >= level()`, exactly as today; ring when `l >=` recorder level. Bus event records (`trace.<Event>`) follow the same rule.
+- `log(l, m)`: file, stderr echo and bus (`Log` at or above `dock_level`) only when `l >= level()`, exactly as today; ring when `l >=` recorder level, and every record that goes to file (ring is superset of file while recorder on). Bus event records (`trace.<Event>`) follow the same rule.
 - `Logger::set_level` (explicit) changes the file level only; the recorder level follows recorder rules only.
 - Cost: a record below the file level but at the recorder level is now formatted (hex for `*.wire`). Measured (section 14); if over budget, `.wire` loggers format into the ring only, skipping the file formatter's work.
 
 ### 5.2 The ring
 
-- One byte ring of `size_mb`, allocated once at hub start; its pointer never changes. Lines as the file writes them (same format, stamp). Producer formats into a thread-local buffer, then copies under a mutex held only for the copy; head and tail indices `std::atomic<std::uint64_t>`. Oldest whole lines overwritten. A record that reaches file and ring formatted once.
+- One byte ring of `size_mb`, allocated once at hub start (`[recorder] enabled = false`: none); its pointer never changes. Lines as the file writes them (same format, stamp). Producer formats into a thread-local buffer, then copies under a mutex held only for the copy; head and tail indices `std::atomic<std::uint64_t>`. Oldest whole lines overwritten; a line longer than the ring keeps its first `size - 1` bytes. A record that reaches file and ring formatted once: hub formats the whole file line (stamp from hub clock, level, thread, run, logger, message) on calling thread, ring takes it, file sink writes it as is (pattern `%v`).
+- Internal class `detail::ByteRing` (`libs/core/src/byte_ring.hpp`): `append`, `snapshot`, `spans` (two contiguous runs, read lock-free).
 - `LogHub::recorder_snapshot()` → `std::string`, oldest first, whole lines only.
 
 ### 5.3 When it is written out
 
-`LogHub::dump_recorder(std::string_view reason)` → `Result<std::filesystem::path>`: snapshot to `<log dir>/flight/<UTC stamp>-<reason>.log`, first line `flight recorder dump: reason=<reason> build=<build_id>`. Keeps the newest 20.
+`LogHub::dump_recorder(std::string_view reason)` → `Result<std::filesystem::path>`: snapshot to `<log dir>/flight/<UTC stamp>-<reason>.log`, first line `flight recorder dump: reason=<reason> build=<build_id>`. Keeps the newest 20 (`*.log` there, by mtime, then name).
+
+- Stamp from hub clock's `wall_now()` (as file lines), compact: `20261107T153012.481Z`. Reason in name: bytes other than letters, digits, `.`, `_`, `-` written `_` (first line keeps it raw). Name taken: `-2`, `-3`... before `.log`.
+- Written with `write_file_atomic(..., Durability::Power)`: dump made for hang may be followed by hard reset. Not marked as user file (a log, not a document).
+- Fails `Io` with no log folder or when folder or file cannot be written (warn line logged; no file left; no limit set, so next call tries again); `Config` when recorder off.
+- Rate-limit time source replaceable by tests only: `LogHub::set_recorder_limit_clock_for_testing(std::function<steady_clock::time_point()>)`.
 
 Limits, on `steady_clock` (real time, whatever the hub's clock): one dump per exact reason per 60 s; any reason at most one per 10 s. A call inside a limit writes nothing, logs one `info` line, returns the last dump's path. So a storm keeps its first dump.
 
@@ -159,7 +165,7 @@ Both apps construct it in `main` after the hub and bus.
 
 ### 5.4 On a crash
 
-Signal handler (and Windows filter) writes the ring's two contiguous spans to the crash file with `write(2)`, reading the atomic indices, without the mutex. A line torn by a concurrent writer is accepted.
+Signal handler (and Windows filter) writes the ring's two contiguous spans to the crash file with `write(2)` (Windows: `WriteFile` on handle opened in advance), reading the atomic indices, without the mutex, after line `flight recorder`; last thing written before re-raise (Windows: before dump request). Crash file only: never stderr or log file. Ring followed is that of hub the handlers follow (most recent `create`), held in an atomic pointer; `~LogHub` clears it. A line torn by a concurrent writer is accepted.
 
 ## 6. Hang monitor
 
