@@ -20,6 +20,7 @@ add_library(nobion_core
   src/sha1.cpp
   src/calendar.cpp
   src/user_file.cpp
+  src/atomic_file.cpp
   src/config/diagnostic.cpp
   src/config/loader.cpp
   src/config/logging_file.cpp

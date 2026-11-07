@@ -16,6 +16,7 @@ add_executable(nobion_core_tests
   test_host_name.cpp
   test_process.cpp
   test_user_file.cpp
+  test_atomic_file.cpp
   test_number.cpp
   test_path_text.cpp
   test_sha256.cpp
