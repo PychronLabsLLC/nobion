@@ -29,7 +29,9 @@ add_library(nobion_core
   src/config/local_file.cpp
   src/config/validate.cpp
   src/toml_impl.cpp
+  src/build_info_id.cpp
 )
+nobion_generate_build_info(nobion_core)
 add_library(nobion::core ALIAS nobion_core)
 
 target_include_directories(nobion_core PUBLIC

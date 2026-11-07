@@ -23,6 +23,7 @@ include(NobionWarnings)
 include(NobionSanitizers)
 include(NobionCoverage)
 include(NobionDependencies)
+include(NobionBuildInfo)
 
 # Libraries in dependency order: core <- transport <- codecs <- devices <- systems.
 # persistence depends on core only (DVC schema spec, section 12.1).

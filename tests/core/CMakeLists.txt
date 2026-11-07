@@ -31,12 +31,16 @@ add_executable(nobion_core_tests
   test_event_recorder.cpp
   test_http.cpp
   test_keyed_noise.cpp
+  test_build_info.cpp
 )
 
 target_link_libraries(nobion_core_tests PRIVATE nobion::core GTest::gtest_main)
 # virtual_time.hpp
 target_include_directories(nobion_core_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests/support)
 nobion_set_warnings(nobion_core_tests)
+target_compile_definitions(nobion_core_tests PRIVATE
+  NOBION_TEST_PROJECT_VERSION="${PROJECT_VERSION}"
+  NOBION_TEST_HAS_METRICS=$<BOOL:${NOBION_METRICS}>)
 
 gtest_discover_tests(nobion_core_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)
 
