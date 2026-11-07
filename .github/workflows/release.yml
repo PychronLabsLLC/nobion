@@ -232,12 +232,12 @@ jobs:
             # the PDB archive; the steps are printed, not run.
             dmp=$(find "$RUNNER_TEMP/crashlog/crash" -name '*.dmp' | head -n 1)
             if [ -z "$dmp" ]; then echo "no minidump left"; exit 1; fi
-            unzip -q symbols-tests/*.zip -d "$RUNNER_TEMP/syms"
+            $PY -m zipfile -e symbols-tests/*.zip "$RUNNER_TEMP/syms"
             $PY tools/symbolize.py "$dmp" --symbols "$RUNNER_TEMP/syms"
             exit 0
           fi
           if [ "$os" = macos ]; then
-            unzip -q symbols-tests/*.zip -d "$RUNNER_TEMP/syms"
+            $PY -m zipfile -e symbols-tests/*.zip "$RUNNER_TEMP/syms"
           else
             tar --zstd -xf symbols-tests/*.tar.zst -C "$RUNNER_TEMP/syms"
           fi
@@ -324,7 +324,7 @@ jobs:
       - name: Smoke test (Windows)
         if: runner.os == 'Windows'
         run: |
-          mkdir -p "$RUNNER_TEMP/zip" && unzip -q build/Nobion-*.zip -d "$RUNNER_TEMP/zip"
+          mkdir -p "$RUNNER_TEMP/zip" && $PY -m zipfile -e build/Nobion-*.zip "$RUNNER_TEMP/zip"
           bin=$(ls -d "$RUNNER_TEMP"/zip/*/bin)
           "$bin/elctl.exe" --version
           "$bin/nobion.exe" --self-test  # windeployqt ships the windows platform plugin only
@@ -332,16 +332,25 @@ jobs:
           "$bin/elctl.exe" init argus --root "$RUNNER_TEMP/argus" --yes
           "$bin/elctl.exe" --install argus exp run experiment.toml --sim-speed 200
 
+      # One flat directory: upload-artifact roots an artifact at the paths'
+      # common ancestor, so build/* beside symbols/* would arrive as
+      # dist/build/* and dist/symbols/*, and `files: dist/*` would attach
+      # nothing. Every name carries its platform (Nobion-<version>-<os>...,
+      # nobion-<version>-<os>-<arch>.<kind>), so merge-multiple below cannot
+      # have one OS's file overwrite another's; a name met twice fails here.
+      - name: Stage the release files
+        run: |
+          mkdir -p out
+          shopt -s nullglob
+          for f in build/*.deb build/*.tar.gz build/*.dmg build/*.exe build/*.zip symbols/*; do
+            if [ -e "out/$(basename "$f")" ]; then echo "::error::$(basename "$f") staged twice"; exit 1; fi
+            cp "$f" out/
+          done
+
       - uses: actions/upload-artifact@v4
         with:
           name: nobion-${{ matrix.name }}
-          path: |
-            build/*.deb
-            build/*.tar.gz
-            build/*.dmg
-            build/*.exe
-            build/*.zip
-            symbols/*
+          path: out/*
           if-no-files-found: error
 
   release:
