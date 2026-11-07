@@ -35,7 +35,7 @@ class TestPlotBuild : public QObject {
 
   void simSpectrometerDriversRegistered() {
     auto data =
-        cfg::load_spectrometer(std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "spectrometer.sim-integrated.toml");
+        cfg::load_spectrometer(std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "spectrometer.sim-integrated.toml");
     if (!data) QFAIL(data.error().what.c_str());
     ManualClock clock{TimePoint{} + 1000s};
     SignalBus bus;

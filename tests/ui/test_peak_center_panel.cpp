@@ -67,7 +67,7 @@ class TestPeakCenterPanel : public QObject {
     tables_ = std::make_unique<QTemporaryDir>();
     QVERIFY(tables_->isValid());
     const std::filesystem::path root = tables_->path().toStdString();
-    std::filesystem::copy(std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "tables", root / "tables",
+    std::filesystem::copy(std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "tables", root / "tables",
                           std::filesystem::copy_options::recursive);
     sim_ = ui::test::make_sim_spectrometer([&root](spectrometer::cfg::SpectrometerData& data) { data.root = root; },
                                            clock_.get());

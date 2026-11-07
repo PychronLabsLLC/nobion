@@ -43,11 +43,11 @@ findings_json = true
 
 [[task.check]]
 name = "build"
-argv = ["cmake", "--build", "--preset", "dev", "--target", "pychron_transport_tests"]
+argv = ["cmake", "--build", "--preset", "dev", "--target", "nobion_transport_tests"]
 
 [[task.check]]
 name = "tests"
-argv = ["build/dev/tests/transport/pychron_transport_tests", "--gtest_filter=SimTransport*"]
+argv = ["build/dev/tests/transport/nobion_transport_tests", "--gtest_filter=SimTransport*"]
 
 [[task]]
 id = "job-runner-destructor"
@@ -83,11 +83,11 @@ findings_json = true
 
 [[task.check]]
 name = "build"
-argv = ["cmake", "--build", "--preset", "dev", "--target", "pychron_systems_tests"]
+argv = ["cmake", "--build", "--preset", "dev", "--target", "nobion_systems_tests"]
 
 [[task.check]]
 name = "tests"
-argv = ["build/dev/tests/systems/pychron_systems_tests", "--gtest_filter=JobRunner.*:Jobs*"]
+argv = ["build/dev/tests/systems/nobion_systems_tests", "--gtest_filter=JobRunner.*:Jobs*"]
 
 [[task]]
 id = "plan-time-zero"
@@ -124,12 +124,12 @@ findings_json = true
 
 [[task.check]]
 name = "build"
-argv = ["cmake", "--build", "--preset", "dev", "--target", "pychron_setup_tests", "pychron_experiment_tests"]
+argv = ["cmake", "--build", "--preset", "dev", "--target", "nobion_setup_tests", "nobion_experiment_tests"]
 
 [[task.check]]
 name = "setup tests"
-argv = ["build/dev/tests/setup/pychron_setup_tests", "--gtest_filter=Profiles.*"]
+argv = ["build/dev/tests/setup/nobion_setup_tests", "--gtest_filter=Profiles.*"]
 
 [[task.check]]
 name = "experiment tests"
-argv = ["build/dev/tests/experiment/pychron_experiment_tests", "--gtest_filter=PlanParameters.*"]
+argv = ["build/dev/tests/experiment/nobion_experiment_tests", "--gtest_filter=PlanParameters.*"]

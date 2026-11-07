@@ -1,9 +1,9 @@
 # A driver library nothing references by symbol, linked the way drivers are.
-add_library(pychron_devices_test_drivers STATIC archived_driver.cpp)
-target_link_libraries(pychron_devices_test_drivers PRIVATE pychron::devices)
-pychron_set_warnings(pychron_devices_test_drivers)
+add_library(nobion_devices_test_drivers STATIC archived_driver.cpp)
+target_link_libraries(nobion_devices_test_drivers PRIVATE nobion::devices)
+nobion_set_warnings(nobion_devices_test_drivers)
 
-add_executable(pychron_devices_tests
+add_executable(nobion_devices_tests
   test_device.cpp
   test_capabilities.cpp
   test_driver_registry.cpp
@@ -46,21 +46,21 @@ add_executable(pychron_devices_tests
   extraction/test_chromium.cpp
 )
 # spectrometer/ and extraction/ conformance.hpp and fakes
-target_include_directories(pychron_devices_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(nobion_devices_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 # virtual_time.hpp
-target_include_directories(pychron_devices_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests/support)
+target_include_directories(nobion_devices_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests/support)
 
 # test_pychron_valves runs a loopback TCP server.
-target_link_libraries(pychron_devices_tests PRIVATE pychron::devices asio::asio GTest::gtest_main)
+target_link_libraries(nobion_devices_tests PRIVATE nobion::devices asio::asio GTest::gtest_main)
 # Committed wire traces, replayed by driver tests.
-target_compile_definitions(pychron_devices_tests PRIVATE
-  PYCHRON_TRACES_DIR="${PROJECT_SOURCE_DIR}/tests/traces")
-pychron_link_drivers(pychron_devices_tests pychron_devices_test_drivers)
+target_compile_definitions(nobion_devices_tests PRIVATE
+  NOBION_TRACES_DIR="${PROJECT_SOURCE_DIR}/tests/traces")
+nobion_link_drivers(nobion_devices_tests nobion_devices_test_drivers)
 # Example configs, driven end to end by spectrometer/legacy.
-target_compile_definitions(pychron_devices_tests PRIVATE
-  PYCHRON_EXAMPLES_DIR="${PROJECT_SOURCE_DIR}/configs/examples")
-target_compile_definitions(pychron_devices_tests PRIVATE
-  PYCHRON_TRACE_DIR="${PROJECT_SOURCE_DIR}/tests/traces")
-pychron_set_warnings(pychron_devices_tests)
+target_compile_definitions(nobion_devices_tests PRIVATE
+  NOBION_EXAMPLES_DIR="${PROJECT_SOURCE_DIR}/configs/examples")
+target_compile_definitions(nobion_devices_tests PRIVATE
+  NOBION_TRACE_DIR="${PROJECT_SOURCE_DIR}/tests/traces")
+nobion_set_warnings(nobion_devices_tests)
 
-gtest_discover_tests(pychron_devices_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)
+gtest_discover_tests(nobion_devices_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)

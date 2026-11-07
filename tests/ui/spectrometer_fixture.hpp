@@ -52,7 +52,7 @@ struct SimSpectrometer {
 // everything runs on instead of the fixture's own SteadyClock.
 inline std::unique_ptr<SimSpectrometer> make_sim_spectrometer(
     const std::function<void(spectrometer::cfg::SpectrometerData&)>& edit = {}, const Clock* clock = nullptr) {
-  const std::filesystem::path dir = PYCHRON_EXAMPLE_CONFIGS_DIR;
+  const std::filesystem::path dir = NOBION_EXAMPLE_CONFIGS_DIR;
   sim::BeamModelRegistry::global().clear();
   auto data = spectrometer::cfg::load_spectrometer(dir / "spectrometer.sim-integrated.toml");
   if (!data) {

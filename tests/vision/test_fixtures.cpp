@@ -229,7 +229,7 @@ TEST(Fixture, SkippedFramesAreNotChecked) {
 }
 
 TEST(Fixture, CommittedCasesWithinTolerance) {
-  const auto r = check_cases(PYCHRON_VISION_DATA_DIR);
+  const auto r = check_cases(NOBION_VISION_DATA_DIR);
   EXPECT_GT(r.cases, 0) << "no committed cases found";
   EXPECT_GT(r.frames, 0) << "no committed frames were checked";
 }

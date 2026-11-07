@@ -23,7 +23,7 @@ Result<void> check_password(std::string_view backend, std::string_view password)
 std::unique_ptr<ISecretStore> process_memory_secret_store(std::string_view service);
 
 // The system's store for `service`, defined by the one secret_store_<system>.cpp
-// that was compiled (none when PYCHRON_EARTHBANK_SECRET_STORE is "memory").
+// that was compiled (none when NOBION_EARTHBANK_SECRET_STORE is "memory").
 // Null when the store cannot be used now: no keychain, no session, no secret
 // service on the bus.
 std::unique_ptr<ISecretStore> make_system_secret_store(std::string_view service);

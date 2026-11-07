@@ -43,7 +43,7 @@ namespace fs = std::filesystem;
 const char* const kArAr = "ArArDataPoint_Template2026.xlsx";
 const char* const kSample = "Sample_Template_v2025-04-16.xlsx";
 
-fs::path template_file(const char* name) { return fs::path(PYCHRON_EARTHBANK_TEMPLATE_DIR) / name; }
+fs::path template_file(const char* name) { return fs::path(NOBION_EARTHBANK_TEMPLATE_DIR) / name; }
 
 std::string slurp(const fs::path& file) {
   std::ifstream in(file, std::ios::binary);

@@ -8,21 +8,21 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(BUILD_UI "Build the Qt6 UI (apps/nobion)" OFF)
-option(PYCHRON_VISION "Build libs/vision" ON)
-option(PYCHRON_METRICS "Build libs/metrics (the Prometheus endpoint)" ON)
+option(NOBION_VISION "Build libs/vision" ON)
+option(NOBION_METRICS "Build libs/metrics (the Prometheus endpoint)" ON)
 option(BUILD_TESTS "Build GoogleTest suites under tests/" ON)
-option(PYCHRON_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
-set(PYCHRON_SANITIZE "" CACHE STRING "Comma-separated sanitizers, e.g. address,undefined")
+option(NOBION_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
+set(NOBION_SANITIZE "" CACHE STRING "Comma-separated sanitizers, e.g. address,undefined")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Before any target (FetchContent dependencies included) is created.
-include(PychronCcache)
-include(PychronToolchainFixes)
-include(PychronWarnings)
-include(PychronSanitizers)
-include(PychronCoverage)
-include(PychronDependencies)
+include(NobionCcache)
+include(NobionToolchainFixes)
+include(NobionWarnings)
+include(NobionSanitizers)
+include(NobionCoverage)
+include(NobionDependencies)
 
 # Libraries in dependency order: core <- transport <- codecs <- devices <- systems.
 # persistence depends on core only (DVC schema spec, section 12.1).
@@ -31,13 +31,13 @@ include(PychronDependencies)
 # the EarthBank data platform) sits on processing; earthbank_qt is its HTTPS
 # client (Qt Network), built only when Qt6 Network is found. arar (the Ar-Ar
 # domain: reduction now, figures and report later) sits on reduction.
-set(PYCHRON_LIBS core update metrics vision persistence ingest dvc entry transport codecs devices laser sim systems reduction scripting experiment processing arar earthbank earthbank_qt publish setup)
+set(NOBION_LIBS core update metrics vision persistence ingest dvc entry transport codecs devices laser sim systems reduction scripting experiment processing arar earthbank earthbank_qt publish setup)
 
-if(NOT PYCHRON_METRICS)
-  list(REMOVE_ITEM PYCHRON_LIBS metrics)
+if(NOT NOBION_METRICS)
+  list(REMOVE_ITEM NOBION_LIBS metrics)
 endif()
 
-foreach(lib IN LISTS PYCHRON_LIBS)
+foreach(lib IN LISTS NOBION_LIBS)
   if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/libs/${lib}/CMakeLists.txt")
     add_subdirectory(libs/${lib})
   endif()
@@ -59,7 +59,7 @@ if(BUILD_TESTS)
   # Test binaries are listed when ctest runs, not after every link, so a build
   # does not wait on running each one with --gtest_list_tests.
   set(CMAKE_GTEST_DISCOVER_TESTS_DISCOVERY_MODE PRE_TEST)
-  foreach(suite IN LISTS PYCHRON_LIBS ITEMS integration)
+  foreach(suite IN LISTS NOBION_LIBS ITEMS integration)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/${suite}/CMakeLists.txt")
       add_subdirectory(tests/${suite})
     endif()
@@ -69,5 +69,5 @@ if(BUILD_TESTS)
   endif()
 endif()
 
-# Install rules and packages (cpack); see cmake/PychronInstall.cmake.
-include(PychronInstall)
+# Install rules and packages (cpack); see cmake/NobionInstall.cmake.
+include(NobionInstall)

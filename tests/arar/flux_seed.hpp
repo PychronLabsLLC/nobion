@@ -165,46 +165,46 @@ inline Result<SeededLevel> seed_flux_level(persistence::IStore& store, const per
                                            const std::string& monitor_sample = "FC-2", int analysed = 8) {
   namespace ps = persistence;
 // NOLINTBEGIN(bugprone-macro-parentheses): `var` is the name being declared
-#define PYCHRON_SEED_TRY(var, expr) \
+#define NOBION_SEED_TRY(var, expr) \
   auto var = (expr);                \
   if (!var) return fail(var.error())
 // NOLINTEND(bugprone-macro-parentheses)
 
   SeededLevel out;
-  PYCHRON_SEED_TRY(acq, store.register_client({"acq-1", "acquisition", std::nullopt, "test"}));
+  NOBION_SEED_TRY(acq, store.register_client({"acq-1", "acquisition", std::nullopt, "test"}));
   out.acquisition_client = *acq;
-  PYCHRON_SEED_TRY(ms, store.add_mass_spectrometer(*acq, {"jan", "argus", "j", std::nullopt}));
+  NOBION_SEED_TRY(ms, store.add_mass_spectrometer(*acq, {"jan", "argus", "j", std::nullopt}));
   out.mass_spectrometer = *ms;
-  PYCHRON_SEED_TRY(device, store.add_extract_device(*acq, "co2"));
-  PYCHRON_SEED_TRY(irradiation, store.add_irradiation(*acq, out.irradiation_name));
+  NOBION_SEED_TRY(device, store.add_extract_device(*acq, "co2"));
+  NOBION_SEED_TRY(irradiation, store.add_irradiation(*acq, out.irradiation_name));
   out.irradiation = *irradiation;
 
   ps::RefObjectSpec holder_spec;
   holder_spec.type = ps::RefType::IrradiationHolder;
   holder_spec.key = out.holder_name;
-  PYCHRON_SEED_TRY(holder, store.add_ref_object(actor.client, holder_spec));
+  NOBION_SEED_TRY(holder, store.add_ref_object(actor.client, holder_spec));
   out.holder = *holder;
-  PYCHRON_SEED_TRY(holder_revision, seed_publish_holder(store, actor, out, seed_holes()));
+  NOBION_SEED_TRY(holder_revision, seed_publish_holder(store, actor, out, seed_holes()));
 
-  PYCHRON_SEED_TRY(level, store.add_level(*acq, {*irradiation, out.level_name, *holder, 0.5, std::nullopt, std::nullopt}));
+  NOBION_SEED_TRY(level, store.add_level(*acq, {*irradiation, out.level_name, *holder, 0.5, std::nullopt, std::nullopt}));
   out.level = *level;
 
-  PYCHRON_SEED_TRY(pi, store.add_principal_investigator(*acq, {"Ross", "J", std::nullopt, std::nullopt, std::nullopt}));
-  PYCHRON_SEED_TRY(project, store.add_project(*acq, {"Fish Canyon", *pi, std::nullopt}));
-  PYCHRON_SEED_TRY(material, store.add_material(*acq, {"sanidine", "60-80", std::nullopt}));
-  PYCHRON_SEED_TRY(monitor, store.add_sample(*acq, {.name = monitor_sample, .project = *project, .material = *material}));
-  PYCHRON_SEED_TRY(unknown, store.add_sample(*acq, {.name = "unk", .project = *project, .material = *material}));
+  NOBION_SEED_TRY(pi, store.add_principal_investigator(*acq, {"Ross", "J", std::nullopt, std::nullopt, std::nullopt}));
+  NOBION_SEED_TRY(project, store.add_project(*acq, {"Fish Canyon", *pi, std::nullopt}));
+  NOBION_SEED_TRY(material, store.add_material(*acq, {"sanidine", "60-80", std::nullopt}));
+  NOBION_SEED_TRY(monitor, store.add_sample(*acq, {.name = monitor_sample, .project = *project, .material = *material}));
+  NOBION_SEED_TRY(unknown, store.add_sample(*acq, {.name = "unk", .project = *project, .material = *material}));
 
   out.unknown_sample = *unknown;
   out.monitor_sample = *monitor;
 
   for (int hole = 1; hole <= 12; ++hole) {
     const bool ring = hole <= 8;
-    PYCHRON_SEED_TRY(position, store.add_irradiation_position(
+    NOBION_SEED_TRY(position, store.add_irradiation_position(
                                    *acq, {*level, hole, ring ? *monitor : *unknown, std::nullopt, {}, {}, std::nullopt}));
     out.positions[hole] = *position;
     const std::string identifier = std::to_string(ring ? 66000 + hole : 66100 + hole - 8);
-    PYCHRON_SEED_TRY(added, store.add_identifier(*acq, {identifier, "unknown", std::nullopt, std::nullopt, *position,
+    NOBION_SEED_TRY(added, store.add_identifier(*acq, {identifier, "unknown", std::nullopt, std::nullopt, *position,
                                                         std::nullopt, std::nullopt}));
   }
 
@@ -212,30 +212,30 @@ inline Result<SeededLevel> seed_flux_level(persistence::IStore& store, const per
   ps::RefObjectSpec production_spec, level_scope, irradiation_scope;
   production_spec.type = ps::RefType::Production;
   production_spec.key = out.irradiation_name + "/Triga";
-  PYCHRON_SEED_TRY(production, store.add_ref_object(actor.client, production_spec));
+  NOBION_SEED_TRY(production, store.add_ref_object(actor.client, production_spec));
   out.production = *production;
-  PYCHRON_SEED_TRY(production_revision,
+  NOBION_SEED_TRY(production_revision,
                    seed_publish(store, actor, *production,
                                 ps::ProductionValue{"Triga", std::nullopt, {{"K4039", 0.0, 0.0}, {"Ca3937", 0.0007, 1e-5}}}));
   level_scope.type = ps::RefType::LevelProduction;
   level_scope.key = out.irradiation_name + "/" + out.level_name;
   level_scope.level = *level;
-  PYCHRON_SEED_TRY(level_production, store.add_ref_object(actor.client, level_scope));
-  PYCHRON_SEED_TRY(level_production_revision,
+  NOBION_SEED_TRY(level_production, store.add_ref_object(actor.client, level_scope));
+  NOBION_SEED_TRY(level_production_revision,
                    seed_publish(store, actor, *level_production, ps::LevelProductionValue{*production, std::nullopt}));
   irradiation_scope.type = ps::RefType::Chronology;
   irradiation_scope.key = out.irradiation_name;
   irradiation_scope.irradiation = *irradiation;
-  PYCHRON_SEED_TRY(chronology, store.add_ref_object(actor.client, irradiation_scope));
-  PYCHRON_SEED_TRY(chronology_revision,
+  NOBION_SEED_TRY(chronology, store.add_ref_object(actor.client, irradiation_scope));
+  NOBION_SEED_TRY(chronology_revision,
                    seed_publish(store, actor, *chronology,
                                 ps::ChronologyValue{{{0, 1.0, *ps::UtcTime::parse("2026-01-01T00:00:00Z"),
                                                       *ps::UtcTime::parse("2026-01-01T10:00:00Z")}}}));
 
   for (int hole = 1; hole <= analysed; ++hole) {
-    PYCHRON_SEED_TRY(ingested, seed_monitor_analyses(store, out, hole));
+    NOBION_SEED_TRY(ingested, seed_monitor_analyses(store, out, hole));
   }
-#undef PYCHRON_SEED_TRY
+#undef NOBION_SEED_TRY
   return out;
 }
 

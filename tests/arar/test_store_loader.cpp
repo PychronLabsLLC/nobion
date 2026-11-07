@@ -1032,7 +1032,7 @@ class StoreSource : public StoreLoader {};
 TEST_F(StoreSource, FingerprintUnchangedByTheMoveAndChangedByJ) {
   // (a) Fixed heads and references: the hex and the canonical text recorded
   // before the move.
-  std::ifstream in(std::filesystem::path(PYCHRON_ARAR_FIXTURE_DIR) / "fingerprint_before_move.txt", std::ios::binary);
+  std::ifstream in(std::filesystem::path(NOBION_ARAR_FIXTURE_DIR) / "fingerprint_before_move.txt", std::ios::binary);
   ASSERT_TRUE(in);
   std::string hex;
   std::getline(in, hex);

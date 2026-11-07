@@ -1,4 +1,4 @@
-# CPack pre-build script (CPACK_PRE_BUILD_SCRIPTS, cmake/PychronPackaging.cmake):
+# CPack pre-build script (CPACK_PRE_BUILD_SCRIPTS, cmake/NobionPackaging.cmake):
 # signs Nobion.app in the staging directory, after it is installed, stripped
 # and has its Qt runtime, and before the disk image is made from it.
 #
@@ -13,14 +13,14 @@ if(_identity STREQUAL "")
 endif()
 
 file(GLOB_RECURSE _apps LIST_DIRECTORIES true "${CPACK_TEMPORARY_DIRECTORY}/*")
-list(FILTER _apps INCLUDE REGEX "/Pychron\\.app$")
+list(FILTER _apps INCLUDE REGEX "/Nobion\\.app$")
 list(LENGTH _apps _n)
 if(NOT _n EQUAL 1)
   message(FATAL_ERROR "nobion: expected one Nobion.app under ${CPACK_TEMPORARY_DIRECTORY}, found: ${_apps}")
 endif()
 
 execute_process(
-  COMMAND "${CPACK_PYCHRON_SIGN_SCRIPT}" "${_apps}" "${_identity}" "${CPACK_PYCHRON_ENTITLEMENTS}"
+  COMMAND "${CPACK_NOBION_SIGN_SCRIPT}" "${_apps}" "${_identity}" "${CPACK_NOBION_ENTITLEMENTS}"
   RESULT_VARIABLE _rc)
 if(NOT _rc EQUAL 0)
   message(FATAL_ERROR "nobion: signing ${_apps} failed (${_rc})")

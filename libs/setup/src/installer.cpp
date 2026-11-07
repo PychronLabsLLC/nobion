@@ -23,7 +23,7 @@ bool has_profiles(const fs::path& dir) {
 Resources find_resources() { return find_resources(executable_dir()); }
 
 Resources find_resources(const fs::path& exe) {
-  Resources r{fs::path(PYCHRON_SETUP_SOURCE_DIR) / "profiles", fs::path(PYCHRON_SETUP_SOURCE_DIR) / "configs" / "examples"};
+  Resources r{fs::path(NOBION_SETUP_SOURCE_DIR) / "profiles", fs::path(NOBION_SETUP_SOURCE_DIR) / "configs" / "examples"};
   if (!exe.empty()) {
     for (const fs::path& base : {exe / ".." / "share" / "nobion", exe / ".." / "Resources"}) {
       if (!has_profiles(base)) continue;
@@ -102,7 +102,7 @@ fs::path default_root(const Profile& profile, const std::string& name) {
   return home_dir() / "Nobion" / name;
 }
 
-std::string_view version() noexcept { return PYCHRON_VERSION; }
+std::string_view version() noexcept { return NOBION_VERSION; }
 
 Answers builtin_answers(const std::string& name, const fs::path& root) {
   return {{"install_name", Value{name}}, {"root", Value{root.generic_string()}}};

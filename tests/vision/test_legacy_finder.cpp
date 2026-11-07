@@ -139,7 +139,7 @@ TEST(LegacyFinder, RealFixtureComparison) {
   if (!legacy) GTEST_SKIP() << "built without OpenCV";
   std::vector<std::filesystem::path> dirs;
   std::error_code ec;
-  for (std::filesystem::directory_iterator it(PYCHRON_VISION_DATA_DIR, ec), end; !ec && it != end; it.increment(ec)) {
+  for (std::filesystem::directory_iterator it(NOBION_VISION_DATA_DIR, ec), end; !ec && it != end; it.increment(ec)) {
     std::error_code ec2;
     if (it->is_directory(ec2) && std::filesystem::exists(it->path() / "case.toml", ec2)) dirs.push_back(it->path());
   }

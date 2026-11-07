@@ -478,7 +478,7 @@ namespace {
 namespace fs = std::filesystem;
 
 // Given by the build, not taken from __FILE__ (see test_plan_schema.cpp).
-const fs::path kPlanFixtures = PYCHRON_PLAN_FIXTURES_DIR;
+const fs::path kPlanFixtures = NOBION_PLAN_FIXTURES_DIR;
 
 std::string read_text(const fs::path& p) {
   std::ifstream in(p);

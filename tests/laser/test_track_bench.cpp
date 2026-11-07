@@ -447,7 +447,7 @@ TEST(TrackBench, LoadReadsAFile) {
 namespace {
 // A shipped scenario, a single seed.
 std::vector<TrackCombo> run_shipped(const char* name) {
-  const fs::path file = fs::path(PYCHRON_TEST_DATA_DIR) / ".." / ".." / "configs" / "examples" / "track" / name;
+  const fs::path file = fs::path(NOBION_TEST_DATA_DIR) / ".." / ".." / "configs" / "examples" / "track" / name;
   auto loaded = load_track_scenario(file);
   EXPECT_TRUE(loaded) << (loaded ? "" : loaded.error().what);
   if (!loaded) return {};

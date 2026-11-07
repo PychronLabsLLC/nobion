@@ -21,7 +21,7 @@ using namespace std::chrono_literals;
 namespace {
 
 [[maybe_unused]] Script load(const std::string& rel, ScriptKind kind) {
-  std::ifstream in(std::string(PYCHRON_SCRIPTING_TEST_SCRIPTS_DIR) + "/" + rel);
+  std::ifstream in(std::string(NOBION_SCRIPTING_TEST_SCRIPTS_DIR) + "/" + rel);
   std::ostringstream text;
   text << in.rdbuf();
   return Script{rel, text.str(), kind};
@@ -40,7 +40,7 @@ namespace {
 class ScriptHostTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    if (!scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+    if (!scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
     host = make_script_host();
   }
   Rig rig;
@@ -50,7 +50,7 @@ class ScriptHostTest : public ::testing::Test {
 
 }  // namespace
 
-#if PYCHRON_SCRIPTING_ENABLED
+#if NOBION_SCRIPTING_ENABLED
 
 TEST_F(ScriptHostTest, BoundCommandsMatchVocabulary) {
   auto bound = bound_commands();
@@ -700,7 +700,7 @@ TEST_F(ScriptHostTest, NoCryostatAnywhereIsNotSupported) {
   EXPECT_NE(r.error().what.find("not supported"), std::string::npos) << r.error().what;
 }
 
-#endif  // PYCHRON_SCRIPTING_ENABLED
+#endif  // NOBION_SCRIPTING_ENABLED
 
 TEST(StubHost, ReportsAvailability) {
   auto host = make_script_host();

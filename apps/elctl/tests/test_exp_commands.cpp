@@ -29,7 +29,7 @@
 #include "nobion/experiment/measurement/engine.hpp"
 #include "nobion/scripting/script_host.hpp"
 
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
 #include <algorithm>
 
 #include <QSqlDatabase>
@@ -48,7 +48,7 @@ class ElctlExpTest : public ElctlTest {
  protected:
   void SetUp() override {
     ElctlTest::SetUp();
-    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_ / "lab");
+    nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_ / "lab");
   }
   std::string lab(const std::string& f) const { return (dir_ / "lab" / f).string(); }
 
@@ -117,7 +117,7 @@ conditionals = ["broken"]
 }
 
 TEST_F(ElctlExpTest, RunLogsToTheProcessHub) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   nobion::SteadyClock clock;
   nobion::config::LoggingConfig lc;
   lc.dir = dir_ / "plogs";
@@ -141,7 +141,7 @@ TEST_F(ElctlExpTest, RunLogsToTheProcessHub) {
 
 TEST_F(ElctlExpTest, RunTheExampleQueueOnTheSim) {
   // The example queue names extraction scripts, which only the CPython host runs.
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const auto data = (dir_ / "out").string();
   auto o = exp({"run", lab("queues/experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"), "--data",
                 data, "--sim-speed", "max"},
@@ -180,7 +180,7 @@ TEST_F(ElctlExpTest, RunTheExampleQueueOnTheSim) {
 // log, in order, and every line the run thread wrote while a run was on names
 // that run.
 TEST_F(ElctlExpTest, ExecutionSequenceIsLogged) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const nobion::testing::LogCapture capture;
   ASSERT_TRUE(capture.ok());
   const auto o = run_example_queue();
@@ -256,7 +256,7 @@ TEST_F(ElctlExpTest, ExecutionSequenceIsLogged) {
 // A step heat stopped after its first step and resumed by a new process (a
 // new aliquot allocator) keeps the aliquot its first step was saved at.
 TEST_F(ElctlExpTest, AResumedStepHeatKeepsItsAliquot) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const auto write_queue = [this](const std::vector<std::string>& steps) {
     std::ofstream out(dir_ / "lab" / "steps.toml");
     out << R"([queue]
@@ -307,7 +307,7 @@ sample = { sample = "FC-2", material = "sanidine", project = "examples" }
 // for the whole command, interpreter start-up included, on a slow machine:
 // thirty real seconds are still far short of the simulated minutes.
 TEST_F(ElctlExpTest, SimulatedQueueTakesNoRealTime) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const auto began = std::chrono::steady_clock::now();
   auto o = run_example_queue();
   const auto took = std::chrono::steady_clock::now() - began;
@@ -321,7 +321,7 @@ TEST_F(ElctlExpTest, SimulatedQueueTakesNoRealTime) {
 // before spent counting its main block (sim_multicollect: 2 cycles of two
 // hops of 15 one-second counts).
 TEST_F(ElctlExpTest, SimulatedAnalysesAreStampedInSimulatedTime) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const auto began = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now());
   auto o = run_example_queue();
   const auto ended = std::chrono::system_clock::now();
@@ -344,7 +344,7 @@ TEST_F(ElctlExpTest, SimulatedAnalysesAreStampedInSimulatedTime) {
 // seconds allow the command its start-up on a slow machine and are nothing
 // beside the days the queue would take at that speed.
 TEST_F(ElctlExpTest, AnInterruptStopsAPacedQueueInRealTime) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   std::atomic<bool> done{false};
   std::thread operator_([&] {
     while (!done) {
@@ -435,7 +435,7 @@ TEST(ElctlExpLines, AHoldAGapAndAReconnectAreOneLineEach) {
 // A run that gives up after the simulated beam is in place leaves nothing
 // behind that refers to its clock: the next run in the same process is whole.
 TEST_F(ElctlExpTest, ARunThatFailsEarlyLeavesTheNextOneClean) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const auto data = (dir_ / "out").string();
   // Nothing has run into this directory, so there is nothing to resume.
   auto failed = exp({"run", lab("queues/experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"),
@@ -453,7 +453,7 @@ TEST_F(ElctlExpTest, ARunThatFailsEarlyLeavesTheNextOneClean) {
 // What a run says is printed under its state lines: here, that each hole of
 // the example laser queue was centered, and by how much.
 TEST_F(ElctlExpTest, ARunsLogIsPrinted) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   auto o = exp({"run", lab("queues/experiment.laser.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"),
                 "--data", (dir_ / "out").string(), "--sim-speed", "max"},
                true);
@@ -670,7 +670,7 @@ TEST_F(ElctlExpTest, ALabDefaultsToTheParentOfItsQueuesDirectory) {
 }
 
 TEST_F(ElctlExpTest, ItsDataGoesToTheLabNotTheQueuesDirectory) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const auto q = dir_ / "lab";
   auto o = run_raw({"-c", (q / "extraction_line.toml").string(), "--sim", "exp", "run",
                     (q / "queues" / "experiment.toml").string(), "--spectrometer",
@@ -720,7 +720,7 @@ std::map<fs::path, std::string> files_under(const fs::path& dir) {
 // The shipped examples are never written to: run on them, the line's state,
 // the holes autocenter found and the records go to the user's examples folder.
 TEST_F(ElctlExpTest, TheShippedExamplesAreLeftAsTheyAre) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const fs::path examples = dir_ / "lab";
   const fs::path user = dir_ / "user";
   const ScopedEnv shipped("NOBION_EXAMPLES_DIR", examples.string());
@@ -764,7 +764,7 @@ TEST_F(ElctlExpTest, AQueueByNameIsFoundAtTheInstallsRoot) {
   EXPECT_EQ(o.code, 0) << o.out << o.err;
 }
 
-#ifndef PYCHRON_ELCTL_HAS_STORE
+#ifndef NOBION_ELCTL_HAS_STORE
 
 TEST_F(ElctlExpTest, WithoutPersistenceADatabaseIsRefused) {
   auto o = exp({"run", lab("queues/experiment.toml"), "--db", "sqlite:" + path("x.db").string()}, true);
@@ -857,7 +857,7 @@ class ElctlExpStoreTest : public ElctlTest {
 };
 
 TEST_F(ElctlExpStoreTest, AnInstallsQueueGoesToItsDatabase) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const auto began = std::chrono::steady_clock::now();
   const auto o = run_queue(root_ / "queues" / "experiment.toml");
   ASSERT_EQ(o.code, 0) << o.out << o.err;
@@ -880,7 +880,7 @@ TEST_F(ElctlExpStoreTest, AnInstallsQueueGoesToItsDatabase) {
 // every run is measured, says that it was not saved and why, and the last
 // lines say how many are waiting, where, and why.
 TEST_F(ElctlExpStoreTest, RunsTheDatabaseDidNotTakeAreSaidWithTheReason) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   {
     QSqlDatabase d = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("exp-refuse-test"));
     d.setDatabaseName(QString::fromStdString((root_ / "data" / "pychron.db").string()));
@@ -910,7 +910,7 @@ TEST_F(ElctlExpStoreTest, RunsTheDatabaseDidNotTakeAreSaidWithTheReason) {
 // the runs are record files, as before there was a database, and it says so
 // once. With --sim-save they go there (and not to the install's).
 TEST_F(ElctlExpStoreTest, ASimulatedSessionSavesToADatabaseGivenByDbOnlyWhenAsked) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const std::string other = "sqlite:" + path("other.db").string();
   ASSERT_TRUE(nobion::persistence::open_store(nobion::persistence::StoreConfig{other, true}));
   const auto seeded = run_raw({"entry", "seed", (root_ / "seed.toml").string(), "--db", other});
@@ -978,7 +978,7 @@ TEST_F(ElctlExpStoreTest, DryRunSaysWhatTheDatabaseLacks) {
 // database cannot take is refused from the top, and checked and run from
 // the second row.
 TEST_F(ElctlExpStoreTest, TheCheckIsOfTheRowsThatWillRun) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const auto queue = queue_with("identifier = \"ba\"", "identifier = \"zz9\"");  // row 0
   const auto whole = run_queue(queue, {"--dry-run"});
   EXPECT_NE(whole.code, 0) << whole.out;
@@ -1039,7 +1039,7 @@ TEST_F(ElctlExpUnreadableDatabaseTest, AnInstallWhosePasswordCannotBeReadIsNotRu
 }
 
 TEST_F(ElctlExpUnreadableDatabaseTest, DbOverridesAnUnreadableInstallDatabase) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const std::string other = "sqlite:" + path("other.db").string();
   ASSERT_TRUE(nobion::persistence::open_store(nobion::persistence::StoreConfig{other, true}));
   const auto seeded = run_raw({"entry", "seed", (root_ / "seed.toml").string(), "--db", other});

@@ -18,7 +18,7 @@ using namespace nobion;
 using namespace nobion::systems;
 namespace fs = std::filesystem;
 
-const fs::path kExamples = PYCHRON_EXAMPLE_CONFIGS_DIR;
+const fs::path kExamples = NOBION_EXAMPLE_CONFIGS_DIR;
 
 constexpr const char* kSystem = R"(
 [system]

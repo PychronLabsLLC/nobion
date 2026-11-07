@@ -21,7 +21,7 @@ constexpr double kDeg = std::numbers::pi / 180.0;
 
 // Holes 1 (0,0), 2 (0,5), 3 (5,0), 4 (0,-5), 5 (-5,0), and four more.
 TrayMap small() {
-  auto map = TrayMap::load(std::filesystem::path(PYCHRON_TEST_DATA_DIR) / "tray_maps" / "small.txt");
+  auto map = TrayMap::load(std::filesystem::path(NOBION_TEST_DATA_DIR) / "tray_maps" / "small.txt");
   EXPECT_TRUE(map);
   return *map;
 }

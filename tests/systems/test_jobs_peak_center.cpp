@@ -29,7 +29,7 @@ using namespace std::chrono_literals;
 
 namespace {
 
-const std::filesystem::path kScans = std::filesystem::path(PYCHRON_TEST_DATA_DIR) / "scans";
+const std::filesystem::path kScans = std::filesystem::path(NOBION_TEST_DATA_DIR) / "scans";
 
 std::vector<std::pair<double, double>> load_scan(const std::string& name) {
   std::ifstream in(kScans / (name + ".csv"));

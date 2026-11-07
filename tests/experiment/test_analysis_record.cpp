@@ -262,7 +262,7 @@ TEST(RecordSerialize, CryoTemperaturesAreKeptAndOmittedWhenAbsent) {
 namespace {
 
 std::string fixture(const char* name) {
-  std::ifstream in(std::string(PYCHRON_TEST_DATA_DIR) + "/records/" + name, std::ios::binary);
+  std::ifstream in(std::string(NOBION_TEST_DATA_DIR) + "/records/" + name, std::ios::binary);
   return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 }
 
@@ -513,7 +513,7 @@ TEST(AnalysisRecord, V3FixtureSha) {
   const auto rec = v3_record();
   if (const char* update = std::getenv("NOBION_UPDATE_GOLDENS"); update && std::string(update) == "1") {
     for (const char* name : {"v3.toml", "v3.json"}) {
-      std::ofstream out(std::string(PYCHRON_TEST_DATA_DIR) + "/records/" + name, std::ios::binary);
+      std::ofstream out(std::string(NOBION_TEST_DATA_DIR) + "/records/" + name, std::ios::binary);
       out << (std::string(name).ends_with(".json") ? to_json(rec) : to_toml(rec));
     }
     FAIL() << "golden rewritten: review the diff";

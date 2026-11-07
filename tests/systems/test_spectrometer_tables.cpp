@@ -27,7 +27,7 @@ namespace fs = std::filesystem;
 
 namespace {
 
-const fs::path kIntegrated = fs::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "spectrometer.sim-integrated.toml";
+const fs::path kIntegrated = fs::path(NOBION_EXAMPLE_CONFIGS_DIR) / "spectrometer.sim-integrated.toml";
 
 // 2026-09-30T12:00:00Z
 FieldTableStore::WallTime t0() { return FieldTableStore::WallTime{} + 1790769600s; }

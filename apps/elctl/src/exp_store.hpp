@@ -26,7 +26,7 @@ struct ExpStore {
 
 // Opens `url` (never migrates) for the acquisition whose data folder is
 // `data`. Call from the program's main thread. Without persistence: a Config
-// error "built without the DVC store (PYCHRON_PERSISTENCE=OFF or no Qt Sql)".
+// error "built without the DVC store (NOBION_PERSISTENCE=OFF or no Qt Sql)".
 nobion::Result<std::unique_ptr<ExpStore>> open_exp_store(const std::string& url, const std::filesystem::path& data);
 
 // Whether a simulated session saves its runs to `url`

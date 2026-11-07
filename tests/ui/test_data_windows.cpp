@@ -68,7 +68,7 @@
 #include "scene_view.hpp"
 #include "ui_fixture.hpp"
 
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
 // Qt's `signals` keyword macro would rewrite persistence::CollectionRoots::signals.
 #pragma push_macro("signals")
 #undef signals
@@ -1313,7 +1313,7 @@ class TestDataWindows : public QObject {
     QVERIFY(w.unavailable()->isHidden());
   }
 
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
   // What a queue saves reaches the browser at the next refresh: the store is
   // written through another handle, as the acquisition's is.
   void browser_refresh_shows_a_run_that_just_landed() {

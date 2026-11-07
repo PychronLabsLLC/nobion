@@ -12,7 +12,7 @@ only this component's. Kept compressed, as that file is.
   (`EveryInstalledPlanPutsItsIsotopesOnItsDetectors`: every isotope of a
   plan's hop on its detector within 0.01; simulated peak is flat within
   0.02). Retuning or editing any of them means editing that test.
-- `tests/integration/test_install_e2e.cpp` (`pychron_install_e2e_tests`,
+- `tests/integration/test_install_e2e.cpp` (`nobion_install_e2e_tests`,
   with persistence only) runs a fresh argus install's shipped queue into its
   database. It pins run ids (`ba-01`, `a-01` to `a-03`, `ba-02`; second session
   numbers on) and airs' raw Ar40/Ar36 within 3 % of 303.2: air's 298.56

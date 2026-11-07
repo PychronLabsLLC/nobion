@@ -191,7 +191,7 @@ TEST(FactoryForm, NextFormAdvancesPastWhatWasAdded) {
 }
 
 TEST(FactoryForm, TheExampleLabsDefaultsBlocksAndListings) {
-  const std::filesystem::path dir = PYCHRON_EXAMPLE_CONFIGS_DIR;
+  const std::filesystem::path dir = NOBION_EXAMPLE_CONFIGS_DIR;
   const auto lab = lab::load_lab({dir, dir / "extraction_line.toml", dir / "spectrometer.sim-integrated.toml"});
   ASSERT_TRUE(lab.problems.empty()) << lab.problems.front();
   EXPECT_EQ(lab.plans->names(), std::vector<std::string>{"sim_multicollect"});

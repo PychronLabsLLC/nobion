@@ -1,10 +1,10 @@
 // Writing a release table as (Geo)Parquet with Apache Arrow (data publishing
 // design, section 5.2). The only translation unit that sees Arrow; without
-// PYCHRON_PUBLISH_ARROW_ENABLED it is empty and parquet_stub.cpp stands in.
+// NOBION_PUBLISH_ARROW_ENABLED it is empty and parquet_stub.cpp stands in.
 
 #include "nobion/publish/parquet.hpp"
 
-#ifdef PYCHRON_PUBLISH_ARROW_ENABLED
+#ifdef NOBION_PUBLISH_ARROW_ENABLED
 
 #include <arrow/api.h>
 #include <arrow/io/file.h>
@@ -277,4 +277,4 @@ std::string_view parquet_writer_name() {
 
 }  // namespace nobion::publish
 
-#endif  // PYCHRON_PUBLISH_ARROW_ENABLED
+#endif  // NOBION_PUBLISH_ARROW_ENABLED

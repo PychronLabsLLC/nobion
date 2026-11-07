@@ -41,7 +41,7 @@ using namespace nobion;
 using namespace nobion::systems;
 using namespace std::chrono_literals;
 
-const std::filesystem::path kDir = PYCHRON_EXAMPLE_CONFIGS_DIR;
+const std::filesystem::path kDir = NOBION_EXAMPLE_CONFIGS_DIR;
 
 sim::SimSettings lab() {
   sim::SimSettings s;

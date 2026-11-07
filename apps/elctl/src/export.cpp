@@ -177,8 +177,8 @@ int run(const Args& a, const pp::Domain& domain, Io io) {
   options.nsigma = a.sigma;
   options.laboratory = a.lab;
   options.notes = a.notes;
-#ifdef PYCHRON_ELCTL_VERSION
-  options.software = std::string("nobion ") + PYCHRON_ELCTL_VERSION;
+#ifdef NOBION_ELCTL_VERSION
+  options.software = std::string("nobion ") + NOBION_ELCTL_VERSION;
 #endif
   options.plateau = a.ages.criteria();
   const pp::Report report = pp::make_report(*dataset, options);

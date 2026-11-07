@@ -864,7 +864,7 @@ int run(const std::vector<std::string>& args, Io io) {
       globals.exp.spectrometer = install->path(install->spectrometer);
       globals.exp.canvas = install->path(install->canvas);
       globals.exp.data = install->path(install->data.empty() ? "data" : install->data);
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
       // An instrument's runs go to its database; a server's password is read
       // from the install here. A failure to read it is kept for `exp run`,
       // which refuses to start (rather than write files) without --db.

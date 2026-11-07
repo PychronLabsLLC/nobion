@@ -109,14 +109,14 @@
 #include "nobion/experiment/lab/executor_config.hpp"
 #include "nobion/experiment/lab/lasers.hpp"
 #include "nobion/experiment/lab/session.hpp"
-#ifdef PYCHRON_EXPERIMENT_HAS_METRICS
+#ifdef NOBION_EXPERIMENT_HAS_METRICS
 #include "nobion/experiment/metrics/service.hpp"
 #endif
 #include "nobion/sim/sim_system.hpp"
 #include "nobion/arar/record_loader.hpp"
 #include "nobion/processing/domain.hpp"
 #include "nobion/processing/record_source.hpp"
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
 // Qt's `signals` keyword macro would rewrite CollectionRoots::signals.
 #pragma push_macro("signals")
 #undef signals
@@ -162,7 +162,7 @@ int fatal(const std::string& what) {
 std::unique_ptr<nobion::ui::UpdateChecker> start_update_check(QMainWindow& window, QSettings& settings,
                                                                nobion::ui::UpdateChecker::Now now,
                                                                const std::function<void(const QString&)>& log) {
-  const auto running = nobion::update::parse_version(PYCHRON_VERSION);
+  const auto running = nobion::update::parse_version(NOBION_VERSION);
   if (!running) {
     const QString why = QStringLiteral("no update check: ") + QString::fromStdString(running.error().what);
     if (log) {
@@ -279,7 +279,7 @@ void wire_extension(nobion::processing::RecordDirectorySource& records, const no
     records.set_extension_loader(nobion::arar::record_extension_loader(records.root() / "references.toml"));
 }
 
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
 // How the data window's store source opens under `domain` (domain seam spec
 // 3.3): its reduction version, and its extension loader (Ar-Ar's; noble_gas
 // has none).
@@ -302,7 +302,7 @@ int run_data_reduction(const setup::SiteInstall& install, const nobion::processi
   if (!chosen) return fatal(chosen.error().what);
   const std::string url = chosen->value_or(std::string{});
   if (!url.empty()) {
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
     auto opened =
         nobion::processing::StoreSource::open(nobion::persistence::StoreConfig{url, false}, store_options(domain));
     if (!opened) {
@@ -324,7 +324,7 @@ int run_data_reduction(const setup::SiteInstall& install, const nobion::processi
   nobion::ui::DataMainWindow window(source, presets, domain, QString::fromStdString(install.name));
   window.set_installations_handler(installations_handler(&window, resources, install.name));
   window.set_data_source(data_source_deps(install.name, resources, cli.db), reopen_on(&window, install.name));
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
   // Entry: samples and packages in the install's database; Fit: the flux of a
   // level. Both parented to the window, Entry made first (fit_actions.hpp).
   if (!url.empty()) {
@@ -672,7 +672,7 @@ int main(int argc, char** argv) {
   // The lab's lasers are shared by the session (queues) and the laser
   // windows (an operator): one drives at a time.
   std::unique_ptr<nobion::experiment::lab::Lasers> lasers;
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
   // Where a queue's runs go when there is a database: the acquisition's own
   // store, or, when the database could not be opened, a persister that refuses
   // every queue with the reason. The session saves through one of them, so
@@ -692,7 +692,7 @@ int main(int argc, char** argv) {
   nobion::processing::RecordDirectorySource records(data_dir / "records");
   wire_extension(records, domain);
   std::unique_ptr<nobion::processing::IAnalysisSource> store_source;
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
   // One database for the data window, Entry, Fit, the run factory and the
   // runs a queue saves: --db, else the install's. `database` is its url once
   // the data window's source has opened it; `database_error` is why there is
@@ -727,7 +727,7 @@ int main(int argc, char** argv) {
     const auto saving = nobion::ui::choose_run_saving(*cli, database, simulated_session, data_dir);
     if (!saving.to_database) {
       run_saving_note = saving.note;
-    } else if (auto opened = nobion::experiment::store::open_acquisition(database, data_dir, PYCHRON_VERSION)) {
+    } else if (auto opened = nobion::experiment::store::open_acquisition(database, data_dir, NOBION_VERSION)) {
       acquisition = std::move(*opened);
     } else {
       no_database = std::make_unique<nobion::ui::NoDatabasePersister>(opened.error().what);
@@ -737,7 +737,7 @@ int main(int argc, char** argv) {
   }
 #else
   if (cli->db) {
-    std::fprintf(stderr, "nobion: --db: built without the DVC store (PYCHRON_PERSISTENCE=OFF or no Qt Sql)\n");
+    std::fprintf(stderr, "nobion: --db: built without the DVC store (NOBION_PERSISTENCE=OFF or no Qt Sql)\n");
     return 2;
   }
   if (cli->sim_save) {
@@ -761,7 +761,7 @@ int main(int argc, char** argv) {
 
   // `[metrics]`: the endpoint the lab's Prometheus scrapes (docs/observability.md).
   // Built before the line starts, so the start-up Snapshot reaches it too.
-#ifdef PYCHRON_EXPERIMENT_HAS_METRICS
+#ifdef NOBION_EXPERIMENT_HAS_METRICS
   std::unique_ptr<nobion::experiment::metrics::MetricsService> metrics;
 #endif
 
@@ -799,13 +799,13 @@ int main(int argc, char** argv) {
     // data window reads is where the session saves its runs: the store, with
     // the session saving to it (not the records folder, not a database that
     // could not be opened, not a simulated session that writes files).
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
     const bool session_store = store_source != nullptr && acquisition != nullptr;
 #else
     const bool session_store = false;
 #endif
     window.set_data(&data_source, &presets, &domain, session_store);
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
     // The Entry and Fit menus, parented to the window, Entry made first (fit_actions.hpp).
     if (!database.empty()) {
       auto* entry = new nobion::ui::EntryActions(&window, database);
@@ -854,10 +854,10 @@ int main(int argc, char** argv) {
               std::chrono::milliseconds(window.bridge().wall_now().toMSecsSinceEpoch()));
         },
         [&window](const QString& text) { window.log_dock()->append_line(text); });
-#ifdef PYCHRON_EXPERIMENT_HAS_METRICS
+#ifdef NOBION_EXPERIMENT_HAS_METRICS
     metrics = nobion::experiment::metrics::MetricsService::start(
         (*line)->config().metrics, (*line)->bus(), (*line)->scheduler(), (*line)->clock(), (*line)->log_hub(),
-        PYCHRON_VERSION);
+        NOBION_VERSION);
     if (metrics) {
       // Each transport's reconnects and repeats, read from its link at each
       // scrape: the line's, and the spectrometer's (both outlive `metrics`).
@@ -885,7 +885,7 @@ int main(int argc, char** argv) {
     window.set_metrics_status(QStringLiteral("This build has no metrics"));
     if ((*line)->config().metrics.enabled) {
       window.log_dock()->append_line(
-          QStringLiteral("WARN [ui] metrics: this build has no metrics (PYCHRON_METRICS=OFF)"));
+          QStringLiteral("WARN [ui] metrics: this build has no metrics (NOBION_METRICS=OFF)"));
     }
 #endif
     splash.status(QStringLiteral("Starting the extraction line"));
@@ -916,7 +916,7 @@ int main(int argc, char** argv) {
       }
       lasers = std::make_unique<nobion::experiment::lab::Lasers>(*lab, **line);
       nobion::experiment::lab::SessionOptions session_options{data_dir, {}, {}};
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
       if (acquisition) {
         session_options.persister = &acquisition->persister();
       } else if (no_database) {
@@ -986,7 +986,7 @@ int main(int argc, char** argv) {
   spectrometer_bridge.reset();
   scan.reset();
   (*line)->stop();
-#ifdef PYCHRON_EXPERIMENT_HAS_METRICS
+#ifdef NOBION_EXPERIMENT_HAS_METRICS
   metrics.reset();  // its heartbeat is a job of the line's scheduler: before the line goes
 #endif
   spectrometer.reset();

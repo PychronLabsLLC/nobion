@@ -26,7 +26,7 @@ using namespace std::chrono_literals;
 
 namespace {
 
-const std::filesystem::path kDir(PYCHRON_EXAMPLE_CONFIGS_DIR);
+const std::filesystem::path kDir(NOBION_EXAMPLE_CONFIGS_DIR);
 constexpr double kAr40 = 39.9623831237;
 
 double mean_on(const std::vector<Reading>& readings, const DetectorId& det) {

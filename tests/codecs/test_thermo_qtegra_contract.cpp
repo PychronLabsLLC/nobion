@@ -26,7 +26,7 @@ namespace {
 const std::map<std::string, json>& contract() {
   static const std::map<std::string, json> commands = [] {
     std::map<std::string, json> out;
-    std::ifstream in(std::string(PYCHRON_TRACES_DIR) + "/thermo/protocol.json");
+    std::ifstream in(std::string(NOBION_TRACES_DIR) + "/thermo/protocol.json");
     const json parsed = json::parse(in, nullptr, false);
     if (parsed.is_discarded()) return out;
     for (const auto& command : parsed["commands"]) out[command["name"].get<std::string>()] = command;
@@ -135,7 +135,7 @@ std::vector<Result<codec::Command>> every_encoder() {
 
 TEST(QtegraContract, TheCopyOfTheContractLoads) {
   EXPECT_EQ(contract().size(), 49U);
-  std::ifstream in(std::string(PYCHRON_TRACES_DIR) + "/thermo/protocol.json");
+  std::ifstream in(std::string(NOBION_TRACES_DIR) + "/thermo/protocol.json");
   const json parsed = json::parse(in, nullptr, false);
   ASSERT_FALSE(parsed.is_discarded());
   EXPECT_EQ(parsed["protocol"].get<int>(), q::kProtocolVersion);
@@ -152,7 +152,7 @@ TEST(QtegraContract, EveryEncoderSendsACommandOfTheContract) {
 // A new encoder missing from every_encoder() would go unchecked, so the source
 // is read for the verbs it names.
 TEST(QtegraContract, EveryVerbInTheCodecSourceIsCovered) {
-  std::ifstream in(PYCHRON_QTEGRA_CODEC_SOURCE);
+  std::ifstream in(NOBION_QTEGRA_CODEC_SOURCE);
   ASSERT_TRUE(in);
   std::stringstream source;
   source << in.rdbuf();

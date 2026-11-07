@@ -29,7 +29,7 @@ using systems::ExtractionLine;
 using systems::LineServer;
 using systems::SwitchOp;
 
-const fs::path kExamples = PYCHRON_EXAMPLE_CONFIGS_DIR;
+const fs::path kExamples = NOBION_EXAMPLE_CONFIGS_DIR;
 
 std::string read_text(const fs::path& p) {
   std::ifstream in(p);

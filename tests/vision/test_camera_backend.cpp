@@ -31,7 +31,7 @@ TEST(CameraBackend, OpenCvAndPylonAreKnown) {
   const auto all = camera_backends();
   ASSERT_NE(named(all, "opencv"), nullptr);
   ASSERT_NE(named(all, "pylon"), nullptr);
-#ifdef PYCHRON_VISION_OPENCV_ENABLED
+#ifdef NOBION_VISION_OPENCV_ENABLED
   EXPECT_TRUE(named(all, "opencv")->available);
 #else
   EXPECT_FALSE(named(all, "opencv")->available);

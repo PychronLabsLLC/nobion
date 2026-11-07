@@ -63,7 +63,7 @@ QString compiler() {
 
 }  // namespace
 
-QString app_version() { return QStringLiteral(PYCHRON_VERSION); }
+QString app_version() { return QStringLiteral(NOBION_VERSION); }
 
 QString build_info() {
   QStringList lines;
@@ -77,12 +77,12 @@ QString build_info() {
 #endif
   lines << QStringLiteral("platform: %1 (%2, %3)")
                .arg(QSysInfo::prettyProductName(), QSysInfo::currentCpuArchitecture(), QGuiApplication::platformName());
-#if PYCHRON_SCRIPTING_ENABLED
+#if NOBION_SCRIPTING_ENABLED
   lines << QStringLiteral("scripting: embedded Python");
 #else
   lines << QStringLiteral("scripting: off");
 #endif
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
   lines << QStringLiteral("DVC store: on");
 #else
   lines << QStringLiteral("DVC store: off");
@@ -350,10 +350,10 @@ AboutDialog::AboutDialog(QWidget* parent) : QDialog(parent) {
   layout->addWidget(content);
 
   QString components = QStringLiteral("Qt, QCustomPlot, toml++, spdlog and asio");
-#if PYCHRON_SCRIPTING_ENABLED
+#if NOBION_SCRIPTING_ENABLED
   components = QStringLiteral("Qt, QCustomPlot, toml++, spdlog, asio, pybind11 and CPython");
 #endif
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
   components += QStringLiteral("; the DVC store on TinyORM");
 #endif
   body_ = new QLabel(

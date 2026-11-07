@@ -18,7 +18,7 @@
 #include "password_prompt.hpp"
 #include "setup.hpp"
 
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
 #include "entry.hpp"
 #endif
 
@@ -126,7 +126,7 @@ std::variant<SetArgs, std::string> parse_set(const std::vector<std::string>& arg
 
 DataSourceOpeners openers() {
   DataSourceOpeners o;
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
   o.open_database = [](const std::string& url, bool migrate) { return open_store(url, migrate); };
   o.seed_database = [](const std::string& url, const fs::path& seed, bool migrate) {
     return seed_database(url, seed, migrate, false);

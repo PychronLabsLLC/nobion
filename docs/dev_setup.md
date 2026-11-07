@@ -18,8 +18,8 @@ brew install ccache
 ```
 
 Homebrew `cmake`/`ninja` work equally well. The `dev` presets use Ninja, and
-compile through ccache when it is installed (`cmake/PychronCcache.cmake`;
-`-DPYCHRON_CCACHE=OFF` turns it off). The cache is keyed relative to the
+compile through ccache when it is installed (`cmake/NobionCcache.cmake`;
+`-DNOBION_CCACHE=OFF` turns it off). The cache is keyed relative to the
 source tree, so a fresh build directory or a new git worktree reuses objects
 any checkout on the machine already compiled.
 
@@ -61,8 +61,8 @@ and PostGIS, which the schema uses for sample locations), point
 
 ```bash
 brew install postgresql@16 postgis && brew services start postgresql@16
-createdb pychron_test
-export NOBION_TEST_PG_URL=postgresql://$USER@localhost/pychron_test
+createdb nobion_test
+export NOBION_TEST_PG_URL=postgresql://$USER@localhost/nobion_test
 ```
 
 On Ubuntu the PostGIS package is `postgresql-16-postgis-3`. The first
@@ -81,11 +81,11 @@ brew install opencv          # macOS
 sudo apt install libopencv-dev   # Ubuntu
 ```
 
-`-DPYCHRON_VISION_OPENCV=AUTO|ON|OFF`: `AUTO` (default) uses OpenCV when CMake
+`-DNOBION_VISION_OPENCV=AUTO|ON|OFF`: `AUTO` (default) uses OpenCV when CMake
 finds it, `ON` fails the configure if it does not, `OFF` never looks. Built
 and tested with OpenCV 5.0; the 4.x path is written but untested. Configure prints one line saying which was chosen.
 
-`-DPYCHRON_PUBLISH=AUTO|ON|OFF`: Apache Arrow with Parquet, for the GeoParquet
+`-DNOBION_PUBLISH=AUTO|ON|OFF`: Apache Arrow with Parquet, for the GeoParquet
 tables of a release directory (`libs/publish`, `elctl publish`). `AUTO`
 (default) uses it when CMake finds it (`brew install apache-arrow`; Ubuntu:
 `libarrow-dev libparquet-dev` from Apache's apt repository; vcpkg: the
@@ -119,8 +119,8 @@ dev-quick` skips the slow importer suites, and a single suite is quickest run
 from its binary directly:
 
 ```bash
-cmake --build --preset dev --target pychron_core_tests
-build/dev/tests/core/pychron_core_tests --gtest_filter='Clock*'
+cmake --build --preset dev --target nobion_core_tests
+build/dev/tests/core/nobion_core_tests --gtest_filter='Clock*'
 ```
 
 With the UI:
@@ -149,8 +149,8 @@ python3 tools/test_times.py compare before.xml after.xml
 
 Coverage: a change that removes or merges tests shows that the lines and
 branches of `libs/` the tests reach did not go down. The `coverage` presets
-build with clang's source-based coverage (`-DPYCHRON_COVERAGE=ON`; Clang or
-AppleClang only, and refused together with `PYCHRON_SANITIZE`) into
+build with clang's source-based coverage (`-DNOBION_COVERAGE=ON`; Clang or
+AppleClang only, and refused together with `NOBION_SANITIZE`) into
 `build/coverage`, and every test process merges its counters into
 `build/coverage/profiles` (`LLVM_PROFILE_FILE=...%4m.profraw`: a pool of four
 files per binary, not one per process, which for the whole tree would be tens
@@ -176,7 +176,7 @@ python3 tools/coverage_report.py compare before.json after.json
 To measure one suite, build its target and pass `--tests-regex` to ctest; the
 report then covers only the binaries that were built. A coverage-built
 binary run by hand, outside the preset, writes `default.profraw` in its
-working directory (ignored by git) unless `LLVM_PROFILE_FILE` is set. Run on `pychron_core_tests`
+working directory (ignored by git) unless `LLVM_PROFILE_FILE` is set. Run on `nobion_core_tests`
 alone (2026-10-16): configure 38 s, build 14 s with a warm ccache, tests 3 s,
 report under 1 s; `libs/` lines 86.94% (2643/3040), branches 77.39%
 (1188/1535) over the 31 files that binary reaches. On the whole tree
@@ -288,7 +288,7 @@ missing). A push that changes no C++ is not slowed. CI does not run on
   `cmake --build build/dev-ui --target $(cmake --build build/dev-ui --target help | grep -oE '[A-Za-z0-9_-]+_autogen$')`.
 - The `*_stub.cpp` files are compiled only when persistence or scripting is
   off. To have them analysed too, configure such a build beside the other:
-  `cmake -S . -B build/dev-min -DCMAKE_BUILD_TYPE=Debug -DPYCHRON_PERSISTENCE=OFF -DPYCHRON_SCRIPTING=OFF`.
+  `cmake -S . -B build/dev-min -DCMAKE_BUILD_TYPE=Debug -DNOBION_PERSISTENCE=OFF -DNOBION_SCRIPTING=OFF`.
 - A changed header is analysed through up to two sources that include it,
   directly or through one other header.
 - `python3 tools/quality_check.py <files or directories>` checks those on
@@ -308,7 +308,7 @@ missing). A push that changes no C++ is not slowed. CI does not run on
 - `CLANG_TIDY` and `CPPCHECK` name the programs when they are not on `PATH`.
 
 Static analysis does not replace the sanitizers. `dev` and `dev-ui` build
-without them; add `-DPYCHRON_SANITIZE=address,undefined` to the configure (CI
+without them; add `-DNOBION_SANITIZE=address,undefined` to the configure (CI
 does, on clang) and run the tests of what you changed under them. A sanitizer
 build also turns on the standard library's own checks (`_GLIBCXX_ASSERTIONS`,
 libc++'s hardening): an empty `std::optional` dereferenced or a container
@@ -868,7 +868,7 @@ device = 0            # `elctl laser cameras` lists what there is
 ```
 
 - `opencv` is any camera OpenCV opens (this computer's own, a USB camera) or
-  a video file. It needs a build with OpenCV (`-DPYCHRON_VISION_OPENCV`).
+  a video file. It needs a build with OpenCV (`-DNOBION_VISION_OPENCV`).
 - `pylon` is a Basler GigE or USB3 camera. Its table (`serial`,
   `exposure_us`, `gain_db`, `pixel_format`, `packet_size`) is read and
   checked, but the driver is not written yet: opening one says "built
@@ -965,7 +965,7 @@ database, and refuse a queue that names an identifier, mass spectrometer or
 extract device it lacks; with no database (the example lab of section 5) runs
 are record files as before. `--db <url>` names another database. An install
 on the example line also gets the example lab's `sim.toml`. The end-to-end
-test of this path is `pychron_install_e2e_tests`
+test of this path is `nobion_install_e2e_tests`
 (`tests/integration/test_install_e2e.cpp`).
 
 Instrument installs start in simulation; `CALIBRATE.md` in the install lists
@@ -990,7 +990,7 @@ the example line in `configs/examples` as before.
 ## 7. Build the installers
 
 `cpack` packages the programs, the profiles and the example configs
-(`cmake/PychronInstall.cmake`, `cmake/PychronPackaging.cmake`): a `.deb` and
+(`cmake/NobionInstall.cmake`, `cmake/NobionPackaging.cmake`): a `.deb` and
 `.tar.gz` on Linux, a `.dmg` on macOS, an NSIS installer and `.zip` on Windows.
 
 ```bash
@@ -1004,8 +1004,8 @@ QT_QPA_PLATFORM=offscreen nobion --self-test  # profiles, wizard, database plugi
 
 To ship Python with the package (scripted extractions without a system
 Python), unpack a python-build-standalone `install_only` archive and pass it
-twice: `-DPython_ROOT_DIR=<dir> -DPYCHRON_BUNDLE_PYTHON=<dir>`. On macOS and
-Windows the Qt runtime is copied in (`PYCHRON_DEPLOY_QT`). The `release`
+twice: `-DPython_ROOT_DIR=<dir> -DNOBION_BUNDLE_PYTHON=<dir>`. On macOS and
+Windows the Qt runtime is copied in (`NOBION_DEPLOY_QT`). The `release`
 workflow does all of this for each release and attaches the packages to the
 GitHub release; it also runs on pull requests into `main` that touch
 packaging. Releases are cut by release-please when `develop` is merged into

@@ -742,7 +742,7 @@ TEST_F(QtegraBlockedRead, ConfigureDuringBlockedNextDropsTheFrameAndSettles) {
 
 // Synthetic trace: hand-written, not a bench capture.
 TEST(QtegraReplay, ReplaysSyntheticSession) {
-  auto sim = SimTransport::replay(std::string(PYCHRON_TRACE_DIR) + "/thermo/qtegra_session.trace", bus_options());
+  auto sim = SimTransport::replay(std::string(NOBION_TRACE_DIR) + "/thermo/qtegra_session.trace", bus_options());
   ASSERT_TRUE(sim) << to_string(sim.error());
   ASSERT_TRUE((*sim)->open());
   QtegraSpectrometer q("argus", **sim, {});

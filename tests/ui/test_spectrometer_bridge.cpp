@@ -125,7 +125,7 @@ class TestSpectrometerBridge : public QObject {
     tables_dir_ = std::make_unique<QTemporaryDir>();
     QVERIFY(tables_dir_->isValid());
     const std::filesystem::path root = tables_dir_->path().toStdString();
-    std::filesystem::copy(std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "tables", root / "tables",
+    std::filesystem::copy(std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "tables", root / "tables",
                           std::filesystem::copy_options::recursive);
     sim_ = ui::test::make_sim_spectrometer([&root](spectrometer::cfg::SpectrometerData& data) { data.root = root; });
     QVERIFY(sim_->spec->data_root() == root);
@@ -190,7 +190,7 @@ class TestSpectrometerBridge : public QObject {
       tables_dir_ = std::make_unique<QTemporaryDir>();
       QVERIFY(tables_dir_->isValid());
       const std::filesystem::path root = tables_dir_->path().toStdString();
-      std::filesystem::copy(std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "tables", root / "tables",
+      std::filesystem::copy(std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "tables", root / "tables",
                             std::filesystem::copy_options::recursive);
       sim_ = ui::test::make_sim_spectrometer([&root](spectrometer::cfg::SpectrometerData& data) { data.root = root; },
                                              clock_.get());

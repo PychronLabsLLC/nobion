@@ -13,7 +13,7 @@ namespace {
 
 namespace fs = std::filesystem;
 
-const fs::path kExamples{PYCHRON_EXAMPLE_CONFIGS_DIR};
+const fs::path kExamples{NOBION_EXAMPLE_CONFIGS_DIR};
 
 std::string dump(const std::vector<config::Diagnostic>& ds) {
   std::string out;

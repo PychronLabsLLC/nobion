@@ -80,7 +80,7 @@ class World {
       : dir_(nobion::testing::unique_temp_path("pychron-outage-")),
         clock_(clock_options()),
         still_(std::in_place, clock_) {
-    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_);
+    nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_);
     systems::ExtractionLine::Options options;
     options.clock = &clock_;
     options.force_sim = true;

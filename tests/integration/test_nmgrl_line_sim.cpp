@@ -18,7 +18,7 @@ namespace {
 using namespace nobion;
 using namespace nobion::systems;
 
-const std::filesystem::path kDir = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "nmgrl";
+const std::filesystem::path kDir = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "nmgrl";
 
 using NmgrlLineSim = nobion::testing::VirtualTimeTest;
 

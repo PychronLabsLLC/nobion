@@ -41,7 +41,7 @@ using P::Uuid;
 
 namespace {
 
-const std::filesystem::path kFixture = std::filesystem::path(PYCHRON_DVC_FIXTURES_DIR) / "catalog";
+const std::filesystem::path kFixture = std::filesystem::path(NOBION_DVC_FIXTURES_DIR) / "catalog";
 const char* const kZone = "America/Denver";
 // Rows of the fixture's catalog tables: one unit each.
 constexpr int kRows = 47;

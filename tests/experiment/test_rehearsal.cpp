@@ -168,7 +168,7 @@ nobion::scripting::ScriptEnvironment rehearse_environment() {
 }
 
 nobion::scripting::Script example(const std::string& rel, nobion::scripting::ScriptKind kind) {
-  std::ifstream in(std::string(PYCHRON_EXAMPLE_CONFIGS_DIR) + "/scripts/" + rel);
+  std::ifstream in(std::string(NOBION_EXAMPLE_CONFIGS_DIR) + "/scripts/" + rel);
   std::ostringstream text;
   text << in.rdbuf();
   return nobion::scripting::Script{rel, text.str(), kind};
@@ -425,7 +425,7 @@ TEST_F(Rehearsal, RunToEndFallsBackToStepAfterLimit) {
 }
 
 TEST_F(Rehearsal, DestroyWhileWaitingForValueJoins) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   auto host = nobion::scripting::make_script_host();
   Records steps;
   Finished finished;
@@ -449,7 +449,7 @@ TEST_F(Rehearsal, DestroyWhileWaitingForValueJoins) {
 }
 
 TEST_F(Rehearsal, RunnerRehearsesSimExtract) {
-  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   auto host = nobion::scripting::make_script_host();
   Records steps;
   Finished finished;

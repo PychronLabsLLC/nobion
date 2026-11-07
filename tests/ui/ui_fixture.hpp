@@ -47,7 +47,7 @@ inline systems::ExtractionLine::Options example_line_options(const Clock* clock 
 inline std::unique_ptr<systems::ExtractionLine> make_example_line(const std::filesystem::path& canvas = {},
                                                                   const Clock* clock = nullptr,
                                                                   const std::filesystem::path& line_file = {}) {
-  const std::filesystem::path dir = PYCHRON_EXAMPLE_CONFIGS_DIR;
+  const std::filesystem::path dir = NOBION_EXAMPLE_CONFIGS_DIR;
   auto line =
       systems::ExtractionLine::load(line_file.empty() ? dir / "extraction_line.toml" : line_file,
                                     canvas.empty() ? dir / "canvas.toml" : canvas, example_line_options(clock));
@@ -62,7 +62,7 @@ inline std::unique_ptr<systems::ExtractionLine> make_example_line(const std::fil
 // heights would otherwise decide (the example's window cannot be made shorter
 // than they are).
 inline std::unique_ptr<systems::ExtractionLine> make_example_line_without_docks() {
-  const std::filesystem::path dir = PYCHRON_EXAMPLE_CONFIGS_DIR;
+  const std::filesystem::path dir = NOBION_EXAMPLE_CONFIGS_DIR;
   auto cfg = config::load_system_config(dir / "extraction_line.toml");
   if (!cfg) {
     qFatal("cannot load example line: %s", to_string(cfg.error()).c_str());

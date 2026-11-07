@@ -10,7 +10,7 @@ using elctl::testing::contains;
 using elctl::testing::Outcome;
 using elctl::testing::run_raw;
 
-#ifndef PYCHRON_ELCTL_HAS_STORE
+#ifndef NOBION_ELCTL_HAS_STORE
 
 TEST(EntryCmd, StubWithoutPersistence) {
   const Outcome o = run_raw({"entry", "samples", "list", "--db", "sqlite::memory:"});

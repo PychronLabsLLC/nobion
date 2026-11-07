@@ -1057,8 +1057,8 @@ std::optional<pb::PublicationPlan> PublishDialog::plan() const {
     for (const QString& a : selection_) spec.analyses.push_back(a.toStdString());
     if (spec.options_json.empty()) spec.options_json = pb::release_options_json(pb::ReleaseOptions{});
     spec.reduction_version = std::string(reduction::kReductionVersion);
-#ifdef PYCHRON_VERSION
-    spec.software_version = std::string("nobion/") + PYCHRON_VERSION;
+#ifdef NOBION_VERSION
+    spec.software_version = std::string("nobion/") + NOBION_VERSION;
 #else
     spec.software_version = "nobion";
 #endif

@@ -154,7 +154,7 @@ Reading a query does not tell its cost; the plan and a clock do.
   unless told which store:
 
       NOBION_BENCH_DB=sqlite:/path/to/store.db NOBION_BENCH_N=400 \
-        build/dev/tests/processing/pychron_processing_store_tests --gtest_filter='StoreLoadTiming.*'
+        build/dev/tests/processing/nobion_processing_store_tests --gtest_filter='StoreLoadTiming.*'
 
   Run it before and after any change to loading, to a query the loader uses,
   or to the schema, at 24, 400 and 2000 analyses, and put the numbers in the

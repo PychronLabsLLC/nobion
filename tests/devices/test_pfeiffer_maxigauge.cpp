@@ -269,7 +269,7 @@ TEST(PfeifferMaxiGaugeRegistry, RejectsBadChannels) {
 // --- replay -----------------------------------------------------------------------
 
 TEST(PfeifferMaxiGaugeReplay, ReplaysCommittedTrace) {
-  auto sim = SimTransport::replay(std::string(PYCHRON_TRACE_DIR) + "/pfeiffer/maxigauge_read_channels.trace",
+  auto sim = SimTransport::replay(std::string(NOBION_TRACE_DIR) + "/pfeiffer/maxigauge_read_channels.trace",
                                   bus_options());
   ASSERT_TRUE(sim) << to_string(sim.error());
   ASSERT_TRUE((*sim)->open());

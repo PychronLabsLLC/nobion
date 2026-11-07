@@ -154,7 +154,7 @@ std::string read_file(const std::string& path) {
 
 // The seed an instrument install ships.
 Seed shipped() {
-  auto s = parse_seed(read_file(std::string(PYCHRON_PROFILES_DIR) + "/instrument-common/seed.toml"));
+  auto s = parse_seed(read_file(std::string(NOBION_PROFILES_DIR) + "/instrument-common/seed.toml"));
   EXPECT_TRUE(s) << (s ? "" : s.error().what);
   return s ? *s : Seed{};
 }

@@ -103,8 +103,8 @@ std::optional<fs::path> licence_file(std::string_view spdx) {
     candidates.push_back(program / ".." / "share" / "nobion" / "publish" / "licences" / name);
     candidates.push_back(program / ".." / "Resources" / "publish" / "licences" / name);
   }
-#ifdef PYCHRON_PUBLISH_SOURCE_LICENCE_DIR
-  candidates.push_back(fs::path(PYCHRON_PUBLISH_SOURCE_LICENCE_DIR) / name);
+#ifdef NOBION_PUBLISH_SOURCE_LICENCE_DIR
+  candidates.push_back(fs::path(NOBION_PUBLISH_SOURCE_LICENCE_DIR) / name);
 #endif
   std::error_code ec;
   for (const auto& c : candidates)
@@ -577,7 +577,7 @@ Result<BuildResult> build_release(ps::IStore& store, pp::StoreSource& source, Uu
     }
     result.parquet_written = true;
   } else {
-    result.warnings.emplace_back("built without Parquet support (PYCHRON_PUBLISH): data/*.parquet were not written");
+    result.warnings.emplace_back("built without Parquet support (NOBION_PUBLISH): data/*.parquet were not written");
   }
 
   stage("records");

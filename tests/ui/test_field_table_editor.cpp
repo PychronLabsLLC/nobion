@@ -149,7 +149,7 @@ class TestFieldTableEditor : public QObject {
   void init() {
     dir_ = std::make_unique<QTemporaryDir>();
     QVERIFY(dir_->isValid());
-    fs::copy(fs::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "tables", root() / "tables", fs::copy_options::recursive);
+    fs::copy(fs::path(NOBION_EXAMPLE_CONFIGS_DIR) / "tables", root() / "tables", fs::copy_options::recursive);
     const fs::path r = root();
     sim_ = ui::test::make_sim_spectrometer([&r](spectrometer::cfg::SpectrometerData& data) { data.root = r; });
     bridge_ = std::make_unique<SpectrometerBridge>(*sim_->spec, *sim_->scan, sim_->bus);
@@ -664,7 +664,7 @@ class TestFieldTableEditor : public QObject {
     auto config = sim_->spec->config();
     std::erase_if(config.detectors, [](const auto& d) { return d.name == "H2"; });
     auto w = make_window(true, config);
-    w->set_pick_csv([] { return fs::path(PYCHRON_SYSTEMS_TEST_DATA_DIR) / "mftable_melbourne.csv"; });
+    w->set_pick_csv([] { return fs::path(NOBION_SYSTEMS_TEST_DATA_DIR) / "mftable_melbourne.csv"; });
     w->import_csv();
     QVERIFY(errors_.isEmpty());
     QVERIFY(w->modified());

@@ -102,7 +102,7 @@ class TestShortcuts : public QObject {
   // Keys are spelled out in shortcuts.cpp and nowhere else.
   void no_widget_source_spells_out_a_key() {
     const QRegularExpression literal(QStringLiteral("QKeySequence\\((Qt::|QKeySequence::[A-Z])|QKeySequence::[A-Z][a-z]+\\b(?!Text)"));
-    const QDir dir(QStringLiteral(PYCHRON_UI_SOURCE_DIR));
+    const QDir dir(QStringLiteral(NOBION_UI_SOURCE_DIR));
     QStringList found;
     for (const QString& name : dir.entryList({QStringLiteral("*.cpp"), QStringLiteral("*.hpp")}, QDir::Files)) {
       if (name.startsWith(QStringLiteral("shortcuts."))) continue;

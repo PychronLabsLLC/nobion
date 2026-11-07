@@ -32,7 +32,7 @@
 #include <QTcpSocket>
 #if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
 #include <QSslServer>
-#define PYCHRON_TEST_HAS_SSL_SERVER 1
+#define NOBION_TEST_HAS_SSL_SERVER 1
 #endif
 
 #include "nobion/core/error.hpp"
@@ -556,15 +556,15 @@ TEST(QtHttpClient, TheApplicationItMakesLeavesNumbersInTheCLocale) {
 #endif
 }
 
-#if defined(PYCHRON_TEST_HAS_SSL_SERVER) && defined(PYCHRON_TEST_TLS_DIR)
+#if defined(NOBION_TEST_HAS_SSL_SERVER) && defined(NOBION_TEST_TLS_DIR)
 // A server that speaks TLS with a certificate made for the test (cmake, in the
 // build tree). Nobody trusts it: the client must not either.
 class TlsServer {
  public:
   TlsServer(const char* name) {
     ensure_application();
-    QFile crt(QString::fromStdString(std::string(PYCHRON_TEST_TLS_DIR) + "/" + name + ".crt"));
-    QFile key(QString::fromStdString(std::string(PYCHRON_TEST_TLS_DIR) + "/" + name + ".key"));
+    QFile crt(QString::fromStdString(std::string(NOBION_TEST_TLS_DIR) + "/" + name + ".crt"));
+    QFile key(QString::fromStdString(std::string(NOBION_TEST_TLS_DIR) + "/" + name + ".key"));
     if (!crt.open(QIODevice::ReadOnly) || !key.open(QIODevice::ReadOnly)) {
       ADD_FAILURE() << "no test certificate";
       return;

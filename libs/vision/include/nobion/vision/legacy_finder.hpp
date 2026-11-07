@@ -6,7 +6,7 @@
 
 namespace nobion::vision {
 
-// True when the library was built with OpenCV (PYCHRON_VISION_OPENCV).
+// True when the library was built with OpenCV (NOBION_VISION_OPENCV).
 bool opencv_enabled();
 
 // A port of the original Python target-finding pipeline, kept so it can be

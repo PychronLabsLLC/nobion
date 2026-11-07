@@ -5,7 +5,7 @@
 #include <QSignalSpy>
 #include <QtTest/QtTest>
 
-#ifndef PYCHRON_UI_HAS_STORE
+#ifndef NOBION_UI_HAS_STORE
 
 class FluxModelsTest : public QObject {
   Q_OBJECT

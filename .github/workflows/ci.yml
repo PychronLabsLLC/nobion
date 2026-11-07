@@ -5,7 +5,7 @@
 #
 # Core jobs use the `dev` configure preset: dependencies come from
 # find_package() or the pinned FetchContent fallbacks in
-# cmake/PychronDependencies.cmake and libs/transport, so no vcpkg bootstrap is
+# cmake/NobionDependencies.cmake and libs/transport, so no vcpkg bootstrap is
 # needed. The UI job builds apps/nobion and runs tests/ui headless.
 #
 # libs/persistence (TinyORM on QtSql) builds wherever Qt6 Core + Sql is found:
@@ -52,7 +52,7 @@ jobs:
             sanitize: ""
             jobs: 4
             postgres: true
-            pg_url: postgresql://pychron:pychron@localhost:5432/pychron_test
+            pg_url: postgresql://pychron:pychron@localhost:5432/nobion_test
           - name: linux-clang-asan
             os: ubuntu-24.04
             cc: clang-18
@@ -100,11 +100,11 @@ jobs:
         run: |
           # The PostGIS image: sample locations are a geometry column (migration 0004).
           docker run -d --name postgres -p 5432:5432 \
-            -e POSTGRES_USER=pychron -e POSTGRES_PASSWORD=pychron -e POSTGRES_DB=pychron_test \
+            -e POSTGRES_USER=pychron -e POSTGRES_PASSWORD=pychron -e POSTGRES_DB=nobion_test \
             postgis/postgis:16-3.4
           for _ in $(seq 60); do
             # The image restarts the server once during init; wait for the final one on TCP.
-            if docker exec postgres pg_isready -h localhost -U pychron -d pychron_test; then exit 0; fi
+            if docker exec postgres pg_isready -h localhost -U pychron -d nobion_test; then exit 0; fi
             sleep 1
           done
           docker logs postgres
@@ -120,7 +120,7 @@ jobs:
       - name: Configure
         run: >
           cmake --preset dev -G Ninja
-          -DPYCHRON_SANITIZE="${{ matrix.sanitize }}"
+          -DNOBION_SANITIZE="${{ matrix.sanitize }}"
 
       - name: Build
         run: cmake --build --preset dev --parallel
@@ -171,7 +171,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # OpenCV too: the only job with it (see the core job's macOS step). And
-      # Apache Arrow (PYCHRON_PUBLISH): the one job that writes a release's
+      # Apache Arrow (NOBION_PUBLISH): the one job that writes a release's
       # Parquet tables; the others build the stub and still compare the row
       # hashes against the committed fixture.
       - name: Install Qt and tools

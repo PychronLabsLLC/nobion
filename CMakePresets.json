@@ -13,7 +13,7 @@
       "cacheVariables": {
         "BUILD_TESTS": "ON",
         "BUILD_UI": "OFF",
-        "PYCHRON_WARNINGS_AS_ERRORS": "ON"
+        "NOBION_WARNINGS_AS_ERRORS": "ON"
       }
     },
     {
@@ -28,7 +28,7 @@
       "generator": "Ninja",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "PYCHRON_SANITIZE": "address,undefined"
+        "NOBION_SANITIZE": "address,undefined"
       },
       "condition": {
         "type": "equals",
@@ -106,8 +106,8 @@
       "displayName": "dev with clang source-based coverage (tools/coverage_report.py; clang only)",
       "inherits": "dev",
       "cacheVariables": {
-        "PYCHRON_COVERAGE": "ON",
-        "PYCHRON_WARNINGS_AS_ERRORS": "ON"
+        "NOBION_COVERAGE": "ON",
+        "NOBION_WARNINGS_AS_ERRORS": "ON"
       }
     }
   ],

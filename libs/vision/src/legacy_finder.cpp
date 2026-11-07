@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-#ifdef PYCHRON_VISION_OPENCV_ENABLED
+#ifdef NOBION_VISION_OPENCV_ENABLED
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #if __has_include(<opencv2/geometry.hpp>)
@@ -18,7 +18,7 @@
 
 namespace nobion::vision {
 
-#ifdef PYCHRON_VISION_OPENCV_ENABLED
+#ifdef NOBION_VISION_OPENCV_ENABLED
 
 namespace {
 

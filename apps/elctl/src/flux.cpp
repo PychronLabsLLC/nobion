@@ -323,8 +323,8 @@ std::string format_flux_save(const pp::FluxSaveOutcome& outcome, std::string_vie
 namespace {
 
 std::string software() {
-#ifdef PYCHRON_ELCTL_VERSION
-  return std::string("nobion ") + PYCHRON_ELCTL_VERSION;
+#ifdef NOBION_ELCTL_VERSION
+  return std::string("nobion ") + NOBION_ELCTL_VERSION;
 #else
   return "nobion";
 #endif

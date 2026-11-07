@@ -39,7 +39,7 @@ bool starts_with_at(const std::vector<std::string>& records, std::size_t i, cons
 class ScriptLog : public ::testing::Test {
  protected:
   void SetUp() override {
-    if (!scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+    if (!scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
     ASSERT_TRUE(capture.ok());
     host = make_script_host();
   }
@@ -51,7 +51,7 @@ class ScriptLog : public ::testing::Test {
 
 }  // namespace
 
-#if PYCHRON_SCRIPTING_ENABLED
+#if NOBION_SCRIPTING_ENABLED
 
 TEST_F(ScriptLog, StartCallsEnd) {
   Script script{"inline.py", "def main():\n    open('A')\n    sleep(0.01)\n    close('A')\n",
@@ -157,10 +157,10 @@ TEST(ScriptLogTrace, SummaryNotBuiltWhenDisabled) {
   EXPECT_FALSE(built);
 }
 
-#endif  // PYCHRON_SCRIPTING_ENABLED
+#endif  // NOBION_SCRIPTING_ENABLED
 
 TEST(ScriptLogNoHub, NoHubNoCost) {
-  if (!scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   ASSERT_EQ(process_log_hub(), nullptr);
   Rig rig;
   CancelToken token;

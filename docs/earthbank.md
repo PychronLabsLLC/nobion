@@ -313,8 +313,8 @@ export NOBION_TEST_EARTHBANK_URL=https://...       # the service
 export NOBION_TEST_EARTHBANK_USER=...
 export NOBION_TEST_EARTHBANK_PASSWORD=...
 export NOBION_TEST_EARTHBANK_INSTITUTION=...        # the institution's id
-cmake --build --preset dev --target pychron_earthbank_live_tests
-build/dev/tests/earthbank_qt/pychron_earthbank_live_tests
+cmake --build --preset dev --target nobion_earthbank_live_tests
+build/dev/tests/earthbank_qt/nobion_earthbank_live_tests
 ```
 
 Run it before a release that touches `libs/earthbank` or `libs/earthbank_qt`,

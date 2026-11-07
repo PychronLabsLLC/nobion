@@ -168,7 +168,7 @@ class TestDataSourcePage : public QObject {
   }
 
   void testConnectionOnATempSqlite() {
-#ifndef PYCHRON_UI_HAS_STORE
+#ifndef NOBION_UI_HAS_STORE
     QSKIP("built without the DVC store");
 #else
     const Lab lab;

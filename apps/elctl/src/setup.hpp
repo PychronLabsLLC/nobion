@@ -44,7 +44,7 @@ bool yes(std::istream& in, std::ostream& out, const std::string& question);
 int report_doctor(const nobion::setup::SiteInstall& install, const nobion::setup::ProfileLibrary* library,
                   bool strict, bool probe, Io io);
 
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
 // Opens the store at `url` (`migrate`: made and brought up to date) and says
 // its schema ("schema version 12").
 nobion::Result<std::string> open_store(const std::string& url, bool migrate);

@@ -24,7 +24,7 @@ using namespace nobion::scripting::testing;
 namespace {
 
 [[maybe_unused]] Script example(const std::string& rel, ScriptKind kind) {
-  std::ifstream in(std::string(PYCHRON_EXAMPLE_CONFIGS_DIR) + "/scripts/" + rel);
+  std::ifstream in(std::string(NOBION_EXAMPLE_CONFIGS_DIR) + "/scripts/" + rel);
   std::ostringstream text;
   text << in.rdbuf();
   return Script{rel, text.str(), kind};
@@ -56,8 +56,8 @@ class FakeCryo final : public extraction::ICryo {
 class Rehearse : public ::testing::Test {
  protected:
   void SetUp() override {
-#if PYCHRON_SCRIPTING_ENABLED
-    if (!scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+#if NOBION_SCRIPTING_ENABLED
+    if (!scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
 #endif
     host = make_script_host();
   }
@@ -68,7 +68,7 @@ class Rehearse : public ::testing::Test {
 
 }  // namespace
 
-#if PYCHRON_SCRIPTING_ENABLED
+#if NOBION_SCRIPTING_ENABLED
 
 TEST_F(Rehearse, SimExtractStepsInOrder) {
   auto r = host->rehearse(example("extraction/sim_extract.py", ScriptKind::Extraction), rehearse_environment(),
@@ -474,4 +474,4 @@ TEST_F(Rehearse, StubHostRefuses) {
   EXPECT_TRUE(extraction::is_not_supported(r.error()));
 }
 
-#endif  // PYCHRON_SCRIPTING_ENABLED
+#endif  // NOBION_SCRIPTING_ENABLED

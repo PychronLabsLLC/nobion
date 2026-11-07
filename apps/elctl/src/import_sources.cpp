@@ -17,8 +17,8 @@
 #include "nobion/dvc/project_adapter.hpp"
 #include "nobion/ingest/ids.hpp"
 
-#ifndef PYCHRON_ELCTL_VERSION
-#define PYCHRON_ELCTL_VERSION "0"
+#ifndef NOBION_ELCTL_VERSION
+#define NOBION_ELCTL_VERSION "0"
 #endif
 
 namespace elctl::import_detail {
@@ -232,12 +232,12 @@ Result<P::Uuid> importer_client(P::IStore& store) {
   std::string host = env_var("HOSTNAME").value_or("");
   if (host.empty()) host = env_var("COMPUTERNAME").value_or("");
   if (host.empty()) host = "localhost";
-  return store.register_client({host, "importer", std::nullopt, "elctl " PYCHRON_ELCTL_VERSION});
+  return store.register_client({host, "importer", std::nullopt, "elctl " NOBION_ELCTL_VERSION});
 }
 
 ingest::WriterConfig writer_config(const SourceSettings& settings) {
   ingest::WriterConfig config;
-  config.importer_version = "elctl " PYCHRON_ELCTL_VERSION;
+  config.importer_version = "elctl " NOBION_ELCTL_VERSION;
   config.lab_time_zone = settings.tz;
   config.author_map = settings.author_map;
   return config;

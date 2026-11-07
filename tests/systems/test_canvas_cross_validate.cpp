@@ -178,7 +178,7 @@ TEST(CanvasCrossValidate, ResultFormFailsOnErrorsOnly) {
 }
 
 TEST(ExampleConfigs, LoadCrossValidateAndBuildGraph) {
-  const std::filesystem::path dir = PYCHRON_EXAMPLE_CONFIGS_DIR;
+  const std::filesystem::path dir = NOBION_EXAMPLE_CONFIGS_DIR;
   auto sys = config::load_system_config(dir / "extraction_line.toml");
   ASSERT_TRUE(sys.has_value()) << sys.error().what;
   auto c = load_canvas(dir / "canvas.toml");
@@ -208,7 +208,7 @@ TEST(ExampleConfigs, LoadCrossValidateAndBuildGraph) {
 // The example shows one of every element the canvas and the line config
 // offer (spec 2026-10-13-example-line-elements-design, section 5.1).
 TEST(ExampleConfigs, TheExampleHasEveryElementKind) {
-  const std::filesystem::path dir = PYCHRON_EXAMPLE_CONFIGS_DIR;
+  const std::filesystem::path dir = NOBION_EXAMPLE_CONFIGS_DIR;
   const auto sys = config::load_system_config(dir / "extraction_line.toml");
   ASSERT_TRUE(sys.has_value()) << sys.error().what;
   const auto c = load_canvas(dir / "canvas.toml");

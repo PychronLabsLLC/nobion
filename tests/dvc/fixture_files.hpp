@@ -10,7 +10,7 @@
 namespace nobion::dvc::testing {
 
 inline std::string fixture(const std::string& relative) {
-  const std::string path = std::string(PYCHRON_DVC_FIXTURES_DIR) + "/" + relative;
+  const std::string path = std::string(NOBION_DVC_FIXTURES_DIR) + "/" + relative;
   std::ifstream in(path, std::ios::binary);
   if (!in) throw std::runtime_error("missing fixture " + path);
   std::ostringstream text;

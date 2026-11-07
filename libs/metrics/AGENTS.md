@@ -4,7 +4,7 @@ Part of the agent guide: root `AGENTS.md` applies in full, this adds what is
 only this component's. Kept compressed, as that file is.
 
 - `libs/metrics` (Prometheus endpoint, `[metrics]`) is Qt-free and builds
-  everywhere; `-DPYCHRON_METRICS=OFF` skips it and the exporters. Metrics come
+  everywhere; `-DNOBION_METRICS=OFF` skips it and the exporters. Metrics come
   from bus events (`CoreExporter`, `ExperimentMetrics` in `libs/experiment`),
   not from instrumenting the control path. Three rules:
   (1) a label value is a configured name or an enumeration, never a run id,

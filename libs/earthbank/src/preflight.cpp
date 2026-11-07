@@ -22,15 +22,15 @@ using namespace std::string_view_literals;
 
 // The names of a record's fields, from the list the struct and to_json are
 // made from (model.hpp).
-#define PYCHRON_EARTHBANK_FIELD_NAME(kind, name) std::string_view(#name),
-constexpr std::array kSampleFields = {PYCHRON_EARTHBANK_SAMPLE_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)};
-constexpr std::array kLocationFields = {PYCHRON_EARTHBANK_LOCATION_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)};
-constexpr std::array kDataPointFields = {PYCHRON_EARTHBANK_DATA_POINT_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)};
-constexpr std::array kAliquotFields = {PYCHRON_EARTHBANK_ALIQUOT_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)};
-constexpr std::array kMeasurementFields = {PYCHRON_EARTHBANK_MEASUREMENT_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)};
-constexpr std::array kAgeCalcFields = {PYCHRON_EARTHBANK_AGE_CALC_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)};
-constexpr std::array kAgeSummaryFields = {PYCHRON_EARTHBANK_AGE_SUMMARY_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)};
-#undef PYCHRON_EARTHBANK_FIELD_NAME
+#define NOBION_EARTHBANK_FIELD_NAME(kind, name) std::string_view(#name),
+constexpr std::array kSampleFields = {NOBION_EARTHBANK_SAMPLE_FIELDS(NOBION_EARTHBANK_FIELD_NAME)};
+constexpr std::array kLocationFields = {NOBION_EARTHBANK_LOCATION_FIELDS(NOBION_EARTHBANK_FIELD_NAME)};
+constexpr std::array kDataPointFields = {NOBION_EARTHBANK_DATA_POINT_FIELDS(NOBION_EARTHBANK_FIELD_NAME)};
+constexpr std::array kAliquotFields = {NOBION_EARTHBANK_ALIQUOT_FIELDS(NOBION_EARTHBANK_FIELD_NAME)};
+constexpr std::array kMeasurementFields = {NOBION_EARTHBANK_MEASUREMENT_FIELDS(NOBION_EARTHBANK_FIELD_NAME)};
+constexpr std::array kAgeCalcFields = {NOBION_EARTHBANK_AGE_CALC_FIELDS(NOBION_EARTHBANK_FIELD_NAME)};
+constexpr std::array kAgeSummaryFields = {NOBION_EARTHBANK_AGE_SUMMARY_FIELDS(NOBION_EARTHBANK_FIELD_NAME)};
+#undef NOBION_EARTHBANK_FIELD_NAME
 
 constexpr std::string_view kSample = "Sample";
 constexpr std::string_view kLocation = "Location";

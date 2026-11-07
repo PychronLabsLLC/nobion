@@ -27,7 +27,7 @@ class LabExtractionTest : public ::testing::Test {
   void SetUp() override {
     std::random_device rd;
     dir_ = fs::temp_directory_path() / ("pychron-lab-laser-" + std::to_string(rd()) + std::to_string(rd()));
-    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_);
+    nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_);
     fs::remove_all(dir_ / "tray_maps");
     fs::remove_all(dir_ / "stage_calibrations");
     // The line config with exactly one extraction device, whatever the

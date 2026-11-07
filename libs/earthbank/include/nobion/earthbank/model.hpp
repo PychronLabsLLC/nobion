@@ -22,7 +22,7 @@
 // what the REST API stores and what a lookup fills later (vocab.hpp).
 //
 // The struct, to_json and anything else that walks a record's fields are
-// generated from one list per record (the PYCHRON_EARTHBANK_*_FIELDS macros
+// generated from one list per record (the NOBION_EARTHBANK_*_FIELDS macros
 // below), so they cannot drift apart. to_json is also how a field is read by
 // its service name: there is no other reflection.
 #pragma once
@@ -46,7 +46,7 @@ using Flag = std::optional<bool>;
 
 // One X(kind, name) per field, in the order of the legacy lists.
 
-#define PYCHRON_EARTHBANK_SAMPLE_FIELDS(X) \
+#define NOBION_EARTHBANK_SAMPLE_FIELDS(X) \
   X(Text, fundingName) \
   X(Id, fundingId) \
   X(Text, literatureName) \
@@ -80,7 +80,7 @@ using Flag = std::optional<bool>;
   X(Id, stratographicUnitId) \
   X(Text, stratographicUnitName)
 
-#define PYCHRON_EARTHBANK_LOCATION_FIELDS(X) \
+#define NOBION_EARTHBANK_LOCATION_FIELDS(X) \
   X(Text, description) \
   X(Id, id) \
   X(Number, lat) \
@@ -88,7 +88,7 @@ using Flag = std::optional<bool>;
   X(Number, lon) \
   X(Text, name)
 
-#define PYCHRON_EARTHBANK_DATA_POINT_FIELDS(X) \
+#define NOBION_EARTHBANK_DATA_POINT_FIELDS(X) \
   X(Text, fundingName) \
   X(Id, fundingId) \
   X(Text, literatureName) \
@@ -120,7 +120,7 @@ using Flag = std::optional<bool>;
   X(Id, mineralId) \
   X(Text, mineralName)
 
-#define PYCHRON_EARTHBANK_ALIQUOT_FIELDS(X) \
+#define NOBION_EARTHBANK_ALIQUOT_FIELDS(X) \
   X(Text, aliquotComment) \
   X(Text, aliquotName) \
   X(Number, aliquotSize) \
@@ -128,7 +128,7 @@ using Flag = std::optional<bool>;
   X(Id, arArDataPointId) \
   X(Id, id)
 
-#define PYCHRON_EARTHBANK_MEASUREMENT_FIELDS(X) \
+#define NOBION_EARTHBANK_MEASUREMENT_FIELDS(X) \
   X(Text, aliquotName) \
   X(Text, analysisTime) \
   X(Text, analysisUnits) \
@@ -209,7 +209,7 @@ using Flag = std::optional<bool>;
   X(Id, weightedMeanStepId) \
   X(Text, weightedMeanStepName)
 
-#define PYCHRON_EARTHBANK_AGE_CALC_FIELDS(X) \
+#define NOBION_EARTHBANK_AGE_CALC_FIELDS(X) \
   X(Id, airRatioId) \
   X(Text, airRatioName) \
   X(Id, arArDataPointId) \
@@ -220,7 +220,7 @@ using Flag = std::optional<bool>;
   X(Text, fluxMonitorName) \
   X(Id, id)
 
-#define PYCHRON_EARTHBANK_AGE_SUMMARY_FIELDS(X) \
+#define NOBION_EARTHBANK_AGE_SUMMARY_FIELDS(X) \
   X(Number, age) \
   X(Id, ageCalcTypeId) \
   X(Text, ageCalcTypeName) \
@@ -243,18 +243,18 @@ using Flag = std::optional<bool>;
   X(Count, nAnalysisGrouped) \
   X(Flag, preferredAge)
 
-#define PYCHRON_EARTHBANK_MEMBER(kind, name) kind name;
+#define NOBION_EARTHBANK_MEMBER(kind, name) kind name;
 
 // What was collected. `sampleID` is the lab's own identifier for it (text),
 // `id` the service's row.
 struct Sample {
-  PYCHRON_EARTHBANK_SAMPLE_FIELDS(PYCHRON_EARTHBANK_MEMBER)
+  NOBION_EARTHBANK_SAMPLE_FIELDS(NOBION_EARTHBANK_MEMBER)
   bool operator==(const Sample&) const = default;
 };
 
 // Where it was collected: decimal degrees, WGS 84.
 struct Location {
-  PYCHRON_EARTHBANK_LOCATION_FIELDS(PYCHRON_EARTHBANK_MEMBER)
+  NOBION_EARTHBANK_LOCATION_FIELDS(NOBION_EARTHBANK_MEMBER)
   bool operator==(const Location&) const = default;
 };
 
@@ -263,36 +263,36 @@ struct Location {
 // record; they are carried for the spreadsheet's columns and for the link
 // tables an upload fills.
 struct DataPoint {
-  PYCHRON_EARTHBANK_DATA_POINT_FIELDS(PYCHRON_EARTHBANK_MEMBER)
+  NOBION_EARTHBANK_DATA_POINT_FIELDS(NOBION_EARTHBANK_MEMBER)
   bool operator==(const DataPoint&) const = default;
 };
 
 // One loaded piece of the material. Measurements name their aliquot by
 // `aliquotName`.
 struct Aliquot {
-  PYCHRON_EARTHBANK_ALIQUOT_FIELDS(PYCHRON_EARTHBANK_MEMBER)
+  NOBION_EARTHBANK_ALIQUOT_FIELDS(NOBION_EARTHBANK_MEMBER)
   bool operator==(const Aliquot&) const = default;
 };
 
 // One analysis: a fusion, or one step of a heating schedule.
 struct Measurement {
-  PYCHRON_EARTHBANK_MEASUREMENT_FIELDS(PYCHRON_EARTHBANK_MEMBER)
+  NOBION_EARTHBANK_MEASUREMENT_FIELDS(NOBION_EARTHBANK_MEMBER)
   bool operator==(const Measurement&) const = default;
 };
 
 // The references the ages were calculated with.
 struct AgeCalc {
-  PYCHRON_EARTHBANK_AGE_CALC_FIELDS(PYCHRON_EARTHBANK_MEMBER)
+  NOBION_EARTHBANK_AGE_CALC_FIELDS(NOBION_EARTHBANK_MEMBER)
   bool operator==(const AgeCalc&) const = default;
 };
 
 // The age reported for the sample and how it was arrived at.
 struct AgeSummary {
-  PYCHRON_EARTHBANK_AGE_SUMMARY_FIELDS(PYCHRON_EARTHBANK_MEMBER)
+  NOBION_EARTHBANK_AGE_SUMMARY_FIELDS(NOBION_EARTHBANK_MEMBER)
   bool operator==(const AgeSummary&) const = default;
 };
 
-#undef PYCHRON_EARTHBANK_MEMBER
+#undef NOBION_EARTHBANK_MEMBER
 
 // Everything published for one sample. It is built once and is what the
 // pre-flight check reads, what the spreadsheet is filled from and what is

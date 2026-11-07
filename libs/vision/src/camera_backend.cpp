@@ -21,7 +21,7 @@ CameraBackend opencv_backend() {
   CameraBackend b;
   b.name = "opencv";
   b.available = opencv_built();
-  if (!b.available) b.unavailable_why = "built without OpenCV (-DPYCHRON_VISION_OPENCV=ON)";
+  if (!b.available) b.unavailable_why = "built without OpenCV (-DNOBION_VISION_OPENCV=ON)";
   b.open = [](const CameraRequest& request, ClockFn clock) { return open_opencv_camera(request, std::move(clock)); };
   b.list = [] { return list_opencv_cameras(); };
   return b;

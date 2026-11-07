@@ -85,7 +85,7 @@ class TestDatabaseChoice : public QObject {
     QVERIFY(!url.has_value());
     QVERIFY(QString::fromStdString(url.error().what).contains(QStringLiteral("credentials.toml")));
   }
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
   // A simulated session saves to the database only when it is the install's
   // own file here, or with --sim-save; otherwise it says, once, where its
   // runs go instead. A session that is not simulated always saves.

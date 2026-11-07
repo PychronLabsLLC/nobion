@@ -89,8 +89,8 @@ Checks: >
 #       whose ok() means its config is there, a toml node asked is_integer()
 #       before value<int64_t>(). Of the 196 it found (2026-10-08) none read was
 #       a defect. The same mistake is caught where it happens instead: a build
-#       with PYCHRON_SANITIZE has the standard library's own checks on
-#       (cmake/PychronSanitizers.cmake), and an empty optional dereferenced in
+#       with NOBION_SANITIZE has the standard library's own checks on
+#       (cmake/NobionSanitizers.cmake), and an empty optional dereferenced in
 #       a test stops the test.
 #   return-braced-init-list, use-designated-initializers, use-nodiscard,
 #   use-ranges, use-scoped-lock, use-trailing-return-type   style, not defects

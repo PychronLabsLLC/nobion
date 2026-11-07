@@ -43,7 +43,7 @@
 #include "nobion/systems/spectrometer/bringup.hpp"
 #include "nobion/systems/spectrometer/scan_service.hpp"
 #include "virtual_time.hpp"
-#ifdef PYCHRON_EXPERIMENT_HAS_METRICS
+#ifdef NOBION_EXPERIMENT_HAS_METRICS
 #include "http_client.hpp"
 #include "metrics_text.hpp"
 #include "nobion/core/config/metrics_config.hpp"
@@ -145,7 +145,7 @@ class LabSessionTest : public nobion::testing::VirtualTimeTest {
 
   void SetUp() override {
     dir_ = nobion::testing::unique_temp_path("pychron-session-");
-    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_);
+    nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_);
     prepare_lab();
 
     systems::ExtractionLine::Options options;
@@ -604,7 +604,7 @@ TEST_F(LabSessionTest, TheQueueHoldsTheFieldTableWhileItRuns) {
 
 // --- the metrics endpoint over a whole queue (observability design, 6) --------
 
-#ifdef PYCHRON_EXPERIMENT_HAS_METRICS
+#ifdef NOBION_EXPERIMENT_HAS_METRICS
 
 // The session's line with `[metrics]` on, at a loopback port the OS picks.
 class MetricsSessionTest : public LabSessionTest {
@@ -726,7 +726,7 @@ TEST_F(MetricsSessionTest, ScrapingDuringAQueueDoesNotDisturbIt) {
   EXPECT_EQ(bad.load(), 0);
 }
 
-#endif  // PYCHRON_EXPERIMENT_HAS_METRICS
+#endif  // NOBION_EXPERIMENT_HAS_METRICS
 
 // --- lasers shared with whoever else drives them (laser window design, 2) -----
 

@@ -1,7 +1,7 @@
 #include "database_choice.hpp"
 
 #include "nobion/setup/doctor.hpp"
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
 // Qt's `signals` keyword macro would rewrite CollectionRoots::signals.
 #pragma push_macro("signals")
 #undef signals
@@ -19,7 +19,7 @@ Result<std::optional<std::string>> choose_database(const CommandLine& cli, const
   return std::optional<std::string>(std::move(*url));
 }
 
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
 RunSaving choose_run_saving(const CommandLine& cli, const std::string& database, bool simulated,
                             const std::filesystem::path& data) {
   if (!simulated || experiment::store::saves_simulated_runs(database, cli.db.has_value(), cli.sim_save)) return {};

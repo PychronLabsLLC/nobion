@@ -1,11 +1,11 @@
-# Installs the "pychron" component into PREFIX and runs the installed elctl.
+# Installs the "nobion" component into PREFIX and runs the installed elctl.
 file(REMOVE_RECURSE "${PREFIX}")
 set(config_args)
 if(CONFIG)
   set(config_args --config "${CONFIG}")
 endif()
 execute_process(
-  COMMAND "${CMAKE_COMMAND}" --install "${BUILD_DIR}" --component pychron --prefix "${PREFIX}" ${config_args}
+  COMMAND "${CMAKE_COMMAND}" --install "${BUILD_DIR}" --component nobion --prefix "${PREFIX}" ${config_args}
   RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE out)
 if(NOT rc EQUAL 0)
   message(FATAL_ERROR "install failed (${rc}):\n${out}")

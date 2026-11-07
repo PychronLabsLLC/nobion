@@ -12,14 +12,14 @@ FetchContent_Declare(tomlplusplus
 FetchContent_MakeAvailable(tomlplusplus)
 
 # Logging back end (spec 4.6). Bundled fmt keeps fmt out of every public
-# interface; pychron_core links spdlog PRIVATE.
+# interface; nobion_core links spdlog PRIVATE.
 FetchContent_Declare(spdlog
   URL https://github.com/gabime/spdlog/archive/refs/tags/v1.15.3.tar.gz
   URL_HASH SHA256=15a04e69c222eb6c01094b5c7ff8a249b36bb22788d72519646fb85feb267e67
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
   FIND_PACKAGE_ARGS CONFIG)
 set(SPDLOG_FMT_EXTERNAL OFF CACHE BOOL "" FORCE)
-# Third-party headers must not trip PYCHRON_WARNINGS_AS_ERRORS.
+# Third-party headers must not trip NOBION_WARNINGS_AS_ERRORS.
 set(SPDLOG_SYSTEM_INCLUDES ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(spdlog)
 
@@ -38,9 +38,9 @@ endif()
 # Embedded CPython for libs/scripting (spec section 6). With the option off,
 # or when no Python >= 3.12 with embedding support is found, libs/scripting
 # builds its stub host that rejects scripted runs.
-option(PYCHRON_SCRIPTING "Embed CPython (pybind11) in libs/scripting" ON)
-set(PYCHRON_SCRIPTING_ENABLED OFF)
-if(PYCHRON_SCRIPTING)
+option(NOBION_SCRIPTING "Embed CPython (pybind11) in libs/scripting" ON)
+set(NOBION_SCRIPTING_ENABLED OFF)
+if(NOBION_SCRIPTING)
   find_package(Python 3.12 COMPONENTS Interpreter Development.Embed)
   if(Python_FOUND)
     set(PYBIND11_FINDPYTHON ON CACHE BOOL "" FORCE)
@@ -51,9 +51,9 @@ if(PYCHRON_SCRIPTING)
       SYSTEM
       FIND_PACKAGE_ARGS 3 CONFIG)
     FetchContent_MakeAvailable(pybind11)
-    set(PYCHRON_SCRIPTING_ENABLED ON)
+    set(NOBION_SCRIPTING_ENABLED ON)
   else()
-    message(WARNING "PYCHRON_SCRIPTING: Python >= 3.12 (Development.Embed) not found; building the stub script host")
+    message(WARNING "NOBION_SCRIPTING: Python >= 3.12 (Development.Embed) not found; building the stub script host")
   endif()
 endif()
 
@@ -61,12 +61,12 @@ endif()
 # when found, ON requires it, OFF never looks. There is no fetch fallback: a
 # source build is too heavy for CI. Without it the two OpenCV translation
 # units compile to stubs, so the source list never changes.
-set(PYCHRON_VISION_OPENCV "AUTO" CACHE STRING "OpenCV for libs/vision: AUTO, ON or OFF")
-set_property(CACHE PYCHRON_VISION_OPENCV PROPERTY STRINGS AUTO ON OFF)
-set(PYCHRON_VISION_OPENCV_ENABLED OFF)
-if(PYCHRON_VISION AND NOT PYCHRON_VISION_OPENCV STREQUAL "OFF")
-  if(NOT PYCHRON_VISION_OPENCV STREQUAL "AUTO" AND NOT PYCHRON_VISION_OPENCV STREQUAL "ON")
-    message(FATAL_ERROR "PYCHRON_VISION_OPENCV must be AUTO, ON or OFF (got '${PYCHRON_VISION_OPENCV}')")
+set(NOBION_VISION_OPENCV "AUTO" CACHE STRING "OpenCV for libs/vision: AUTO, ON or OFF")
+set_property(CACHE NOBION_VISION_OPENCV PROPERTY STRINGS AUTO ON OFF)
+set(NOBION_VISION_OPENCV_ENABLED OFF)
+if(NOBION_VISION AND NOT NOBION_VISION_OPENCV STREQUAL "OFF")
+  if(NOT NOBION_VISION_OPENCV STREQUAL "AUTO" AND NOT NOBION_VISION_OPENCV STREQUAL "ON")
+    message(FATAL_ERROR "NOBION_VISION_OPENCV must be AUTO, ON or OFF (got '${NOBION_VISION_OPENCV}')")
   endif()
   # The package is called OpenCV in 4.x and 5.x. In 5.x the contour and
   # geometry functions moved into the geometry module.
@@ -82,50 +82,50 @@ if(PYCHRON_VISION AND NOT PYCHRON_VISION_OPENCV STREQUAL "OFF")
     endif()
   endif()
   if(OpenCV_FOUND)
-    set(PYCHRON_VISION_OPENCV_ENABLED ON)
-  elseif(PYCHRON_VISION_OPENCV STREQUAL "ON")
-    message(FATAL_ERROR "PYCHRON_VISION_OPENCV=ON but OpenCV (${_cv_wanted}) was not found")
+    set(NOBION_VISION_OPENCV_ENABLED ON)
+  elseif(NOBION_VISION_OPENCV STREQUAL "ON")
+    message(FATAL_ERROR "NOBION_VISION_OPENCV=ON but OpenCV (${_cv_wanted}) was not found")
   endif()
-  if(PYCHRON_VISION_OPENCV_ENABLED)
-    message(STATUS "PYCHRON_VISION_OPENCV=${PYCHRON_VISION_OPENCV}: using OpenCV ${OpenCV_VERSION}")
+  if(NOBION_VISION_OPENCV_ENABLED)
+    message(STATUS "NOBION_VISION_OPENCV=${NOBION_VISION_OPENCV}: using OpenCV ${OpenCV_VERSION}")
   else()
-    message(STATUS "PYCHRON_VISION_OPENCV=${PYCHRON_VISION_OPENCV}: OpenCV not found; building stubs")
+    message(STATUS "NOBION_VISION_OPENCV=${NOBION_VISION_OPENCV}: OpenCV not found; building stubs")
   endif()
-elseif(PYCHRON_VISION)
-  message(STATUS "PYCHRON_VISION_OPENCV=OFF: building stubs")
+elseif(NOBION_VISION)
+  message(STATUS "NOBION_VISION_OPENCV=OFF: building stubs")
 endif()
 
 # Optional Apache Arrow (with Parquet) for libs/publish: the GeoParquet tables
 # of a release directory. AUTO uses it when found, ON requires it, OFF never
 # looks. Without it make_parquet_writer() is null and a build writes
 # everything but data/*.parquet. Arrow is seen by src/parquet_writer.cpp alone.
-set(PYCHRON_PUBLISH "AUTO" CACHE STRING "Apache Arrow (Parquet) for libs/publish: AUTO, ON or OFF")
-set_property(CACHE PYCHRON_PUBLISH PROPERTY STRINGS AUTO ON OFF)
-set(PYCHRON_PUBLISH_ARROW_ENABLED OFF)
-set(PYCHRON_PUBLISH_ARROW_LIBS "")
-if(NOT PYCHRON_PUBLISH STREQUAL "OFF")
-  if(NOT PYCHRON_PUBLISH STREQUAL "AUTO" AND NOT PYCHRON_PUBLISH STREQUAL "ON")
-    message(FATAL_ERROR "PYCHRON_PUBLISH must be AUTO, ON or OFF (got '${PYCHRON_PUBLISH}')")
+set(NOBION_PUBLISH "AUTO" CACHE STRING "Apache Arrow (Parquet) for libs/publish: AUTO, ON or OFF")
+set_property(CACHE NOBION_PUBLISH PROPERTY STRINGS AUTO ON OFF)
+set(NOBION_PUBLISH_ARROW_ENABLED OFF)
+set(NOBION_PUBLISH_ARROW_LIBS "")
+if(NOT NOBION_PUBLISH STREQUAL "OFF")
+  if(NOT NOBION_PUBLISH STREQUAL "AUTO" AND NOT NOBION_PUBLISH STREQUAL "ON")
+    message(FATAL_ERROR "NOBION_PUBLISH must be AUTO, ON or OFF (got '${NOBION_PUBLISH}')")
   endif()
   find_package(Arrow CONFIG QUIET)
   if(Arrow_FOUND)
     find_package(Parquet CONFIG QUIET)
   endif()
   if(Arrow_FOUND AND Parquet_FOUND)
-    set(PYCHRON_PUBLISH_ARROW_ENABLED ON)
+    set(NOBION_PUBLISH_ARROW_ENABLED ON)
     if(TARGET Parquet::parquet_shared)
-      set(PYCHRON_PUBLISH_ARROW_LIBS Parquet::parquet_shared Arrow::arrow_shared)
+      set(NOBION_PUBLISH_ARROW_LIBS Parquet::parquet_shared Arrow::arrow_shared)
     else()
-      set(PYCHRON_PUBLISH_ARROW_LIBS Parquet::parquet_static Arrow::arrow_static)
+      set(NOBION_PUBLISH_ARROW_LIBS Parquet::parquet_static Arrow::arrow_static)
     endif()
-    message(STATUS "PYCHRON_PUBLISH=${PYCHRON_PUBLISH}: using Apache Arrow ${Arrow_VERSION} with Parquet")
-  elseif(PYCHRON_PUBLISH STREQUAL "ON")
-    message(FATAL_ERROR "PYCHRON_PUBLISH=ON but Apache Arrow with Parquet was not found")
+    message(STATUS "NOBION_PUBLISH=${NOBION_PUBLISH}: using Apache Arrow ${Arrow_VERSION} with Parquet")
+  elseif(NOBION_PUBLISH STREQUAL "ON")
+    message(FATAL_ERROR "NOBION_PUBLISH=ON but Apache Arrow with Parquet was not found")
   else()
-    message(STATUS "PYCHRON_PUBLISH=${PYCHRON_PUBLISH}: Apache Arrow not found; a release has no Parquet tables")
+    message(STATUS "NOBION_PUBLISH=${NOBION_PUBLISH}: Apache Arrow not found; a release has no Parquet tables")
   endif()
 else()
-  message(STATUS "PYCHRON_PUBLISH=OFF: a release has no Parquet tables")
+  message(STATUS "NOBION_PUBLISH=OFF: a release has no Parquet tables")
 endif()
 
 # QCustomPlot (GPL) for the UI strip charts. Ships no CMake project, so the
@@ -152,9 +152,9 @@ endif()
 # Qt stays behind the library boundary: TinyORM and Qt are PRIVATE
 # dependencies and no public persistence header includes them. The library is
 # built only when Qt6 Core and Sql are found; elsewhere it is skipped.
-option(PYCHRON_PERSISTENCE "Build libs/persistence (needs Qt6 Core + Sql; TinyORM is fetched)" ON)
-set(PYCHRON_PERSISTENCE_ENABLED OFF)
-if(PYCHRON_PERSISTENCE)
+option(NOBION_PERSISTENCE "Build libs/persistence (needs Qt6 Core + Sql; TinyORM is fetched)" ON)
+set(NOBION_PERSISTENCE_ENABLED OFF)
+if(NOBION_PERSISTENCE)
   find_package(Qt6 6.2 QUIET COMPONENTS Core Sql)
   if(Qt6Sql_FOUND)
     # TinyORM's own CMake calls find_package(range-v3 CONFIG REQUIRED);
@@ -178,7 +178,7 @@ if(PYCHRON_PERSISTENCE)
     set(BUILD_DRIVERS OFF CACHE BOOL "" FORCE)
     # TinyORM's BUILD_TESTS option shares our cache variable's name: shadow it
     # with a normal variable (CMP0077) so its own test suite is not built.
-    set(_pychron_shared ${BUILD_SHARED_LIBS})
+    set(_nobion_shared ${BUILD_SHARED_LIBS})
     set(BUILD_SHARED_LIBS OFF)
     set(BUILD_TESTS OFF)
     FetchContent_Declare(TinyOrm
@@ -187,7 +187,7 @@ if(PYCHRON_PERSISTENCE)
       SYSTEM
       FIND_PACKAGE_ARGS CONFIG)
     FetchContent_MakeAvailable(TinyOrm)
-    set(BUILD_SHARED_LIBS ${_pychron_shared})
+    set(BUILD_SHARED_LIBS ${_nobion_shared})
     unset(BUILD_TESTS)
 
     # Third-party build policy is not ours: TinyORM adds -Werror (Debug) and
@@ -212,9 +212,9 @@ if(PYCHRON_PERSISTENCE)
       list(TRANSFORM _tiny_defs REPLACE "TINYORM_DEBUG_SQL" "TINYORM_NO_DEBUG_SQL")
       set_target_properties(TinyOrm PROPERTIES COMPILE_DEFINITIONS "${_tiny_defs}")
     endif()
-    set(PYCHRON_PERSISTENCE_ENABLED ON)
+    set(NOBION_PERSISTENCE_ENABLED ON)
   else()
-    message(WARNING "PYCHRON_PERSISTENCE: Qt6 Core/Sql not found; libs/persistence is not built")
+    message(WARNING "NOBION_PERSISTENCE: Qt6 Core/Sql not found; libs/persistence is not built")
   endif()
 endif()
 
@@ -222,15 +222,15 @@ endif()
 # tree that opens a socket for a program of ours. libs/earthbank is Qt-free and
 # only says what to ask through IHttpClient. Built when Qt6 Core and Network are
 # found; elsewhere elctl's `earthbank` commands that need the network say so
-# and the UI's upload is off (PYCHRON_EARTHBANK_NETWORK_ENABLED is OFF).
-option(PYCHRON_EARTHBANK_NETWORK "Build libs/earthbank_qt (HTTPS to EarthBank; needs Qt6 Core + Network)" ON)
-set(PYCHRON_EARTHBANK_NETWORK_ENABLED OFF)
-if(PYCHRON_EARTHBANK_NETWORK)
+# and the UI's upload is off (NOBION_EARTHBANK_NETWORK_ENABLED is OFF).
+option(NOBION_EARTHBANK_NETWORK "Build libs/earthbank_qt (HTTPS to EarthBank; needs Qt6 Core + Network)" ON)
+set(NOBION_EARTHBANK_NETWORK_ENABLED OFF)
+if(NOBION_EARTHBANK_NETWORK)
   find_package(Qt6 6.2 QUIET COMPONENTS Core Network)
   if(Qt6Network_FOUND)
-    set(PYCHRON_EARTHBANK_NETWORK_ENABLED ON)
+    set(NOBION_EARTHBANK_NETWORK_ENABLED ON)
   else()
-    message(STATUS "PYCHRON_EARTHBANK_NETWORK: Qt6 Core/Network not found; libs/earthbank_qt is not built")
+    message(STATUS "NOBION_EARTHBANK_NETWORK: Qt6 Core/Network not found; libs/earthbank_qt is not built")
   endif()
 endif()
 
@@ -238,15 +238,15 @@ endif()
 # the standard library ships the tzdb (libstdc++ 13+, MSVC); Apple's libc++
 # does not, so Howard Hinnant's date (same API, the library the C++20 one came
 # from) is fetched only when the probe fails. It reads the system tz database.
-if(PYCHRON_PERSISTENCE_ENABLED)
+if(NOBION_PERSISTENCE_ENABLED)
   include(CheckCXXSourceCompiles)
   set(CMAKE_REQUIRED_FEATURES cxx_std_20)
   check_cxx_source_compiles("
     #include <chrono>
     int main() { return std::chrono::locate_zone(\"UTC\") == nullptr; }"
-    PYCHRON_HAVE_STD_TZDB)
+    NOBION_HAVE_STD_TZDB)
   unset(CMAKE_REQUIRED_FEATURES)
-  if(NOT PYCHRON_HAVE_STD_TZDB)
+  if(NOT NOBION_HAVE_STD_TZDB)
     set(USE_SYSTEM_TZ_DB ON CACHE BOOL "" FORCE)
     set(BUILD_TZ_LIB ON CACHE BOOL "" FORCE)
     set(ENABLE_DATE_INSTALL OFF CACHE BOOL "" FORCE)
@@ -267,7 +267,7 @@ endif()
 # is built: libs/earthbank builds on every platform.
 set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
 set(JSON_Install OFF CACHE BOOL "" FORCE)
-# Third-party headers must not trip PYCHRON_WARNINGS_AS_ERRORS.
+# Third-party headers must not trip NOBION_WARNINGS_AS_ERRORS.
 set(JSON_SystemInclude ON CACHE BOOL "" FORCE)
 FetchContent_Declare(nlohmann_json
   URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
@@ -278,7 +278,7 @@ FetchContent_Declare(nlohmann_json
 FetchContent_MakeAvailable(nlohmann_json)
 
 # Zip and XML for libs/earthbank's workbook writer (ooxml.cpp): an .xlsx is a
-# zip of XML parts. Both are PRIVATE to pychron_earthbank.
+# zip of XML parts. Both are PRIVATE to nobion_earthbank.
 #
 # miniz, unlike every other dependency here, is never looked for as an
 # installed package: it is always built from these pinned sources. An
@@ -294,7 +294,7 @@ FetchContent_Declare(miniz
   URL https://github.com/richgel999/miniz/archive/refs/tags/3.0.2.tar.gz
   URL_HASH SHA256=c4b4c25a4eb81883448ff8924e6dba95c800094a198dc9ce66a292ac2ef8e018
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-  SOURCE_SUBDIR pychron-defines-the-target)
+  SOURCE_SUBDIR nobion-defines-the-target)
 FetchContent_MakeAvailable(miniz)
 enable_language(C)
 include(GenerateExportHeader)

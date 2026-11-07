@@ -11,7 +11,7 @@ using elctl::testing::contains;
 using elctl::testing::Outcome;
 using elctl::testing::run_raw;
 
-#ifndef PYCHRON_ELCTL_HAS_STORE
+#ifndef NOBION_ELCTL_HAS_STORE
 
 TEST(ElctlEarthbank, StubWithoutPersistence) {
   const Outcome o = run_raw({"earthbank", "export-xlsx", "--db", "sqlite::memory:", "--out", "x"});
@@ -27,7 +27,7 @@ TEST(ElctlEarthbank, TheNetworkCommandsWithoutPersistence) {
     const Outcome o = run_raw({"earthbank", sub});
     EXPECT_EQ(o.code, elctl::kUsage) << sub;
     EXPECT_EQ(o.out, "") << sub;
-#ifdef PYCHRON_ELCTL_HAS_NETWORK
+#ifdef NOBION_ELCTL_HAS_NETWORK
     EXPECT_TRUE(contains(o.err, "elctl was built without persistence")) << o.err;
 #else
     EXPECT_TRUE(contains(o.err, "this build has no network support (Qt6 Network was not found)")) << o.err;
@@ -322,7 +322,7 @@ TEST_F(ElctlEarthbank, ReleaseWithSelectionIsUsageError) {
 }
 
 TEST_F(ElctlEarthbank, PerSampleAndNoSamples) {
-  const Outcome o = to_out({"--per-sample", "--no-samples", "--templates", PYCHRON_EARTHBANK_TEMPLATE_DIR});
+  const Outcome o = to_out({"--per-sample", "--no-samples", "--templates", NOBION_EARTHBANK_TEMPLATE_DIR});
   EXPECT_EQ(o.code, elctl::kOk) << o.err;
   const auto files = files_in(out_);
   ASSERT_EQ(files.size(), 2u) << o.out;
@@ -504,7 +504,7 @@ TEST_F(ElctlEarthbank, EverySettingANoteNamesIsAKeyOfTheOverridesFile) {
   std::set<std::string> settings;
   const std::regex named_setting("`([a-z_]+)` setting");
   for (const char* source : {"mapping.cpp", "xlsx.cpp"}) {
-    const std::string text = slurp(fs::path(PYCHRON_EARTHBANK_SOURCE_DIR) / source);
+    const std::string text = slurp(fs::path(NOBION_EARTHBANK_SOURCE_DIR) / source);
     ASSERT_FALSE(text.empty()) << source;
     for (std::sregex_iterator it(text.begin(), text.end(), named_setting), end; it != end; ++it)
       settings.insert((*it)[1].str());
@@ -1098,7 +1098,7 @@ TEST_F(ElctlEarthbankAccount, HelpListsTheAccountCommands) {
   EXPECT_TRUE(contains(run_raw({"help"}).out, "earthbank login|account|packages|preflight|upload|import-profiles"));
 }
 
-#ifndef PYCHRON_ELCTL_HAS_NETWORK
+#ifndef NOBION_ELCTL_HAS_NETWORK
 // A build with persistence and no Qt6 Network: the commands that need the
 // network say so and exit 2, before they ask for anything.
 TEST_F(ElctlEarthbankAccount, WithoutNetworkSupportTheNetworkCommandsSayNo) {

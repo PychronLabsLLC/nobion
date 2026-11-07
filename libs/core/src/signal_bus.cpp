@@ -9,7 +9,7 @@
 
 #if __has_include(<cxxabi.h>)
 #include <cxxabi.h>
-#define PYCHRON_HAVE_CXXABI 1
+#define NOBION_HAVE_CXXABI 1
 #endif
 
 namespace nobion {
@@ -19,7 +19,7 @@ namespace {
 // "nobion::ValveChanged" on every compiler.
 std::string event_name(std::type_index type) {
   std::string name = type.name();
-#ifdef PYCHRON_HAVE_CXXABI
+#ifdef NOBION_HAVE_CXXABI
   int status = 0;
   // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory): __cxa_demangle allocates with malloc
   if (char* readable = abi::__cxa_demangle(type.name(), nullptr, nullptr, &status); readable != nullptr) {

@@ -13,7 +13,7 @@
 #include "elctl_fixture.hpp"
 #include "nobion/setup/site.hpp"
 
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QString>
@@ -113,13 +113,13 @@ TEST_F(ElctlSetupTest, DataReductionIsTwoAnswersAndADatabase) {
   const auto* dr = config.find("data-reduction");
   ASSERT_NE(dr, nullptr);
   EXPECT_EQ(dr->kind, "data_reduction");
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
   EXPECT_TRUE(fs::exists(root / "data" / "pychron.db"));
   EXPECT_TRUE(contains(o.out, "[OK] database")) << o.out;
 #endif
 }
 
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
 // Install defaults: the instrument's database is made and given the
 // references project, its samples and the Triga production.
 TEST_F(ElctlSetupTest, AnInstrumentInstallMakesAndSeedsItsDatabase) {
@@ -309,7 +309,7 @@ TEST_F(ElctlSetupTest, DataSourceShowsTheDatabaseAndTheDataFolder) {
   EXPECT_FALSE(contains(o.out, "password")) << "a local database has no password: " << o.out;
 }
 
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
 // A store one migration behind this build, as ASchemaThatIsBehindSaysWhatToRun
 // (test_exp_commands.cpp) makes one.
 void make_store_one_migration_behind(const fs::path& file) {
@@ -403,7 +403,7 @@ TEST_F(ElctlSetupTest, SetAsksBeforeWriting) {
 // --server: the password from standard input, kept in the credentials file
 // and nowhere else; an unreachable server refused unless --no-check.
 
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
 TEST_F(ElctlSetupTest, SetServerUnreachableIsRefused) {
   const auto root = path("dr-unreachable");
   ASSERT_EQ(run_raw({"init", "data-reduction", "--root", root.string(), "--yes"}).code, 0);
@@ -512,7 +512,7 @@ TEST_F(ElctlSetupTest, SetServerUsageMistakes) {
 // Against the lab-like server of the developer's machine, when there is one:
 // the base database of NOBION_TEST_PG_URL, brought up to date first (its
 // public schema; the persistence tests use schemas of their own).
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
 struct PgParts {
   std::string host, port = "5432", name, user, password;
 };

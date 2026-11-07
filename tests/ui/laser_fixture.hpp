@@ -55,7 +55,7 @@ struct SimLaserLab {
   explicit SimLaserLab(double speed = 50, const std::function<void(const std::filesystem::path&)>& prepare = {},
                        const std::function<bool(std::string_view)>& simulated = {})
       : dir(nobion::testing::unique_temp_path("nobion-laser-")), clock(clock_options(speed)) {
-    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir);
+    nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir);
     if (prepare) prepare(dir);
     systems::ExtractionLine::Options options;
     options.clock = &clock;

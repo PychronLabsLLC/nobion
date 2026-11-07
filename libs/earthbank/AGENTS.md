@@ -15,9 +15,9 @@ only this component's. Kept compressed, as that file is.
     no sandbox, a record cannot be taken back. Tests talk to `FakeEarthBank`
     (`tests/earthbank`); what it assumes of the service is numbered in
     `tests/earthbank/fixtures/README.md`. Live test
-    (`pychron_earthbank_live_tests`, label `live`; `ctest -LE live` leaves it
+    (`nobion_earthbank_live_tests`, label `live`; `ctest -LE live` leaves it
     out) is skipped unless a person sets the four
-    `PYCHRON_TEST_EARTHBANK_*` variables; never set in CI. Its steps
+    `NOBION_TEST_EARTHBANK_*` variables; never set in CI. Its steps
     (`tests/earthbank/live_round_trip.hpp`) run against the fake on every
     build. Production host is named once, in `profiles.hpp`.
   - No password or token in a file, a log line, an error or any output. A
@@ -41,7 +41,7 @@ only this component's. Kept compressed, as that file is.
     dialog read nothing (profiles file, keychain) before they are shown.
   User guide and live-test runbook: `docs/earthbank.md`.
 - `libs/earthbank_qt` (`QtHttpClient`, the HTTPS side of `libs/earthbank`)
-  builds only when Qt6 Core and Network are found (`-DPYCHRON_EARTHBANK_NETWORK=OFF`
+  builds only when Qt6 Core and Network are found (`-DNOBION_EARTHBANK_NETWORK=OFF`
   skips it); `libs/earthbank` has no network code and goes through `IHttpClient`.
   `QtHttpClient` is an HTTP/1.1 client over `QSslSocket`, not
   `QNetworkAccessManager`, because the manager re-sends a request whose connection

@@ -11,7 +11,7 @@ using elctl::testing::contains;
 using elctl::testing::Outcome;
 using elctl::testing::run_raw;
 
-#ifndef PYCHRON_ELCTL_IMPORT
+#ifndef NOBION_ELCTL_IMPORT
 
 TEST(ImportCmd, StubWithoutPersistence) {
   const Outcome o = run_raw({"import", "status", "--db", "sqlite::memory:"});
@@ -1449,4 +1449,4 @@ TEST_F(ImportCmd, HelpDescribesTheCommands) {
 
 }  // namespace
 
-#endif  // PYCHRON_ELCTL_IMPORT
+#endif  // NOBION_ELCTL_IMPORT

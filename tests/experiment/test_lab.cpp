@@ -22,7 +22,7 @@ class LabTest : public ::testing::Test {
  protected:
   void SetUp() override {
     dir_ = nobion::testing::unique_temp_path("pychron-lab-");
-    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_);
+    nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_);
   }
   void TearDown() override { fs::remove_all(dir_); }
 

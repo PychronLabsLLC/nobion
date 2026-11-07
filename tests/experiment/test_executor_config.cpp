@@ -126,7 +126,7 @@ TEST(ExecutorConfig, AMissingFileIsTheDefaults) {
 // configs/examples/executor.toml lists every key with its default, commented
 // out: uncommented, it says the defaults, and as shipped it sets nothing.
 TEST(ExecutorConfig, TheExampleFileIsTheDefaults) {
-  const auto example = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "executor.toml";
+  const auto example = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "executor.toml";
   auto shipped = ExecutorConfig::load(example);
   ASSERT_TRUE(shipped) << shipped.error().what;
   std::ifstream in(example);

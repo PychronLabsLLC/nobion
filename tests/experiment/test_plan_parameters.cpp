@@ -12,7 +12,7 @@ namespace nobion::experiment::plan {
 namespace {
 
 PlanTemplate example() {
-  std::ifstream in(std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "plans" / "sim_multicollect.toml");
+  std::ifstream in(std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "plans" / "sim_multicollect.toml");
   std::stringstream ss;
   ss << in.rdbuf();
   auto t = parse_plan_template(ss.str(), "sim_multicollect.toml");
@@ -234,7 +234,7 @@ counts = 5
 // A gas's prepare variable is a plan parameter (spec 11.2): a run in a queue
 // changes a release temperature without a new plan.
 TEST(PlanParameters, PrepareVariableIsExposable) {
-  std::ifstream in(std::filesystem::path(PYCHRON_PLAN_FIXTURES_DIR) / "valid" / "v2_staged_cryo_release.toml");
+  std::ifstream in(std::filesystem::path(NOBION_PLAN_FIXTURES_DIR) / "valid" / "v2_staged_cryo_release.toml");
   std::stringstream ss;
   ss << in.rdbuf();
   auto tmpl = parse_plan_template(ss.str(), "v2_staged_cryo_release.toml");

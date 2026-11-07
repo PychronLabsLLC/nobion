@@ -215,7 +215,7 @@ blue merges the faint trail with the bright core.
 ## Legacy finder comparison
 
 `LegacyFinder` (the OpenCV port of the Python pipeline, built only with
-`PYCHRON_VISION_OPENCV`) and `SimpleFinder` on the same eight committed frames.
+`NOBION_VISION_OPENCV`) and `SimpleFinder` on the same eight committed frames.
 The test `LegacyFinder.RealFixtureComparison` prints this table; it runs both
 finders on every frame, including those marked `skip = true`, and asserts only
 that nothing crashes and results are finite. It is a report, not a gate. Neither

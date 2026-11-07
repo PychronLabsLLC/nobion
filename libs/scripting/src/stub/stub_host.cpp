@@ -1,4 +1,4 @@
-// The host installed when PYCHRON_SCRIPTING is off: rejects every scripted
+// The host installed when NOBION_SCRIPTING is off: rejects every scripted
 // run so a build without Python still links and fails loudly, not silently.
 
 #include "nobion/devices/extraction/capability.hpp"
@@ -8,7 +8,7 @@ namespace nobion::scripting {
 namespace {
 
 Error disabled() {
-  return extraction::not_supported("scripting (built without PYCHRON_SCRIPTING)");
+  return extraction::not_supported("scripting (built without NOBION_SCRIPTING)");
 }
 
 class StubScriptHost final : public IScriptHost {

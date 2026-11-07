@@ -26,7 +26,7 @@ using namespace std::chrono_literals;
 
 namespace {
 
-const std::string kConfig = std::string(PYCHRON_EXAMPLES_DIR) + "/spectrometer.sim-legacy.toml";
+const std::string kConfig = std::string(NOBION_EXAMPLES_DIR) + "/spectrometer.sim-legacy.toml";
 
 // Hardware kind behind each simulated driver kind in the example config.
 const std::map<std::string, std::string> kHardwareKind{{"sim_dac_positioner", "dac_positioner"},

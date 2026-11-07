@@ -1,4 +1,4 @@
-// elctl publish without the DVC store (PYCHRON_PERSISTENCE=OFF, or Qt not
+// elctl publish without the DVC store (NOBION_PERSISTENCE=OFF, or Qt not
 // found): the command exists and says why it does nothing.
 
 #include <ostream>

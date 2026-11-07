@@ -24,7 +24,7 @@ namespace nobion::update::testing {
 
 // fixtures/latest.json with its tag_name replaced by `tag`.
 inline std::string release_json(std::string_view tag) {
-  std::ifstream in(std::string(PYCHRON_UPDATE_FIXTURE_DIR) + "/latest.json");
+  std::ifstream in(std::string(NOBION_UPDATE_FIXTURE_DIR) + "/latest.json");
   std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
   const std::string from = "\"v0.4.0\",";
   const auto at = text.find(from);

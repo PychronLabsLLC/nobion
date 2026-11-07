@@ -29,8 +29,8 @@
 
 #include "nobion/core/number.hpp"
 
-#ifndef PYCHRON_REDUCTION_GOLDEN_DIR
-#error "PYCHRON_REDUCTION_GOLDEN_DIR must be defined (the test target's CMakeLists.txt)"
+#ifndef NOBION_REDUCTION_GOLDEN_DIR
+#error "NOBION_REDUCTION_GOLDEN_DIR must be defined (the test target's CMakeLists.txt)"
 #endif
 
 namespace nobion::reduction::golden {
@@ -368,10 +368,10 @@ inline Json parse(std::string_view text, std::string* error) {
   return out;
 }
 
-// Loads PYCHRON_REDUCTION_GOLDEN_DIR/<file>. Read or parse errors are test
+// Loads NOBION_REDUCTION_GOLDEN_DIR/<file>. Read or parse errors are test
 // failures (ADD_FAILURE) and yield null.
 inline Json load(std::string_view file) {
-  const std::string path = std::string(PYCHRON_REDUCTION_GOLDEN_DIR) + "/" + std::string(file);
+  const std::string path = std::string(NOBION_REDUCTION_GOLDEN_DIR) + "/" + std::string(file);
   std::ifstream in(path, std::ios::binary);
   if (!in) {
     ADD_FAILURE() << "golden: cannot open " << path;

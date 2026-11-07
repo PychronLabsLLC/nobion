@@ -2662,7 +2662,7 @@ class FixtureLine final : public plan::IAliasResolver {
 };
 
 plan::MeasurementPlan load_fixture_plan(const std::string& name) {
-  std::ifstream in(std::filesystem::path(PYCHRON_PLAN_FIXTURES_DIR) / "valid" / name);
+  std::ifstream in(std::filesystem::path(NOBION_PLAN_FIXTURES_DIR) / "valid" / name);
   std::stringstream text;
   text << in.rdbuf();
   auto t = plan::parse_plan_template(text.str(), name);

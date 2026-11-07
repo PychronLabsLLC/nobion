@@ -120,9 +120,9 @@ component under `tests/`, run with `ctest`.
 Inner loop (keep waits short):
 
 - Build only target being changed:
-  `cmake --build --preset dev --target pychron_<component>_tests`.
+  `cmake --build --preset dev --target nobion_<component>_tests`.
 - Run that binary direct, filtered, not `ctest`: one process, not one per
-  case. `build/dev/tests/<component>/pychron_<component>_tests
+  case. `build/dev/tests/<component>/nobion_<component>_tests
   --gtest_filter='<Suite>.*'`.
 - Wider check while working: `ctest --preset dev-quick` (parallel, skips
   importer suites `Engines/ProjectImportTest`, `Engines/MetaImportTest`,
@@ -138,7 +138,7 @@ Inner loop (keep waits short):
 - Use `dev-ui` only when change touches `apps/nobion` or `tests/ui`. It
   builds and runs everything `dev` does and the UI tests: one run of it
   covers both.
-- ccache used when installed (`cmake/PychronCcache.cmake`); base_dir is
+- ccache used when installed (`cmake/NobionCcache.cmake`); base_dir is
   source tree, so new worktree reuses objects other checkouts built. First
   build in new worktree still configures and fetches dependencies.
 - `gtest_discover_tests` lists cases when ctest runs (`PRE_TEST`), not after
@@ -184,18 +184,18 @@ Inner loop (keep waits short):
   float the same under MSVC as under gcc and clang, so a record has one sha.
   Never removed; a new writer of a stored format is checked on Windows CI
   against a fixture written elsewhere.
-- `-DPYCHRON_SANITIZE=address,undefined` enables ASan/UBSan, and with them
+- `-DNOBION_SANITIZE=address,undefined` enables ASan/UBSan, and with them
   standard library's own checks (empty optional dereferenced, index past the
   end): static analysis does not look for those here, this does.
 - gcc 13 (Ubuntu 24.04 default `g++`) warns where CI compilers do not; build
-  it with `-DPYCHRON_WARNINGS_AS_ERRORS=OFF`.
-- `-DPYCHRON_SCRIPTING=OFF` drops embedded CPython dependency.
-- `-DPYCHRON_VISION_OPENCV=AUTO|ON|OFF` (default `AUTO`) controls optional
+  it with `-DNOBION_WARNINGS_AS_ERRORS=OFF`.
+- `-DNOBION_SCRIPTING=OFF` drops embedded CPython dependency.
+- `-DNOBION_VISION_OPENCV=AUTO|ON|OFF` (default `AUTO`) controls optional
   OpenCV in `libs/vision` (`LegacyFinder`, `OpenCvSource`); without it those
   two files compile to stubs. OpenCV headers appear only in those two `.cpp`
   files. Only macOS `ui` CI job installs OpenCV (Homebrew's brings TBB, which
   crashes at exit under sanitizers).
-- `-DPYCHRON_PUBLISH=AUTO|ON|OFF` (default `AUTO`) controls optional Apache
+- `-DNOBION_PUBLISH=AUTO|ON|OFF` (default `AUTO`) controls optional Apache
   Arrow (with Parquet) in `libs/publish`: the GeoParquet tables of a release.
   Without it `make_parquet_writer()` is null and a build writes everything
   but `data/*.parquet`. Arrow headers appear only in
@@ -203,7 +203,7 @@ Inner loop (keep waits short):
   macOS `ui` CI job installs it (`brew install apache-arrow`); the others run
   the stub and the row-hash fixture test (`tests/publish/fixtures`).
 - `libs/persistence` (DVC store, TinyORM on QtSql) builds only when Qt6 Core
-  and Sql are found; `-DPYCHRON_PERSISTENCE=OFF` skips it. On Ubuntu:
+  and Sql are found; `-DNOBION_PERSISTENCE=OFF` skips it. On Ubuntu:
   `apt install qt6-base-dev libqt6sql6-sqlite libqt6sql6-psql`. Qt must not
   appear in its public headers or in any other `libs/` library but
   `libs/earthbank_qt`, HTTPS adapter of `libs/earthbank`.
@@ -291,7 +291,7 @@ every change keeps:
   for now: `Ar40`/`Ar36` factory time-series presets (`time_series.cpp`;
   spec step 3: a domain supplies its factory presets), derive pass's name
   `derive_ages` (step 3). UI and `elctl` parts hold from step 4. CMake keeps
-  direction: `pychron_processing` links no `arar` target; apps link
+  direction: `nobion_processing` links no `arar` target; apps link
   `libs/arar`.
 - A new figure, exporter, derived quantity or recall section is a `Domain`
   entry, never a literal in a window.
@@ -328,7 +328,7 @@ configured build directory; setup in `docs/dev_setup.md`, "Static analysis".
   if empty. Do not push with `--no-verify` to get past a finding or a
   warning.
 - Not in CI, and does not replace building with
-  `-DPYCHRON_SANITIZE=address,undefined` and running the tests.
+  `-DNOBION_SANITIZE=address,undefined` and running the tests.
 - Tree is not at zero: about 670 findings of the performance and C-array
   checks are left in old code
   (`docs/superpowers/plans/2026-10-08-static-analysis-backlog.md`, Phase 3).
@@ -361,7 +361,7 @@ standard per target. Follow C++ Core Guidelines where this file is silent.
   same thing more plainly; not when it does not.
 - Headers use `#pragma once`.
 - Code that adds a thread, or shares state with one, is run under
-  `-DPYCHRON_SANITIZE=thread` before it lands: CI runs ASan and UBSan only.
+  `-DNOBION_SANITIZE=thread` before it lands: CI runs ASan and UBSan only.
   TSan and ASan cannot be combined in one build. Qt here not built with
   TSan: hand-off inside QtCore invisible to it, so data captured in a queued
   functor (`invokeMethod` lambda) and read on other thread is reported as

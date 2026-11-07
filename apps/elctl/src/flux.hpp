@@ -50,7 +50,7 @@
 #include "cli.hpp"
 #include "nobion/processing/domain.hpp"
 
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -64,7 +64,7 @@ namespace elctl {
 
 int flux_command(const std::vector<std::string>& args, const nobion::processing::Domain& domain, Io io);
 
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
 
 // The printed form of a fit: heading, model line, the Monitors and Unknowns
 // tables, the fit line and one `warning:` line per entry of `warnings`

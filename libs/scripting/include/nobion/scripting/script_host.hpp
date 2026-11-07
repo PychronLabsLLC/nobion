@@ -23,7 +23,7 @@
 //             handed to an IRehearsal instead (rehearsal.hpp). Refuses an
 //             environment carrying any live service, and measurement hooks.
 //
-// With PYCHRON_SCRIPTING off, make_script_host() returns a stub whose every
+// With NOBION_SCRIPTING off, make_script_host() returns a stub whose every
 // call is a "not supported: scripting" error.
 
 #include <functional>
@@ -131,7 +131,7 @@ class IScriptHost {
                                         IRehearsal& rehearsal, CancelToken& token) = 0;
 };
 
-// Python host when built with PYCHRON_SCRIPTING, else the stub.
+// Python host when built with NOBION_SCRIPTING, else the stub.
 std::unique_ptr<IScriptHost> make_script_host();
 bool scripting_enabled() noexcept;
 

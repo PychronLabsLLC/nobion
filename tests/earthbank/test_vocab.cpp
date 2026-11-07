@@ -266,7 +266,7 @@ using Kind = ListMatch::Kind;
 // The flux monitors as the Ar-Ar template lists them (sheet `Lookup Tables`,
 // C2:C17, the range its ArArAgeCalc sheet validates `fluxMonitor` against).
 std::vector<std::string> template_monitors() {
-  auto book = ooxml::Workbook::open(std::filesystem::path(PYCHRON_EARTHBANK_TEMPLATE_DIR) /
+  auto book = ooxml::Workbook::open(std::filesystem::path(NOBION_EARTHBANK_TEMPLATE_DIR) /
                                     "ArArDataPoint_Template2026.xlsx");
   if (!book) throw std::runtime_error(to_string(book.error()));
   auto values = book->column_values("Lookup Tables", 3, 2, 17);

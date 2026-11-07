@@ -121,7 +121,7 @@ class FakeEarthBank final : public IHttpClient {
     // The password of the account in fixtures/account.json (its `login` is the
     // user name). It opens nothing.
     std::string password = "not-a-real-password";
-    std::filesystem::path fixtures = PYCHRON_EARTHBANK_FIXTURE_DIR;
+    std::filesystem::path fixtures = NOBION_EARTHBANK_FIXTURE_DIR;
   };
 
   // Throws std::runtime_error naming the file if a fixture is missing or is

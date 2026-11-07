@@ -429,7 +429,7 @@ TEST(SpectrometerConfig, ALinkTransportMayNotHaveARecoveryTable) {
 
 // The Qtegra example shows the table commented out, each key at its default.
 TEST(SpectrometerConfig, TheExampleRecoveryTableIsTheDefaults) {
-  const auto file = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "spectrometer.qtegra.toml";
+  const auto file = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "spectrometer.qtegra.toml";
   std::ifstream in(file);
   ASSERT_TRUE(in) << file;
   std::string text;
@@ -501,7 +501,7 @@ TEST(DetectorColor, BadDetectorColorIsDiagnosticWithLine) {
 
 TEST(DetectorColor, ExampleConfigsHaveDistinctColors) {
   for (const char* name : {"spectrometer.sim-integrated.toml", "spectrometer.sim-legacy.toml"}) {
-    const auto r = parse_config(std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / name);
+    const auto r = parse_config(std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / name);
     ASSERT_TRUE(r.ok()) << name << "\n" << dump(r);
     std::set<std::string> seen;
     for (const auto& d : r.config->detectors) {

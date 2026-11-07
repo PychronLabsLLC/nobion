@@ -14,24 +14,24 @@ inline void fill(std::optional<std::string>& field) { field = "x"; }
 inline void fill(std::optional<std::int64_t>& field) { field = 7; }
 inline void fill(std::optional<bool>& field) { field = true; }
 
-#define PYCHRON_EARTHBANK_FILL(kind, name) fill(record.name);
-#define PYCHRON_EARTHBANK_ALL_SET(Record, FIELDS) \
+#define NOBION_EARTHBANK_FILL(kind, name) fill(record.name);
+#define NOBION_EARTHBANK_ALL_SET(Record, FIELDS) \
   inline Record all_set(const Record&) {          \
     Record record;                                \
-    FIELDS(PYCHRON_EARTHBANK_FILL)                \
+    FIELDS(NOBION_EARTHBANK_FILL)                \
     return record;                                \
   }
 
-PYCHRON_EARTHBANK_ALL_SET(Sample, PYCHRON_EARTHBANK_SAMPLE_FIELDS)
-PYCHRON_EARTHBANK_ALL_SET(Location, PYCHRON_EARTHBANK_LOCATION_FIELDS)
-PYCHRON_EARTHBANK_ALL_SET(DataPoint, PYCHRON_EARTHBANK_DATA_POINT_FIELDS)
-PYCHRON_EARTHBANK_ALL_SET(Aliquot, PYCHRON_EARTHBANK_ALIQUOT_FIELDS)
-PYCHRON_EARTHBANK_ALL_SET(Measurement, PYCHRON_EARTHBANK_MEASUREMENT_FIELDS)
-PYCHRON_EARTHBANK_ALL_SET(AgeCalc, PYCHRON_EARTHBANK_AGE_CALC_FIELDS)
-PYCHRON_EARTHBANK_ALL_SET(AgeSummary, PYCHRON_EARTHBANK_AGE_SUMMARY_FIELDS)
+NOBION_EARTHBANK_ALL_SET(Sample, NOBION_EARTHBANK_SAMPLE_FIELDS)
+NOBION_EARTHBANK_ALL_SET(Location, NOBION_EARTHBANK_LOCATION_FIELDS)
+NOBION_EARTHBANK_ALL_SET(DataPoint, NOBION_EARTHBANK_DATA_POINT_FIELDS)
+NOBION_EARTHBANK_ALL_SET(Aliquot, NOBION_EARTHBANK_ALIQUOT_FIELDS)
+NOBION_EARTHBANK_ALL_SET(Measurement, NOBION_EARTHBANK_MEASUREMENT_FIELDS)
+NOBION_EARTHBANK_ALL_SET(AgeCalc, NOBION_EARTHBANK_AGE_CALC_FIELDS)
+NOBION_EARTHBANK_ALL_SET(AgeSummary, NOBION_EARTHBANK_AGE_SUMMARY_FIELDS)
 
-#undef PYCHRON_EARTHBANK_ALL_SET
-#undef PYCHRON_EARTHBANK_FILL
+#undef NOBION_EARTHBANK_ALL_SET
+#undef NOBION_EARTHBANK_FILL
 
 // to_json of a `Record` with every field set: all the keys it can emit.
 template <typename Record>

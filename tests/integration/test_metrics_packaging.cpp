@@ -1,7 +1,7 @@
 // What ships for the lab's box (packaging/observability) against what the
 // application exports: a metric renamed in the code and not on its dashboard,
 // or the other way round, fails here.
-#ifdef PYCHRON_EXPERIMENT_HAS_METRICS
+#ifdef NOBION_EXPERIMENT_HAS_METRICS
 
 #include <gtest/gtest.h>
 
@@ -21,7 +21,7 @@
 #include "nobion/core/signal_bus.hpp"
 #include "nobion/experiment/metrics/service.hpp"
 
-#ifdef PYCHRON_TEST_HAS_JSON
+#ifdef NOBION_TEST_HAS_JSON
 #include <nlohmann/json.hpp>
 #endif
 
@@ -30,7 +30,7 @@ using namespace nobion;
 
 namespace {
 
-const fs::path kRoot = fs::path(PYCHRON_SOURCE_DIR) / "packaging" / "observability";
+const fs::path kRoot = fs::path(NOBION_SOURCE_DIR) / "packaging" / "observability";
 
 std::string slurp(const fs::path& p) {
   std::ifstream in(p, std::ios::binary);
@@ -230,7 +230,7 @@ TEST(MetricsPackaging, EveryQueryIsForOneInstrument) {
   }
 }
 
-#ifdef PYCHRON_TEST_HAS_JSON
+#ifdef NOBION_TEST_HAS_JSON
 
 TEST(MetricsPackaging, EveryDashboardIsValidJsonWithATitleAndUid) {
   std::set<std::string> uids;
@@ -290,6 +290,6 @@ TEST(MetricsPackaging, PanelsDoNotOverlapAndHaveDistinctIds) {
   }
 }
 
-#endif  // PYCHRON_TEST_HAS_JSON
+#endif  // NOBION_TEST_HAS_JSON
 
-#endif  // PYCHRON_EXPERIMENT_HAS_METRICS
+#endif  // NOBION_EXPERIMENT_HAS_METRICS

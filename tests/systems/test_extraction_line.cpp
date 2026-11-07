@@ -374,7 +374,7 @@ TEST(ExtractionLine, NoSimTransportsMeansNoSimSystem) {
 }
 
 TEST(ExtractionLine, LoadsExampleFiles) {
-  const std::filesystem::path dir = PYCHRON_EXAMPLE_CONFIGS_DIR;
+  const std::filesystem::path dir = NOBION_EXAMPLE_CONFIGS_DIR;
   ManualClock clock;
   auto opts = manual(clock);
   // Not the valve states of somebody's run in the examples folder.
@@ -389,7 +389,7 @@ TEST(ExtractionLine, LoadsExampleFiles) {
 // The example line shows [transports.<name>.recovery] commented out, each key
 // at its default: uncommented, it is the policy a transport has without it.
 TEST(ExtractionLine, TheExampleRecoveryTableIsTheDefaults) {
-  const std::filesystem::path file = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "extraction_line.toml";
+  const std::filesystem::path file = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "extraction_line.toml";
   std::ifstream in(file);
   ASSERT_TRUE(in) << file;
   std::string text;
@@ -1175,7 +1175,7 @@ TEST(ExtractionLine, ValvesWithoutPhysicsAreReportedOnce) {
 //   G, NP-10CRough, GP50Manual_Rough    one side (CO2, NP-10C, GP502): the roughing side is not drawn
 //   RDiode                              one side (the Diode tee): likewise
 TEST(ExtractionLine, TheNmgrlExampleModelsItsValveToValveJoins) {
-  const std::filesystem::path dir = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "nmgrl";
+  const std::filesystem::path dir = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "nmgrl";
   ManualClock clock;
   BuildLog log(clock);
   ExtractionLine::Options opts;
@@ -1263,7 +1263,7 @@ TEST(ExtractionLine, WarnsOnceOfASecondSpectrometerStage) {
 // with its sim.toml or with no file at all. The file changes numbers only:
 // the air in the tank, what a pumped volume holds, the inlet, the walls.
 void expect_the_example_lab(bool with_sim_toml) {
-  const std::filesystem::path dir = PYCHRON_EXAMPLE_CONFIGS_DIR;
+  const std::filesystem::path dir = NOBION_EXAMPLE_CONFIGS_DIR;
   ASSERT_TRUE(std::filesystem::is_regular_file(dir / "sim.toml"));
   ManualClock clock;
   BuildLog log(clock);

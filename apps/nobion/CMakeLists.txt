@@ -1,7 +1,7 @@
 # Qt6 M1 status/control window (spec section 10). The UI never touches
-# drivers or transports: it links pychron::systems and pychron::experiment and
+# drivers or transports: it links nobion::systems and nobion::experiment and
 # talks to the core through ExtractionLine, Spectrometer and LabSession
-# (commands in) and SignalBus (state out). Data windows use pychron::processing
+# (commands in) and SignalBus (state out). Data windows use nobion::processing
 # (Qt-free) through ProcessingBridge.
 find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport)
 
@@ -9,7 +9,7 @@ set(CMAKE_AUTOMOC ON)
 
 # Everything except main() lives in a static library so tests/ui can drive
 # the same widgets under Qt Test.
-add_library(pychron_ui_lib STATIC
+add_library(nobion_ui_lib STATIC
   src/command_line.cpp
   src/database_choice.cpp
   src/process_log.cpp
@@ -240,31 +240,31 @@ add_library(pychron_ui_lib STATIC
   src/laser_window.hpp
   src/pattern_maker_window.hpp
 )
-add_library(pychron::ui ALIAS pychron_ui_lib)
+add_library(nobion::ui ALIAS nobion_ui_lib)
 
-target_include_directories(pychron_ui_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(pychron_ui_lib PUBLIC pychron::setup pychron::experiment pychron::systems pychron::processing_records
-  pychron::arar pychron::arar_records Qt6::Widgets qcustomplot)
+target_include_directories(nobion_ui_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(nobion_ui_lib PUBLIC nobion::setup nobion::experiment nobion::systems nobion::processing_records
+  nobion::arar nobion::arar_records Qt6::Widgets qcustomplot)
 # Publishing to EarthBank: libs/earthbank says what to ask, libs/earthbank_qt
 # asks it over HTTPS. Without Qt6 Network there is no client
 # (src/earthbank_no_network.cpp) and the EarthBank pages say so.
-target_link_libraries(pychron_ui_lib PUBLIC pychron::earthbank)
+target_link_libraries(nobion_ui_lib PUBLIC nobion::earthbank)
 # Telling the operator of a newer release (libs/update; asked through the
 # same HTTPS client as EarthBank).
-target_link_libraries(pychron_ui_lib PUBLIC pychron::update)
-if(TARGET pychron_earthbank_qt)
-  target_link_libraries(pychron_ui_lib PUBLIC pychron::earthbank_qt)
+target_link_libraries(nobion_ui_lib PUBLIC nobion::update)
+if(TARGET nobion_earthbank_qt)
+  target_link_libraries(nobion_ui_lib PUBLIC nobion::earthbank_qt)
 else()
-  target_sources(pychron_ui_lib PRIVATE src/earthbank_no_network.cpp)
+  target_sources(nobion_ui_lib PRIVATE src/earthbank_no_network.cpp)
 endif()
-pychron_set_warnings(pychron_ui_lib)
-target_compile_definitions(pychron_ui_lib PRIVATE PYCHRON_VERSION="${PROJECT_VERSION}")
+nobion_set_warnings(nobion_ui_lib)
+target_compile_definitions(nobion_ui_lib PRIVATE NOBION_VERSION="${PROJECT_VERSION}")
 # --db browses the DVC store; it needs the persistence library.
-if(TARGET pychron_processing_store)
-  target_link_libraries(pychron_ui_lib PUBLIC pychron::processing_store pychron::arar_store)
-  target_compile_definitions(pychron_ui_lib PUBLIC PYCHRON_UI_HAS_STORE=1)
+if(TARGET nobion_processing_store)
+  target_link_libraries(nobion_ui_lib PUBLIC nobion::processing_store nobion::arar_store)
+  target_compile_definitions(nobion_ui_lib PUBLIC NOBION_UI_HAS_STORE=1)
   # Sample and package entry (entry spec, section 9) writes the same store.
-  target_sources(pychron_ui_lib PRIVATE
+  target_sources(nobion_ui_lib PRIVATE
     src/entry_actions.cpp
     src/entry_bridge.cpp
     src/fit_actions.cpp
@@ -304,11 +304,11 @@ if(TARGET pychron_processing_store)
     src/sample_import_dialog.hpp
     src/sample_table_model.hpp
     src/samples_window.hpp)
-  target_link_libraries(pychron_ui_lib PUBLIC pychron::entry)
+  target_link_libraries(nobion_ui_lib PUBLIC nobion::entry)
   # Releases of the store's data (data publishing spec, section 6.3): the
   # Publish window and the Publish dialog (publication workflow design), over
   # libs/publish.
-  target_sources(pychron_ui_lib PRIVATE
+  target_sources(nobion_ui_lib PRIVATE
     src/publish_actions.cpp
     src/publish_dialog.cpp
     src/publish_window.cpp
@@ -317,15 +317,15 @@ if(TARGET pychron_processing_store)
     src/publish_dialog.hpp
     src/publish_window.hpp
     src/release_dialog.hpp)
-  target_link_libraries(pychron_ui_lib PUBLIC pychron::publish)
+  target_link_libraries(nobion_ui_lib PUBLIC nobion::publish)
   # A queue's runs are saved to the same store.
-  target_link_libraries(pychron_ui_lib PUBLIC pychron::experiment_store)
+  target_link_libraries(nobion_ui_lib PUBLIC nobion::experiment_store)
 endif()
 
 add_executable(nobion src/main.cpp)
-target_link_libraries(nobion PRIVATE pychron_ui_lib)
+target_link_libraries(nobion PRIVATE nobion_ui_lib)
 # main.cpp reports the version in pychron_build_info (the metrics endpoint)
-target_compile_definitions(nobion PRIVATE PYCHRON_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(nobion PRIVATE NOBION_VERSION="${PROJECT_VERSION}")
 # spectrometer sim drivers register from static initializers nothing references
-pychron_link_drivers(nobion pychron_sim)
-pychron_set_warnings(nobion)
+nobion_link_drivers(nobion nobion_sim)
+nobion_set_warnings(nobion)

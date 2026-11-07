@@ -82,7 +82,7 @@ TEST(MftableCsv, MalformedInputsAreConfigErrors) {
 namespace {
 
 std::string read_fixture(const std::string& name) {
-  std::ifstream in(std::string(PYCHRON_SYSTEMS_TEST_DATA_DIR) + "/" + name, std::ios::binary);
+  std::ifstream in(std::string(NOBION_SYSTEMS_TEST_DATA_DIR) + "/" + name, std::ios::binary);
   std::ostringstream out;
   out << in.rdbuf();
   return out.str();

@@ -192,7 +192,7 @@ TEST(DriverRegistryGlobal, RegisterDriverMacroAddsToGlobalRegistry) {
 }
 
 // Registered in a separate static library; proves drivers linked through
-// pychron_link_drivers() survive the linker even though nothing references them.
+// nobion_link_drivers() survive the linker even though nothing references them.
 TEST(DriverRegistryGlobal, StaticLibraryRegistrationSurvivesLinking) {
   EXPECT_TRUE(DriverRegistry::global().contains("test_archived_driver"));
 }

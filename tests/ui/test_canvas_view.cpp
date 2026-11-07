@@ -99,7 +99,7 @@ class TestCanvasView : public QObject {
 
     // A view of a line whose canvas names one is drawn on it: the example's
     // canvas, with the line it leaves commented out switched on.
-    std::ifstream in(std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "canvas.toml");
+    std::ifstream in(std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "canvas.toml");
     std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     const std::string off = "# background = \"#f4f6f8\"";
     const auto at = text.find(off);
@@ -291,7 +291,7 @@ class TestCanvasView : public QObject {
     using namespace std::chrono_literals;
     VirtualClock clock(VirtualClock::Options{});  // outlives the line; nobody holds it, so a sleep jumps
     // With a gauge the line does not define, drawn for illustration.
-    const std::filesystem::path examples = PYCHRON_EXAMPLE_CONFIGS_DIR;
+    const std::filesystem::path examples = NOBION_EXAMPLE_CONFIGS_DIR;
     QTemporaryDir tmp;
     const std::filesystem::path canvas = std::filesystem::path(tmp.path().toStdString()) / "canvas.toml";
     std::filesystem::copy_file(examples / "canvas.toml", canvas);
@@ -389,7 +389,7 @@ class TestCanvasView : public QObject {
   void failedCommandIsCountedInTheTooltip() {
     // A closed transport is reopened by its link and the command repeated
     // (spec 4.2): for a command to fail, the valve bus here does not reconnect.
-    std::ifstream in(std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "extraction_line.toml");
+    std::ifstream in(std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "extraction_line.toml");
     std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     text += "\n[transports.valve_bus.recovery]\nreconnect = false\n";
     QTemporaryDir dir;
@@ -621,7 +621,7 @@ class TestCanvasView : public QObject {
   // slant (the legacy importer writes them; legacy canvases rely on them):
   // straight when the ends line up, else round one corner.
   void orientedConnectionsAreDrawnSquare() {
-    const std::filesystem::path examples = PYCHRON_EXAMPLE_CONFIGS_DIR;
+    const std::filesystem::path examples = NOBION_EXAMPLE_CONFIGS_DIR;
     QTemporaryDir tmp;
     const std::filesystem::path canvas = std::filesystem::path(tmp.path().toStdString()) / "canvas.toml";
     std::filesystem::copy_file(examples / "canvas.toml", canvas);
@@ -654,7 +654,7 @@ class TestCanvasView : public QObject {
   // An elbow turns at the named corner of its ends' bounding box. Named a
   // corner one of its ends sits on, it turns level with the end instead.
   void elbowsTurnOneSquareCorner() {
-    const std::filesystem::path examples = PYCHRON_EXAMPLE_CONFIGS_DIR;
+    const std::filesystem::path examples = NOBION_EXAMPLE_CONFIGS_DIR;
     QTemporaryDir tmp;
     const std::filesystem::path canvas = std::filesystem::path(tmp.path().toStdString()) / "canvas.toml";
     std::filesystem::copy_file(examples / "canvas.toml", canvas);
@@ -744,7 +744,7 @@ class TestCanvasView : public QObject {
   // ends that legacy offsets put on a volume's far edge (D into Bone) or a
   // fraction of a pixel short of it (J into FurnaceManifold) included.
   void everyPipeIntoAVolumeBreaksItsBorder() {
-    const std::filesystem::path dir = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "nmgrl";
+    const std::filesystem::path dir = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "nmgrl";
     systems::ExtractionLine::Options options;
     options.force_sim = true;
     options.run_scheduler = false;
@@ -767,7 +767,7 @@ class TestCanvasView : public QObject {
   // On the NMGRL line: each tank has its own colour, and opening a tank's
   // valve gives the pipette (and the pipes and the valve) the tank's colour.
   void theNmgrlTanksColourWhatIsOpenToThem() {
-    const std::filesystem::path dir = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "nmgrl";
+    const std::filesystem::path dir = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "nmgrl";
     systems::ExtractionLine::Options options;
     options.force_sim = true;
     options.state_file = std::filesystem::path(QDir::tempPath().toStdString()) / "nobion-test-nmgrl-tanks.state.toml";
@@ -1205,7 +1205,7 @@ class TestCanvasView : public QObject {
   // A gauge the line does not define is drawn for illustration: the canvas
   // loads, and the gauge shows its name and no reading.
   void aGaugeTheLineDoesNotDefineIsDrawnWithoutAReading() {
-    const std::filesystem::path examples = PYCHRON_EXAMPLE_CONFIGS_DIR;
+    const std::filesystem::path examples = NOBION_EXAMPLE_CONFIGS_DIR;
     QTemporaryDir tmp;
     const std::filesystem::path canvas = std::filesystem::path(tmp.path().toStdString()) / "canvas.toml";
     std::filesystem::copy_file(examples / "canvas.toml", canvas);
@@ -1262,7 +1262,7 @@ class TestCanvasView : public QObject {
   }
 
   void clickingAGaugeTheLineDoesNotDefineSaysNothing() {
-    const std::filesystem::path examples = PYCHRON_EXAMPLE_CONFIGS_DIR;
+    const std::filesystem::path examples = NOBION_EXAMPLE_CONFIGS_DIR;
     QTemporaryDir tmp;
     const std::filesystem::path canvas = std::filesystem::path(tmp.path().toStdString()) / "canvas.toml";
     std::filesystem::copy_file(examples / "canvas.toml", canvas);
@@ -1449,7 +1449,7 @@ class TestCanvasView : public QObject {
   }
 
   void restingOnADecorationGaugeSaysNothing() {
-    const std::filesystem::path examples = PYCHRON_EXAMPLE_CONFIGS_DIR;
+    const std::filesystem::path examples = NOBION_EXAMPLE_CONFIGS_DIR;
     QTemporaryDir tmp;
     const std::filesystem::path canvas = std::filesystem::path(tmp.path().toStdString()) / "canvas.toml";
     std::filesystem::copy_file(examples / "canvas.toml", canvas);
@@ -1476,7 +1476,7 @@ class TestCanvasView : public QObject {
   // its own line, which the example's does not load). One that does is a
   // fault of the canvas file.
   void aValveUnderAGaugeChipStillTakesItsClick() {
-    const std::filesystem::path examples = PYCHRON_EXAMPLE_CONFIGS_DIR;
+    const std::filesystem::path examples = NOBION_EXAMPLE_CONFIGS_DIR;
     for (const auto& dir : {examples, examples / "nmgrl"}) {
       const auto config = config::load_system_config_without_local(dir / "extraction_line.toml");
       QVERIFY2(config.has_value(), qPrintable(QString::fromStdString(dir.string())));

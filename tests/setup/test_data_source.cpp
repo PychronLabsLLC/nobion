@@ -290,8 +290,8 @@ TEST_F(DataSourceFixture, PathsOutsideTheRootAndWithSpacesAreKeptAsGiven) {
 
 namespace {
 
-const fs::path kProfiles(PYCHRON_PROFILES_DIR);
-const fs::path kExamples(PYCHRON_EXAMPLE_CONFIGS_DIR);
+const fs::path kProfiles(NOBION_PROFILES_DIR);
+const fs::path kExamples(NOBION_EXAMPLE_CONFIGS_DIR);
 
 ProfileLibrary library() {
   auto lib = ProfileLibrary::load(kProfiles, kExamples);

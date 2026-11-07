@@ -11,7 +11,7 @@
 
 #include <algorithm>
 
-#ifndef PYCHRON_UI_HAS_STORE
+#ifndef NOBION_UI_HAS_STORE
 
 class EntryWindowsTest : public QObject {
   Q_OBJECT

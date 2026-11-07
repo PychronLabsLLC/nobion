@@ -48,8 +48,8 @@ class FindObjects(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             build = Path(tmp)
             files = {
-                "tests/core/pychron_core_tests": macho(2),
-                "apps/elctl/tests/pychron_elctl_tests": macho(2),
+                "tests/core/nobion_core_tests": macho(2),
+                "apps/elctl/tests/nobion_elctl_tests": macho(2),
                 "apps/elctl/elctl": macho(2),
                 "tests/core/libhelper.dylib": macho(6),
                 "tests/core/CMakeFiles/a.out": macho(2),
@@ -63,8 +63,8 @@ class FindObjects(unittest.TestCase):
                 p.write_bytes(data)
                 p.chmod(0o755)
             found = sorted(p.relative_to(build).as_posix() for p in cr.find_objects(build))
-            self.assertEqual(found, ["apps/elctl/elctl", "apps/elctl/tests/pychron_elctl_tests",
-                                     "tests/core/pychron_core_tests"])
+            self.assertEqual(found, ["apps/elctl/elctl", "apps/elctl/tests/nobion_elctl_tests",
+                                     "tests/core/nobion_core_tests"])
 
     def test_elf_executable_is_found_and_shared_object_is_not(self):
         with tempfile.TemporaryDirectory() as tmp:

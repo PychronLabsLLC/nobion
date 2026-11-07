@@ -1,5 +1,5 @@
 // GeoParquet tables (data publishing design, section 5.2). The Arrow cases
-// run only in a build with Arrow (PYCHRON_PUBLISH); the last one only without.
+// run only in a build with Arrow (NOBION_PUBLISH); the last one only without.
 
 #include "nobion/publish/parquet.hpp"
 
@@ -14,7 +14,7 @@
 
 #include "table_inputs.hpp"
 
-#ifdef PYCHRON_PUBLISH_ARROW_ENABLED
+#ifdef NOBION_PUBLISH_ARROW_ENABLED
 #include <arrow/api.h>
 #include <arrow/io/file.h>
 #include <parquet/arrow/reader.h>
@@ -40,7 +40,7 @@ std::string slurp(const fs::path& p) {
   return ss.str();
 }
 
-#ifdef PYCHRON_PUBLISH_ARROW_ENABLED
+#ifdef NOBION_PUBLISH_ARROW_ENABLED
 std::shared_ptr<arrow::Table> read_back(const fs::path& path) {
   auto infile = arrow::io::ReadableFile::Open(path.string());
   EXPECT_TRUE(infile.ok()) << infile.status().ToString();
@@ -59,7 +59,7 @@ std::shared_ptr<arrow::Table> read_back(const fs::path& path) {
 TEST(Parquet, ReadsBackColumnsAndTypes) {
   auto writer = make_parquet_writer();
   if (!writer) GTEST_SKIP() << "built without Arrow";
-#ifdef PYCHRON_PUBLISH_ARROW_ENABLED
+#ifdef NOBION_PUBLISH_ARROW_ENABLED
   const auto tables = build_tables(inputs());
   const fs::path path = scratch("analyses.parquet");
   auto written = writer->write(tables.analyses, path);
@@ -94,7 +94,7 @@ TEST(Parquet, ReadsBackColumnsAndTypes) {
 TEST(Parquet, GeoMetadataIsGeoParquet11) {
   auto writer = make_parquet_writer();
   if (!writer) GTEST_SKIP() << "built without Arrow";
-#ifdef PYCHRON_PUBLISH_ARROW_ENABLED
+#ifdef NOBION_PUBLISH_ARROW_ENABLED
   const auto tables = build_tables(inputs());
   const fs::path path = scratch("samples.parquet");
   ASSERT_TRUE(writer->write(tables.samples, path));
@@ -132,7 +132,7 @@ TEST(Parquet, GeoMetadataIsGeoParquet11) {
 TEST(Parquet, NullsStayNull) {
   auto writer = make_parquet_writer();
   if (!writer) GTEST_SKIP() << "built without Arrow";
-#ifdef PYCHRON_PUBLISH_ARROW_ENABLED
+#ifdef NOBION_PUBLISH_ARROW_ENABLED
   const auto tables = build_tables(inputs(false));  // FC-2 has no location
   const fs::path path = scratch("samples.parquet");
   ASSERT_TRUE(writer->write(tables.samples, path));

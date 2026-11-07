@@ -168,7 +168,7 @@ TEST(ProxrRelay, ClosedTransportIsNotConnected) {
 }
 
 TEST(ProxrRelay, ReplaysTrace) {
-  auto t = SimTransport::replay(PYCHRON_TRACES_DIR "/proxr/open_read_close_read.trace", opts());
+  auto t = SimTransport::replay(NOBION_TRACES_DIR "/proxr/open_read_close_read.trace", opts());
   ASSERT_TRUE(t) << t.error().what;
   ASSERT_TRUE((*t)->open());
   ProxrRelay relay("actuator1", **t);

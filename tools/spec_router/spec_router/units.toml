@@ -264,7 +264,7 @@ wave = 13
 layer = "scripting"
 depends = ["extraction_device_ifaces"]
 spec = "docs/superpowers/specs/2026-09-29-experiment-system-design.md"
-goal = "libs/scripting: embedded CPython via pybind11 (PYCHRON_SCRIPTING option with stub fallback), per-execution isolated namespace, full pyscript vocabulary bound to the typed interfaces, read-only context globals + opt.<key>, '#! pychron:' header parsing, static check (unknown command/arity/capability/valve name), estimate() with DurationAccumulator, CancelToken -> ScriptCancelled with finally semantics, abort interrupt, restricted builtins/import allowlist, gosub; same host for extraction/post_eq/post_meas/measurement hooks. Tests use the real interpreter and example scripts."
+goal = "libs/scripting: embedded CPython via pybind11 (NOBION_SCRIPTING option with stub fallback), per-execution isolated namespace, full pyscript vocabulary bound to the typed interfaces, read-only context globals + opt.<key>, '#! pychron:' header parsing, static check (unknown command/arity/capability/valve name), estimate() with DurationAccumulator, CancelToken -> ScriptCancelled with finally semantics, abort interrupt, restricted builtins/import allowlist, gosub; same host for extraction/post_eq/post_meas/measurement hooks. Tests use the real interpreter and example scripts."
 targets = ["libs/scripting", "tests/scripting", "vcpkg.json", "cmake"]
 
 [[unit]]

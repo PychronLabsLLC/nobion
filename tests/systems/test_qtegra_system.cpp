@@ -34,7 +34,7 @@ using namespace std::chrono_literals;
 
 namespace {
 
-const std::filesystem::path kDir(PYCHRON_EXAMPLE_CONFIGS_DIR);
+const std::filesystem::path kDir(NOBION_EXAMPLE_CONFIGS_DIR);
 const std::filesystem::path kQtegra = kDir / "spectrometer.qtegra.toml";
 const std::filesystem::path kSimIntegrated = kDir / "spectrometer.sim-integrated.toml";
 

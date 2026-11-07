@@ -270,7 +270,7 @@ struct Rig {
   ScriptEnvironment env;
 
   Rig() {
-    resolver = std::make_unique<DirectoryScriptResolver>(PYCHRON_SCRIPTING_TEST_SCRIPTS_DIR);
+    resolver = std::make_unique<DirectoryScriptResolver>(NOBION_SCRIPTING_TEST_SCRIPTS_DIR);
     env.line = extraction::ExtractionServices{&laser, &valves, &pressure};
     env.resources = &resources;
     env.intensity = &intensity;

@@ -27,8 +27,8 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - cmake/PychronInstall.cmake
-      - cmake/PychronPackaging.cmake
+      - cmake/NobionInstall.cmake
+      - cmake/NobionPackaging.cmake
       - packaging/**
       - .github/workflows/release.yml
   # By hand: the packages as workflow artifacts; given a tag, built from it and
@@ -152,9 +152,9 @@ jobs:
           gen=(-G Ninja)
           if [ "$RUNNER_OS" = Windows ]; then gen=(-G "Visual Studio 17 2022" -A x64); fi
           cmake -S . -B build "${gen[@]}" -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_UI=ON -DBUILD_TESTS=OFF -DPYCHRON_WARNINGS_AS_ERRORS=OFF \
+            -DBUILD_UI=ON -DBUILD_TESTS=OFF -DNOBION_WARNINGS_AS_ERRORS=OFF \
             -DPython_ROOT_DIR="$PBS" -DPython_FIND_STRATEGY=LOCATION \
-            -DPYCHRON_BUNDLE_PYTHON="$PBS"
+            -DNOBION_BUNDLE_PYTHON="$PBS"
 
       - name: Build
         run: cmake --build build --config Release --parallel

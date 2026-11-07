@@ -3,7 +3,7 @@
 // nothing unless told which store (one command line):
 //
 //   NOBION_BENCH_DB=sqlite:/path/to/store.db [NOBION_BENCH_N=400]
-//     build/dev/tests/arar/pychron_arar_store_tests --gtest_filter='StoreLoadTiming.*'
+//     build/dev/tests/arar/nobion_arar_store_tests --gtest_filter='StoreLoadTiming.*'
 //
 // ReferenceSeries times what the experiment window's reference series dock
 // reads after a run is saved: the newest N references of one spectrometer

@@ -17,7 +17,7 @@ namespace nobion::ui {
 // read is an error: it has a database, and it cannot be used.
 Result<std::optional<std::string>> choose_database(const CommandLine& cli, const setup::SiteInstall* install);
 
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
 // Whether the session saves its runs to `database` (the url chosen above).
 struct RunSaving {
   bool to_database = true;

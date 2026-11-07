@@ -1,4 +1,4 @@
-add_executable(pychron_core_tests
+add_executable(nobion_core_tests
   test_expected.cpp
   test_error.cpp
   test_clock.cpp
@@ -33,12 +33,12 @@ add_executable(pychron_core_tests
   test_keyed_noise.cpp
 )
 
-target_link_libraries(pychron_core_tests PRIVATE pychron::core GTest::gtest_main)
+target_link_libraries(nobion_core_tests PRIVATE nobion::core GTest::gtest_main)
 # virtual_time.hpp
-target_include_directories(pychron_core_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests/support)
-pychron_set_warnings(pychron_core_tests)
+target_include_directories(nobion_core_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests/support)
+nobion_set_warnings(nobion_core_tests)
 
-gtest_discover_tests(pychron_core_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)
+gtest_discover_tests(nobion_core_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)
 
 # tools/quality_check.py (static analysis of a branch's changes) is tested with
 # the standard library's unittest; the analysers themselves are not run.

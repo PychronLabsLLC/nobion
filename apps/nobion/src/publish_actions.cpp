@@ -53,8 +53,8 @@ bool PublishActions::open_store() {
     EntryBridge::Options options;
     options.url = url_;
     options.role = "publisher";
-#ifdef PYCHRON_VERSION
-    options.software = std::string("nobion/") + PYCHRON_VERSION;
+#ifdef NOBION_VERSION
+    options.software = std::string("nobion/") + NOBION_VERSION;
 #endif
     auto opened = EntryBridge::open(std::move(options));
     if (!opened) {

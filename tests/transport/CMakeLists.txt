@@ -1,4 +1,4 @@
-add_executable(pychron_transport_tests
+add_executable(nobion_transport_tests
   test_bytes.cpp
   test_read_spec.cpp
   test_queued_transport.cpp
@@ -14,12 +14,12 @@ add_executable(pychron_transport_tests
   test_endpoints.cpp
 )
 
-target_link_libraries(pychron_transport_tests PRIVATE pychron::transport asio::asio GTest::gtest_main)
+target_link_libraries(nobion_transport_tests PRIVATE nobion::transport asio::asio GTest::gtest_main)
 # virtual_time.hpp
-target_include_directories(pychron_transport_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests/support)
+target_include_directories(nobion_transport_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests/support)
 if(WIN32)
-  target_compile_definitions(pychron_transport_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+  target_compile_definitions(nobion_transport_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
-pychron_set_warnings(pychron_transport_tests)
+nobion_set_warnings(nobion_transport_tests)
 
-gtest_discover_tests(pychron_transport_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)
+gtest_discover_tests(nobion_transport_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)

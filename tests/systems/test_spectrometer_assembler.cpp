@@ -17,7 +17,7 @@ using namespace std::chrono_literals;
 
 namespace {
 
-const std::filesystem::path kDir(PYCHRON_EXAMPLE_CONFIGS_DIR);
+const std::filesystem::path kDir(NOBION_EXAMPLE_CONFIGS_DIR);
 
 cfg::SpectrometerData load(const char* file) {
   auto d = cfg::load_spectrometer(kDir / file);

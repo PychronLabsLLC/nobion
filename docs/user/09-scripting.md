@@ -20,7 +20,7 @@ list of commands, one per line, with a few Python rules (indentation matters).
 Scripts are written in **Python 3**, run by an interpreter (CPython) built into
 the program. Nothing needs to be installed: an installed nobion carries its
 own Python; a build from source uses the Python it was built with. (A build
-made without scripting, `-DPYCHRON_SCRIPTING=OFF`, can still open and edit
+made without scripting, `-DNOBION_SCRIPTING=OFF`, can still open and edit
 queues, but every script step fails with "not supported: scripting".)
 
 Scripts are **not** ordinary Python programs. They run in a restricted space:

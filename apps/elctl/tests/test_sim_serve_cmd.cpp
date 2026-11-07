@@ -51,7 +51,7 @@ class SimServeCmd : public elctl::testing::ElctlTest {
 
   // The example's Qtegra spectrometer and its tables, copied beside the line.
   fs::path qtegra_spectrometer() const {
-    const fs::path examples = PYCHRON_EXAMPLE_CONFIGS_DIR;
+    const fs::path examples = NOBION_EXAMPLE_CONFIGS_DIR;
     fs::copy_file(examples / "spectrometer.qtegra.toml", path("spectrometer.toml"),
                   fs::copy_options::overwrite_existing);
     fs::copy(examples / "tables", path("tables"),

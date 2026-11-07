@@ -157,7 +157,7 @@ class InstallE2E : public nobion::testing::VirtualTimeTest, public ::testing::Wi
   InstallE2E() : VirtualTimeTest(90s) {}
 
   void SetUp() override {
-    if (!scripting::scripting_enabled()) GTEST_SKIP() << "the shipped queue's scripts need PYCHRON_SCRIPTING";
+    if (!scripting::scripting_enabled()) GTEST_SKIP() << "the shipped queue's scripts need NOBION_SCRIPTING";
     dir_ = nobion::testing::unique_temp_path("pychron-e2e-");
     fs::create_directories(dir_);
     site_config_.emplace("NOBION_SITE_CONFIG", (dir_ / "site.toml").string());
@@ -172,7 +172,7 @@ class InstallE2E : public nobion::testing::VirtualTimeTest, public ::testing::Wi
   // and writes it.
   void install() {
     const fs::path root = dir_ / "lab";
-    auto library = setup::ProfileLibrary::load(fs::path(PYCHRON_PROFILES_DIR), fs::path(PYCHRON_EXAMPLE_CONFIGS_DIR));
+    auto library = setup::ProfileLibrary::load(fs::path(NOBION_PROFILES_DIR), fs::path(NOBION_EXAMPLE_CONFIGS_DIR));
     ASSERT_TRUE(library) << library.error().what;
     auto resolved = library->resolve("argus");
     ASSERT_TRUE(resolved) << resolved.error().what;

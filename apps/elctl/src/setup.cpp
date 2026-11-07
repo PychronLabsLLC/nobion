@@ -11,7 +11,7 @@
 #include "nobion/setup/legacy_line.hpp"
 #include "nobion/setup/profile.hpp"
 
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
 #include "nobion/persistence/store.hpp"
 #include "entry.hpp"
 #endif
@@ -129,7 +129,7 @@ void seed_instrument_database(const SiteInstall& entry, Io io) {
   const fs::path seed = entry.root / "seed.toml";
   std::error_code ec;
   if (!fs::exists(seed, ec)) return;
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
   // Only a database on this computer is made or migrated from here: the
   // lab's server is brought up to date by whoever looks after it.
   const bool local = entry.database.starts_with("sqlite:");
@@ -161,7 +161,7 @@ bool yes(std::istream& in, std::ostream& out, const std::string& question) {
   return line.empty() || line == "y" || line == "Y" || line == "yes";
 }
 
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
 Result<std::string> open_store(const std::string& url, bool migrate) {
   auto store = persistence::open_store(persistence::StoreConfig{url, migrate});
   if (!store) return fail(std::move(store).error());
@@ -175,7 +175,7 @@ int report_doctor(const SiteInstall& install, const ProfileLibrary* library, boo
   DoctorOptions options;
   options.library = library;
   options.probe = probe;
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
   options.open_database = [](const std::string& url) { return open_store(url, false); };
 #endif
   const auto checks = doctor(install, options);
@@ -332,7 +332,7 @@ int init_command(const std::vector<std::string>& args, Io io) {
   io.out << "\n";
 
   SiteInstall entry = site_install(*plan, *name);
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
   if (entry.kind == "data_reduction" && entry.database.starts_with("sqlite:")) {
     // A local database: create it and bring its schema up to date.
     auto made = open_store(entry.database, true);

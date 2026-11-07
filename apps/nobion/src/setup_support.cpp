@@ -9,7 +9,7 @@
 #include <QProcess>
 #include <QStringList>
 
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
 #pragma push_macro("signals")
 #undef signals
 #include "nobion/entry/seed.hpp"
@@ -25,7 +25,7 @@
 namespace nobion::ui {
 
 SetupWizard::OpenDatabase database_opener() {
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
   return [](const std::string& url, bool create) -> Result<std::string> {
     auto store = persistence::open_store(persistence::StoreConfig{url, create});
     if (!store) return fail(std::move(store).error());
@@ -39,7 +39,7 @@ SetupWizard::OpenDatabase database_opener() {
 }
 
 SetupWizard::SeedDatabase database_seeder() {
-#ifdef PYCHRON_UI_HAS_STORE
+#ifdef NOBION_UI_HAS_STORE
   return [](const std::string& url, const std::filesystem::path& seed_file, bool migrate) -> Result<std::string> {
     // The store first: with `migrate` the database is made whatever the file says.
     auto store = persistence::open_store(persistence::StoreConfig{url, migrate});

@@ -6,8 +6,8 @@
 
 #include "nobion/experiment/store/store_persister.hpp"
 
-#ifndef PYCHRON_ELCTL_VERSION
-#define PYCHRON_ELCTL_VERSION "0"
+#ifndef NOBION_ELCTL_VERSION
+#define NOBION_ELCTL_VERSION "0"
 #endif
 
 namespace elctl {
@@ -27,7 +27,7 @@ class AcquisitionStore final : public ExpStore {
 }  // namespace
 
 nobion::Result<std::unique_ptr<ExpStore>> open_exp_store(const std::string& url, const std::filesystem::path& data) {
-  auto opened = nobion::experiment::store::open_acquisition(url, data, std::string("nobion ") + PYCHRON_ELCTL_VERSION);
+  auto opened = nobion::experiment::store::open_acquisition(url, data, std::string("nobion ") + NOBION_ELCTL_VERSION);
   if (!opened) return nobion::fail(std::move(opened).error());
   return std::unique_ptr<ExpStore>(std::make_unique<AcquisitionStore>(std::move(*opened)));
 }

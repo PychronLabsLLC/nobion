@@ -81,7 +81,7 @@ class SpecTableCmd : public ElctlTest {
  protected:
   void SetUp() override {
     ElctlTest::SetUp();
-    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_ / "lab");
+    nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_ / "lab");
   }
   fs::path lab(const std::string& f) const { return dir_ / "lab" / f; }
   fs::path table_dir(const std::string& name) const { return lab("tables") / name; }
@@ -276,7 +276,7 @@ TEST_F(SpecTableCmd, SetRefusedOnDiagnosticErrorExitsOne) {
 
 TEST_F(SpecTableCmd, ImportTheMelbourneFixture) {
   drop_h2_from_config();
-  const auto o = table({"import", "argon", std::string(PYCHRON_SYSTEMS_TEST_DATA_DIR) + "/mftable_melbourne.csv"});
+  const auto o = table({"import", "argon", std::string(NOBION_SYSTEMS_TEST_DATA_DIR) + "/mftable_melbourne.csv"});
   ASSERT_EQ(o.code, 0) << o.out << o.err;
   EXPECT_TRUE(contains(o.out, "warning: H2: ")) << o.out;
   EXPECT_TRUE(contains(o.out, "wrote argon ")) << o.out;

@@ -299,29 +299,29 @@ TEST(Preflight, SaysWhatItDidNotCheck) {
 
 // ---- Every term of every record --------------------------------------------
 
-#define PYCHRON_TEST_NAME_ONLY(kind, name) name_only(record.name);
+#define NOBION_TEST_NAME_ONLY(kind, name) name_only(record.name);
 void name_only(Text& field) { field = "no such term"; }
 void name_only(Number&) {}
 void name_only(std::optional<std::int64_t>&) {}  // an id (or a count) stays unset
 void name_only(Flag&) {}
 template <typename Record>
 Record every_text_set();
-#define PYCHRON_TEST_EVERY_TEXT(Record, FIELDS) \
+#define NOBION_TEST_EVERY_TEXT(Record, FIELDS) \
   template <>                                    \
   Record every_text_set<Record>() {              \
     Record record;                               \
-    FIELDS(PYCHRON_TEST_NAME_ONLY)               \
+    FIELDS(NOBION_TEST_NAME_ONLY)               \
     return record;                               \
   }
-PYCHRON_TEST_EVERY_TEXT(Sample, PYCHRON_EARTHBANK_SAMPLE_FIELDS)
-PYCHRON_TEST_EVERY_TEXT(Location, PYCHRON_EARTHBANK_LOCATION_FIELDS)
-PYCHRON_TEST_EVERY_TEXT(DataPoint, PYCHRON_EARTHBANK_DATA_POINT_FIELDS)
-PYCHRON_TEST_EVERY_TEXT(Aliquot, PYCHRON_EARTHBANK_ALIQUOT_FIELDS)
-PYCHRON_TEST_EVERY_TEXT(Measurement, PYCHRON_EARTHBANK_MEASUREMENT_FIELDS)
-PYCHRON_TEST_EVERY_TEXT(AgeCalc, PYCHRON_EARTHBANK_AGE_CALC_FIELDS)
-PYCHRON_TEST_EVERY_TEXT(AgeSummary, PYCHRON_EARTHBANK_AGE_SUMMARY_FIELDS)
-#undef PYCHRON_TEST_EVERY_TEXT
-#undef PYCHRON_TEST_NAME_ONLY
+NOBION_TEST_EVERY_TEXT(Sample, NOBION_EARTHBANK_SAMPLE_FIELDS)
+NOBION_TEST_EVERY_TEXT(Location, NOBION_EARTHBANK_LOCATION_FIELDS)
+NOBION_TEST_EVERY_TEXT(DataPoint, NOBION_EARTHBANK_DATA_POINT_FIELDS)
+NOBION_TEST_EVERY_TEXT(Aliquot, NOBION_EARTHBANK_ALIQUOT_FIELDS)
+NOBION_TEST_EVERY_TEXT(Measurement, NOBION_EARTHBANK_MEASUREMENT_FIELDS)
+NOBION_TEST_EVERY_TEXT(AgeCalc, NOBION_EARTHBANK_AGE_CALC_FIELDS)
+NOBION_TEST_EVERY_TEXT(AgeSummary, NOBION_EARTHBANK_AGE_SUMMARY_FIELDS)
+#undef NOBION_TEST_EVERY_TEXT
+#undef NOBION_TEST_NAME_ONLY
 
 // The `<term>Name` fields of a record that has `<term>Id` too, from the keys
 // the record can emit: found here without the table under test.

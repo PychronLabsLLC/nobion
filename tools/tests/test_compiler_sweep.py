@@ -19,20 +19,20 @@ import compiler_sweep as cs  # noqa: E402
 BUILD = Path("/repo/build/dev")
 
 DEPS = """\
-libs/core/CMakeFiles/pychron_core.dir/src/a.cpp.o: #deps 3, deps mtime 1 (VALID)
+libs/core/CMakeFiles/nobion_core.dir/src/a.cpp.o: #deps 3, deps mtime 1 (VALID)
     ../../libs/core/src/a.cpp
     ../../libs/core/include/nobion/core/a.hpp
     ../../libs/core/include/nobion/core/base.hpp
 
-libs/core/CMakeFiles/pychron_core.dir/src/b.cpp.o: #deps 2, deps mtime 1 (VALID)
+libs/core/CMakeFiles/nobion_core.dir/src/b.cpp.o: #deps 2, deps mtime 1 (VALID)
     ../../libs/core/src/b.cpp
     /usr/include/c++/v1/string
 
-libs/core/CMakeFiles/pychron_core.dir/src/c.cpp.o: #deps 2, deps mtime 1 (STALE)
+libs/core/CMakeFiles/nobion_core.dir/src/c.cpp.o: #deps 2, deps mtime 1 (STALE)
     ../../libs/core/src/c.cpp
     ../../libs/core/include/nobion/core/a.hpp
 
-libs/core/CMakeFiles/pychron_core.dir/src/e.cpp.o: #deps 0, deps mtime 0 (VALID)
+libs/core/CMakeFiles/nobion_core.dir/src/e.cpp.o: #deps 0, deps mtime 0 (VALID)
 
 """
 
@@ -41,7 +41,7 @@ def entry(name: str, output: bool = True) -> dict:
     e = {"directory": str(BUILD), "file": f"/repo/libs/core/src/{name}.cpp",
          "command": f"c++ -Werror -c /repo/libs/core/src/{name}.cpp"}
     if output:
-        e["output"] = f"libs/core/CMakeFiles/pychron_core.dir/src/{name}.cpp.o"
+        e["output"] = f"libs/core/CMakeFiles/nobion_core.dir/src/{name}.cpp.o"
     return e
 
 
@@ -55,14 +55,14 @@ def names(selected: list[dict]) -> list[str]:
 class ParseDeps(unittest.TestCase):
     def test_records_by_object(self):
         deps = cs.parse_ninja_deps(DEPS, BUILD)
-        a = deps[BUILD / "libs/core/CMakeFiles/pychron_core.dir/src/a.cpp.o"]
+        a = deps[BUILD / "libs/core/CMakeFiles/nobion_core.dir/src/a.cpp.o"]
         self.assertIn(Path("/repo/libs/core/include/nobion/core/base.hpp"), a)
         self.assertIn(Path("/repo/libs/core/src/a.cpp"), a)
 
     def test_stale_and_empty_records_are_unknown(self):
         deps = cs.parse_ninja_deps(DEPS, BUILD)
-        self.assertNotIn(BUILD / "libs/core/CMakeFiles/pychron_core.dir/src/c.cpp.o", deps)
-        self.assertNotIn(BUILD / "libs/core/CMakeFiles/pychron_core.dir/src/e.cpp.o", deps)
+        self.assertNotIn(BUILD / "libs/core/CMakeFiles/nobion_core.dir/src/c.cpp.o", deps)
+        self.assertNotIn(BUILD / "libs/core/CMakeFiles/nobion_core.dir/src/e.cpp.o", deps)
 
 
 class Select(unittest.TestCase):
@@ -88,7 +88,7 @@ class Select(unittest.TestCase):
         self.assertEqual(selected, [])
 
     def test_cmake_change_sweeps_everything(self):
-        for changed in ("libs/core/CMakeLists.txt", "cmake/PychronWarnings.cmake", "CMakePresets.json"):
+        for changed in ("libs/core/CMakeLists.txt", "cmake/NobionWarnings.cmake", "CMakePresets.json"):
             selected, why = self.select({changed}, entries=[entry("a"), entry("b")])
             self.assertEqual(names(selected), ["a", "b"])
             self.assertIn(changed, why)

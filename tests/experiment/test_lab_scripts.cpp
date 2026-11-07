@@ -21,7 +21,7 @@ class LabScriptsTest : public ::testing::Test {
  protected:
   void SetUp() override {
     dir_ = nobion::testing::unique_temp_path("pychron-scripts-");
-    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_);
+    nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_);
     fs::create_directories(dir_ / "scripts" / "extraction" / "co2");
     std::ofstream(dir_ / "scripts" / "extraction" / "co2" / "degas.py") << "def main():\n    sleep(1)\n";
     fs::create_directories(dir_ / "scripts" / "lib");

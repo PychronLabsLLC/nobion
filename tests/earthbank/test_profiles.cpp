@@ -676,7 +676,7 @@ TEST_F(Profiles, ImportRefusesWhatIsNotLegacysFile) {
 // test or an example would be one edit from talking to it. Documentation
 // (Markdown) may name it.
 TEST_F(Profiles, TheServiceIsNamedInOneFileOnly) {
-  const fs::path root = PYCHRON_EARTHBANK_REPO_DIR;
+  const fs::path root = NOBION_EARTHBANK_REPO_DIR;
   const fs::path home = root / "libs" / "earthbank" / "include" / "nobion" / "earthbank" / "profiles.hpp";
   ASSERT_TRUE(fs::exists(home)) << home;
   // Not spelled out here either.

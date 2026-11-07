@@ -71,8 +71,8 @@ const record::InterceptResult* intercept_of(const FitOutput& fits, std::string_v
   return found;
 }
 
-const std::filesystem::path kDir(PYCHRON_EXAMPLE_CONFIGS_DIR);
-const std::filesystem::path kPlans(PYCHRON_PLAN_FIXTURES_DIR);
+const std::filesystem::path kDir(NOBION_EXAMPLE_CONFIGS_DIR);
+const std::filesystem::path kPlans(NOBION_PLAN_FIXTURES_DIR);
 
 std::string read_file(const std::filesystem::path& p) {
   std::ifstream in(p);
@@ -1034,7 +1034,7 @@ TEST_F(MeasurementSimV2, WorkedPlan72) {
   for (const auto& d : spec_->detectors().states()) EXPECT_FALSE(d.protected_) << d.detector;
 }
 
-const std::filesystem::path kHelix = std::filesystem::path(PYCHRON_INTEGRATION_FIXTURES_DIR) / "helix_v2";
+const std::filesystem::path kHelix = std::filesystem::path(NOBION_INTEGRATION_FIXTURES_DIR) / "helix_v2";
 
 // A Helix whose collectors each have a Faraday and a CDD mode (spec 3.6).
 class MeasurementSimHelix : public MeasurementSimV2 {
@@ -1078,7 +1078,7 @@ TEST_F(MeasurementSimHelix, WorkedPlan74) {
 
 // ---- Every worked plan of the spec, each on a simulator of its family -------
 
-const std::filesystem::path kFixtures(PYCHRON_INTEGRATION_FIXTURES_DIR);
+const std::filesystem::path kFixtures(NOBION_INTEGRATION_FIXTURES_DIR);
 
 std::size_t count_of(const std::vector<std::string>& what, std::string_view entry) {
   return static_cast<std::size_t>(std::count(what.begin(), what.end(), entry));

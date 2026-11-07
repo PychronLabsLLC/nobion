@@ -10,7 +10,7 @@ namespace nobion::update {
 namespace {
 
 std::string fixture() {
-  std::ifstream in(std::string(PYCHRON_UPDATE_FIXTURE_DIR) + "/latest.json");
+  std::ifstream in(std::string(NOBION_UPDATE_FIXTURE_DIR) + "/latest.json");
   return {std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
 }
 

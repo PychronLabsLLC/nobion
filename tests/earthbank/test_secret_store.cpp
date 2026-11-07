@@ -133,7 +133,7 @@ TEST(SecretStore, TheProcessMemoryStoreIsOneAService) {
 TEST(SecretStore, TheBuildSaysWhichStoreItHas) {
   const std::set<std::string_view> names{"keychain", "credential-manager", "libsecret", "memory"};
   EXPECT_TRUE(names.contains(built_in_secret_store())) << built_in_secret_store();
-  // A build may be made with none (PYCHRON_EARTHBANK_SYSTEM_SECRET_STORE=OFF);
+  // A build may be made with none (NOBION_EARTHBANK_SYSTEM_SECRET_STORE=OFF);
   // with one, it is the platform's.
   if (built_in_secret_store() == "memory") return;
 #if defined(__APPLE__)

@@ -1,6 +1,6 @@
 #pragma once
 
-// The tolerant JSON reader behind the legacy parsers. Private to pychron_dvc:
+// The tolerant JSON reader behind the legacy parsers. Private to nobion_dvc:
 // nlohmann_json must not reach a public header.
 
 #include <exception>

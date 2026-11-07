@@ -10,7 +10,7 @@
 
 // Fix wave F6: .gitattributes turns text conversion off for the fixtures.
 TEST(Fixtures, AreExemptFromLineEndingConversion) {
-  const std::filesystem::path root = std::filesystem::path(PYCHRON_DVC_FIXTURES_DIR) / ".." / ".." / "..";
+  const std::filesystem::path root = std::filesystem::path(NOBION_DVC_FIXTURES_DIR) / ".." / ".." / "..";
   std::ifstream in(root / ".gitattributes", std::ios::binary);
   ASSERT_TRUE(in) << "no .gitattributes at the repository root";
   std::ostringstream text;

@@ -1,7 +1,7 @@
 #pragma once
 
 // Writing a release table as (Geo)Parquet (data publishing design, section
-// 5.2). Apache Arrow is optional (PYCHRON_PUBLISH): without it
+// 5.2). Apache Arrow is optional (NOBION_PUBLISH): without it
 // make_parquet_writer() is null and a build writes everything but
 // data/*.parquet and says so.
 

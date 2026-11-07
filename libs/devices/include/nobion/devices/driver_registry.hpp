@@ -136,13 +136,13 @@ bool register_driver(const char* kind) {
 
 }  // namespace nobion
 
-#define PYCHRON_DRIVER_CONCAT_(a, b) a##b
-#define PYCHRON_DRIVER_CONCAT(a, b) PYCHRON_DRIVER_CONCAT_(a, b)
+#define NOBION_DRIVER_CONCAT_(a, b) a##b
+#define NOBION_DRIVER_CONCAT(a, b) NOBION_DRIVER_CONCAT_(a, b)
 
 // At namespace scope in the driver's .cpp:
 //   REGISTER_DRIVER("pfeiffer_maxigauge", PfeifferMaxiGauge);
-// The library holding the .cpp must be linked with pychron_link_drivers()
+// The library holding the .cpp must be linked with nobion_link_drivers()
 // (see libs/devices/CMakeLists.txt) or the linker may drop it.
 #define REGISTER_DRIVER(kind, Type)                                                         \
-  [[maybe_unused]] static const bool PYCHRON_DRIVER_CONCAT(pychron_driver_registered_, __LINE__) = \
+  [[maybe_unused]] static const bool NOBION_DRIVER_CONCAT(pychron_driver_registered_, __LINE__) = \
       ::nobion::detail::register_driver<Type>(kind)

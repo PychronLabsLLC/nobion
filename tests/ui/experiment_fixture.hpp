@@ -32,7 +32,7 @@ namespace nobion::ui::test {
 inline std::filesystem::path scratch_lab() {
   namespace fs = std::filesystem;
   const fs::path dir = nobion::testing::unique_temp_path("nobion-lab-");
-  nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir);
+  nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir);
   return dir;
 }
 

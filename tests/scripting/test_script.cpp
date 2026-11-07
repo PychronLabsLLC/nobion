@@ -68,7 +68,7 @@ TEST(ScriptResolver, NormalizesPychronNames) {
 }
 
 TEST(ScriptResolver, DirectoryLooksInKindThenLib) {
-  DirectoryScriptResolver r(PYCHRON_SCRIPTING_TEST_SCRIPTS_DIR);
+  DirectoryScriptResolver r(NOBION_SCRIPTING_TEST_SCRIPTS_DIR);
   auto s = r.resolve("common:prepare_line", ScriptKind::Extraction);
   ASSERT_TRUE(s) << to_string(s.error());
   EXPECT_EQ(s->name, "lib/common/prepare_line.py");
@@ -89,7 +89,7 @@ TEST(ScriptResolver, MapResolver) {
 // A missing script says so by its code, so a caller can tell "there is none"
 // from a script it cannot use.
 TEST(ScriptResolver, NotFoundHasItsCode) {
-  DirectoryScriptResolver d(PYCHRON_SCRIPTING_TEST_SCRIPTS_DIR);
+  DirectoryScriptResolver d(NOBION_SCRIPTING_TEST_SCRIPTS_DIR);
   auto a = d.resolve("nope", ScriptKind::Extraction);
   ASSERT_FALSE(a);
   EXPECT_EQ(a.error().code, kScriptNotFound);

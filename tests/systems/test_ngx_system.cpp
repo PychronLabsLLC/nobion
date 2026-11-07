@@ -33,7 +33,7 @@ using namespace std::chrono_literals;
 
 namespace {
 
-const std::filesystem::path kNgx = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "spectrometer.ngx.toml";
+const std::filesystem::path kNgx = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "spectrometer.ngx.toml";
 
 }  // namespace
 

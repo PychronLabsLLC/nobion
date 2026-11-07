@@ -78,7 +78,7 @@ struct JobRig {
 
   // `data_root` empty: no table store (save_table fails with a Config error).
   explicit JobRig(std::filesystem::path data_root = {}) {
-    const auto path = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "spectrometer.sim-integrated.toml";
+    const auto path = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "spectrometer.sim-integrated.toml";
     auto d = cfg::load_spectrometer(path);
     EXPECT_TRUE(d.has_value()) << (d ? "" : d.error().what);
     if (!d) return;

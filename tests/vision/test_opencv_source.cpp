@@ -1,5 +1,5 @@
 // OpenCvSource happy path. The test video is written with OpenCV, so everything here
-// except the build-flag check sits behind PYCHRON_VISION_OPENCV_ENABLED.
+// except the build-flag check sits behind NOBION_VISION_OPENCV_ENABLED.
 #include <gtest/gtest.h>
 
 #include <array>
@@ -13,14 +13,14 @@
 #include "nobion/vision/legacy_finder.hpp"
 #include "nobion/vision/opencv_source.hpp"
 
-#ifdef PYCHRON_VISION_OPENCV_ENABLED
+#ifdef NOBION_VISION_OPENCV_ENABLED
 #include <opencv2/core.hpp>
 #include <opencv2/videoio.hpp>
 #endif
 
 using namespace nobion::vision;
 
-#ifdef PYCHRON_VISION_OPENCV_ENABLED
+#ifdef NOBION_VISION_OPENCV_ENABLED
 
 namespace {
 

@@ -9,29 +9,29 @@
 # name the directory that first compiled an object.
 #
 # A launcher already given (CI sets CMAKE_CXX_COMPILER_LAUNCHER) is left
-# alone. -DPYCHRON_CCACHE=OFF turns this off. Visual Studio generators do not
+# alone. -DNOBION_CCACHE=OFF turns this off. Visual Studio generators do not
 # support launchers and are skipped.
 
-option(PYCHRON_CCACHE "Compile through ccache when it is found" ON)
+option(NOBION_CCACHE "Compile through ccache when it is found" ON)
 
-if(NOT PYCHRON_CCACHE OR CMAKE_CXX_COMPILER_LAUNCHER)
+if(NOT NOBION_CCACHE OR CMAKE_CXX_COMPILER_LAUNCHER)
   return()
 endif()
 if(NOT CMAKE_GENERATOR MATCHES "Ninja|Makefiles")
   return()
 endif()
 
-find_program(PYCHRON_CCACHE_PROGRAM ccache)
-if(NOT PYCHRON_CCACHE_PROGRAM)
+find_program(NOBION_CCACHE_PROGRAM ccache)
+if(NOT NOBION_CCACHE_PROGRAM)
   message(STATUS "ccache not found; compiling without it (brew install ccache)")
   return()
 endif()
 
-set(_pychron_ccache_launcher
+set(_nobion_ccache_launcher
   "${CMAKE_COMMAND}" -E env
   "CCACHE_BASEDIR=${PROJECT_SOURCE_DIR}"
   CCACHE_NOHASHDIR=1
-  "${PYCHRON_CCACHE_PROGRAM}")
-set(CMAKE_C_COMPILER_LAUNCHER ${_pychron_ccache_launcher})
-set(CMAKE_CXX_COMPILER_LAUNCHER ${_pychron_ccache_launcher})
-message(STATUS "Compiling through ccache: ${PYCHRON_CCACHE_PROGRAM}")
+  "${NOBION_CCACHE_PROGRAM}")
+set(CMAKE_C_COMPILER_LAUNCHER ${_nobion_ccache_launcher})
+set(CMAKE_CXX_COMPILER_LAUNCHER ${_nobion_ccache_launcher})
+message(STATUS "Compiling through ccache: ${NOBION_CCACHE_PROGRAM}")

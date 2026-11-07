@@ -6,7 +6,7 @@
 
 // The one place the time zone back end is chosen. Standard C++20 where the
 // library has the tzdb; Howard Hinnant's date (same API) elsewhere.
-#if PYCHRON_HAVE_STD_TZDB
+#if NOBION_HAVE_STD_TZDB
 namespace tzlib = std::chrono;
 #else
 #include <date/tz.h>

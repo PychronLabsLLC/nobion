@@ -36,8 +36,8 @@ namespace fs = std::filesystem;
 
 namespace {
 
-const fs::path kProfiles(PYCHRON_PROFILES_DIR);
-const fs::path kExamples(PYCHRON_EXAMPLE_CONFIGS_DIR);
+const fs::path kProfiles(NOBION_PROFILES_DIR);
+const fs::path kExamples(NOBION_EXAMPLE_CONFIGS_DIR);
 
 fs::path scratch(const std::string& tag) {
   const fs::path dir = nobion::testing::unique_temp_path("pychron-setup-" + tag + "-");

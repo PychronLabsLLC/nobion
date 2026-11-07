@@ -800,7 +800,7 @@ TEST_F(SimConfig, AMessageNamesWhatIsKnownAndTheUnit) {
 // every `# key = value` line (and `# [section]`) uncommented in their place
 // it says the defaults, so what it documents cannot drift from the code.
 TEST_F(SimConfig, TheExampleFileIsTheDefaults) {
-  const std::filesystem::path example = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "sim.toml";
+  const std::filesystem::path example = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "sim.toml";
   SimTopology canvas;  // the example canvas's names
   canvas.volumes = {{"stage1"},  {"prep"},    {"spec"},    {"turbo"},         {"rough"},    {"air_tank"}, {"air"},
                     {"IG1"},     {"PG1"},     {"laser"},   {"ion"},           {"getter1"},  {"getter2"},  {"cryo"},

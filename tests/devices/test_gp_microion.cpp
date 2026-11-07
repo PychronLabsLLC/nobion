@@ -231,7 +231,7 @@ TEST(GpMicroIonRegistry, RejectsBadOptions) {
 // --- replay -----------------------------------------------------------------------
 
 TEST(GpMicroIonReplay, ReplaysCommittedTrace) {
-  auto sim = SimTransport::replay(std::string(PYCHRON_TRACE_DIR) + "/granville_phillips/microion_read_sensors.trace",
+  auto sim = SimTransport::replay(std::string(NOBION_TRACE_DIR) + "/granville_phillips/microion_read_sensors.trace",
                                   bus_options());
   ASSERT_TRUE(sim) << to_string(sim.error());
   ASSERT_TRUE((*sim)->open());

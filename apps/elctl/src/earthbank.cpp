@@ -482,8 +482,8 @@ Built build(const Source& source, Io io) {
   eb::PublishOptions options;
   options.reduction = source.ages.reduction();
   options.ages.plateau = source.ages.criteria();
-#ifdef PYCHRON_ELCTL_VERSION
-  options.software = std::string("nobion ") + PYCHRON_ELCTL_VERSION;
+#ifdef NOBION_ELCTL_VERSION
+  options.software = std::string("nobion ") + NOBION_ELCTL_VERSION;
 #endif
   if (!source.overrides.empty()) {
     if (auto read = read_overrides(source.overrides, options); !read) return {fatal(io, read.error()), {}};

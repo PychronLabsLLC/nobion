@@ -317,7 +317,7 @@ TEST(QtegraCodec, DecodeDataUntagged) {
 
 // Synthetic trace: hand-written, not a bench capture.
 TEST(QtegraCodec, SyntheticTraceReplays) {
-  std::ifstream in(std::string(PYCHRON_TRACES_DIR) + "/thermo/qtegra_read_data.trace");
+  std::ifstream in(std::string(NOBION_TRACES_DIR) + "/thermo/qtegra_read_data.trace");
   ASSERT_TRUE(in.is_open());
   std::string line;
   std::vector<std::pair<std::string, std::string>> frames;

@@ -93,7 +93,7 @@ class ScratchLab {
   // `prepare` changes the copy before anything is loaded from it.
   explicit ScratchLab(const std::function<void(const fs::path&)>& prepare = {})
       : dir_(nobion::testing::unique_temp_path("pychron-labsim-")) {
-    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_);
+    nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_);
     if (prepare) prepare(dir_);
 
     systems::ExtractionLine::Options options;

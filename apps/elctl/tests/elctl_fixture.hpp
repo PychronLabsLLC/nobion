@@ -51,7 +51,7 @@ class ElctlTest : public ::testing::Test {
     setenv("NOBION_SITE_CONFIG", site.c_str(), 1);
 #endif
     for (const char* f : {"extraction_line.toml", "canvas.toml"}) {
-      std::filesystem::copy_file(std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / f, dir_ / f);
+      std::filesystem::copy_file(std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / f, dir_ / f);
     }
   }
 

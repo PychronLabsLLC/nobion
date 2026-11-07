@@ -19,7 +19,7 @@ because the website's importer has only ever been shown these files. A newer
 template from the vendor replaces a file here whole (and its hash above), as
 long as the field-name row still names the fields.
 
-They ship with pychron's installers (`cmake/PychronInstall.cmake`): the owner
+They ship with pychron's installers (`cmake/NobionInstall.cmake`): the owner
 settled that on 2026-10-12
 (`docs/superpowers/specs/2026-10-07-earthbank-design.md`, section 11). How a
 newer template replaces one is in `docs/earthbank.md`, "A newer template from

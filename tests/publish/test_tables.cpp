@@ -239,7 +239,7 @@ TEST(Tables, RowHashesEqualTheCommittedFixture) {
   std::string actual;
   for (const Table* t : {&tables.samples, &tables.positions, &tables.analyses, &tables.isotopes, &tables.interpreted_ages})
     actual += t->name + " " + std::to_string(t->rows.size()) + " " + nobion::to_hex(rows_sha256(*t)) + "\n";
-  const std::filesystem::path fixture = std::filesystem::path(PYCHRON_PUBLISH_FIXTURE_DIR) / "table-inputs.rows_sha256";
+  const std::filesystem::path fixture = std::filesystem::path(NOBION_PUBLISH_FIXTURE_DIR) / "table-inputs.rows_sha256";
   if (const char* write = std::getenv("NOBION_WRITE_FIXTURE"); write && std::string(write) == "1") {
     std::ofstream out(fixture, std::ios::binary);
     out << actual;
@@ -255,7 +255,7 @@ TEST(Tables, RowHashesEqualTheCommittedFixture) {
 // Every column of every table is documented in docs/release_format.md, in
 // a backticked span (the reader's reference; Task 11 of the phase 1 plan).
 TEST(Tables, EveryColumnIsDocumented) {
-  const std::filesystem::path doc = std::filesystem::path(PYCHRON_SOURCE_DIR) / "docs" / "release_format.md";
+  const std::filesystem::path doc = std::filesystem::path(NOBION_SOURCE_DIR) / "docs" / "release_format.md";
   std::ifstream in(doc, std::ios::binary);
   ASSERT_TRUE(in) << doc;
   std::stringstream ss;

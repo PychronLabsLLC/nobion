@@ -3,7 +3,7 @@
 // The layout of a legacy Python-pychron MetaData repository (legacy ingestion
 // spec, section 4.3): which reference file a path names, and how each maps
 // onto the reference payloads of the store. Pure: no git, no store. Private
-// to pychron_dvc (it speaks Json). The authority on the format is
+// to nobion_dvc (it speaks Json). The authority on the format is
 // tests/dvc/fixtures/README.md, section 6.
 //
 // The rules of legacy_layout.hpp hold here too. A key the payload type has

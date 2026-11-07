@@ -131,7 +131,7 @@ TEST_F(ConditionalFilesTest, FailedWriteLeavesNoPartial) {
 }
 
 TEST(ConditionalFilesLab, LabHasThem) {
-  const fs::path dir(PYCHRON_EXAMPLE_CONFIGS_DIR);
+  const fs::path dir(NOBION_EXAMPLE_CONFIGS_DIR);
   auto lab = lab::load_lab({dir, dir / "extraction_line.toml", dir / "spectrometer.sim-integrated.toml"});
   ASSERT_TRUE(lab.condition_files);
   auto l = lab.condition_files->list();

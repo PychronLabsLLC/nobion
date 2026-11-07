@@ -28,7 +28,7 @@ class LaserCmd : public ElctlTest {
  protected:
   void SetUp() override {
     ElctlTest::SetUp();
-    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_ / "lab");
+    nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_ / "lab");
   }
   fs::path lab(const std::string& f) const { return dir_ / "lab" / f; }
   fs::path calibration() const { return lab("stage_calibrations") / "co2.example-9.toml"; }
@@ -710,7 +710,7 @@ TEST_F(LaserCmd, TrackBadScenarioFails) {
 }
 
 TEST_F(LaserCmd, EveryShippedScenarioIsGood) {
-  const fs::path dir = fs::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "track";
+  const fs::path dir = fs::path(NOBION_EXAMPLE_CONFIGS_DIR) / "track";
   int found = 0;
   for (const auto& e : fs::directory_iterator(dir)) {
     if (e.path().extension() != ".toml") continue;

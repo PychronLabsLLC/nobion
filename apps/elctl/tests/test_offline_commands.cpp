@@ -180,7 +180,7 @@ TEST_F(ElctlTest, MissingArgumentIsUsageError) {
 }
 
 TEST_F(ElctlTest, ConditionalsCheckExampleSystemFile) {
-  const auto examples = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR);
+  const auto examples = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR);
   auto o = run({"conditionals-check", (examples / "conditionals" / "system.toml").string(), "--spectrometer",
                 (examples / "spectrometer.sim-integrated.toml").string()});
   EXPECT_EQ(o.code, 0) << o.err;
@@ -189,7 +189,7 @@ TEST_F(ElctlTest, ConditionalsCheckExampleSystemFile) {
 }
 
 TEST_F(ElctlTest, ConditionalsCheckReportsUnknownNamesAndBadSyntax) {
-  const auto examples = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR);
+  const auto examples = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR);
   write("bad.toml", "[[terminations]]\ncheck = \"gauge.nope.pressure > 1 or IC9.inactive or Ar99 > 1\"\n");
   auto o = run({"conditionals-check", path("bad.toml").string(), "--spectrometer",
                 (examples / "spectrometer.sim-integrated.toml").string()});
@@ -219,7 +219,7 @@ TEST_F(Cli, DomainFlagAndInstallEntry) {
   EXPECT_EQ(run({"--domain", "noble_gas", "list-drivers"}).code, kOk);
   EXPECT_EQ(run({"--domain", "arar", "list-drivers"}).code, kOk);
 
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
   const std::string refused = "elctl flux: needs domain arar (this install: ";
   const Outcome flag = run_raw({"--domain", "noble_gas", "flux", "fit", "NM-300", "A", "--db", "sqlite::memory:"});
   EXPECT_EQ(flag.code, kUsage);

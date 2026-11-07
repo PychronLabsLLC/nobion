@@ -125,10 +125,10 @@ std::unique_ptr<ISecretStore> make_memory_secret_store() {
   return std::make_unique<MemorySecretStore>(std::make_shared<Shelf>());
 }
 
-std::string_view built_in_secret_store() { return PYCHRON_EARTHBANK_SECRET_STORE; }
+std::string_view built_in_secret_store() { return NOBION_EARTHBANK_SECRET_STORE; }
 
 std::unique_ptr<ISecretStore> make_secret_store(std::string_view service) {
-#if PYCHRON_EARTHBANK_HAS_SYSTEM_SECRET_STORE
+#if NOBION_EARTHBANK_HAS_SYSTEM_SECRET_STORE
   if (auto store = detail::make_system_secret_store(service)) return store;
 #endif
   return detail::process_memory_secret_store(service);

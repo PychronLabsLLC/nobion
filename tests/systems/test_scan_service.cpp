@@ -24,7 +24,7 @@ using namespace std::chrono_literals;
 namespace {
 
 const std::filesystem::path kIntegrated =
-    std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "spectrometer.sim-integrated.toml";
+    std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "spectrometer.sim-integrated.toml";
 
 const std::vector<ChannelId> kChannels{"H2", "H1", "AX", "L1", "L2", "CDD"};
 

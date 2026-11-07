@@ -1,4 +1,4 @@
-# Packages from the "pychron" install component (cmake/PychronInstall.cmake):
+# Packages from the "nobion" install component (cmake/NobionInstall.cmake):
 #   Linux    .deb (dependencies from dpkg-shlibdeps) and .tar.gz
 #   macOS    .dmg: drag Nobion to Applications (signed: packaging/macos/sign_app.sh)
 #   Windows  NSIS installer (Start menu, uninstaller, elctl on PATH) and .zip
@@ -14,8 +14,8 @@ set(CPACK_PACKAGE_INSTALL_DIRECTORY "Nobion")
 set(CPACK_STRIP_FILES ON)
 # Only nobion's own files, never the dependencies' headers and archives.
 set(CPACK_INSTALL_CMAKE_PROJECTS
-  "${CMAKE_BINARY_DIR};${PROJECT_NAME};${PYCHRON_COMPONENT};/"
-  "${CMAKE_BINARY_DIR};${PROJECT_NAME};pychron_qt;/")
+  "${CMAKE_BINARY_DIR};${PROJECT_NAME};${NOBION_COMPONENT};/"
+  "${CMAKE_BINARY_DIR};${PROJECT_NAME};nobion_qt;/")
 
 if(APPLE)
   set(CPACK_GENERATOR "DragNDrop")
@@ -26,8 +26,8 @@ if(APPLE)
   # with the identity in NOBION_CODESIGN_IDENTITY (none set: left unsigned).
   # The release workflow signs, notarizes and staples the image itself.
   set(CPACK_PRE_BUILD_SCRIPTS "${PROJECT_SOURCE_DIR}/packaging/macos/cpack_sign.cmake")
-  set(CPACK_PYCHRON_SIGN_SCRIPT "${PROJECT_SOURCE_DIR}/packaging/macos/sign_app.sh")
-  set(CPACK_PYCHRON_ENTITLEMENTS "${PROJECT_SOURCE_DIR}/packaging/macos/entitlements.plist")
+  set(CPACK_NOBION_SIGN_SCRIPT "${PROJECT_SOURCE_DIR}/packaging/macos/sign_app.sh")
+  set(CPACK_NOBION_ENTITLEMENTS "${PROJECT_SOURCE_DIR}/packaging/macos/entitlements.plist")
 elseif(WIN32)
   set(CPACK_GENERATOR "NSIS;ZIP")
   set(CPACK_PACKAGE_FILE_NAME "Nobion-${PROJECT_VERSION}-windows-x64")
@@ -51,9 +51,9 @@ else()
   # dpkg-shlibdeps cannot see it.
   set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6sql6-sqlite")
   set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "libqt6sql6-psql")
-  if(PYCHRON_BUNDLE_PYTHON)
+  if(NOBION_BUNDLE_PYTHON)
     # libpython comes with the package, not from a distribution package.
-    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS_PRIVATE_DIRS "${PYCHRON_BUNDLE_PYTHON}/lib")
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS_PRIVATE_DIRS "${NOBION_BUNDLE_PYTHON}/lib")
   endif()
 endif()
 

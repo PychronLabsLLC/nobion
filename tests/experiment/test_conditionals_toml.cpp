@@ -212,7 +212,7 @@ TEST(ConditionalsWriter, ExplicitNameKept) {
 TEST(ConditionalsWriter, LabFilesSurvive) {
   namespace fs = std::filesystem;
   int files = 0;
-  for (const auto& e : fs::directory_iterator(fs::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "conditionals")) {
+  for (const auto& e : fs::directory_iterator(fs::path(NOBION_EXAMPLE_CONFIGS_DIR) / "conditionals")) {
     if (e.path().extension() != ".toml") continue;
     SCOPED_TRACE(e.path().string());
     ++files;

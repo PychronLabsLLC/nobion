@@ -8,7 +8,7 @@
 #include "nobion/setup/installer.hpp"
 #include "nobion/update/update.hpp"
 
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
 #include "nobion/earthbank/http.hpp"
 #endif
 
@@ -17,7 +17,7 @@ namespace elctl {
 namespace {
 
 std::unique_ptr<nobion::http::IHttpClient> default_client() {
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
   return nobion::earthbank::make_http_client();
 #else
   return nullptr;

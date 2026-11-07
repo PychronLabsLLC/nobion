@@ -332,7 +332,7 @@ class TestTheme : public QObject {
     const QRegularExpression literal(QStringLiteral(
         "QColor\\(\\s*(0x|[0-9])|QRgb\\s*[,>][^;]*0x|\"[^\"\\n]*#[0-9a-fA-F]{3,8}\\b|"
         "\\bQt::(black|white|red|green|blue|cyan|magenta|yellow|gray|(dark|light)[A-Z][a-z]+)\\b"));
-    const QDir dir(QStringLiteral(PYCHRON_UI_SOURCE_DIR));
+    const QDir dir(QStringLiteral(NOBION_UI_SOURCE_DIR));
     const QStringList files = dir.entryList({QStringLiteral("*.cpp"), QStringLiteral("*.hpp")}, QDir::Files);
     QVERIFY(files.size() > 20);
     QStringList found;

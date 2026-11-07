@@ -107,7 +107,7 @@ Homebrew's), so it runs extraction scripts only on a computer that has the
 same Python in the same place. To make a package for another computer, bundle
 Python as the release workflow does: unpack a python-build-standalone
 `install_only` archive and add
-`-DPython_ROOT_DIR=<dir> -DPYCHRON_BUNDLE_PYTHON=<dir>` to the configure line
+`-DPython_ROOT_DIR=<dir> -DNOBION_BUNDLE_PYTHON=<dir>` to the configure line
 ([dev_setup.md](dev_setup.md) section 7). Without Qt 6 (Core and Sql)
 at configure time the database library is left out: `elctl import` is missing
 and `doctor` reports the database as "not checked".

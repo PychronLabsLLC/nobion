@@ -16,7 +16,7 @@
 
 #include <qcustomplot.h>
 
-#ifndef PYCHRON_UI_HAS_STORE
+#ifndef NOBION_UI_HAS_STORE
 
 class FluxWindowTest : public QObject {
   Q_OBJECT

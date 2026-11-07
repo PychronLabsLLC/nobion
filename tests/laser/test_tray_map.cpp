@@ -26,7 +26,7 @@ std::string slurp(const fs::path& file) {
   return out.str();
 }
 
-fs::path data(const std::string& name) { return fs::path(PYCHRON_TEST_DATA_DIR) / "tray_maps" / name; }
+fs::path data(const std::string& name) { return fs::path(NOBION_TEST_DATA_DIR) / "tray_maps" / name; }
 
 std::vector<std::string> ids(const TrayMap& map) {
   std::vector<std::string> out;

@@ -108,8 +108,8 @@ class Numbers {
 
 // `record.field` with the field's own name, and the same with its
 // `<field>Uncertainty` neighbour.
-#define PYCHRON_EARTHBANK_SET(numbers, record, field, value) (numbers).set((record).field, #field, value)
-#define PYCHRON_EARTHBANK_SET_PM(numbers, record, field, ...) \
+#define NOBION_EARTHBANK_SET(numbers, record, field, value) (numbers).set((record).field, #field, value)
+#define NOBION_EARTHBANK_SET_PM(numbers, record, field, ...) \
   (numbers).set((record).field, (record).field##Uncertainty, #field, __VA_ARGS__)
 
 // ---------------------------------------------------------------- time
@@ -815,7 +815,7 @@ struct IsotopeFields {
   const char* blank_name;
 };
 
-#define PYCHRON_EARTHBANK_ISOTOPE(mass)                                                              \
+#define NOBION_EARTHBANK_ISOTOPE(mass)                                                              \
   IsotopeFields {                                                                                    \
     r::ArgonIsotope::Ar##mass, &Measurement::ar##mass##Corr, &Measurement::ar##mass##CorrUncertainty, \
         &Measurement::ar##mass##ExcInt, &Measurement::ar##mass##ExcIntUncertainty,                   \
@@ -823,11 +823,11 @@ struct IsotopeFields {
         "ar" #mass "ExcInt", "ar" #mass "blank"                                                      \
   }
 
-constexpr std::array kIsotopeFields = {PYCHRON_EARTHBANK_ISOTOPE(40), PYCHRON_EARTHBANK_ISOTOPE(39),
-                                       PYCHRON_EARTHBANK_ISOTOPE(38), PYCHRON_EARTHBANK_ISOTOPE(37),
-                                       PYCHRON_EARTHBANK_ISOTOPE(36)};
+constexpr std::array kIsotopeFields = {NOBION_EARTHBANK_ISOTOPE(40), NOBION_EARTHBANK_ISOTOPE(39),
+                                       NOBION_EARTHBANK_ISOTOPE(38), NOBION_EARTHBANK_ISOTOPE(37),
+                                       NOBION_EARTHBANK_ISOTOPE(36)};
 
-#undef PYCHRON_EARTHBANK_ISOTOPE
+#undef NOBION_EARTHBANK_ISOTOPE
 
 // A corrected isotope over 39ArK.
 struct RatioFields {
@@ -836,16 +836,16 @@ struct RatioFields {
   const char* name;
 };
 
-#define PYCHRON_EARTHBANK_RATIO(mass)                                           \
+#define NOBION_EARTHBANK_RATIO(mass)                                           \
   RatioFields {                                                                 \
     r::ArgonIsotope::Ar##mass, &Measurement::ratio##mass##Arx39ArCorr,          \
         &Measurement::ratio##mass##Arx39ArCorrUncertainty, "ratio" #mass "Arx39ArCorr" \
   }
 
-constexpr std::array kRatioFields = {PYCHRON_EARTHBANK_RATIO(36), PYCHRON_EARTHBANK_RATIO(37),
-                                     PYCHRON_EARTHBANK_RATIO(38), PYCHRON_EARTHBANK_RATIO(40)};
+constexpr std::array kRatioFields = {NOBION_EARTHBANK_RATIO(36), NOBION_EARTHBANK_RATIO(37),
+                                     NOBION_EARTHBANK_RATIO(38), NOBION_EARTHBANK_RATIO(40)};
 
-#undef PYCHRON_EARTHBANK_RATIO
+#undef NOBION_EARTHBANK_RATIO
 
 // What the service calls an isotope "corrected": for mass discrimination, for
 // decay (39Ar and 37Ar) and for interferences. For four of them that is the
@@ -880,8 +880,8 @@ std::optional<r::UFloat> excluding_interferences(const Member& m, r::ArgonIsotop
 void extraction(Measurement& out, Numbers& numbers, const pr::ExtractionInfo& info) {
   if (!info.value) return;
   if (info.units.find('C') != std::string::npos) {
-    PYCHRON_EARTHBANK_SET(numbers, out, furnaceTemperature, *info.value);
-  } else if (PYCHRON_EARTHBANK_SET(numbers, out, laserPower, *info.value)) {
+    NOBION_EARTHBANK_SET(numbers, out, furnaceTemperature, *info.value);
+  } else if (NOBION_EARTHBANK_SET(numbers, out, laserPower, *info.value)) {
     set_text(out.laserPowerUnits, info.units);
   }
 }
@@ -915,7 +915,7 @@ Measurement measurement_of(const Member& m, const Released* released, const Summ
   } else {
     notes.push_back(a.runid + ": the analysis has no time; analysisTime was left out");
   }
-  if (m.is_step()) PYCHRON_EARTHBANK_SET(numbers, out, stepNumber, static_cast<double>(a.increment + 1));
+  if (m.is_step()) NOBION_EARTHBANK_SET(numbers, out, stepNumber, static_cast<double>(a.increment + 1));
   extraction(out, numbers, a.extraction);
   // beamSize is not sent: ExtractionInfo::beam_diameter is recorded without
   // its unit (legacy pychron called it microns; a queue may give mm), and a
@@ -933,24 +933,24 @@ Measurement measurement_of(const Member& m, const Released* released, const Summ
     if (top && k39) numbers.set(out.*f.ratio, out.*f.ratio_error, f.name, *top / *k39);
   }
 
-  PYCHRON_EARTHBANK_SET_PM(numbers, out, ratio40Arx39ArK, arar.f.f);
+  NOBION_EARTHBANK_SET_PM(numbers, out, ratio40Arx39ArK, arar.f.f);
   // 40Ar* in percent of the corrected 40Ar (40Ar* and trapped 40Ar), as the
   // service defines it; the reduction's own yield is of all the 40Ar, the
   // K-derived 40Ar included.
   if (const auto ar40 = corrected(m, r::ArgonIsotope::Ar40); ar40 && ar40->nominal() != 0.0) {
-    PYCHRON_EARTHBANK_SET(numbers, out, radiogenicArgon, (arar.f.rad40 / *ar40 * 100.0).nominal());
+    NOBION_EARTHBANK_SET(numbers, out, radiogenicArgon, (arar.f.rad40 / *ar40 * 100.0).nominal());
   }
-  PYCHRON_EARTHBANK_SET_PM(numbers, out, caK, arar.cak);
-  PYCHRON_EARTHBANK_SET_PM(numbers, out, kCa, arar.kca);
-  PYCHRON_EARTHBANK_SET_PM(numbers, out, clK, arar.clk);
+  NOBION_EARTHBANK_SET_PM(numbers, out, caK, arar.cak);
+  NOBION_EARTHBANK_SET_PM(numbers, out, kCa, arar.kca);
+  NOBION_EARTHBANK_SET_PM(numbers, out, clK, arar.clk);
   if (released != nullptr) {
-    PYCHRON_EARTHBANK_SET(numbers, out, ar39KReleased, released->percent);
-    PYCHRON_EARTHBANK_SET(numbers, out, cumulative39ArK, released->cumulative);
+    NOBION_EARTHBANK_SET(numbers, out, ar39KReleased, released->percent);
+    NOBION_EARTHBANK_SET(numbers, out, cumulative39ArK, released->cumulative);
   }
 
-  PYCHRON_EARTHBANK_SET_PM(numbers, out, jValue, m.ar()->j);
+  NOBION_EARTHBANK_SET_PM(numbers, out, jValue, m.ar()->j);
   out.jvalueUncertaintyTypeName = std::string(kOneSigma);
-  PYCHRON_EARTHBANK_SET_PM(numbers, out, apparentAge, arar.ages->age, to_ma);
+  NOBION_EARTHBANK_SET_PM(numbers, out, apparentAge, arar.ages->age, to_ma);
   out.apparentAgeUncertainityTypeName = std::string(kOneSigma);
 
   // Whether the reported age used this analysis, in the column of that kind
@@ -1142,17 +1142,17 @@ AgeSummary age_summary_of(const std::string& name, const SummaryAge& age, const 
                           Notes& notes) {
   Numbers numbers(name, notes);
   AgeSummary out;
-  PYCHRON_EARTHBANK_SET(numbers, out, age, age.age * constants.to_ma);
+  NOBION_EARTHBANK_SET(numbers, out, age, age.age * constants.to_ma);
   const double sigma = options.age_includes_j_error ? age.with_j : age.analytical;
-  PYCHRON_EARTHBANK_SET(numbers, out, ageUncertainty, sigma * constants.to_ma);
+  NOBION_EARTHBANK_SET(numbers, out, ageUncertainty, sigma * constants.to_ma);
   out.ageCalcTypeName = std::string(age_type_name(age.kind));
   // The type is the sigma level. What kind of one sigma it is (a mean's error
   // kind, or propagated; with J or without) is in the description.
   out.ageUncertaintyTypeName = std::string(kOneSigma);
   out.calculatedAgeUncertaintyTypeName = std::string(kOneSigma);
   out.calculatedAgeUncertaintyTypeUnitsName = std::string(kAbsoluteUncertainty);
-  if (age.mswd) PYCHRON_EARTHBANK_SET(numbers, out, mswd, *age.mswd);
-  if (age.probability) PYCHRON_EARTHBANK_SET(numbers, out, agepvalue, *age.probability);
+  if (age.mswd) NOBION_EARTHBANK_SET(numbers, out, mswd, *age.mswd);
+  if (age.probability) NOBION_EARTHBANK_SET(numbers, out, agepvalue, *age.probability);
   out.nAnalysisGrouped = static_cast<std::int64_t>(age.n);
   out.preferredAge = true;
   out.dataInterpretationToolName = std::string(kInterpretationTool);
@@ -1279,8 +1279,8 @@ Result<Submission> submission_of(const std::string& name, Members members, const
 
 }  // namespace
 
-#undef PYCHRON_EARTHBANK_SET
-#undef PYCHRON_EARTHBANK_SET_PM
+#undef NOBION_EARTHBANK_SET
+#undef NOBION_EARTHBANK_SET_PM
 
 Result<std::vector<Submission>> build_submissions(const std::vector<processing::AnalysisPtr>& analyses,
                                                   const PublishOptions& options) {

@@ -56,7 +56,7 @@ const char* const kArAr = "ArArDataPoint_Template2026.xlsx";
 const char* const kSample = "Sample_Template_v2025-04-16.xlsx";
 const char* const kStamp = "20261007-010203";
 
-fs::path template_dir() { return fs::path(PYCHRON_EARTHBANK_TEMPLATE_DIR); }
+fs::path template_dir() { return fs::path(NOBION_EARTHBANK_TEMPLATE_DIR); }
 
 // ---- The census -------------------------------------------------------------
 
@@ -405,22 +405,22 @@ struct Distinct {
   void fill(std::optional<std::int64_t>& field) { field = 1000 + next++; }
   void fill(std::optional<bool>& field) { field = true; }
 
-#define PYCHRON_EARTHBANK_DISTINCT(kind, name) fill(record.name);
-#define PYCHRON_EARTHBANK_ALL_DISTINCT(Record, FIELDS) \
+#define NOBION_EARTHBANK_DISTINCT(kind, name) fill(record.name);
+#define NOBION_EARTHBANK_ALL_DISTINCT(Record, FIELDS) \
   Record all(const Record&) {                          \
     Record record;                                     \
-    FIELDS(PYCHRON_EARTHBANK_DISTINCT)                 \
+    FIELDS(NOBION_EARTHBANK_DISTINCT)                 \
     return record;                                     \
   }
-  PYCHRON_EARTHBANK_ALL_DISTINCT(Sample, PYCHRON_EARTHBANK_SAMPLE_FIELDS)
-  PYCHRON_EARTHBANK_ALL_DISTINCT(Location, PYCHRON_EARTHBANK_LOCATION_FIELDS)
-  PYCHRON_EARTHBANK_ALL_DISTINCT(DataPoint, PYCHRON_EARTHBANK_DATA_POINT_FIELDS)
-  PYCHRON_EARTHBANK_ALL_DISTINCT(Aliquot, PYCHRON_EARTHBANK_ALIQUOT_FIELDS)
-  PYCHRON_EARTHBANK_ALL_DISTINCT(Measurement, PYCHRON_EARTHBANK_MEASUREMENT_FIELDS)
-  PYCHRON_EARTHBANK_ALL_DISTINCT(AgeCalc, PYCHRON_EARTHBANK_AGE_CALC_FIELDS)
-  PYCHRON_EARTHBANK_ALL_DISTINCT(AgeSummary, PYCHRON_EARTHBANK_AGE_SUMMARY_FIELDS)
-#undef PYCHRON_EARTHBANK_ALL_DISTINCT
-#undef PYCHRON_EARTHBANK_DISTINCT
+  NOBION_EARTHBANK_ALL_DISTINCT(Sample, NOBION_EARTHBANK_SAMPLE_FIELDS)
+  NOBION_EARTHBANK_ALL_DISTINCT(Location, NOBION_EARTHBANK_LOCATION_FIELDS)
+  NOBION_EARTHBANK_ALL_DISTINCT(DataPoint, NOBION_EARTHBANK_DATA_POINT_FIELDS)
+  NOBION_EARTHBANK_ALL_DISTINCT(Aliquot, NOBION_EARTHBANK_ALIQUOT_FIELDS)
+  NOBION_EARTHBANK_ALL_DISTINCT(Measurement, NOBION_EARTHBANK_MEASUREMENT_FIELDS)
+  NOBION_EARTHBANK_ALL_DISTINCT(AgeCalc, NOBION_EARTHBANK_AGE_CALC_FIELDS)
+  NOBION_EARTHBANK_ALL_DISTINCT(AgeSummary, NOBION_EARTHBANK_AGE_SUMMARY_FIELDS)
+#undef NOBION_EARTHBANK_ALL_DISTINCT
+#undef NOBION_EARTHBANK_DISTINCT
 };
 
 class Xlsx : public ::testing::Test {
@@ -1153,7 +1153,7 @@ TEST_F(Xlsx, DefaultTemplateDir) {
   EXPECT_EQ(exported(fixtures()).files.size(), 2u);
   EXPECT_TRUE(xlsx_columns().has_value());
 
-  // Installed: beside the program, as cmake/PychronInstall.cmake lays it out.
+  // Installed: beside the program, as cmake/NobionInstall.cmake lays it out.
   const fs::path prefix = dir_ / "prefix";
   const fs::path share = prefix / "share" / "nobion" / "earthbank" / "templates";
   fs::create_directories(prefix / "bin");
