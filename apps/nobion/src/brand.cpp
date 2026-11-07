@@ -280,7 +280,7 @@ QAction* add_help_menu(QMainWindow* window) {
   // 5.3), on this thread: the operator asked, and waits for the path.
   auto* flight = new QAction(QStringLiteral("Save Flight Recorder"), window);
   flight->setObjectName(QStringLiteral("saveFlightRecorder"));
-  MenuHub::instance().contribute(window, MenuHub::Menu::Help, {about, flight}, MenuHub::Scope::App);
+  MenuHub::instance().contribute(window, MenuHub::Menu::Help, {flight, about}, MenuHub::Scope::App);
   QObject::connect(flight, &QAction::triggered, window, [window] {
     const auto hub = nobion::process_log_hub();
     if (!hub) {

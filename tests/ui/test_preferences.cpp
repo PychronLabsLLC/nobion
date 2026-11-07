@@ -936,7 +936,8 @@ class TestPreferences : public QObject {
     hub->set_levels(LogLevel::Info, {});
     Logger scheduler = hub->logger("scheduler");
     Logger other = hub->logger("other");
-    QVERIFY(!other.enabled(LogLevel::Debug));
+    // The file level: enabled() would also count the recorder, which keeps debug.
+    QVERIFY(other.level() > LogLevel::Debug);
 
     ui::MainWindow window(*line);
     window.set_preferences_settings(factory());
@@ -959,8 +960,8 @@ class TestPreferences : public QObject {
     QCOMPARE(level_of(cfg->logging, "scheduler"), LogLevel::Error);
     QVERIFY(cfg->metrics.enabled);
     // ...and the levels in force now.
-    QVERIFY(other.enabled(LogLevel::Debug));
-    QVERIFY(!scheduler.enabled(LogLevel::Warn));
+    QVERIFY(other.level() <= LogLevel::Debug);
+    QVERIFY(scheduler.level() > LogLevel::Warn);
 
     // Opened again, the dialog shows what was saved.
     click(d->buttons(), QDialogButtonBox::Cancel);
@@ -973,8 +974,8 @@ class TestPreferences : public QObject {
     click(again->buttons(), QDialogButtonBox::RestoreDefaults);
     click(again->buttons(), QDialogButtonBox::Ok);
     QVERIFY(!fs::exists(local_file_));
-    QVERIFY(!other.enabled(LogLevel::Debug));
-    QVERIFY(scheduler.enabled(LogLevel::Debug));
+    QVERIFY(other.level() > LogLevel::Debug);
+    QVERIFY(scheduler.level() <= LogLevel::Debug);
   }
 
 
@@ -986,7 +987,7 @@ class TestPreferences : public QObject {
     QVERIFY(hub != nullptr);
     hub->set_level("transport", LogLevel::Trace);  // as "Set logger level…" does
     Logger transport = hub->logger("transport");
-    QVERIFY(transport.enabled(LogLevel::Trace));
+    QVERIFY(transport.level() <= LogLevel::Trace);
 
     ui::MainWindow window(*line);
     window.set_preferences_settings(factory());
@@ -996,12 +997,12 @@ class TestPreferences : public QObject {
     d->metrics_page()->port()->setValue(9600);
     click(d->buttons(), QDialogButtonBox::Apply);
     QVERIFY(!d->problem()->isVisibleTo(d));
-    QVERIFY(transport.enabled(LogLevel::Trace));
+    QVERIFY(transport.level() <= LogLevel::Trace);
 
     // A change to the levels is the user saying what they are to be.
     d->logging_page()->default_level()->setCurrentText(QStringLiteral("error"));
     click(d->buttons(), QDialogButtonBox::Ok);
-    QVERIFY(!transport.enabled(LogLevel::Trace));
+    QVERIFY(transport.level() > LogLevel::Trace);
   }
 
   // ---- an install keeps its logging in <root>/logging.local.toml -------------------
@@ -1137,7 +1138,7 @@ class TestPreferences : public QObject {
     click(d->buttons(), QDialogButtonBox::Apply);
     QVERIFY(!d->problem()->isVisibleTo(d));
     QCOMPARE(hub->dock_level(), LogLevel::Warn);
-    QVERIFY(hub->logger("transport").enabled(LogLevel::Trace));
+    QVERIFY(hub->logger("transport").level() <= LogLevel::Trace);
     click(d->buttons(), QDialogButtonBox::Cancel);
   }
 
