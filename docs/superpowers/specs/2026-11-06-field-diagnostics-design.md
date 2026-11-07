@@ -188,7 +188,7 @@ Bounds: crash file can hold whole ring, so `<log dir>/crash` holds up to 20 × (
 ```cpp
 struct HangMonitorOptions {  // outside the class: `Options o = {}` default
   std::chrono::milliseconds poll{1000};
-  std::chrono::milliseconds detach_wait{5000};  // detach()'s bound on a report in progress
+  std::chrono::milliseconds stuck_warning{5000};  // detach() says a report is stuck past this; keeps waiting
 };
 class HangMonitor {
  public:
@@ -197,7 +197,7 @@ class HangMonitor {
   HangMonitor(LogHub& log, IDumpRequester& recorder, SignalBus& bus, Options o = {});  // made attached
   ~HangMonitor();  // stops and joins
   void attach(LogHub& log, IDumpRequester& recorder, SignalBus& bus, const Clock* clock = nullptr);
-  void detach();   // no more reports; returns once a report in progress is done, or after detach_wait
+  void detach();   // no more reports; returns once a report in progress is done; no bound
   class DetachOnExit;  // RAII: detach() in destructor
   class Beat {     // movable; destructor unregisters; may outlive monitor (pulses then go nowhere)
    public:
@@ -211,7 +211,7 @@ class HangMonitor {
 
 - Takes `IDumpRequester&` (5.3), not `FlightRecorderTriggers&`: tests give a fake. Monitor thread calls `install_signal_stack()` first.
 - Late attach: apps make the monitor before the line (its transports are built in `ExtractionLine::load`, the bus is the line's, triggers come after the line), pass it in `ExtractionLineOptions::hang_monitor` and `SpectrometerContext::hang_monitor`, `attach` once triggers exist, `DetachOnExit` declared after triggers so detach happens before triggers, line or bus go. Monitor thread started by first `attach`, not by constructor: app with no hub (so no triggers) never attaches and runs no thread that could never report. Unattached: looks at no beat, marks nothing reported: beat silent before `attach` reported once attached.
-- `detach` waits for a report in progress at most `Options::detach_wait` (5 s), then returns all the same and logs `warn` `hang monitor: detach gave up waiting for a report in progress after <ms> ms` on logger `hang`: shutdown ends even with a stuck report. Every `detach` bumps a counter; a report whose copy of it is stale makes no further call to recorder or bus (checked before `request` and before the publish). A report stuck inside a recorder or bus call when `detach` gives up still returns into that object: bound traded for a shutdown that ends.
+- `detach` (and `~HangMonitor`'s join) waits for a report in progress without bound. Reason: after `detach` returns caller destroys bus, hub, triggers; report still inside one of their calls would return into destroyed object (use after free). Stalled exit is lesser harm, and dump already requested before the steps that can stall (log write, publish). Past `Options::stuck_warning` (5 s) `detach` writes once, to ring (`Logger::record`, `warn`) and stderr, `hang monitor: detach waiting for a stuck hang report (stage: <stage>)`, stage one of `ring record`, `dump request`, `log write`, `alarm publish`; then keeps waiting. Not through the file: the file write may be what is stuck.
 - Pulse ordering: monitor loads limit, then last pulse. A pulse shortening the limit stores last pulse, then limit; one keeping or lengthening it stores limit, then last pulse. So monitor never pairs a short new limit with an old stamp (false hang right after a long-timeout call).
 - `Alarm::ts`: `clock->now()` of the clock given to `attach` (apps: the line's); unset without one. Nothing sorts or dedupes alarms by `ts` (alarm dock stamps rows by its own clock); `elctl scan` prints it.
 - Not `Scheduler::watchdog`: that runs on the injected clock and the scheduler pool, which are among the things that hang.

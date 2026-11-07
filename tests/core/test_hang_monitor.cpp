@@ -366,10 +366,10 @@ TEST(HangMonitor, TheDumpIsAskedForBeforeTheLogWriteThatMayHang) {
   EXPECT_EQ(count_of(hub->recorder_snapshot(), "hang: b silent"), 1U);  // once, not again from the log write
 }
 
-// detach() waits for a report in progress at most detach_wait, says it gave
-// up, and the report it left makes no call to the bus once its stuck call
-// returns.
-TEST(HangMonitor, DetachGivesUpOnAStuckReportWithinItsBound) {
+// detach() waits for a report in progress without a bound: what was
+// attached may go once it returns. Past stuck_warning it says, in the ring
+// and on stderr, that the report is stuck and where, and goes on waiting.
+TEST(HangMonitor, DetachWaitsForAStuckReportAndSaysWhereItIs) {
   const SteadyClock clock;
   SignalBus bus;
   auto hub = make_hub(clock);
@@ -377,19 +377,39 @@ TEST(HangMonitor, DetachGivesUpOnAStuckReportWithinItsBound) {
   Gate recorder_call;
   Witness witness(*hub, &recorder_call);
   Reports reports(bus);
-  HangMonitor monitor(*hub, witness, bus, HangMonitor::Options{50ms, 200ms});
+  HangMonitor monitor(*hub, witness, bus, HangMonitor::Options{50ms, 100ms});
   const OpenOnExit release(recorder_call);  // after the monitor: opened before it joins
   const auto b = monitor.beat("b", 50ms);
   ASSERT_TRUE(witness.await_request());
 
-  const auto started = std::chrono::steady_clock::now();
-  monitor.detach();
-  const auto took = std::chrono::steady_clock::now() - started;
-  EXPECT_GE(took, 200ms);
-  EXPECT_LT(took, kBound);
-  EXPECT_EQ(count_of(hub->recorder_snapshot(), "detach gave up waiting for a report in progress"), 1U);
-
+  std::mutex mutex;
+  std::condition_variable cv;
+  bool detached = false;
+  testing::internal::CaptureStderr();
+  std::thread detacher([&] {
+    monitor.detach();
+    {
+      const std::lock_guard lock(mutex);
+      detached = true;
+    }
+    cv.notify_all();
+  });
+  {
+    std::unique_lock lock(mutex);
+    // Well past stuck_warning: detach must still be waiting.
+    EXPECT_FALSE(cv.wait_for(lock, 500ms, [&] { return detached; })) << "detach returned with a report in progress";
+  }
   recorder_call.open();
-  std::this_thread::sleep_for(300ms);  // six polls: room for a publish that must not come
-  EXPECT_TRUE(reports.alarms().empty());
+  bool returned = false;
+  {
+    std::unique_lock lock(mutex);
+    returned = cv.wait_for(lock, kBound, [&] { return detached; });
+  }
+  detacher.join();  // returns: the gate is open, and its own wait is bounded
+  const std::string err = testing::internal::GetCapturedStderr();
+  EXPECT_TRUE(returned) << "detach did not return once the report could finish";
+  const std::string said = "detach waiting for a stuck hang report (stage: dump request)";
+  EXPECT_EQ(count_of(hub->recorder_snapshot(), said), 1U);
+  EXPECT_NE(err.find(said), std::string::npos) << err;
+  EXPECT_EQ(reports.alarms().size(), 1U);  // the report finished: its alarm came before detach returned
 }

@@ -25,8 +25,9 @@ struct HangEntry;
 // Outside HangMonitor so that `Options options = {}` can default it there.
 struct HangMonitorOptions {
   std::chrono::milliseconds poll{1000};  // how often beats are looked at
-  // How long detach() waits for a report in progress before it gives up.
-  std::chrono::milliseconds detach_wait{5000};
+  // How long detach() waits for a report in progress before it says, once,
+  // that the report is stuck (it then goes on waiting).
+  std::chrono::milliseconds stuck_warning{5000};
 };
 
 // One thread on real time, on purpose: it watches threads that may hold the
@@ -98,12 +99,12 @@ class HangMonitor {
   // its ts is left unset. All must stay alive until detach() or the
   // monitor's destruction.
   void attach(LogHub& log, IDumpRequester& recorder, SignalBus& bus, const Clock* clock = nullptr);
-  // No more reports. Returns once a report in progress has finished, or
-  // after Options::detach_wait, when it logs a `warn` that it gave up: what
-  // was attached may then be destroyed. A report it gave up on makes no call
-  // to the recorder or the bus after the one it is stuck in returns (one
-  // stuck in either still is: the bound trades that for a shutdown that
-  // ends). Idempotent.
+  // No more reports. Returns once a report in progress has finished, with
+  // no bound: what was attached may then be destroyed, which a report still
+  // inside one of its calls would not survive. A stalled exit is the lesser
+  // harm, and the dump is asked for before the steps that can stall. Past
+  // Options::stuck_warning it writes once, to the ring and stderr, that the
+  // report is stuck and at which stage, and goes on waiting. Idempotent.
   void detach();
 
   // Detaches in its destructor. Declared after what was attached, so that it
@@ -129,7 +130,6 @@ class HangMonitor {
   struct Target;
   void run();
   void report(const detail::HangEntry& entry, std::chrono::nanoseconds silent, const Target& target);
-  [[nodiscard]] bool still_attached(const Target& target) const;
 
   Options options_;
   std::shared_ptr<detail::HangState> state_;

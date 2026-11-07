@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdio>
 #include <condition_variable>
 #include <cstdint>
 #include <iomanip>
@@ -77,7 +78,9 @@ struct HangState {
   SignalBus* bus = nullptr;
   const Clock* clock = nullptr;
   bool reporting = false;     // the monitor thread is using the four above
-  std::uint64_t detaches = 0;  // bumped by every detach(): a report started before one stops using them
+  // What a report in progress is doing, for detach()'s word when it waits
+  // long; written by the monitor thread outside the mutex.
+  std::atomic<const char*> stage{"none"};
   std::thread::id monitor;    // the monitor thread, once attach() has started it
 };
 
@@ -88,7 +91,6 @@ struct HangMonitor::Target {
   IDumpRequester* recorder = nullptr;
   SignalBus* bus = nullptr;
   const Clock* clock = nullptr;
-  std::uint64_t detaches = 0;  // HangState::detaches when it was copied
 };
 
 HangMonitor::Beat::Beat(std::shared_ptr<detail::HangState> state, std::shared_ptr<detail::HangEntry> entry) noexcept
@@ -130,7 +132,7 @@ void HangMonitor::Beat::reset() noexcept {
 
 HangMonitor::HangMonitor(Options options) : options_(options), state_(std::make_shared<detail::HangState>()) {
   options_.poll = std::max(options_.poll, std::chrono::milliseconds(1));
-  options_.detach_wait = std::max(options_.detach_wait, std::chrono::milliseconds(0));
+  options_.stuck_warning = std::max(options_.stuck_warning, std::chrono::milliseconds(1));
 }
 
 HangMonitor::HangMonitor(LogHub& log, IDumpRequester& recorder, SignalBus& bus, Options options)
@@ -165,29 +167,29 @@ void HangMonitor::attach(LogHub& log, IDumpRequester& recorder, SignalBus& bus, 
 }
 
 void HangMonitor::detach() {
-  std::optional<Logger> logger;
-  bool gave_up = false;
-  {
-    std::unique_lock lock(state_->mutex);
-    state_->recorder = nullptr;
-    state_->bus = nullptr;
-    state_->clock = nullptr;
-    ++state_->detaches;
-    // From inside a report (a bus handler on the monitor thread) there is
-    // nothing to wait for: the report goes on with its own copies.
-    if (std::this_thread::get_id() != state_->monitor) {
-      gave_up = !state_->idle.wait_for(lock, options_.detach_wait, [this] { return !state_->reporting; });
+  std::unique_lock lock(state_->mutex);
+  state_->recorder = nullptr;
+  state_->bus = nullptr;
+  state_->clock = nullptr;
+  // From inside a report (a bus handler on the monitor thread) there is
+  // nothing to wait for: the report goes on with its own copies. Otherwise
+  // no bound: what was attached may be destroyed once this returns, and a
+  // report still inside one of its calls would then return into a destroyed
+  // object. A stalled exit is the lesser harm; the dump was asked for before
+  // the steps that can stall (the log write, the publish).
+  if (std::this_thread::get_id() != state_->monitor) {
+    const auto idle = [this] { return !state_->reporting; };
+    if (!state_->idle.wait_for(lock, options_.stuck_warning, idle)) {
+      // Not through the logger, whose file write may be what is stuck: the
+      // ring and stderr, neither of which waits on the disk or the bus.
+      const std::string text = std::string("hang monitor: detach waiting for a stuck hang report (stage: ") +
+                               state_->stage.load() + ")";
+      if (state_->logger) state_->logger->record(LogLevel::Warn, text);
+      std::fprintf(stderr, "[warn] hang: %s\n", text.c_str());  // NOLINT(cppcoreguidelines-pro-type-vararg): one line to stderr
+      state_->idle.wait(lock, idle);
     }
-    logger = std::move(state_->logger);
-    state_->logger.reset();
   }
-  // The report still going is stuck in a call to the log, the recorder or
-  // the bus; once that returns it makes no further call to the recorder or
-  // the bus.
-  if (gave_up && logger) {
-    logger->warn("hang monitor: detach gave up waiting for a report in progress after " +
-                 std::to_string(options_.detach_wait.count()) + " ms");
-  }
+  state_->logger.reset();
 }
 
 HangMonitor::Beat HangMonitor::beat(std::string name, std::chrono::milliseconds limit, bool armed) {
@@ -231,7 +233,6 @@ void HangMonitor::run() {
         target.recorder = state_->recorder;
         target.bus = state_->bus;
         target.clock = state_->clock;
-        target.detaches = state_->detaches;
         state_->reporting = true;
       }
       entry->reported = last;  // once per episode: the next report needs a pulse
@@ -246,33 +247,30 @@ void HangMonitor::run() {
   }
 }
 
-bool HangMonitor::still_attached(const Target& target) const {
-  const std::lock_guard lock(state_->mutex);
-  return state_->detaches == target.detaches;
-}
-
 // The order is what a hung disk or bus leaves standing (spec 6): the record
 // goes into the ring first, which waits on nothing, so the dump asked for
 // next has it; then the dump; then the record to the file, which an `error`
 // record waits for (a hung disk holds it there); the Alarm last, since a hung
-// bus handler may block the publish. A detach() that gave up waiting for this
-// report ends it at the next step that would use the recorder or the bus.
+// bus handler may block the publish. `stage` says which step it is in.
 void HangMonitor::report(const detail::HangEntry& entry, std::chrono::nanoseconds silent, const Target& target) {
   std::ostringstream text;
   text << "hang: " << entry.name << " silent for " << std::fixed << std::setprecision(1)
        << std::chrono::duration<double>(silent).count() << " s";
   const std::string message = text.str();
+  state_->stage.store("ring record");
   target.logger->record(LogLevel::Error, message);
-  if (!still_attached(target)) return;
+  state_->stage.store("dump request");
   target.recorder->request("hang-" + entry.name);
+  state_->stage.store("log write");
   target.logger->log_unrecorded(LogLevel::Error, message);
-  if (!still_attached(target)) return;
+  state_->stage.store("alarm publish");
   Alarm alarm;
   alarm.source = "hang";
   alarm.severity = AlarmSeverity::Warning;
   alarm.message = message;
   if (target.clock != nullptr) alarm.ts = target.clock->now();  // unset otherwise: the monitor has no clock of its own
   target.bus->publish(alarm);
+  state_->stage.store("none");
 }
 
 }  // namespace nobion
