@@ -313,9 +313,9 @@ real time they are simulated seconds.
 | `nobion_transport_connected` | `transport` | 1 while the transport is up, 0 while it is down |
 | `nobion_transport_outages_total` | `transport` | times the transport went down. Single errors are not counted: the log has them |
 | `nobion_link_reconnects_total` | `transport` | times the transport's link reconnected after a failure: each is an outage the line rode out |
-| `nobion_device_state` | `device`, `transport` | a device's health: 0 unknown (never used), 1 ok, 2 degraded (its last operation failed), 3 faulted (its driver's `fault_after` failures in a row). Appears when the device first changes state |
-| `nobion_device_consecutive_failures` | `device` | the device's failed operations in a row at the last state change of its health, not updated between changes (a device faulted at 3 shows 3 while it goes on failing); the log (`trace.DeviceHealthChanged`, `device.<name>`) has what each said |
 | `nobion_link_repeats_total` | `transport` | commands the link sent a second time after a failure, being safe to send twice (a read, an absolute target) |
+| `nobion_device_state` | `device`, `transport` | a device's health: 0 unknown (never used), 1 ok, 2 degraded (1 to `fault_after` minus 1 failures in a row), 3 faulted (its driver's `fault_after` failures in a row). Appears when the device first changes state |
+| `nobion_device_consecutive_failures` | `device`, `transport` | the device's failed operations in a row at the last state change of its health, not updated between changes (a device faulted at 3 shows 3 while it goes on failing); the log (`trace.DeviceHealthChanged`, `device.<name>`) has what each said |
 | `nobion_scheduler_job_runs_total`, `_failures_total`, `_skipped_overlaps_total` | `job` | each periodic job's counts |
 | `nobion_scheduler_heartbeat_age_seconds` | | seconds since the scheduler last ran its heartbeat job |
 | `nobion_metrics_scrape_duration_seconds` | | how long the last scrape took to answer |
