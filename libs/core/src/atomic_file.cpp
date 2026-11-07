@@ -14,6 +14,7 @@
 #include <windows.h>
 #else
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #endif
 
@@ -41,8 +42,10 @@ std::filesystem::path temp_path_for(const std::filesystem::path& path) {
   const auto pid = static_cast<unsigned long>(::getpid());
 #endif
   const auto n = g_counter.fetch_add(1, std::memory_order_relaxed);
-  return path.parent_path() /
-         (path.filename().string() + ".tmp." + std::to_string(pid) + "." + std::to_string(n));
+  // operator+= keeps the native (wide, on Windows) string: no narrowing.
+  auto tmp = path;
+  tmp += ".tmp." + std::to_string(pid) + "." + std::to_string(n);
+  return tmp;
 }
 
 #ifdef _WIN32
@@ -163,6 +166,11 @@ Result<void> write_posix(const std::filesystem::path& path, std::string_view byt
     ::close(fd);
     return discard(injected_failure(2, path));
   }
+  // Replacing a file keeps its permission bits (a 0600 file stays 0600).
+  struct stat old_st {};
+  if (::stat(path.c_str(), &old_st) == 0) {
+    (void)::fchmod(fd, old_st.st_mode & 07777);
+  }
   std::size_t done = 0;
   while (done < bytes.size()) {
     const ssize_t n = ::write(fd, bytes.data() + done, bytes.size() - done);
@@ -172,6 +180,10 @@ Result<void> write_posix(const std::filesystem::path& path, std::string_view byt
       }
       close_quietly(fd);
       return discard(io("cannot write", tmp, errno));
+    }
+    if (n == 0) {
+      ::close(fd);
+      return discard(fail(ErrorKind::Io, "cannot write " + tmp.string() + ": wrote no bytes"));
     }
     done += static_cast<std::size_t>(n);
   }

@@ -96,7 +96,35 @@ TEST_F(AtomicFile, AFailureAfterRenameLeavesTheNewFile) {
   EXPECT_EQ(count_temps(), 0U);
 }
 
+TEST_F(AtomicFile, CrashDurabilitySkipsTheSyncSteps) {
+  for (const int step : {3, 5}) {
+    const auto p = dir_ / "c.txt";
+    spit(p, "old");
+    const FailAt guard(step);
+    ASSERT_TRUE(nobion::write_file_atomic(p, "new", nobion::Durability::Crash).has_value())
+        << "step " << step;
+    EXPECT_EQ(slurp(p), "new");
+  }
+}
+
+TEST_F(AtomicFile, ANonAsciiFileNameWorks) {
+  const auto p = dir_ / fs::path(u8"\u00e9tat-\u00e9-\u65e5\u672c.toml");
+  spit(p, "old");
+  ASSERT_TRUE(nobion::write_file_atomic(p, "new").has_value());
+  EXPECT_EQ(slurp(p), "new");
+  EXPECT_EQ(count_temps(), 0U);
+}
+
 #ifndef _WIN32
+TEST_F(AtomicFile, ReplacingKeepsPermissionBits) {
+  const auto p = dir_ / "m.txt";
+  spit(p, "old");
+  fs::permissions(p, fs::perms::owner_read | fs::perms::owner_write, fs::perm_options::replace);
+  ASSERT_TRUE(nobion::write_file_atomic(p, "new").has_value());
+  EXPECT_EQ(fs::status(p).permissions(), fs::perms::owner_read | fs::perms::owner_write);
+  EXPECT_EQ(slurp(p), "new");
+}
+
 TEST_F(AtomicFile, ReadOnlyDirectoryIsAnIoError) {
   if (::geteuid() == 0) {
     GTEST_SKIP() << "root ignores directory permissions";

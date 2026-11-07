@@ -14,7 +14,8 @@ enum class Durability {
 
 // Writes `bytes` to a temporary file beside `path` (same file system), flushes
 // it, and renames it over `path`. Either the old content or the new is left at
-// `path`, never a mix or nothing.
+// `path`, never a mix or nothing. A symlink at `path` is replaced by the new
+// file, not followed. An existing file's permission bits are kept (POSIX).
 //
 // Power: POSIX syncs the file (macOS: F_FULLFSYNC, since fsync there does not
 // flush the drive cache), renames, then syncs the directory. Windows:

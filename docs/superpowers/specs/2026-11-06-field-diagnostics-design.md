@@ -249,7 +249,7 @@ One zip a lab sends back.
   //   SQLite does, since fsync there does not flush the drive cache), rename,
   //   fsync directory. Windows: FlushFileBuffers, then
   //   MoveFileExW(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH), retried
-  //   5 times 50 ms apart on a sharing violation (antivirus, preview), then Io.
+  //   5 times 50 ms apart on a sharing violation or access denied (antivirus, preview), then Io.
   // Either the old content or the new is left at `path`, never a mix or nothing.
   Result<void> write_file_atomic(const std::filesystem::path& path, std::string_view bytes,
                                  Durability d = Durability::Power);
