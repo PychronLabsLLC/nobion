@@ -35,6 +35,7 @@ struct SessionInfo {
 // A session of an earlier process on the same log folder that did not end
 // cleanly (found by LogHub::create; spec 2026-11-06-field-diagnostics, 3.3).
 struct PreviousSession {
+  std::string program;                                // the sentinel's stem without a `-<pid>` (`elctl`)
   std::string build_id;
   std::string started;                                // UTC, `2026-11-06T14:03:22Z`
   std::optional<std::filesystem::path> crash_file;    // that process's crash file, if it left one
@@ -108,8 +109,11 @@ class LogHub {
   // destructor removes it after `session end`. create() looks at every
   // `*.session` in the folder: one whose lock can be taken belongs to a
   // process that is gone without a clean end (a live one's is never
-  // reported). Each is logged at `error` (`previous session <build> started
-  // <time> ended without a clean exit`) and removed.
+  // reported). Each is logged at `error` (`previous <program> session <build>
+  // started <time> ended without a clean exit`, the program the sentinel's)
+  // and removed. Its crash file is `crash/<program>-<pid>.txt`, if one was
+  // written no earlier than 5 s before the sentinel (a reused pid can name an
+  // older process's).
 
   // The latest session create() found that did not end cleanly, if any.
   std::optional<PreviousSession> previous_session() const;

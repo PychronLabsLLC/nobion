@@ -84,10 +84,12 @@ POSIX rules for the handler (signal context): no allocation, no lock, no stdio, 
 ### 3.3 Crash file and unclean exit
 
 - Crash directory `<log dir>/crash/` created by `LogHub::create`. Crash file path `<log dir>/crash/<stem>-<pid>.txt` preformatted into a static buffer at install, re-set by `retarget_crash_output` (`log_hub.cpp`) and at each `begin_session`. Opened in the handler (`O_CREAT|O_WRONLY|O_APPEND`) only when a crash happens. At hub start, crash files and dumps past the newest 20 removed.
-- Session sentinel: `begin_session` creates `<log dir>/<stem>.session` (pid, build id, start time) and holds an exclusive advisory lock on it for the session (`flock`; Windows `LockFileEx`). Clean end (`~LogHub`, after `session end`) unlocks and removes it. At start, for each `*.session` in the log dir: if its lock can be taken, its process is gone and did not end cleanly (a live process holds its lock; a reused pid does not matter). Then:
-  - logged at `error`: `previous session <build> started <time> ended without a clean exit`, with the crash file path if one with that pid exists; the stale sentinel removed;
-  - `LogHub::previous_session()` → `std::optional<PreviousSession>{build_id, started, crash_file}`;
-  - nobion: once the main window shows, a dialog "nobion did not close cleanly last time", buttons **Collect Diagnostics…** (section 8) and **Dismiss**;
+- Session sentinel: `begin_session` creates `<log dir>/<stem>.session` (pid, build id, start time from hub clock's `wall_now()`) and holds an exclusive advisory lock on it for the session (`flock`; Windows `LockFileEx`). Clean end (`~LogHub`, after `session end`) unlocks and removes it. At start, for each `*.session` in the log dir: if its lock can be taken, its process is gone and did not end cleanly (a live process holds its lock; a reused pid does not matter). Then:
+  - program: sentinel's own stem, less a trailing `-<pid>` equal to its `pid=` (second hub's `elctl-4242.session` → `elctl`). Never reporting hub's stem: programs share a log dir, so nobion hub can find elctl's sentinel;
+  - crash file: `<log dir>/crash/<program>-<pid>.txt`, only if its mtime is no earlier than sentinel file's mtime minus 5 s (reused pid can name older process's crash file). Sentinel's mtime, not its `started=`: `started=` is hub clock's `wall_now()` (simulated in simulated session), mtime same file-system clock as crash file's;
+  - logged at `error`: `previous <program> session <build> started <time> ended without a clean exit`, with the crash file path if there is one; the stale sentinel removed;
+  - `LogHub::previous_session()` → `std::optional<PreviousSession>{program, build_id, started, crash_file}`;
+  - nobion: once the main window shows, a dialog "<program> did not close cleanly last time", buttons **Collect Diagnostics…** (section 8) and **Dismiss**;
   - elctl: one line on stderr.
 - A second process on the same log dir (`-<pid>` file name) has its own stem, so its own sentinel.
 

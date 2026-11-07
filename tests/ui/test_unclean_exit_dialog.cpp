@@ -17,6 +17,7 @@ class TestUncleanExitDialog : public QObject {
  private slots:
   void uncleanExitDialogOffersCollect() {
     nobion::PreviousSession previous;
+    previous.program = "nobion";
     previous.build_id = nobion::build_id();
     previous.started = "2026-11-06T14:03:22Z";
     previous.crash_file = std::filesystem::path("crash/nobion-4242.txt");
@@ -37,6 +38,20 @@ class TestUncleanExitDialog : public QObject {
     QSignalSpy spy(&dialog, &nobion::ui::UncleanExitDialog::collectRequested);
     collect->click();
     QCOMPARE(spy.count(), 1);
+  }
+
+  // Programs share a log folder: the dialog names the program that did not
+  // close cleanly, which can be elctl.
+  void namesTheSentinelsProgram() {
+    nobion::PreviousSession previous;
+    previous.program = "elctl";
+    previous.build_id = "b";
+    previous.started = "t";
+    nobion::ui::UncleanExitDialog dialog(previous, nullptr);
+    QCOMPARE(dialog.windowTitle(), QStringLiteral("elctl did not close cleanly last time"));
+    const auto* label = dialog.findChild<QLabel*>(QStringLiteral("uncleanExitText"));
+    QVERIFY(label != nullptr);
+    QVERIFY(label->text().contains(QStringLiteral("previous elctl session")));
   }
 
   void dismissEmitsNothing() {

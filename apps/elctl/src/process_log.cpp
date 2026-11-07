@@ -31,8 +31,8 @@ class CerrRedirect {
 void say_previous_session(const nobion::LogHub& hub, std::ostream& err) {
   const auto previous = hub.previous_session();
   if (!previous) return;
-  err << "elctl: previous session " << previous->build_id << " started " << previous->started
-      << " ended without a clean exit";
+  err << "elctl: previous " << previous->program << " session " << previous->build_id << " started "
+      << previous->started << " ended without a clean exit";
   if (previous->crash_file) err << "; crash file " << previous->crash_file->string();
   err << '\n';
 }

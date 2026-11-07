@@ -1478,7 +1478,7 @@ TEST(LogHub, AKilledSessionIsReportedOnce) {
     hub->flush();
     const std::string text = read_file(tmp.path() / "crash_helper.log");
     EXPECT_NE(text.find("[error]"), std::string::npos) << text;
-    EXPECT_NE(text.find("previous session " + build_id() + " started"), std::string::npos) << text;
+    EXPECT_NE(text.find("previous crash_helper session " + build_id() + " started"), std::string::npos) << text;
     EXPECT_NE(text.find("ended without a clean exit"), std::string::npos) << text;
     EXPECT_FALSE(fs::exists(tmp.path() / "crash_helper.session"));
   }
@@ -1513,4 +1513,114 @@ TEST(LogHub, ALiveSecondProcessIsNeverReportedUnclean) {
   auto after = make_hub(cfg, clock);
   ASSERT_TRUE(after);
   EXPECT_TRUE(after->previous_session());  // now that it is gone, it is reported
+}
+
+namespace {
+
+// A sentinel no process holds, as a process that is gone left it.
+void write_stale_sentinel(const fs::path& path, const std::string& pid) {
+  std::ofstream out(path, std::ios::binary);
+  out << "pid=" << pid << "\nbuild=abc123\nstarted=2026-11-06T14:03:22Z\n";
+}
+
+void write_crash_file(const fs::path& path) {
+  fs::create_directories(path.parent_path());
+  std::ofstream out(path, std::ios::binary);
+  out << "fatal signal 11\n";
+}
+
+}  // namespace
+
+// Programs share a log folder: the crash file is the sentinel's program's,
+// never the stem of the hub that reports it.
+TEST(LogHub, AnotherProgramsSentinelNamesThatProgramsCrashFile) {
+  TempDir tmp;
+  SteadyClock clock;
+  write_stale_sentinel(tmp.path() / "elctl.session", "4242");
+  write_crash_file(tmp.path() / "crash" / "elctl-4242.txt");
+  write_crash_file(tmp.path() / "crash" / "nobion-4242.txt");  // the reporting hub's stem: not it
+
+  auto hub = make_hub(config_for(tmp.path()), clock);  // nobion.log
+  ASSERT_TRUE(hub);
+  const auto previous = hub->previous_session();
+  ASSERT_TRUE(previous);
+  EXPECT_EQ(previous->program, "elctl");
+  ASSERT_TRUE(previous->crash_file);
+  EXPECT_EQ(previous->crash_file->filename().string(), "elctl-4242.txt");
+  hub->flush();
+  const std::string text = read_file(tmp.path() / "nobion.log");
+  EXPECT_NE(text.find("previous elctl session abc123 started 2026-11-06T14:03:22Z ended without a clean exit"),
+            std::string::npos)
+      << text;
+  EXPECT_NE(text.find("elctl-4242.txt"), std::string::npos) << text;
+}
+
+// A second hub's sentinel is `<stem>-<pid>.session`; its crash file is
+// still `<stem>-<pid>.txt`, and its program the stem without the pid.
+TEST(LogHub, ASecondHubsSentinelDropsItsPidFromTheProgram) {
+  TempDir tmp;
+  SteadyClock clock;
+  write_stale_sentinel(tmp.path() / "elctl-4242.session", "4242");
+  write_crash_file(tmp.path() / "crash" / "elctl-4242.txt");
+
+  auto hub = make_hub(config_for(tmp.path()), clock);
+  ASSERT_TRUE(hub);
+  const auto previous = hub->previous_session();
+  ASSERT_TRUE(previous);
+  EXPECT_EQ(previous->program, "elctl");
+  ASSERT_TRUE(previous->crash_file);
+  EXPECT_EQ(previous->crash_file->filename().string(), "elctl-4242.txt");
+}
+
+// A pid comes round again: a crash file older than the session is an
+// earlier process's, not this session's.
+TEST(LogHub, ACrashFileOlderThanTheSessionIsNotItsCrash) {
+  TempDir tmp;
+  SteadyClock clock;
+  const fs::path sentinel = tmp.path() / "nobion.session";
+  const fs::path crash = tmp.path() / "crash" / "nobion-4242.txt";
+  write_stale_sentinel(sentinel, "4242");
+  write_crash_file(crash);
+  fs::last_write_time(crash, fs::last_write_time(sentinel) - std::chrono::hours(1));
+
+  auto hub = make_hub(config_for(tmp.path()), clock);
+  ASSERT_TRUE(hub);
+  const auto previous = hub->previous_session();
+  ASSERT_TRUE(previous);
+  EXPECT_FALSE(previous->crash_file) << previous->crash_file->string();
+  hub->flush();
+  EXPECT_EQ(read_file(tmp.path() / "nobion.log").find("crash file"), std::string::npos);
+}
+
+// A crash file written within the slack before the sentinel still counts
+// (file times are coarse on some file systems).
+TEST(LogHub, ACrashFileWithinTheSlackIsTheSessionsCrash) {
+  TempDir tmp;
+  SteadyClock clock;
+  const fs::path sentinel = tmp.path() / "nobion.session";
+  const fs::path crash = tmp.path() / "crash" / "nobion-4242.txt";
+  write_stale_sentinel(sentinel, "4242");
+  write_crash_file(crash);
+  fs::last_write_time(crash, fs::last_write_time(sentinel) - std::chrono::seconds(2));
+
+  auto hub = make_hub(config_for(tmp.path()), clock);
+  ASSERT_TRUE(hub);
+  const auto previous = hub->previous_session();
+  ASSERT_TRUE(previous);
+  EXPECT_TRUE(previous->crash_file);
+}
+
+// The sentinel's start time is the hub's clock's wall time (a simulated
+// session is stamped in simulated time), not the system's.
+TEST(LogHub, TheSentinelIsStampedFromTheHubsClock) {
+  TempDir tmp;
+  const ManualClock clock(TimePoint{},
+                          std::chrono::sys_days(std::chrono::year{2001} / 1 / 2) + std::chrono::hours(3));
+  auto hub = make_hub(config_for(tmp.path()), clock);
+  ASSERT_TRUE(hub);
+  SessionInfo info;
+  info.app = "nobion";
+  hub->begin_session(info);
+  const std::string text = read_file(tmp.path() / "nobion.session");
+  EXPECT_NE(text.find("started=2001-01-02T03:00:00Z\n"), std::string::npos) << text;
 }

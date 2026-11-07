@@ -1,8 +1,9 @@
 #pragma once
 
-// "nobion did not close cleanly last time" (spec 2026-11-06-field-diagnostics,
-// 3.3): shown once the main window is up when the log folder held the
-// sentinel of a session that is gone without a clean end.
+// "<program> did not close cleanly last time" (spec
+// 2026-11-06-field-diagnostics, 3.3): shown once the main window is up when
+// the log folder held the sentinel of a session that is gone without a clean
+// end. The program is the sentinel's (nobion or elctl).
 
 #include <QDialog>
 

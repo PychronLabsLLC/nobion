@@ -333,7 +333,6 @@ struct LogHub::Impl {
   std::mutex session_mutex;
   FileLock session_lock;
   std::filesystem::path session_path;  // empty until the sentinel exists
-  std::string crash_stem;              // configured file stem, for `<stem>-<pid>.txt`
   std::optional<PreviousSession> previous;
 
   // Level rules. `epoch` is bumped (under the unique lock) on every change;
@@ -1285,6 +1284,21 @@ std::string sentinel_field(const std::string& text, std::string_view key) {
   return {};
 }
 
+// A crash file this much older than its session's sentinel is still the
+// session's: file times are coarse on some file systems (FAT: 2 s).
+constexpr auto kCrashFileSlack = std::chrono::seconds(5);
+
+// The program a sentinel is of: its stem, less the `-<pid>` a second hub on
+// the folder adds (`elctl-4242.session` with pid 4242 is elctl's). The crash
+// file of that process is `crash/<program>-<pid>.txt`.
+std::string sentinel_program(const std::filesystem::path& sentinel, const std::string& pid) {
+  std::string stem = sentinel.stem().string();
+  const std::string suffix = "-" + pid;
+  if (!pid.empty() && stem.size() > suffix.size() && stem.ends_with(suffix))
+    stem.resize(stem.size() - suffix.size());
+  return stem;
+}
+
 // Hub start: every `*.session` in the log dir whose lock can be taken belongs
 // to a process that is gone without a clean end (a live one holds its lock; a
 // reused pid does not matter). Each is logged at error and removed; the
@@ -1307,10 +1321,17 @@ void find_unclean_sessions(LogHub::Impl& impl) noexcept {
     std::sort(sentinels.begin(), sentinels.end());
     for (const auto& path : sentinels) {
       std::string text;
+      // When the session began, on the file system's clock (what the crash
+      // file's time is compared with): `started=` is the hub clock's wall
+      // time, simulated in a simulated session.
+      std::optional<std::filesystem::file_time_type> made;
       {
         FileLock probe;
         if (probe.acquire(path, false) != FileLock::Outcome::Held) continue;
         text = probe.read_text();
+        std::error_code time_ec;
+        const auto when = std::filesystem::last_write_time(path, time_ec);
+        if (!time_ec) made = when;
       }  // closed (and so unlocked) before it is removed
       std::error_code remove_ec;
       std::filesystem::remove(path, remove_ec);
@@ -1319,15 +1340,20 @@ void find_unclean_sessions(LogHub::Impl& impl) noexcept {
       const std::string pid = sentinel_field(text, "pid");
       if (build.empty() && started.empty()) continue;  // never filled in: nothing to say
       PreviousSession session;
+      session.program = sentinel_program(path, pid);
       session.build_id = build;
       session.started = started;
-      if (!pid.empty() && !impl.crash_stem.empty()) {
-        std::filesystem::path crash = dir / "crash" / (impl.crash_stem + "-" + pid + ".txt");
-        std::error_code exists_ec;
-        if (std::filesystem::is_regular_file(crash, exists_ec)) session.crash_file = std::move(crash);
+      if (!pid.empty() && !session.program.empty() && made) {
+        std::filesystem::path crash = dir / "crash" / (session.program + "-" + pid + ".txt");
+        std::error_code crash_ec;
+        const auto written = std::filesystem::last_write_time(crash, crash_ec);
+        if (!crash_ec && std::filesystem::is_regular_file(crash, crash_ec) &&
+            written >= *made - kCrashFileSlack)
+          session.crash_file = std::move(crash);
       }
-      std::string message = "previous session ";
-      message.append(build).append(" started ").append(started).append(" ended without a clean exit");
+      std::string message = "previous ";
+      message.append(session.program).append(" session ").append(build).append(" started ").append(started)
+          .append(" ended without a clean exit");
       if (session.crash_file) message += "; crash file " + session.crash_file->string();
       impl.write(LogLevel::Error, "nobion", message);
       if (!impl.previous || impl.previous->started <= session.started) impl.previous = std::move(session);
@@ -1400,7 +1426,6 @@ Result<std::shared_ptr<LogHub>> LogHub::create(const config::LoggingConfig& conf
         std::filesystem::create_directories(crash_dir, crash_ec);
         if (!crash_ec) {
           prune_crashes(crash_dir);
-          impl->crash_stem = std::filesystem::path(config.file_name).stem().string();
           impl->crash_path = crash_dir / (std::filesystem::path(config.file_name).stem().string() + "-" +
                                           process_id() + ".txt");
         }
@@ -1541,7 +1566,7 @@ void make_sentinel(LogHub::Impl& impl) noexcept {
     building += ".new";
     if (impl.session_lock.acquire(building) != FileLock::Outcome::Held) return;
     const std::string text = "pid=" + process_id() + "\nbuild=" + build_id() +
-                             "\nstarted=" + utc_stamp(std::chrono::system_clock::now()) + "\n";
+                             "\nstarted=" + utc_stamp(impl.pin().clock->wall_now()) + "\n";
     std::error_code ec;
     bool placed = impl.session_lock.write_text(text);
     if (placed) {

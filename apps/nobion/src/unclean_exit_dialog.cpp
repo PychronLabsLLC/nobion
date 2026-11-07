@@ -12,12 +12,16 @@
 namespace nobion::ui {
 
 UncleanExitDialog::UncleanExitDialog(const PreviousSession& previous, QWidget* parent) : QDialog(parent) {
-  setWindowTitle(tr("nobion did not close cleanly last time"));
+  // The sentinel's program: programs share a log folder, so it can be elctl's.
+  const QString program =
+      previous.program.empty() ? QStringLiteral("nobion") : QString::fromStdString(previous.program);
+  setWindowTitle(tr("%1 did not close cleanly last time").arg(program));
   setObjectName(QStringLiteral("uncleanExitDialog"));
   auto* layout = new QVBoxLayout(this);
 
-  QString text = tr("The previous session (build %1, started %2) ended without a clean exit.")
-                     .arg(QString::fromStdString(previous.build_id), QString::fromStdString(previous.started));
+  QString text = tr("The previous %1 session (build %2, started %3) ended without a clean exit.")
+                     .arg(program, QString::fromStdString(previous.build_id),
+                          QString::fromStdString(previous.started));
   if (previous.crash_file) {
     text += QStringLiteral("\n\n") + tr("It left a crash file: %1").arg(QString::fromStdString(previous.crash_file->string()));
   }

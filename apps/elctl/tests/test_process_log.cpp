@@ -92,7 +92,7 @@ TEST_F(ProcessLog, AnUncleanPreviousSessionIsSaidOnErr) {
   auto hub = open_process_log({"version"}, clock_, nobion::HostOs::Mac, home_env(), err);
   ASSERT_NE(hub, nullptr) << err.str();
   EXPECT_TRUE(contains(err.str(),
-                       "elctl: previous session abc123 started 2026-11-06T14:03:22Z ended without a clean exit"))
+                       "elctl: previous elctl session abc123 started 2026-11-06T14:03:22Z ended without a clean exit"))
       << err.str();
   EXPECT_TRUE(hub->previous_session());
 }
