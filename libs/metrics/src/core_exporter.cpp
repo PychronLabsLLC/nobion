@@ -244,7 +244,7 @@ CoreExporter::CoreExporter(Registry& registry, SignalBus& bus, BuildInfo build, 
   subscriptions_.push_back(bus.subscribe<DeviceHealthChanged>([this](const DeviceHealthChanged& e) {
     registry_.gauge(kDeviceState, kDeviceStateHelp, {{"device", e.device}, {"transport", e.transport}})
         .set(state_value(e.to));
-    registry_.gauge(kDeviceFailures, kDeviceFailuresHelp, {{"device", e.device}})
+    registry_.gauge(kDeviceFailures, kDeviceFailuresHelp, {{"device", e.device}, {"transport", e.transport}})
         .set(static_cast<double>(e.consecutive_failures));
   }));
 }

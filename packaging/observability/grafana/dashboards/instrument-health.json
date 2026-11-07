@@ -599,8 +599,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (device) (nobion_device_state{instrument=\"$instrument\"})",
-          "legendFormat": "{{device}}"
+          "expr": "max by (device, transport) (nobion_device_state{instrument=\"$instrument\"})",
+          "legendFormat": "{{device}} ({{transport}})"
         }
       ],
       "fieldConfig": {
@@ -673,8 +673,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "nobion_device_consecutive_failures{instrument=\"$instrument\"}",
-          "legendFormat": "{{device}}"
+          "expr": "max by (device, transport) (nobion_device_consecutive_failures{instrument=\"$instrument\"})",
+          "legendFormat": "{{device}} ({{transport}})"
         }
       ],
       "fieldConfig": {
