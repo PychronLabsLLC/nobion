@@ -26,7 +26,9 @@ class ByteRing {
 
   // Every line held, oldest first; whole lines only.
   [[nodiscard]] std::string snapshot() const;
-  // The same lines appended to `out`, with no copy in between.
+  // The same lines appended to `out`, with no copy in between. `out` is
+  // given room for capacity() more bytes before the lock is taken; under it
+  // the lines are only copied.
   void append_snapshot_to(std::string& out) const;
 
   // The bytes held, as the two contiguous runs of the buffer they occupy

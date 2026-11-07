@@ -128,6 +128,18 @@ void Logger::log(LogLevel level, std::string_view message) const {
   if (bus_ != nullptr) bus_->publish(event);
 }
 
+void Logger::record(LogLevel level, std::string_view message) const noexcept {
+  if (hub_ && enabled(level)) detail::hub_record_only(*hub_, level, name_, message);
+}
+
+void Logger::log_unrecorded(LogLevel level, std::string_view message) const {
+  if (!hub_) {
+    log(level, message);
+    return;
+  }
+  if (level >= this->level()) detail::hub_write(*hub_, level, name_, message, false);
+}
+
 Logger Logger::child(std::string_view suffix) const {
   std::string child_name = name_;
   child_name += '.';

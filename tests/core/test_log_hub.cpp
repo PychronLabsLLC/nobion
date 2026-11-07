@@ -564,6 +564,16 @@ config::LoggingConfig rules_config(std::vector<std::pair<std::string, LogLevel>>
   return cfg;
 }
 
+// rules_config with a ring, for tests that move the recorder's levels (with
+// no ring they stay off).
+config::LoggingConfig recorder_rules_config(std::vector<std::pair<std::string, LogLevel>> levels,
+                                            LogLevel default_level) {
+  config::LoggingConfig cfg = rules_config(std::move(levels), default_level);
+  cfg.recorder.enabled = true;
+  cfg.recorder.size_mb = static_cast<std::size_t>(config::kRecorderMinMb);
+  return cfg;
+}
+
 }  // namespace
 
 TEST(LogHub, LevelFromRules) {
@@ -581,7 +591,7 @@ TEST(LogHub, LevelFromRules) {
 
 TEST(Logger, LevelStaysTheFileLevel) {
   SteadyClock clock;
-  auto hub = make_hub(rules_config({{"*.wire", LogLevel::Info}}, LogLevel::Info), clock);
+  auto hub = make_hub(recorder_rules_config({{"*.wire", LogLevel::Info}}, LogLevel::Info), clock);
   ASSERT_TRUE(hub);
   hub->set_recorder_levels(LogLevel::Debug, {{"*.wire", LogLevel::Trace}});
   const Logger wire = hub->logger("ig1.wire");
@@ -597,7 +607,7 @@ TEST(Logger, LevelStaysTheFileLevel) {
 
 TEST(Logger, ExplicitLevelLeavesTheRecorderAlone) {
   SteadyClock clock;
-  auto hub = make_hub(rules_config({}, LogLevel::Info), clock);
+  auto hub = make_hub(recorder_rules_config({}, LogLevel::Info), clock);
   ASSERT_TRUE(hub);
   hub->set_recorder_levels(LogLevel::Debug, {{"*.wire", LogLevel::Trace}});
   Logger wire = hub->logger("ig1.wire");
@@ -612,7 +622,7 @@ TEST(Logger, ExplicitLevelLeavesTheRecorderAlone) {
 
 TEST(Logger, ARecorderRuleChangeDoesNotMoveTheFileLevel) {
   SteadyClock clock;
-  auto hub = make_hub(rules_config({}, LogLevel::Warn), clock);
+  auto hub = make_hub(recorder_rules_config({}, LogLevel::Warn), clock);
   ASSERT_TRUE(hub);
   const Logger log = hub->logger("core");
   ASSERT_EQ(log.level(), LogLevel::Warn);
@@ -660,6 +670,51 @@ TEST(LogHub, ADisabledRecorderKeepsNothingBelowTheFileLevel) {
   const Logger log = hub->logger("core");
   EXPECT_FALSE(log.enabled(LogLevel::Debug));
   EXPECT_TRUE(log.enabled(LogLevel::Info));
+}
+
+// With no ring there is nothing for a recorder level to keep: a rule change
+// leaves it off, so nothing is formatted for nothing.
+TEST(LogHub, RecorderLevelsChangeNothingWithoutARing) {
+  SteadyClock clock;
+  auto cfg = rules_config({}, LogLevel::Info);
+  cfg.recorder.enabled = false;
+  auto hub = make_hub(cfg, clock);
+  ASSERT_TRUE(hub);
+  const Logger log = hub->logger("core");
+  hub->set_recorder_levels(LogLevel::Trace, {});
+  EXPECT_FALSE(log.enabled(LogLevel::Debug));
+  EXPECT_TRUE(log.enabled(LogLevel::Info));
+}
+
+// record() reaches the ring alone; log_unrecorded() then reaches the file,
+// stderr and bus, and the ring holds the line once.
+TEST(Logger, RecordThenLogUnrecordedKeepsTheLineOnceInTheRing) {
+  TempDir tmp;
+  SteadyClock clock;
+  SignalBus bus;
+  std::vector<Log> got;
+  auto sub = bus.subscribe<Log>([&](const Log& e) { got.push_back(e); });
+  auto cfg = config_for(tmp.path());
+  cfg.default_level = LogLevel::Info;
+  cfg.dock_level = LogLevel::Info;
+  auto hub = make_hub(cfg, clock, &bus);
+  ASSERT_TRUE(hub);
+  const Logger log = hub->logger("hang");
+
+  log.record(LogLevel::Error, "the one line");
+  hub->flush();
+  EXPECT_EQ(read_file(tmp.path() / "nobion.log").find("the one line"), std::string::npos);
+  EXPECT_TRUE(got.empty());
+  const std::string ring = hub->recorder_snapshot();
+  EXPECT_NE(ring.find("[error] ["), std::string::npos) << ring;
+  EXPECT_NE(ring.find("hang: the one line"), std::string::npos) << ring;
+
+  log.log_unrecorded(LogLevel::Error, "the one line");
+  EXPECT_NE(read_file(tmp.path() / "nobion.log").find("the one line"), std::string::npos);  // an error: on disk now
+  ASSERT_EQ(got.size(), 1u);
+  EXPECT_EQ(got[0].message, "the one line");
+  const std::string after = hub->recorder_snapshot();
+  EXPECT_EQ(after.find("the one line"), after.rfind("the one line")) << after;
 }
 
 TEST(LogHub, BareNameRuleMatchesChildren) {

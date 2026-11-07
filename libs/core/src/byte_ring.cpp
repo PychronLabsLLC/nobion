@@ -79,9 +79,11 @@ std::string ByteRing::snapshot() const {
 }
 
 void ByteRing::append_snapshot_to(std::string& out) const {
+  // Room for a full ring, made before the lock: writers never wait on an
+  // allocation, and the copy under the lock allocates nothing.
+  out.reserve(out.size() + capacity_);
   const std::lock_guard lock(mutex_);
   const Spans s = spans();
-  out.reserve(out.size() + s.first.size() + s.second.size());
   out.append(s.first).append(s.second);
 }
 

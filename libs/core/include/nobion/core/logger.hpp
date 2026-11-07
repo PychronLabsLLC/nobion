@@ -61,6 +61,14 @@ class Logger {
   void warn(std::string_view m) const { log(LogLevel::Warn, m); }
   void error(std::string_view m) const { log(LogLevel::Error, m); }
 
+  // Into the flight recorder's ring only, when enabled(level): never the
+  // file, stderr or bus, so it never waits on the file writer or a bus
+  // handler. A logger with no hub, or a hub with no ring, drops it.
+  void record(LogLevel level, std::string_view message) const noexcept;
+  // log() without the ring, for a record record() has already put there.
+  // A logger with no hub: log().
+  void log_unrecorded(LogLevel level, std::string_view message) const;
+
   // Logger named "<parent>.<suffix>" sharing clock, bus, level and echo stream.
   // A hub logger's child shares the hub and resolves its own level.
   Logger child(std::string_view suffix) const;

@@ -39,8 +39,9 @@ const std::string* thread_tag_pointer() noexcept;
 void ensure_thread_tag_key() noexcept;
 
 // LogHub::write on the Impl; a no-op once the hub has been destroyed.
-void hub_write(LogHub::Impl& hub, LogLevel level, std::string_view logger,
-               std::string_view message) noexcept;
+// `to_ring` false: file, stderr and bus only (the record is in the ring already).
+void hub_write(LogHub::Impl& hub, LogLevel level, std::string_view logger, std::string_view message,
+               bool to_ring = true) noexcept;
 
 // A record below the file level and at or above the recorder level. Neither
 // file, stderr nor bus see it. Never throws.

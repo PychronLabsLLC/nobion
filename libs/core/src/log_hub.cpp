@@ -90,6 +90,9 @@ constexpr std::size_t kDumpsKept = 20;    // flight recorder dumps in <dir>/flig
 constexpr auto kDumpPerReason = std::chrono::seconds(60);
 constexpr auto kDumpAny = std::chrono::seconds(10);
 constexpr std::size_t kRecordBufferKept = 64 * 1024;  // a thread's record buffer shrinks back past this
+// A recorder level no record reaches (one past Error; the packed state keeps 8 bits).
+// NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): deliberate, see above
+constexpr auto kRecorderOff = static_cast<LogLevel>(static_cast<int>(LogLevel::Error) + 1);
 
 // The echo and the writer's error reports go to the C stream, not through
 // std::cerr: a program that tees std::cerr into its log (elctl) would log every
@@ -420,10 +423,9 @@ struct LogHub::Impl {
   LogLevel default_level = LogLevel::Info;
   std::vector<std::pair<std::string, LogLevel>> rules;
   // The flight recorder's thresholds (spec 5.1), resolved the same way and
-  // under the same epoch. Default: off (a level above Error, the packed state
-  // keeps 8 bits), so a hub nobody configured keeps nothing below its file level.
-  // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): deliberate, see above
-  LogLevel recorder_default = static_cast<LogLevel>(static_cast<int>(LogLevel::Error) + 1);
+  // under the same epoch. Default: off, so a hub nobody configured keeps
+  // nothing below its file level.
+  LogLevel recorder_default = kRecorderOff;
   std::vector<std::pair<std::string, LogLevel>> recorder_rules;
   std::atomic<std::uint64_t> epoch{1};
   std::atomic<bool> session_begun{false};
@@ -617,7 +619,8 @@ struct LogHub::Impl {
 
   // Runs entirely on the calling thread apart from the file enqueue, so bus
   // subscribers may log (even at error) without deadlocking the writer.
-  void write(LogLevel level, std::string_view name, std::string_view message) noexcept {
+  // `to_ring` false: the record is already in the ring (Logger::record).
+  void write(LogLevel level, std::string_view name, std::string_view message, bool to_ring = true) noexcept {
     in_flight.fetch_add(1);
     struct Leave {
       std::atomic<int>& n;
@@ -649,7 +652,7 @@ struct LogHub::Impl {
       std::string& line = record_buffer();
       const WallTime at = clock.wall_now();
       format_record(line, at, level, thread, run, name, message);
-      if (ring) ring->append(line);
+      if (ring && to_ring) ring->append(line);
       // Raw string_view overload: the message is never a format string.
       logger->log(at, spdlog::source_loc{}, to_spdlog(level), file_payload(line));
       if (level >= LogLevel::Error) sync_flush();
@@ -1567,6 +1570,10 @@ Result<std::shared_ptr<LogHub>> LogHub::create(const config::LoggingConfig& conf
     try {
       impl->ring = std::make_unique<detail::ByteRing>(mb * 1024 * 1024);
     } catch (const std::bad_alloc&) {
+      // No ring: back to no recorder level at all, so that enabled() does not
+      // go on formatting records that nothing would keep.
+      impl->recorder_default = kRecorderOff;
+      impl->recorder_rules.clear();
       impl->report_startup_error("cannot allocate the flight recorder (" + std::to_string(mb) +
                                  " MB); running without it");
     }
@@ -2050,6 +2057,7 @@ void LogHub::set_levels(LogLevel default_level, const std::vector<std::pair<std:
 
 void LogHub::set_recorder_levels(LogLevel default_level,
                                  const std::vector<std::pair<std::string, LogLevel>>& levels) {
+  if (!impl_->ring) return;  // nothing would keep what the levels let through
   std::unique_lock lock(impl_->rules_mutex);
   impl_->recorder_default = default_level;
   impl_->recorder_rules.clear();
@@ -2077,9 +2085,9 @@ std::string thread_label() {
   return "t" + std::to_string(LogContext::thread_number());
 }
 
-void hub_write(LogHub::Impl& hub, LogLevel level, std::string_view logger,
-               std::string_view message) noexcept {
-  hub.write(level, logger, message);
+void hub_write(LogHub::Impl& hub, LogLevel level, std::string_view logger, std::string_view message,
+               bool to_ring) noexcept {
+  hub.write(level, logger, message, to_ring);
 }
 
 void hub_record_only(LogHub::Impl& hub, LogLevel level, std::string_view logger,

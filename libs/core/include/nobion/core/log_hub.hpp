@@ -98,7 +98,8 @@ class LogHub {
   // Replaces the recorder's rules: the level at or above which a logger's
   // records are kept by the flight recorder, whatever the file level (spec
   // 5.1). Same glob matching as set_levels; never changes the file level of any
-  // logger. Thread-safe.
+  // logger. Changes nothing when the hub has no ring (recorder off, or its
+  // allocation failed): the recorder level then stays off. Thread-safe.
   void set_recorder_levels(LogLevel default_level, const std::vector<std::pair<std::string, LogLevel>>& levels);
 
   // The lowest level that goes to the bus (the Log dock); records below it
