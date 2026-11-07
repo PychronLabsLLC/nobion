@@ -57,7 +57,7 @@ SetupWizard::SeedDatabase database_seeder() {
     auto client = (*store)->register_client(
         {nobion::host_name(), "reduction", std::nullopt, "nobion"});
     if (!client) return fail(std::move(client).error());
-    auto user = (*store)->ensure_user(*client, env_var("USER").value_or("pychron"));
+    auto user = (*store)->ensure_user(*client, env_var("USER").value_or("nobion"));
     if (!user) return fail(std::move(user).error());
     auto report = entry::apply_seed(**store, *seed, persistence::Actor{*user, *client});
     if (!report) return fail(std::move(report).error());

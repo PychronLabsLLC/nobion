@@ -134,7 +134,7 @@ py::dict HostState::load(const Script& script, const ValueMap& overrides) {
 
   py::dict ns;
   ns["__builtins__"] = rt.module.attr("make_builtins")(imports, self.attr("info"));
-  ns["__name__"] = "__pychron_script__";
+  ns["__name__"] = "__nobion_script__";
   for (auto item : context) ns[item.first] = item.second;
   py::dict options;
   for (const auto& [k, v] : env_.context.options) options[py::str(k)] = to_python(v);

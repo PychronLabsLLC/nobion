@@ -12,7 +12,7 @@
 namespace fs = std::filesystem;
 
 TEST(UserFile, AFileWithoutTheAttributeIsFineAndAMissingOneIsNot) {
-  const fs::path dir = fs::temp_directory_path() / "pychron_user_file_test";
+  const fs::path dir = fs::temp_directory_path() / "nobion_user_file_test";
   fs::create_directories(dir);
   const fs::path file = dir / "report.csv";
   std::ofstream(file) << "# a report\n";

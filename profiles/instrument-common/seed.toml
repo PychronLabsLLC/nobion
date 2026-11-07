@@ -1,4 +1,4 @@
-# What pychron setup puts in a new database: the project and samples that
+# What nobion setup puts in a new database: the project and samples that
 # blanks, airs and cocktails are of, and the production ratios of a reactor.
 # Rows already there are left as they are; setup never changes or removes
 # one. After editing this file: elctl entry seed

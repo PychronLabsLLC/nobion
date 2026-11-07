@@ -138,7 +138,7 @@ TEST(TransportFactory, TracedTransportMirrorsToWireLogger) {
   auto hub = LogHub::create(lc, clock, &bus);
   ASSERT_TRUE(hub);
 
-  const auto dir = std::filesystem::temp_directory_path() / "pychron_factory_wire_test";
+  const auto dir = std::filesystem::temp_directory_path() / "nobion_factory_wire_test";
   std::filesystem::create_directories(dir);
   TransportContext ctx;
   ctx.clock = &clock;
@@ -180,7 +180,7 @@ UntracedRun run_untraced(config::LoggingConfig lc) {
   if (!hub) return out;
 
   // Its own directory: two cases use this, and ctest runs them at once.
-  const auto dir = nobion::testing::unique_temp_path("pychron_factory_untraced_");
+  const auto dir = nobion::testing::unique_temp_path("nobion_factory_untraced_");
   std::filesystem::create_directories(dir);
   TransportContext ctx;
   ctx.clock = &clock;

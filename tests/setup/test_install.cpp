@@ -22,7 +22,7 @@ namespace fs = std::filesystem;
 namespace {
 
 struct Tmp {
-  fs::path dir = nobion::testing::unique_temp_path("pychron-setup-");
+  fs::path dir = nobion::testing::unique_temp_path("nobion-setup-");
   Tmp() { fs::create_directories(dir); }
   ~Tmp() { fs::remove_all(dir); }
   void write(const fs::path& rel, const std::string& text) const {
@@ -338,11 +338,11 @@ TEST(Installer, DatabaseUrlsFromTheAnswers) {
   EXPECT_EQ(database_url_for(copy, root, true), "sqlite:" + shared.generic_string());
   Answers server{{"data_source", Value{std::string("server")}}, {"db_user", Value{std::string("ar user")}},
                  {"db_host", Value{std::string("db.lab.edu")}}, {"db_port", Value{std::int64_t{5433}}},
-                 {"db_name", Value{std::string("pychron")}}, {"db_password", Value{std::string("p@ss:/")}}};
-  EXPECT_EQ(database_url_for(server, "/x", false), "postgresql://ar%20user@db.lab.edu:5433/pychron");
-  EXPECT_EQ(database_url_for(server, "/x", true), "postgresql://ar%20user:p%40ss%3A%2F@db.lab.edu:5433/pychron");
+                 {"db_name", Value{std::string("nobion")}}, {"db_password", Value{std::string("p@ss:/")}}};
+  EXPECT_EQ(database_url_for(server, "/x", false), "postgresql://ar%20user@db.lab.edu:5433/nobion");
+  EXPECT_EQ(database_url_for(server, "/x", true), "postgresql://ar%20user:p%40ss%3A%2F@db.lab.edu:5433/nobion");
   server["db_password"] = Value{std::string{}};
-  EXPECT_EQ(database_url_for(server, "/x", true), "postgresql://ar%20user@db.lab.edu:5433/pychron");
+  EXPECT_EQ(database_url_for(server, "/x", true), "postgresql://ar%20user@db.lab.edu:5433/nobion");
 }
 
 TEST(Installer, TheKeptPasswordIsReadFromTheCredentialsFile) {

@@ -42,7 +42,7 @@ class BuildTest : public ReleaseFixture {
  protected:
   void SetUp() override {
     ReleaseFixture::SetUp();
-    out_ = fs::temp_directory_path() / ("pychron_build_" + std::to_string(std::random_device{}()));
+    out_ = fs::temp_directory_path() / ("nobion_build_" + std::to_string(std::random_device{}()));
     fs::create_directories(out_);
     auto source =
         pp::StoreSource::open(ps::StoreConfig{db_->url(), false}, nobion::publish::testing::source_options());

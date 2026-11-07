@@ -35,7 +35,7 @@ TEST(LiveRoundTrip, UploadsBothSamplesOnceAndTakesItsPackageAway) {
   if (HasFatalFailure()) return;
 
   const std::string said = out.str();
-  EXPECT_NE(said.find("made data package 620001 'pychron-test-"), std::string::npos) << said;
+  EXPECT_NE(said.find("made data package 620001 'nobion-test-"), std::string::npos) << said;
   EXPECT_NE(said.find("S-FUS: complete, data point "), std::string::npos) << said;
   EXPECT_NE(said.find("S-STEP: complete, data point "), std::string::npos) << said;
   EXPECT_NE(said.find("a second upload sent nothing new"), std::string::npos) << said;
@@ -91,7 +91,7 @@ TEST(LiveRoundTrip, APackageThatCannotBeRemovedIsAFailureThatNamesIt) {
 
 TEST(LiveRoundTrip, ThePackageIsNamedForTheTimeInUtc) {
   const auto t = std::chrono::system_clock::from_time_t(1949755353);  // 2031-10-14 14:42:33 UTC
-  EXPECT_EQ(test_package_name(t), "pychron-test-20311014-144233");
+  EXPECT_EQ(test_package_name(t), "nobion-test-20311014-144233");
 }
 
 }  // namespace

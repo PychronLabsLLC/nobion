@@ -437,7 +437,7 @@ fit; with no saved fit the defaults are `plane`, unweighted, arithmetic mean,
 | `--no-save-position HOLE` | Do not save that position. |
 | `--reset-omits` | Ignore the omissions and exclusions of the saved fit (all of them: there is no flag to drop one exclusion; `--include` brings one analysis back). |
 | `--csv FILE` | Write every position; with no level, every level in one file. The file is replaced at the end of the run and only when at least one level was fitted: a mistyped irradiation, or a level that cannot be fitted, leaves an earlier file as it was. A destination whose directory cannot be written stops the run before anything is saved. |
-| `--save [--user NAME]` | Save. The author is `--user`, else `$USER`, else `pychron`. |
+| `--save [--user NAME]` | Save. The author is `--user`, else `$USER`, else `nobion`. |
 
 A saved fit that used `sd` on a surface (it cannot be made here, but an
 import can carry one) is refitted with `msem`, and the command says

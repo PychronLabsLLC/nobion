@@ -894,7 +894,7 @@ class TestPreferences : public QObject {
     LineSettings s = line_settings();
     s.logging.default_level = LogLevel::Error;
     s.logging.levels = {{"*.wire", LogLevel::Trace}};
-    s.logging.dir = "/tmp/pychron \"logs\"";
+    s.logging.dir = "/tmp/nobion \"logs\"";
     s.metrics.enabled = true;
     s.metrics.bind = "127.0.0.1";
     QCOMPARE(ui::save_line_settings(main_file_, s), QString());
@@ -902,7 +902,7 @@ class TestPreferences : public QObject {
     QVERIFY2(cfg.has_value(), cfg ? "" : cfg.error().what.c_str());
     QCOMPARE(cfg->logging.default_level, LogLevel::Error);
     QCOMPARE(cfg->logging.levels.size(), std::size_t{1});
-    QCOMPARE(cfg->logging.dir, fs::path("/tmp/pychron \"logs\""));
+    QCOMPARE(cfg->logging.dir, fs::path("/tmp/nobion \"logs\""));
     QCOMPARE(cfg->logging.max_files, std::int64_t{3});
     QVERIFY(cfg->metrics.enabled);
     QCOMPARE(cfg->metrics.bind, std::string("127.0.0.1"));

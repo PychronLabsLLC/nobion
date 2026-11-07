@@ -39,7 +39,7 @@
 // Per-window bars are installed when a window is first shown: every
 // QMainWindow, and any other top-level widget with a layout. Dialogs, popups
 // and the splash do not get one; nor does a window with the
-// "pychron_no_menubar" property. Menus are updated in place: an action that
+// "nobion_no_menubar" property. Menus are updated in place: an action that
 // stays is never taken out and put back.
 //
 // The bar is the same from launch: Experiment's Queue, Rows, Executor and

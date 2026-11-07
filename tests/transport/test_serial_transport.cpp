@@ -31,7 +31,7 @@ TEST(SerialTransport, MissingPortIsIoError) {
 #ifdef _WIN32
   SerialSettings s{"COM250"};
 #else
-  SerialSettings s{"/dev/pychron-no-such-port"};
+  SerialSettings s{"/dev/nobion-no-such-port"};
 #endif
   SerialTransport t(s, opts());
   auto r = t.open();

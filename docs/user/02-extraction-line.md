@@ -203,7 +203,7 @@ truth.
 A manual valve (a handwheel on the line) has no actuator. Clicking it does not
 move anything; it records your report that you opened or closed it, so
 interlocks and the colors know the truth. Click it after you turn the
-wheel. Its state is whatever someone last told Pychron.
+wheel. Its state is whatever someone last told Nobion.
 
 ### Pipettes
 
@@ -453,7 +453,7 @@ panels go back to the installed layout and the log shows
 - `nobion --sim` forces **every** transport to `sim`, whatever the config
   says. An installation set up "for simulation" does this automatically. With
   nothing installed, `--sim` (or `--examples`) opens the example line shipped
-  with Pychron.
+  with Nobion.
 - The splash screen shows a **SIMULATION** badge; the spectrometer, experiment
   and laser windows say `(Simulation)` in their titles. The extraction-line
   window's own title does **not**, so check the health bar chip names or the

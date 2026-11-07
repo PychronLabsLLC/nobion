@@ -1,12 +1,12 @@
 #pragma once
 
-// Script identity, the `#! pychron:` metadata header and the per-run context.
+// Script identity, the `#! nobion:` metadata header and the per-run context.
 //
 // Metadata that pychron kept in a docstring (`eqtime: 20`) moves to header
 // lines anywhere in the script:
 //
-//   #! pychron: eqtime=20, duration=5
-//   #! pychron: label="two words"
+//   #! nobion: eqtime=20, duration=5
+//   #! nobion: label="two words"
 //
 // Pairs are separated by commas and/or whitespace; a value may be quoted.
 // A later key overrides an earlier one.

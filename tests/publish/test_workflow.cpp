@@ -36,7 +36,7 @@ class Workflow : public ReleaseFixture {
  protected:
   void SetUp() override {
     ReleaseFixture::SetUp();
-    out_ = fs::temp_directory_path() / ("pychron_workflow_" + std::to_string(std::random_device{}()));
+    out_ = fs::temp_directory_path() / ("nobion_workflow_" + std::to_string(std::random_device{}()));
     fs::create_directories(out_);
     auto source =
         pp::StoreSource::open(ps::StoreConfig{db_->url(), false}, nobion::publish::testing::source_options());

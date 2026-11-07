@@ -24,10 +24,10 @@ class TestCommandLine : public QObject {
   }
 
   void dbTakesAUrl() {
-    auto cli = parse_command_line({QStringLiteral("--db"), QStringLiteral("postgresql://me@db/pychron"),
+    auto cli = parse_command_line({QStringLiteral("--db"), QStringLiteral("postgresql://me@db/nobion"),
                                    QStringLiteral("--sim")});
     QVERIFY(cli.has_value());
-    QCOMPARE(QString::fromStdString(cli->db.value_or("")), QStringLiteral("postgresql://me@db/pychron"));
+    QCOMPARE(QString::fromStdString(cli->db.value_or("")), QStringLiteral("postgresql://me@db/nobion"));
     QVERIFY(cli->sim);
     QVERIFY(!parse_command_line({}).value().db.has_value());
     auto bare = parse_command_line({QStringLiteral("--db"), QStringLiteral("--sim")});

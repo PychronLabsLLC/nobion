@@ -49,7 +49,7 @@ void EntryBridge::loop(Options options, std::function<void(Result<ps::Actor>)> o
     return;
   }
   const std::string host = !options.host.empty() ? options.host : host_name();
-  const std::string user = !options.user.empty() ? options.user : env_var("USER").value_or("pychron");
+  const std::string user = !options.user.empty() ? options.user : env_var("USER").value_or("nobion");
   auto client = (*store)->register_client({host, options.role, std::nullopt, options.software});
   if (!client) {
     opened(fail(client.error()));

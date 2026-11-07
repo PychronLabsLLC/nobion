@@ -350,7 +350,7 @@ Result<void> check_server(const ServerInfo& server) {
   if (server.protocol > kProtocolVersion) {
     return protocol_error("RemoteControlServer speaks protocol " + std::to_string(server.protocol) +
                           ", newer than the " + std::to_string(kProtocolVersion) +
-                          " this driver knows: update pychron");
+                          " this driver knows: update nobion");
   }
   if (server.protocol < kProtocolVersion) {
     return protocol_error("RemoteControlServer speaks protocol " + std::to_string(server.protocol) +

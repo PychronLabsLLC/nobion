@@ -408,7 +408,7 @@ TEST(Report, JsonCarriesEveryTableAndEscapes) {
 }
 
 TEST(Report, SaveWritesCsvOrJsonByExtension) {
-  const auto dir = std::filesystem::temp_directory_path() / "pychron_report_test";
+  const auto dir = std::filesystem::temp_directory_path() / "nobion_report_test";
   std::filesystem::create_directories(dir);
   const auto rep = pp::make_report(steps(2));
   const auto csv = dir / "report.csv";

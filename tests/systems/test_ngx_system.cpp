@@ -52,7 +52,7 @@ TEST(NgxExampleConfig, LoadsAndValidates) {
 // transport is a link to it.
 TEST(NgxExampleConfig, ALinkTransportLoads) {
   namespace fs = std::filesystem;
-  const fs::path dir = fs::temp_directory_path() / ("pychron-ngx-link-" + std::to_string(::testing::UnitTest::GetInstance()->random_seed()));
+  const fs::path dir = fs::temp_directory_path() / ("nobion-ngx-link-" + std::to_string(::testing::UnitTest::GetInstance()->random_seed()));
   fs::remove_all(dir);
   fs::create_directories(dir / "tables");
   fs::copy(kNgx.parent_path() / "tables" / "ngx_argon", dir / "tables" / "ngx_argon", fs::copy_options::recursive);

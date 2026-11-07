@@ -103,7 +103,7 @@ Result<void> ExtractionLine::build() {
     if (auto hub = LogHub::create(config_.logging, *clock_, &bus_)) {
       log_hub_ = std::move(*hub);
     } else {
-      std::fprintf(stderr, "pychron: logging disabled: %s\n", hub.error().what.c_str());
+      std::fprintf(stderr, "nobion: logging disabled: %s\n", hub.error().what.c_str());
     }
   }
   if (log_hub_) {

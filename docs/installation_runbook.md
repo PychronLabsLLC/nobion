@@ -229,7 +229,7 @@ With the lab's PostgreSQL server:
 ```bash
 elctl init data-reduction --root ~/Documents/Nobion \
   --set data_source=server --set db_host=labdb.example.org --set db_port=5432 \
-  --set db_name=pychron --set db_user=pychron
+  --set db_name=nobion --set db_user=nobion
 ```
 
 Setup asks for the password and keeps it in
@@ -535,7 +535,7 @@ DB=sqlite:$HOME/Documents/Nobion/data/nobion.db
 CACHE=$HOME/Documents/Nobion/import-cache
 ```
 
-For a server use `DB=postgresql://pychron@labdb.example.org/pychron`, with the
+For a server use `DB=postgresql://nobion@labdb.example.org/nobion`, with the
 password supplied by a PostgreSQL password file rather than in the url. The
 first `add` creates the schema.
 

@@ -260,7 +260,7 @@ int import_command(const std::vector<std::string>& args, const nobion::processin
       if (!fs::is_regular_file(file, code)) return fatal(io, "no database at " + db->substr(kSqlite.size()));
       // SQLite would take an empty file for a new database and write to it.
       if (fs::file_size(file, code) == 0 && !code)
-        return fatal(io, db->substr(kSqlite.size()) + " is empty: not a pychron store");
+        return fatal(io, db->substr(kSqlite.size()) + " is empty: not a nobion store");
     }
     auto store = P::open_store(P::StoreConfig{*db, creates});
     if (!store) return fatal(io, store.error());

@@ -18,7 +18,7 @@ namespace nobion::earthbank::testing {
 // (support/temp_path.hpp), so two build trees running at once do not meet.
 class TempDir {
  public:
-  TempDir() : path_(nobion::testing::unique_temp_path("pychron_upload_")) {
+  TempDir() : path_(nobion::testing::unique_temp_path("nobion_upload_")) {
     std::filesystem::create_directories(path_);
   }
   ~TempDir() {

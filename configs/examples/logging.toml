@@ -1,4 +1,4 @@
-# Logging for every pychron program that reads this install folder
+# Logging for every nobion program that reads this install folder
 # (nobion, elctl). Optional: every key below shows its default.
 # logging.local.toml beside this file overrides it for this computer only.
 # Levels: trace|debug|info|warn|error.

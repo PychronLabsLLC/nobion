@@ -92,7 +92,7 @@ class NgxServer {
 };
 
 struct Tmp {
-  fs::path dir = nobion::testing::unique_temp_path("pychron-conn-");
+  fs::path dir = nobion::testing::unique_temp_path("nobion-conn-");
   Tmp() { fs::create_directories(dir); }
   ~Tmp() { fs::remove_all(dir); }
 };

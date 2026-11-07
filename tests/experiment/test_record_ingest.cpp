@@ -464,7 +464,7 @@ TEST(RecordIngest, ASimulatedRecordIsStoredAsSimulated) {
 // spool is read back and sent, by whatever session comes next, as simulated.
 TEST(RecordIngest, ASpooledSimulatedRecordIsStillSimulatedWhenSentLater) {
   namespace fs = std::filesystem;
-  const fs::path dir = fs::temp_directory_path() / ("pychron_spooled_sim_" + std::string(kSampleUuid));
+  const fs::path dir = fs::temp_directory_path() / ("nobion_spooled_sim_" + std::string(kSampleUuid));
   fs::remove_all(dir);
   auto b = sample_builder();
   auto meta = b.draft().instrument;

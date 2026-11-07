@@ -329,7 +329,7 @@ TEST(MakeFrameSource, SimAndRecorded) {
 
   // a recorded case: two frames written the way fixtures are
   std::random_device rd;
-  const auto lab = fs::temp_directory_path() / ("pychron_cam_" + std::to_string(rd()) + std::to_string(rd()));
+  const auto lab = fs::temp_directory_path() / ("nobion_cam_" + std::to_string(rd()) + std::to_string(rd()));
   const auto dir = lab / "recordings" / "holes";
   fs::create_directories(dir);
   {

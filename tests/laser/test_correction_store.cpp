@@ -33,7 +33,7 @@ class CorrectionStoreTest : public ::testing::Test {
  protected:
   void SetUp() override {
     std::random_device rd;
-    dir_ = fs::temp_directory_path() / ("pychron_corr_" + std::to_string(rd()) + std::to_string(rd()));
+    dir_ = fs::temp_directory_path() / ("nobion_corr_" + std::to_string(rd()) + std::to_string(rd()));
     fs::create_directories(dir_);
   }
   void TearDown() override { fs::remove_all(dir_); }

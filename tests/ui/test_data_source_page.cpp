@@ -216,11 +216,11 @@ class TestDataSourcePage : public QObject {
   void aSessionDatabaseIsNoted() {
     const Lab lab;
     auto deps = lab.deps();
-    deps.session_database = "postgresql://ar:s3cret@db.lab:5432/pychron";
+    deps.session_database = "postgresql://ar:s3cret@db.lab:5432/nobion";
     DataSourcePage page(std::move(deps));
     const QString note = page.note()->text();
     QVERIFY2(note.contains(QStringLiteral("--db")), qPrintable(note));
-    QVERIFY2(note.contains(QStringLiteral("postgresql://ar@db.lab:5432/pychron")), qPrintable(note));
+    QVERIFY2(note.contains(QStringLiteral("postgresql://ar@db.lab:5432/nobion")), qPrintable(note));
     QVERIFY2(!note.contains(QStringLiteral("s3cret")), qPrintable(note));
     QVERIFY(page.editor(QStringLiteral("data_folder"))->isEnabled());  // editing still allowed
   }

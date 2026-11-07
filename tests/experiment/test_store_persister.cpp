@@ -38,7 +38,7 @@ ps::AnalysisQuery by_identifier(std::string identifier) {
 }
 
 fs::path scratch_dir() {
-  auto dir = fs::temp_directory_path() / ("pychron_persister_" + pt::TestDatabase::unique_tag());
+  auto dir = fs::temp_directory_path() / ("nobion_persister_" + pt::TestDatabase::unique_tag());
   fs::create_directories(dir);
   return dir;
 }
@@ -643,7 +643,7 @@ TEST(OpenAcquisition, RefusesASchemaThatIsBehind) {
 TEST(OpenAcquisition, AFailureToOpenIsReturned) {
   const fs::path data = scratch_dir();
   const auto begin = std::chrono::steady_clock::now();
-  auto acquisition = store::open_acquisition("sqlite:/nonexistent-dir-for-pychron/none.db", data, "test");
+  auto acquisition = store::open_acquisition("sqlite:/nonexistent-dir-for-nobion/none.db", data, "test");
   EXPECT_FALSE(acquisition.has_value());
   EXPECT_LT(std::chrono::steady_clock::now() - begin, std::chrono::seconds(10));
   std::error_code ignored;
@@ -676,14 +676,14 @@ TEST(SavesSimulatedRuns, OnlyToAnInstallsOwnLocalDatabaseUnlessAsked) {
   EXPECT_TRUE(saves_simulated_runs("sqlite:/lab/data/nobion.db", false, false));
   EXPECT_TRUE(saves_simulated_runs("sqlite::memory:", false, false));
   // The install's own, on a server: shared.
-  EXPECT_FALSE(saves_simulated_runs("postgresql://jross:pw@db.lab/pychron", false, false));
-  EXPECT_FALSE(saves_simulated_runs("postgres://db.lab/pychron", false, false));
+  EXPECT_FALSE(saves_simulated_runs("postgresql://jross:pw@db.lab/nobion", false, false));
+  EXPECT_FALSE(saves_simulated_runs("postgres://db.lab/nobion", false, false));
   // Given with --db: somebody else's until said otherwise, file or not.
   EXPECT_FALSE(saves_simulated_runs("sqlite:/lab/data/nobion.db", true, false));
-  EXPECT_FALSE(saves_simulated_runs("postgresql://db.lab/pychron", true, false));
+  EXPECT_FALSE(saves_simulated_runs("postgresql://db.lab/nobion", true, false));
   // --sim-save.
-  EXPECT_TRUE(saves_simulated_runs("postgresql://db.lab/pychron", false, true));
-  EXPECT_TRUE(saves_simulated_runs("postgresql://db.lab/pychron", true, true));
+  EXPECT_TRUE(saves_simulated_runs("postgresql://db.lab/nobion", false, true));
+  EXPECT_TRUE(saves_simulated_runs("postgresql://db.lab/nobion", true, true));
   EXPECT_TRUE(saves_simulated_runs("sqlite:/elsewhere.db", true, true));
   // Not a url this program writes to.
   EXPECT_FALSE(saves_simulated_runs("", false, false));
@@ -691,11 +691,11 @@ TEST(SavesSimulatedRuns, OnlyToAnInstallsOwnLocalDatabaseUnlessAsked) {
 }
 
 TEST(WithoutPassword, HidesOnlyThePassword) {
-  EXPECT_EQ(store::without_password("postgresql://jross:s3cret@db.lab:5432/pychron?sslmode=require"),
-            "postgresql://jross@db.lab:5432/pychron?sslmode=require");
-  EXPECT_EQ(store::without_password("postgresql://jross@db.lab/pychron"), "postgresql://jross@db.lab/pychron");
-  EXPECT_EQ(store::without_password("postgresql://db.lab/pychron"), "postgresql://db.lab/pychron");
-  EXPECT_EQ(store::without_password("postgres://jross:s3cret@db.lab/pychron"), "postgres://jross@db.lab/pychron");
+  EXPECT_EQ(store::without_password("postgresql://jross:s3cret@db.lab:5432/nobion?sslmode=require"),
+            "postgresql://jross@db.lab:5432/nobion?sslmode=require");
+  EXPECT_EQ(store::without_password("postgresql://jross@db.lab/nobion"), "postgresql://jross@db.lab/nobion");
+  EXPECT_EQ(store::without_password("postgresql://db.lab/nobion"), "postgresql://db.lab/nobion");
+  EXPECT_EQ(store::without_password("postgres://jross:s3cret@db.lab/nobion"), "postgres://jross@db.lab/nobion");
   EXPECT_EQ(store::without_password("sqlite:/data/a:b@c.db"), "sqlite:/data/a:b@c.db");
   EXPECT_EQ(store::without_password("sqlite::memory:"), "sqlite::memory:");
 }
@@ -703,29 +703,29 @@ TEST(WithoutPassword, HidesOnlyThePassword) {
 // A password may hold what ends a url's parts, written as it is or
 // percent-encoded: none of it is shown.
 TEST(WithoutPassword, HidesAPasswordThatHoldsUrlPunctuation) {
-  const std::string shown = "postgresql://jross@db.lab:5432/pychron";
+  const std::string shown = "postgresql://jross@db.lab:5432/nobion";
   for (const char* password : {"a/b", "a@b", "a:b", "a%2Fb", "a%40b", "a%3Ab", "p@ss/w:rd@x", "/", "@", ":", "a?b", "a#b"}) {
-    const std::string url = std::string("postgresql://jross:") + password + "@db.lab:5432/pychron";
+    const std::string url = std::string("postgresql://jross:") + password + "@db.lab:5432/nobion";
     EXPECT_EQ(store::without_password(url), shown) << password;
   }
   // An empty password, and an empty user.
-  EXPECT_EQ(store::without_password("postgresql://jross:@db.lab:5432/pychron"), shown);
-  EXPECT_EQ(store::without_password("postgresql://:s3cret@db.lab/pychron"), "postgresql://db.lab/pychron");
+  EXPECT_EQ(store::without_password("postgresql://jross:@db.lab:5432/nobion"), shown);
+  EXPECT_EQ(store::without_password("postgresql://:s3cret@db.lab/nobion"), "postgresql://db.lab/nobion");
 }
 
 // libpq also takes the password as a parameter.
 TEST(WithoutPassword, RemovesAPasswordParameter) {
-  EXPECT_EQ(store::without_password("postgresql://jross@db.lab/pychron?password=s3cret"),
-            "postgresql://jross@db.lab/pychron");
-  EXPECT_EQ(store::without_password("postgresql://jross@db.lab/pychron?sslmode=require&password=s3%26cret&connect_timeout=5"),
-            "postgresql://jross@db.lab/pychron?sslmode=require&connect_timeout=5");
-  EXPECT_EQ(store::without_password("postgresql://jross:one@db.lab/pychron?password=two&sslmode=require"),
-            "postgresql://jross@db.lab/pychron?sslmode=require");
-  EXPECT_EQ(store::without_password("postgresql://db.lab/pychron?PASSWORD=s3cret&sslpassword=k3y"),
-            "postgresql://db.lab/pychron");
+  EXPECT_EQ(store::without_password("postgresql://jross@db.lab/nobion?password=s3cret"),
+            "postgresql://jross@db.lab/nobion");
+  EXPECT_EQ(store::without_password("postgresql://jross@db.lab/nobion?sslmode=require&password=s3%26cret&connect_timeout=5"),
+            "postgresql://jross@db.lab/nobion?sslmode=require&connect_timeout=5");
+  EXPECT_EQ(store::without_password("postgresql://jross:one@db.lab/nobion?password=two&sslmode=require"),
+            "postgresql://jross@db.lab/nobion?sslmode=require");
+  EXPECT_EQ(store::without_password("postgresql://db.lab/nobion?PASSWORD=s3cret&sslpassword=k3y"),
+            "postgresql://db.lab/nobion");
   // Not a password: a parameter that only ends in the word is kept only if it is not one libpq reads as a secret.
-  EXPECT_EQ(store::without_password("postgresql://db.lab/pychron?application_name=password"),
-            "postgresql://db.lab/pychron?application_name=password");
+  EXPECT_EQ(store::without_password("postgresql://db.lab/nobion?application_name=password"),
+            "postgresql://db.lab/nobion?application_name=password");
 }
 
 // What it does not understand it does not show.
@@ -738,9 +738,9 @@ TEST(WithoutPassword, ShowsNothingOfAUrlItCannotRead) {
 
 // An error text that quotes the url, or the password, is shown without it.
 TEST(WithoutPassword, IsTakenOutOfATextThatQuotesTheUrl) {
-  const std::string url = "postgresql://jross:s3%20cret@db.lab:5432/pychron";
+  const std::string url = "postgresql://jross:s3%20cret@db.lab:5432/nobion";
   EXPECT_EQ(store::without_password_in("cannot connect to " + url + ": timeout", url),
-            "cannot connect to postgresql://jross@db.lab:5432/pychron: timeout");
+            "cannot connect to postgresql://jross@db.lab:5432/nobion: timeout");
   EXPECT_EQ(store::without_password_in("FATAL: password \"s3 cret\" rejected (s3%20cret)", url),
             "FATAL: password \"***\" rejected (***)");
   EXPECT_EQ(store::without_password_in("the database is locked", url), "the database is locked");

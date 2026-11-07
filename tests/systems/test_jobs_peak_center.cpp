@@ -210,7 +210,7 @@ class PeakCenterRun : public ::testing::Test {
     return c;
   }
 
-  std::filesystem::path root_ = nobion::testing::unique_temp_path("pychron_peak_center_");
+  std::filesystem::path root_ = nobion::testing::unique_temp_path("nobion_peak_center_");
   JobRig rig_{root_};
   JobRig other_{root_ / "other"};  // a second, identical spectrometer
   Progress progress_;

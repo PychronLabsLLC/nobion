@@ -113,8 +113,8 @@ TEST(Records, SampleRecordCarriesIgsnAsExternalId) {
   EXPECT_EQ(p.at("license"), "CC-BY-4.0");
   EXPECT_EQ(p.at("externalIds")[0].at("scheme"), "igsn");
   EXPECT_EQ(p.at("externalIds")[0].at("value"), "IEFC20001");
-  EXPECT_EQ(p.at("pychron:sample_uuid"), in.samples[1].uuid.str());
-  EXPECT_EQ(p.at("pychron:n_analyses"), 3);
+  EXPECT_EQ(p.at("nobion:sample_uuid"), in.samples[1].uuid.str());
+  EXPECT_EQ(p.at("nobion:n_analyses"), 3);
   EXPECT_EQ(p.at("contacts")[0].at("name"), "J Ross");
   ASSERT_EQ(links(j, "collection").size(), 1u);
   EXPECT_EQ(links(j, "collection")[0].at("href"), "../catalog.json");
@@ -143,8 +143,8 @@ TEST(Records, ReleaseRecordLinksEveryEnclosure) {
   EXPECT_EQ(j.at("properties").at("contacts")[0].at("name"), "J. Ross");
   EXPECT_EQ(links(j, "enclosure").size(), m.files.size()) << "every file of the manifest";
   EXPECT_EQ(links(j, "enclosure")[0].at("href"), "../data/samples.parquet");
-  EXPECT_EQ(j.at("properties").at("pychron:n_samples"), 2);
-  EXPECT_EQ(j.at("properties").at("pychron:n_analyses"), 4);
+  EXPECT_EQ(j.at("properties").at("nobion:n_samples"), 2);
+  EXPECT_EQ(j.at("properties").at("nobion:n_analyses"), 4);
 }
 
 TEST(Records, SampleWithFiguresListsSvgAndPdfFormats) {

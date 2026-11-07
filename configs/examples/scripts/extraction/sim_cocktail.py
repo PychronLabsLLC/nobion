@@ -1,4 +1,4 @@
-#! pychron: eqtime=20
+#! nobion: eqtime=20
 # A cocktail shot for the simulated lab: one pipette of the cocktail tank's
 # gas (sim.toml's built-in `cocktail`: Ar36 to Ar40 with Ar39 twenty times
 # Ar36, as an irradiated standard gives), let into the prep section and left

@@ -125,7 +125,7 @@ Result<void> save_site(const SiteConfig& site, const fs::path& path) {
   const fs::path tmp = path.string() + ".tmp";
   {
     std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-    out << "# pychron installs on this computer (written by setup; safe to edit)\n" << t << "\n";
+    out << "# nobion installs on this computer (written by setup; safe to edit)\n" << t << "\n";
     if (!out) return fail(ErrorKind::Io, "cannot write " + tmp.string());
   }
   fs::rename(tmp, path, ec);

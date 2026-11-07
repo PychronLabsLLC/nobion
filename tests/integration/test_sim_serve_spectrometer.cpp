@@ -45,7 +45,7 @@ std::string read_text(const fs::path& p) {
 class SimServeSpectrometerSteady : public ::testing::Test {
  protected:
   void SetUp() override {
-    dir_ = nobion::testing::unique_temp_path("pychron_sim_serve_spec_");
+    dir_ = nobion::testing::unique_temp_path("nobion_sim_serve_spec_");
     fs::create_directories(dir_);
     fs::copy(kExamples / "tables", dir_ / "tables", fs::copy_options::recursive);
   }

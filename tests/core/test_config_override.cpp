@@ -86,7 +86,7 @@ TEST(ConfigOverride, OverridePathIsSibling) {
 }
 
 TEST(ConfigOverride, FileLoaderPicksUpLocalOverride) {
-  const auto dir = std::filesystem::temp_directory_path() / "pychron_core_override_test";
+  const auto dir = std::filesystem::temp_directory_path() / "nobion_core_override_test";
   std::filesystem::remove_all(dir);
   std::filesystem::create_directories(dir);
   const auto main = dir / "extraction_line.toml";
@@ -113,7 +113,7 @@ namespace {
 constexpr std::string_view kMainWithLogging = R"toml([system]
 name = "jan"
 [logging]
-dir = "/var/log/pychron"
+dir = "/var/log/nobion"
 max_files = 3
 default_level = "warn"
 dock_level = "warn"
@@ -153,7 +153,7 @@ TEST(ConfigOverride, LocalLoggingKeysWinAndTheRestStay) {
   EXPECT_EQ(r.config->logging.default_level, LogLevel::Trace);
   EXPECT_EQ(r.config->logging.max_size_mb, 50);
   EXPECT_EQ(r.config->logging.max_files, 3);  // the shared file's
-  EXPECT_EQ(r.config->logging.dir, std::filesystem::path("/var/log/pychron"));
+  EXPECT_EQ(r.config->logging.dir, std::filesystem::path("/var/log/nobion"));
   EXPECT_EQ(r.config->logging.levels.size(), 2u);
 }
 

@@ -182,7 +182,7 @@ TEST_F(ElctlSetupTest, ADatabaseServerThatCannotBeReachedSkipsTheSeed) {
   EXPECT_FALSE(contains(o.err, "entry seed")) << o.err;
   EXPECT_FALSE(contains(o.err, "s3cret-Zq9")) << "the password is not printed";
   EXPECT_FALSE(contains(o.out, "s3cret-Zq9")) << "the password is not printed";
-  EXPECT_EQ(site().find("argus")->database, "postgresql://pychron@127.0.0.1:1/pychron");
+  EXPECT_EQ(site().find("argus")->database, "postgresql://nobion@127.0.0.1:1/nobion");
 }
 
 TEST_F(ElctlSetupTest, ADataReductionInstallIsNotSeeded) {
@@ -408,10 +408,10 @@ TEST_F(ElctlSetupTest, SetServerUnreachableIsRefused) {
   const auto root = path("dr-unreachable");
   ASSERT_EQ(run_raw({"init", "data-reduction", "--root", root.string(), "--yes"}).code, 0);
   const std::string before = bytes_of(path("site.toml"));
-  auto o = run_raw({"data-source", "set", "--server", "127.0.0.1:1/pychron", "--user", "u", "--password-stdin", "--yes"},
+  auto o = run_raw({"data-source", "set", "--server", "127.0.0.1:1/nobion", "--user", "u", "--password-stdin", "--yes"},
                    "pw\n");
   EXPECT_EQ(o.code, 1) << o.out << o.err;
-  EXPECT_TRUE(contains(o.err, "postgresql://u@127.0.0.1:1/pychron")) << o.err;
+  EXPECT_TRUE(contains(o.err, "postgresql://u@127.0.0.1:1/nobion")) << o.err;
   EXPECT_FALSE(contains(o.out + o.err, "pw@")) << "the password is never said: " << o.out << o.err;
   EXPECT_EQ(bytes_of(path("site.toml")), before);
   EXPECT_FALSE(fs::exists(root / ".nobion" / "credentials.toml"));
@@ -421,12 +421,12 @@ TEST_F(ElctlSetupTest, SetServerUnreachableIsRefused) {
 TEST_F(ElctlSetupTest, SetServerWithNoCheckIsWritten) {
   const auto root = path("dr-nocheck");
   ASSERT_EQ(run_raw({"init", "data-reduction", "--root", root.string(), "--yes"}).code, 0);
-  auto o = run_raw({"data-source", "set", "--server", "127.0.0.1:1/pychron", "--user", "u", "--password-stdin",
+  auto o = run_raw({"data-source", "set", "--server", "127.0.0.1:1/nobion", "--user", "u", "--password-stdin",
                     "--no-check", "--yes"},
                    "pw\r\n");
   ASSERT_EQ(o.code, 0) << o.out << o.err;
   EXPECT_TRUE(contains(o.out, "skip  check: --no-check")) << o.out;
-  EXPECT_EQ(site().find("data-reduction")->database, "postgresql://u@127.0.0.1:1/pychron");
+  EXPECT_EQ(site().find("data-reduction")->database, "postgresql://u@127.0.0.1:1/nobion");
   const std::string credentials = bytes_of(root / ".nobion" / "credentials.toml");
   EXPECT_TRUE(contains(credentials, "password = \"pw\"")) << credentials;
   EXPECT_FALSE(contains(bytes_of(path("site.toml")), "pw\""));
@@ -437,7 +437,7 @@ TEST_F(ElctlSetupTest, SetServerWithNoCheckIsWritten) {
 TEST_F(ElctlSetupTest, SetServerWithoutPasswordStdinKeepsThePassword) {
   const auto root = path("dr-keep");
   ASSERT_EQ(run_raw({"init", "data-reduction", "--root", root.string(), "--yes"}).code, 0);
-  ASSERT_EQ(run_raw({"data-source", "set", "--server", "127.0.0.1:1/pychron", "--user", "u", "--password-stdin",
+  ASSERT_EQ(run_raw({"data-source", "set", "--server", "127.0.0.1:1/nobion", "--user", "u", "--password-stdin",
                      "--no-check", "--yes"},
                     "pw\n")
                 .code,
@@ -458,7 +458,7 @@ TEST_F(ElctlSetupTest, SetServerWithoutPasswordStdinKeepsThePassword) {
 TEST_F(ElctlSetupTest, AnEmptyPasswordOnStandardInputIsRefused) {
   const auto root = path("dr-empty-pw");
   ASSERT_EQ(run_raw({"init", "data-reduction", "--root", root.string(), "--yes"}).code, 0);
-  ASSERT_EQ(run_raw({"data-source", "set", "--server", "127.0.0.1:1/pychron", "--user", "u", "--password-stdin",
+  ASSERT_EQ(run_raw({"data-source", "set", "--server", "127.0.0.1:1/nobion", "--user", "u", "--password-stdin",
                      "--no-check", "--yes"},
                     "pw\n")
                 .code,
@@ -482,7 +482,7 @@ TEST_F(ElctlSetupTest, AnEmptyPasswordOnStandardInputIsRefused) {
 TEST_F(ElctlSetupTest, PasswordStdinNeedsYes) {
   ASSERT_EQ(run_raw({"init", "data-reduction", "--root", path("dr-pw-yes").string(), "--yes"}).code, 0);
   const std::string site_before = bytes_of(path("site.toml"));
-  auto o = run_raw({"data-source", "set", "--server", "127.0.0.1:1/pychron", "--user", "u", "--password-stdin",
+  auto o = run_raw({"data-source", "set", "--server", "127.0.0.1:1/nobion", "--user", "u", "--password-stdin",
                     "--no-check"},
                    "pw\ny\n");
   EXPECT_EQ(o.code, 2) << o.out << o.err;

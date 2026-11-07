@@ -144,7 +144,7 @@ class LabSessionTest : public nobion::testing::VirtualTimeTest {
   }
 
   void SetUp() override {
-    dir_ = nobion::testing::unique_temp_path("pychron-session-");
+    dir_ = nobion::testing::unique_temp_path("nobion-session-");
     nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_);
     prepare_lab();
 
@@ -1662,7 +1662,7 @@ TEST_F(LabSessionTest, TheQueueEndIsNotified) {
   EXPECT_TRUE(sent[0].ok) << sent[0].error;
   EXPECT_EQ(sent[0].channel, "log");
   ASSERT_EQ(inputs.size(), 1u);
-  EXPECT_EQ(inputs[0].rfind("pychron: queue q-notify " + std::string(executor::to_string(result->end)), 0), 0u)
+  EXPECT_EQ(inputs[0].rfind("nobion: queue q-notify " + std::string(executor::to_string(result->end)), 0), 0u)
       << inputs[0];
 }
 

@@ -14,7 +14,7 @@ services:
     build:
       context: ../..
       dockerfile: packaging/sim/Dockerfile
-    image: pychron-sim
+    image: nobion-sim
     user: "${SIM_UID:-1000}:${SIM_GID:-1000}"
     environment:
       SIM_ADVERTISE: "${SIM_ADVERTISE:-127.0.0.1}"

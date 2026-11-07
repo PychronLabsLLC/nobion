@@ -131,7 +131,7 @@ class KeychainSecretStore final : public ISecretStore {
   // that returns nothing of them. It unlocks nothing and asks the user
   // nothing.
   bool usable() const {
-    const auto query = item("pychron.probe");
+    const auto query = item("nobion.probe");
     if (!query) return false;
     const OSStatus status = SecItemCopyMatching(query.get(), nullptr);
     return status == errSecSuccess || status == errSecItemNotFound;

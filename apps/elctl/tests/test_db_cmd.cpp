@@ -45,7 +45,7 @@ class DbCmd : public elctl::testing::ElctlTest {
     ASSERT_TRUE(store) << to_string(store.error());
   }
 
-  // The store as an older pychron left it: without the last migration.
+  // The store as an older nobion left it: without the last migration.
   void take_back_the_last_migration() {
     {
       QSqlDatabase d = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("db-cmd-test"));
@@ -162,7 +162,7 @@ TEST_F(DbCmd, AnEmptyFileIsNotAStore) {
   { std::ofstream make(empty); }
   const Outcome o = run_raw({"db", "migrate", "--db", "sqlite:" + empty.string()});
   EXPECT_EQ(o.code, elctl::kUsage);
-  EXPECT_TRUE(contains(o.err, "not a pychron store")) << o.err;
+  EXPECT_TRUE(contains(o.err, "not a nobion store")) << o.err;
   EXPECT_EQ(fs::file_size(empty), 0u);
 }
 

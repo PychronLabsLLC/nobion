@@ -73,7 +73,7 @@ CoreBridge::CoreBridge(systems::ExtractionLine& line, QObject* parent)
     state_.units[g.name] = units_name(g.units);
   }
 
-  executor_.setObjectName(QStringLiteral("pychron-command-executor"));
+  executor_.setObjectName(QStringLiteral("nobion-command-executor"));
   worker_ = new QObject;
   worker_->moveToThread(&executor_);
   connect(&executor_, &QThread::finished, worker_, &QObject::deleteLater);

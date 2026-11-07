@@ -150,7 +150,7 @@ See [legacy import](../legacy_import.md), [export](../export.md) and the
 
 | You see | Do |
 |---|---|
-| `no database at <path>` / `<path> is empty: not a pychron store` | Run `import add` first or point at the right store. |
+| `no database at <path>` / `<path> is empty: not a nobion store` | Run `import add` first or point at the right store. |
 | `--source: the url carries a password or a token` | Pass credentials the supported way ([legacy import §4](../legacy_import.md#4-credentials)). |
 | `--tz: no time zone 'X'` | Install `tzdata` or use a valid IANA name. |
 | `already registered with other settings` | Source exists with different options; use the same ones. |

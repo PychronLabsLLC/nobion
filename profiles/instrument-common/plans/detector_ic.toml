@@ -1,4 +1,4 @@
-# Detector intercalibration for {{ instrument }} (written by pychron setup).
+# Detector intercalibration for {{ instrument }} (written by nobion setup).
 # {{ reference_isotope }} is hopped onto each Faraday that collects an isotope,
 # cycle after cycle, so every detector sees the same gas as it decays; the
 # ratios of the intercepts are the intercalibration factors.

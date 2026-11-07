@@ -245,7 +245,7 @@ Inner loop (keep waits short):
   figure, template, sheet) goes through `nobion::mark_as_user_file`
   (`libs/core` `user_file.hpp`) after it is written: downloaded, unsigned
   macOS application quarantines what it writes, and Gatekeeper then refuses
-  the file. Files pychron reads back itself (configs, stores) do not.
+  the file. Files nobion reads back itself (configs, stores) do not.
 - Ubuntu 24.04's cmake 3.28 too old for this tree (`pip install cmake`).
 
 Compilers disagree about undefined behaviour: test that passes under clang can

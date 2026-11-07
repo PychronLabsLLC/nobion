@@ -466,9 +466,9 @@ TEST_F(StoreSourceTest, ARefreshWhileOtherThreadsReadIsSafe) {
 TEST_F(StoreSourceTest, OpenFailsForABadUrlAndHidesPasswords) {
   EXPECT_FALSE(StoreSource::open(ps::StoreConfig{"mysql://nope", false}));
   EXPECT_EQ(source().name(), "store:" + url_);
-  EXPECT_EQ(redact_password("postgresql://me:s3cret@db:5432/pychron?sslmode=require"),
-            "postgresql://me:***@db:5432/pychron?sslmode=require");
-  EXPECT_EQ(redact_password("postgresql://me@db/pychron"), "postgresql://me@db/pychron");
+  EXPECT_EQ(redact_password("postgresql://me:s3cret@db:5432/nobion?sslmode=require"),
+            "postgresql://me:***@db:5432/nobion?sslmode=require");
+  EXPECT_EQ(redact_password("postgresql://me@db/nobion"), "postgresql://me@db/nobion");
   EXPECT_EQ(redact_password("postgresql://db:5432/x@y"), "postgresql://db:5432/x@y");
 }
 

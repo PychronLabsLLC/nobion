@@ -479,7 +479,7 @@ again when a queue starts, so a plan sees a saved set at its next start, not
 partway through a queue. The experiment window checks a queue against the file
 as it is now: a row whose plan names a set you have just saved is good once the
 queue is checked again (**Revalidate**, or any edit), without restarting
-pychron. If the file cannot be read (a syntax error, an unknown key, an invalid
+nobion. If the file cannot be read (a syntax error, an unknown key, an invalid
 value), the check shows a message naming the file and the queue start is
 refused with it.
 

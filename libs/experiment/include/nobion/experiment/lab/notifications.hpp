@@ -10,9 +10,9 @@
 //
 //   [[email]]
 //   url = "smtps://smtp.example.org:465"   # smtp:// upgrades with STARTTLS unless tls = false
-//   from = "pychron@example.org"
+//   from = "nobion@example.org"
 //   to = ["manager@example.org"]
-//   username = "pychron@example.org"       # optional
+//   username = "nobion@example.org"       # optional
 //   password_env = "NOBION_SMTP_PASSWORD" # the password is read from this variable, never the file
 //   queue_user = true                      # also the queue's email (default true)
 //   on = ["run_failed", "queue_ended"]     # default: every event (run_failed, queue_ended,
@@ -21,7 +21,7 @@
 //   [[email]]
 //   provider = "brevo"                     # a mail service: brevo, resend or postmark, over HTTPS
 //   api_key_env = "NOBION_MAIL_API_KEY"   # its key; url, username, password_env and tls are not used
-//   from = "pychron@example.org"           # to, queue_user and on as above
+//   from = "nobion@example.org"           # to, queue_user and on as above
 //
 //   [[webhook]]
 //   url = "https://hooks.slack.com/services/..."

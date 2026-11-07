@@ -340,7 +340,7 @@ TEST(Scheduler, ScanErrorGoesThroughHubToFileAndBusOnce) {
   SignalBus bus;
   std::vector<Log> logs;
   auto sub = bus.subscribe<Log>([&](const Log& e) { logs.push_back(e); });
-  const auto dir = unique_log_dir("pychron_sched_hub_");
+  const auto dir = unique_log_dir("nobion_sched_hub_");
   config::LoggingConfig lc;
   lc.dir = dir;
   auto hub = LogHub::create(lc, clock, &bus);
@@ -365,7 +365,7 @@ TEST(Scheduler, SchedulerLevelRuleGatesItsRecords) {
   SignalBus bus;
   std::vector<Log> logs;
   auto sub = bus.subscribe<Log>([&](const Log& e) { logs.push_back(e); });
-  const auto dir = unique_log_dir("pychron_sched_rule_");
+  const auto dir = unique_log_dir("nobion_sched_rule_");
   config::LoggingConfig lc;
   lc.dir = dir;
   lc.default_level = LogLevel::Trace;

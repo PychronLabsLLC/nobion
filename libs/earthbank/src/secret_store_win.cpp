@@ -115,7 +115,7 @@ class CredentialSecretStore final : public ISecretStore {
   // Whether this logon session has a credential set at all: a service
   // account or a network logon may have none.
   bool usable() const {
-    const std::wstring name = target("pychron.probe");
+    const std::wstring name = target("nobion.probe");
     if (name.empty()) return false;
     PCREDENTIALW found = nullptr;
     if (CredReadW(name.c_str(), CRED_TYPE_GENERIC, 0, &found)) {

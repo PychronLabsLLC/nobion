@@ -312,7 +312,7 @@ struct LogHub::Impl {
     if (last != std::numeric_limits<std::int64_t>::min() && now - last < interval) return;
     if (!last_error_report.compare_exchange_strong(last, now)) return;
     try {
-      write_stderr("pychron logging error: " + what + '\n');
+      write_stderr("nobion logging error: " + what + '\n');
     } catch (...) {  // NOLINT(bugprone-empty-catch): nowhere left to report that reporting failed
     }
   }
@@ -878,7 +878,7 @@ Result<std::shared_ptr<LogHub>> LogHub::create(const config::LoggingConfig& conf
 
     impl->barrier_sink = std::make_shared<BarrierSink>();
     impl->barrier = std::make_shared<spdlog::async_logger>(
-        "pychron.barrier", impl->barrier_sink, impl->pool, spdlog::async_overflow_policy::block);
+        "nobion.barrier", impl->barrier_sink, impl->pool, spdlog::async_overflow_policy::block);
     impl->barrier->set_level(spdlog::level::trace);
 
     Impl* raw = impl.get();

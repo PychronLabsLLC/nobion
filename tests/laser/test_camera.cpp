@@ -196,7 +196,7 @@ TEST(CameraLibrary, OneBadTableDoesNotHideTheOthers) {
 }
 
 TEST(CameraLibrary, MissingFileIsEmpty) {
-  const auto lib = CameraLibrary::load(fs::temp_directory_path() / "pychron_no_such_cameras.toml");
+  const auto lib = CameraLibrary::load(fs::temp_directory_path() / "nobion_no_such_cameras.toml");
   EXPECT_TRUE(lib.devices().empty());
   EXPECT_TRUE(lib.problems().empty());
 }
@@ -213,7 +213,7 @@ TEST(CameraLibrary, NotTomlIsEveryDevicesProblem) {
 
 TEST(CameraLibrary, LoadsAFile) {
   std::random_device rd;
-  const auto file = fs::temp_directory_path() / ("pychron_cameras_" + std::to_string(rd()) + ".toml");
+  const auto file = fs::temp_directory_path() / ("nobion_cameras_" + std::to_string(rd()) + ".toml");
   std::ofstream(file) << "[co2]\npx_per_mm = 31\n";
   const auto lib = CameraLibrary::load(file);
   ASSERT_NE(lib.find("co2"), nullptr);

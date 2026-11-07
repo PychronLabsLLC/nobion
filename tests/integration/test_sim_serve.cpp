@@ -60,7 +60,7 @@ address = "RS"
 class SimServeSteady : public ::testing::Test {
  protected:
   void SetUp() override {
-    dir_ = nobion::testing::unique_temp_path("pychron_sim_serve_");
+    dir_ = nobion::testing::unique_temp_path("nobion_sim_serve_");
     fs::create_directories(dir_);
     std::ofstream(line_file()) << nobion::testing::hardware_style(read_text(kExamples / "extraction_line.toml"))
                                << kRemoteValve;

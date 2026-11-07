@@ -1,4 +1,4 @@
-# Peak-center configs (written by pychron setup). Plans pick one by name.
+# Peak-center configs (written by nobion setup). Plans pick one by name.
 # The window and step are in the magnet's native units ({{ axis }}).
 
 [default]

@@ -57,7 +57,7 @@ class LineLocks : public ::testing::Test {
     // Named for the test: ctest runs each test in its own process, in parallel, and the
     // fixture's address repeats across processes.
     const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
-    dir_ = std::filesystem::temp_directory_path() / (std::string("pychron-locks-") + info->name());
+    dir_ = std::filesystem::temp_directory_path() / (std::string("nobion-locks-") + info->name());
     std::filesystem::remove_all(dir_);
     std::filesystem::create_directories(dir_);
     state_file_ = dir_ / "line.state.toml";

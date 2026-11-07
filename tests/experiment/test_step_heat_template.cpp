@@ -187,7 +187,7 @@ TEST(StepHeatCheck, ListsValueRulesWithoutAFilePrefix) {
 TEST(StepHeatLoad, NamesTheFileAndTakesTheStem) {
   std::random_device rd;
   const auto dir = std::filesystem::temp_directory_path() /
-                   ("pychron-step-heat-" + std::to_string(rd()) + std::to_string(rd()));
+                   ("nobion-step-heat-" + std::to_string(rd()) + std::to_string(rd()));
   std::filesystem::create_directories(dir);
 
   const auto good = dir / "co2-6.toml";
@@ -644,7 +644,7 @@ namespace fs = std::filesystem;
 
 class ScratchDir {
  public:
-  ScratchDir() : dir_(nobion::testing::unique_temp_path("pychron-step-heats-")) { fs::create_directories(dir_); }
+  ScratchDir() : dir_(nobion::testing::unique_temp_path("nobion-step-heats-")) { fs::create_directories(dir_); }
   ~ScratchDir() {
     std::error_code ec;
     fs::remove_all(dir_, ec);

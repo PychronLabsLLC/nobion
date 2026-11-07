@@ -21,7 +21,7 @@ class FieldTableStoreTest : public ::testing::Test {
  protected:
   void SetUp() override {
     std::random_device rd;
-    root_ = fs::temp_directory_path() / ("pychron_ftstore_" + std::to_string(rd()));
+    root_ = fs::temp_directory_path() / ("nobion_ftstore_" + std::to_string(rd()));
     fs::create_directories(root_);
   }
   void TearDown() override {

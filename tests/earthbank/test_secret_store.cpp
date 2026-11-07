@@ -116,7 +116,7 @@ TEST(SecretStore, AMemoryStoreOfItsOwnSharesNothing) {
 // What make_secret_store falls back to: one store a service for the process,
 // so that a password typed once is there for the rest of the session.
 TEST(SecretStore, TheProcessMemoryStoreIsOneAService) {
-  const std::string service = "pychron.earthbank.test." + random_word();
+  const std::string service = "nobion.earthbank.test." + random_word();
   {
     const auto first = detail::process_memory_secret_store(service);
     EXPECT_EQ(first->backend(), "memory");
@@ -215,7 +215,7 @@ TEST(SecretStore, PlatformRoundTrip) {
                  << "). It writes one item under a made-up service name to your own credential store and removes it.";
   if (env_var("CI").has_value()) GTEST_SKIP() << "CI is set: there is no session with a credential store to use";
 
-  const std::string service = "pychron.earthbank.test." + random_word();
+  const std::string service = "nobion.earthbank.test." + random_word();
   const DeadMan dead_man(service);
   const auto store = make_secret_store(service);
   ASSERT_NE(store, nullptr);

@@ -3,7 +3,7 @@
 # packaging/sim/README.md. Not built in CI; nothing depends on it.
 #
 # Built from the repository root (compose.yaml does this):
-#   docker build -f packaging/sim/Dockerfile -t pychron-sim .
+#   docker build -f packaging/sim/Dockerfile -t nobion-sim .
 
 FROM ubuntu:24.04 AS build
 RUN apt-get update \

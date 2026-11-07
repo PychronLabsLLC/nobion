@@ -146,7 +146,7 @@ class TestSetupWizard : public QObject {
     w.test_button()->click();
     QCOMPARE(opened.size(), std::size_t{1});
     QCOMPARE(QString::fromStdString(opened[0].first),
-             QStringLiteral("postgresql://pychron:p%40ss%20word@db.lab.edu:5432/pychron"));
+             QStringLiteral("postgresql://nobion:p%40ss%20word@db.lab.edu:5432/nobion"));
     QVERIFY(!opened[0].second);  // never migrated from a test
     QVERIFY(w.test_result()->text().contains(QStringLiteral("schema version 7")));
     succeed = false;
@@ -157,7 +157,7 @@ class TestSetupWizard : public QObject {
     w.next();
     QCOMPARE(w.currentId(), int(SetupWizard::kReady));
     QVERIFY(!w.summary()->toPlainText().contains(QStringLiteral("p@ss")));  // the password is never shown
-    QVERIFY(w.summary()->toPlainText().contains(QStringLiteral("postgresql://pychron@db.lab.edu:5432/pychron")));
+    QVERIFY(w.summary()->toPlainText().contains(QStringLiteral("postgresql://nobion@db.lab.edu:5432/nobion")));
     opened.clear();
     w.next();
     QCOMPARE(w.currentId(), int(SetupWizard::kDone));
@@ -166,7 +166,7 @@ class TestSetupWizard : public QObject {
     QVERIFY(opened[0].first.find("p%40ss%20word") != std::string::npos);
     QVERIFY(!opened[0].second);
     QVERIFY(fs::exists(dir("dr-server") / ".nobion" / "credentials.toml"));
-    QCOMPARE(QString::fromStdString(w.installed()->database), QStringLiteral("postgresql://pychron@db.lab.edu:5432/pychron"));
+    QCOMPARE(QString::fromStdString(w.installed()->database), QStringLiteral("postgresql://nobion@db.lab.edu:5432/nobion"));
   }
 
   // Install defaults: an instrument's database is made, then given the seed.
@@ -247,7 +247,7 @@ class TestSetupWizard : public QObject {
       qobject_cast<QLineEdit*>(w.editor(QStringLiteral("db_host")))->setText(QStringLiteral("db.lab.edu"));
       qobject_cast<QLineEdit*>(w.editor(QStringLiteral("db_password")))->setText(QStringLiteral("s3cret-Zq9"));
       QVERIFY(walk_to(w, SetupWizard::kDone));
-      QCOMPARE(calls, (std::vector<std::string>{"seed postgresql://pychron:s3cret-Zq9@db.lab.edu:5432/pychron"}));
+      QCOMPARE(calls, (std::vector<std::string>{"seed postgresql://nobion:s3cret-Zq9@db.lab.edu:5432/nobion"}));
       for (const auto& c : w.checks()) {
         if (c.name != "seed") continue;
         QVERIFY(c.detail.find("s3cret") == std::string::npos && c.hint.find("s3cret") == std::string::npos);

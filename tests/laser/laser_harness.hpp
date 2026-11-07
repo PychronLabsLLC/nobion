@@ -48,7 +48,7 @@ struct LabDir {
   fs::path dir;
   LabDir() {
     std::random_device rd;
-    dir = fs::temp_directory_path() / ("pychron_laser_" + std::to_string(rd()) + std::to_string(rd()));
+    dir = fs::temp_directory_path() / ("nobion_laser_" + std::to_string(rd()) + std::to_string(rd()));
     fs::create_directories(dir / "tray_maps");
     fs::copy_file(fs::path(NOBION_TEST_DATA_DIR) / "tray_maps" / "small.txt", dir / "tray_maps" / "small.txt");
     std::ofstream(dir / "tray_maps" / "bare.txt") << "circle,1\n\n\n1,0,0\n2,1,0\n";  // never calibrated

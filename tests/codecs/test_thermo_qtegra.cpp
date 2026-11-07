@@ -457,7 +457,7 @@ TEST(QtegraCodec, CheckServerRefusesWhatTheDriverCannotUse) {
   server.protocol = q::kProtocolVersion + 1;
   auto newer = q::check_server(server);
   expect_protocol(newer);
-  EXPECT_NE(newer.error().what.find("update pychron"), std::string::npos) << newer.error().what;
+  EXPECT_NE(newer.error().what.find("update nobion"), std::string::npos) << newer.error().what;
   server.protocol = q::kProtocolVersion - 1;
   expect_protocol(q::check_server(server));
   server.protocol = q::kProtocolVersion;

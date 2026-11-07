@@ -187,13 +187,13 @@ not delete it, and finish an upload on the computer it was begun on.
 
 ```bash
 # what would be sent, and whether EarthBank knows every term
-elctl earthbank preflight --db sqlite:$HOME/pychron/data.db --sample MB-12
+elctl earthbank preflight --db sqlite:$HOME/nobion/data.db --sample MB-12
 
 # shows the account, the package and the records, and stops
-elctl earthbank upload --db sqlite:$HOME/pychron/data.db --sample MB-12 --overrides earthbank.toml
+elctl earthbank upload --db sqlite:$HOME/nobion/data.db --sample MB-12 --overrides earthbank.toml
 
 # the same, sent
-elctl earthbank upload --db sqlite:$HOME/pychron/data.db --sample MB-12 --overrides earthbank.toml --yes
+elctl earthbank upload --db sqlite:$HOME/nobion/data.db --sample MB-12 --overrides earthbank.toml --yes
 ```
 
 The overrides file says what the rows of the dialog say (interpretation,
@@ -327,7 +327,7 @@ skipped, saying which variables it wants.
 What it does, in order:
 
 1. Signs in and prints who the account is.
-2. Makes a data package `pychron-test-<UTC date-time>` and **prints its name
+2. Makes a data package `nobion-test-<UTC date-time>` and **prints its name
    and id before anything else**. If the process dies after this, that is
    the package to remove by hand on the website.
 3. Builds the two fixture samples (`tests/earthbank/analyses.hpp`: a

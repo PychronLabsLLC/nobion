@@ -1,4 +1,4 @@
-#! pychron: eqtime=20
+#! nobion: eqtime=20
 # An air shot for the simulated lab: one pipette of the tank's air, let into
 # the prep section and left there for the run's duration. The measurement
 # plan then lets it into the spectrometer.

@@ -90,7 +90,7 @@ TEST(TraceRecorder, ReadIsRecordedAsRx) {
 }
 
 TEST(TraceRecorder, ToFileWritesReplayableTrace) {
-  const auto path = std::filesystem::temp_directory_path() / "pychron_trace_recorder_test.txt";
+  const auto path = std::filesystem::temp_directory_path() / "nobion_trace_recorder_test.txt";
   ManualClock clock;
   {
     auto rec = TraceRecorder::to_file(

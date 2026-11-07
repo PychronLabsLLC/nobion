@@ -253,7 +253,7 @@ TEST(Qtegra, ANewerProtocolIsRefusedOnEveryCommand) {
     auto r = q.connect();
     ASSERT_FALSE(r);
     EXPECT_EQ(r.error().kind, ErrorKind::Protocol);
-    EXPECT_NE(r.error().what.find("update pychron"), std::string::npos) << r.error().what;
+    EXPECT_NE(r.error().what.find("update nobion"), std::string::npos) << r.error().what;
   }
   auto read = q.read();
   ASSERT_FALSE(read);

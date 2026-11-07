@@ -51,7 +51,7 @@ inline const QString kSqliteSynchronousFull = QStringLiteral("PRAGMA synchronous
 
 inline const QString kNextChangeSeq =
     QStringLiteral("UPDATE change_counter SET seq = seq + 1 WHERE id = 1 RETURNING seq");
-inline const QString kNotify = QStringLiteral("SELECT pg_notify('pychron_change', ?)");
+inline const QString kNotify = QStringLiteral("SELECT pg_notify('nobion_change', ?)");
 
 inline const QString kChangesSince = QStringLiteral(
     "SELECT change_seq, %1 AS committed, changeset_uuid, client_uuid, kind FROM change_log "

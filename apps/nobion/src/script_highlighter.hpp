@@ -2,7 +2,7 @@
 
 // Python highlighting for pyscripts: keywords, builtins, the host's commands,
 // run-context globals, numbers, strings (triple-quoted ones across lines),
-// comments and the `#! pychron:` header.
+// comments and the `#! nobion:` header.
 
 #include <QRegularExpression>
 #include <QSet>

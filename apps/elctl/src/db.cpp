@@ -48,7 +48,7 @@ std::string not_a_store(const std::string& url) {
   std::error_code code;
   const fs::path file(url.substr(kSqlite.size()));
   if (!fs::is_regular_file(file, code)) return "no database at " + file.string();
-  if (fs::file_size(file, code) == 0 && !code) return file.string() + " is empty: not a pychron store";
+  if (fs::file_size(file, code) == 0 && !code) return file.string() + " is empty: not a nobion store";
   return {};
 }
 

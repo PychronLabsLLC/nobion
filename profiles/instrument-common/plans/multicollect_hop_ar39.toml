@@ -1,5 +1,5 @@
 # Multicollection with Ar39 on the ion counter, for {{ instrument }}
-# (written by pychron setup). Two hops a cycle: every detector collects its
+# (written by nobion setup). Two hops a cycle: every detector collects its
 # isotope except Ar39, then the magnet moves Ar39 onto {{ hop_detector }}.
 # Edit freely.
 

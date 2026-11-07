@@ -738,9 +738,9 @@ class TestExperimentWindow : public QObject {
     QCOMPARE(pane->notify_text(), QStringLiteral("log"));
     pane->request_start();
     QTRY_VERIFY_WITH_TIMEOUT(!pane->running(), 60000);
-    QTRY_VERIFY(contains(pane->events(), QStringLiteral("notified log: pychron: queue sim-example completed")));
+    QTRY_VERIFY(contains(pane->events(), QStringLiteral("notified log: nobion: queue sim-example completed")));
     sim.session->notify_test();
-    QTRY_VERIFY(contains(pane->events(), QStringLiteral("notified log: pychron: test notification")));
+    QTRY_VERIFY(contains(pane->events(), QStringLiteral("notified log: nobion: test notification")));
     QCOMPARE(calls.load(), 2);
   }
 

@@ -51,7 +51,7 @@ class EnvGuard {
 fs::path unique_dir() {
   std::random_device rd;
   std::mt19937_64 gen(rd());
-  return fs::temp_directory_path() / ("pychron_logging_file_" + std::to_string(gen()));
+  return fs::temp_directory_path() / ("nobion_logging_file_" + std::to_string(gen()));
 }
 
 struct LoggingFile : ::testing::Test {

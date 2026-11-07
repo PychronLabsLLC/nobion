@@ -158,7 +158,7 @@ class InstallE2E : public nobion::testing::VirtualTimeTest, public ::testing::Wi
 
   void SetUp() override {
     if (!scripting::scripting_enabled()) GTEST_SKIP() << "the shipped queue's scripts need NOBION_SCRIPTING";
-    dir_ = nobion::testing::unique_temp_path("pychron-e2e-");
+    dir_ = nobion::testing::unique_temp_path("nobion-e2e-");
     fs::create_directories(dir_);
     site_config_.emplace("NOBION_SITE_CONFIG", (dir_ / "site.toml").string());
     install();
@@ -586,7 +586,7 @@ TEST_P(InstallE2E, EveryShippedPlanIsStoredAndReadsAsItsRecord) {
                            "positions = { Ar36 = \"CDD\" }\nposition = { detector = \"CDD\" }\n\n");
   std::ofstream(site_.root / "plans" / "hop_baseline.toml") << hop_plan;
 
-  std::string text = "[queue]\nname = \"every-plan\"\nmass_spectrometer = \"argus\"\nusername = \"pychron\"\n";
+  std::string text = "[queue]\nname = \"every-plan\"\nmass_spectrometer = \"argus\"\nusername = \"nobion\"\n";
   auto plans = shipped;
   plans.emplace_back("hop_baseline");
   for (const auto& plan : plans) {

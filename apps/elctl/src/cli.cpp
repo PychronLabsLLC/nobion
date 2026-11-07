@@ -121,7 +121,7 @@ constexpr const char* kUsageText =
     "\n"
     "The store's schema:\n"
     "  db status [--db <url>]      is the store's schema the one this build needs?\n"
-    "  db migrate [--db <url>]     bring an existing store up to date after an update of pychron\n"
+    "  db migrate [--db <url>]     bring an existing store up to date after an update of nobion\n"
     "                              (without --db: the install's database)\n"
     "\n"
     "Publication data (elctl export help lists every option):\n"

@@ -73,7 +73,7 @@ TEST_P(BuildTiming, CreateAndBuildScaleWithTheCount) {
 
       pp::StoreSource::open(ps::StoreConfig{db_->url(), false}, nobion::publish::testing::source_options("bench", "bench"));
   ASSERT_TRUE(source);
-  const fs::path out = fs::temp_directory_path() / ("pychron_bench_" + std::to_string(std::random_device{}()));
+  const fs::path out = fs::temp_directory_path() / ("nobion_bench_" + std::to_string(std::random_device{}()));
   fs::create_directories(out);
   BuildOptions options;
   options.out = out;

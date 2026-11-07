@@ -163,7 +163,7 @@ Result<std::unique_ptr<pp::StoreSource>> open_source(const std::string& db_url, 
     std::error_code code;
     const fs::path file(db_url.substr(kSqlite.size()));
     if (!fs::is_regular_file(file, code)) return fail(ErrorKind::Io, "no database at " + file.string());
-    if (fs::file_size(file, code) == 0 && !code) return fail(ErrorKind::Io, file.string() + " is empty: not a pychron store");
+    if (fs::file_size(file, code) == 0 && !code) return fail(ErrorKind::Io, file.string() + " is empty: not a nobion store");
   }
   options.connections = 1;
   return pp::StoreSource::open(ps::StoreConfig{db_url, false}, std::move(options));

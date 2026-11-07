@@ -161,7 +161,7 @@ void create_runtime() {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory): see the line
   auto* rt = new Runtime();  // lives for the process, like the interpreter
   auto types = py::module_::import("types");
-  rt->module = types.attr("ModuleType")("_pychron_runtime");
+  rt->module = types.attr("ModuleType")("_nobion_runtime");
   PyObject* runtime_code = Py_CompileString(kRuntimeSource, kRuntimeFilename, Py_file_input);
   if (!runtime_code) throw py::error_already_set();
   auto runtime_code_obj = py::reinterpret_steal<py::object>(runtime_code);
@@ -169,7 +169,7 @@ void create_runtime() {
   PyObject* ran = PyEval_EvalCode(runtime_code, runtime_dict.ptr(), runtime_dict.ptr());
   if (!ran) throw py::error_already_set();
   Py_DECREF(ran);
-  py::module_::import("sys").attr("modules")["_pychron_runtime"] = rt->module;
+  py::module_::import("sys").attr("modules")["_nobion_runtime"] = rt->module;
   bind_classes(py::reinterpret_borrow<py::module_>(rt->module));
 
   PyObject* code = Py_CompileString(kPreludeSource, kPreludeFilename, Py_file_input);

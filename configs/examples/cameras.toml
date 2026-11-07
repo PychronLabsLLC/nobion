@@ -26,7 +26,7 @@ source = "sim"
 #   source = "opencv"
 #   use = "view"
 # (`elctl laser cameras` lists what there is; macOS asks once whether
-# Pychron may use the camera).
+# Nobion may use the camera).
 use = "center"
 px_per_mm = 23.0
 # which way the picture moves when the stage does: the usual camera shows

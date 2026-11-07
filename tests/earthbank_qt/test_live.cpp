@@ -10,7 +10,7 @@
 // No build, script or CI job sets them; without them the test is skipped and
 // says so. It carries the ctest label `live`, so `ctest -LE live` leaves it
 // out altogether. With them it writes to that service: a data package named
-// `pychron-test-<UTC date-time>`, the two fixture samples in it, and then the
+// `nobion-test-<UTC date-time>`, the two fixture samples in it, and then the
 // package's removal. The steps, and what to do when one fails, are in
 // docs/earthbank.md ("The live test"); they are tests/earthbank's
 // live_round_trip.hpp, which every build runs against the fake.

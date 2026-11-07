@@ -21,7 +21,7 @@ namespace fs = std::filesystem;
 class LabTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    dir_ = nobion::testing::unique_temp_path("pychron-lab-");
+    dir_ = nobion::testing::unique_temp_path("nobion-lab-");
     nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_);
   }
   void TearDown() override { fs::remove_all(dir_); }
@@ -145,7 +145,7 @@ TEST(LabForQueueTest, AQueuesDirectoryBelongsToItsParent) {
 class FindQueueTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    t_ = nobion::testing::unique_temp_path("pychron-find-queue-");
+    t_ = nobion::testing::unique_temp_path("nobion-find-queue-");
     fs::create_directories(t_ / "queues");
   }
   void TearDown() override { fs::remove_all(t_); }

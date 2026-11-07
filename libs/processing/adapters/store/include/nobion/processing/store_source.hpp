@@ -50,7 +50,7 @@ using StoreExtensionLoader =
 struct StoreSourceOptions {
   int connections = 2;  // worker threads, one store each
   // Who saves edits: an app_user name and this machine's client (role
-  // "reduction"). Empty: $USER and $HOSTNAME (or "pychron", "localhost").
+  // "reduction"). Empty: $USER and $HOSTNAME (or "nobion", "localhost").
   std::string user, hostname;
   // The active domain's reduction version (Domain::reduction_version()):
   // part of every input fingerprint, and the version the derived values are

@@ -56,7 +56,7 @@ std::map<std::string, std::string> hash_tree(const fs::path& dir) {
 
 // A temp directory holding an install root and a site file beside it.
 struct DataSourceFixture : ::testing::Test {
-  fs::path dir = nobion::testing::unique_temp_path("pychron-data-source-");
+  fs::path dir = nobion::testing::unique_temp_path("nobion-data-source-");
   fs::path root = dir / "lab";
   fs::path site_path = dir / "site" / "site.toml";
 
@@ -582,7 +582,7 @@ DataSource local_source(const fs::path& file, std::string data = "data") {
 
 DataSource server_source(std::optional<std::string> password) {
   DataSource s;
-  s.database = ServerDatabase{"db.lab", 5432, "pychron", "ana", std::move(password)};
+  s.database = ServerDatabase{"db.lab", 5432, "nobion", "ana", std::move(password)};
   return s;
 }
 
@@ -656,7 +656,7 @@ TEST_F(DataSourceCheckTest, AnEmptyFileIsNotAStore) {
   auto checked = check_data_source(change_for(to), to, fake.openers(), true);
   ASSERT_FALSE(checked);
   EXPECT_EQ(checked.error().kind, ErrorKind::Config);
-  EXPECT_EQ(checked.error().what, (root / "empty.db").generic_string() + " is empty: not a pychron store");
+  EXPECT_EQ(checked.error().what, (root / "empty.db").generic_string() + " is empty: not a nobion store");
   EXPECT_TRUE(fake.opened.empty());
 }
 
@@ -680,7 +680,7 @@ TEST_F(DataSourceCheckTest, AServerIsOpenedWithThePasswordGivenOrKept) {
     auto checked = check_data_source(change_for(kept), kept, fake.openers(), false);
     ASSERT_TRUE(checked) << checked.error().what;
     ASSERT_EQ(fake.opened.size(), 1U);
-    EXPECT_EQ(fake.opened[0].first, "postgresql://ana:kept-pw@db.lab:5432/pychron");
+    EXPECT_EQ(fake.opened[0].first, "postgresql://ana:kept-pw@db.lab:5432/nobion");
     EXPECT_FALSE(fake.opened[0].second);
   }
   FakeOpeners fake;
@@ -689,7 +689,7 @@ TEST_F(DataSourceCheckTest, AServerIsOpenedWithThePasswordGivenOrKept) {
   ASSERT_FALSE(checked);
   EXPECT_EQ(checked.error().kind, ErrorKind::Config);
   EXPECT_EQ(checked.error().what.find("kept-pw"), std::string::npos);
-  EXPECT_NE(checked.error().what.find("postgresql://ana@db.lab:5432/pychron: could not connect"), std::string::npos);
+  EXPECT_NE(checked.error().what.find("postgresql://ana@db.lab:5432/nobion: could not connect"), std::string::npos);
   EXPECT_NE(checked.error().what.find("check the server, the user and the password"), std::string::npos);
   EXPECT_EQ(checked.error().what.find("second line"), std::string::npos);
   ASSERT_EQ(fake.opened.size(), 1U);
@@ -782,7 +782,7 @@ TEST_F(DataSourceCheckTest, AnInstrumentInstallIsSeeded) {
     const auto said = seed_data_source(change_for(server, "instrument"), server, fake.openers(),
                                        DataSourceCheck{.said = {}, .made_file = false, .opened = true});
     ASSERT_EQ(fake.seeded.size(), 1U);
-    EXPECT_EQ(fake.seeded[0].url, "postgresql://ana:pw@db.lab:5432/pychron");
+    EXPECT_EQ(fake.seeded[0].url, "postgresql://ana:pw@db.lab:5432/nobion");
     EXPECT_FALSE(fake.seeded[0].migrate);
     EXPECT_FALSE(any_contains(said, "pw@"));
   }
@@ -815,7 +815,7 @@ TEST_F(DataSourceCheckTest, ASeedErrorDoesNotShowThePassword) {
   {
     const DataSource given = server_source(std::string("given-pw"));
     FakeOpeners fake;
-    fake.seed_reply = fail(ErrorKind::Io, "cannot seed postgresql://ana:given-pw@db.lab:5432/pychron\ndetail");
+    fake.seed_reply = fail(ErrorKind::Io, "cannot seed postgresql://ana:given-pw@db.lab:5432/nobion\ndetail");
     const auto said = seed_data_source(change_for(given, "instrument"), given, fake.openers(), opened);
     ASSERT_EQ(fake.seeded.size(), 1U);
     EXPECT_TRUE(any_contains(said, "seed skipped: cannot seed postgresql://ana:"));

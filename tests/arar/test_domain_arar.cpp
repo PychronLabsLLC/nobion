@@ -89,7 +89,7 @@ std::filesystem::path unique_test_dir(const std::string& stem) {
 
 // What `exporter` writes for `steps`, as text.
 std::string exported(const pp::Exporter& exporter, const std::vector<pp::ReducedPtr>& steps) {
-  const auto dir = unique_test_dir("pychron_domain_export_test");
+  const auto dir = unique_test_dir("nobion_domain_export_test");
   std::filesystem::create_directories(dir);
   const auto path = dir / "report.csv";
   const auto written = exporter.write(path, {steps});

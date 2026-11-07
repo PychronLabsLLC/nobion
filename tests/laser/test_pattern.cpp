@@ -44,7 +44,7 @@ const PatternKind kKinds[] = {PatternKind::Polygon,      PatternKind::Linear, Pa
 
 fs::path scratch() {
   std::random_device rd;
-  auto dir = fs::temp_directory_path() / ("pychron_patterns_" + std::to_string(rd()) + std::to_string(rd()));
+  auto dir = fs::temp_directory_path() / ("nobion_patterns_" + std::to_string(rd()) + std::to_string(rd()));
   fs::create_directories(dir);
   return dir;
 }

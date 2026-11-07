@@ -3,7 +3,7 @@
 // The OGC API - Records crawlable catalogue of a release (data publishing
 // design, section 5.4): catalog.json and one record per sample plus one for
 // the release, GeoJSON, built from the manifest and the row tables. Field
-// names beyond record-core are prefixed "pychron:".
+// names beyond record-core are prefixed "nobion:".
 
 #include <string>
 

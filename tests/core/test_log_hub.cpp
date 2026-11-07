@@ -77,7 +77,7 @@ class TempDir {
   static fs::path unique_path() {
     std::random_device rd;
     std::mt19937_64 gen(rd());
-    return fs::temp_directory_path() / ("pychron_log_hub_" + std::to_string(gen()));
+    return fs::temp_directory_path() / ("nobion_log_hub_" + std::to_string(gen()));
   }
   // An empty value removes the variable.
   void set_env(const std::string& value) const {

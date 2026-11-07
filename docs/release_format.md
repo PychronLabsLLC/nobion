@@ -228,7 +228,7 @@ figures when the directory has them.
 
 ```json
 {
-  "format": "pychron-release/1",
+  "format": "nobion-release/1",
   "release": {"uuid", "name", "version", "title", "description", "state", "visibility",
               "licence", "authors": [{"name", "orcid", "affiliation"}], "publisher", "doi",
               "supersedes": {"uuid", "doi"}, "created_utc", "published_utc", "embargo_until_utc"},
@@ -269,7 +269,7 @@ table that was written, `describedby` to the manifest, `cite-as` to the DOI
 when there is one). Each record is a GeoJSON Feature whose `properties` hold
 the record core (`type`, `title`, `description`, `keywords`, `language`,
 `license`, `created`, `updated`, `externalIds`, `contacts`, `formats`,
-`themes`) and, prefixed `pychron:`, the sample's uuid and counts and its
+`themes`) and, prefixed `nobion:`, the sample's uuid and counts and its
 interpreted ages. Links inside a record are relative to the record's own
 location (`../catalog.json`, `../tables/<sample>/report.csv`).
 

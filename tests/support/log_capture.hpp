@@ -22,7 +22,7 @@ namespace nobion::testing {
 
 class LogCapture {
  public:
-  LogCapture() : dir_(unique_temp_path("pychron_log_capture_")) {
+  LogCapture() : dir_(unique_temp_path("nobion_log_capture_")) {
     std::filesystem::create_directories(dir_);
     config::LoggingConfig cfg;
     cfg.dir = dir_;

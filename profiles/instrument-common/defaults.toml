@@ -1,5 +1,5 @@
 # What a new run starts with in the run factory, per analysis type
-# (written by pychron setup). The sample tables name the reference samples
+# (written by nobion setup). The sample tables name the reference samples
 # of seed.toml, so a new blank or air is recorded as one of them.
 
 [unknown."*"]

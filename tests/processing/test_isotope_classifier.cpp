@@ -108,7 +108,7 @@ TEST(IsotopeClassifier, TomlRoundTripAndFiles) {
   EXPECT_FALSE(IsotopeClassifier::from_toml("[[sample]]\nklass = 1\nbins = [12000]\nvalues = [1.0]\n"));
   EXPECT_FALSE(IsotopeClassifier::from_toml("not toml ="));
 
-  const fs::path dir = fs::temp_directory_path() / ("pychron_classifier_" + std::to_string(std::random_device{}()));
+  const fs::path dir = fs::temp_directory_path() / ("nobion_classifier_" + std::to_string(std::random_device{}()));
   const fs::path file = dir / "nested" / "isotope.toml";
   auto missing = IsotopeClassifier::load(file);
   ASSERT_TRUE(missing);
@@ -188,7 +188,7 @@ TEST(IsotopeEvolutionFits, AutoNPicksTheFitByPointCount) {
 TEST(IsotopeEvolutionFits, ClassifierFlagsBadSniffs) {
   // Train on one good and one bad flat-vs-noisy sniff of each kind.
   const fs::path file =
-      fs::temp_directory_path() / ("pychron_iso_classifier_" + std::to_string(std::random_device{}()) + ".toml");
+      fs::temp_directory_path() / ("nobion_iso_classifier_" + std::to_string(std::random_device{}()) + ".toml");
   IsotopeClassifier c;
   for (bool noisy : {false, false, true, true}) {
     auto f = refit_fixture(noisy);

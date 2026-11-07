@@ -18,7 +18,7 @@
 //
 // nobion, export, flux and entry open a store as it is and refuse one
 // whose schema is behind (they never change a store's schema in passing).
-// After an update of pychron that adds a migration, `db migrate` is what
+// After an update of nobion that adds a migration, `db migrate` is what
 // brings an existing store up to date. Each migration is applied in one
 // transaction: whole, or not at all.
 //

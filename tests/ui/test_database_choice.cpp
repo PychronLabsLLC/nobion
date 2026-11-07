@@ -47,7 +47,7 @@ class TestDatabaseChoice : public QObject {
     QCOMPARE(QString::fromStdString(url->value_or("")), QStringLiteral("sqlite:/elsewhere/other.db"));
     // ... and is not held up by an install whose password cannot be read.
     write_credentials("[database\n");
-    const auto server = install("postgresql://lab@db:5432/pychron");
+    const auto server = install("postgresql://lab@db:5432/nobion");
     QVERIFY(choose_database(cli, &server).has_value());
   }
 
@@ -58,11 +58,11 @@ class TestDatabaseChoice : public QObject {
     QCOMPARE(QString::fromStdString(url->value_or("")), QStringLiteral("sqlite:/lab/data/nobion.db"));
     // A server's password comes from the install.
     write_credentials("[database]\npassword = \"s3 cret\"\n");
-    const auto server = install("postgresql://lab@db:5432/pychron");
+    const auto server = install("postgresql://lab@db:5432/nobion");
     const auto with_password = choose_database(CommandLine{}, &server);
     QVERIFY(with_password.has_value());
     QCOMPARE(QString::fromStdString(with_password->value_or("")),
-             QStringLiteral("postgresql://lab:s3%20cret@db:5432/pychron"));
+             QStringLiteral("postgresql://lab:s3%20cret@db:5432/nobion"));
   }
 
   void noneWithoutEither() {
@@ -80,7 +80,7 @@ class TestDatabaseChoice : public QObject {
 
   void anInstallWhosePasswordCannotBeReadIsAnError() {
     write_credentials("[database\n");
-    const auto server = install("postgresql://lab@db:5432/pychron");
+    const auto server = install("postgresql://lab@db:5432/nobion");
     const auto url = choose_database(CommandLine{}, &server);
     QVERIFY(!url.has_value());
     QVERIFY(QString::fromStdString(url.error().what).contains(QStringLiteral("credentials.toml")));
@@ -93,7 +93,7 @@ class TestDatabaseChoice : public QObject {
     using nobion::ui::choose_run_saving;
     const std::filesystem::path data = "/lab/data";
     const std::string local = "sqlite:/lab/data/nobion.db";
-    const std::string server = "postgresql://lab:s3cret@db:5432/pychron";
+    const std::string server = "postgresql://lab:s3cret@db:5432/nobion";
 
     QVERIFY(choose_run_saving(CommandLine{}, local, true, data).to_database);
     QVERIFY(choose_run_saving(CommandLine{}, local, true, data).note.empty());
@@ -101,7 +101,7 @@ class TestDatabaseChoice : public QObject {
     const auto shared = choose_run_saving(CommandLine{}, server, true, data);
     QVERIFY(!shared.to_database);
     QCOMPARE(QString::fromStdString(shared.note),
-             QStringLiteral("simulated runs are written to /lab/data/records, not to postgresql://lab@db:5432/pychron; "
+             QStringLiteral("simulated runs are written to /lab/data/records, not to postgresql://lab@db:5432/nobion; "
                             "pass --sim-save to save them there"));
 
     CommandLine pointed;

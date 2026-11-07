@@ -100,8 +100,8 @@ Result<Opened> open_as_publisher(const std::string& url) {
   if (!store) return fail(store.error());
   auto client = (*store)->register_client({nobion::host_name(), "publisher", std::nullopt, "elctl"});
   if (!client) return fail(client.error());
-  const std::string user = nobion::env_var("USER").value_or(nobion::env_var("USERNAME").value_or("pychron"));
-  auto user_id = (*store)->ensure_user(*client, user.empty() ? "pychron" : user);
+  const std::string user = nobion::env_var("USER").value_or(nobion::env_var("USERNAME").value_or("nobion"));
+  auto user_id = (*store)->ensure_user(*client, user.empty() ? "nobion" : user);
   if (!user_id) return fail(user_id.error());
   return Opened{std::move(*store), ps::Actor{*user_id, *client}};
 }

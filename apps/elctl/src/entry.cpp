@@ -81,7 +81,7 @@ constexpr const char* kHelp =
     "  seed <seed.toml> [--dry-run]\n"
     "        Add what the seed file names and the store does not have: the references\n"
     "        project, its samples and special identifiers, the reactors' production\n"
-    "        ratios. Nothing that is there is changed (pychron setup runs this).\n"
+    "        ratios. Nothing that is there is changed (nobion setup runs this).\n"
     "\n"
     "Exit codes: 0 ok; 1 nothing was written (a stale, refused or invalid row);\n"
     "            2 usage or fatal error.\n";
@@ -190,7 +190,7 @@ Result<Context> open(Io io, const Args& a, bool writes) {
     const std::string host = nobion::host_name();
     auto client = ctx.store->register_client({host, "reduction", std::nullopt, "elctl"});
     if (!client) return nobion::fail(client.error());
-    const std::string user = a.get("--user").value_or(nobion::env_var("USER").value_or("pychron"));
+    const std::string user = a.get("--user").value_or(nobion::env_var("USER").value_or("nobion"));
     auto u = ctx.store->ensure_user(*client, user);
     if (!u) return nobion::fail(u.error());
     ctx.actor = ps::Actor{*u, *client};
@@ -611,7 +611,7 @@ Result<std::string> seed_database(const std::string& url, const std::filesystem:
     const std::string host = nobion::host_name();
     auto client = (*store)->register_client({host, "reduction", std::nullopt, "elctl"});
     if (!client) return nobion::fail(client.error());
-    auto u = (*store)->ensure_user(*client, user.empty() ? nobion::env_var("USER").value_or("pychron") : user);
+    auto u = (*store)->ensure_user(*client, user.empty() ? nobion::env_var("USER").value_or("nobion") : user);
     if (!u) return nobion::fail(u.error());
     actor = ps::Actor{*u, *client};
   }

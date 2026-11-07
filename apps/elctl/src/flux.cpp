@@ -439,7 +439,7 @@ Result<std::unique_ptr<ps::IStore>> open_flux_store(const std::string& db) {
     const fs::path file(db.substr(kSqlite.size()));
     if (!fs::is_regular_file(file, code)) return fail(ErrorKind::Config, "no database at " + file.string());
     if (fs::file_size(file, code) == 0 && !code)
-      return fail(ErrorKind::Config, file.string() + " is empty: not a pychron store");
+      return fail(ErrorKind::Config, file.string() + " is empty: not a nobion store");
   }
   return ps::open_store(ps::StoreConfig{db, false});
 }
@@ -448,7 +448,7 @@ Result<ps::Actor> flux_actor(ps::IStore& store, const std::string& user_name) {
   const std::string host = nobion::host_name();
   auto client = store.register_client({host, "reduction", std::nullopt, "elctl"});
   if (!client) return fail(client.error());
-  const std::string user = user_name.empty() ? nobion::env_var("USER").value_or("pychron") : user_name;
+  const std::string user = user_name.empty() ? nobion::env_var("USER").value_or("nobion") : user_name;
   auto u = store.ensure_user(*client, user);
   if (!u) return fail(u.error());
   return ps::Actor{*u, *client};

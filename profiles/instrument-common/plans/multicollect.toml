@@ -1,4 +1,4 @@
-# Starter multicollection for {{ instrument }} (written by pychron setup).
+# Starter multicollection for {{ instrument }} (written by nobion setup).
 # One hop: every detector that has an isotope collects it. Edit freely.
 
 [plan]

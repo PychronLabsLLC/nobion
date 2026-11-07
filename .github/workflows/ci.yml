@@ -52,7 +52,7 @@ jobs:
             sanitize: ""
             jobs: 4
             postgres: true
-            pg_url: postgresql://pychron:pychron@localhost:5432/nobion_test
+            pg_url: postgresql://nobion:nobion@localhost:5432/nobion_test
           - name: linux-clang-asan
             os: ubuntu-24.04
             cc: clang-18
@@ -100,11 +100,11 @@ jobs:
         run: |
           # The PostGIS image: sample locations are a geometry column (migration 0004).
           docker run -d --name postgres -p 5432:5432 \
-            -e POSTGRES_USER=pychron -e POSTGRES_PASSWORD=pychron -e POSTGRES_DB=nobion_test \
+            -e POSTGRES_USER=nobion -e POSTGRES_PASSWORD=nobion -e POSTGRES_DB=nobion_test \
             postgis/postgis:16-3.4
           for _ in $(seq 60); do
             # The image restarts the server once during init; wait for the final one on TCP.
-            if docker exec postgres pg_isready -h localhost -U pychron -d nobion_test; then exit 0; fi
+            if docker exec postgres pg_isready -h localhost -U nobion -d nobion_test; then exit 0; fi
             sleep 1
           done
           docker logs postgres

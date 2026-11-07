@@ -156,7 +156,7 @@ SpectrometerBridge::SpectrometerBridge(spectrometer::Spectrometer& spec, spectro
     scan_intent_ = std::chrono::duration<double>(state_.scan.integration).count();
   }
 
-  executor_.setObjectName(QStringLiteral("pychron-spectrometer-executor"));
+  executor_.setObjectName(QStringLiteral("nobion-spectrometer-executor"));
   worker_ = new QObject;
   worker_->moveToThread(&executor_);
   connect(&executor_, &QThread::finished, worker_, &QObject::deleteLater);

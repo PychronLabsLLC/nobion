@@ -30,7 +30,7 @@ constexpr std::string_view kPostgresPrefix = "postgresql://";
 // together): a change writes the file a reconfigure would render, so the
 // reconfigure finds it as its own.
 constexpr std::string_view kCredentialsTemplate =
-    "# This computer only (written by pychron setup, owner-readable).\n"
+    "# This computer only (written by nobion setup, owner-readable).\n"
     "[database]\n"
     "password = {{ db_password | toml }}\n";
 constexpr std::string_view kCredentialsFile = ".nobion/credentials.toml";
@@ -268,7 +268,7 @@ Result<void> check_local(const fs::path& file, const std::string& url, const Dat
   std::error_code ec;
   if (fs::exists(file, ec)) {
     if (fs::file_size(file, ec) == 0 && !ec)
-      return fail(ErrorKind::Config, file.generic_string() + " is empty: not a pychron store");
+      return fail(ErrorKind::Config, file.generic_string() + " is empty: not a nobion store");
     // Never migrated from here: the file may be a copy an older build reads.
     auto opened = openers.open_database(url, false);
     if (!opened) {

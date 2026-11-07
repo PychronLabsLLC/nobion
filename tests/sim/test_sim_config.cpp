@@ -58,7 +58,7 @@ class SimConfig : public ::testing::Test {
  protected:
   void SetUp() override {
     const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
-    dir_ = std::filesystem::temp_directory_path() / (std::string("pychron-sim-config-") + info->name());
+    dir_ = std::filesystem::temp_directory_path() / (std::string("nobion-sim-config-") + info->name());
     std::filesystem::remove_all(dir_);
     std::filesystem::create_directories(dir_);
   }

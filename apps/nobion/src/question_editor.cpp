@@ -39,7 +39,7 @@ std::string ss(const QString& s) { return s.toStdString(); }
 constexpr int kChoiceRadioLimit = 4;  // more choices than this: a combo box
 
 // A number set_question_value could not put in a spin box, as text.
-constexpr const char* kOutOfRange = "pychron_out_of_range";
+constexpr const char* kOutOfRange = "nobion_out_of_range";
 
 QLineEdit* line_edit_of(QWidget* editor) {
   if (auto* e = qobject_cast<QLineEdit*>(editor)) return e;

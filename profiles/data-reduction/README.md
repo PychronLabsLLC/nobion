@@ -1,4 +1,4 @@
-# pychron data reduction
+# nobion data reduction
 
 {% if data_source == "local" %}
 Data: the database file `data/nobion.db` in this folder.
@@ -7,5 +7,5 @@ Data: the PostgreSQL database `{{ db_name }}` on {{ db_host }}:{{ db_port }} as 
 The password is in `.nobion/credentials.toml` (this computer only).
 {% endif %}
 
-Open pychron and use File > Data Browser. `elctl doctor --install {{ install_name }}`
+Open nobion and use File > Data Browser. `elctl doctor --install {{ install_name }}`
 checks this setup.

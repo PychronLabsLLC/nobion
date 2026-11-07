@@ -716,9 +716,9 @@ You need a built `nobion` (see [dev_setup.md](../dev_setup.md); the release
 installer is not needed). From the repository root:
 
 ```bash
-mkdir -p ~/pychron-sim-data
+mkdir -p ~/nobion-sim-data
 build/dev-ui/apps/nobion/nobion --examples --sim --sim-speed 50 \
-    --data ~/pychron-sim-data \
+    --data ~/nobion-sim-data \
     --queue configs/examples/queues/experiment.toml
 ```
 

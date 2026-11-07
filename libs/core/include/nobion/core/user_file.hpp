@@ -4,7 +4,7 @@
 // report, a figure, a CSV template, a level sheet.
 //
 // On macOS a file written by an application that is itself quarantined (one
-// downloaded and not notarized, as a pychron release is) inherits the
+// downloaded and not notarized, as a nobion release is) inherits the
 // quarantine attribute, and Gatekeeper then greets the file with "Apple could
 // not verify ... is free of malware" when it is opened. The file is the
 // application's own output, not something downloaded, so the attribute is

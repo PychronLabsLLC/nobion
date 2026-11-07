@@ -10,6 +10,7 @@
 #include <functional>
 #include <mutex>
 #include <sstream>
+#include <string_view>
 #include <vector>
 
 #include "nobion/core/events.hpp"
@@ -98,9 +99,9 @@ timeout = 12
 
 [[email]]
 url = "smtp://mail.example.org:587"
-from = "pychron@example.org"
+from = "nobion@example.org"
 to = ["a@example.org", "b@example.org"]
-username = "pychron"
+username = "nobion"
 password_env = "NOBION_TEST_SMTP_PW"
 on = ["run_failed"]
 
@@ -160,7 +161,7 @@ argv = []
 TEST(Notifications, MessagesNameTheRunAndTheQueue) {
   auto n = run_failed_notification("q1", failed_run());
   EXPECT_EQ(n.event, NotifyEvent::RunFailed);
-  EXPECT_EQ(n.subject, "pychron: run 66001-3 failed (queue q1)");
+  EXPECT_EQ(n.subject, "nobion: run 66001-3 failed (queue q1)");
   EXPECT_NE(n.body.find("extraction script raised"), std::string::npos) << n.body;
   EXPECT_EQ(n.fields.at("row"), "4");
 
@@ -173,7 +174,7 @@ TEST(Notifications, MessagesNameTheRunAndTheQueue) {
   ok.state = run::RunState::Success;
   result.runs = {ok, failed_run()};
   auto q = queue_ended_notification("q1", result);
-  EXPECT_EQ(q.subject, "pychron: queue q1 failed, 1 run(s) failed");
+  EXPECT_EQ(q.subject, "nobion: queue q1 failed, 1 run(s) failed");
   EXPECT_NE(q.body.find("2 run(s), 1 failed, 1 success"), std::string::npos) << q.body;
   EXPECT_NE(q.body.find("bu-1  success"), std::string::npos) << q.body;
   EXPECT_EQ(q.fields.at("failed"), "1");
@@ -190,7 +191,7 @@ TEST(Notifications, ARunThatWasNotSavedSaysSoAndWhy) {
   r.save_error = true;
   r.messages = {"hole 3: centered", "not saved to the data store, kept in the spool: the database is locked"};
   auto n = run_failed_notification("q1", r);
-  EXPECT_EQ(n.subject, "pychron: run 66001-3 not saved (queue q1)");
+  EXPECT_EQ(n.subject, "nobion: run 66001-3 not saved (queue q1)");
   EXPECT_NE(n.body.find("Saving:  failed; the record is in the spool and will be saved again\n"), std::string::npos)
       << n.body;
   EXPECT_NE(n.body.find("Reason:  the database is locked\n"), std::string::npos) << n.body;
@@ -203,9 +204,9 @@ TEST(Notifications, EmailGoesThroughCurlWithItsOptionsOnStdin) {
   auto c = NotificationConfig::from_toml(R"(
 [[email]]
 url = "smtp://mail.example.org:587"
-from = "pychron@example.org"
+from = "nobion@example.org"
 to = ["a@example.org"]
-username = "pychron"
+username = "nobion"
 password_env = "NOBION_TEST_SMTP_PW"
 )",
                                          "n.toml");
@@ -225,9 +226,9 @@ password_env = "NOBION_TEST_SMTP_PW"
   EXPECT_NE(cfg.find("url = \"smtp://mail.example.org:587/example.org\""), std::string::npos) << cfg;
   EXPECT_NE(cfg.find("mail-rcpt = \"a@example.org\""), std::string::npos) << cfg;
   EXPECT_NE(cfg.find("mail-rcpt = \"user@example.org\""), std::string::npos) << cfg;
-  EXPECT_NE(cfg.find("user = \"pychron:s3cret\""), std::string::npos) << cfg;
+  EXPECT_NE(cfg.find("user = \"nobion:s3cret\""), std::string::npos) << cfg;
   EXPECT_NE(cfg.find("ssl-reqd"), std::string::npos) << cfg;  // smtp:// must upgrade
-  EXPECT_NE(call.payload.find("Subject: pychron: run 66001-3 failed (queue q1)\r\n"), std::string::npos)
+  EXPECT_NE(call.payload.find("Subject: nobion: run 66001-3 failed (queue q1)\r\n"), std::string::npos)
       << call.payload;
   EXPECT_NE(call.payload.find("To: a@example.org, user@example.org\r\n"), std::string::npos) << call.payload;
   EXPECT_NE(call.payload.find("\r\n\r\nRun 66001-3 failed."), std::string::npos) << call.payload;
@@ -250,7 +251,7 @@ TEST(Notifications, ParsesAMailServiceChannel) {
 [[email]]
 provider = "brevo"
 api_key_env = "NOBION_TEST_MAIL_KEY"
-from = "pychron@example.org"
+from = "nobion@example.org"
 to = ["a@example.org"]
 )",
                                          "n.toml");
@@ -267,18 +268,18 @@ TEST(Notifications, AMailServiceChannelTakesNoSmtpSettings) {
 [[email]]
 provider = "resend"
 url = "smtp://mail.example.org"
-username = "pychron"
+username = "nobion"
 password_env = "PW"
 tls = false
-from = "pychron@example.org"
+from = "nobion@example.org"
 [[email]]
 provider = "gmail"
 api_key_env = "K"
-from = "pychron@example.org"
+from = "nobion@example.org"
 [[email]]
 url = "smtp://mail.example.org"
 api_key_env = "K"
-from = "pychron@example.org"
+from = "nobion@example.org"
 )",
                                          "n.toml");
   ASSERT_FALSE(c);
@@ -304,7 +305,7 @@ struct ProviderSend {
     set_env("NOBION_TEST_MAIL_KEY", "k3y-s3cret");
     auto c = NotificationConfig::from_toml("[[email]]\nprovider = \"" + provider +
                                                "\"\napi_key_env = \"NOBION_TEST_MAIL_KEY\"\n"
-                                               "from = \"pychron@example.org\"\nto = [\"a@example.org\"]\n",
+                                               "from = \"nobion@example.org\"\nto = [\"a@example.org\"]\n",
                                            "n.toml");
     EXPECT_TRUE(c) << c.error().what;
     auto n = run_failed_notification("q1", failed_run());
@@ -335,9 +336,9 @@ TEST(Notifications, BrevoGetsItsJsonAndTheKeyInAHeader) {
   expect_has(s.config(), "header = \"api-key: k3y-s3cret\"");
   expect_has(s.config(), "header = \"Content-Type: application/json\"");
   expect_has(s.config(), "fail-with-body");  // the service's own words on a refusal
-  expect_has(s.payload(), R"("sender": {"email": "pychron@example.org"})");
+  expect_has(s.payload(), R"("sender": {"email": "nobion@example.org"})");
   expect_has(s.payload(), R"("to": [{"email": "a@example.org"}, {"email": "user@example.org"}])");
-  expect_has(s.payload(), "\"subject\": \"pychron: run 66001-3 failed (queue q1)\"");
+  expect_has(s.payload(), "\"subject\": \"nobion: run 66001-3 failed (queue q1)\"");
   expect_has(s.payload(), R"("textContent": "Run 66001-3 failed.\n\n)");
   EXPECT_EQ(s.payload().find("k3y-s3cret"), std::string::npos);
 
@@ -352,9 +353,9 @@ TEST(Notifications, ResendGetsItsJsonAndABearerKey) {
   EXPECT_TRUE(s.deliveries[0].ok) << s.deliveries[0].error;
   expect_has(s.config(), "url = \"https://api.resend.com/emails\"");
   expect_has(s.config(), "header = \"Authorization: Bearer k3y-s3cret\"");
-  expect_has(s.payload(), R"("from": "pychron@example.org")");
+  expect_has(s.payload(), R"("from": "nobion@example.org")");
   expect_has(s.payload(), R"("to": ["a@example.org", "user@example.org"])");
-  expect_has(s.payload(), "\"subject\": \"pychron: run 66001-3 failed (queue q1)\"");
+  expect_has(s.payload(), "\"subject\": \"nobion: run 66001-3 failed (queue q1)\"");
   expect_has(s.payload(), R"("text": "Run 66001-3 failed.\n\n)");
 }
 
@@ -365,9 +366,9 @@ TEST(Notifications, PostmarkGetsItsJsonAndAServerToken) {
   expect_has(s.config(), "url = \"https://api.postmarkapp.com/email\"");
   expect_has(s.config(), "header = \"X-Postmark-Server-Token: k3y-s3cret\"");
   expect_has(s.config(), "header = \"Accept: application/json\"");
-  expect_has(s.payload(), R"("From": "pychron@example.org")");
+  expect_has(s.payload(), R"("From": "nobion@example.org")");
   expect_has(s.payload(), R"("To": "a@example.org, user@example.org")");
-  expect_has(s.payload(), "\"Subject\": \"pychron: run 66001-3 failed (queue q1)\"");
+  expect_has(s.payload(), "\"Subject\": \"nobion: run 66001-3 failed (queue q1)\"");
   expect_has(s.payload(), R"("TextBody": "Run 66001-3 failed.\n\n)");
 }
 
@@ -377,7 +378,7 @@ TEST(Notifications, AMailServiceRefusalIsReportedInItsOwnWords) {
 [[email]]
 provider = "brevo"
 api_key_env = "NOBION_TEST_MAIL_KEY"
-from = "pychron@example.org"
+from = "nobion@example.org"
 to = ["a@example.org"]
 )",
                                          "n.toml");
@@ -407,22 +408,22 @@ TEST(Notifications, UnsetSecretsNamesEachChannelWhoseVariableIsMissing) {
 name = "service"
 provider = "brevo"
 api_key_env = "NOBION_TEST_UNSET_VARIABLE_XYZ"
-from = "pychron@example.org"
+from = "nobion@example.org"
 [[email]]
 name = "set"
 provider = "resend"
 api_key_env = "NOBION_TEST_MAIL_KEY"
-from = "pychron@example.org"
+from = "nobion@example.org"
 [[email]]
 name = "smtp"
 url = "smtp://mail.example.org"
-from = "pychron@example.org"
-username = "pychron"
+from = "nobion@example.org"
+username = "nobion"
 password_env = "NOBION_TEST_UNSET_VARIABLE_ABC"
 [[email]]
 name = "open relay"
 url = "smtp://relay.example.org"
-from = "pychron@example.org"
+from = "nobion@example.org"
 )",
                                          "n.toml");
   ASSERT_TRUE(c) << c.error().what;
@@ -459,7 +460,7 @@ argv = ["notify-lab"]
   EXPECT_NE(fake.calls[0].payload.find("\"identifier\": \"66001\""), std::string::npos) << fake.calls[0].payload;
   const auto& cmd = fake.calls[1].spec;
   EXPECT_EQ(cmd.argv, std::vector<std::string>{"notify-lab"});
-  EXPECT_EQ(cmd.input.rfind("pychron: run 66001-3 failed", 0), 0u);
+  EXPECT_EQ(cmd.input.rfind("nobion: run 66001-3 failed", 0), 0u);
   auto env = [&](const std::string& k) {
     for (const auto& [n, v] : cmd.env)
       if (n == k) return v;
@@ -476,7 +477,7 @@ argv = ["notify-lab"]
   ASSERT_EQ(d.size(), 3u);
   EXPECT_FALSE(d[0].ok);
   EXPECT_EQ(d[0].error, "curl exited with 22: curl: (22) The requested URL returned error: 404");
-  EXPECT_NE(fake.calls[2].payload.find("{\"text\": \"*pychron: test notification*\\n"), std::string::npos)
+  EXPECT_NE(fake.calls[2].payload.find("{\"text\": \"*nobion: test notification*\\n"), std::string::npos)
       << fake.calls[2].payload;
 }
 
@@ -505,10 +506,10 @@ TEST(Notifier, SendsFailedRunsAndTheQueueEndOffTheBus) {
     std::lock_guard lock(m);
     ASSERT_EQ(sent.size(), 2u);
     EXPECT_EQ(sent[0].event, NotifyEvent::RunFailed);
-    EXPECT_EQ(sent[0].subject, "pychron: run 66001-3 failed (queue q1)");
+    EXPECT_EQ(sent[0].subject, "nobion: run 66001-3 failed (queue q1)");
     EXPECT_TRUE(sent[0].ok);
     EXPECT_EQ(sent[1].event, NotifyEvent::QueueEnded);
-    EXPECT_EQ(sent[1].subject, "pychron: queue q1 completed");
+    EXPECT_EQ(sent[1].subject, "nobion: queue q1 completed");
     EXPECT_EQ(sent[1].channel, "command");
     notifier.queue_ended(result);  // still queued at destruction: sent before it returns
   }
@@ -538,7 +539,7 @@ using namespace std::chrono_literals;
 
 // A directory of its own, removed at the end.
 struct OutboxDir {
-  std::filesystem::path dir = nobion::testing::unique_temp_path("pychron-outbox-");
+  std::filesystem::path dir = nobion::testing::unique_temp_path("nobion-outbox-");
   OutboxDir() = default;
   OutboxDir(const OutboxDir&) = delete;
   OutboxDir& operator=(const OutboxDir&) = delete;
@@ -660,7 +661,7 @@ TEST(NotifierOutbox, ANewNotifierSendsWhatTheLastOneLeftInOrder) {
   EXPECT_TRUE(out.files().empty());
   std::vector<std::string> order;
   order.reserve(heard.sent.size());
-  for (const auto& s : heard.sent) order.push_back(s.channel + " " + s.subject.substr(13, 7));
+  for (const auto& s : heard.sent) order.push_back(s.channel + " " + s.subject.substr(std::string_view("nobion: run ").size(), 7));
   EXPECT_EQ(order, (std::vector<std::string>{"command 66001-3", "command 66002-3", "command 66003-3", "command 66004-3",
                                              "webhook 66001-3", "webhook 66002-3", "webhook 66003-3",
                                              "webhook 66004-3"}));
@@ -721,7 +722,7 @@ TEST(NotifierOutbox, ADeliveryIsGivenUpAfterADayWithOneLogLine) {
     if (l.message.find("given up") == std::string::npos) continue;
     ++gave_up;
     EXPECT_EQ(l.level, LogLevel::Warn);
-    EXPECT_NE(l.message.find("pychron: run 66001-3 failed (queue q1)"), std::string::npos) << l.message;
+    EXPECT_NE(l.message.find("nobion: run 66001-3 failed (queue q1)"), std::string::npos) << l.message;
   }
   EXPECT_EQ(gave_up, 1u);
 }
@@ -736,7 +737,7 @@ TEST(NotifierOutbox, TheCommandChannelGoesFirstAndDoesNotWaitForAFailingEmail) {
   Notifier notifier(bus, config_of(R"(
 [[email]]
 url = "smtp://relay.example.org"
-from = "pychron@example.org"
+from = "nobion@example.org"
 to = ["a@example.org"]
 [[command]]
 argv = ["notify-lab"]
@@ -780,7 +781,7 @@ TEST(NotifierOutbox, AnOutboxFileHoldsNoSecretOfTheConfig) {
 [[email]]
 provider = "brevo"
 api_key_env = "NOBION_TEST_OUTBOX_KEY"
-from = "pychron@example.org"
+from = "nobion@example.org"
 to = ["a@example.org"]
 [[webhook]]
 url = "https://hooks.example.org/services/T000/B000/XXXX"
@@ -792,9 +793,9 @@ url = "https://hooks.example.org/services/T000/B000/XXXX"
   EXPECT_NE(fake.calls[0].spec.input.find("k3y-0utb0x-s3cret"), std::string::npos);  // read at delivery
   ASSERT_EQ(out.files().size(), 1u);
   const std::string text = read_file(out.files()[0].string());
-  EXPECT_NE(text.find("pychron: run 66001-3 failed (queue q1)"), std::string::npos) << text;
+  EXPECT_NE(text.find("nobion: run 66001-3 failed (queue q1)"), std::string::npos) << text;
   for (const char* secret : {"k3y-0utb0x-s3cret", "NOBION_TEST_OUTBOX_KEY", "hooks.example.org", "T000/B000",
-                             "a@example.org", "pychron@example.org", "brevo"})
+                             "a@example.org", "nobion@example.org", "brevo"})
     EXPECT_EQ(text.find(secret), std::string::npos) << secret << " in\n" << text;
 }
 
@@ -853,11 +854,11 @@ on = ["run_failed", "unsafe"]
   EXPECT_EQ(got, (std::vector<std::string>{"all queue_holding", "all queue_resumed", "all unsafe", "all queue_ended",
                                            "failures unsafe"}));
   ASSERT_GE(fake.calls.size(), 3u);
-  EXPECT_EQ(fake.calls[0].spec.input.rfind("pychron: queue q1 holding", 0), 0u) << fake.calls[0].spec.input;
+  EXPECT_EQ(fake.calls[0].spec.input.rfind("nobion: queue q1 holding", 0), 0u) << fake.calls[0].spec.input;
   EXPECT_NE(fake.calls[0].spec.input.find("link spectrometer is down"), std::string::npos);
   EXPECT_NE(fake.calls[0].spec.input.find("30 min"), std::string::npos) << fake.calls[0].spec.input;
-  EXPECT_EQ(fake.calls[1].spec.input.rfind("pychron: queue q1 running again", 0), 0u) << fake.calls[1].spec.input;
-  EXPECT_EQ(fake.calls[2].spec.input.rfind("pychron: queue q1 ended, line unsafe", 0), 0u) << fake.calls[2].spec.input;
+  EXPECT_EQ(fake.calls[1].spec.input.rfind("nobion: queue q1 running again", 0), 0u) << fake.calls[1].spec.input;
+  EXPECT_EQ(fake.calls[2].spec.input.rfind("nobion: queue q1 ended, line unsafe", 0), 0u) << fake.calls[2].spec.input;
 }
 
 TEST(Notifications, TheNewEventsAreSwitchedPerChannel) {

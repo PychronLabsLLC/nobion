@@ -20,7 +20,7 @@
 
 namespace nobion::publish {
 
-inline constexpr std::string_view kManifestFormat = "pychron-release/1";
+inline constexpr std::string_view kManifestFormat = "nobion-release/1";
 inline constexpr std::string_view kManifestFile = "manifest.json";
 
 struct ManifestRelease {

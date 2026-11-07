@@ -909,11 +909,11 @@ TEST_F(ImportCmd, ReadingCommandsNeedADatabaseThatExists) {
     EXPECT_TRUE(contains(o.err, "elctl import: no database at " + typo.string())) << o.err;
     EXPECT_FALSE(fs::exists(typo)) << args[0];
   }
-  // A file that is not a pychron store is not turned into one.
+  // A file that is not a nobion store is not turned into one.
   std::ofstream(typo, std::ios::binary).flush();
   const Outcome empty = run_raw({"import", "status", "--db", url, "--cache", cache_.string()});
   EXPECT_EQ(empty.code, elctl::kUsage);
-  EXPECT_TRUE(contains(empty.err, "not a pychron store")) << empty.err;
+  EXPECT_TRUE(contains(empty.err, "not a nobion store")) << empty.err;
   EXPECT_EQ(fs::file_size(typo), 0u);
 }
 

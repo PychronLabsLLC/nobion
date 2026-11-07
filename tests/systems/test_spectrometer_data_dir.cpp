@@ -37,7 +37,7 @@ class TempDir : public ::testing::Test {
  protected:
   void SetUp() override {
     root_ = fs::temp_directory_path() /
-            ("pychron_spec_cfg_" + std::string(::testing::UnitTest::GetInstance()->current_test_info()->name()));
+            ("nobion_spec_cfg_" + std::string(::testing::UnitTest::GetInstance()->current_test_info()->name()));
     fs::remove_all(root_);
     fs::create_directories(root_);
   }

@@ -243,7 +243,7 @@ saves blanks and IC factors from reference analyses; saves are recorded under
 `$USER` on this host's client:
 
 ```bash
-build/dev-ui/apps/nobion/nobion --sim --db postgresql://me@labdb/pychron
+build/dev-ui/apps/nobion/nobion --sim --db postgresql://me@labdb/nobion
 ```
 
 On Ubuntu 24.04, `apt install qt6-base-dev libqt6sql6-sqlite` is enough for

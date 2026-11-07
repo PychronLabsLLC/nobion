@@ -429,7 +429,7 @@ class Xlsx : public ::testing::Test {
     const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
     // Per process as well as per test: two build trees may run at once.
     dir_ = fs::temp_directory_path() /
-           (std::string("pychron_xlsx_") + info->name() + "_" + std::to_string(process_id()));
+           (std::string("nobion_xlsx_") + info->name() + "_" + std::to_string(process_id()));
     fs::remove_all(dir_);
     fs::create_directories(dir_);
     out_ = dir_ / "out";

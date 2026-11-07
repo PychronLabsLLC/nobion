@@ -15,7 +15,7 @@ class SimEndpointsTest : public ::testing::Test {
  protected:
   void SetUp() override {
     dir_ = fs::temp_directory_path() /
-           ("pychron_endpoints_" + std::string(::testing::UnitTest::GetInstance()->current_test_info()->name()));
+           ("nobion_endpoints_" + std::string(::testing::UnitTest::GetInstance()->current_test_info()->name()));
     fs::remove_all(dir_);
     fs::create_directories(dir_);
   }

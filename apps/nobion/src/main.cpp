@@ -10,7 +10,7 @@
 // wizard runs first. An instrument install opens its line, canvas and
 // spectrometer configs, as --sim when it was set up for simulation; a
 // data-reduction install opens the data browser on its database alone.
-// --examples opens the example line shipped with pychron (development), as
+// --examples opens the example line shipped with nobion (development), as
 // does --sim when nothing is installed.
 //
 // --sim forces every extraction-line transport to kind = "sim".

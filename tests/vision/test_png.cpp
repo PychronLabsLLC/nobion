@@ -24,7 +24,7 @@ struct TempDir {
     static int n = 0;
     const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
     path = std::filesystem::temp_directory_path() /
-           (std::string("pychron_png_") + info->name() + "_" + std::to_string(++n));
+           (std::string("nobion_png_") + info->name() + "_" + std::to_string(++n));
     std::filesystem::remove_all(path);
     std::filesystem::create_directories(path);
   }

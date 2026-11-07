@@ -67,7 +67,7 @@ not reach you; nobody needs to reply to these.
 
 1. Click your account name, then **SMTP & API**.
 2. Open the **API Keys** tab and click **Generate a new API key**. Name it
-   after the instrument computer (`pychron-argus`).
+   after the instrument computer (`nobion-argus`).
 3. Copy the key now. It starts with `xkeysib-` and is shown only this once.
    If you lose it, delete it and generate another.
 4. On the **Security** tab, find **Blocking unauthorized IP addresses** (or
@@ -93,7 +93,7 @@ setx NOBION_MAIL_API_KEY "xkeysib-..."
 
 Close every nobion window and terminal and open them again.
 
-**Linux.** Create the file `~/.config/environment.d/pychron.conf` holding one
+**Linux.** Create the file `~/.config/environment.d/nobion.conf` holding one
 line:
 
 ```
@@ -103,7 +103,7 @@ NOBION_MAIL_API_KEY=xkeysib-...
 Then make it private and log out and in again:
 
 ```bash
-chmod 600 ~/.config/environment.d/pychron.conf
+chmod 600 ~/.config/environment.d/nobion.conf
 ```
 
 **macOS.** Add this line to the end of the file `~/.zshrc`:
@@ -147,7 +147,7 @@ elctl exp notify
 
 With more than one install, name it: `elctl --install argus exp notify`.
 
-- `sent: email` and a message titled "pychron: test notification" in your
+- `sent: email` and a message titled "nobion: test notification" in your
   inbox within a minute: done. Check the spam folder the first time, and
   mark the message "not spam".
 - `failed: email: ...`: find the text in [Troubleshooting](#troubleshooting).
@@ -320,7 +320,7 @@ Run `elctl exp notify` and match what follows `failed:`.
 |---|---|---|
 | `no notifications are configured` | No `notifications.toml` in this lab folder, or it has no entries | Step 5. Check the folder with `elctl doctor` |
 | `notifications.toml: ... unknown key` or `missing` | A typo in the file | The message names the entry and the key |
-| `NOBION_MAIL_API_KEY is not set` | The variable is not set for this program | Step 4, then open a new terminal or restart pychron. On macOS see the note about the Dock |
+| `NOBION_MAIL_API_KEY is not set` | The variable is not set for this program | Step 4, then open a new terminal or restart nobion. On macOS see the note about the Dock |
 | `error: 401` with `Key not found`, `API key is invalid` or `valid Server token` | The key is wrong, deleted, or belongs to another service | Generate a new key (step 3) and set it again. Check `provider` matches the service |
 | `error: 401` with `unrecognised IP address` | Brevo is blocking computers it does not know | Step 3, item 4 |
 | `error: 400`, `403` or `422` mentioning the sender, `from` or a domain | `from` is not an address the service has confirmed | Step 2. `from` must match exactly |

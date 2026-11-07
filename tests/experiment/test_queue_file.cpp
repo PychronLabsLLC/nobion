@@ -139,7 +139,7 @@ TEST(QueueFile, ConditionalTablesParse) {
 }
 
 TEST(QueueFile, SaveAndLoadFile) {
-  const auto dir = std::filesystem::temp_directory_path() / "pychron_queue_file_test";
+  const auto dir = std::filesystem::temp_directory_path() / "nobion_queue_file_test";
   std::filesystem::create_directories(dir);
   const auto path = (dir / "experiment.toml").string();
   const QueueSpec q = sample_queue();

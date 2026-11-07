@@ -1,6 +1,6 @@
 #pragma once
 
-// Brand: the pychron mark, the splash screen, the About dialog and the
+// Brand: the nobion mark, the splash screen, the About dialog and the
 // application icon. Everything is painted from the theme at the size and
 // pixel ratio it is shown at, so there are no image assets.
 //

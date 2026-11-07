@@ -1016,7 +1016,7 @@ class ElctlExpUnreadableDatabaseTest : public ElctlExpStoreTest {
     const auto at = site.find("database = '");
     ASSERT_NE(at, std::string::npos) << site;
     const auto end = site.find('\n', at);
-    site.replace(at, end - at, "database = 'postgresql://jross@db.lab/pychron'");
+    site.replace(at, end - at, "database = 'postgresql://jross@db.lab/nobion'");
     std::ofstream(path("site.toml")) << site;
     fs::create_directories(root_ / ".nobion");
     std::ofstream(root_ / ".nobion" / "credentials.toml") << "[database\npassword = \"s3cret\n";

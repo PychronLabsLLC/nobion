@@ -144,5 +144,5 @@ bool register_driver(const char* kind) {
 // The library holding the .cpp must be linked with nobion_link_drivers()
 // (see libs/devices/CMakeLists.txt) or the linker may drop it.
 #define REGISTER_DRIVER(kind, Type)                                                         \
-  [[maybe_unused]] static const bool NOBION_DRIVER_CONCAT(pychron_driver_registered_, __LINE__) = \
+  [[maybe_unused]] static const bool NOBION_DRIVER_CONCAT(nobion_driver_registered_, __LINE__) = \
       ::nobion::detail::register_driver<Type>(kind)

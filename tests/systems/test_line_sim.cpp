@@ -131,7 +131,7 @@ TEST(LineSim, RefusedNetworkFails) {
 }
 
 TEST(LineSim, SimFileBesideOnlyWithCanvas) {
-  const auto dir = fs::temp_directory_path() / "pychron_line_sim_beside";
+  const auto dir = fs::temp_directory_path() / "nobion_line_sim_beside";
   fs::remove_all(dir);
   fs::create_directories(dir);
   const auto line = dir / "extraction_line.toml";

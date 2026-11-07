@@ -48,7 +48,7 @@ class ISecretStore {
 // otherwise the memory store: ask `backend()` or `persistent()` which. The
 // memory store given here is the process's: every store made with the same
 // `service` sees the same passwords until the program ends.
-std::unique_ptr<ISecretStore> make_secret_store(std::string_view service = "pychron.earthbank");
+std::unique_ptr<ISecretStore> make_secret_store(std::string_view service = "nobion.earthbank");
 
 // A memory store of its own, sharing nothing: for tests, and for a program
 // told not to keep anything.

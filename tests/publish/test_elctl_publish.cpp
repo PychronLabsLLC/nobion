@@ -29,7 +29,7 @@ class ElctlPublishTest : public ReleaseFixture {
   void SetUp() override {
     if (GetParam() != "sqlite") GTEST_SKIP() << "the command is driven on SQLite; the store is tested on both";
     ReleaseFixture::SetUp();
-    out_ = fs::temp_directory_path() / ("pychron_elctl_publish_" + std::to_string(std::random_device{}()));
+    out_ = fs::temp_directory_path() / ("nobion_elctl_publish_" + std::to_string(std::random_device{}()));
     fs::create_directories(out_);
   }
   void TearDown() override {

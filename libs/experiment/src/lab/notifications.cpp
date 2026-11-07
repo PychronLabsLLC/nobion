@@ -487,7 +487,7 @@ Notification run_failed_notification(const std::string& queue, const executor::R
   const std::string state(run::to_string(run.state));
   // A run that is reported only because its record was not saved did not fail.
   const bool only_unsaved = run.save_error && run.state == run::RunState::Success;
-  n.subject = "pychron: run " + label + " " +
+  n.subject = "nobion: run " + label + " " +
               (run.state == run::RunState::Failed ? "failed" : only_unsaved ? "not saved" : state) + " (queue " + queue +
               ")";
   std::ostringstream b;
@@ -521,7 +521,7 @@ Notification queue_ended_notification(const std::string& queue, const executor::
     ++by_state[std::string(run::to_string(r.state))];
     failed += r.state == run::RunState::Failed || r.save_error ? 1 : 0;
   }
-  n.subject = "pychron: queue " + queue + " " + end;
+  n.subject = "nobion: queue " + queue + " " + end;
   if (failed > 0) n.subject += ", " + std::to_string(failed) + " run(s) failed";
   std::ostringstream b;
   b << "Queue " << queue << " " << end;
@@ -548,7 +548,7 @@ Notification queue_ended_notification(const std::string& queue, const executor::
 Notification queue_holding_notification(const std::string& queue, const executor::ExecutorHolding& hold) {
   Notification n;
   n.event = NotifyEvent::QueueHolding;
-  n.subject = "pychron: queue " + queue + " holding";
+  n.subject = "nobion: queue " + queue + " holding";
   std::string links;
   for (const auto& l : hold.links) links += (links.empty() ? "" : ", ") + l;
   const auto limit = std::chrono::duration_cast<std::chrono::minutes>(hold.until - hold.since).count();
@@ -570,7 +570,7 @@ Notification queue_holding_notification(const std::string& queue, const executor
 Notification queue_resumed_notification(const std::string& queue, const std::string& reason) {
   Notification n;
   n.event = NotifyEvent::QueueResumed;
-  n.subject = "pychron: queue " + queue + " running again";
+  n.subject = "nobion: queue " + queue + " running again";
   n.body = "Queue " + queue + " is running again" + (reason.empty() ? std::string() : ": " + reason) + ".\n";
   n.fields = {{"queue", queue}, {"reason", reason}};
   return n;
@@ -579,7 +579,7 @@ Notification queue_resumed_notification(const std::string& queue, const std::str
 Notification unsafe_notification(const std::string& queue, const executor::QueueResult& result) {
   Notification n;
   n.event = NotifyEvent::Unsafe;
-  n.subject = "pychron: queue " + queue + " ended, line unsafe";
+  n.subject = "nobion: queue " + queue + " ended, line unsafe";
   std::ostringstream b;
   b << "A failed run left the line in a state that is not safe, and queue " << queue << " ended";
   if (!result.reason.empty()) b << ": " << result.reason;
@@ -592,7 +592,7 @@ Notification unsafe_notification(const std::string& queue, const executor::Queue
 Notification test_notification(const std::string& lab) {
   Notification n;
   n.event = NotifyEvent::Test;
-  n.subject = "pychron: test notification";
+  n.subject = "nobion: test notification";
   n.body = "A test of the notifications configured for the lab at " + lab + ".\n";
   n.fields = {{"lab", lab}};
   return n;

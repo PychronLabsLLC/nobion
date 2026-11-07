@@ -7,7 +7,7 @@
 namespace nobion::scripting {
 namespace {
 
-constexpr std::string_view kHeaderPrefix = "#! pychron:";
+constexpr std::string_view kHeaderPrefix = "#! nobion:";
 
 bool is_separator(char c) { return c == ',' || std::isspace(static_cast<unsigned char>(c)); }
 

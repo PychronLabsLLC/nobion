@@ -48,7 +48,7 @@ Resources find_resources(const std::filesystem::path& executable_dir);
                                                              const std::filesystem::path& examples,
                                                              const std::filesystem::path& user_dir);
 
-// The pychron version these programs were built as ("0.2.0").
+// The nobion version these programs were built as ("0.2.0").
 std::string_view version() noexcept;
 
 std::filesystem::path home_dir();

@@ -152,7 +152,7 @@ std::string citation_cff(const Manifest& m) {
     if (a.orcid) out += "    orcid: https://orcid.org/" + *a.orcid + "\n";
     if (a.affiliation) out += "    affiliation: " + yaml_quote(*a.affiliation) + "\n";
   }
-  out += "identifiers:\n  - type: other\n    value: " + yaml_quote("pychron-release:" + m.release.uuid.str()) + "\n";
+  out += "identifiers:\n  - type: other\n    value: " + yaml_quote("nobion-release:" + m.release.uuid.str()) + "\n";
   return out;
 }
 

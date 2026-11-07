@@ -40,7 +40,7 @@ const fs::path kProfiles(NOBION_PROFILES_DIR);
 const fs::path kExamples(NOBION_EXAMPLE_CONFIGS_DIR);
 
 fs::path scratch(const std::string& tag) {
-  const fs::path dir = nobion::testing::unique_temp_path("pychron-setup-" + tag + "-");
+  const fs::path dir = nobion::testing::unique_temp_path("nobion-setup-" + tag + "-");
   fs::remove_all(dir);
   return dir;
 }
@@ -389,10 +389,10 @@ TEST_P(InstrumentProfile, HasADatabaseOnThisComputerByDefault) {
                   {"db_user", Value{std::string("jan")}},
                   {"db_password", Value{std::string("p@ss word")}}},
                  server);
-  EXPECT_EQ(site.database, "postgresql://jan@db.lab.org:5432/pychron");
+  EXPECT_EQ(site.database, "postgresql://jan@db.lab.org:5432/nobion");
   auto url = database_url(site);
   ASSERT_TRUE(url) << url.error().what;
-  EXPECT_EQ(*url, "postgresql://jan:p%40ss%20word@db.lab.org:5432/pychron");
+  EXPECT_EQ(*url, "postgresql://jan:p%40ss%20word@db.lab.org:5432/nobion");
   fs::remove_all(server);
 }
 
@@ -643,10 +643,10 @@ TEST(Profiles, DataReductionLocalAndServer) {
                   {"db_user", Value{std::string("reader")}},
                   {"db_password", Value{std::string("p@ss word")}}},
                  server);
-  EXPECT_EQ(site.database, "postgresql://reader@db.lab.org:5432/pychron");  // no password in the site config
+  EXPECT_EQ(site.database, "postgresql://reader@db.lab.org:5432/nobion");  // no password in the site config
   auto url = database_url(site);
   ASSERT_TRUE(url);
-  EXPECT_EQ(*url, "postgresql://reader:p%40ss%20word@db.lab.org:5432/pychron");
+  EXPECT_EQ(*url, "postgresql://reader:p%40ss%20word@db.lab.org:5432/nobion");
   fs::remove_all(server);
 }
 

@@ -77,7 +77,7 @@ struct Fault {
 class World {
  public:
   World()
-      : dir_(nobion::testing::unique_temp_path("pychron-outage-")),
+      : dir_(nobion::testing::unique_temp_path("nobion-outage-")),
         clock_(clock_options()),
         still_(std::in_place, clock_) {
     nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_);

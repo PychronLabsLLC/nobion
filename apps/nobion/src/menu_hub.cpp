@@ -211,7 +211,7 @@ QString MenuHub::title(Menu menu) {
 
 bool MenuHub::takes_bar(const QWidget* window) {
   if (!window->isWindow() || window->windowType() != Qt::Window) return false;  // dialogs, tools, popups, splash
-  if (window->property("pychron_no_menubar").toBool()) return false;
+  if (window->property("nobion_no_menubar").toBool()) return false;
   if (qobject_cast<const QDialog*>(window) != nullptr || qobject_cast<const QSplashScreen*>(window) != nullptr ||
       qobject_cast<const QMenu*>(window) != nullptr)
     return false;

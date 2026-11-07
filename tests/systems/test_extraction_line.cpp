@@ -337,7 +337,7 @@ TEST(ExtractionLine, TransportOpenFailureFailsStartAndClosesAll) {
   ManualClock clock;
   std::string toml = std::string(kSystem);
   toml.replace(toml.find("[transports.bus]\nkind = \"sim\""), std::string("[transports.bus]\nkind = \"sim\"").size(),
-               "[transports.bus]\nkind = \"serial\"\nport = \"/dev/pychron-no-such-port\"");
+               "[transports.bus]\nkind = \"serial\"\nport = \"/dev/nobion-no-such-port\"");
   auto line = ExtractionLine::create(system_config(toml.c_str()), std::nullopt, manual(clock));
   ASSERT_TRUE(line) << line.error().what;
   auto started = (*line)->start();
@@ -351,7 +351,7 @@ TEST(ExtractionLine, ForceSimReplacesHardwareTransports) {
   ManualClock clock;
   std::string toml = std::string(kSystem);
   toml.replace(toml.find("[transports.bus]\nkind = \"sim\""), std::string("[transports.bus]\nkind = \"sim\"").size(),
-               "[transports.bus]\nkind = \"serial\"\nport = \"/dev/pychron-no-such-port\"");
+               "[transports.bus]\nkind = \"serial\"\nport = \"/dev/nobion-no-such-port\"");
   auto opts = manual(clock);
   opts.force_sim = true;
   auto line = ExtractionLine::create(system_config(toml.c_str()), std::nullopt, opts);
@@ -378,7 +378,7 @@ TEST(ExtractionLine, LoadsExampleFiles) {
   ManualClock clock;
   auto opts = manual(clock);
   // Not the valve states of somebody's run in the examples folder.
-  opts.state_file = std::filesystem::temp_directory_path() / "pychron-test-example-files.state.toml";
+  opts.state_file = std::filesystem::temp_directory_path() / "nobion-test-example-files.state.toml";
   std::filesystem::remove(opts.state_file);
   auto line = ExtractionLine::load(dir / "extraction_line.toml", dir / "canvas.toml", opts);
   ASSERT_TRUE(line) << line.error().what;
@@ -427,7 +427,7 @@ TEST(ExtractionLine, LoadReportsMissingFile) {
 
 TEST(ExtractionLine, TransportWireLogsWhenHubAndTraceSet) {
   ManualClock clock;
-  auto dir = unique_temp_dir("pychron_line_wire_test");
+  auto dir = unique_temp_dir("nobion_line_wire_test");
   std::filesystem::create_directories(dir);
 
   auto cfg = system_config();
@@ -462,7 +462,7 @@ TEST(ExtractionLine, TransportWireLogsWhenHubAndTraceSet) {
 
 TEST(ExtractionLine, BuildsOwnHubFromLoggingConfigAndWireLogs) {
   ManualClock clock;
-  auto dir = unique_temp_dir("pychron_line_ownhub_test");
+  auto dir = unique_temp_dir("nobion_line_ownhub_test");
   std::filesystem::create_directories(dir);
 
   auto cfg = system_config();
@@ -513,7 +513,7 @@ std::size_t lines_containing(const std::filesystem::path& p, const std::string& 
 
 TEST(ExtractionLine, LineWarningReachesLogFileAndBusOnce) {
   ManualClock clock;
-  auto dir = unique_temp_dir("pychron_line_log_test");
+  auto dir = unique_temp_dir("nobion_line_log_test");
   std::filesystem::remove_all(dir);
 
   auto cfg = system_config((std::string(kSystem) + kBadGauge).c_str());
@@ -539,7 +539,7 @@ TEST(ExtractionLine, LineWarningReachesLogFileAndBusOnce) {
 
 TEST(ExtractionLine, ActuationAndFailureAreLoggedOnceToBusAndFile) {
   ManualClock clock;
-  auto dir = unique_temp_dir("pychron_line_act_log");
+  auto dir = unique_temp_dir("nobion_line_act_log");
   std::filesystem::remove_all(dir);
   auto cfg = system_config();
   cfg.logging.dir = dir;
@@ -603,7 +603,7 @@ TEST(ExtractionLine, InjectedHubOnAnotherBusStillFeedsLineBus) {
 // a test writes beside them.
 class SimLab {
  public:
-  explicit SimLab(const std::string& name) : dir_(std::filesystem::temp_directory_path() / ("pychron-sim-lab-" + name)) {
+  explicit SimLab(const std::string& name) : dir_(std::filesystem::temp_directory_path() / ("nobion-sim-lab-" + name)) {
     std::filesystem::remove_all(dir_);
     std::filesystem::create_directories(dir_);
     write("extraction_line.toml", kSystem);
@@ -1184,7 +1184,7 @@ TEST(ExtractionLine, TheNmgrlExampleModelsItsValveToValveJoins) {
   opts.run_scheduler = false;
   opts.log_hub = log.hub;
   opts.sim.noise = 0.0;
-  opts.state_file = std::filesystem::temp_directory_path() / "pychron-test-nmgrl-pipes.state.toml";
+  opts.state_file = std::filesystem::temp_directory_path() / "nobion-test-nmgrl-pipes.state.toml";
   std::filesystem::remove(opts.state_file);
   auto loaded = ExtractionLine::load(dir / "extraction_line.toml", dir / "canvas.toml", opts);
   ASSERT_TRUE(loaded) << loaded.error().what;
@@ -1273,7 +1273,7 @@ void expect_the_example_lab(bool with_sim_toml) {
   opts.run_scheduler = false;
   opts.log_hub = log.hub;
   if (!with_sim_toml) opts.sim_file = std::filesystem::path{};
-  opts.state_file = std::filesystem::temp_directory_path() / "pychron-test-example-sim-toml.state.toml";
+  opts.state_file = std::filesystem::temp_directory_path() / "nobion-test-example-sim-toml.state.toml";
   std::filesystem::remove(opts.state_file);
   auto loaded = ExtractionLine::load(dir / "extraction_line.toml", dir / "canvas.toml", opts);
   ASSERT_TRUE(loaded) << loaded.error().what;

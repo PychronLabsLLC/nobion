@@ -29,7 +29,7 @@ bool start_install(const std::string& name);
 // One line per check on `out`; 0 when all pass.
 int self_test(std::ostream& out);
 
-// nobion --write-icons: the application icon as pychron-<size>.png for
+// nobion --write-icons: the application icon as nobion-<size>.png for
 // the sizes the installers' icon files need (tools/make_icons.py packs them
 // into .icns and .ico). 0 when every file was written.
 int write_icons(const std::filesystem::path& dir, std::ostream& out);

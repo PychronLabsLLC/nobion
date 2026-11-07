@@ -24,7 +24,7 @@ namespace fs = std::filesystem;
 class ConditionalFilesTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    root_ = nobion::testing::unique_temp_path("pychron-condfiles-");
+    root_ = nobion::testing::unique_temp_path("nobion-condfiles-");
     fs::create_directories(root_);
     dir_ = root_ / "conditionals";
   }

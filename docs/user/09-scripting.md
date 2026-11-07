@@ -63,7 +63,7 @@ This is `configs/examples/scripts/extraction/laser_extract.py`, the example
 laser extraction:
 
 ```python
-#! pychron: eqtime=20
+#! nobion: eqtime=20
 # Isolate the prep section, drive the stage to the run's hole, heat for the
 # run's duration (or for as long as the run's pattern takes), then let the gas settle.
 
@@ -117,7 +117,7 @@ def main():
 for any run but a blank; `sim_air.py` and `sim_blank.py` are the air shot and
 its blank on their own.)
 
-The `#! pychron:` line is a header (section 8). Lines starting with `#` are
+The `#! nobion:` line is a header (section 8). Lines starting with `#` are
 comments. Indentation (four spaces) shows what belongs to `main()` and to
 `if`.
 
@@ -516,7 +516,7 @@ script check failed: extraction/laser_extract.py:9: unknown-command: unknown com
 | Code | Meaning |
 |---|---|
 | `syntax` | The text is not valid Python. |
-| `header` | A `#! pychron:` line is malformed. |
+| `header` | A `#! nobion:` line is malformed. |
 | `unknown-command` | A function that is not a command, a function you defined, or an allowed built-in (usually a typo). |
 | `unknown-name` | A variable that is not defined. |
 | `arity` | A command called with the wrong number or names of arguments (for example `sleep(1, 2, 3)`). |
@@ -546,7 +546,7 @@ command), and no `eval`, `exec`, `getattr`, `type` or `__import__`.
 A line anywhere in a script of the form
 
 ```python
-#! pychron: eqtime=20, label="two words"
+#! nobion: eqtime=20, label="two words"
 ```
 
 is a header: `key=value` pairs separated by commas or spaces, a value may be

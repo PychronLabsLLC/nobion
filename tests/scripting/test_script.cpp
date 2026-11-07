@@ -18,8 +18,8 @@ using namespace nobion;
 using namespace nobion::scripting;
 
 TEST(ScriptHeader, ParsesPychronHeaderLines) {
-  auto h = parse_header("#! pychron: eqtime=20, duration=5\n\ndef main():\n    pass\n"
-                        "  #! pychron: label=\"two words\" eqtime=25\n");
+  auto h = parse_header("#! nobion: eqtime=20, duration=5\n\ndef main():\n    pass\n"
+                        "  #! nobion: label=\"two words\" eqtime=25\n");
   ASSERT_TRUE(h) << to_string(h.error());
   EXPECT_EQ(h->get("label"), "two words");
   EXPECT_EQ(h->get("eqtime"), "25");  // later key wins
@@ -37,11 +37,11 @@ TEST(ScriptHeader, IgnoresOrdinaryComments) {
 }
 
 TEST(ScriptHeader, MalformedLineNamesTheLine) {
-  auto h = parse_header("def main():\n    pass\n#! pychron: eqtime\n");
+  auto h = parse_header("def main():\n    pass\n#! nobion: eqtime\n");
   ASSERT_FALSE(h);
   EXPECT_EQ(h.error().kind, ErrorKind::Config);
   EXPECT_NE(h.error().what.find("line 3"), std::string::npos);
-  EXPECT_FALSE(parse_header("#! pychron: label=\"open"));
+  EXPECT_FALSE(parse_header("#! nobion: label=\"open"));
 }
 
 TEST(ScriptSha, MatchesKnownVectors) {

@@ -82,7 +82,7 @@ void ScriptHighlighter::highlightBlock(const QString& text) {
   while (i < text.size()) {
     const QChar ch = text[i];
     if (ch == QLatin1Char('#')) {
-      const bool header = text.mid(i).startsWith(QStringLiteral("#! pychron:"));
+      const bool header = text.mid(i).startsWith(QStringLiteral("#! nobion:"));
       setFormat(i, static_cast<int>(text.size()) - i, format_for(header ? Role::Header : Role::Comment));
       return;
     }

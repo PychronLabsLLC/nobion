@@ -226,7 +226,7 @@ usage error.
 ```bash
 elctl init --list
 elctl init data-reduction --yes
-elctl init argus --root ~/pychron/argus --name argus --set simulation=true --yes
+elctl init argus --root ~/nobion/argus --name argus --set simulation=true --yes
 elctl init --reconfigure --install argus --set simulation=false
 ```
 
@@ -324,9 +324,9 @@ usage error.
 ```bash
 elctl data-source
 # to the lab's server, the password typed at the prompt
-elctl data-source set --server db.lab.example:5432/pychron --user ar
+elctl data-source set --server db.lab.example:5432/nobion --user ar
 # from a script
-printf '%s\n' "$NOBION_DB_PASSWORD" | elctl data-source set --server db.lab.example/pychron --user ar --password-stdin --yes
+printf '%s\n' "$NOBION_DB_PASSWORD" | elctl data-source set --server db.lab.example/nobion --user ar --password-stdin --yes
 # and back to the file on this computer
 elctl data-source set --local --yes
 # another file and a data folder on a shared disk
@@ -957,8 +957,8 @@ elctl export --db <url> --out <file.csv|file.json> [selection] [options]
 Exit codes: 0 wrote the file; 1 no analysis matched; 2 usage or fatal error.
 
 ```bash
-elctl export --db sqlite:$HOME/pychron/data.db --out report.csv --sample FC-2 --sigma 1
-elctl export --db postgresql://user:pw@host/pychron --out report.json \
+elctl export --db sqlite:$HOME/nobion/data.db --out report.csv --sample FC-2 --sigma 1
+elctl export --db postgresql://user:pw@host/nobion --out report.json \
     --project examples --irradiation NM-300 --group-by sample --plateau mahon
 ```
 
@@ -1075,7 +1075,7 @@ aliquot and reports at two sigma.
 | `--per-sample` | One Ar-Ar workbook per sample, not one for all. |
 | `--no-samples` | No Sample workbook. |
 | `--check` | Print what the export would print and write nothing. |
-| `--templates DIR` | The directory holding the service's two templates. Default: the directory the environment variable `NOBION_EARTHBANK_TEMPLATES` names; when it is not set, the ones installed with Pychron. |
+| `--templates DIR` | The directory holding the service's two templates. Default: the directory the environment variable `NOBION_EARTHBANK_TEMPLATES` names; when it is not set, the ones installed with Nobion. |
 | `--overrides FILE.toml` | What the analyses cannot say; see below. |
 
 **The age reported for a sample.** A sample with heating steps reports its
@@ -1135,8 +1135,8 @@ Exit codes: 0 wrote the files (with `--check`: there was something to write);
 1 no analysis matched; 2 usage or fatal error.
 
 ```bash
-elctl earthbank export-xlsx --db sqlite:$HOME/pychron/data.db --check --project examples
-elctl earthbank export-xlsx --db sqlite:$HOME/pychron/data.db --out earthbank/ \
+elctl earthbank export-xlsx --db sqlite:$HOME/nobion/data.db --check --project examples
+elctl earthbank export-xlsx --db sqlite:$HOME/nobion/data.db --out earthbank/ \
     --project examples --overrides earthbank.toml --per-sample
 ```
 
@@ -1185,7 +1185,7 @@ password, a bad flag). No command prints a password or a token.
 elctl earthbank login --profile mylab --username a.user --institution 1001
 EARTHBANK_PASSWORD=... elctl earthbank account            # in a script
 elctl earthbank packages --create "Ar-Ar results 2031"
-elctl earthbank preflight --db sqlite:$HOME/pychron/data.db --project examples
+elctl earthbank preflight --db sqlite:$HOME/nobion/data.db --project examples
 ```
 
 ### Uploading
@@ -1198,8 +1198,8 @@ pre-flight report. Without `--yes` it stops there and exits 2: read it, then
 run the same command with `--yes`.
 
 ```bash
-elctl earthbank upload --db sqlite:$HOME/pychron/data.db --sample MB-12 --overrides earthbank.toml
-elctl earthbank upload --db sqlite:$HOME/pychron/data.db --sample MB-12 --overrides earthbank.toml --yes
+elctl earthbank upload --db sqlite:$HOME/nobion/data.db --sample MB-12 --overrides earthbank.toml
+elctl earthbank upload --db sqlite:$HOME/nobion/data.db --sample MB-12 --overrides earthbank.toml --yes
 ```
 
 - **The data package** is `--package ID`, else the profile's (set by
@@ -1254,7 +1254,7 @@ elctl entry <what> <action> [args] --db <url> [--user <name>]
 
 `--db` is required for everything except `help` and `samples template`.
 `--user NAME` is recorded as the author of changes; default: the `USER`
-environment variable, else `pychron`. `--dry-run` (where listed) prints the row
+environment variable, else `nobion`. `--dry-run` (where listed) prints the row
 each change would make and writes nothing.
 
 | Command | What it does |
@@ -1278,11 +1278,11 @@ cannot be opened). `elctl entry` with no arguments prints the full help and exit
 
 ```bash
 elctl entry samples template samples.csv
-elctl entry samples import samples.csv --db sqlite:$HOME/pychron/data.db --dry-run
+elctl entry samples import samples.csv --db sqlite:$HOME/nobion/data.db --dry-run
 elctl entry package add NM-300 --kind irradiation --levels A-C --reactor "Triga" \
-    --chronology chron.csv --tz America/Denver --db sqlite:$HOME/pychron/data.db
-elctl entry positions import NM-300 positions.csv --db sqlite:$HOME/pychron/data.db
-elctl entry identifiers generate NM-300 --db sqlite:$HOME/pychron/data.db --dry-run
+    --chronology chron.csv --tz America/Denver --db sqlite:$HOME/nobion/data.db
+elctl entry positions import NM-300 positions.csv --db sqlite:$HOME/nobion/data.db
+elctl entry identifiers generate NM-300 --db sqlite:$HOME/nobion/data.db --dry-run
 ```
 
 ## Not yet implemented / unverified

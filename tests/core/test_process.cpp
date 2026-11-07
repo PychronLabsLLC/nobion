@@ -72,11 +72,11 @@ TEST(Process, AddsEnvironmentVariables) {
 
 TEST(Process, AMissingProgramIsAnIoError) {
   ProcessSpec spec;
-  spec.argv = {"pychron-no-such-program-xyz"};
+  spec.argv = {"nobion-no-such-program-xyz"};
   auto r = run_process(spec);
   ASSERT_FALSE(r);
   EXPECT_EQ(r.error().kind, ErrorKind::Io);
-  EXPECT_NE(r.error().what.find("pychron-no-such-program-xyz"), std::string::npos) << r.error().what;
+  EXPECT_NE(r.error().what.find("nobion-no-such-program-xyz"), std::string::npos) << r.error().what;
   EXPECT_FALSE(run_process(ProcessSpec{}));
 }
 
@@ -104,7 +104,7 @@ std::string slurp(const std::filesystem::path& p) {
 }
 
 std::filesystem::path scratch(const char* name) {
-  return std::filesystem::temp_directory_path() / (std::string("pychron-process-test-") + name);
+  return std::filesystem::temp_directory_path() / (std::string("nobion-process-test-") + name);
 }
 
 }  // namespace

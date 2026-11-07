@@ -19,7 +19,7 @@ namespace fs = std::filesystem;
 namespace {
 
 struct LocalFile : ::testing::Test {
-  fs::path dir = fs::temp_directory_path() / ("pychron_local_file_" + std::to_string(::testing::UnitTest::GetInstance()->random_seed()) +
+  fs::path dir = fs::temp_directory_path() / ("nobion_local_file_" + std::to_string(::testing::UnitTest::GetInstance()->random_seed()) +
                                               "_" + ::testing::UnitTest::GetInstance()->current_test_info()->name());
   fs::path main_file = dir / "extraction_line.toml";
   fs::path local = dir / "extraction_line.local.toml";
@@ -115,12 +115,12 @@ TEST(LocalOverrideText, PathsAndPatternsAreQuotedSafely) {
 
 TEST(LocalOverrideText, ClearingTheSharedFoldersIsAnEmptyDir) {
   LoggingConfig main_cfg;
-  main_cfg.dir = "/var/log/pychron";
+  main_cfg.dir = "/var/log/nobion";
   LoggingConfig wanted;
   wanted.dir = fs::path{};
   const std::string text = logging_override_toml(wanted, main_cfg);
   EXPECT_EQ(text, "[logging]\ndir = \"\"\n");
-  const auto r = load_report_from_string("[system]\nname = \"x\"\n[logging]\ndir = \"/var/log/pychron\"\n", "main.toml", text,
+  const auto r = load_report_from_string("[system]\nname = \"x\"\n[logging]\ndir = \"/var/log/nobion\"\n", "main.toml", text,
                                          "main.local.toml");
   ASSERT_TRUE(r.ok());
   ASSERT_TRUE(r.config->logging.dir.has_value());

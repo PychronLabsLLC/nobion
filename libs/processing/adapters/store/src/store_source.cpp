@@ -860,7 +860,7 @@ StoreSource::~StoreSource() = default;
 Result<std::unique_ptr<StoreSource>> StoreSource::open(ps::StoreConfig config, StoreSourceOptions options) {
   auto impl = std::make_unique<Impl>();
   impl->config = std::move(config);
-  impl->user = !options.user.empty() ? options.user : env_var("USER").value_or("pychron");
+  impl->user = !options.user.empty() ? options.user : env_var("USER").value_or("nobion");
   impl->hostname = !options.hostname.empty() ? options.hostname : host_name();
   impl->reduction_version = std::move(options.reduction_version);
   impl->extension_loader = std::move(options.extension_loader);

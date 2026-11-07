@@ -46,7 +46,7 @@ struct TableRig {
 
   static fs::path unique_root() {
     std::random_device rd;
-    return fs::temp_directory_path() / ("pychron_spectables_" + std::to_string(rd()) + std::to_string(rd()));
+    return fs::temp_directory_path() / ("nobion_spectables_" + std::to_string(rd()) + std::to_string(rd()));
   }
 
   TableRig() { fs::create_directories(root); }

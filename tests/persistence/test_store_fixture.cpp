@@ -36,7 +36,7 @@ TEST(StoreFixture, DatabaseNamesCarryThePidAndAFullWidthRandomValue) {
 
 TEST(StoreFixture, SqliteSideFilesGoWithTheMainFile) {
   const std::filesystem::path stale =
-      std::filesystem::temp_directory_path() / ("pychron_store_" + TestDatabase::unique_tag() + ".sqlite");
+      std::filesystem::temp_directory_path() / ("nobion_store_" + TestDatabase::unique_tag() + ".sqlite");
   for (const char* suffix : {"", "-wal", "-shm"}) std::ofstream(stale.string() + suffix) << "stale";
   TestDatabase::remove_sqlite_files(stale);
   for (const char* suffix : {"", "-wal", "-shm"}) {

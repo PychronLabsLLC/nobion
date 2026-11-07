@@ -274,7 +274,7 @@ TEST_F(ExampleLineSimThreaded, ScansAndActuatesOnSchedulerThreads) {
   options.sim_file = std::filesystem::path{};  // lab()'s numbers, not the example sim.toml's
   // Valve states and locks persist beside the config by default: keep the
   // test out of the repo and independent of earlier runs.
-  options.state_file = std::filesystem::temp_directory_path() / "pychron-test-example-line.state.toml";
+  options.state_file = std::filesystem::temp_directory_path() / "nobion-test-example-line.state.toml";
   std::filesystem::remove(options.state_file);
   auto made = ExtractionLine::load(kDir / "extraction_line.toml", kDir / "canvas.toml", options);
   ASSERT_TRUE(made) << made.error().what;
@@ -314,7 +314,7 @@ TEST_F(ExampleLineSimThreaded, AskingWhetherItRunsDuringAStopDoesNotStallTime) {
   options.clock = &clock;
   options.sim = lab();
   options.sim_file = std::filesystem::path{};  // lab()'s numbers, not the example sim.toml's
-  options.state_file = std::filesystem::temp_directory_path() / "pychron-test-example-line-stop.state.toml";
+  options.state_file = std::filesystem::temp_directory_path() / "nobion-test-example-line-stop.state.toml";
   std::filesystem::remove(options.state_file);
   auto made = ExtractionLine::load(kDir / "extraction_line.toml", kDir / "canvas.toml", options);
   ASSERT_TRUE(made) << made.error().what;
@@ -351,7 +351,7 @@ TEST(ExampleLineSteady, ActuatesAndScansInRealTime) {
   ExtractionLine::Options options;  // no clock given: the line's own SteadyClock
   options.sim = lab();
   options.sim_file = std::filesystem::path{};  // lab()'s numbers, not the example sim.toml's
-  options.state_file = std::filesystem::temp_directory_path() / "pychron-test-example-line-steady.state.toml";
+  options.state_file = std::filesystem::temp_directory_path() / "nobion-test-example-line-steady.state.toml";
   std::filesystem::remove(options.state_file);
   auto made = ExtractionLine::load(kDir / "extraction_line.toml", kDir / "canvas.toml", options);
   ASSERT_TRUE(made) << made.error().what;

@@ -69,7 +69,7 @@ QString skeleton(ScriptKind kind) {
                             "# the inlet closed and the detectors unprotected. The line only: no acquisition.\n\n"
                             "def main():\n    info('making the line safe')\n");
     default:
-      return QStringLiteral("#! pychron: \n\ndef main():\n    info('starting')\n");
+      return QStringLiteral("#! nobion: \n\ndef main():\n    info('starting')\n");
   }
 }
 

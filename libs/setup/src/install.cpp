@@ -352,7 +352,7 @@ Result<void> write_install_record(const fs::path& root, const InstallRecord& rec
   out_table.insert("answers", std::move(answers));
   out_table.insert("files", std::move(files));
   std::ostringstream out;
-  out << "# Written by pychron setup. Do not edit: reconfigure and doctor read it.\n" << out_table << "\n";
+  out << "# Written by nobion setup. Do not edit: reconfigure and doctor read it.\n" << out_table << "\n";
   return write_file(record_path(root), out.str(), false);
 }
 

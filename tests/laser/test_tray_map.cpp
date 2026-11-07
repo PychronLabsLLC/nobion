@@ -36,7 +36,7 @@ std::vector<std::string> ids(const TrayMap& map) {
 
 fs::path scratch() {
   std::random_device rd;
-  auto dir = fs::temp_directory_path() / ("pychron_trays_" + std::to_string(rd()) + std::to_string(rd()));
+  auto dir = fs::temp_directory_path() / ("nobion_trays_" + std::to_string(rd()) + std::to_string(rd()));
   fs::create_directories(dir);
   return dir;
 }
@@ -223,7 +223,7 @@ TEST(TrayLibrary, LoadsADirectoryAndReportsWhatDidNot) {
 }
 
 TEST(TrayLibrary, AMissingDirectoryIsEmpty) {
-  const auto lib = TrayLibrary::load(fs::temp_directory_path() / "pychron_no_such_tray_dir");
+  const auto lib = TrayLibrary::load(fs::temp_directory_path() / "nobion_no_such_tray_dir");
   EXPECT_TRUE(lib.names().empty());
   EXPECT_TRUE(lib.problems().empty());
 }

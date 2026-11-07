@@ -1,6 +1,6 @@
 # Before measuring on the {{ instrument }}
 
-pychron setup wrote a working starting point. These items are placeholders
+nobion setup wrote a working starting point. These items are placeholders
 until you replace them with your instrument's values. `elctl doctor` lists
 the files that still say SIMULATION PLACEHOLDER or CONFIRM.
 

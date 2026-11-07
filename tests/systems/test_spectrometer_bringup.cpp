@@ -170,7 +170,7 @@ class SpectrometerBringupLine : public ::testing::Test {
     options.sim_file = sim_file_;
     // And the valve states of nobody's earlier run in the examples folder.
     state_file_ = std::filesystem::temp_directory_path() /
-                  ("pychron-bringup-line-" + std::to_string(std::random_device{}()) + ".state.toml");
+                  ("nobion-bringup-line-" + std::to_string(std::random_device{}()) + ".state.toml");
     options.state_file = state_file_;
     auto line = systems::ExtractionLine::load(kDir / "extraction_line.toml", kDir / "canvas.toml", options);
     ASSERT_TRUE(line) << line.error().what;
@@ -210,7 +210,7 @@ class SpectrometerBringupLine : public ::testing::Test {
   // A sim.toml of its own for the line to read.
   void write_sim_file(const std::string& text) {
     sim_file_ = std::filesystem::temp_directory_path() /
-                ("pychron-bringup-sim-" + std::to_string(std::random_device{}()) + ".toml");
+                ("nobion-bringup-sim-" + std::to_string(std::random_device{}()) + ".toml");
     std::ofstream(sim_file_) << text;
   }
 

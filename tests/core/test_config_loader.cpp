@@ -314,7 +314,7 @@ TEST(ConfigLoader, ReportsEveryErrorAndIsAllOrNothing) {
 }
 
 TEST(ConfigLoader, LoadsFromFile) {
-  const auto dir = std::filesystem::temp_directory_path() / "pychron_core_loader_test";
+  const auto dir = std::filesystem::temp_directory_path() / "nobion_core_loader_test";
   std::filesystem::remove_all(dir);
   std::filesystem::create_directories(dir);
   const auto path = dir / "extraction_line.toml";
@@ -337,13 +337,13 @@ TEST(ConfigLoader, MissingFileIsConfigError) {
 
 TEST(Logging, ParsesAllKeys) {
   const std::string text = std::string(test::kPreamble) +
-                           "[logging]\ndir = \"/var/log/pychron\"\nmax_size_mb = 20\nmax_files = 3\n"
+                           "[logging]\ndir = \"/var/log/nobion\"\nmax_size_mb = 20\nmax_files = 3\n"
                            "default_level = \"warn\"\necho_stderr = true\n"
                            "[logging.levels]\n\"transport.serial.*\" = \"trace\"\nscheduler = \"debug\"\n";
   auto r = load_system_config_from_string(text, "f.toml");
   ASSERT_TRUE(r) << r.error().what;
   const auto& l = r->logging;
-  EXPECT_EQ(l.dir, std::filesystem::path("/var/log/pychron"));
+  EXPECT_EQ(l.dir, std::filesystem::path("/var/log/nobion"));
   EXPECT_EQ(l.max_size_mb, 20);
   EXPECT_EQ(l.max_files, 3);
   EXPECT_EQ(l.default_level, LogLevel::Warn);

@@ -277,10 +277,10 @@ Result<std::string> sample_record_json(const Manifest& m, const ReleaseTables& t
   theme["scheme"] = "https://pychronlabs.com/themes";
   theme["concepts"] = Json::array({Json{{"id", "40Ar/39Ar"}}});
   p["themes"] = Json::array({theme});
-  p["pychron:sample_uuid"] = uuid;
-  p["pychron:n_analyses"] = n_analyses;
-  p["pychron:n_ages"] = json_of(cell(t.samples, r, "n_ages"));
-  p["pychron:ages"] = ages_of(t, uuid);
+  p["nobion:sample_uuid"] = uuid;
+  p["nobion:n_analyses"] = n_analyses;
+  p["nobion:n_ages"] = json_of(cell(t.samples, r, "n_ages"));
+  p["nobion:ages"] = ages_of(t, uuid);
   j["properties"] = p;
   Json links = Json::array();
   links.push_back(link("self", uuid + ".json", "application/geo+json"));
@@ -349,11 +349,11 @@ std::string release_record_json(const Manifest& m, const ReleaseTables& t) {
     p["formats"].push_back("SVG");
     p["formats"].push_back("PDF");
   }
-  p["pychron:release_uuid"] = m.release.uuid.str();
-  p["pychron:version"] = m.release.version;
-  p["pychron:n_samples"] = t.samples.rows.size();
-  p["pychron:n_analyses"] = t.analyses.rows.size();
-  p["pychron:software"] = m.build.software;
+  p["nobion:release_uuid"] = m.release.uuid.str();
+  p["nobion:version"] = m.release.version;
+  p["nobion:n_samples"] = t.samples.rows.size();
+  p["nobion:n_analyses"] = t.analyses.rows.size();
+  p["nobion:software"] = m.build.software;
   j["properties"] = p;
   Json links = Json::array();
   links.push_back(link("self", "release.json", "application/geo+json"));

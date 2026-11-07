@@ -171,7 +171,7 @@ TEST(SpectrometerAssembler, AssemblesBothSimConfigsFromRegistry) {
 
 TEST(SpectrometerAssembler, TraceKeyWritesTraceFile) {
   auto data = load("spectrometer.sim-legacy.toml");
-  const auto dir = std::filesystem::temp_directory_path() / "pychron_spec_trace_test" / "nested";
+  const auto dir = std::filesystem::temp_directory_path() / "nobion_spec_trace_test" / "nested";
   std::filesystem::remove_all(dir.parent_path());
   const std::string name = data.config.transports.begin()->first;
   data.config.transports.begin()->second.trace = true;
@@ -187,7 +187,7 @@ TEST(SpectrometerAssembler, TraceKeyWritesTraceFile) {
 
 TEST(SpectrometerAssembler, TraceDirCreationFailureIsIoError) {
   auto data = load("spectrometer.sim-legacy.toml");
-  const auto blocker = std::filesystem::temp_directory_path() / "pychron_spec_trace_blocker";
+  const auto blocker = std::filesystem::temp_directory_path() / "nobion_spec_trace_blocker";
   std::filesystem::remove_all(blocker);
   { std::ofstream(blocker) << "x"; }
   data.config.transports.begin()->second.trace = true;

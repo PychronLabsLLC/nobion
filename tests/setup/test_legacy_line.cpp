@@ -27,7 +27,7 @@ namespace fs = std::filesystem;
 namespace {
 
 struct Tmp {
-  fs::path dir = nobion::testing::unique_temp_path("pychron-legacy-");
+  fs::path dir = nobion::testing::unique_temp_path("nobion-legacy-");
   Tmp() { fs::create_directories(dir); }
   ~Tmp() { fs::remove_all(dir); }
   void write(const fs::path& rel, const std::string& text) const {

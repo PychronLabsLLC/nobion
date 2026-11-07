@@ -496,7 +496,7 @@ after each measurement, which the estimate leaves out.
 ```bash
 elctl -c extraction_line.toml --sim exp run queues/experiment.sim-air.toml \
     --spectrometer spectrometer.sim-integrated.toml --sim-speed max \
-    --data ~/pychron-sim-data
+    --data ~/nobion-sim-data
 ```
 
 `--data` keeps the records out of the examples folder. The example lab has
@@ -507,7 +507,7 @@ analysis as it goes and ends with
 
 ```
 queue completed
-5/5 run(s) succeeded; records in /Users/you/pychron-sim-data/records
+5/5 run(s) succeeded; records in /Users/you/nobion-sim-data/records
 ```
 
 A run also writes `extraction_line.state.toml` beside `extraction_line.toml`:
@@ -519,8 +519,8 @@ To experiment, copy the folder and work in the copy, which leaves the
 examples as they came:
 
 ```bash
-cp -R . ~/pychron-sim-lab
-cd ~/pychron-sim-lab
+cp -R . ~/nobion-sim-lab
+cd ~/nobion-sim-lab
 rm -f extraction_line.state.toml
 ```
 
@@ -541,7 +541,7 @@ The speed does not change what is measured. `max` is `elctl`'s only;
 In the window, from `configs/examples` again:
 
 ```bash
-nobion --examples --sim --sim-speed 50 --data ~/pychron-sim-data \
+nobion --examples --sim --sim-speed 50 --data ~/nobion-sim-data \
     --queue queues/experiment.sim-air.toml
 ```
 
@@ -598,7 +598,7 @@ example lab, each less its baseline (they are under `results` in each
 To print them:
 
 ```bash
-python3 - ~/pychron-sim-data/records/*/*-[0-9].json <<'EOF'
+python3 - ~/nobion-sim-data/records/*/*-[0-9].json <<'EOF'
 import json, sys
 for name in sys.argv[1:]:
     r = json.load(open(name))["results"]

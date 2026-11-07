@@ -45,7 +45,7 @@ class StoreSourceFixture : public ::testing::Test {
   void SetUp() override {
     static std::atomic<int> counter{0};
     path_ = fs::temp_directory_path() /
-            ("pychron_store_source_" + std::to_string(std::random_device{}() % 1000000) + "_" +
+            ("nobion_store_source_" + std::to_string(std::random_device{}() % 1000000) + "_" +
              std::to_string(counter.fetch_add(1)) + ".sqlite");
     fs::remove(path_);
     url_ = "sqlite:" + path_.string();

@@ -43,7 +43,7 @@ void ensure_qt_application() {
   std::call_once(once, [] {
     if (QCoreApplication::instance() != nullptr) return;
     static int argc = 1;
-    static char name[] = "pychron";
+    static char name[] = "nobion";
     static char* argv[] = {name, nullptr};
     new QCoreApplication(argc, argv);
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks): the application object lives as long as the process
@@ -52,7 +52,7 @@ void ensure_qt_application() {
 
 QString next_connection_name() {
   static std::atomic<int> counter{0};
-  return QStringLiteral("pychron-%1").arg(counter.fetch_add(1));
+  return QStringLiteral("nobion-%1").arg(counter.fetch_add(1));
 }
 
 // Runs `fn`, turning any TinyORM/Qt SQL exception into an Error.
@@ -109,7 +109,7 @@ Result<QVariantHash> parse_config(const StoreConfig& config, Dialect& dialect) {
     c["charset"] = "utf8";
     c["search_path"] = "public";
     // search_path=<schema> confines a store to one schema (tests use a fresh one each).
-    c["application_name"] = "pychron";
+    c["application_name"] = "nobion";
     const QUrlQuery q(u);
     for (const char* key : {"sslmode", "sslcert", "sslkey", "sslrootcert", "search_path"})
       if (q.hasQueryItem(key)) c[key] = q.queryItemValue(key, QUrl::FullyDecoded);

@@ -1,4 +1,4 @@
-#! pychron: eqtime=20
+#! nobion: eqtime=20
 # Example laser extraction: isolate the prep section, drive the stage to the
 # run's hole on the queue's tray, heat for the run's duration (or for as long
 # as the run's pattern takes, the beam moving along it), then let the gas

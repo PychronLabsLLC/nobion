@@ -59,7 +59,7 @@ Manifest sample_manifest() {
 }
 
 fs::path scratch() {
-  const auto dir = fs::temp_directory_path() / ("pychron_manifest_" + std::to_string(std::random_device{}()));
+  const auto dir = fs::temp_directory_path() / ("nobion_manifest_" + std::to_string(std::random_device{}()));
   fs::create_directories(dir);
   return dir;
 }
@@ -94,7 +94,7 @@ TEST(Manifest, JsonKeysAreInSpecOrderAndDeterministic) {
   const Manifest m = sample_manifest();
   const std::string json = manifest_json(m);
   EXPECT_EQ(json, manifest_json(m));
-  EXPECT_EQ(json.rfind("{\n  \"format\": \"pychron-release/1\",\n  \"release\": {", 0), 0u) << json.substr(0, 80);
+  EXPECT_EQ(json.rfind("{\n  \"format\": \"nobion-release/1\",\n  \"release\": {", 0), 0u) << json.substr(0, 80);
   const auto release = json.find("\"release\""), build = json.find("\"build\""), pins = json.find("\"pins\""),
              tables = json.find("\"tables\""), files = json.find("\"files\"");
   EXPECT_LT(release, build);

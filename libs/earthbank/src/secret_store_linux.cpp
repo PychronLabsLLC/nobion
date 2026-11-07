@@ -42,7 +42,7 @@ constexpr std::string_view kBackend = "libsecret";
 const SecretSchema& schema() {
   static const SecretSchema made = [] {
     SecretSchema s{};
-    s.name = "org.pychron.earthbank.Password";
+    s.name = "org.nobion.earthbank.Password";
     s.flags = SECRET_SCHEMA_NONE;
     s.attributes[0].name = "service";
     s.attributes[0].type = SECRET_SCHEMA_ATTRIBUTE_STRING;
@@ -150,7 +150,7 @@ class LibsecretSecretStore final : public ISecretStore {
     if (auto ok = detail::check_password(kBackend, password); !ok) return ok;
     const std::string name(account);
     // What a keyring's own window shows for the item; no secret in it.
-    const std::string label = "Pychron: EarthBank password of " + name;
+    const std::string label = "Nobion: EarthBank password of " + name;
     const std::string secret(password);
     GError* error = nullptr;
     const Limited limit(kCallLimit);

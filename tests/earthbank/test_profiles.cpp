@@ -109,7 +109,7 @@ class Profiles : public ::testing::Test {
     const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
     // Per process as well as per test: two build trees may run at once.
     dir_ = fs::temp_directory_path() /
-           (std::string("pychron_profiles_") + info->name() + "_" + std::to_string(process_id()));
+           (std::string("nobion_profiles_") + info->name() + "_" + std::to_string(process_id()));
     fs::remove_all(dir_);
     fs::create_directories(dir_);
   }
@@ -489,8 +489,8 @@ TEST_F(Profiles, TheFileIsItsOwnersOnly) {
 #endif
 
 TEST_F(Profiles, DefaultFileIsUnderTheUsersConfigDirectory) {
-  // The directory is the one libs/setup keeps the site file in: `Pychron` on
-  // macOS and Windows, `pychron` on Linux.
+  // The directory is the one libs/setup keeps the site file in: `Nobion` on
+  // macOS and Windows, `nobion` on Linux.
 #if defined(_WIN32) || defined(__APPLE__)
   const fs::path tail = fs::path("Nobion") / "earthbank" / "profiles.toml";
 #else

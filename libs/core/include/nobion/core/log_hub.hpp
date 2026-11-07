@@ -161,7 +161,7 @@ class LogHub {
   // most recently (held weakly, so a destroyed hub is simply skipped).
   //
   // - std::terminate: logs the active exception text at `error` on logger
-  //   `pychron`, flushes (bounded wait), then calls the previous handler.
+  //   `nobion`, flushes (bounded wait), then calls the previous handler.
   // - POSIX SIGSEGV/SIGABRT/SIGBUS/SIGFPE/SIGILL: writes `fatal signal N` with
   //   write(2) to stderr and to a descriptor on that hub's log file (moved
   //   onto the live file within about 1 s of a rotation), then restores the

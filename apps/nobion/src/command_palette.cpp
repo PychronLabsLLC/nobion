@@ -23,7 +23,7 @@ namespace {
 
 constexpr int kVisibleRows = 10;
 constexpr int kWidth = 560;
-const char* const kPaletteProperty = "pychron_command_palette";
+const char* const kPaletteProperty = "nobion_command_palette";
 
 bool word_start(const QString& t, qsizetype i) { return i == 0 || !t.at(i - 1).isLetterOrNumber(); }
 

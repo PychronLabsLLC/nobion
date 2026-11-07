@@ -22,13 +22,13 @@ namespace py = pybind11;
 // builtins, static checker) and of the per-execution vocabulary prelude.
 extern const char* const kRuntimeSource;
 extern const char* const kPreludeSource;
-inline constexpr const char* kPreludeFilename = "<pychron-prelude>";
-inline constexpr const char* kRuntimeFilename = "<pychron-runtime>";
+inline constexpr const char* kPreludeFilename = "<nobion-prelude>";
+inline constexpr const char* kRuntimeFilename = "<nobion-runtime>";
 
 // Process-wide interpreter state, created on first use and never finalized.
 // Access with the GIL held.
 struct Runtime {
-  py::object module;        // _pychron_runtime
+  py::object module;        // _nobion_runtime
   py::object prelude_code;  // compiled kPreludeSource
   py::dict reference;       // a prelude namespace for signatures (no host)
   py::object cancelled, aborted, limit, budget, hardware, not_supported;

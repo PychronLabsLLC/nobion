@@ -28,7 +28,7 @@ using nobion::publish::testing::inputs;
 namespace {
 
 fs::path scratch(const char* name) {
-  const auto dir = fs::temp_directory_path() / ("pychron_parquet_" + std::to_string(std::random_device{}()));
+  const auto dir = fs::temp_directory_path() / ("nobion_parquet_" + std::to_string(std::random_device{}()));
   fs::create_directories(dir);
   return dir / name;
 }

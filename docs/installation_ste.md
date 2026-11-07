@@ -16,7 +16,7 @@ contains the full procedures and the reasons for them.
 The package contains two programs:
 
 - `nobion`: the application. On macOS, the name of the application is
-  Pychron.
+  Nobion.
 - `elctl`: the command-line program.
 
 The package also contains the setup profiles and the example configuration
@@ -240,7 +240,7 @@ You can make an installation in two ways. The two ways give the same result:
    ```bash
    elctl init data-reduction --root ~/Documents/Nobion \
      --set data_source=server --set db_host=labdb.example.org --set db_port=5432 \
-     --set db_name=pychron --set db_user=pychron
+     --set db_name=nobion --set db_user=nobion
    ```
 
 2. When setup asks for the password, type the password.
@@ -263,7 +263,7 @@ schema, type `elctl db status --db <url>`. To update the schema, type
    ```
 
 2. Make sure that the output shows `[OK] database: ... (schema version N)`.
-3. Open Pychron. The data browser opens.
+3. Open Nobion. The data browser opens.
 
 ## 7. Make an instrument installation
 
@@ -360,7 +360,7 @@ simulation to the instrument. Do all the steps of part 2.4 in sequence.
 |---|---|
 | macOS | Move Nobion to the Trash. |
 | Ubuntu | Type `sudo apt remove nobion`. |
-| Windows | Open Apps & features and remove Pychron. |
+| Windows | Open Apps & features and remove Nobion. |
 
 The installation folders and the site configuration file stay on the
 computer.

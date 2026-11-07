@@ -1245,7 +1245,7 @@ and the failure is not silent:
   the reason, in the event log and, at the command line, under the run;
 * its row in the queue table is flagged, and its tooltip gives that line;
 * a notification goes out as for a failed run, with the subject
-  `pychron: run <id> not saved (queue <name>)`
+  `nobion: run <id> not saved (queue <name>)`
   ([notifications](#86-notifications));
 * the Executor pane shows "N run(s) waiting to be saved to the database"
   (without a database, "N record(s) in the spool"), followed by the reason
@@ -1333,7 +1333,7 @@ other database, a server, or any database given with `--db`, it writes record
 files under the data folder instead, and says so once:
 
 ```
-note: simulated runs are written to /home/lab/Nobion/argus/data/records, not to postgresql://lab@db.example.org/pychron; pass --sim-save to save them there
+note: simulated runs are written to /home/lab/Nobion/argus/data/records, not to postgresql://lab@db.example.org/nobion; pass --sim-save to save them there
 ```
 
 `nobion` puts the same sentence in the log dock, and its data window goes
@@ -1525,7 +1525,7 @@ before relying on them.
 * **`options` / `script_options`.** The queue file reads `options` on a run
   and the scripts have an `opt` object, but the run does not pass the one to
   the other in this version, so `opt.<name>` is empty in an automated run.
-* **Script header values.** Lines such as `#! pychron: eqtime=20` in a script
+* **Script header values.** Lines such as `#! nobion: eqtime=20` in a script
   are checked for syntax, but no setting of the run reads them.
 * **`truncate` key on a run.** A run may carry `truncate = "..."` (alias
   `t_o`), but the loader treats each entry as the *name of a conditionals
