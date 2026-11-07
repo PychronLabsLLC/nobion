@@ -361,6 +361,7 @@ class TestFieldTableEditor : public QObject {
     edit_h1(*w, "5.0123");
     unsaved_answer_ = FieldTableEditorWindow::Unsaved::Save;
     conflict_answer_ = FieldTableEditorWindow::Conflict::SaveAnyway;
+    const auto before = argon().versions().value().size();
     w->open_version("argon", kShipped);  // asks, saves, then is to switch
     QCOMPARE(w->open_version(), current());
     // The core says conflict (another writer between the window's check and
@@ -368,6 +369,16 @@ class TestFieldTableEditor : public QObject {
     Error conflict{ErrorKind::Config, "table changed", {}, "table_conflict"};
     emit bridge_->tableSaved("argon", Result<std::string>(fail(conflict)));
     QCOMPARE(conflict_now_.size(), 1);
+    // The stand-in conflict leaves two real saves on the executor (the first
+    // Save, and Save Anyway). Both are in the store, and so their results
+    // and changes queued, before the event loop runs: the order the test was
+    // written for. The loop is not run here; a slower write (a synced one)
+    // would otherwise let the switch come first and the second save's change
+    // arrive after it, which the window rightly follows as another writer's.
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kWaitMs);
+    while (argon().versions().value().size() < before + 2 && std::chrono::steady_clock::now() < deadline)
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    QCOMPARE(argon().versions().value().size(), before + 2);
     QTRY_COMPARE_WITH_TIMEOUT(w->open_version(), kShipped, kWaitMs);  // the switch the Save answer was for
     QVERIFY(!w->modified());
   }
