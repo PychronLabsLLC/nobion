@@ -1,5 +1,6 @@
 #include "nobion/core/atomic_file.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <chrono>
