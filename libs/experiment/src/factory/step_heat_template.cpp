@@ -1,4 +1,5 @@
 #include "nobion/experiment/factory/step_heat_template.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
 #include <array>
@@ -463,23 +464,8 @@ Result<void> StepHeatFiles::write(const StepHeatTemplate& t) const {
   std::error_code ec;
   fs::create_directories(dir_, ec);
   if (ec) return fail(ErrorKind::Io, "cannot create " + dir_.string() + ": " + ec.message());
-  const auto tmp = dir_ / ("." + t.name + ".toml.tmp");
-  const std::string text = to_toml(t);
-  {
-    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-    out.write(text.data(), static_cast<std::streamsize>(text.size()));
-    out.flush();
-    if (!out) {
-      fs::remove(tmp, ec);
-      return fail(ErrorKind::Io, "cannot write " + target.string());
-    }
-  }
-  fs::rename(tmp, target, ec);
-  if (ec) {
-    const std::string why = ec.message();
-    fs::remove(tmp, ec);
-    return fail(ErrorKind::Io, "cannot write " + target.string() + ": " + why);
-  }
+  if (auto written = write_file_atomic(target, to_toml(t), Durability::Power); !written)
+    return fail(ErrorKind::Io, "cannot write " + target.string() + ": " + written.error().what);
   return {};
 }
 

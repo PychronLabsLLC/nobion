@@ -1,6 +1,7 @@
 // Calibrations on disk, one file per device and tray (laser system design,
 // section 3.3).
 
+#include "nobion/core/atomic_file.hpp"
 #include "nobion/laser/calibration_store.hpp"
 
 #include <filesystem>
@@ -178,17 +179,17 @@ TEST_F(CalibrationStoreTest, AHalfWrittenTemporaryIsNeverRead) {
   EXPECT_EQ(store.status(map(), "co2").state, CalibrationState::Ok);
 }
 
-// The new file is written beside the target and renamed over it: when the
-// temporary cannot be written, the save fails and the old file is whole.
-TEST_F(CalibrationStoreTest, SaveGoesThroughATemporaryFile) {
+// When the write fails, the save fails and the old file is whole.
+TEST_F(CalibrationStoreTest, AFailedSaveLeavesTheOldFile) {
   const CalibrationStore store(dir_ / "cal");
   ASSERT_TRUE(store.save(map(), "co2", three_));
   const std::string before = slurp(store.file("co2", "small"));
-  fs::create_directories(dir_ / "cal" / "co2.small.toml.tmp");  // in the way
+  nobion::testing::fail_atomic_write_at(4);  // the rename fails
   const std::vector<CalibrationPoint> one{{"1", 1, 2}};
   const auto saved = store.save(map(), "co2", one);
   ASSERT_FALSE(saved);
   EXPECT_EQ(saved.error().kind, ErrorKind::Io);
+  nobion::testing::fail_atomic_write_at(0);
   EXPECT_EQ(slurp(store.file("co2", "small")), before);
 }
 

@@ -1,4 +1,5 @@
 #include "nobion/systems/extraction_line.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -7,6 +8,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -671,22 +673,15 @@ void ExtractionLine::save_state() {
   table.insert("valves", std::move(valves));
   table.insert("stats", std::move(stats));
 
-  // Write beside the target and rename so a crash never leaves a torn file.
-  const auto tmp = std::filesystem::path(options_.state_file).concat(".tmp");
+  // A crash or power loss leaves the old file or the new, never a torn one.
   std::error_code ec;
   if (!options_.state_file.parent_path().empty()) {
     std::filesystem::create_directories(options_.state_file.parent_path(), ec);
   }
-  {
-    std::ofstream out(tmp, std::ios::out | std::ios::trunc);
-    if (out) out << table << '\n';
-    if (!out) {
-      log(LogLevel::Warn, "cannot persist valve state to " + options_.state_file.string());
-      return;
-    }
-  }
-  std::filesystem::rename(tmp, options_.state_file, ec);
-  if (ec) log(LogLevel::Warn, "cannot persist valve state to " + options_.state_file.string() + ": " + ec.message());
+  std::ostringstream text;
+  text << table << '\n';
+  if (const auto written = write_file_atomic(options_.state_file, text.str(), Durability::Power); !written)
+    log(LogLevel::Warn, "cannot persist valve state to " + options_.state_file.string() + ": " + written.error().what);
 }
 
 // Whether the valve or switch `name` is driven through a simulated transport.

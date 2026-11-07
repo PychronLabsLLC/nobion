@@ -1,4 +1,5 @@
 #include "nobion/experiment/model/queue_file.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -176,20 +177,8 @@ Result<QueueSpec> load_queue_file(const std::string& path, const IdentifierRules
 }
 
 Result<void> save_queue_file(const std::string& path, const QueueSpec& q) {
-  const std::string tmp = path + ".tmp";
-  {
-    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-    if (!out) return fail(ErrorKind::Io, "cannot write queue file '" + tmp + "'");
-    out << dump_queue(q);
-    out.flush();
-    if (!out) return fail(ErrorKind::Io, "cannot write queue file '" + tmp + "'");
-  }
-  std::error_code ec;
-  std::filesystem::rename(tmp, path, ec);
-  if (ec) {
-    std::filesystem::remove(tmp, ec);
+  if (!write_file_atomic(path, dump_queue(q), Durability::Power))
     return fail(ErrorKind::Io, "cannot replace queue file '" + path + "'");
-  }
   return {};
 }
 

@@ -1,5 +1,6 @@
 // Per-hole corrections on disk (laser autocenter design, section 5).
 
+#include "nobion/core/atomic_file.hpp"
 #include "nobion/laser/correction_store.hpp"
 
 #include <filesystem>
@@ -192,14 +193,15 @@ TEST_F(CorrectionStoreTest, RefusesUnsafeNames) {
   EXPECT_FALSE(fs::exists(dir_ / "corr"));
 }
 
-TEST_F(CorrectionStoreTest, SaveGoesThroughATemporaryFile) {
+TEST_F(CorrectionStoreTest, AFailedSaveLeavesTheOldFile) {
   const auto s = store();
   ASSERT_TRUE(s.put(map(), "co2", "cal1", "3", three_));
   const std::string before = slurp(s.file("co2", "small"));
-  fs::create_directories(dir_ / "corr" / "co2.small.toml.tmp");  // in the way
+  nobion::testing::fail_atomic_write_at(4);  // the rename fails
   const auto put = s.put(map(), "co2", "cal1", "2", three_);
   ASSERT_FALSE(put);
   EXPECT_EQ(put.error().kind, ErrorKind::Io);
+  nobion::testing::fail_atomic_write_at(0);
   EXPECT_EQ(slurp(s.file("co2", "small")), before);
 }
 

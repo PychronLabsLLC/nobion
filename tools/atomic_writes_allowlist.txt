@@ -1,0 +1,21 @@
+# Files with a rename( that does not go through nobion::write_file_atomic.
+# The state the process reads back after a restart (run state, records, line
+# state, stores, queues, local config) goes through write_file_atomic. Below:
+# the rest, listed by the field-diagnostics plan (Task 4) as out of scope.
+# Rewrites the EarthBank journal with its own fsync (write_new), then renames.
+libs/earthbank/src/journal.cpp
+# Moves the journal aside; no content is written.
+libs/earthbank/src/uploader.cpp
+# Workbook the user asked for (export), rewritten by running the export again.
+libs/earthbank/src/ooxml.cpp
+# Image output.
+libs/vision/src/png.cpp
+# Transport endpoints file.
+libs/transport/src/endpoints.cpp
+# Processing options and isotope classifier tables.
+libs/processing/src/options.cpp
+libs/processing/src/isotope_classifier.cpp
+# User's script file in the editor window.
+apps/nobion/src/script_editor_window.cpp
+# elctl flux output file.
+apps/elctl/src/flux.cpp

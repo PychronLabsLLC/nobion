@@ -59,6 +59,11 @@ if(Python3_Interpreter_FOUND)
     COMMAND "${Python3_EXECUTABLE}" -m unittest discover -s "${PROJECT_SOURCE_DIR}/tools/tests" -p "test_quality_check.py"
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
   set_tests_properties(tools.quality_check PROPERTIES TIMEOUT 60)
+  # tools/check_atomic_writes.py: a rename( outside write_file_atomic is reported.
+  add_test(NAME tools.check_atomic_writes
+    COMMAND "${Python3_EXECUTABLE}" -m unittest discover -s "${PROJECT_SOURCE_DIR}/tools/tests" -p "test_check_atomic_writes.py"
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
+  set_tests_properties(tools.check_atomic_writes PROPERTIES TIMEOUT 60)
   # tools/compiler_sweep.py --changed: which sources a branch's changes reach,
   # from Ninja's dependency log; no compiler is run.
   add_test(NAME tools.compiler_sweep

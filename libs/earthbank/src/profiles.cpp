@@ -1,7 +1,7 @@
 #include "nobion/earthbank/profiles.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
-#include <atomic>
 #include <cctype>
 #include <cerrno>
 #include <charconv>
@@ -21,9 +21,7 @@
 #include <nlohmann/json.hpp>
 #include <toml++/toml.hpp>
 
-#ifdef _WIN32
-#include <process.h>
-#else
+#ifndef _WIN32
 #include <fcntl.h>
 #include <unistd.h>
 #endif
@@ -296,14 +294,6 @@ std::string to_toml(const Profiles& profiles) {
   return out;
 }
 
-long process_id() {
-#ifdef _WIN32
-  return static_cast<long>(_getpid());
-#else
-  return static_cast<long>(getpid());
-#endif
-}
-
 #ifndef _WIN32
 std::string words_for(int error_number) { return std::error_code(error_number, std::generic_category()).message(); }
 #endif
@@ -468,21 +458,21 @@ Result<void> save_profiles(const Profiles& profiles, const fs::path& file) {
     fs::create_directories(file.parent_path(), ec);
     if (ec) return fail(ErrorKind::Io, where + ": cannot make its directory: " + ec.message());
   }
-  // Beside the file, so that the rename is within one file system; a name
-  // of this process's and this call's own.
-  static std::atomic<unsigned> serial{0};
-  fs::path beside = file;
-  beside += ".tmp." + std::to_string(process_id()) + "." + std::to_string(serial.fetch_add(1));
-  fs::remove(beside, ec);
-  if (const auto wrong = write_new(beside, text)) {
-    fs::remove(beside, ec);
-    return fail(ErrorKind::Io, where + ": cannot write it (the old file, if any, is as it was): " + *wrong);
+  // The file is the owner's alone, whatever it was before and not open to
+  // anybody else even while it is empty; write_file_atomic keeps the bits of
+  // the one it replaces.
+  const bool made = !fs::exists(file, ec) && !fs::is_symlink(file, ec);
+  if (made) {
+    if (const auto wrong = write_new(file, "")) {
+      fs::remove(file, ec);
+      return fail(ErrorKind::Io, where + ": cannot write it (the old file, if any, is as it was): " + *wrong);
+    }
+  } else {
+    fs::permissions(file, fs::perms::owner_read | fs::perms::owner_write, ec);
   }
-  fs::rename(beside, file, ec);
-  if (ec) {
-    const std::string why = ec.message();
-    fs::remove(beside, ec);
-    return fail(ErrorKind::Io, where + ": cannot replace it (the old file, if any, is as it was): " + why);
+  if (auto written = write_file_atomic(file, text, Durability::Power); !written) {
+    if (made) fs::remove(file, ec);
+    return fail(ErrorKind::Io, where + ": cannot replace it (the old file, if any, is as it was): " + written.error().what);
   }
   return {};
 }

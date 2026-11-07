@@ -1,4 +1,5 @@
 #include "nobion/experiment/persist/persister.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -31,16 +32,8 @@ Result<void> write_atomic(const fs::path& path, const std::string& text) {
   std::error_code ec;
   fs::create_directories(path.parent_path(), ec);
   if (ec) return io("cannot create " + path.parent_path().string() + ": " + ec.message());
-  const fs::path tmp = path.string() + ".tmp";
-  {
-    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-    if (!out) return io("cannot write " + tmp.string());
-    out << text;
-    out.flush();
-    if (!out) return io("cannot write " + tmp.string());
-  }
-  fs::rename(tmp, path, ec);
-  if (ec) return io("cannot rename " + tmp.string() + ": " + ec.message());
+  if (auto written = write_file_atomic(path, text, Durability::Power); !written)
+    return io("cannot write " + path.string() + ": " + written.error().what);
   return {};
 }
 

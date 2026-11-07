@@ -1,4 +1,5 @@
 #include "nobion/experiment/executor/executor.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -686,12 +687,7 @@ void Executor::write_state(const ExperimentQueue& queue, std::size_t next_row, c
   j << "\n}\n";
   std::error_code ec;
   if (options_.state_file.has_parent_path()) std::filesystem::create_directories(options_.state_file.parent_path(), ec);
-  const auto tmp = options_.state_file.string() + ".tmp";
-  {
-    std::ofstream f(tmp, std::ios::trunc);
-    f << j.str();
-  }
-  std::filesystem::rename(tmp, options_.state_file, ec);
+  (void)write_file_atomic(options_.state_file, j.str(), Durability::Power);
 }
 
 Result<ExecutorStateFile> Executor::read_state(const std::filesystem::path& state_file) {

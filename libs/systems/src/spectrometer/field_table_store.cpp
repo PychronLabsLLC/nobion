@@ -1,4 +1,5 @@
 #include "nobion/systems/spectrometer/field_table_store.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -41,18 +42,8 @@ Result<std::string> read_file(const fs::path& p) {
 
 // Write-then-rename so readers never see a partial file.
 Result<void> write_atomic(const fs::path& p, const std::string& text) {
-  fs::path tmp = p;
-  tmp += ".tmp";
-  {
-    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-    if (!out) return fail(ErrorKind::Io, "cannot write " + tmp.string());
-    out << text;
-    out.flush();
-    if (!out) return fail(ErrorKind::Io, "write failed: " + tmp.string());
-  }
-  std::error_code ec;
-  fs::rename(tmp, p, ec);
-  if (ec) return fail(ErrorKind::Io, "cannot rename " + tmp.string() + ": " + ec.message());
+  if (auto written = write_file_atomic(p, text, Durability::Power); !written)
+    return fail(ErrorKind::Io, "cannot write " + p.string() + ": " + written.error().what);
   return {};
 }
 

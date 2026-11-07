@@ -1,4 +1,5 @@
 #include "nobion/core/config/local_file.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
 #include <array>
@@ -226,30 +227,18 @@ Result<void> write_local_file(const fs::path& file, bool exists, const std::stri
   }
   if (after == before) return {};
 
-  // Beside the file, then over it: a write that fails leaves the file whole.
-  fs::path temp = file;
-  temp += ".writing";
-  {
-    std::ofstream out(temp, std::ios::binary | std::ios::trunc);
-    if (!out) return failed(ErrorKind::Io, file, "cannot be written (is its folder read-only?)");
-    out << after;
-    out.flush();
-    if (!out) {
-      out.close();
-      fs::remove(temp, ec);
-      return failed(ErrorKind::Io, file, "could not be written in full");
-    }
+  // A write that fails leaves the file whole. The new file is as private as
+  // the one it replaces (write_file_atomic keeps those bits); one made here is
+  // its owner's alone, as the setup wizard makes them.
+  if (!exists) {
+    std::ofstream make(file, std::ios::binary | std::ios::trunc);
+    if (!make) return failed(ErrorKind::Io, file, "cannot be written (is its folder read-only?)");
+    make.close();
+    fs::permissions(file, fs::perms::owner_read | fs::perms::owner_write, ec);
   }
-  // The new file is as private as the one it replaces; one made here is its
-  // owner's alone, as the setup wizard makes them.
-  const fs::perms perms = exists ? fs::status(file, ec).permissions() & fs::perms::mask
-                                 : fs::perms::owner_read | fs::perms::owner_write;
-  fs::permissions(temp, perms, ec);
-  fs::rename(temp, file, ec);
-  if (ec) {
-    const std::string message = ec.message();
-    fs::remove(temp, ec);
-    return failed(ErrorKind::Io, file, "could not be replaced: " + message);
+  if (auto written = write_file_atomic(file, after, Durability::Power); !written) {
+    if (!exists) fs::remove(file, ec);
+    return failed(ErrorKind::Io, file, "could not be replaced: " + written.error().what);
   }
   return {};
 }

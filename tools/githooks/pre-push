@@ -14,6 +14,15 @@
 # say why in the commit when you do.
 
 root=$(git rev-parse --show-toplevel) || exit 0
+# State written by hand (temp file and rename) instead of write_file_atomic.
+# Checked before anything else, so a push that changes no C++ is checked too.
+if [ -f "$root/tools/check_atomic_writes.py" ]; then
+  python3 "$root/tools/check_atomic_writes.py" || {
+    echo "pre-push: a write that does not survive power loss (above)." >&2
+    exit 1
+  }
+fi
+
 # A branch cut before the checker existed has nothing to run.
 [ -f "$root/tools/quality_check.py" ] || exit 0
 

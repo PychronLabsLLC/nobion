@@ -1,4 +1,5 @@
 #include "nobion/setup/site.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -122,14 +123,10 @@ Result<void> save_site(const SiteConfig& site, const fs::path& path) {
   std::error_code ec;
   if (path.has_parent_path()) fs::create_directories(path.parent_path(), ec);
   if (ec) return fail(ErrorKind::Io, "cannot create " + path.parent_path().string() + ": " + ec.message());
-  const fs::path tmp = path.string() + ".tmp";
-  {
-    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-    out << "# nobion installs on this computer (written by setup; safe to edit)\n" << t << "\n";
-    if (!out) return fail(ErrorKind::Io, "cannot write " + tmp.string());
-  }
-  fs::rename(tmp, path, ec);
-  if (ec) return fail(ErrorKind::Io, "cannot write " + path.string() + ": " + ec.message());
+  std::ostringstream text;
+  text << "# nobion installs on this computer (written by setup; safe to edit)\n" << t << "\n";
+  if (auto written = write_file_atomic(path, text.str(), Durability::Power); !written)
+    return fail(ErrorKind::Io, "cannot write " + path.string() + ": " + written.error().what);
   return {};
 }
 

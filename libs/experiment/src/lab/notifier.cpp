@@ -1,4 +1,5 @@
 #include "nobion/experiment/lab/notifier.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -278,19 +279,9 @@ std::string Notifier::save(const Entry& e) const {
 
   std::error_code ec;
   fs::create_directories(e.file.parent_path(), ec);
-  fs::path tmp = e.file;
-  tmp += ".tmp";
-  {
-    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-    out << t << "\n";
-    out.close();
-    if (!out) return "outbox: cannot write " + tmp.string();
-  }
-  fs::rename(tmp, e.file, ec);
-  if (ec) {
-    fs::remove(tmp, ec);
-    return "outbox: cannot write " + e.file.string();
-  }
+  std::ostringstream text;
+  text << t << "\n";
+  if (!write_file_atomic(e.file, text.str(), Durability::Power)) return "outbox: cannot write " + e.file.string();
   return {};
 }
 
