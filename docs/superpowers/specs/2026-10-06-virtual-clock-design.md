@@ -413,6 +413,14 @@ the only one. Tests that relied on the fallback use a `VirtualClock`.
   field diagnostics spec 5.3): its thread waits on its own queue (plain
   `std::mutex` and `std::condition_variable`) and writes files; never a
   participant. A bus handler on a participant only pushes onto that queue;
+- the hang monitor (`libs/core` `hang_monitor.cpp`, field diagnostics spec
+  6): its thread polls its beats on real time (plain `std::mutex` and
+  `std::condition_variable::wait_for`) and is never a participant, because
+  what it watches may hold the clock still. A beat's pulse is one atomic
+  store. The scheduler's and a transport's beats are registered only on a
+  `SteadyClock`: under a `VirtualClock` a simulated wait has no fixed
+  real-time length. The UI thread's beat is on a Qt timer, real time under
+  any clock;
 - the notifier (`lab/notifier.cpp`, and the `Date:` of a mail in
   `lab/notifications.cpp`): it runs programs outside, on its own thread, and
   is not a participant;

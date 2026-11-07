@@ -43,6 +43,7 @@ Result<std::unique_ptr<Transport>> make_transport(const config::TransportConfig&
   options.retries = static_cast<int>(config.retries);
   options.clock = &clock;
   options.bus = context.bus;
+  options.hang_monitor = context.hang_monitor;
 
   std::unique_ptr<Transport> transport;
   const bool served = context.endpoints != nullptr && config.kind != config::TransportKind::Sim &&

@@ -684,6 +684,14 @@ repository or database, so falling back is a matter of continuing to use it.
 | `import run` or `verify`: `history was rewritten` | The legacy repository's history changed (for example a force-push) after it was imported. `run` and `verify` refuse it; see [legacy_import.md](legacy_import.md) section 3 |
 | A fetch fails without prompting | The importer never prompts. Set up a git credential helper |
 | Time-zone errors during import | `tzdata` is not installed (common in minimal containers) |
+| An alarm from `hang`, or a log line `hang: <name> silent for <s> s` | A thread stopped answering: `ui.main` (the window), `scheduler` (polls and scans) or `transport.<name>` (a call to a controller that has not returned). The flight recorder was written to `<log dir>/flight/` (`...-hang-<name>.log`). While it is still stuck, take the stacks of every thread before restarting, and attach them with the flight recorder file to the issue (below) |
+
+Stacks of every thread of a running program (`<pid>` from Activity Monitor,
+`pgrep nobion` or Task Manager):
+
+- macOS: `sample <pid> 10` (writes a report of 10 seconds; the path is printed)
+- Linux: `gdb -p <pid> -batch -ex "thread apply all bt"`, or `eu-stack -p <pid>`
+- Windows: `procdump -ma <pid>` (Sysinternals; writes a full dump to open in WinDbg or Visual Studio)
 
 ## Escalation
 

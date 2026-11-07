@@ -19,6 +19,7 @@
 #include "nobion/core/config/loader.hpp"
 #include "nobion/core/event_recorder.hpp"
 #include "nobion/core/flight_recorder_triggers.hpp"
+#include "nobion/core/hang_monitor.hpp"
 #include "nobion/core/log_dir.hpp"
 #include "nobion/core/process.hpp"
 #include "nobion/core/process_log.hpp"
@@ -371,6 +372,14 @@ class Exp {
     if (flight_hub) flight_recorder.emplace(*flight_hub, (*line)->bus());
     std::vector<SignalBus::Subscription> flight_subs;
     if (flight_recorder) flight_subs = wire_flight_recorder((*line)->bus(), *flight_recorder);
+    // Reports a scheduler gone silent (spec 2026-11-06-field-diagnostics, 6),
+    // on a SteadyClock only: under a VirtualClock a job's period is simulated
+    // time. After the recorder and the line, so it goes before them.
+    std::optional<HangMonitor> hang_monitor;
+    if (flight_recorder && dynamic_cast<const VirtualClock*>(&(*line)->clock()) == nullptr)
+      hang_monitor.emplace(*flight_hub, *flight_recorder, (*line)->bus());
+    std::shared_ptr<HangMonitor::Beat> scheduler_beat;
+    std::optional<JobId> scheduler_beat_job;
     const Clock& clock = (*line)->clock();
     // A spectrometer is simulated when --sim says so or when its own file
     // is (every transport and driver a simulator's), as the line is when its
@@ -397,6 +406,13 @@ class Exp {
     if (auto r = (*line)->start(); !r) {
       complain("error: " + r.error().what);
       return kFailed;
+    }
+    if (hang_monitor) {
+      // A Beat may outlive the monitor: the job's copy is harmless on a way out.
+      scheduler_beat = std::make_shared<HangMonitor::Beat>(hang_monitor->beat("scheduler", std::chrono::seconds(30)));
+      auto job = (*line)->scheduler().every("hang.beat", std::chrono::seconds(1),
+                                            [beat = scheduler_beat] { beat->pulse(); });
+      if (job) scheduler_beat_job = *job;
     }
 
     // Spectrometer.
@@ -558,6 +574,9 @@ class Exp {
       }
     }
     const executor::QueueResult result = *session.wait();
+    // The scheduler stops with the line: its beat is let go first.
+    if (scheduler_beat_job) (void)(*line)->scheduler().cancel_and_wait(*scheduler_beat_job);
+    if (scheduler_beat) scheduler_beat->disarm();
     // Nothing is left to poll for, and the queue-end message may take a while.
     (*line)->stop();
     {

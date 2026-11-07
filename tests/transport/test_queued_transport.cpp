@@ -1,18 +1,27 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <filesystem>
 #include <functional>
 #include <future>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
 
+#include "nobion/core/config/logging_config.hpp"
 #include "nobion/core/events.hpp"
+#include "nobion/core/flight_recorder_triggers.hpp"
+#include "nobion/core/hang_monitor.hpp"
+#include "nobion/core/log_hub.hpp"
 #include "nobion/core/signal_bus.hpp"
 #include "nobion/core/virtual_clock.hpp"
 #include "nobion/transport/sim_transport.hpp"
@@ -434,4 +443,158 @@ TEST_F(QueuedTransportVirtual, ShutdownCancelsAPendingCall) {
   EXPECT_EQ(to_string(*r1), "OK\r");
   destroyer.join();
   EXPECT_EQ(clock.now(), kStart + 2s);
+}
+
+// Hang monitor (spec 2026-11-06-field-diagnostics, 6): a call that does not
+// return is reported as `transport.<name>`; an idle transport, or one on a
+// VirtualClock, is not watched. Real time; each wait for a report is bounded
+// at 5 s, there only to tell a report from none.
+namespace {
+
+std::shared_ptr<LogHub> hang_hub(const Clock& clock) {
+  config::LoggingConfig cfg;
+  cfg.dir = std::filesystem::path{};  // no file: nothing to clean up
+  auto hub = LogHub::create(cfg, clock);
+  EXPECT_TRUE(hub.has_value());
+  return hub.has_value() ? *hub : nullptr;
+}
+
+// The dumps the monitor asked for.
+class HangRequests final : public IDumpRequester {
+ public:
+  void request(std::string reason) override {
+    {
+      const std::lock_guard lock(mutex_);
+      reasons_.push_back(std::move(reason));
+    }
+    cv_.notify_all();
+  }
+  bool await(const std::string& reason) {
+    std::unique_lock lock(mutex_);
+    return cv_.wait_for(lock, 5s, [&] { return count_locked(reason) > 0; });
+  }
+  std::size_t count(const std::string& reason) {
+    const std::lock_guard lock(mutex_);
+    return count_locked(reason);
+  }
+
+ private:
+  std::size_t count_locked(const std::string& reason) const {
+    return static_cast<std::size_t>(std::count(reasons_.begin(), reasons_.end(), reason));
+  }
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  std::vector<std::string> reasons_;
+};
+
+// Holds a hook until opened.
+class Gate {
+ public:
+  void open() {
+    {
+      const std::lock_guard lock(mutex_);
+      open_ = true;
+    }
+    cv_.notify_all();
+  }
+  void pass() {
+    std::unique_lock lock(mutex_);
+    entered_ = true;
+    cv_.notify_all();
+    cv_.wait(lock, [this] { return open_; });
+  }
+  // Waits, at most 5 s, until a hook is held.
+  bool await_entered() {
+    std::unique_lock lock(mutex_);
+    return cv_.wait_for(lock, 5s, [this] { return entered_; });
+  }
+
+ private:
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  bool open_ = false;
+  bool entered_ = false;
+};
+
+}  // namespace
+
+TEST(QueuedTransport, AStuckCallIsReported) {
+  const SteadyClock clock;
+  SignalBus bus;
+  auto hub = hang_hub(clock);
+  ASSERT_TRUE(hub);
+  HangRequests requests;
+  HangMonitor monitor(*hub, requests, bus, HangMonitor::Options{50ms});
+  Gate gate;
+  auto o = opts();
+  o.hang_monitor = &monitor;
+  o.hang_limit = 200ms;
+  auto t = SimTransport::hooked(
+      [&gate](const Bytes&) {
+        gate.pass();
+        return to_bytes("OK\r");
+      },
+      o);
+  ASSERT_TRUE(t->open());
+
+  auto call = std::async(std::launch::async, [raw = t.get()] { return raw->exchange(to_bytes("Q\r"), kCr); });
+  const bool reported = requests.await("hang-transport.bus1");
+  gate.open();
+  EXPECT_TRUE(reported);
+  const auto r = call.get();
+  ASSERT_TRUE(r) << r.error().what;
+  EXPECT_EQ(to_string(*r), "OK\r");
+  EXPECT_EQ(requests.count("hang-transport.bus1"), 1U);
+}
+
+TEST(QueuedTransport, AnIdleTransportIsNotWatched) {
+  const SteadyClock clock;
+  SignalBus bus;
+  auto hub = hang_hub(clock);
+  ASSERT_TRUE(hub);
+  HangRequests requests;
+  HangMonitor monitor(*hub, requests, bus, HangMonitor::Options{50ms});
+  auto o = opts();
+  o.hang_monitor = &monitor;
+  o.hang_limit = 50ms;
+  FakeChannel t(o);
+  const auto control = monitor.beat("control", 50ms);
+
+  ASSERT_TRUE(requests.await("hang-control"));
+  EXPECT_EQ(requests.count("hang-transport.bus1"), 0U);
+}
+
+// Under a VirtualClock a simulated wait has no fixed real-time length: the
+// transport registers no beat, however long a call takes in real time.
+TEST(QueuedTransport, ATransportOnAVirtualClockIsNotWatched) {
+  const SteadyClock steady;
+  VirtualClock clock;
+  SignalBus bus;
+  auto hub = hang_hub(steady);
+  ASSERT_TRUE(hub);
+  HangRequests requests;
+  HangMonitor monitor(*hub, requests, bus, HangMonitor::Options{50ms});
+  Gate gate;
+  auto o = opts();
+  o.clock = &clock;
+  o.hang_monitor = &monitor;
+  o.hang_limit = 50ms;
+  auto t = SimTransport::hooked(
+      [&gate](const Bytes&) {
+        gate.pass();
+        return to_bytes("OK\r");
+      },
+      o);
+  ASSERT_TRUE(t->open());
+
+  auto call = std::async(std::launch::async, [raw = t.get()] { return raw->exchange(to_bytes("Q\r"), kCr); });
+  const bool entered = gate.await_entered();
+  const auto control = monitor.beat("control", 50ms);
+  const bool control_reported = requests.await("hang-control");
+  gate.open();
+  EXPECT_TRUE(entered);
+  EXPECT_TRUE(control_reported);
+  EXPECT_EQ(requests.count("hang-transport.bus1"), 0U);
+  const auto r = call.get();
+  ASSERT_TRUE(r) << r.error().what;
 }

@@ -35,6 +35,7 @@ add_library(nobion_core
   src/signal_stack.cpp
   src/module_map.cpp
   src/flight_recorder_triggers.cpp
+  src/hang_monitor.cpp
 )
 nobion_generate_build_info(nobion_core)
 add_library(nobion::core ALIAS nobion_core)

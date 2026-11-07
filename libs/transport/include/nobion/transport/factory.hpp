@@ -23,6 +23,9 @@ struct TransportContext {
   // entry's protocol, whatever its own kind and address; one with no entry
   // is a Config error, so a rehearsal never reaches a configured address.
   const std::map<std::string, Endpoint>* endpoints = nullptr;
+  // Reports a call that does not return (TransportOptions::hang_monitor);
+  // ignored on a VirtualClock.
+  HangMonitor* hang_monitor = nullptr;
 };
 
 // Builds the transport a [transports.<name>] entry describes, closed.

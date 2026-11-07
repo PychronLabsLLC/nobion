@@ -101,6 +101,7 @@
 #include "setup_wizard.hpp"
 #include "nobion/core/log_dir.hpp"
 #include "nobion/core/flight_recorder_triggers.hpp"
+#include "nobion/core/hang_monitor.hpp"
 #include "nobion/core/log_hub.hpp"
 #include "nobion/core/event_recorder.hpp"
 #include "nobion/core/process_log.hpp"
@@ -608,6 +609,16 @@ int main(int argc, char** argv) {
   if ((*line)->log_hub()) flight_recorder.emplace(*(*line)->log_hub(), (*line)->bus());
   std::vector<nobion::SignalBus::Subscription> flight_recorder_subs;
   if (flight_recorder) flight_recorder_subs = nobion::experiment::wire_flight_recorder((*line)->bus(), *flight_recorder);
+  // Reports a silent UI thread or scheduler (spec 2026-11-06-field-diagnostics,
+  // 6): a log record, a flight recorder dump, a warning alarm. After the
+  // recorder and the line, so it goes before them; its beats are disarmed in
+  // the teardown below, before what pulses them stops.
+  std::optional<nobion::HangMonitor> hang_monitor;
+  if (flight_recorder) hang_monitor.emplace(*(*line)->log_hub(), *flight_recorder, (*line)->bus());
+  // The scheduler's beat: a job pulses it every second. Only on a
+  // SteadyClock: under a VirtualClock the job's period is simulated time.
+  std::shared_ptr<nobion::HangMonitor::Beat> scheduler_beat;
+  std::optional<nobion::JobId> scheduler_beat_job;
 
   // The spectrometer shares the line's clock, scheduler and bus. None of these
   // is left to declaration order: the teardown after the event loop resets
@@ -921,6 +932,13 @@ int main(int argc, char** argv) {
             "ERROR [ui] spectrometer unavailable: extraction line did not start (shared scheduler not running)"));
       }
     }
+    if (started && hang_monitor && dynamic_cast<const nobion::VirtualClock*>(&(*line)->clock()) == nullptr) {
+      scheduler_beat =
+          std::make_shared<nobion::HangMonitor::Beat>(hang_monitor->beat("scheduler", std::chrono::seconds(30)));
+      auto job = (*line)->scheduler().every("hang.beat", std::chrono::seconds(1),
+                                            [beat = scheduler_beat] { beat->pulse(); });
+      if (job) scheduler_beat_job = *job;
+    }
     if (started) {
       splash.status(QStringLiteral("Loading the lab: %1").arg(QString::fromStdString(lab_dir.string())));
       lab = std::make_unique<nobion::experiment::lab::Lab>(nobion::experiment::lab::load_lab(
@@ -967,7 +985,20 @@ int main(int argc, char** argv) {
           QStringLiteral("ERROR [ui] experiment unavailable: extraction line did not start"));
     }
     splash.finish_after(&window, std::chrono::milliseconds(1200));
+    // The main thread's beat: a 1 s timer pulses it while the event loop
+    // runs (Qt timers are real time, so under any clock). Not before: a
+    // startup step may hold the thread longer, and is not a hang.
+    std::optional<nobion::HangMonitor::Beat> ui_beat;
+    QTimer ui_beat_timer;
+    if (hang_monitor) {
+      ui_beat.emplace(hang_monitor->beat("ui.main", std::chrono::seconds(10)));
+      QObject::connect(&ui_beat_timer, &QTimer::timeout, [&ui_beat] { ui_beat->pulse(); });
+      ui_beat_timer.start(std::chrono::seconds(1));
+    }
     rc = QApplication::exec();
+    // Closing windows and joining a running queue may hold the main thread.
+    ui_beat_timer.stop();
+    ui_beat.reset();
     window.set_lasers({}, false);             // the laser windows go before their bridges
     window.set_data(nullptr, nullptr, nullptr);  // data windows go before the data source
     window.set_experiment(nullptr, false);    // the experiment window goes before its bridge
@@ -999,6 +1030,9 @@ int main(int argc, char** argv) {
   lasers.reset();
   spectrometer_bridge.reset();
   scan.reset();
+  // The scheduler stops with the line: its beat is let go first.
+  if (scheduler_beat_job) (void)(*line)->scheduler().cancel_and_wait(*scheduler_beat_job);
+  if (scheduler_beat) scheduler_beat->disarm();
   (*line)->stop();
 #ifdef NOBION_EXPERIMENT_HAS_METRICS
   metrics.reset();  // its heartbeat is a job of the line's scheduler: before the line goes

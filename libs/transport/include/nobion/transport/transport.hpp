@@ -16,6 +16,7 @@
 
 namespace nobion {
 
+class HangMonitor;
 class SignalBus;
 
 // Whether exchange() may send its bytes again when no reply came. Only the
@@ -99,6 +100,14 @@ struct TransportOptions {
   const Clock* clock = nullptr;
   // When set, a TransportHealth event is published on every state change.
   SignalBus* bus = nullptr;
+  // When set, and `clock` is not a VirtualClock, a call that has not returned
+  // within `hang_limit` is reported as `transport.<name>` (spec
+  // 2026-11-06-field-diagnostics, 6): the beat is pulsed when the worker
+  // starts a call and disarmed when it ends, so an idle transport is not
+  // watched. Must outlive the transport's calls (a beat may outlive it).
+  HangMonitor* hang_monitor = nullptr;
+  // Unset: max(30 s, 10 x timeout x (retries + 1)).
+  std::optional<std::chrono::milliseconds> hang_limit{};
 };
 
 // Base for concrete channels. Owns one worker thread and a FIFO job queue:

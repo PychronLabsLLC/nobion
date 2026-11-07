@@ -10,14 +10,22 @@
 #include <thread>
 
 #include "nobion/core/events.hpp"
+#include "nobion/core/hang_monitor.hpp"
 #include "nobion/core/log_context.hpp"
 #include "nobion/core/signal_stack.hpp"
 #include "nobion/core/signal_bus.hpp"
+#include "nobion/core/virtual_clock.hpp"
 #include "nobion/transport/transport.hpp"
 
 namespace nobion {
 
 namespace {
+
+// Spec 2026-11-06-field-diagnostics, 6: max(30 s, 10 x timeout x (retries + 1)).
+std::chrono::milliseconds default_hang_limit(const TransportOptions& o) {
+  const auto call = std::chrono::duration_cast<std::chrono::milliseconds>(o.timeout) * 10 * (o.retries + 1);
+  return std::max<std::chrono::milliseconds>(std::chrono::seconds(30), call);
+}
 
 struct Job {
   std::function<void()> run;
@@ -37,6 +45,13 @@ struct Pending {
 struct QueuedTransport::Impl {
   explicit Impl(TransportOptions o) : options(std::move(o)), clock(options.clock ? options.clock : &steady) {
     options.retries = std::max(options.retries, 0);
+    // Under a VirtualClock a simulated wait has no fixed real-time length:
+    // nothing to measure a call against.
+    if (options.hang_monitor != nullptr && dynamic_cast<const VirtualClock*>(clock) == nullptr) {
+      beat.emplace(options.hang_monitor->beat("transport." + options.name,
+                                              options.hang_limit.value_or(default_hang_limit(options))));
+      beat->disarm();  // an idle transport is not watched
+    }
   }
 
   TransportOptions options;
@@ -54,6 +69,9 @@ struct QueuedTransport::Impl {
   std::condition_variable exited;  // either of those changed; through the clock
 
   bool open = false;  // worker thread only (or after the worker has stopped)
+  // Pulsed when the worker starts a call, disarmed when it ends; worker
+  // thread only after construction.
+  std::optional<HangMonitor::Beat> beat;
 
   mutable std::mutex health_mutex;
   Health health;
@@ -182,7 +200,9 @@ struct QueuedTransport::Impl {
         job = std::move(queue.front());
         queue.pop_front();
       }
+      if (beat) beat->pulse();
       job.run();
+      if (beat) beat->disarm();
     }
   }
 
