@@ -7,10 +7,10 @@ Style: compressed (root `AGENTS.md`). Nothing technical dropped.
 
 nobion not yet deployed. First installs: remote labs, hardware onboarded one instrument at a time, fixes shipped iteratively by one developer far away. Today a fault at a lab leaves too little behind:
 
-- crash: log gets `fatal signal N` or `fatal exception 0x..` only (`libs/core/src/log_hub.cpp`, `on_fatal_signal`, `on_unhandled_exception`); binaries stripped (`cmake/PychronPackaging.cmake:14` `CPACK_STRIP_FILES ON`), `release.yml` builds `Release`, no symbols kept; no git sha anywhere (`AnalysisRecord.instrument.software_git_sha`, `record/types.hpp:48`, never set).
+- crash: log gets `fatal signal N` or `fatal exception 0x..` only (`libs/core/src/log_hub.cpp`, `on_fatal_signal`, `on_unhandled_exception`); binaries stripped (`cmake/NobionPackaging.cmake:14` `CPACK_STRIP_FILES ON`), `release.yml` builds `Release`, no symbols kept; no git sha anywhere (`AnalysisRecord.instrument.software_git_sha`, `record/types.hpp:48`, never set).
 - intermittent driver fault: wire bytes only if `*.wire` at `trace` was on before it happened; spectrometer transports never get a `.wire` logger (`SpectrometerAssembler::default_transport`, `libs/systems/src/spectrometer/assembler.cpp:162-172`, leaves `TransportContext::log_hub` empty).
 - hang: nothing notices. `Scheduler::watchdog` (`libs/core/src/scheduler.cpp:106`) has no production caller.
-- device going bad: `DeviceHealth` (`libs/devices/include/pychron/devices/device.hpp:24`) tracked, never published or shown; only transport health reaches UI (`HealthBar`).
+- device going bad: `DeviceHealth` (`libs/devices/include/nobion/devices/device.hpp:24`) tracked, never published or shown; only transport health reaches UI (`HealthBar`).
 - getting it off the machine: by hand, file by file.
 - power loss: state written tmp then rename, no fsync (`executor.cpp:694`, `extraction_line.cpp:688`, about 20 more hand-written copies; only EarthBank fsyncs).
 
@@ -22,16 +22,16 @@ Read before changing (root `AGENTS.md` table): `libs/metrics/AGENTS.md` (section
 
 Every artifact says exactly which source built it.
 
-- `cmake/PychronBuildInfo.cmake` generates `build_info.cpp` in the build tree. Runs at configure and again when the git dir's `HEAD` or `index` changes (custom command `DEPENDS` on them; git dir from `git rev-parse --git-dir` at configure, so worktrees work). File rewritten only when content changes: no relink otherwise. Values:
+- `cmake/NobionBuildInfo.cmake` generates `build_info.cpp` in the build tree. Runs at configure and again when the git dir's `HEAD` or `index` changes (custom command `DEPENDS` on them; git dir from `git rev-parse --git-dir` at configure, so worktrees work). File rewritten only when content changes: no relink otherwise. Values:
   - `version`: `PROJECT_VERSION`.
   - `git_sha`: `git rev-parse HEAD`, first 12 hex; else env `GITHUB_SHA` (first 12); else `unknown`.
   - `git_dirty`: `git status --porcelain --untracked-files=no` non-empty; false under the `GITHUB_SHA` fallback.
   - `build_type`: `CMAKE_BUILD_TYPE`, or the config under multi-config generators (generator expression).
   - `features`: optional parts compiled in: `scripting`, `vision_opencv`, `publish_parquet`, `persistence`, `metrics`, `hardened_stdlib` (section 4).
-- Interface, `libs/core/include/pychron/core/build_info.hpp`:
+- Interface, `libs/core/include/nobion/core/build_info.hpp`:
 
   ```cpp
-  namespace pychron {
+  namespace nobion {
   struct BuildInfo {
     std::string_view version, git_sha, build_type;
     bool git_dirty;
@@ -42,8 +42,8 @@ Every artifact says exactly which source built it.
   }
   ```
 
-- `PYCHRON_VERSION` compile definitions (`apps/nobion/CMakeLists.txt:261,328`, `libs/setup/CMakeLists.txt:19`) removed; their users call `build_info()`. One source of truth.
-- Shown in: `nobion --version`, `elctl --version` (`build_id()`); About box and its Copy button (`apps/nobion/src/brand.cpp:68` `build_info()` gains sha, dirty, features); `LogHub::begin_session` line (`build=<build_id>`); metrics `pychron_build_info` gains label `git_sha` (label change checked against `libs/metrics/AGENTS.md`; dashboards in `packaging/observability` updated if they pin the label set); every run record's `instrument.software_version` and `instrument.software_git_sha`, set where the record's instrument block is filled.
+- `NOBION_VERSION` compile definitions (`apps/nobion/CMakeLists.txt:261,328`, `libs/setup/CMakeLists.txt:19`) removed; their users call `build_info()`. One source of truth.
+- Shown in: `nobion --version`, `elctl --version` (`build_id()`); About box and its Copy button (`apps/nobion/src/brand.cpp:68` `build_info()` gains sha, dirty, features); `LogHub::begin_session` line (`build=<build_id>`); metrics `nobion_build_info` gains label `git_sha` (label change checked against `libs/metrics/AGENTS.md`; dashboards in `packaging/observability` updated if they pin the label set); every run record's `instrument.software_version` and `instrument.software_git_sha`, set where the record's instrument block is filled.
 - A record's sha is the build that measured it. The importer leaves the field as the source had it.
 - Release-please commits version files before the tag, so a release build is clean; `release.yml` fails the job if `build_id()` of the built `elctl` ends `.dirty` or has `unknown`.
 
@@ -69,7 +69,7 @@ Same handlers (`LogHub::install_crash_handlers`), more written: to stderr, the l
 POSIX rules for the handler (signal context): no allocation, no lock, no stdio, no `dladdr`; only preformatted bytes, `write(2)`, `open(2)`, `backtrace()`, `alarm(2)`, `raise(2)`. Everything else captured outside the signal (at install, at `begin_session`, or by the hub's flusher thread).
 
 - Signals: `SIGSEGV SIGABRT SIGBUS SIGFPE SIGILL SIGTRAP` (`SIGTRAP` added: libc++ hardening traps raise it on arm64 macOS; `_GLIBCXX_ASSERTIONS` calls `abort`, `SIGABRT`, already covered). `SA_ONSTACK` set.
-- Alternate signal stack (`sigaltstack`, 64 KiB, allocated once per thread): installed for the main thread by `install_crash_handlers`, and for our own threads by `pychron::install_signal_stack()` called first thing in every thread entry we own (`Crew`, `QueuedTransport` worker, `Scheduler` workers, executor, `ngx.reader`, hub writer, hang monitor). A stack overflow on any other thread may still kill the process with no trace.
+- Alternate signal stack (`sigaltstack`, 64 KiB, allocated once per thread): installed for the main thread by `install_crash_handlers`, and for our own threads by `nobion::install_signal_stack()` called first thing in every thread entry we own (`Crew`, `QueuedTransport` worker, `Scheduler` workers, executor, `ngx.reader`, hub writer, hang monitor). A stack overflow on any other thread may still kill the process with no trace.
 - First act: `alarm(5)`: a handler stuck for any reason still ends the process.
 - Written, in order, after `fatal signal N`:
   - `build <build_id>` (preformatted at install).
@@ -98,7 +98,7 @@ Our code built with the standard library's cheap checks: out-of-range index, emp
 - libstdc++: `_GLIBCXX_ASSERTIONS` (aborts: `SIGABRT`).
 - libc++ (detected by `_LIBCPP_VERSION` in a configure check): version ≥ 17 (Apple clang 15+): `_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST` (traps: `SIGILL` x86-64, `SIGTRAP` arm64); older: none.
 - MSVC: none (`_ITERATOR_DEBUG_LEVEL` changes ABI; Qt built at 0). About features say `hardened_stdlib=off` there.
-- `cmake/PychronHardening.cmake` applies them to `pychron_*` targets and both apps, every build type (a dev build fails the way a lab build does). Not applied when `PYCHRON_SANITIZE` is set: the sanitizer setup already turns on the library checks (root `AGENTS.md`) and wins.
+- `cmake/NobionHardening.cmake` applies them to `nobion_*` targets and both apps, every build type (a dev build fails the way a lab build does). Not applied when `NOBION_SANITIZE` is set: the sanitizer setup already turns on the library checks (root `AGENTS.md`) and wins.
 - Claim: no change to class layout in either library, so prebuilt Qt and Homebrew libraries link unchanged. Inline functions instantiated by both our code and a third-party target get different bodies (ODR); benign in practice, and the full `dev-ui` suite on the macOS UI CI job under the macros is the check.
 - Cost measured before turning on (section 14).
 
@@ -146,9 +146,9 @@ class FlightRecorderTriggers {
 ```
 
 Subscriptions and reasons:
-- `Alarm` (`libs/core/include/pychron/core/events.hpp:63`) with `severity == Critical`: `alarm-<source>`.
+- `Alarm` (`libs/core/include/nobion/core/events.hpp:63`) with `severity == Critical`: `alarm-<source>`.
 - `DeviceHealthChanged` to `Faulted` (section 7): `faulted-<device>`.
-- `RunFinished` (`libs/experiment/include/pychron/experiment/executor/executor.hpp:129`) with a failed state, and `QueueEnded` (`libs/experiment/include/pychron/experiment/lab/session.hpp:86`) with end `unsafe`: subscribed by the experiment side (`libs/experiment` wires these to `request`): `run-failed-<run id>`, `unsafe`.
+- `RunFinished` (`libs/experiment/include/nobion/experiment/executor/executor.hpp:129`) with a failed state, and `QueueEnded` (`libs/experiment/include/nobion/experiment/lab/session.hpp:86`) with end `unsafe`: subscribed by the experiment side (`libs/experiment` wires these to `request`): `run-failed-<run id>`, `unsafe`.
 - Hang monitor (section 6): `hang-<beat>`, calling `request`.
 - Operator: nobion Help > Save Flight Recorder (`manual`); support bundle (`bundle`, synchronous `dump_recorder`).
 
@@ -192,14 +192,14 @@ class HangMonitor {
 - On a change of `DeviceState` only (not every failure), `Device` publishes `DeviceHealthChanged{device, transport, from, to, consecutive_failures, last_error_kind, last_error_text, ts}` (new, `libs/core` `events.hpp`). `last_error_text` is the last failure's `Error::what`, carried in the event only; `DeviceHealth` itself unchanged (stays lock-free).
 - Published on the calling thread (a transport worker or the caller of the driver). Rule: a `DeviceHealthChanged` handler never calls into a device or transport; it copies and returns. Handlers here: systems event recorder, metrics, `CoreBridge` (queued to the UI thread), `FlightRecorderTriggers` (queues).
 - Systems event recorder logs it: `warn` to `Degraded`/`Faulted`, `info` back to `Ok`.
-- Metrics: `pychron_device_state{device,transport}` (0 unknown, 1 ok, 2 degraded, 3 faulted), `pychron_device_failures_total{device}`; series removed when the device is torn down, by the series rules of `libs/metrics/AGENTS.md`.
+- Metrics: `nobion_device_state{device,transport}` (0 unknown, 1 ok, 2 degraded, 3 faulted), `nobion_device_failures_total{device}`; series removed when the device is torn down, by the series rules of `libs/metrics/AGENTS.md`.
 - UI: a transport's `HealthBar` chip turns amber when the transport is up but one of its devices is `Degraded` or `Faulted`; tooltip lists each device on it: state, consecutive failures, last error text, last ok ("ago" from `CoreBridge::now()`, root `AGENTS.md` time rules).
 
 ## 8. Support bundle
 
 One zip a lab sends back.
 
-- `libs/setup` `support_bundle.{hpp,cpp}`; zip via miniz (new `PRIVATE miniz::miniz` link of `pychron_setup`, as `libs/earthbank` does).
+- `libs/setup` `support_bundle.{hpp,cpp}`; zip via miniz (new `PRIVATE miniz::miniz` link of `nobion_setup`, as `libs/earthbank` does).
 
   ```cpp
   struct BundleOptions {
@@ -216,7 +216,7 @@ One zip a lab sends back.
   - `README.txt`: what this is, build id, host, OS, when, what was left out and why, hang-stack commands (section 6).
   - `build.json`: `build_info()`, OS, CPU, Qt version (nobion), `site.toml` path.
   - `logs/`: current and rotated nobion and elctl logs newer than `logs_since`; `crash/` files and `.dmp`; `flight/` dumps; a fresh `dump_recorder("bundle")` when the process has a hub.
-  - `config/`: every file of the install root (`*.toml`, canvas, scripts, plans, queues), each `X.local.toml`, `logging*.toml`, `sim.toml`, `notifications.toml`; `install.toml`; `config/EDITED.txt` listing files whose sha256 differs from `install.toml`'s `files` map (`libs/setup/include/pychron/setup/install.hpp:73`); a file missing from the map (older install) listed as `unknown`.
+  - `config/`: every file of the install root (`*.toml`, canvas, scripts, plans, queues), each `X.local.toml`, `logging*.toml`, `sim.toml`, `notifications.toml`; `install.toml`; `config/EDITED.txt` listing files whose sha256 differs from `install.toml`'s `files` map (`libs/setup/include/nobion/setup/install.hpp:73`); a file missing from the map (older install) listed as `unknown`.
   - `state/`: line `*.state.toml`, `executor_state.json`, field table `current` and its version file, outbox and spool listings (names, sizes, ages; no record bodies).
   - `traces/`: `<trace dir>/*.trace`, newest first, within the cap, when `include_traces`.
   - `doctor.txt`: `elctl doctor` report (no `--probe`: never touches hardware).
@@ -224,7 +224,7 @@ One zip a lab sends back.
 - Redaction, `libs/core` `redact.hpp` (public; replaces the private `is_secret_key` in `libs/core/src/log_summary.cpp`, which then calls it):
   - key rule: a key equal to, or ending in `_`/`-` plus, one of `password`, `passwd`, `token`, `secret`, `key`, `credential`, `api_key` (case-insensitive; the existing suffix rule, list extended). Value replaced by `***` (the existing text).
   - value rule: in any text, `<scheme>://<user>:<password>@` becomes `<scheme>://<user>:***@`.
-  - Never copied: `.pychron/credentials.toml`, keychain items.
+  - Never copied: `.nobion/credentials.toml`, keychain items.
   - Applied to every text file in the bundle (TOML by key and value rule; logs, JSON, traces' comment lines, `live.json` by value rule; TOML keys inside logged `key=value` summaries already redacted at log time).
 - Entry points:
   - `elctl support-bundle [--install X] [--out file] [--since 72h] [--no-traces]`.
@@ -234,7 +234,7 @@ One zip a lab sends back.
 
 ## 9. Spectrometer wire log
 
-- `SpectrometerContext` (`libs/systems/include/pychron/systems/spectrometer/spectrometer.hpp:149`) gains `std::shared_ptr<LogHub> log_hub` (same type as `TransportContext::log_hub`, `libs/transport/include/pychron/transport/factory.hpp:19`); `SpectrometerAssembler::default_transport` passes it on. Both apps set it.
+- `SpectrometerContext` (`libs/systems/include/nobion/systems/spectrometer/spectrometer.hpp:149`) gains `std::shared_ptr<LogHub> log_hub` (same type as `TransportContext::log_hub`, `libs/transport/include/nobion/transport/factory.hpp:19`); `SpectrometerAssembler::default_transport` passes it on. Both apps set it.
 - Qtegra and NGX transports then log `<name>.wire` like line transports, and the flight recorder keeps their bytes by default (5.1).
 
 ## 10. Durable file writes
@@ -284,7 +284,7 @@ Every open with migration on goes through `persistence::detail::migrate` (`libs/
 Owner, 2026-11-06: ship OpenCV, built trimmed; ship without Arrow for now.
 
 - Measured on the developer Mac: Homebrew `opencv` pulls 105 packages (ffmpeg, vtk, openvino, hdf5, boost, ...), 156 MB of libraries; `apache-arrow` 32 packages, 115 MB. Bundled through `macdeployqt` that would add hundreds of MB to `Nobion.app`, every dylib signed and notarized, and Homebrew bottles only run on the macOS they were built for (runner macOS 15). Not used.
-- Code needs only OpenCV `core`, `imgproc`, `videoio` (`cmake/PychronDependencies.cmake:73`; `geometry` too on 5.x).
+- Code needs only OpenCV `core`, `imgproc`, `videoio` (`cmake/NobionDependencies.cmake:73`; `geometry` too on 5.x).
 
 ### 12.1 OpenCV, trimmed and static
 
@@ -293,15 +293,15 @@ Owner, 2026-11-06: ship OpenCV, built trimmed; ship without Arrow for now.
   - Camera backends on: `WITH_AVFOUNDATION` (macOS), `WITH_V4L` (Linux), `WITH_MSMF` and `WITH_DSHOW` (Windows).
   - Off: `WITH_FFMPEG`, `WITH_GSTREAMER`, `WITH_TBB`, `WITH_OPENMP`, `WITH_OPENCL`, `WITH_IPP`, `WITH_ITT`, `WITH_PROTOBUF`, `WITH_EIGEN`, `WITH_LAPACK`, image codecs (`WITH_JPEG`, `WITH_PNG`, `WITH_TIFF`, `WITH_WEBP`, `WITH_OPENJPEG`, `WITH_OPENEXR`, `WITH_JASPER`, `WITH_IMGCODEC_*`), `BUILD_TESTS`, `BUILD_PERF_TESTS`, `BUILD_EXAMPLES`, `BUILD_DOCS`, `BUILD_opencv_apps`, `BUILD_JAVA`, `BUILD_opencv_python3`. `BUILD_ZLIB=ON` (bundled zlib, static).
   - macOS: `CMAKE_OSX_DEPLOYMENT_TARGET` and `CMAKE_OSX_ARCHITECTURES` as the app's.
-- `release.yml`: restores `<prefix>` from `actions/cache` keyed on OS, arch, OpenCV version and the script's sha256; on a miss runs the script. Then configures nobion with `-DPYCHRON_VISION_OPENCV=ON -DOpenCV_DIR=<prefix>/<cmake dir>` (`ON`: the release fails if it is not found, never a silent stub).
+- `release.yml`: restores `<prefix>` from `actions/cache` keyed on OS, arch, OpenCV version and the script's sha256; on a miss runs the script. Then configures nobion with `-DNOBION_VISION_OPENCV=ON -DOpenCV_DIR=<prefix>/<cmake dir>` (`ON`: the release fails if it is not found, never a silent stub).
 - Static: nothing new to bundle, sign, notarize or depend on in the `.deb`. The frameworks and system libraries `videoio` needs (AVFoundation, CoreMedia, CoreVideo; Media Foundation) are linked through OpenCV's exported config.
-- Project CMake unchanged: no fetch fallback (`PychronDependencies.cmake` comment: a source build is too heavy for CI). Dev and CI keep Homebrew's (`ci.yml` `ui` job).
+- Project CMake unchanged: no fetch fallback (`NobionDependencies.cmake` comment: a source build is too heavy for CI). Dev and CI keep Homebrew's (`ci.yml` `ui` job).
 - OpenCV is Apache-2.0: its license text added to the installer's third-party notices (`packaging/`).
 - Measured in plan: installer size and release job time, before and after, cache cold and warm.
 
 ### 12.2 Arrow
 
-- `release.yml` sets `-DPYCHRON_PUBLISH=OFF` explicitly (was `AUTO`, found nothing). A release made by a packaged build writes everything but `data/*.parquet` (`libs/publish`), as today.
+- `release.yml` sets `-DNOBION_PUBLISH=OFF` explicitly (was `AUTO`, found nothing). A release made by a packaged build writes everything but `data/*.parquet` (`libs/publish`), as today.
 - About `features` shows `publish_parquet=off`; release notes, and a line added to `docs/release_format.md`, say Parquet tables need a build with Arrow.
 - Revisited when hosted publishing (data publishing spec, 2026-10-18) is built; possibly a separate data-reduction build rather than the instrument installer.
 
