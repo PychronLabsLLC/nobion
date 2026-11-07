@@ -64,14 +64,33 @@ class TestHealthBarDevices : public QObject {
     bar.update_device(change("pump", "serial0", DeviceState::Degraded, DeviceState::Faulted, 7, "read timed out", now));
     now += 30s;
     bar.refresh();
-    const QString tip = bar.chip("serial0")->toolTip();
-    QVERIFY2(tip.contains(QStringLiteral("gauge")), qPrintable(tip));
-    QVERIFY2(tip.contains(QStringLiteral("pump")), qPrintable(tip));
-    QVERIFY2(tip.contains(QStringLiteral("faulted")), qPrintable(tip));
-    QVERIFY2(tip.contains(QStringLiteral("7")), qPrintable(tip));
-    QVERIFY2(tip.contains(QStringLiteral("read timed out")), qPrintable(tip));
+    // The tooltip is rich text: compare what it shows, one line a device.
+    QTextDocument doc;
+    doc.setHtml(bar.chip("serial0")->toolTip());
+    const QStringList lines = doc.toPlainText().split(QLatin1Char('\n'));
+    const auto line_of = [&lines](const QString& device) {
+      for (const QString& line : lines) {
+        if (line.startsWith(device + QStringLiteral(": "))) return line;
+      }
+      return QString();
+    };
     // gauge was last ok 2 minutes ago on the injected clock.
-    QVERIFY2(tip.contains(QStringLiteral("2m ago")), qPrintable(tip));
+    QCOMPARE(line_of(QStringLiteral("gauge")),
+             QStringLiteral("gauge: degraded, 1 failure(s) in a row, last ok 2m ago"));
+    QCOMPARE(line_of(QStringLiteral("pump")),
+             QStringLiteral("pump: faulted, 7 failure(s) in a row, last error: read timed out, never ok"));
+  }
+
+  void anEventWithNoTransportOrNoChipToTurnOkMakesNoChip() {
+    TimePoint now{};
+    HealthBar bar(nullptr, [&now] { return now; });
+    bar.update_device(change("gauge", "", DeviceState::Unknown, DeviceState::Degraded, 1, "x", now));
+    bar.update_device(change("pump", "spectrometer", DeviceState::Unknown, DeviceState::Ok, 0, "", now));
+    QCOMPARE(bar.summary().unknown, 0);
+    QCOMPARE(bar.summary().ok + bar.summary().degraded + bar.summary().down, 0);
+    // A failure still makes one: the operator should see it.
+    bar.update_device(change("pump", "spectrometer", DeviceState::Ok, DeviceState::Degraded, 1, "x", now));
+    QCOMPARE(bar.chip_status(QStringLiteral("spectrometer")), HealthBar::Status::Degraded);
   }
 
   void recoveredDeviceClearsAmber() {
@@ -112,12 +131,14 @@ class TestHealthBarDevices : public QObject {
   void aDeviceThatIsOkShowsNoAge() {
     TimePoint now{};
     HealthBar bar(nullptr, [&now] { return now; });
+    bar.update_health(TransportHealth{"serial0", true, 0, "", now});
     bar.update_device(change("pump", "serial0", DeviceState::Unknown, DeviceState::Ok, 0, "", now));
     now += 300s;
     bar.refresh();
-    const QString tip = bar.chip("serial0")->toolTip();
-    QVERIFY2(!tip.contains(QStringLiteral("ago")), qPrintable(tip));
-    QVERIFY2(tip.contains(QStringLiteral("ok")), qPrintable(tip));
+    QTextDocument doc;
+    doc.setHtml(bar.chip("serial0")->toolTip());
+    const QStringList lines = doc.toPlainText().split(QLatin1Char('\n'));
+    QVERIFY2(lines.contains(QStringLiteral("pump: ok")), qPrintable(doc.toPlainText()));
   }
 
   void degradedDeviceIsListedAndAmber() {

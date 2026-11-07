@@ -72,12 +72,19 @@ void HealthBar::update_health(const TransportHealth& health) {
 }
 
 void HealthBar::update_device(const DeviceHealthChanged& event) {
+  // A device made without a transport name has no chip to go on. One that only
+  // turns Ok on a transport nothing else has reported on would add a grey chip
+  // counted as unknown until the transport's own first health: wait for that.
+  if (event.transport.empty()) return;
+  if (event.to == DeviceState::Ok && !chips_.contains(event.transport)) return;
   const Summary before = summary();
   Chip& chip = chip_for(event.transport);
   Chip::Device& device = chip.devices[event.device];
   device.state = event.to;
   device.failures = event.consecutive_failures;
   device.error = event.last_error_text;
+  // On a change from Ok the event's ts is the first failure, not the last
+  // success: an approximation within one poll period of the device.
   if (event.to == DeviceState::Ok || event.from == DeviceState::Ok) {
     device.last_ok = event.ts;
   }
@@ -227,7 +234,11 @@ void HealthBar::render(const std::string& name, const Chip& chip) {
     tip += QStringLiteral("<br>") + html(line);
   }
   tip = QStringLiteral("<qt>") + tip + QStringLiteral("</qt>");
-  chip.label->setToolTip(tip);
+  // Only when it changed: render runs every second, and setting a tooltip
+  // that is showing resets it.
+  if (chip.label->toolTip() != tip) {
+    chip.label->setToolTip(tip);
+  }
   style::set_chip(chip.label, level_of(shown_status(chip)));
 }
 
