@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <filesystem>
@@ -126,8 +127,11 @@ Death run_helper(const fs::path& dir, const std::string& mode) {
   }
 }
 
-// What every crash file must hold, for a helper that died by one of `signals`.
-void expect_crash_file(const std::string& mode, std::initializer_list<int> signals) {
+// What every crash file must hold, for a helper that died by one of
+// `signals`; with `thread` set, the thread line is `thread <thread>`. The
+// file's lines are left in `lines`. (void: ASSERT_* returns from it.)
+void check_crash_file(const std::string& mode, std::initializer_list<int> signals, const std::string& thread,
+                      std::vector<std::string>& lines) {
   TempDir tmp;
   const Death death = run_helper(tmp.path(), mode);
   ASSERT_GT(death.pid, 0) << "could not spawn " << NOBION_CRASH_HELPER;
@@ -141,7 +145,7 @@ void expect_crash_file(const std::string& mode, std::initializer_list<int> signa
   const fs::path file = tmp.path() / "crash" / ("crash_helper-" + std::to_string(death.pid) + ".txt");
   ASSERT_TRUE(fs::exists(file)) << file;
   const std::string text = read_file(file);
-  const auto lines = lines_of(text);
+  lines = lines_of(text);
 
   std::size_t frames = 0;
   bool signal_line = false;
@@ -153,7 +157,7 @@ void expect_crash_file(const std::string& mode, std::initializer_list<int> signa
   for (const auto& line : lines) {
     if (line == "fatal signal " + std::to_string(sig)) signal_line = true;
     if (line == "build " + nobion::build_id()) build_line = true;
-    if (line.starts_with("thread ")) thread_line = true;
+    if (thread.empty() ? line.starts_with("thread ") : line == "thread " + thread) thread_line = true;
     if (std::regex_match(line, frame_re)) ++frames;
     std::smatch m;
     if (std::regex_match(line, m, module_re)) {
@@ -162,9 +166,16 @@ void expect_crash_file(const std::string& mode, std::initializer_list<int> signa
   }
   EXPECT_TRUE(signal_line) << text;
   EXPECT_TRUE(build_line) << text;
-  EXPECT_TRUE(thread_line) << text;
+  EXPECT_TRUE(thread_line) << (thread.empty() ? std::string("a thread line") : "thread " + thread) << "\n" << text;
   EXPECT_GE(frames, 3u) << text;
   EXPECT_TRUE(helper_module) << text;
+}
+
+std::vector<std::string> expect_crash_file(const std::string& mode, std::initializer_list<int> signals,
+                                           const std::string& thread = {}) {
+  std::vector<std::string> lines;
+  check_crash_file(mode, signals, thread, lines);
+  return lines;
 }
 
 #endif
@@ -184,7 +195,7 @@ void expect_crash_file(const std::string& mode, std::initializer_list<int> signa
 
 TEST(CrashCapture, SegvWritesACrashFile) {
   CRASH_TEST_PRECONDITIONS();
-  expect_crash_file("segv", {SIGSEGV, SIGBUS});
+  expect_crash_file("segv", {SIGSEGV, SIGBUS}, "crash_helper.main");
 }
 
 TEST(CrashCapture, AbortWritesACrashFile) {
@@ -220,14 +231,25 @@ TEST(CrashCapture, OverflowMainWritesACrashFile) {
 
 TEST(CrashCapture, OverflowThreadWritesACrashFile) {
   CRASH_TEST_PRECONDITIONS();
-  expect_crash_file("overflow-thread", {SIGSEGV, SIGBUS});
+  expect_crash_file("overflow-thread", {SIGSEGV, SIGBUS}, "crash_helper.overflow");
 }
 
 // A thread that never called install_signal_stack(): SA_ONSTACK with no
 // alternate stack runs the handler on the thread's own.
 TEST(CrashCapture, RawThreadSegvWritesACrashFile) {
   CRASH_TEST_PRECONDITIONS();
-  expect_crash_file("raw-thread-segv", {SIGSEGV, SIGBUS});
+  expect_crash_file("raw-thread-segv", {SIGSEGV, SIGBUS}, "?");
+}
+
+// The exception text is one line, before the SIGABRT block abort() adds.
+TEST(CrashCapture, TerminateWritesTheExceptionText) {
+  CRASH_TEST_PRECONDITIONS();
+  const auto lines = expect_crash_file("terminate", {SIGABRT}, "crash_helper.main");
+  ASSERT_FALSE(lines.empty());
+  EXPECT_EQ(lines.front(), "terminate called after throwing: crash helper boom");
+  EXPECT_EQ(std::count(lines.begin(), lines.end(), lines.front()), 1);
+  ASSERT_GE(lines.size(), 2u);
+  EXPECT_EQ(lines[1], "fatal signal " + std::to_string(SIGABRT));
 }
 
 TEST(CrashCapture, HardenedWritesACrashFile) {

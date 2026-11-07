@@ -24,7 +24,7 @@
 namespace nobion::detail {
 namespace {
 
-constexpr std::size_t kMaxModules = 512;
+constexpr std::size_t kMaxModules = 1024;  // the app with Qt and the shared cache passes 512
 constexpr std::size_t kMaxPath = 512;  // longer paths are cut (still a usable hint)
 
 struct Module {

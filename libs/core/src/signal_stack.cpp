@@ -1,7 +1,5 @@
 #include "nobion/core/signal_stack.hpp"
 
-#include "nobion/core/log_context.hpp"
-
 #if !defined(_WIN32)
 #include <csignal>
 #include <cstddef>
@@ -65,11 +63,6 @@ thread_local SignalStack t_signal_stack;
 #endif
 
 void install_signal_stack() noexcept {
-  // Touches this thread's log context, so the thread_local block of this
-  // image exists before any signal: on macOS a thread_local is allocated
-  // (malloc) on its first use on a thread, and the crash handler reads the
-  // thread tag.
-  (void)LogContext::thread_tag();
 #if !defined(_WIN32)
   t_signal_stack.install();
 #endif

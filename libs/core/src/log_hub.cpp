@@ -798,7 +798,39 @@ std::string terminate_text() {
   }
 }
 
+// The terminate text as one line of the crash file. Not a signal context
+// (terminate runs on the throwing thread as a normal call), so the line is
+// built here; the file is opened and written with open(2) and write(2), as
+// the handler does, so the SIGABRT block that abort() adds next follows it.
+void write_terminate_line(std::string_view text) noexcept {
+#ifdef _WIN32
+  (void)text;  // Windows: Task 6
+#else
+  const int index = g_crash_path_index.load();
+  if (index < 0) return;
+  const int fd = ::open(g_crash_paths[static_cast<std::size_t>(index)].data(),
+                        O_CREAT | O_WRONLY | O_APPEND | O_CLOEXEC, 0644);
+  if (fd < 0) return;
+  try {
+    std::string line;
+    append_one_line(line, text);
+    line.push_back('\n');
+    write_all(fd, line.data(), line.size());
+  } catch (...) {  // NOLINT(bugprone-empty-catch): out of memory; the SIGABRT block still follows
+  }
+  ::close(fd);
+#endif
+}
+
 [[noreturn]] void on_terminate() noexcept {
+  std::string text;
+  try {
+    text = terminate_text();
+  } catch (...) {  // NOLINT(bugprone-empty-catch): out of memory; the fallback below is static
+  }
+  const std::string_view line = text.empty() ? std::string_view("terminate called") : std::string_view(text);
+  write_terminate_line(line);
+
   std::shared_ptr<LogHub::Impl> hub;
   {
     // Bounded: terminate may fire on a thread that already holds the mutex.
@@ -810,7 +842,7 @@ std::string terminate_text() {
   }
   if (hub) {
     try {
-      hub->crash_flush(terminate_text());
+      hub->crash_flush(line);
     } catch (...) {  // NOLINT(bugprone-empty-catch): terminating already
     }
   }
@@ -996,6 +1028,7 @@ void LogHub::install_crash_handlers() {
   if (state.installed) return;
   state.installed = true;
   install_signal_stack();  // the calling (main) thread's
+  detail::ensure_thread_tag_key();  // the handler reads the thread tag from it
   install_fatal_handlers();  // before the retarget: it preformats what the handler writes
   if (auto hub = state.current.lock()) retarget_crash_output(*hub);
   g_previous_terminate.store(std::set_terminate(&on_terminate));

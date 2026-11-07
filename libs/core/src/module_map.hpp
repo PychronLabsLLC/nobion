@@ -30,7 +30,7 @@ class ModuleMap {
   // Async-signal-safe: one line per image,
   // `module <path> 0x<load hex> 0x<size hex>`, then
   // `modules truncated: <n>` when more images were loaded than the table
-  // holds (512). Writes nothing before install().
+  // holds (1024). Writes nothing before install().
   static void write_to(int fd) noexcept;
 };
 

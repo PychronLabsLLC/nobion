@@ -166,13 +166,15 @@ class LogHub {
   // call it before any hub exists; it acts on whichever hub create() made
   // most recently (held weakly, so a destroyed hub is simply skipped).
   //
-  // - std::terminate: logs the active exception text at `error` on logger
-  //   `nobion`, flushes (bounded wait), then calls the previous handler.
+  // - std::terminate: writes the active exception text as one line to the
+  //   crash file, logs it at `error` on logger `nobion`, flushes (bounded
+  //   wait), then calls the previous handler (abort: the SIGABRT handler
+  //   then adds its block below that line).
   // - POSIX SIGSEGV/SIGABRT/SIGBUS/SIGFPE/SIGILL/SIGTRAP (SA_ONSTACK; the
   //   calling thread is given an alternate stack, other threads take one with
   //   install_signal_stack()): first alarm(5), so a stuck handler still ends
   //   the process; then, with write(2), `fatal signal N`, `build <build_id>`,
-  //   `thread <tag>` (LogContext tag, `?` if none) and the raw backtrace
+  //   `thread <tag>` (LogContext tag, read from a pthread key; `?` if none) and the raw backtrace
   //   (`0x<hex>`, one frame a line) to stderr, to a descriptor on that hub's
   //   log file (moved onto the live file within about 1 s of a rotation) and
   //   to the crash file (crash_file_path(), opened only then); the module map

@@ -3,9 +3,43 @@
 #include "log_hub_internal.hpp"
 
 #include <atomic>
+#include <mutex>
 #include <string>
 #include <type_traits>
 #include <utility>
+
+#if !defined(_WIN32)
+#include <pthread.h>
+#endif
+
+namespace nobion::detail {
+namespace {
+
+#if !defined(_WIN32)
+// The same pointer as t_tag, kept under a pthread key for the crash handler:
+// on macOS the first read of a thread_local on a thread that never touched
+// one allocates (dyld's TLV path), while pthread_getspecific only reads the
+// thread's key slot. Created once, outside any signal (first Thread scope,
+// or LogHub::install_crash_handlers); the handler reads it only after
+// g_tag_key_ready says it exists.
+pthread_key_t g_tag_key{};
+std::atomic<bool> g_tag_key_ready{false};
+std::once_flag g_tag_key_once;
+#endif
+
+void set_tag_key(const std::string* tag) noexcept {
+#if !defined(_WIN32)
+  ensure_thread_tag_key();
+  if (g_tag_key_ready.load(std::memory_order_acquire)) {
+    (void)::pthread_setspecific(g_tag_key, tag);
+  }
+#else
+  (void)tag;
+#endif
+}
+
+}  // namespace
+}  // namespace nobion::detail
 
 namespace nobion::LogContext {
 namespace {
@@ -27,8 +61,13 @@ std::atomic<std::uint32_t> g_next_number{1};
 
 }  // namespace
 
-Thread::Thread(std::string tag) : value_(std::move(tag)), previous_(std::exchange(t_tag, &value_)) {}
-Thread::~Thread() { t_tag = previous_; }
+Thread::Thread(std::string tag) : value_(std::move(tag)), previous_(std::exchange(t_tag, &value_)) {
+  detail::set_tag_key(&value_);
+}
+Thread::~Thread() {
+  t_tag = previous_;
+  detail::set_tag_key(previous_);
+}
 
 Run::Run(std::string run_id) : value_(std::move(run_id)), previous_(std::exchange(t_run, &value_)) {}
 Run::~Run() { t_run = previous_; }
@@ -50,6 +89,24 @@ std::uint32_t thread_number() noexcept {
 
 namespace nobion::detail {
 
-const std::string* thread_tag_pointer() noexcept { return LogContext::t_tag; }
+void ensure_thread_tag_key() noexcept {
+#if !defined(_WIN32)
+  try {
+    std::call_once(g_tag_key_once, [] {
+      if (::pthread_key_create(&g_tag_key, nullptr) == 0) g_tag_key_ready.store(true, std::memory_order_release);
+    });
+  } catch (...) {  // NOLINT(bugprone-empty-catch): no key; the crash handler writes `thread ?`
+  }
+#endif
+}
+
+const std::string* thread_tag_pointer() noexcept {
+#if !defined(_WIN32)
+  if (!g_tag_key_ready.load(std::memory_order_acquire)) return nullptr;
+  return static_cast<const std::string*>(::pthread_getspecific(g_tag_key));
+#else
+  return LogContext::t_tag;
+#endif
+}
 
 }  // namespace nobion::detail
