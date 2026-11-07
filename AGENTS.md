@@ -367,7 +367,9 @@ standard per target. Follow C++ Core Guidelines where this file is silent.
   functor (`invokeMethod` lambda) and read on other thread is reported as
   race, some runs only. Hand data over under own mutex, queued call carries
   nothing (`SpectrometerBridge` Gate). No TSan suppressions file: a frame
-  match would hide real races in everything run on that thread.
+  match would hide real races in everything run on that thread. Allowed:
+  narrow `AnnotateIgnoreReadsBegin`/`End` in test code around deliberate
+  lock-free copy (`test_byte_ring.cpp`); never in production code.
 - A change made for speed comes with a measurement, before and after.
 
 ## Lifetime rules
