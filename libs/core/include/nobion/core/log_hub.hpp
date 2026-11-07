@@ -142,9 +142,10 @@ class LogHub {
   [[nodiscard]] std::string recorder_snapshot() const;
 
   // Writes the snapshot to `<dir>/flight/<UTC stamp>-<reason>.log` (stamp
-  // from the hub's clock, `20261107T153012.481Z`; characters of `reason`
-  // other than letters, digits, `.`, `_` and `-` written `_`), its first line
-  // `flight recorder dump: reason=<reason> build=<build_id>`, and keeps the
+  // from the hub's clock, `20261107T153012.481Z`; of `reason`, control
+  // characters dropped everywhere, and in the name its first 64 bytes with
+  // characters other than letters, digits, `.`, `_` and `-` written `_`),
+  // its first line `flight recorder dump: reason=<reason> build=<build_id>`, and keeps the
   // newest 20 dumps there. Limits, in real time whatever the hub's clock: one
   // dump per reason a minute, one of any reason per 10 s; a call inside a
   // limit writes nothing, logs one `info` line and returns the last dump's

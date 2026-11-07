@@ -1827,9 +1827,24 @@ void LogHub::set_recorder_limit_clock_for_testing(std::function<std::chrono::ste
 
 namespace {
 
-// A reason as a file name may hold it: letters, digits, `.`, `_`, `-`; any
-// other byte `_`.
+constexpr std::size_t kReasonInNameMax = 64;  // bytes of a reason a dump's file name keeps
+
+// A reason without control characters (a line break above all): what the
+// dump's first line and the log say.
+std::string printable_reason(std::string_view reason) {
+  std::string out;
+  out.reserve(reason.size());
+  for (const char c : reason) {
+    const auto byte = static_cast<unsigned char>(c);
+    if (byte >= 0x20 && byte != 0x7f) out.push_back(c);
+  }
+  return out;
+}
+
+// A printable reason as a file name may hold it: its first kReasonInNameMax
+// bytes, letters, digits, `.`, `_`, `-` as they are, any other byte `_`.
 std::string file_safe(std::string_view reason) {
+  reason = reason.substr(0, std::min(reason.size(), kReasonInNameMax));
   std::string out;
   out.reserve(reason.size());
   for (const char c : reason) {
@@ -1868,8 +1883,9 @@ void prune_dumps(const std::filesystem::path& dir) noexcept {
 
 }  // namespace
 
-Result<std::filesystem::path> LogHub::dump_recorder(std::string_view reason) {
+Result<std::filesystem::path> LogHub::dump_recorder(std::string_view raw_reason) {
   Impl& impl = *impl_;
+  const std::string reason = printable_reason(raw_reason);
   if (!impl.ring) return fail(ErrorKind::Config, "the flight recorder is off ([recorder] enabled = false)");
   if (impl.file_path.empty()) return fail(ErrorKind::Io, "no log folder: nowhere to write a flight recorder dump");
 
@@ -1879,6 +1895,10 @@ Result<std::filesystem::path> LogHub::dump_recorder(std::string_view reason) {
   try {
     std::lock_guard lock(impl.dump_mutex);
     const auto now = impl.limit_clock ? impl.limit_clock() : std::chrono::steady_clock::now();
+    // A reason last dumped longer ago than its window limits nothing: gone,
+    // so a storm of distinct reasons does not grow the map for good.
+    std::erase_if(impl.last_dump_by_reason,
+                  [&](const auto& entry) { return now - entry.second >= kDumpPerReason; });
     const auto same = impl.last_dump_by_reason.find(reason);
     const bool limited = (impl.last_dump_at && now - *impl.last_dump_at < kDumpAny) ||
                          (same != impl.last_dump_by_reason.end() && now - same->second < kDumpPerReason);
@@ -1898,13 +1918,13 @@ Result<std::filesystem::path> LogHub::dump_recorder(std::string_view reason) {
       } else {
         std::string bytes = "flight recorder dump: reason=";
         bytes.append(reason).append(" build=").append(build_id()).append("\n");
-        bytes.append(impl.ring->snapshot());
+        impl.ring->append_snapshot_to(bytes);  // straight after the first line: one copy of the ring
         // Power: a dump made for a hang may be followed by a hard reset.
         if (auto done = write_file_atomic(path, bytes, Durability::Power); !done) {
           failure = done.error().what;
         } else {
           impl.last_dump_at = now;
-          impl.last_dump_by_reason.insert_or_assign(std::string(reason), now);
+          impl.last_dump_by_reason.insert_or_assign(reason, now);
           impl.last_dump = path;
           written = std::move(path);
           prune_dumps(dir);
@@ -1918,15 +1938,15 @@ Result<std::filesystem::path> LogHub::dump_recorder(std::string_view reason) {
   // Logged outside dump_mutex: a Log handler may ask for a dump itself.
   if (!skipped_for.empty()) {
     impl.write(LogLevel::Info, "nobion",
-               "flight recorder dump for reason=" + std::string(reason) +
+               "flight recorder dump for reason=" + reason +
                    " skipped (at most one a minute per reason, one per 10 s); last dump " + skipped_for.string());
     return skipped_for;
   }
   if (!failure.empty()) {
-    impl.write(LogLevel::Warn, "nobion", "flight recorder dump for reason=" + std::string(reason) + " failed: " + failure);
+    impl.write(LogLevel::Warn, "nobion", "flight recorder dump for reason=" + reason + " failed: " + failure);
     return fail(ErrorKind::Io, "flight recorder dump failed: " + failure);
   }
-  impl.write(LogLevel::Info, "nobion", "flight recorder dump for reason=" + std::string(reason) + " written to " +
+  impl.write(LogLevel::Info, "nobion", "flight recorder dump for reason=" + reason + " written to " +
                                            written.string());
   return written;
 }

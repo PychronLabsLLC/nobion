@@ -137,7 +137,8 @@ Last minutes of everything, in memory, written out when something goes wrong.
 
 `LogHub::dump_recorder(std::string_view reason)` → `Result<std::filesystem::path>`: snapshot to `<log dir>/flight/<UTC stamp>-<reason>.log`, first line `flight recorder dump: reason=<reason> build=<build_id>`. Keeps the newest 20 (`*.log` there, by mtime, then name).
 
-- Stamp from hub clock's `wall_now()` (as file lines), compact: `20261107T153012.481Z`. Reason in name: bytes other than letters, digits, `.`, `_`, `-` written `_` (first line keeps it raw). Name taken: `-2`, `-3`... before `.log`.
+- Stamp from hub clock's `wall_now()` (as file lines), compact: `20261107T153012.481Z`. Reason: control characters (bytes below 0x20, 0x7f) dropped, in name and first line, so a reason cannot forge a line. In name: first 64 bytes, bytes other than letters, digits, `.`, `_`, `-` written `_`. Name taken: `-2`, `-3`... before `.log`.
+- Header and snapshot built in one buffer (one copy of ring per dump). Per-reason times older than 60 s dropped at each dump: map bounded by reasons of last minute.
 - Written with `write_file_atomic(..., Durability::Power)`: dump made for hang may be followed by hard reset. Not marked as user file (a log, not a document).
 - Fails `Io` with no log folder or when folder or file cannot be written (warn line logged; no file left; no limit set, so next call tries again); `Config` when recorder off.
 - Rate-limit time source replaceable by tests only: `LogHub::set_recorder_limit_clock_for_testing(std::function<steady_clock::time_point()>)`.
@@ -166,6 +167,8 @@ Both apps construct it in `main` after the hub and bus.
 ### 5.4 On a crash
 
 Signal handler (and Windows filter) writes the ring's two contiguous spans to the crash file with `write(2)` (Windows: `WriteFile` on handle opened in advance), reading the atomic indices, without the mutex, after line `flight recorder`; last thing written before re-raise (Windows: before dump request). Crash file only: never stderr or log file. Ring followed is that of hub the handlers follow (most recent `create`), held in an atomic pointer; `~LogHub` clears it. A line torn by a concurrent writer is accepted.
+
+Bounds: crash file can hold whole ring, so `<log dir>/crash` holds up to 20 × (`size_mb` + module map) (default 32 MB: about 640 MB worst case); kept-20 prune at hub start is the only bound. Ring write at signal time has no time bound of its own: only handler's `alarm(5)` (3.2) ends a write stuck on a slow or full disk; crash file then holds what was written by then. Windows filter: no alarm; crash thread's dump wait (10 s) starts only after ring written.
 
 ## 6. Hang monitor
 

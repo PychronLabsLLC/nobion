@@ -2,8 +2,12 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <cstddef>
 #include <string>
+#include <string_view>
+#include <thread>
+#include <vector>
 
 #include "byte_ring.hpp"
 
@@ -65,4 +69,113 @@ TEST(ByteRing, AnEmptyRingHasNoSpans) {
   EXPECT_TRUE(spans.first.empty());
   EXPECT_TRUE(spans.second.empty());
   EXPECT_EQ(ring.snapshot(), "");
+}
+
+// TSan cannot know that a lock-free read of the ring is meant to race with
+// its writers (the crash handler accepts a torn line): the reader below tells
+// it so, for its copy only.
+#if defined(__SANITIZE_THREAD__)
+#define BYTE_RING_TSAN 1
+#elif defined(__has_feature) && !defined(__CPPCHECK__)
+#if __has_feature(thread_sanitizer)
+#define BYTE_RING_TSAN 1
+#endif
+#endif
+#ifdef BYTE_RING_TSAN
+extern "C" void AnnotateIgnoreReadsBegin(const char* file, int line);
+extern "C" void AnnotateIgnoreReadsEnd(const char* file, int line);
+#endif
+
+namespace {
+
+// A copy of the ring's spans made without its lock, as the crash handler
+// reads them, cut to the part no writer can have touched meanwhile: bytes
+// from the tail as it stands after the copy (a writer moves the tail past
+// what it is about to overwrite before writing). Whole lines, possibly none.
+std::string lock_free_copy(const ByteRing& ring) {
+  const auto before = ring.spans();
+  std::string copy;
+  copy.reserve(before.first.size() + before.second.size());
+#ifdef BYTE_RING_TSAN
+  AnnotateIgnoreReadsBegin(__FILE__, __LINE__);
+#endif
+  copy.append(before.first.data(), before.first.size());
+  copy.append(before.second.data(), before.second.size());
+#ifdef BYTE_RING_TSAN
+  AnnotateIgnoreReadsEnd(__FILE__, __LINE__);
+#endif
+  std::atomic_thread_fence(std::memory_order_acquire);  // the copy is read before the tail is
+  const auto after = ring.spans();
+  if (after.begin >= before.end) return {};
+  const auto torn = static_cast<std::size_t>(after.begin > before.begin ? after.begin - before.begin : 0);
+  return copy.substr(torn);
+}
+
+// `w<t> <i> <x...> end`
+bool written_line(std::string_view line) {
+  if (line.size() < 8 || line[0] != 'w' || line[1] < '0' || line[1] > '9' || line[2] != ' ') return false;
+  if (!line.ends_with(" end")) return false;
+  std::size_t i = 3;
+  const std::size_t digits = i;
+  while (i < line.size() && line[i] >= '0' && line[i] <= '9') ++i;
+  if (i == digits || i >= line.size() || line[i] != ' ') return false;
+  ++i;
+  const std::size_t pad_end = line.size() - 4;
+  for (; i < pad_end; ++i) {
+    if (line[i] != 'x') return false;
+  }
+  return true;
+}
+
+}  // namespace
+
+// Several writers wrap a small ring thousands of times while a reader copies
+// its spans with no lock: every line in the untouched part of each copy is
+// whole and one a writer wrote; a snapshot (under the lock) never has a
+// torn line at all.
+TEST(ByteRing, ConcurrentWritersAndALockFreeReader) {
+  ByteRing ring(4096);
+  constexpr int kWriters = 4;
+  constexpr int kLines = 20000;
+  std::atomic<int> done{0};
+  std::vector<std::thread> writers;
+  writers.reserve(kWriters);
+  for (int t = 0; t < kWriters; ++t) {
+    writers.emplace_back([&ring, &done, t] {
+      std::string line;
+      for (int i = 0; i < kLines; ++i) {
+        line = "w" + std::to_string(t) + " " + std::to_string(i) + " ";
+        line.append(static_cast<std::size_t>(i % 41), 'x');
+        line.append(" end\n");
+        ring.append(line);
+      }
+      done.fetch_add(1);
+    });
+  }
+  std::size_t checked = 0;
+  std::size_t copies = 0;
+  do {  // at least once, however soon the writers finish
+    const std::string copy = lock_free_copy(ring);
+    ++copies;
+    std::string_view rest(copy);
+    while (!rest.empty()) {
+      const std::size_t end = rest.find('\n');
+      ASSERT_NE(end, std::string_view::npos) << "a copy that does not end with a line break";
+      const std::string_view line = rest.substr(0, end);
+      ASSERT_TRUE(written_line(line)) << "torn or foreign line: " << line;
+      ++checked;
+      rest.remove_prefix(end + 1);
+    }
+    const std::string snap = ring.snapshot();
+    std::string_view lines(snap);
+    while (!lines.empty()) {
+      const std::size_t end = lines.find('\n');
+      ASSERT_NE(end, std::string_view::npos);
+      ASSERT_TRUE(written_line(lines.substr(0, end))) << lines.substr(0, end);
+      lines.remove_prefix(end + 1);
+    }
+  } while (done.load() < kWriters);
+  for (auto& w : writers) w.join();
+  EXPECT_GT(copies, 0u);
+  EXPECT_GT(checked, 0u);
 }

@@ -26,14 +26,23 @@ class ByteRing {
 
   // Every line held, oldest first; whole lines only.
   [[nodiscard]] std::string snapshot() const;
+  // The same lines appended to `out`, with no copy in between.
+  void append_snapshot_to(std::string& out) const;
 
   // The bytes held, as the two contiguous runs of the buffer they occupy
   // (the second empty unless the content wraps). Reads the two atomic indices
   // and takes no lock: for the crash handler, which may interrupt an append
   // (a line torn by a concurrent writer is accepted). No allocation.
+  // `begin` and `end` are the stream positions of the bytes (every byte
+  // ever appended counts): `begin` a line's start, `end` just past a line
+  // break. A reader that copies the spans and then finds the tail (begin of
+  // a later spans()) at or below `begin` knows no writer touched its copy;
+  // bytes below a later tail may have been overwritten meanwhile.
   struct Spans {
     std::string_view first;
     std::string_view second;
+    std::uint64_t begin = 0;
+    std::uint64_t end = 0;
   };
   [[nodiscard]] Spans spans() const noexcept;
 

@@ -69,16 +69,20 @@ ByteRing::Spans ByteRing::spans() const noexcept {
   const auto size = static_cast<std::size_t>(head - tail);
   const auto start = static_cast<std::size_t>(tail % capacity_);
   const std::size_t first = std::min(size, capacity_ - start);
-  return {std::string_view(data_.get() + start, first), std::string_view(data_.get(), size - first)};
+  return {std::string_view(data_.get() + start, first), std::string_view(data_.get(), size - first), tail, head};
 }
 
 std::string ByteRing::snapshot() const {
+  std::string out;
+  append_snapshot_to(out);
+  return out;
+}
+
+void ByteRing::append_snapshot_to(std::string& out) const {
   const std::lock_guard lock(mutex_);
   const Spans s = spans();
-  std::string out;
-  out.reserve(s.first.size() + s.second.size());
+  out.reserve(out.size() + s.first.size() + s.second.size());
   out.append(s.first).append(s.second);
-  return out;
 }
 
 }  // namespace nobion::detail

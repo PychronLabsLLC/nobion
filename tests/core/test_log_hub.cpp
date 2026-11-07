@@ -1816,6 +1816,24 @@ TEST(LogHub, ADumpNameIsStampedFromTheHubsClockAndKeepsItsReasonSafe) {
   EXPECT_EQ(read_lines(*dumped).front(), "flight recorder dump: reason=alarm-ig1/gauge:1 build=" + build_id());
 }
 
+// Control characters (a line break above all) never reach the dump's first
+// line or its name, and the name keeps at most 64 bytes of the reason.
+TEST(LogHub, ADumpsReasonLosesControlCharactersAndIsCappedInTheName) {
+  TempDir tmp;
+  SteadyClock clock;
+  auto hub = make_hub(config_for(tmp.path()), clock);
+  ASSERT_TRUE(hub);
+  const std::string longest(100, 'a');
+  const auto dumped = hub->dump_recorder("alarm\nforged line\x01\t" + longest);
+  ASSERT_TRUE(dumped) << dumped.error().what;
+  const std::string name = dumped->filename().string();
+  const std::string stem = name.substr(name.find('-') + 1);  // after the stamp
+  EXPECT_EQ(stem, ("alarmforged_line" + longest).substr(0, 64) + ".log") << name;
+  const auto lines = read_lines(*dumped);
+  ASSERT_FALSE(lines.empty());
+  EXPECT_EQ(lines.front(), "flight recorder dump: reason=alarmforged line" + longest + " build=" + build_id());
+}
+
 TEST(LogHub, SameReasonWithinAMinuteWritesNothing) {
   TempDir tmp;
   SteadyClock clock;
@@ -1900,6 +1918,7 @@ TEST(LogHub, ADumpToAReadOnlyDirectoryFailsCleanly) {
   // where the folder should be does.
   std::ofstream(flight) << "in the way";
 #else
+  if (::geteuid() == 0) GTEST_SKIP() << "root writes into a read-only folder";
   fs::create_directories(flight);
   fs::permissions(flight, fs::perms::owner_read | fs::perms::owner_exec);
 #endif
@@ -1934,41 +1953,69 @@ TEST(LogHub, NoFileNoDump) {
   EXPECT_EQ(dumped.error().kind, ErrorKind::Io);
 }
 
-// Writers on several threads while snapshots and dumps are taken: every line
-// of a snapshot is whole. (Run under TSan, root AGENTS.md.)
+// Writers on several threads while snapshots and dumps are taken, enough
+// bytes to wrap the ring several times: every line of every snapshot is
+// whole and one the test wrote (a snapshot is taken under the ring's lock, so
+// not even its oldest line may be torn). (Run under TSan, root AGENTS.md.)
 TEST(LogHub, ConcurrentWritesSnapshotsAndDumps) {
   TempDir tmp;
   SteadyClock clock;
   auto cfg = config_for(tmp.path());
-  cfg.default_level = LogLevel::Info;
+  cfg.default_level = LogLevel::Info;  // the writers' debug records go to the ring only
+  cfg.recorder.default_level = LogLevel::Debug;
   cfg.recorder.size_mb = static_cast<std::size_t>(config::kRecorderMinMb);
   auto hub = make_hub(cfg, clock);
   ASSERT_TRUE(hub);
-  std::atomic<bool> stop{false};
+
+  constexpr int kWriters = 4;
+  constexpr int kRecords = 6000;
+  const std::string pad(900, 'x');
+  // About 4 x 6000 x 960 bytes: over five times the 4 MiB ring.
+  static_assert(static_cast<std::size_t>(kWriters) * kRecords * 900 >
+                5 * static_cast<std::size_t>(config::kRecorderMinMb) * 1024 * 1024);
+  std::atomic<int> done{0};
   std::vector<std::thread> writers;
-  writers.reserve(4);
-  for (int t = 0; t < 4; ++t) {
+  writers.reserve(kWriters);
+  for (int t = 0; t < kWriters; ++t) {
     writers.emplace_back([&, t] {
       const Logger log = hub->logger("w" + std::to_string(t));
-      for (int i = 0; i < 2000 && !stop.load(); ++i) {
-        if (i % 2 == 0) {
-          log.debug("record " + std::to_string(i) + " end");
-        } else {
-          log.info("record " + std::to_string(i) + " end");
-        }
-      }
+      for (int i = 0; i < kRecords; ++i) log.debug("record " + std::to_string(i) + " " + pad + " end");
+      done.fetch_add(1);
     });
   }
-  const std::regex whole(R"(^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z \[(debug|info)\] \[[^\]]+\] (w\d: record \d+ end|.*)$)");
-  for (int k = 0; k < 20; ++k) {
+
+  const std::regex prefix(R"(^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z \[(debug|info)\] \[t\d+\] )");
+  const std::regex writer_body(R"(^w\d: record \d+ $)");  // before the pad and " end"
+  const std::regex dump_body(R"(^nobion: flight recorder dump for reason=k (skipped \(.*\); last dump |written to ).+$)");
+  const std::string tail = " " + pad + " end";
+  auto check = [&](const std::string& line) {
+    std::smatch m;
+    if (!std::regex_search(line, m, prefix)) return false;
+    const std::string body = m.suffix().str();
+    if (body.ends_with(tail)) return std::regex_match(body.substr(0, body.size() - tail.size() + 1), writer_body);
+    return std::regex_match(body, dump_body);
+  };
+  int snapshots = 0;
+  do {  // at least once, however soon the writers finish
     const std::string snap = hub->recorder_snapshot();
+    ++snapshots;
     if (!snap.empty()) {
       EXPECT_EQ(snap.back(), '\n');
+      EXPECT_LE(snap.size(), static_cast<std::size_t>(config::kRecorderMinMb) * 1024 * 1024);
       std::istringstream in(snap);
-      for (std::string line; std::getline(in, line);) EXPECT_TRUE(std::regex_match(line, whole)) << line;
+      for (std::string line; std::getline(in, line);) {
+        if (!check(line)) {
+          ADD_FAILURE() << "not a line the test wrote: " << line.substr(0, 200);
+          break;
+        }
+      }
     }
     (void)hub->dump_recorder("k");
-  }
-  stop.store(true);
+  } while (done.load() < kWriters);
   for (auto& w : writers) w.join();
+  EXPECT_GT(snapshots, 0);
+  // The ring wrapped: the first records are gone.
+  const std::string last = hub->recorder_snapshot();
+  EXPECT_EQ(last.find("] w0: record 0 "), std::string::npos);
+  EXPECT_NE(last.find("] w0: record " + std::to_string(kRecords - 1) + " "), std::string::npos);
 }
