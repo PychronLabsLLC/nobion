@@ -13,6 +13,7 @@
 #include <QUrlQuery>
 #include <QUuid>
 
+#include <array>
 #include <atomic>
 #include <cstring>
 #include <exception>
@@ -43,9 +44,9 @@ void ensure_qt_application() {
   std::call_once(once, [] {
     if (QCoreApplication::instance() != nullptr) return;
     static int argc = 1;
-    static char name[] = "nobion";
-    static char* argv[] = {name, nullptr};
-    new QCoreApplication(argc, argv);
+    static std::array<char, sizeof("nobion")> name{"nobion"};
+    static std::array<char*, 2> argv{name.data(), nullptr};
+    new QCoreApplication(argc, argv.data());
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks): the application object lives as long as the process
   });
 }

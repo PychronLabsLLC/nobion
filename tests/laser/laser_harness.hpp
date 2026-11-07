@@ -45,10 +45,12 @@ inline ChromiumOptions options(std::array<int, 3> signs = {1, 1, 1}) {
 // 3 (5,0), ...), calibrated for "co2" with the tray's origin at stage
 // (10, 20) and no rotation.
 struct LabDir {
-  fs::path dir;
-  LabDir() {
+  fs::path dir = unique_dir();
+  static fs::path unique_dir() {
     std::random_device rd;
-    dir = fs::temp_directory_path() / ("nobion_laser_" + std::to_string(rd()) + std::to_string(rd()));
+    return fs::temp_directory_path() / ("nobion_laser_" + std::to_string(rd()) + std::to_string(rd()));
+  }
+  LabDir() {
     fs::create_directories(dir / "tray_maps");
     fs::copy_file(fs::path(NOBION_TEST_DATA_DIR) / "tray_maps" / "small.txt", dir / "tray_maps" / "small.txt");
     std::ofstream(dir / "tray_maps" / "bare.txt") << "circle,1\n\n\n1,0,0\n2,1,0\n";  // never calibrated
