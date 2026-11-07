@@ -1,9 +1,11 @@
 #pragma once
 
 // HealthBar: one chip per transport, green (connected, no errors), amber
-// (connected with errors, or with a device Degraded or Faulted), red (down), grey (no report yet), plus the age of
-// the last healthy report, refreshed once a second. While the queue holds
-// (spec 4.6), a chip ahead of them says why and counts down to the hold
+// (connected with errors, or with a device Degraded or Faulted), red (down),
+// grey (no report yet), plus the age of the last healthy report, refreshed
+// once a second. The tooltip lists the transport's devices in name order.
+// Neither chips nor their device entries are ever removed. While the queue
+// holds (spec 4.6), a chip ahead of them says why and counts down to the hold
 // limit, at which the queue ends: "holding: <reason> · ends in 1:59:30".
 
 #include <cstdint>

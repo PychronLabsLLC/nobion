@@ -78,7 +78,7 @@ void HealthBar::update_device(const DeviceHealthChanged& event) {
   device.state = event.to;
   device.failures = event.consecutive_failures;
   device.error = event.last_error_text;
-  if (event.to == DeviceState::Ok) {
+  if (event.to == DeviceState::Ok || event.from == DeviceState::Ok) {
     device.last_ok = event.ts;
   }
   render(event.transport, chip);
@@ -204,21 +204,29 @@ void HealthBar::render(const std::string& name, const Chip& chip) {
     text += QStringLiteral(" · ") + age_text(std::max(age, std::chrono::seconds{0}));
   }
   chip.label->setText(text);
-  QString tip = chip.transport_tip.isEmpty() ? QString::fromStdString(name) : chip.transport_tip;
+  // Explicit rich text, every interpolated field escaped: an error text with
+  // "<" must neither swallow the rest nor render as markup.
+  const auto html = [](const QString& plain) { return plain.toHtmlEscaped().replace(QLatin1Char('\n'), QStringLiteral("<br>")); };
+  QString tip = html(chip.transport_tip.isEmpty() ? QString::fromStdString(name) : chip.transport_tip);
   for (const auto& [device, d] : chip.devices) {
     const auto state = to_string(d.state);
-    tip += QStringLiteral("\n%1: %2, %3 failure(s) in a row").arg(QString::fromStdString(device),
-        QString::fromUtf8(state.data(), static_cast<qsizetype>(state.size())), QString::number(d.failures));
-    if (!d.error.empty()) {
-      tip += QStringLiteral(", last error: ") + QString::fromStdString(d.error);
+    QString line = QStringLiteral("%1: %2").arg(QString::fromStdString(device),
+                                                QString::fromUtf8(state.data(), static_cast<qsizetype>(state.size())));
+    if (d.state != DeviceState::Ok) {
+      line += QStringLiteral(", %1 failure(s) in a row").arg(d.failures);
+      if (!d.error.empty()) {
+        line += QStringLiteral(", last error: ") + QString::fromStdString(d.error);
+      }
+      if (d.last_ok) {
+        const auto age = std::chrono::duration_cast<std::chrono::seconds>(now_() - *d.last_ok);
+        line += QStringLiteral(", last ok ") + age_text(std::max(age, std::chrono::seconds{0})) + QStringLiteral(" ago");
+      } else {
+        line += QStringLiteral(", never ok");
+      }
     }
-    if (d.last_ok) {
-      const auto age = std::chrono::duration_cast<std::chrono::seconds>(now_() - *d.last_ok);
-      tip += QStringLiteral(", last ok ") + age_text(std::max(age, std::chrono::seconds{0})) + QStringLiteral(" ago");
-    } else {
-      tip += QStringLiteral(", never ok");
-    }
+    tip += QStringLiteral("<br>") + html(line);
   }
+  tip = QStringLiteral("<qt>") + tip + QStringLiteral("</qt>");
   chip.label->setToolTip(tip);
   style::set_chip(chip.label, level_of(shown_status(chip)));
 }

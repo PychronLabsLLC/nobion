@@ -7,6 +7,8 @@
 #include <string>
 #include <thread>
 
+#include <QSignalSpy>
+#include <QTextDocument>
 #include <QtTest/QtTest>
 
 #include "core_bridge.hpp"
@@ -57,6 +59,7 @@ class TestHealthBarDevices : public QObject {
     HealthBar bar(nullptr, [&now] { return now; });
     bar.update_health(TransportHealth{"serial0", true, 0, "", now});
     bar.update_device(change("gauge", "serial0", DeviceState::Unknown, DeviceState::Ok, 0, "", now));
+    bar.update_device(change("gauge", "serial0", DeviceState::Ok, DeviceState::Degraded, 1, "", now));
     now += 90s;
     bar.update_device(change("pump", "serial0", DeviceState::Degraded, DeviceState::Faulted, 7, "read timed out", now));
     now += 30s;
@@ -79,6 +82,81 @@ class TestHealthBarDevices : public QObject {
     QCOMPARE(bar.chip_status(QStringLiteral("serial0")), HealthBar::Status::Degraded);
     bar.update_device(change("pump", "serial0", DeviceState::Faulted, DeviceState::Ok, 0, "", now));
     QCOMPARE(bar.chip_status(QStringLiteral("serial0")), HealthBar::Status::Ok);
+  }
+
+  void errorTextIsShownLiterallyInTheTooltip() {
+    TimePoint now{};
+    HealthBar bar(nullptr, [&now] { return now; });
+    bar.update_health(TransportHealth{"serial0", true, 1, "<i>t</i> & <", now});
+    bar.update_device(change("pump", "serial0", DeviceState::Ok, DeviceState::Faulted, 3, "<b>x</b> & <", now));
+    bar.update_device(change("zz", "serial0", DeviceState::Ok, DeviceState::Ok, 0, "", now));
+    QTextDocument doc;
+    doc.setHtml(bar.chip("serial0")->toolTip());
+    const QString plain = doc.toPlainText();
+    QVERIFY2(plain.contains(QStringLiteral("<b>x</b> & <")), qPrintable(plain));
+    QVERIFY2(plain.contains(QStringLiteral("<i>t</i> & <")), qPrintable(plain));
+    QVERIFY2(plain.contains(QStringLiteral("zz")), qPrintable(plain));
+  }
+
+  void aDeviceThatWasOkAndFailedShowsHowLongAgo() {
+    TimePoint now{};
+    HealthBar bar(nullptr, [&now] { return now; });
+    bar.update_device(change("pump", "serial0", DeviceState::Ok, DeviceState::Faulted, 5, "boom", now));
+    now += 45s;
+    bar.refresh();
+    const QString tip = bar.chip("serial0")->toolTip();
+    QVERIFY2(tip.contains(QStringLiteral("45s ago")), qPrintable(tip));
+    QVERIFY2(!tip.contains(QStringLiteral("never ok")), qPrintable(tip));
+  }
+
+  void aDeviceThatIsOkShowsNoAge() {
+    TimePoint now{};
+    HealthBar bar(nullptr, [&now] { return now; });
+    bar.update_device(change("pump", "serial0", DeviceState::Unknown, DeviceState::Ok, 0, "", now));
+    now += 300s;
+    bar.refresh();
+    const QString tip = bar.chip("serial0")->toolTip();
+    QVERIFY2(!tip.contains(QStringLiteral("ago")), qPrintable(tip));
+    QVERIFY2(tip.contains(QStringLiteral("ok")), qPrintable(tip));
+  }
+
+  void degradedDeviceIsListedAndAmber() {
+    TimePoint now{};
+    HealthBar bar(nullptr, [&now] { return now; });
+    bar.update_health(TransportHealth{"serial0", true, 0, "", now});
+    bar.update_device(change("pump", "serial0", DeviceState::Ok, DeviceState::Degraded, 1, "slow", now));
+    QCOMPARE(bar.chip_status(QStringLiteral("serial0")), HealthBar::Status::Degraded);
+    const QString tip = bar.chip("serial0")->toolTip();
+    QVERIFY2(tip.contains(QStringLiteral("degraded")), qPrintable(tip));
+    QVERIFY2(tip.contains(QStringLiteral("slow")), qPrintable(tip));
+  }
+
+  void devicesAreListedInNameOrder() {
+    TimePoint now{};
+    HealthBar bar(nullptr, [&now] { return now; });
+    bar.update_device(change("pump", "serial0", DeviceState::Ok, DeviceState::Degraded, 1, "", now));
+    bar.update_device(change("gauge", "serial0", DeviceState::Ok, DeviceState::Degraded, 1, "", now));
+    bar.update_device(change("valve", "serial0", DeviceState::Ok, DeviceState::Degraded, 1, "", now));
+    QTextDocument doc;
+    doc.setHtml(bar.chip("serial0")->toolTip());
+    const QString plain = doc.toPlainText();
+    const auto g = plain.indexOf(QStringLiteral("gauge"));
+    const auto p = plain.indexOf(QStringLiteral("pump"));
+    const auto v = plain.indexOf(QStringLiteral("valve"));
+    QVERIFY2(g >= 0 && g < p && p < v, qPrintable(plain));
+  }
+
+  void changedIsEmittedOnlyWhenTheSummaryChanges() {
+    TimePoint now{};
+    HealthBar bar(nullptr, [&now] { return now; });
+    bar.update_health(TransportHealth{"serial0", true, 0, "", now});
+    QSignalSpy spy(&bar, &HealthBar::changed);
+    bar.update_device(change("pump", "serial0", DeviceState::Ok, DeviceState::Degraded, 1, "", now));
+    QCOMPARE(spy.count(), 1);
+    bar.update_device(change("pump", "serial0", DeviceState::Degraded, DeviceState::Faulted, 3, "", now));
+    QCOMPARE(spy.count(), 1);
+    bar.update_device(change("pump", "serial0", DeviceState::Faulted, DeviceState::Ok, 0, "", now));
+    QCOMPARE(spy.count(), 2);
   }
 
   void bridgeRelaysDeviceHealthToTheUiThread() {
