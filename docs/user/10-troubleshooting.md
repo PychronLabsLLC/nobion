@@ -205,7 +205,7 @@ See [data analysis](06-data-analysis.md) and the
 Both programs write a log file as they run, with no setup.
 
 - **Where it is.** An install keeps its logs in `<install>/logs`:
-  `pychron.log` for the window, `elctl.log` for `elctl`. Without an install
+  `nobion.log` for the window, `elctl.log` for `elctl`. Without an install
   (the examples, or config files given on the command line) the file is in
   `~/Library/Logs/nobion` on macOS, `$XDG_STATE_HOME/nobion/logs` (or
   `~/.local/state/nobion/logs`) on Linux and `%LOCALAPPDATA%\nobion\logs` on
@@ -214,10 +214,10 @@ Both programs write a log file as they run, with no setup.
   `logging.toml` (or the `[logging]` table of `extraction_line.toml`): a file
   cannot say "unset".
 - **Old files.** A file is closed at 50 MB and the last ten are kept
-  (`pychron.1.log`, `pychron.2.log`, and so on).
+  (`nobion.1.log`, `nobion.2.log`, and so on).
 - **Two copies running.** Only one program writes a given file. A second copy
-  writes `pychron-<pid>.log` (the number is its process id) beside it.
-- **What to send with a problem report.** `pychron.log`, or `elctl.log` for a
+  writes `nobion-<pid>.log` (the number is its process id) beside it.
+- **What to send with a problem report.** `nobion.log`, or `elctl.log` for a
   command line problem, from the time of the problem, plus the one before it
   if the program was restarted. For a device that does not answer, set
   `"*.wire" = "trace"` first (see the extraction line chapter) and repeat.

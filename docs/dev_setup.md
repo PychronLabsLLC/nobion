@@ -954,7 +954,7 @@ nobion driver yet are simulated (`sim_valves`), and the report lists
 what was not carried over (legacy extraction-line survey,
 `docs/superpowers/specs/2026-10-03-legacy-extraction-line-survey.md`).
 
-An instrument install has a database (`data/pychron.db` unless the lab's
+An instrument install has a database (`data/nobion.db` unless the lab's
 server was named), seeded from the install's `seed.toml` with the reference
 samples and their identifiers, the mass spectrometer and a reactor. Its
 shipped `queues/experiment.toml` is three air shots between two blanks (`ba`, `a`,

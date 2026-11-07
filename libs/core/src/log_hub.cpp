@@ -512,7 +512,7 @@ struct LogHub::Impl {
 
     try {
       // Same line shape as write(): a thread field, then logger and message.
-      std::string payload = "[" + detail::thread_label() + "] pychron: ";
+      std::string payload = "[" + detail::thread_label() + "] nobion: ";
       append_one_line(payload, text);
       // System time, not the hub's clock: a clock's wall_now() may take a
       // mutex (VirtualClock does), and terminate can be raised by the thread
@@ -548,7 +548,7 @@ struct LogHub::Impl {
       if (stopping) break;
       lock.unlock();
       logger->flush();  // asynchronous: queued behind pending records
-      refresh_crash_output(*this);  // follow pychron.log across rotation
+      refresh_crash_output(*this);  // follow nobion.log across rotation
       lock.lock();
     }
   }
@@ -582,7 +582,7 @@ using CrashTarget = int;
 constexpr CrashTarget kNoCrashTarget = -1;
 #endif
 
-// Descriptor on the registered hub's pychron.log; read lock-free by the
+// Descriptor on the registered hub's nobion.log; read lock-free by the
 // signal/exception handler.
 std::atomic<CrashTarget> g_crash_target{kNoCrashTarget};
 std::atomic<std::terminate_handler> g_previous_terminate{nullptr};
@@ -643,7 +643,7 @@ void retarget_crash_output(const LogHub::Impl& impl) noexcept {
 }
 
 // Flusher tick: if `impl` is the hub the handlers write to and its
-// pychron.log has been replaced (rotation), retarget onto the live file.
+// nobion.log has been replaced (rotation), retarget onto the live file.
 void refresh_crash_output(const LogHub::Impl& impl) noexcept {
 #ifdef _WIN32
   (void)impl;  // the handle is only (re)opened when a hub is created
@@ -870,7 +870,7 @@ Result<std::shared_ptr<LogHub>> LogHub::create(const config::LoggingConfig& conf
     std::vector<spdlog::sink_ptr> sinks;
     if (impl->file_sink) sinks.push_back(impl->file_sink);
     impl->logger = std::make_shared<spdlog::async_logger>(
-        "pychron", sinks.begin(), sinks.end(), impl->pool, spdlog::async_overflow_policy::block);
+        "nobion", sinks.begin(), sinks.end(), impl->pool, spdlog::async_overflow_policy::block);
     impl->logger->set_level(spdlog::level::trace);
     // Redundant with LogHub::write's synchronous flush, but keeps the writer
     // flushing error records even if a caller bypasses write().
@@ -904,7 +904,7 @@ Result<std::shared_ptr<LogHub>> LogHub::create(const config::LoggingConfig& conf
 LogHub::LogHub(std::shared_ptr<Impl> impl) : impl_(std::move(impl)) {}
 
 LogHub::~LogHub() {
-  if (impl_->session_begun.load()) impl_->write(LogLevel::Info, "pychron", "session end");
+  if (impl_->session_begun.load()) impl_->write(LogLevel::Info, "nobion", "session end");
   impl_->bus_failures.reset();
   // Hub loggers may still hold impl_: stop accepting writes and let the ones
   // in progress finish before the back end goes away.
@@ -990,7 +990,7 @@ void LogHub::begin_session(const SessionInfo& info) {
   append_field(line, "dock_level", session_level_name(impl_->dock_level.load()));
   append_field(line, "levels", levels.empty() ? "none" : levels);
   impl_->session_begun.store(true);
-  impl_->write(LogLevel::Info, "pychron", line);
+  impl_->write(LogLevel::Info, "nobion", line);
 }
 
 void LogHub::flush() {

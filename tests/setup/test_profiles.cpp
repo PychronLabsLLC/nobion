@@ -364,7 +364,7 @@ TEST_P(InstrumentProfile, HasADatabaseOnThisComputerByDefault) {
   const fs::path root = scratch(name);
   auto site = install(lib, name, {{"simulation", Value{simulation}}}, root);
   EXPECT_EQ(site.kind, "instrument");
-  EXPECT_EQ(site.database, "sqlite:" + (root / "data" / "pychron.db").generic_string());
+  EXPECT_EQ(site.database, "sqlite:" + (root / "data" / "nobion.db").generic_string());
   EXPECT_FALSE(fs::exists(root / ".nobion" / "credentials.toml"));
   // A database that is not there, or cannot be opened, is not what stops an instrument.
   DoctorOptions options;
@@ -632,7 +632,7 @@ TEST(Profiles, DataReductionLocalAndServer) {
   const fs::path local = scratch("dr-local");
   auto site = install(lib, "data-reduction", {}, local);
   EXPECT_EQ(site.kind, "data_reduction");
-  EXPECT_EQ(site.database, "sqlite:" + (local / "data" / "pychron.db").generic_string());
+  EXPECT_EQ(site.database, "sqlite:" + (local / "data" / "nobion.db").generic_string());
   expect_no_failures(site);
   fs::remove_all(local);
 
@@ -663,7 +663,7 @@ TEST(Profiles, StoreCommonAsksForTheFileAndTheDataFolder) {
   ASSERT_NE(file, nullptr);
   EXPECT_EQ(file->type, QuestionType::Path);
   ASSERT_TRUE(file->default_value.has_value());
-  EXPECT_EQ(*file->default_value, Value{std::string("data/pychron.db")});
+  EXPECT_EQ(*file->default_value, Value{std::string("data/nobion.db")});
   EXPECT_EQ(file->group, "Data");
   EXPECT_EQ(file->when, "data_source == \"local\"");
   EXPECT_EQ(file->prompt, "Database file");

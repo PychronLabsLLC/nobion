@@ -373,7 +373,7 @@ class TestDocks : public QObject {
   void historyLeavesOutLinesBelowTheMinimumLevel() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    const QString path = dir.filePath(QStringLiteral("pychron.log"));
+    const QString path = dir.filePath(QStringLiteral("nobion.log"));
     {
       QFile f(path);
       QVERIFY(f.open(QIODevice::WriteOnly));
@@ -412,7 +412,7 @@ class TestDocks : public QObject {
   void loadHistoryReadsTailAsHistory() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    const QString path = dir.filePath(QStringLiteral("pychron.log"));
+    const QString path = dir.filePath(QStringLiteral("nobion.log"));
     {
       QFile f(path);
       QVERIFY(f.open(QIODevice::WriteOnly));
@@ -441,7 +441,7 @@ class TestDocks : public QObject {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     LogDock dock;
-    QCOMPARE(dock.load_history((dir.path() + QStringLiteral("/nope/pychron.log")).toStdString()), 0);
+    QCOMPARE(dock.load_history((dir.path() + QStringLiteral("/nope/nobion.log")).toStdString()), 0);
     QCOMPARE(dock.load_history(dir.path().toStdString()), 0);  // a directory
     QCOMPARE(dock.load_history({}), 0);
     QCOMPARE(dock.line_count(), 0);
@@ -450,7 +450,7 @@ class TestDocks : public QObject {
   void loadHistoryHandlesUnparseableAndLongLines() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    const QString path = dir.filePath(QStringLiteral("pychron.log"));
+    const QString path = dir.filePath(QStringLiteral("nobion.log"));
     const QByteArray long_msg(20000, 'x');
     {
       QFile f(path);
@@ -498,7 +498,7 @@ class TestDocks : public QObject {
   void historyParsesNewAndOldFormat() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    const QString path = dir.filePath(QStringLiteral("pychron.log"));
+    const QString path = dir.filePath(QStringLiteral("nobion.log"));
     {
       QFile f(path);
       QVERIFY(f.open(QIODevice::WriteOnly));

@@ -279,7 +279,7 @@ data folder and, for a server, whether a password is kept. Exit 0.
 | Flag | Meaning |
 |---|---|
 | `--install NAME` | The install (a global flag, before `data-source`). Default: the default install. |
-| `--local [FILE]` | A SQLite file. Relative to the install folder, or a full path. Without `FILE`: `data/pychron.db`. |
+| `--local [FILE]` | A SQLite file. Relative to the install folder, or a full path. Without `FILE`: `data/nobion.db`. |
 | `--server HOST[:PORT]/DB` | The lab's PostgreSQL server; port 5432 when not given. Needs `--user`. |
 | `--user USER` | The server's user. |
 | `--password-stdin` | Read the server's password from one line of standard input. Needs `--yes` (standard input holds the password, so nothing is left there to answer `Write them?`); an empty line is refused. |
@@ -564,7 +564,7 @@ database on a server, it writes record files and prints one line on standard
 error:
 
 ```
-note: simulated runs are written to /home/you/Pychron/argus/data/records, not to sqlite:/home/you/other.db; pass --sim-save to save them there
+note: simulated runs are written to /home/you/Nobion/argus/data/records, not to sqlite:/home/you/other.db; pass --sim-save to save them there
 ```
 
 That is not an error: the queue runs, and the exit status is the queue's.
@@ -579,7 +579,7 @@ With a database, two things stop `exp run` before anything runs, with exit 1:
 
   ```
   error: database schema is out of date (migration 1 init not applied); bring it up to date with: elctl db migrate --db <url>
-  Run: elctl db migrate --db sqlite:/home/you/Pychron/argus/data/pychron.db
+  Run: elctl db migrate --db sqlite:/home/you/Nobion/argus/data/nobion.db
   ```
 
   An install's database whose password cannot be read is the same kind of
@@ -612,7 +612,7 @@ A build without persistence refuses `--db` (`built without the DVC store`); with
 writes files. Under `--install`, when the install names a database, it says so first:
 
 ```
-warning: built without the DVC store: runs are written to /home/you/Pychron/argus/data/records, not to the installation's database
+warning: built without the DVC store: runs are written to /home/you/Nobion/argus/data/records, not to the installation's database
 ```
 
 **Ctrl-C** is staged: the first stops the queue after the current run, a second
@@ -622,7 +622,7 @@ the spool:
 
 ```
 queue completed
-5/5 run(s) succeeded; in sqlite:/home/you/Pychron/argus/data/pychron.db
+5/5 run(s) succeeded; in sqlite:/home/you/Nobion/argus/data/nobion.db
 ```
 
 A database is shown without its password. Without one the line ends
@@ -631,8 +631,8 @@ line counts those that were, and a warning gives how many are waiting and why
 the last was refused, on one line:
 
 ```
-5/5 run(s) succeeded; 0 of them in sqlite:/home/you/Pychron/argus/data/pychron.db
-warning: 5 record(s) waiting in /home/you/Pychron/argus/data/spool: <record id>: <the database's reason>
+5/5 run(s) succeeded; 0 of them in sqlite:/home/you/Nobion/argus/data/nobion.db
+warning: 5 record(s) waiting in /home/you/Nobion/argus/data/spool: <record id>: <the database's reason>
 ```
 
 Without a database the warning begins `warning: N record(s) still in the spool`.

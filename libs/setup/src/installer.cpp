@@ -146,7 +146,7 @@ std::string database_url_for(const Answers& answers, const fs::path& root, bool 
   };
   if (text("data_source") != "server") {
     std::string given = text("db_file");
-    const fs::path file = given.empty() ? fs::path("data/pychron.db") : fs::path(std::move(given));
+    const fs::path file = given.empty() ? fs::path("data/nobion.db") : fs::path(std::move(given));
     return "sqlite:" + (file.is_absolute() ? file : root / file).generic_string();
   }
   std::string user = percent_encode(text("db_user"));

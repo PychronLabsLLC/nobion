@@ -58,7 +58,7 @@ help = "Kept in .nobion/credentials.toml in this folder (owner-readable), never 
 id = "db_file"
 prompt = "Database file"
 type = "path"
-default = "data/pychron.db"
+default = "data/nobion.db"
 group = "Data"
 when = "data_source == \"local\""
 help = "Relative to the install folder, or a full path"

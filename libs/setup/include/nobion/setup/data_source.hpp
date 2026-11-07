@@ -22,7 +22,7 @@
 namespace nobion::setup {
 
 struct LocalDatabase {
-  std::filesystem::path file = "data/pychron.db";  // relative to root, or absolute
+  std::filesystem::path file = "data/nobion.db";  // relative to root, or absolute
 
   friend bool operator==(const LocalDatabase&, const LocalDatabase&) = default;
 };
@@ -45,7 +45,7 @@ struct DataSource {
 
 // What the install uses now: from its install record's answers, its site entry
 // as fallback (an install without a record). A record made before `db_file`
-// and `data_folder` gives "data/pychron.db" and "data". Never carries a
+// and `data_folder` gives "data/nobion.db" and "data". Never carries a
 // password (`ServerDatabase::password` is nullopt).
 Result<DataSource> current_data_source(const SiteInstall& install);
 

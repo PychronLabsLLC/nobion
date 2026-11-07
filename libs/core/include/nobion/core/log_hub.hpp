@@ -88,7 +88,7 @@ class LogHub {
   void set_dock_level(LogLevel level) noexcept;
   [[nodiscard]] LogLevel dock_level() const noexcept;
 
-  // Logs one info record on logger `pychron`: `session start` and `key=value`
+  // Logs one info record on logger `nobion`: `session start` and `key=value`
   // fields (app, version, os, install, profiles, sim, clock, default_level,
   // dock_level, levels); values with spaces are double-quoted. Marks the hub
   // so its destructor first logs `session end`. Calling it again logs another

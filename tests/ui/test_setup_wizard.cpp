@@ -107,14 +107,14 @@ class TestSetupWizard : public QObject {
     w.next();
     QCOMPARE(w.currentId(), int(SetupWizard::kReady));
     QVERIFY2(w.ready_error()->isHidden(), qPrintable(w.ready_error()->text()));
-    QVERIFY(w.summary()->toPlainText().contains(QStringLiteral("pychron.db")));
+    QVERIFY(w.summary()->toPlainText().contains(QStringLiteral("nobion.db")));
     w.next();  // Install
     QCOMPARE(w.currentId(), int(SetupWizard::kDone));
     QVERIFY(w.installed());
     QCOMPARE(QString::fromStdString(w.installed()->kind), QStringLiteral("data_reduction"));
     QVERIFY(fs::exists(dir("dr") / "README.md"));
     QVERIFY(!fs::exists(dir("dr") / ".nobion" / "credentials.toml"));
-    if (database_opener()) QVERIFY(fs::exists(dir("dr") / "data" / "pychron.db"));
+    if (database_opener()) QVERIFY(fs::exists(dir("dr") / "data" / "nobion.db"));
     QVERIFY(!setup::any_fail(w.checks()));
     QVERIFY(w.open_now());
     auto loaded = setup::load_site(site);
@@ -183,7 +183,7 @@ class TestSetupWizard : public QObject {
       return std::string("seeded 1 project");
     };
     const fs::path root = dir("argus-seeded");
-    const std::string db = "sqlite:" + (root / "data" / "pychron.db").generic_string();
+    const std::string db = "sqlite:" + (root / "data" / "nobion.db").generic_string();
     {
       SetupWizard w(library_, {dir("site-s.toml"), open, QStringLiteral("argus"), {}, seed});
       w.restart();

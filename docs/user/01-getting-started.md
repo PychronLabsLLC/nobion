@@ -42,9 +42,9 @@ in a database. No instrument is needed and nothing is typed in by hand.
 
    This writes the install to `~/Nobion/argus`: an example extraction line, a
    simulated spectrometer, plans, scripts, a first queue (`queues/experiment.toml`),
-   and a SQLite database (`data/pychron.db`) that already holds what the queue
+   and a SQLite database (`data/nobion.db`) that already holds what the queue
    names. The output ends with a list of checks, each `[OK]`, among them
-   `[OK] database: sqlite:<install>/data/pychron.db (schema version N)`.
+   `[OK] database: sqlite:<install>/data/nobion.db (schema version N)`.
 
 2. Open it, with simulated time running 20 times faster than a clock:
 
@@ -72,7 +72,7 @@ in a database. No instrument is needed and nothing is typed in by hand.
 
    ```
    queue completed
-   5/5 run(s) succeeded; in sqlite:/home/you/Pychron/argus/data/pychron.db
+   5/5 run(s) succeeded; in sqlite:/home/you/Nobion/argus/data/nobion.db
    ```
 
    The runs are in the install's database, and `nobion --install argus`
@@ -225,9 +225,9 @@ appear as a message box and on stderr.
 | An install's files | the install's folder (shown in File > Installations) |
 | Preferences, window sizes and positions | the per-user settings store (Qt `QSettings`, organization "PychronLabs", application "nobion") |
 | Figure presets | the user's application config folder under `presets`, plus lab presets in `<lab>/figures` |
-| Finished runs | the install's database (by default `<install>/data/pychron.db`); with no database, `<data folder>/records` |
+| Finished runs | the install's database (by default `<install>/data/nobion.db`); with no database, `<data folder>/records` |
 | Runs waiting to be saved | `<data folder>/spool` |
-| Log files | an install: `<install>/logs/pychron.log` (`elctl.log` for `elctl`); otherwise the log folder of your system (see Troubleshooting, Logs). Set in `logging.toml` in the install folder, or File > Preferences > Logging |
+| Log files | an install: `<install>/logs/nobion.log` (`elctl.log` for `elctl`); otherwise the log folder of your system (see Troubleshooting, Logs). Set in `logging.toml` in the install folder, or File > Preferences > Logging |
 
 ## 4. Command-line flags of nobion
 
@@ -340,7 +340,7 @@ Docks can be dragged, floated or closed. The main window has these:
 
 | Dock | Where | What it shows |
 |---|---|---|
-| **Log** | bottom | The program's log lines. Controls: a minimum level, a logger filter (prefix or glob), a "text contains" filter (message, thread or run), **Pause**, **Autoscroll**, **Clear**, **Save...** (writes the visible lines to a text file) and **Set logger level...** (change a logger's level while running, for example `transport.*`, when the line has a log hub). A "+N new" badge counts lines that arrived while paused. On start it loads the tail of `pychron.log` (the lines at the panel's level and above) unless logging to a file is turned off. |
+| **Log** | bottom | The program's log lines. Controls: a minimum level, a logger filter (prefix or glob), a "text contains" filter (message, thread or run), **Pause**, **Autoscroll**, **Clear**, **Save...** (writes the visible lines to a text file) and **Set logger level...** (change a logger's level while running, for example `transport.*`, when the line has a log hub). A "+N new" badge counts lines that arrived while paused. On start it loads the tail of `nobion.log` (the lines at the panel's level and above) unless logging to a file is turned off. |
 | **Alarms** | right | One row per alarm source with severity (warning or critical), message and time. **Acknowledge** removes the selected rows, **Acknowledge all** clears the list. A new alarm from the same source replaces its row. |
 | **Heaters** | right | Only if the line config defines heaters. Per heater: an on/off button (it asks "Turn X on?"), a **Use PID** checkbox, a setpoint field (press Enter to send), the readback, and a strip chart. |
 | **Cryo** | right | Only if the line has a cryo controller. Temperature readbacks per input, setpoint fields per loop with a **Set** button, and a chart in kelvin. |

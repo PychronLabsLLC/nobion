@@ -148,7 +148,7 @@ TEST(LogHub, WritesFormattedLineToFile) {
   hub->write(LogLevel::Warn, "transport.x", "hello");
   hub->flush();
 
-  const auto lines = read_lines(tmp.path() / "pychron.log");
+  const auto lines = read_lines(tmp.path() / "nobion.log");
   ASSERT_EQ(lines.size(), 1u);
   const std::regex re(R"(^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z \[warn\] \[t\d+\] transport\.x: hello$)");
   EXPECT_TRUE(std::regex_match(lines[0], re)) << lines[0];
@@ -167,7 +167,7 @@ TEST(LogHub, LevelNamesInFile) {
   hub->write(LogLevel::Error, "a", "e");
   hub->flush();
 
-  const auto lines = read_lines(tmp.path() / "pychron.log");
+  const auto lines = read_lines(tmp.path() / "nobion.log");
   ASSERT_EQ(lines.size(), 5u);
   const std::array<std::string, 5> names{"trace", "debug", "info", "warn", "error"};
   const std::array<std::string, 5> messages{"t", "d", "i", "w", "e"};
@@ -195,7 +195,7 @@ TEST(LogHub, LineCarriesThreadAndRun) {
   }
   hub->flush();
 
-  const auto lines = read_lines(tmp.path() / "pychron.log");
+  const auto lines = read_lines(tmp.path() / "nobion.log");
   ASSERT_EQ(lines.size(), 1u);
   const std::regex re(R"(^\S+Z \[debug\] \[executor\] run=12345-01A experiment\.run: msg$)");
   EXPECT_TRUE(std::regex_match(lines[0], re)) << lines[0];
@@ -219,7 +219,7 @@ TEST(LogHub, UntaggedThreadHasNumberNoRun) {
   worker.join();
   hub->flush();
 
-  const auto lines = read_lines(tmp.path() / "pychron.log");
+  const auto lines = read_lines(tmp.path() / "nobion.log");
   ASSERT_EQ(lines.size(), 1u);
   const std::regex re(R"(\[t\d+\] logger: msg$)");
   EXPECT_TRUE(std::regex_search(lines[0], re)) << lines[0];
@@ -239,7 +239,7 @@ TEST(LogHub, ErrorIsOnDiskWithoutFlush) {
 
   hub->write(LogLevel::Error, "core", "disk on fire");
 
-  EXPECT_NE(read_bare_file(tmp.path() / "pychron.log").find("[error] core: disk on fire"),
+  EXPECT_NE(read_bare_file(tmp.path() / "nobion.log").find("[error] core: disk on fire"),
             std::string::npos);
 }
 
@@ -251,7 +251,7 @@ TEST(LogHub, DestructorFlushesPending) {
     ASSERT_TRUE(hub);
     for (int i = 0; i < 1000; ++i) hub->write(LogLevel::Info, "bulk", "line " + std::to_string(i));
   }
-  const auto lines = read_lines(tmp.path() / "pychron.log");
+  const auto lines = read_lines(tmp.path() / "nobion.log");
   ASSERT_EQ(lines.size(), 1000u);
   EXPECT_NE(lines.back().find("line 999"), std::string::npos);
 }
@@ -276,7 +276,7 @@ TEST(LogHub, RotatesAtSizeLimit) {
     names.push_back(entry.path().filename().string());
   }
   std::sort(names.begin(), names.end());
-  EXPECT_EQ(names, (std::vector<std::string>{"pychron.1.log", "pychron.2.log", "pychron.log"}));
+  EXPECT_EQ(names, (std::vector<std::string>{"nobion.1.log", "nobion.2.log", "nobion.log"}));
 
   constexpr std::uintmax_t limit = 1024 * 1024 + 512;  // 1 MB + one line
   for (const auto& n : names) EXPECT_LE(fs::file_size(tmp.path() / n), limit) << n;
@@ -359,7 +359,7 @@ TEST(LogHub, FileNameIsUsed) {
   hub->write(LogLevel::Warn, "core", "x");
   hub->flush();
   EXPECT_TRUE(fs::exists(tmp.path() / "elctl.log"));
-  EXPECT_FALSE(fs::exists(tmp.path() / "pychron.log"));
+  EXPECT_FALSE(fs::exists(tmp.path() / "nobion.log"));
 }
 
 TEST(LogHub, EmptyDirMeansNoFileSink) {
@@ -391,7 +391,7 @@ TEST(LogHub, MessagesAreVerbatim) {
     EXPECT_NO_THROW(hub->write(LogLevel::Info, "v", multiline));
     EXPECT_NO_THROW(hub->write(LogLevel::Info, "v", high_byte));
   }
-  const std::string text = read_file(tmp.path() / "pychron.log");
+  const std::string text = read_file(tmp.path() / "nobion.log");
   EXPECT_NE(text.find("v: " + fmt_like + "\n"), std::string::npos) << text;
   EXPECT_NE(text.find("v: line1 / line2\n"), std::string::npos) << text;  // one record, one line
   EXPECT_NE(text.find("v: " + high_byte + "\n"), std::string::npos) << text;
@@ -417,7 +417,7 @@ TEST(LogHub, AMultiLineMessageIsOneLineOfTheFile) {
     const std::string err = testing::internal::GetCapturedStderr();
     EXPECT_EQ(err, "[warn] v: a / b\n[warn] v: c / d / e / \n");
   }
-  const auto lines = read_bare_lines(tmp.path() / "pychron.log");
+  const auto lines = read_bare_lines(tmp.path() / "nobion.log");
   ASSERT_EQ(lines.size(), 2u) << ::testing::PrintToString(lines);
   EXPECT_TRUE(lines[0].ends_with("[warn] v: a / b")) << lines[0];
   EXPECT_TRUE(lines[1].ends_with("[warn] v: c / d / e / ")) << lines[1];
@@ -598,7 +598,7 @@ TEST(LogHub, LoggerWritesToFile) {
   log.debug("hidden");
   log.warn("shown");
   hub->flush();
-  const auto lines = read_bare_lines(tmp.path() / "pychron.log");
+  const auto lines = read_bare_lines(tmp.path() / "nobion.log");
   ASSERT_EQ(lines.size(), 1u);
   EXPECT_NE(lines[0].find(" [warn] core: shown"), std::string::npos) << lines[0];
 }
@@ -641,7 +641,7 @@ TEST(LogHub, SubscriberMayLogBack) {
   });
   hub->logger("core").error("boom");
   EXPECT_EQ(seen, 2);
-  EXPECT_NE(read_bare_file(tmp.path() / "pychron.log").find("[error] relay: saw boom"),
+  EXPECT_NE(read_bare_file(tmp.path() / "nobion.log").find("[error] relay: saw boom"),
             std::string::npos);
 }
 
@@ -707,7 +707,7 @@ TEST(LogHub, ConcurrentWriteAndSetLevel) {
 
   EXPECT_EQ(bus_errors.load(), kThreads * kPerThread);
   int file_errors = 0;
-  for (const auto& line : read_bare_lines(tmp.path() / "pychron.log")) {
+  for (const auto& line : read_bare_lines(tmp.path() / "nobion.log")) {
     if (line.find("[error] core.w") != std::string::npos) ++file_errors;
   }
   EXPECT_EQ(file_errors, kThreads * kPerThread);
@@ -751,7 +751,7 @@ TEST(LogHub, DockLevelFiltersBusNotFile) {
 
   ASSERT_EQ(got.size(), 1u);
   EXPECT_EQ(got[0].message, "loud");
-  const auto text = read_bare_file(tmp.path() / "pychron.log");
+  const auto text = read_bare_file(tmp.path() / "nobion.log");
   EXPECT_NE(text.find("[debug] core: quiet"), std::string::npos) << text;
   EXPECT_NE(text.find("[info] core: loud"), std::string::npos) << text;
 }
@@ -791,7 +791,7 @@ TEST(LogHub, SessionLineSaysTheDockLevelInForce) {
     hub->set_dock_level(LogLevel::Debug);
     hub->begin_session(SessionInfo{"test", "0", std::nullopt, "", false, "steady"});
   }
-  const auto text = read_file(tmp.path() / "pychron.log");
+  const auto text = read_file(tmp.path() / "nobion.log");
   EXPECT_NE(text.find("dock_level=debug"), std::string::npos) << text;
 }
 
@@ -816,7 +816,7 @@ TEST(LogHub, AttachBusLater) {
   hub->flush();
 
   EXPECT_EQ(got, (std::vector<std::string>{"b"}));
-  const auto lines = read_lines(tmp.path() / "pychron.log");
+  const auto lines = read_lines(tmp.path() / "nobion.log");
   ASSERT_EQ(lines.size(), 3u);
   EXPECT_NE(lines[0].find("core: a"), std::string::npos) << lines[0];
   EXPECT_NE(lines[1].find("core: b"), std::string::npos) << lines[1];
@@ -904,7 +904,7 @@ TEST(LogHub, ClockDetachFallsBackToHubClock) {
   ASSERT_EQ(got.size(), 2u);
   EXPECT_EQ(got[0].ts, b.now());
   EXPECT_EQ(got[1].ts, a.now());
-  const auto lines = read_bare_lines(tmp.path() / "pychron.log");
+  const auto lines = read_bare_lines(tmp.path() / "nobion.log");
   ASSERT_EQ(lines.size(), 2u);
   EXPECT_EQ(lines[0], "2026-10-22T14:03:22.000Z [info] core: on b");
   EXPECT_EQ(lines[1], "2020-01-01T00:00:00.000Z [info] core: on a");
@@ -915,11 +915,11 @@ TEST(LogHub, SecondProcessGetsPidFile) {
   SteadyClock clock;
   auto first = make_hub(config_for(tmp.path()), clock);
   ASSERT_TRUE(first);
-  EXPECT_EQ(first->file_path(), tmp.path() / "pychron.log");
+  EXPECT_EQ(first->file_path(), tmp.path() / "nobion.log");
 
   auto second = make_hub(config_for(tmp.path()), clock);
   ASSERT_TRUE(second);
-  const fs::path pid_file = tmp.path() / ("pychron-" + current_pid() + ".log");
+  const fs::path pid_file = tmp.path() / ("nobion-" + current_pid() + ".log");
   EXPECT_EQ(second->file_path(), pid_file);
   second->flush();
 
@@ -927,7 +927,7 @@ TEST(LogHub, SecondProcessGetsPidFile) {
   ASSERT_EQ(lines.size(), 1u);
   EXPECT_NE(lines[0].find("[info] logging: "), std::string::npos) << lines[0];
   EXPECT_NE(lines[0].find("in use"), std::string::npos) << lines[0];
-  EXPECT_NE(lines[0].find((tmp.path() / "pychron.log").string()), std::string::npos) << lines[0];
+  EXPECT_NE(lines[0].find((tmp.path() / "nobion.log").string()), std::string::npos) << lines[0];
 }
 
 TEST(LogHub, LockReleasedOnDestruction) {
@@ -936,24 +936,24 @@ TEST(LogHub, LockReleasedOnDestruction) {
   {
     auto hub = make_hub(config_for(tmp.path()), clock);
     ASSERT_TRUE(hub);
-    EXPECT_EQ(hub->file_path(), tmp.path() / "pychron.log");
+    EXPECT_EQ(hub->file_path(), tmp.path() / "nobion.log");
   }
   auto again = make_hub(config_for(tmp.path()), clock);
   ASSERT_TRUE(again);
-  EXPECT_EQ(again->file_path(), tmp.path() / "pychron.log");
+  EXPECT_EQ(again->file_path(), tmp.path() / "nobion.log");
 }
 
 // A lock that cannot be taken for a reason other than another holder (here
 // the lock path is a directory) keeps the main name and says so at warn.
 TEST(LogHub, UnlockableFileIsAWarning) {
   TempDir tmp;
-  fs::create_directories(tmp.path() / "pychron.log.lock");
+  fs::create_directories(tmp.path() / "nobion.log.lock");
   SteadyClock clock;
   auto hub = make_hub(config_for(tmp.path()), clock);
   ASSERT_TRUE(hub);
-  EXPECT_EQ(hub->file_path(), tmp.path() / "pychron.log");
+  EXPECT_EQ(hub->file_path(), tmp.path() / "nobion.log");
   hub->flush();
-  const auto lines = read_bare_lines(tmp.path() / "pychron.log");
+  const auto lines = read_bare_lines(tmp.path() / "nobion.log");
   ASSERT_EQ(lines.size(), 1u);
   EXPECT_NE(lines[0].find("[warn] logging: cannot lock "), std::string::npos) << lines[0];
 }
@@ -1051,7 +1051,7 @@ TEST(LogHub, AttachAndDropUnderConcurrentWrites) {
     const auto days = std::chrono::floor<std::chrono::days>(std::chrono::system_clock::now());
     return static_cast<int>(std::chrono::year_month_day(days).year());
   }();
-  for (const auto& line : read_bare_lines(tmp.path() / "pychron.log")) {
+  for (const auto& line : read_bare_lines(tmp.path() / "nobion.log")) {
     std::smatch m;
     ASSERT_TRUE(std::regex_search(line, m, stamp)) << line;
     const int year = std::stoi(m[1].str());
@@ -1074,7 +1074,7 @@ TEST(LogHub, NoFileMeansEmptyFilePath) {
 //
 // Each death test runs a child (a fork in "fast" style; TempDir(name) hands
 // it the parent's directory either way) that builds its own hub, crashes, and
-// dies; the parent then inspects pychron.log.
+// dies; the parent then inspects nobion.log.
 
 namespace {
 
@@ -1115,7 +1115,7 @@ TEST(LogHubCrash, TerminateFlushesQueuedRecordsAndExceptionText) {
         call_noexcept_throw();
       },
       "");
-  const auto file = tmp.path() / "pychron.log";
+  const auto file = tmp.path() / "nobion.log";
   EXPECT_EQ(count_lines_containing(file, "[info] crash.test: record "), 200u);
   EXPECT_GE(count_lines_containing(file, "boom"), 1u);
 }
@@ -1137,7 +1137,7 @@ TEST(LogHubCrash, SigabrtLeavesFatalSignalLine) {
         std::abort();
       },
       ::testing::KilledBySignal(SIGABRT), "fatal signal 6");
-  const auto file = tmp.path() / "pychron.log";
+  const auto file = tmp.path() / "nobion.log";
   EXPECT_EQ(count_lines_containing(file, "[error] crash.test: about to abort"), 1u);
   EXPECT_EQ(count_lines_containing(file, "fatal signal 6"), 1u);
 #endif
@@ -1162,7 +1162,7 @@ TEST(LogHubCrash, SignalGuaranteeIsBounded) {
         std::abort();
       },
       ::testing::KilledBySignal(SIGABRT), "fatal signal 6");
-  const auto file = tmp.path() / "pychron.log";
+  const auto file = tmp.path() / "nobion.log";
   EXPECT_EQ(count_lines_containing(file, "[info] crash.test: old enough"), 1u);
   EXPECT_EQ(count_lines_containing(file, "fatal signal 6"), 1u);
 #endif
@@ -1172,7 +1172,7 @@ TEST(LogHubCrash, FatalSignalLineFollowsRotation) {
 #ifdef _WIN32
   GTEST_SKIP() << "POSIX signal handlers";
 #else
-  // The crash descriptor is opened on the pychron.log of the moment; once the
+  // The crash descriptor is opened on the nobion.log of the moment; once the
   // file rotates, the next flusher tick must move it onto the new live file.
   GTEST_FLAG_SET(death_test_style, "fast");
   TempDir tmp("FatalSignalLineFollowsRotation");
@@ -1189,13 +1189,13 @@ TEST(LogHubCrash, FatalSignalLineFollowsRotation) {
         const std::string filler(1000, 'x');
         for (int i = 0; i < 1500; ++i) log.info(filler);  // > 1 MiB: rotates
         (*hub)->flush();
-        if (!fs::exists(tmp.path() / "pychron.1.log")) std::_Exit(11);
+        if (!fs::exists(tmp.path() / "nobion.1.log")) std::_Exit(11);
         std::this_thread::sleep_for(std::chrono::milliseconds(2500));  // >= 2 flusher ticks
         std::abort();
       },
       ::testing::KilledBySignal(SIGABRT), "fatal signal 6");
-  EXPECT_EQ(count_lines_containing(tmp.path() / "pychron.log", "fatal signal 6"), 1u);
-  EXPECT_EQ(count_lines_containing(tmp.path() / "pychron.1.log", "fatal signal 6"), 0u);
+  EXPECT_EQ(count_lines_containing(tmp.path() / "nobion.log", "fatal signal 6"), 1u);
+  EXPECT_EQ(count_lines_containing(tmp.path() / "nobion.1.log", "fatal signal 6"), 0u);
 #endif
 }
 
@@ -1214,7 +1214,7 @@ TEST(LogHubCrash, InstallIsIdempotent) {
       },
       ::testing::ExitedWithCode(3), "prev terminate calls=1\n");
   // No active exception: the terminate route still logs a line.
-  EXPECT_EQ(count_lines_containing(tmp.path() / "pychron.log", "terminate"), 1u);
+  EXPECT_EQ(count_lines_containing(tmp.path() / "nobion.log", "terminate"), 1u);
 }
 
 TEST(LogHub, SessionMarkerFields) {
@@ -1229,8 +1229,8 @@ TEST(LogHub, SessionMarkerFields) {
     info.clock = "steady";
     hub->begin_session(info);
   }
-  const auto text = read_bare_file(tmp.path() / "pychron.log");
-  EXPECT_NE(text.find("[info] pychron: session start "), std::string::npos) << text;
+  const auto text = read_bare_file(tmp.path() / "nobion.log");
+  EXPECT_NE(text.find("[info] nobion: session start "), std::string::npos) << text;
   for (const char* field : {"app=elctl", "version=0.4.0", "install=none", "profiles=none", "sim=no",
                             "clock=steady", "default_level=debug", "dock_level=info", "levels=none"}) {
     EXPECT_NE(text.find(field), std::string::npos) << field << " in " << text;
@@ -1254,7 +1254,7 @@ TEST(LogHub, SessionMarkerQuotesSpacesAndListsRules) {
     info.clock = "virtual x10";
     hub->begin_session(info);
   }
-  const auto text = read_bare_file(tmp.path() / "pychron.log");
+  const auto text = read_bare_file(tmp.path() / "nobion.log");
   EXPECT_NE(text.find("install=\"/tmp/my install\""), std::string::npos) << text;
   EXPECT_NE(text.find("profiles=a,b"), std::string::npos) << text;
   EXPECT_NE(text.find("sim=yes"), std::string::npos) << text;
@@ -1273,9 +1273,9 @@ TEST(LogHub, SessionEndOnDestruction) {
     hub->begin_session(info);
     hub->write(LogLevel::Info, "x", "work");
   }
-  const auto lines = read_bare_lines(tmp.path() / "pychron.log");
+  const auto lines = read_bare_lines(tmp.path() / "nobion.log");
   ASSERT_GE(lines.size(), 3u);
-  const std::string tail = "pychron: session end";
+  const std::string tail = "nobion: session end";
   EXPECT_EQ(lines.back().substr(lines.back().size() - tail.size()), tail) << lines.back();
 }
 
@@ -1287,5 +1287,5 @@ TEST(LogHub, NoSessionNoEndLine) {
     ASSERT_TRUE(hub);
     hub->write(LogLevel::Info, "x", "work");
   }
-  EXPECT_EQ(read_file(tmp.path() / "pychron.log").find("session"), std::string::npos);
+  EXPECT_EQ(read_file(tmp.path() / "nobion.log").find("session"), std::string::npos);
 }

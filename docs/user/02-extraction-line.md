@@ -361,7 +361,7 @@ here too (`ERROR [ui] spectrometer not loaded: ...`).
 
 ### The log file
 
-Every record is also written to a log file, `pychron.log` for the window and
+Every record is also written to a log file, `nobion.log` for the window and
 `elctl.log` for `elctl`, whether or not a line is open. The file is kept by
 default: for an install it is `<install>/logs`; without one it is
 `~/Library/Logs/nobion` on macOS, `$XDG_STATE_HOME/nobion/logs` (or

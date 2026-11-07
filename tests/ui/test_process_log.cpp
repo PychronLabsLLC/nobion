@@ -84,8 +84,8 @@ class TestProcessLog : public QObject {
     const auto hub = nobion::ui::open_process_log(install, std::nullopt, clock, false, nobion::HostOs::Mac, env).hub;
     QVERIFY(hub != nullptr);
     hub->flush();
-    QVERIFY(fs::exists(install.root / "logs" / "pychron.log"));
-    QCOMPARE(hub->file_path(), install.root / "logs" / "pychron.log");
+    QVERIFY(fs::exists(install.root / "logs" / "nobion.log"));
+    QCOMPARE(hub->file_path(), install.root / "logs" / "nobion.log");
   }
 
   void noInstallUsesTheOsFolderUnderTheInjectedHome() {
@@ -101,7 +101,7 @@ class TestProcessLog : public QObject {
     const auto& hub = opened.hub;
     QVERIFY(hub != nullptr);
     hub->flush();
-    const fs::path expected = fs::path(tmp.path().toStdString()) / "Library" / "Logs" / "nobion" / "pychron.log";
+    const fs::path expected = fs::path(tmp.path().toStdString()) / "Library" / "Logs" / "nobion" / "nobion.log";
     QVERIFY(fs::exists(expected));
     QVERIFY(slurp(expected).find("virtual x10") != std::string::npos);
   }
@@ -123,7 +123,7 @@ class TestProcessLog : public QObject {
     nobion::SteadyClock clock;
     const auto opened = nobion::ui::open_process_log(install, std::nullopt, clock, false, nobion::HostOs::Mac, env);
     QVERIFY(opened.hub != nullptr);
-    QCOMPARE(opened.hub->file_path(), install.root / "logs" / "pychron.log");
+    QCOMPARE(opened.hub->file_path(), install.root / "logs" / "nobion.log");
     QCOMPARE(opened.notices.size(), std::size_t{1});
     QCOMPARE(opened.notices[0].first, nobion::LogLevel::Error);
     QVERIFY2(opened.notices[0].second.find("colour") != std::string::npos, opened.notices[0].second.c_str());

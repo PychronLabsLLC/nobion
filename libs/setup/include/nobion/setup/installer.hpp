@@ -68,7 +68,7 @@ bool is_asked(const Question& q, const Answers& so_far);
 bool keep_unanswered_secrets(const ResolvedProfile& profile, Answers& given);
 
 // A data-reduction install's database: sqlite:<file>, where <file> is the
-// `db_file` answer (absent: data/pychron.db) taken against `root` unless it is
+// `db_file` answer (absent: data/nobion.db) taken against `root` unless it is
 // absolute, or
 // postgresql://user[:password]@host:port/db from the answers (the password
 // percent-encoded, only when `with_password`).

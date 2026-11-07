@@ -93,7 +93,7 @@ struct RefusingPersister : nobion::experiment::persist::IAnalysisPersister {
   nobion::Result<void> flush() override { return {}; }
   nobion::Result<std::vector<std::string>> check_queue(const nobion::experiment::QueueSpec&) override {
     return std::vector<std::string>{"the database cannot be reached: no such file",
-                                    "Run: elctl db migrate --db sqlite:/lab/data/pychron.db"};
+                                    "Run: elctl db migrate --db sqlite:/lab/data/nobion.db"};
   }
 };
 
@@ -867,7 +867,7 @@ class TestExperimentWindow : public QObject {
     QVERIFY(!bridge.running());
     QCOMPARE(window.executor()->error_text(),
              QStringLiteral("the queue cannot be saved:\nthe database cannot be reached: no such file\n"
-                            "Run: elctl db migrate --db sqlite:/lab/data/pychron.db"));
+                            "Run: elctl db migrate --db sqlite:/lab/data/nobion.db"));
   }
 
   // What is still to be saved is named for where it goes.

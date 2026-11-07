@@ -486,7 +486,7 @@ TEST(ExtractionLine, BuildsOwnHubFromLoggingConfigAndWireLogs) {
     (*line)->stop();
     EXPECT_FALSE(wire.empty());
   }
-  EXPECT_TRUE(std::filesystem::exists(dir / "logs" / "pychron.log"));
+  EXPECT_TRUE(std::filesystem::exists(dir / "logs" / "nobion.log"));
   std::filesystem::remove_all(dir);
 }
 
@@ -531,7 +531,7 @@ TEST(ExtractionLine, LineWarningReachesLogFileAndBusOnce) {
     ASSERT_EQ(got.size(), 1u);
     EXPECT_EQ(got[0].level, LogLevel::Warn);
     EXPECT_NE(got[0].message.find("initial read of gauge 'BAD' failed"), std::string::npos);
-    EXPECT_EQ(lines_containing(dir / "pychron.log", "[warn] extraction_line: initial read of gauge 'BAD' failed"),
+    EXPECT_EQ(lines_containing(dir / "nobion.log", "[warn] extraction_line: initial read of gauge 'BAD' failed"),
               1u);
   }
   std::filesystem::remove_all(dir);
@@ -558,7 +558,7 @@ TEST(ExtractionLine, ActuationAndFailureAreLoggedOnceToBusAndFile) {
     ASSERT_EQ(got.size(), 1u);
     EXPECT_EQ(got[0].level, LogLevel::Info);
     EXPECT_EQ(got[0].message, "valve A open");
-    EXPECT_EQ(lines_containing(dir / "pychron.log", "[info] switches: valve A open"), 1u);
+    EXPECT_EQ(lines_containing(dir / "nobion.log", "[info] switches: valve A open"), 1u);
 
     got.clear();
     ASSERT_TRUE((*line)->set_locked("A", true));
@@ -571,7 +571,7 @@ TEST(ExtractionLine, ActuationAndFailureAreLoggedOnceToBusAndFile) {
     }
     EXPECT_TRUE(locked_info);
     EXPECT_TRUE(failed_warn);
-    EXPECT_EQ(lines_containing(dir / "pychron.log", "[warn] switches: actuate 'A' failed"), 1u);
+    EXPECT_EQ(lines_containing(dir / "nobion.log", "[warn] switches: actuate 'A' failed"), 1u);
   }
   std::filesystem::remove_all(dir);
 }

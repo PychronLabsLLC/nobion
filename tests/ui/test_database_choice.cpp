@@ -41,7 +41,7 @@ class TestDatabaseChoice : public QObject {
   void dbWinsOverTheInstall() {
     CommandLine cli;
     cli.db = "sqlite:/elsewhere/other.db";
-    const auto i = install("sqlite:/lab/data/pychron.db");
+    const auto i = install("sqlite:/lab/data/nobion.db");
     const auto url = choose_database(cli, &i);
     QVERIFY(url.has_value());
     QCOMPARE(QString::fromStdString(url->value_or("")), QStringLiteral("sqlite:/elsewhere/other.db"));
@@ -52,10 +52,10 @@ class TestDatabaseChoice : public QObject {
   }
 
   void theInstallsDatabaseIsUsedWithoutDb() {
-    const auto local = install("sqlite:/lab/data/pychron.db");
+    const auto local = install("sqlite:/lab/data/nobion.db");
     const auto url = choose_database(CommandLine{}, &local);
     QVERIFY(url.has_value());
-    QCOMPARE(QString::fromStdString(url->value_or("")), QStringLiteral("sqlite:/lab/data/pychron.db"));
+    QCOMPARE(QString::fromStdString(url->value_or("")), QStringLiteral("sqlite:/lab/data/nobion.db"));
     // A server's password comes from the install.
     write_credentials("[database]\npassword = \"s3 cret\"\n");
     const auto server = install("postgresql://lab@db:5432/pychron");
@@ -92,7 +92,7 @@ class TestDatabaseChoice : public QObject {
   void aSimulatedSessionSavesOnlyToItsInstallsLocalDatabaseUnlessAsked() {
     using nobion::ui::choose_run_saving;
     const std::filesystem::path data = "/lab/data";
-    const std::string local = "sqlite:/lab/data/pychron.db";
+    const std::string local = "sqlite:/lab/data/nobion.db";
     const std::string server = "postgresql://lab:s3cret@db:5432/pychron";
 
     QVERIFY(choose_run_saving(CommandLine{}, local, true, data).to_database);
@@ -108,7 +108,7 @@ class TestDatabaseChoice : public QObject {
     pointed.db = local;  // even a file, when it was given with --db
     const auto given = choose_run_saving(pointed, local, true, data);
     QVERIFY(!given.to_database);
-    QVERIFY(QString::fromStdString(given.note).contains(QStringLiteral("not to sqlite:/lab/data/pychron.db;")));
+    QVERIFY(QString::fromStdString(given.note).contains(QStringLiteral("not to sqlite:/lab/data/nobion.db;")));
 
     pointed.sim_save = true;
     QVERIFY(choose_run_saving(pointed, local, true, data).to_database);

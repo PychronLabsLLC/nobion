@@ -200,7 +200,7 @@ TEST_F(DbCmd, UsageErrors) {
 TEST_F(DbCmd, DbStatusUsesTheInstallsDatabase) {
   const fs::path root = path("dr");
   ASSERT_EQ(run_raw({"init", "data-reduction", "--root", root.string(), "--name", "dr", "--yes"}).code, elctl::kOk);
-  const std::string url = "sqlite:" + (root / "data" / "pychron.db").generic_string();
+  const std::string url = "sqlite:" + (root / "data" / "nobion.db").generic_string();
   const Outcome by_url = run_raw({"db", "status", "--db", url});
   ASSERT_EQ(by_url.code, elctl::kOk) << by_url.err;
   const Outcome by_install = run_raw({"--install", "dr", "db", "status"});

@@ -294,7 +294,7 @@ The installation starts in simulation. Setup writes these items:
   `multicollect_hop_ar39`.
 - The scripts, the conditionals and `identifiers.toml`.
 - The run defaults, an example queue and `CALIBRATE.md`.
-- A SQLite database at `data/pychron.db`.
+- A SQLite database at `data/nobion.db`.
 
 Setup puts the reference samples into the database from `<root>/seed.toml`.
 The [runbook](installation_runbook.md), part 2.3, lists these samples.
@@ -328,7 +328,7 @@ The `line_source` question selects the extraction line:
 
    ```
    queue completed
-   5/5 run(s) succeeded; in sqlite:<root>/data/pychron.db
+   5/5 run(s) succeeded; in sqlite:<root>/data/nobion.db
    ```
 
 5. Type `nobion --install argus`.

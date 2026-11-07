@@ -114,7 +114,7 @@ TEST_F(ElctlSetupTest, DataReductionIsTwoAnswersAndADatabase) {
   ASSERT_NE(dr, nullptr);
   EXPECT_EQ(dr->kind, "data_reduction");
 #ifdef NOBION_ELCTL_HAS_STORE
-  EXPECT_TRUE(fs::exists(root / "data" / "pychron.db"));
+  EXPECT_TRUE(fs::exists(root / "data" / "nobion.db"));
   EXPECT_TRUE(contains(o.out, "[OK] database")) << o.out;
 #endif
 }
@@ -126,10 +126,10 @@ TEST_F(ElctlSetupTest, AnInstrumentInstallMakesAndSeedsItsDatabase) {
   const auto root = path("argus-seeded");
   auto o = run_raw({"init", "argus", "--root", root.string(), "--name", "lab", "--yes"});
   ASSERT_EQ(o.code, 0) << o.out << o.err;
-  EXPECT_TRUE(fs::exists(root / "data" / "pychron.db"));
+  EXPECT_TRUE(fs::exists(root / "data" / "nobion.db"));
   EXPECT_TRUE(contains(o.out, "seeded 1 project, 3 materials, 8 samples, 8 identifiers, 1 mass spectrometer, 1 reactor")) << o.out << o.err;
   EXPECT_TRUE(contains(o.out, "[OK] database")) << o.out;
-  const std::string db = "sqlite:" + (root / "data" / "pychron.db").generic_string();
+  const std::string db = "sqlite:" + (root / "data" / "nobion.db").generic_string();
   auto listed = run_raw({"entry", "samples", "list", "--db", db, "--project", "references"});
   ASSERT_EQ(listed.code, 0) << listed.err;
   for (const char* name : {"blank_unknown", "blank_air", "blank_cocktail", "blank_extractionline", "background", "air",
@@ -163,7 +163,7 @@ TEST_F(ElctlSetupTest, ABadSeedFileStillLeavesADatabaseAndACommandThatCanBePaste
   { std::ofstream(root / "seed.toml") << "project = \n"; }
   auto o = run_raw({"init", "argus", "--root", root.string(), "--name", "lab", "--yes"});
   EXPECT_EQ(o.code, 0) << o.out << o.err;
-  EXPECT_TRUE(fs::exists(root / "data" / "pychron.db"));
+  EXPECT_TRUE(fs::exists(root / "data" / "nobion.db"));
   EXPECT_TRUE(contains(o.out, "[OK] database")) << o.out << o.err;
   EXPECT_TRUE(contains(o.err, "seed skipped: ")) << o.err;
   EXPECT_TRUE(contains(o.err, "elctl entry seed \"" + (root / "seed.toml").string() + "\" --db \"sqlite:")) << o.err;

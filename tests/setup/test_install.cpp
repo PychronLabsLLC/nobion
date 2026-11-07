@@ -326,13 +326,13 @@ TEST(Site, TheLocationCanBeOverridden) {
 
 TEST(Installer, DatabaseUrlsFromTheAnswers) {
   const Answers local{{"data_source", Value{std::string("local")}}};
-  EXPECT_EQ(database_url_for(local, "/labs/dr", true), "sqlite:/labs/dr/data/pychron.db");
+  EXPECT_EQ(database_url_for(local, "/labs/dr", true), "sqlite:/labs/dr/data/nobion.db");
   const fs::path root = fs::temp_directory_path() / "labs" / "dr";
-  EXPECT_EQ(database_url_for(local, root, true), "sqlite:" + (root / "data" / "pychron.db").generic_string());
+  EXPECT_EQ(database_url_for(local, root, true), "sqlite:" + (root / "data" / "nobion.db").generic_string());
   Answers copy = local;
   copy["db_file"] = Value{std::string("lab/copy.db")};
   EXPECT_EQ(database_url_for(copy, root, true), "sqlite:" + (root / "lab/copy.db").generic_string());
-  const fs::path shared = fs::temp_directory_path() / "shared" / "pychron.db";
+  const fs::path shared = fs::temp_directory_path() / "shared" / "nobion.db";
   ASSERT_TRUE(shared.is_absolute());
   copy["db_file"] = Value{shared.generic_string()};
   EXPECT_EQ(database_url_for(copy, root, true), "sqlite:" + shared.generic_string());

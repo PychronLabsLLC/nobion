@@ -16,7 +16,7 @@ namespace nobion::config {
 
 struct LoggingConfig : Located {
   std::optional<std::filesystem::path> dir;  // nullopt = the app's default folder; empty = no file
-  std::string file_name = "pychron.log";     // set by the app, not a TOML key
+  std::string file_name = "nobion.log";     // set by the app, not a TOML key
   std::int64_t max_size_mb = 50;
   std::int64_t max_files = 10;
   LogLevel default_level = LogLevel::Debug;

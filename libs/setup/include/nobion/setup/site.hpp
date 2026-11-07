@@ -8,7 +8,7 @@
 //   name = "argus-lab"
 //   kind = "instrument"                 # instrument | data_reduction
 //   profile = "argus"
-//   root = "/Users/lab/Pychron/argus-lab"
+//   root = "/Users/lab/Nobion/argus-lab"
 //   line = "extraction_line.toml"       # relative to root
 //   canvas = "canvas.toml"
 //   spectrometer = "spectrometer.toml"

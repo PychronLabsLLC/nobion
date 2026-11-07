@@ -1154,7 +1154,7 @@ the bottom are elapsed time since the queue's first event.
 Where a finished run goes depends on whether the program has a database.
 
 **With a database.** An instrument install has one (the setup makes it, by
-default a SQLite file at `<install>/data/pychron.db`), and both `nobion`
+default a SQLite file at `<install>/data/nobion.db`), and both `nobion`
 and `elctl exp run` use it; `--db <url>` names another. Each finished run is
 written to the database as one analysis before the run is reported as ended,
 and the data window of `nobion` shows it when the run ends
@@ -1256,8 +1256,8 @@ and the failure is not silent:
 ```
 run 0 ba-1: success (not saved)
 ...
-5/5 run(s) succeeded; 0 of them in sqlite:/home/lab/Pychron/argus/data/pychron.db
-warning: 5 record(s) waiting in /home/lab/Pychron/argus/data/spool: <record id>: <the database's reason>
+5/5 run(s) succeeded; 0 of them in sqlite:/home/lab/Nobion/argus/data/nobion.db
+warning: 5 record(s) waiting in /home/lab/Nobion/argus/data/spool: <record id>: <the database's reason>
 ```
 
 A pending run is safe on this computer but is not yet in the database, so the
@@ -1333,7 +1333,7 @@ other database, a server, or any database given with `--db`, it writes record
 files under the data folder instead, and says so once:
 
 ```
-note: simulated runs are written to /home/lab/Pychron/argus/data/records, not to postgresql://lab@db.example.org/pychron; pass --sim-save to save them there
+note: simulated runs are written to /home/lab/Nobion/argus/data/records, not to postgresql://lab@db.example.org/pychron; pass --sim-save to save them there
 ```
 
 `nobion` puts the same sentence in the log dock, and its data window goes

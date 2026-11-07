@@ -27,7 +27,7 @@ ProcessLog open_process_log(const std::optional<setup::SiteInstall>& install,
     sources = config::LoggingSources{};
   }
   config::LoggingConfig cfg = std::move(sources->config);
-  cfg.file_name = "pychron.log";
+  cfg.file_name = "nobion.log";
   const bool dir_unset = !cfg.dir.has_value();
   resolve_log_dir(cfg, root, os, env);
   if (dir_unset && cfg.dir->empty()) {

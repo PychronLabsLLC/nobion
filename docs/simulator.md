@@ -178,7 +178,7 @@ sim: valve 'V1~V2': a valve's name may not contain '~' on a simulated line (the 
 
 The valves that carry no gas are listed once, in one log line at `info`, when
 the line is built, which is before any window is open. It goes where the
-line's log goes: to `pychron.log` (kept by default; the Log dock of `nobion` shows that
+line's log goes: to `nobion.log` (kept by default; the Log dock of `nobion` shows that
 file's history when it opens), and to the terminal if it has `echo_stderr = true`. An
 `elctl exp run` user sees it in the same two places; `elctl` prints nothing
 of it otherwise. The example line has no valve without gas, so it logs no

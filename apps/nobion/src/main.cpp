@@ -576,9 +576,9 @@ int main(int argc, char** argv) {
   const fs::path lab_state = setup::lab_state_dir(lab_folder, examples, user_examples);
   options.state_file = line_state / fs::path(system_file.filename()).replace_extension(".state.toml");
   if (lab_state != lab_folder) {
-    nobion::process_logger("pychron").info("examples: runtime state in " + lab_state.string());
+    nobion::process_logger("nobion").info("examples: runtime state in " + lab_state.string());
   } else if (line_state != line_folder) {
-    nobion::process_logger("pychron").info("examples: runtime state in " + line_state.string());
+    nobion::process_logger("nobion").info("examples: runtime state in " + line_state.string());
   }
 
   splash.status(QStringLiteral("Loading the extraction line: %1").arg(QString::fromStdString(system_file.filename().string())));

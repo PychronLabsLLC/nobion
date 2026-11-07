@@ -72,7 +72,7 @@ struct DataSourceFixture : ::testing::Test {
     s.kind = "data_reduction";
     s.profile = "data-reduction";
     s.root = root;
-    s.database = database.empty() ? "sqlite:" + (root / "data" / "pychron.db").generic_string() : std::move(database);
+    s.database = database.empty() ? "sqlite:" + (root / "data" / "nobion.db").generic_string() : std::move(database);
     s.data = std::move(data);
     return s;
   }
@@ -165,14 +165,14 @@ TEST_F(DataSourceFixture, AVersionOneRecordIsTheDefaultFileAndFolder) {
   write_record({{"data_source", Value{std::string("local")}}});
   auto current = current_data_source(install());
   ASSERT_TRUE(current) << current.error().what;
-  EXPECT_EQ(current->database, (std::variant<LocalDatabase, ServerDatabase>{LocalDatabase{"data/pychron.db"}}));
+  EXPECT_EQ(current->database, (std::variant<LocalDatabase, ServerDatabase>{LocalDatabase{"data/nobion.db"}}));
   EXPECT_EQ(current->data, "data");
 }
 
 TEST_F(DataSourceFixture, DatabaseUrlIsTheSiteEntrysUrl) {
   EXPECT_EQ(database_url(DataSource{LocalDatabase{"lab/copy.db"}, "data"}, root),
             "sqlite:" + (root / "lab/copy.db").generic_string());
-  const fs::path absolute = dir / "shared" / "pychron.db";
+  const fs::path absolute = dir / "shared" / "nobion.db";
   EXPECT_EQ(database_url(DataSource{LocalDatabase{absolute}, "data"}, root), "sqlite:" + absolute.generic_string());
   EXPECT_EQ(database_url(DataSource{ServerDatabase{"h", 5433, "n", "u", std::nullopt}, "data"}, root),
             "postgresql://u@h:5433/n");
@@ -225,7 +225,7 @@ TEST_F(DataSourceFixture, RefusalsWriteNothing) {
       {"port 0", server([](ServerDatabase& s) { s.port = 0; })},
       {"port 65536", server([](ServerDatabase& s) { s.port = 65536; })},
       {"empty file", DataSource{LocalDatabase{""}, "data"}},
-      {"empty data", DataSource{LocalDatabase{"data/pychron.db"}, ""}},
+      {"empty data", DataSource{LocalDatabase{"data/nobion.db"}, ""}},
       {"file is a directory", DataSource{LocalDatabase{"adir"}, "data"}},
   };
   for (const auto& [why, to] : refused) {
@@ -235,7 +235,7 @@ TEST_F(DataSourceFixture, RefusalsWriteNothing) {
   }
   SiteInstall gone = install();
   gone.root = dir / "not-there";
-  auto plan = plan_data_source(gone, DataSource{LocalDatabase{"data/pychron.db"}, "data"});
+  auto plan = plan_data_source(gone, DataSource{LocalDatabase{"data/nobion.db"}, "data"});
   ASSERT_FALSE(plan);
   EXPECT_EQ(plan.error().kind, ErrorKind::Config);
   EXPECT_EQ(hash_tree(dir), before);
@@ -244,7 +244,7 @@ TEST_F(DataSourceFixture, RefusalsWriteNothing) {
 TEST_F(DataSourceFixture, APlanSetsTheSiteFieldsAndSaysWhatIsNotMoved) {
   write_record({{"data_source", Value{std::string("local")}}});
   write_text(root / "data" / "records" / "a.toml", "x = 1\n");
-  const DataSource to{LocalDatabase{"data/pychron.db"}, "other"};
+  const DataSource to{LocalDatabase{"data/nobion.db"}, "other"};
   auto change = plan_data_source(install(), to);
   ASSERT_TRUE(change) << change.error().what;
   EXPECT_EQ(change->install.data, "other");

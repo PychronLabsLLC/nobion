@@ -355,7 +355,7 @@ TEST(Scheduler, ScanErrorGoesThroughHubToFileAndBusOnce) {
   ASSERT_EQ(logs.size(), 1u);  // via the hub only, not also published directly
   EXPECT_EQ(logs[0].logger, "scheduler");
   EXPECT_EQ(logs[0].level, LogLevel::Warn);
-  EXPECT_EQ(lines_containing(dir / "pychron.log", "[warn] scheduler: scan IG1 failed"), 1u);
+  EXPECT_EQ(lines_containing(dir / "nobion.log", "[warn] scheduler: scan IG1 failed"), 1u);
   hub->reset();
   std::filesystem::remove_all(dir);
 }
@@ -383,8 +383,8 @@ TEST(Scheduler, SchedulerLevelRuleGatesItsRecords) {
   // The warn (failed scan) is below the rule; the error (throwing job) is not.
   ASSERT_EQ(logs.size(), 1u);
   EXPECT_EQ(logs[0].level, LogLevel::Error);
-  EXPECT_EQ(lines_containing(dir / "pychron.log", "scheduler: scan IG1 failed"), 0u);
-  EXPECT_EQ(lines_containing(dir / "pychron.log", "[error] scheduler: job boom threw"), 1u);
+  EXPECT_EQ(lines_containing(dir / "nobion.log", "scheduler: scan IG1 failed"), 0u);
+  EXPECT_EQ(lines_containing(dir / "nobion.log", "[error] scheduler: job boom threw"), 1u);
   hub->reset();
   std::filesystem::remove_all(dir);
 }

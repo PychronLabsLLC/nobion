@@ -807,7 +807,7 @@ class ElctlExpStoreTest : public ElctlTest {
     return run_raw(args);
   }
 
-  std::string install_db() const { return "sqlite:" + (root_ / "data" / "pychron.db").string(); }
+  std::string install_db() const { return "sqlite:" + (root_ / "data" / "nobion.db").string(); }
 
   // The queue file with `from` (first occurrence) replaced by `to`.
   fs::path queue_with(const std::string& from, const std::string& to) const {
@@ -871,7 +871,7 @@ TEST_F(ElctlExpStoreTest, AnInstallsQueueGoesToItsDatabase) {
   // The install simulates and the database is its own file: saved there, and
   // each analysis says what made it.
   EXPECT_FALSE(contains(o.err, "note: simulated runs")) << o.err;
-  const auto software = software_meta(root_ / "data" / "pychron.db");
+  const auto software = software_meta(root_ / "data" / "nobion.db");
   ASSERT_EQ(software.size(), 5U);
   for (const auto& text : software) EXPECT_TRUE(contains(text, "\"simulated\":true")) << text;
 }
@@ -883,7 +883,7 @@ TEST_F(ElctlExpStoreTest, RunsTheDatabaseDidNotTakeAreSaidWithTheReason) {
   if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   {
     QSqlDatabase d = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("exp-refuse-test"));
-    d.setDatabaseName(QString::fromStdString((root_ / "data" / "pychron.db").string()));
+    d.setDatabaseName(QString::fromStdString((root_ / "data" / "nobion.db").string()));
     ASSERT_TRUE(d.open());
     QSqlQuery q(d);
     ASSERT_TRUE(q.exec(QStringLiteral(
@@ -1056,7 +1056,7 @@ TEST_F(ElctlExpStoreTest, ASchemaThatIsBehindSaysWhatToRun) {
   }
   {
     QSqlDatabase d = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("exp-store-test"));
-    d.setDatabaseName(QString::fromStdString((root_ / "data" / "pychron.db").string()));
+    d.setDatabaseName(QString::fromStdString((root_ / "data" / "nobion.db").string()));
     ASSERT_TRUE(d.open());
     QSqlQuery q(d);
     ASSERT_TRUE(q.exec(QStringLiteral("DELETE FROM schema_version WHERE version = (SELECT max(version) FROM schema_version)")));

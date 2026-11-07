@@ -196,7 +196,7 @@ Result<double> Line::read_gauge(const std::string& name) {
 
 Result<void> Line::start_scan(Duration interval) {
   stop_scan();
-  // With the hub, scan failures also reach pychron.log.
+  // With the hub, scan failures also reach nobion.log.
   scheduler_ = std::make_unique<Scheduler>(clock_, &bus_, Scheduler::Options{}, log_hub_);
   scanner_ = std::make_unique<GaugeScanner>(*scheduler_, bus_, clock_);
   for (const auto& g : config_.gauges) {

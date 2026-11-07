@@ -2,7 +2,7 @@
 
 // LogModel: bounded ring of log records (columns Time, Level, Logger,
 // Message, Thread, Run) for the log view. Qt::UserRole on any cell yields the
-// level (int); history records (loaded from pychron.log at start-up) are drawn
+// level (int); history records (loaded from nobion.log at start-up) are drawn
 // dimmed.
 
 #include <vector>

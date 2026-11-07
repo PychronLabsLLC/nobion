@@ -379,7 +379,7 @@ TEST(Logging, AbsentTableGivesDefaults) {
   EXPECT_EQ(r->logging.max_files, 10);
   EXPECT_EQ(r->logging.default_level, LogLevel::Debug);
   EXPECT_EQ(r->logging.dock_level, LogLevel::Info);
-  EXPECT_EQ(r->logging.file_name, "pychron.log");
+  EXPECT_EQ(r->logging.file_name, "nobion.log");
   EXPECT_EQ(r->logging.dir, std::nullopt);
   EXPECT_TRUE(r->logging.levels.empty());
   EXPECT_FALSE(r->logging.echo_stderr);
@@ -393,7 +393,7 @@ TEST(Logging, LoggingDefaults) {
   EXPECT_EQ(r->logging.max_files, 10);
   EXPECT_EQ(r->logging.default_level, LogLevel::Debug);
   EXPECT_EQ(r->logging.dock_level, LogLevel::Info);
-  EXPECT_EQ(r->logging.file_name, "pychron.log");
+  EXPECT_EQ(r->logging.file_name, "nobion.log");
 }
 
 TEST(Logging, LoggingEmptyDirMeansOff) {

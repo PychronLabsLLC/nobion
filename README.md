@@ -91,7 +91,7 @@ elctl --install argus --sim exp run experiment.toml --sim-speed max
 ```
 
 runs the same queue without a window and ends with
-`5/5 run(s) succeeded; in sqlite:<home>/Pychron/argus/data/pychron.db`.
+`5/5 run(s) succeeded; in sqlite:<home>/Nobion/argus/data/nobion.db`.
 
 The queue is airs and blanks only, so nothing in it has an age; dated unknowns
 on the simulator come later.

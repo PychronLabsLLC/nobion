@@ -673,13 +673,13 @@ TEST_P(AcquisitionTest, IsOneClientPerHost) {
 TEST(SavesSimulatedRuns, OnlyToAnInstallsOwnLocalDatabaseUnlessAsked) {
   using store::saves_simulated_runs;
   // The install's own database (not --db), a file here.
-  EXPECT_TRUE(saves_simulated_runs("sqlite:/lab/data/pychron.db", false, false));
+  EXPECT_TRUE(saves_simulated_runs("sqlite:/lab/data/nobion.db", false, false));
   EXPECT_TRUE(saves_simulated_runs("sqlite::memory:", false, false));
   // The install's own, on a server: shared.
   EXPECT_FALSE(saves_simulated_runs("postgresql://jross:pw@db.lab/pychron", false, false));
   EXPECT_FALSE(saves_simulated_runs("postgres://db.lab/pychron", false, false));
   // Given with --db: somebody else's until said otherwise, file or not.
-  EXPECT_FALSE(saves_simulated_runs("sqlite:/lab/data/pychron.db", true, false));
+  EXPECT_FALSE(saves_simulated_runs("sqlite:/lab/data/nobion.db", true, false));
   EXPECT_FALSE(saves_simulated_runs("postgresql://db.lab/pychron", true, false));
   // --sim-save.
   EXPECT_TRUE(saves_simulated_runs("postgresql://db.lab/pychron", false, true));

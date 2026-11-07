@@ -282,7 +282,7 @@ Choose the extraction line with the `line_source` question:
 #### The database and what setup puts in it
 
 The last question is where the database is: a file on this computer
-(`data/pychron.db`, the default) or the lab's PostgreSQL server
+(`data/nobion.db`, the default) or the lab's PostgreSQL server
 (`--set data_source=server` and the `db_*` answers, as in part 2.2). It holds
 the catalog (samples, projects, packages) and every run the instrument
 finishes: `nobion` and `elctl exp run` write each one to it, and the data
@@ -352,7 +352,7 @@ blanks) to finish with a line that names the database:
 
 ```
 queue completed
-5/5 run(s) succeeded; in sqlite:/home/you/Pychron/argus/data/pychron.db
+5/5 run(s) succeeded; in sqlite:/home/you/Nobion/argus/data/nobion.db
 ```
 
 The five runs are in the database, and `nobion --install argus` shows
@@ -429,7 +429,7 @@ CDD unprotected.
    the instrument will use (`a-01`, `ba-01`, ... as the data window shows
    them). Each is marked as simulated, but the next real air would continue
    their numbering and they would sit in the same lists as the instrument's.
-   With nobion closed, delete `<root>/data/pychron.db` (and its `-wal` and
+   With nobion closed, delete `<root>/data/nobion.db` (and its `-wal` and
    `-shm` files, and anything left in `<root>/data/spool`) and run
    `elctl init --reconfigure --install argus`, which makes and seeds a new
    one. An install whose database is on a shared server never had simulated
@@ -452,7 +452,7 @@ writes its database. Three things follow:
   that is already there:
 
   ```bash
-  elctl entry seed <root>/seed.toml --db sqlite:<root>/data/pychron.db
+  elctl entry seed <root>/seed.toml --db sqlite:<root>/data/nobion.db
   ```
 
   or reconfigure the install, which brings its files up to the current
@@ -528,10 +528,10 @@ result can depend on where runs were stopped.
 ### 3.3 Register the sources
 
 Set the store and the cache once. For the local database of a data-reduction
-install the store is `<root>/data/pychron.db`:
+install the store is `<root>/data/nobion.db`:
 
 ```bash
-DB=sqlite:$HOME/Documents/Nobion/data/pychron.db
+DB=sqlite:$HOME/Documents/Nobion/data/nobion.db
 CACHE=$HOME/Documents/Nobion/import-cache
 ```
 
@@ -660,7 +660,7 @@ result with `elctl conditionals-check conditionals/system.toml`.
 |---|---|
 | An install | File > Installations > forget it (or delete its `[[installs]]` entry in the site config), then delete the install folder. Setup never overwrites a file, so a re-run of `init` is safe |
 | A reconfigure | Files nobody edited were rewritten: `init --reconfigure` again with the old answers. Edited files were not touched; delete the `<file>.new` beside them |
-| A local import | Stop the importer, delete `<root>/data/pychron.db` (and its `-wal` and `-shm` files) and the cache directory, then `elctl init --reconfigure` to recreate an empty database |
+| A local import | Stop the importer, delete `<root>/data/nobion.db` (and its `-wal` and `-shm` files) and the cache directory, then `elctl init --reconfigure` to recreate an empty database |
 | A server import | Drop and recreate the database, and delete the cache directory. There is no command that removes one source from a store |
 | The programs | Drag Nobion to the Trash; `sudo apt remove nobion`; Windows Apps & features. Install folders and the site config are left in place |
 

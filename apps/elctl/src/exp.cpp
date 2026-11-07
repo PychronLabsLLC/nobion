@@ -333,7 +333,7 @@ class Exp {
         std::ostringstream said;
         if (std::isinf(a_.sim_speed)) said << "clock virtual max";
         else said << "clock virtual x" << a_.sim_speed;
-        hub->logger("pychron").info(said.str());
+        hub->logger("nobion").info(said.str());
       }
     }
 
@@ -617,7 +617,7 @@ fs::path state_dir_for(const fs::path& folder) {
   if (state != where) {
     static std::once_flag said;
     std::call_once(said, [&state] {
-      if (const auto hub = process_log_hub()) hub->logger("pychron").info("examples: runtime state in " + state.string());
+      if (const auto hub = process_log_hub()) hub->logger("nobion").info("examples: runtime state in " + state.string());
     });
   }
   return state;

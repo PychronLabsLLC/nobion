@@ -48,7 +48,7 @@ int failed(const std::string& message, Io io) {
 
 // What `set` was given; nullopt: kept as the install has it.
 struct SetArgs {
-  std::optional<fs::path> local;         // --local; "data/pychron.db" when given without a file
+  std::optional<fs::path> local;         // --local; "data/nobion.db" when given without a file
   std::optional<ServerDatabase> server;  // --server and --user; password from --password-stdin
   std::optional<std::string> data;
   bool password_stdin = false;

@@ -16,7 +16,7 @@
 namespace nobion::ui {
 
 // The process log hub of nobion, as elctl's: loads the logging config
-// (install root, `line_config` as the legacy table), file_name "pychron.log",
+// (install root, `line_config` as the legacy table), file_name "nobion.log",
 // resolves the folder, creates the hub on `clock`, logs the config notes and
 // begins the session. `clock_name` is what the session line says of the clock
 // ("steady", "virtual x10").

@@ -131,7 +131,7 @@ class TestDataSourcePage : public QObject {
     auto* local = page.editor(QStringLiteral("data_source"))->findChild<QRadioButton*>(QStringLiteral("data_source-local"));
     QVERIFY(local != nullptr);
     QVERIFY(local->isChecked());
-    QCOMPARE(text_of(page.editor(QStringLiteral("db_file"))), QStringLiteral("data/pychron.db"));
+    QCOMPARE(text_of(page.editor(QStringLiteral("db_file"))), QStringLiteral("data/nobion.db"));
     QCOMPARE(text_of(page.editor(QStringLiteral("data_folder"))), QStringLiteral("data"));
     QVERIFY(page.editor(QStringLiteral("db_file"))->isVisibleTo(&page));
     for (const char* id : {"db_host", "db_port", "db_name", "db_user", "db_password"})

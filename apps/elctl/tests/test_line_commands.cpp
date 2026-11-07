@@ -163,7 +163,7 @@ TEST_F(ElctlTest, LoggingConfigCreatesLogFile) {
 
   auto o = run({"--sim", "probe"});
   EXPECT_EQ(o.code, 0) << o.out << o.err;
-  EXPECT_TRUE(std::filesystem::exists(logs / "pychron.log")) << o.err;
+  EXPECT_TRUE(std::filesystem::exists(logs / "nobion.log")) << o.err;
 }
 
 // The example line plus two PLC heaters, one without setpoint or use_pid.
