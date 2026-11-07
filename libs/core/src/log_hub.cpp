@@ -59,6 +59,11 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#ifdef __APPLE__
+#include <sys/ucontext.h>
+#else
+#include <ucontext.h>
+#endif
 #endif
 
 #include "log_hub_internal.hpp"
@@ -1173,7 +1178,41 @@ void write_frames(const CrashTargets& targets) noexcept {
   }
 }
 
-void on_fatal_signal(int sig, siginfo_t* /*info*/, void* /*context*/) {
+// The interrupted instruction, from the signal's machine context; 0 where
+// this file does not know the context's layout.
+std::uintptr_t faulting_pc(const void* context) noexcept {
+  if (context == nullptr) return 0;
+  const auto* uc = static_cast<const ucontext_t*>(context);
+#if defined(__APPLE__) && defined(__aarch64__)
+  return static_cast<std::uintptr_t>(__darwin_arm_thread_state64_get_pc(uc->uc_mcontext->__ss));
+#elif defined(__APPLE__) && defined(__x86_64__)
+  return static_cast<std::uintptr_t>(uc->uc_mcontext->__ss.__rip);
+#elif defined(__linux__) && defined(__x86_64__)
+  return static_cast<std::uintptr_t>(uc->uc_mcontext.gregs[REG_RIP]);
+#elif defined(__linux__) && defined(__aarch64__)
+  return static_cast<std::uintptr_t>(uc->uc_mcontext.pc);
+#else
+  (void)uc;
+  return 0;
+#endif
+}
+
+// `pc 0x<hex>`: the faulting instruction, exact, where every backtrace frame
+// is a return address. glibc's backtrace() has it as the frame after the
+// signal trampoline; macOS's goes from the trampoline to the faulting
+// function's caller and leaves it out. tools/symbolize.py names it as it is
+// and looks every other frame up at address - 1.
+void write_pc_line(const CrashTargets& targets, std::uintptr_t pc) noexcept {
+  if (pc == 0) return;
+  std::array<char, 28> line{};
+  std::size_t pos = 0;
+  for (const char c : std::string_view("pc 0x")) line[pos++] = c;
+  pos = put_unsigned(line.data(), pos, pc, 16);
+  line[pos++] = '\n';
+  write_to_all(targets, line.data(), pos);
+}
+
+void on_fatal_signal(int sig, siginfo_t* /*info*/, void* context) {
   // First act: a handler stuck for any reason still ends the process.
   ::alarm(kHandlerAlarmSeconds);
   // A second thread crashing meanwhile waits for the first to end the
@@ -1194,6 +1233,7 @@ void on_fatal_signal(int sig, siginfo_t* /*info*/, void* /*context*/) {
   }
   write_to_all(targets, g_build_line.data(), g_build_line_size);
   write_thread_line(targets);
+  write_pc_line(targets, faulting_pc(context));
   write_frames(targets);
   // The module map is long (hundreds of lines in the app): the crash file
   // has it, stderr only when there is no crash file.

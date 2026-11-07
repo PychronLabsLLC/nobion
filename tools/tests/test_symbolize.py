@@ -22,6 +22,7 @@ CRASH = textwrap.dedent("""\
     fatal signal 11
     build 0.4.0+35feab69c7f5
     thread crash_helper.main
+    pc 0x10221d000
     0x10221c520
     0x10221b82c
     0x181b03744
@@ -44,6 +45,10 @@ class Parse(unittest.TestCase):
         self.assertEqual(crash.frames, [0x10221C520, 0x10221B82C, 0x181B03744])
         self.assertEqual(crash.modules[0], symbolize.Module("/opt/nobion/bin/crash_helper", 0x1021FC000, 0xC0000))
         self.assertEqual(len(crash.modules), 2)
+
+    def test_the_pc_line(self):
+        self.assertEqual(symbolize.parse_crash(CRASH).pc, 0x10221D000)
+        self.assertIsNone(symbolize.parse_crash("0x10\n").pc)
 
     def test_a_module_path_with_spaces(self):
         crash = symbolize.parse_crash("0x10\nmodule /Applications/My App/bin/x 0x0 0x20\n")
@@ -91,14 +96,34 @@ class Run(unittest.TestCase):
         result = self.run_tool(str(self.crash), "--symbols", str(self.symbols), "--os", "macos")
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.calls("atos")
-        self.assertEqual(len(calls), 3)
-        self.assertEqual(calls[0], f"-o {dwarf / 'crash_helper'} -l 0x1021fc000 0x10221c520")
-        self.assertEqual(calls[1], f"-o {dwarf / 'crash_helper'} -l 0x1021fc000 0x10221b82b")  # return address - 1
-        self.assertIn("-l 0x181a09000 0x181b03743", calls[2])
+        self.assertEqual(len(calls), 4)
+        self.assertEqual(calls[0], f"-o {dwarf / 'crash_helper'} -l 0x1021fc000 0x10221d000")  # pc: as it is
+        self.assertEqual(calls[1], f"-o {dwarf / 'crash_helper'} -l 0x1021fc000 0x10221c51f")  # return address - 1
+        self.assertEqual(calls[2], f"-o {dwarf / 'crash_helper'} -l 0x1021fc000 0x10221b82b")
+        self.assertIn("-l 0x181a09000 0x181b03743", calls[3])
+        self.assertIn("pc main crash_helper.cpp:86", result.stdout)
         lines = self.frame_lines(result)
         self.assertEqual(lines[0], "#0 main crash_helper.cpp:86")
         self.assertEqual(len(lines), 3)
         self.assertIn("return addresses", result.stdout.splitlines()[0])
+
+    def test_a_frame_equal_to_the_pc_is_looked_up_as_it_is(self):
+        # glibc's backtrace() has the faulting instruction as the frame after
+        # the signal trampoline: exact, not a return address.
+        stand_in(self.bin, "addr2line", "main\n/src/crash_helper.cpp:86")
+        self.crash.write_text("pc 0x1050\n0x1010\n0x1020\n0x1050\n0x1030\nmodule /x/crash_helper 0x1000 0x100\n")
+        result = self.run_tool(str(self.crash), "--symbols", str(self.symbols), "--os", "linux")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        offsets = [c.split()[-1] for c in self.calls("addr2line")]
+        self.assertEqual(offsets, ["0x50", "0xf", "0x1f", "0x50", "0x2f"])
+
+    def test_without_a_pc_line_every_frame_is_a_return_address(self):
+        stand_in(self.bin, "addr2line", "main\n/src/crash_helper.cpp:86")
+        self.crash.write_text("0x1010\n0x1020\nmodule /x/crash_helper 0x1000 0x100\n")
+        result = self.run_tool(str(self.crash), "--symbols", str(self.symbols), "--os", "linux")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([c.split()[-1] for c in self.calls("addr2line")], ["0xf", "0x1f"])
+        self.assertNotIn("\npc ", result.stdout)
 
     def test_linux_offset_into_the_module_and_the_debug_file(self):
         stand_in(self.bin, "addr2line", "main\n/src/tests/core/crash_helper.cpp:86")
@@ -106,8 +131,9 @@ class Run(unittest.TestCase):
         result = self.run_tool(str(self.crash), "--symbols", str(self.symbols), "--os", "linux")
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.calls("addr2line")
-        self.assertEqual(calls[0], f"-f -C -e {self.symbols / 'crash_helper.debug'} 0x20520")
-        self.assertEqual(calls[1], f"-f -C -e {self.symbols / 'crash_helper.debug'} 0x1f82b")
+        self.assertEqual(calls[0], f"-f -C -e {self.symbols / 'crash_helper.debug'} 0x21000")  # pc
+        self.assertEqual(calls[1], f"-f -C -e {self.symbols / 'crash_helper.debug'} 0x2051f")
+        self.assertEqual(calls[2], f"-f -C -e {self.symbols / 'crash_helper.debug'} 0x1f82b")
         self.assertEqual(self.frame_lines(result)[0], "#0 main /src/tests/core/crash_helper.cpp:86")
 
     def test_linux_prefers_llvm_symbolizer_when_present(self):

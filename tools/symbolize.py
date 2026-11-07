@@ -4,16 +4,21 @@
     python3 tools/symbolize.py <crash file> --symbols <dir> [--os macos|linux]
 
 <crash file> is `<log dir>/crash/<stem>-<pid>.txt` (libs/core signal_stack.cpp):
-frame lines `0x<hex>`, one per line, and module lines
-`module <path> 0x<load hex> 0x<size hex>`. <dir> holds the release's split
+frame lines `0x<hex>`, one per line, the faulting instruction's line
+`pc 0x<hex>`, and module lines `module <path> 0x<load hex> 0x<size hex>`. <dir> holds the release's split
 symbols (tools/split_symbols.py output, unpacked): `<name>.dSYM` bundles on
 macOS, `<name>.debug` files on Linux. A frame is looked up in the module whose
 range holds it; with no symbol file for that module the module's own path is
 tried (a build tree's binary still has its debug info).
 
-Prints `#n function file:line` per frame. Every frame after the first holds a
-return address, the instruction after the call: it is looked up at address - 1,
-so the line is the call's, not the next statement's. Exit status 1: no frame
+Prints `pc function file:line` for the faulting instruction, then
+`#n function file:line` per frame. backtrace() in the handler gives return
+addresses (the handler's own frames, the signal trampoline, then the
+interrupted code's callers), each the instruction after a call: looked up at
+address - 1, so the line is the call's, not the next statement's. The one
+exception is a frame equal to the pc: glibc's backtrace() has the faulting
+instruction itself after the trampoline, and it is looked up as it is
+(macOS's leaves it out; the pc line names it). Exit status 1: no frame
 resolved to a file and line (symbols that do not match the crash, say); 2: the
 crash file or a tool (atos, addr2line) is missing. A `.dmp` (Windows) is not read here:
 the steps for WinDbg and Visual Studio are printed instead.
@@ -40,6 +45,7 @@ class Module:
 class Crash:
     frames: list
     modules: list
+    pc: int = None
 
     def module_of(self, address):
         for module in self.modules:
@@ -49,18 +55,21 @@ class Crash:
 
 
 _FRAME = re.compile(r"^0x([0-9a-fA-F]+)$")
+_PC = re.compile(r"^pc 0x([0-9a-fA-F]+)$")
 _MODULE = re.compile(r"^module (.+) 0x([0-9a-fA-F]+) 0x([0-9a-fA-F]+)$")
 
 
 def parse_crash(text):
-    frames, modules = [], []
+    frames, modules, pc = [], [], None
     for line in text.splitlines():
         line = line.strip()
         if m := _FRAME.match(line):
             frames.append(int(m.group(1), 16))
+        elif m := _PC.match(line):
+            pc = int(m.group(1), 16)
         elif m := _MODULE.match(line):
             modules.append(Module(m.group(1), int(m.group(2), 16), int(m.group(3), 16)))
-    return Crash(frames, modules)
+    return Crash(frames, modules, pc)
 
 
 def find_macos_symbols(symbols, module):
@@ -155,21 +164,25 @@ def main(argv=None):
         print(f"{args.crash_file}: no frame lines", file=sys.stderr)
         return 1
     resolve = symbolize_macos if args.os == "macos" else symbolize_linux
-    print("frames after #0 are return addresses, looked up at address - 1")
+    print("frames are return addresses, looked up at address - 1; pc (and a frame equal to it) as it is")
+    # (label, address written, address looked up)
+    lookups = [("pc", crash.pc, crash.pc)] if crash.pc is not None else []
+    lookups += [(f"#{n}", address, address if address == crash.pc else address - 1)
+                for n, address in enumerate(crash.frames)]
     resolved = 0
-    for n, address in enumerate(crash.frames):
+    for label, address, lookup in lookups:
         module = crash.module_of(address)
         if module is None:
-            print(f"#{n} {hex(address)} (no module)")
+            print(f"{label} {hex(address)} (no module)")
             continue
         try:
-            text, ok = resolve(args.symbols, crash, address - (1 if n else 0), module)
+            text, ok = resolve(args.symbols, crash, lookup, module)
         except FileNotFoundError as e:
             print(f"symbolize: {e.filename} not found: install it, or run on the platform of the crash",
                   file=sys.stderr)
             return 2
         resolved += ok
-        print(f"#{n} {text}")
+        print(f"{label} {text}")
     if not resolved:
         print("symbolize: no frame resolved to a file and line", file=sys.stderr)
         return 1

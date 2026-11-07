@@ -169,7 +169,9 @@ void check_crash_file(const std::string& mode, std::initializer_list<int> signal
   bool build_line = false;
   bool thread_line = false;
   bool helper_module = false;
+  std::string pc;  // the `pc 0x..` line's address: the faulting instruction
   const std::regex frame_re("^0x[0-9a-f]+$");
+  const std::regex pc_re("^pc (0x[0-9a-f]+)$");
   const std::regex module_re("^module (.+) 0x[0-9a-f]+ 0x[0-9a-f]+$");
   for (const auto& line : lines) {
     if (line == "fatal signal " + std::to_string(sig)) signal_line = true;
@@ -177,6 +179,7 @@ void check_crash_file(const std::string& mode, std::initializer_list<int> signal
     if (thread.empty() ? line.starts_with("thread ") : line == "thread " + thread) thread_line = true;
     if (std::regex_match(line, frame_re)) ++frames;
     std::smatch m;
+    if (std::regex_match(line, m, pc_re)) pc = m[1].str();
     if (std::regex_match(line, m, module_re)) {
       if (m[1].str().ends_with("crash_helper")) helper_module = true;
     }
@@ -186,6 +189,11 @@ void check_crash_file(const std::string& mode, std::initializer_list<int> signal
   EXPECT_TRUE(thread_line) << (thread.empty() ? std::string("a thread line") : "thread " + thread) << "\n" << text;
   EXPECT_GE(frames, 3u) << text;
   EXPECT_TRUE(helper_module) << text;
+  // The faulting instruction, which tools/symbolize.py looks up as it is
+  // (every frame line is a return address, looked up at address - 1, unless
+  // it equals this). Not always among the frames: macOS's backtrace() goes
+  // from the signal trampoline to the faulting function's caller.
+  EXPECT_FALSE(pc.empty()) << "a pc line\n" << text;
 }
 
 std::vector<std::string> expect_crash_file(const std::string& mode, std::initializer_list<int> signals,
