@@ -96,7 +96,7 @@ POSIX rules for the handler (signal context): no allocation, no lock, no stdio, 
 Our code built with the standard library's cheap checks: out-of-range index, empty optional dereferenced, bad iterator become a clean abort (and crash file) instead of silent corruption.
 
 - libstdc++: `_GLIBCXX_ASSERTIONS` (aborts: `SIGABRT`).
-- libc++ (detected by `_LIBCPP_VERSION` in a configure check): version ≥ 17 (Apple clang 15+): `_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST` (traps: `SIGILL` x86-64, `SIGTRAP` arm64); older: none.
+- libc++: configure check is for the capability, not a version: `<version>` must define `_LIBCPP_HARDENING_MODE_FAST` (libc++ 18+, and Apple clang 15+ whose `_LIBCPP_VERSION` 170006 carries the mechanism; upstream 17 used `_LIBCPP_ENABLE_HARDENED_MODE` and fails the check). Passes: `_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST` (traps: `SIGILL` x86-64, `SIGTRAP` arm64); fails: none.
 - MSVC: none (`_ITERATOR_DEBUG_LEVEL` changes ABI; Qt built at 0). About features say `hardened_stdlib=off` there.
 - `cmake/NobionHardening.cmake` applies them to `nobion_*` targets and both apps, every build type (a dev build fails the way a lab build does). Not applied when `NOBION_SANITIZE` is set: the sanitizer setup already turns on the library checks (root `AGENTS.md`) and wins.
 - Claim: no change to class layout in either library, so prebuilt Qt and Homebrew libraries link unchanged. Inline functions instantiated by both our code and a third-party target get different bodies (ODR); benign in practice, and the full `dev-ui` suite on the macOS UI CI job under the macros is the check.

@@ -5,8 +5,10 @@
 # undefined behaviour.
 #
 #   libstdc++            _GLIBCXX_ASSERTIONS
-#   libc++ 17 or later   _LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST
-#   libc++ before 17     nothing (no hardening modes)
+#   libc++ with hardening modes  _LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST
+#                        (a capability check, not a version: upstream 17 has
+#                        another macro, Apple's 170006 has this one)
+#   other libc++         nothing
 #   MSVC                 nothing (its debug checks are not a release build's)
 #
 # NOBION_HARDENED_STDLIB is the answer, and what has_feature("hardened_stdlib")
@@ -29,16 +31,14 @@ if(NOT NOBION_SANITIZE AND NOT MSVC)
 int main() { return 0; }" NOBION_STDLIB_IS_LIBSTDCXX)
   check_cxx_source_compiles("
 #include <version>
-#ifndef _LIBCPP_VERSION
-#error not libc++
-#elif _LIBCPP_VERSION < 170000
-#error libc++ without hardening modes
+#ifndef _LIBCPP_HARDENING_MODE_FAST
+#error no libc++ hardening modes
 #endif
-int main() { return 0; }" NOBION_STDLIB_IS_LIBCXX_17)
+int main() { return 0; }" NOBION_STDLIB_HAS_LIBCXX_HARDENING_MODES)
 
   if(NOBION_STDLIB_IS_LIBSTDCXX)
     set(NOBION_HARDENING_DEFINITIONS _GLIBCXX_ASSERTIONS)
-  elseif(NOBION_STDLIB_IS_LIBCXX_17)
+  elseif(NOBION_STDLIB_HAS_LIBCXX_HARDENING_MODES)
     set(NOBION_HARDENING_DEFINITIONS _LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST)
   endif()
   if(NOBION_HARDENING_DEFINITIONS)

@@ -40,7 +40,11 @@ TEST(BuildInfo, HardenedStdlibOnWhereSupported) {
   constexpr bool checks_on = false;
 #endif
   EXPECT_EQ(nobion::has_feature("hardened_stdlib"), checks_on);
-#if defined(__GLIBCXX__) || (defined(_LIBCPP_VERSION) && _LIBCPP_VERSION >= 170000)
+#if defined(_LIBCPP_HARDENING_MODE_FAST)
+  // True only if the library understood the macro the build defined.
+  EXPECT_TRUE(nobion::has_feature("hardened_stdlib"));
+  EXPECT_TRUE(_LIBCPP_HARDENING_MODE == _LIBCPP_HARDENING_MODE_FAST || _LIBCPP_HARDENING_MODE == _LIBCPP_HARDENING_MODE_EXTENSIVE);
+#elif defined(__GLIBCXX__)
   EXPECT_TRUE(nobion::has_feature("hardened_stdlib"));
 #endif
 }
