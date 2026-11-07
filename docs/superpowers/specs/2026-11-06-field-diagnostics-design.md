@@ -131,7 +131,8 @@ Last minutes of everything, in memory, written out when something goes wrong.
 
 - One byte ring of `size_mb`, allocated once at hub start (`[recorder] enabled = false`: none); its pointer never changes. Lines as the file writes them (same format, stamp). Producer formats into a thread-local buffer, then copies under a mutex held only for the copy; head and tail indices `std::atomic<std::uint64_t>`. Oldest whole lines overwritten; a line longer than the ring keeps its first `size - 1` bytes. A record that reaches file and ring formatted once: hub formats the whole file line (stamp from hub clock, level, thread, run, logger, message) on calling thread, ring takes it, file sink writes it as is (pattern `%v`).
 - Internal class `detail::ByteRing` (`libs/core/src/byte_ring.hpp`): `append`, `snapshot`, `spans` (two contiguous runs, read lock-free).
-- `LogHub::recorder_snapshot()` → `std::string`, oldest first, whole lines only.
+- `LogHub::recorder_snapshot()` → `std::string`, oldest first, whole lines only. Snapshot buffer given room for whole ring before ring mutex taken; under mutex only copy (writers never wait on allocation).
+- Ring allocation fails (`bad_alloc`): one startup error, hub runs without ring, recorder level back to off (no rule), so `enabled()` formats nothing nothing keeps. `LogHub::set_recorder_levels` changes nothing without ring (recorder off or not allocated).
 
 ### 5.3 When it is written out
 
@@ -185,19 +186,22 @@ Bounds: crash file can hold whole ring, so `<log dir>/crash` holds up to 20 × (
 `libs/core` `hang_monitor.hpp`. One thread, real time on purpose: it watches threads that may hold the virtual clock. Added to the real-time list in `docs/superpowers/specs/2026-10-06-virtual-clock-design.md` §4.4 in the same branch.
 
 ```cpp
-struct HangMonitorOptions { std::chrono::milliseconds poll{1000}; };  // outside the class: `Options o = {}` default
+struct HangMonitorOptions {  // outside the class: `Options o = {}` default
+  std::chrono::milliseconds poll{1000};
+  std::chrono::milliseconds detach_wait{5000};  // detach()'s bound on a report in progress
+};
 class HangMonitor {
  public:
   using Options = HangMonitorOptions;
-  explicit HangMonitor(Options o = {});  // unattached: watches, reports nothing
+  explicit HangMonitor(Options o = {});  // unattached: hands out beats, no thread, reports nothing
   HangMonitor(LogHub& log, IDumpRequester& recorder, SignalBus& bus, Options o = {});  // made attached
   ~HangMonitor();  // stops and joins
   void attach(LogHub& log, IDumpRequester& recorder, SignalBus& bus, const Clock* clock = nullptr);
-  void detach();   // no more reports; returns once a report in progress is done
+  void detach();   // no more reports; returns once a report in progress is done, or after detach_wait
   class DetachOnExit;  // RAII: detach() in destructor
   class Beat {     // movable; destructor unregisters; may outlive monitor (pulses then go nowhere)
    public:
-    void pulse() noexcept;  // lock-free: atomic stores of steady_clock::now() and the beat's limit; arms a disarmed beat
+    void pulse() noexcept;  // lock-free: atomic stores of steady_clock::now() and the beat's limit (order below); arms a disarmed beat
     void pulse(std::chrono::milliseconds limit) noexcept;  // this episode's limit only
     void disarm() noexcept; // not watched until the next pulse
   };
@@ -206,14 +210,17 @@ class HangMonitor {
 ```
 
 - Takes `IDumpRequester&` (5.3), not `FlightRecorderTriggers&`: tests give a fake. Monitor thread calls `install_signal_stack()` first.
-- Late attach: apps make the monitor before the line (its transports are built in `ExtractionLine::load`, the bus is the line's, triggers come after the line), pass it in `ExtractionLineOptions::hang_monitor` and `SpectrometerContext::hang_monitor`, `attach` once triggers exist, `DetachOnExit` declared after triggers so detach happens before triggers, line or bus go. Unattached: polls, looks at no beat, marks nothing reported: beat silent before `attach` reported once attached. `detach` waits for a report in progress (a hung bus handler would hold it, as it holds the destructor's join).
+- Late attach: apps make the monitor before the line (its transports are built in `ExtractionLine::load`, the bus is the line's, triggers come after the line), pass it in `ExtractionLineOptions::hang_monitor` and `SpectrometerContext::hang_monitor`, `attach` once triggers exist, `DetachOnExit` declared after triggers so detach happens before triggers, line or bus go. Monitor thread started by first `attach`, not by constructor: app with no hub (so no triggers) never attaches and runs no thread that could never report. Unattached: looks at no beat, marks nothing reported: beat silent before `attach` reported once attached.
+- `detach` waits for a report in progress at most `Options::detach_wait` (5 s), then returns all the same and logs `warn` `hang monitor: detach gave up waiting for a report in progress after <ms> ms` on logger `hang`: shutdown ends even with a stuck report. Every `detach` bumps a counter; a report whose copy of it is stale makes no further call to recorder or bus (checked before `request` and before the publish). A report stuck inside a recorder or bus call when `detach` gives up still returns into that object: bound traded for a shutdown that ends.
+- Pulse ordering: monitor loads limit, then last pulse. A pulse shortening the limit stores last pulse, then limit; one keeping or lengthening it stores limit, then last pulse. So monitor never pairs a short new limit with an old stamp (false hang right after a long-timeout call).
 - `Alarm::ts`: `clock->now()` of the clock given to `attach` (apps: the line's); unset without one. Nothing sorts or dedupes alarms by `ts` (alarm dock stamps rows by its own clock); `elctl scan` prints it.
 - Not `Scheduler::watchdog`: that runs on the injected clock and the scheduler pool, which are among the things that hang.
-- An armed beat silent past its limit, in order: one `error` record `hang: <name> silent for <s> s` on logger `hang`; `recorder.request("hang-<name>")`; then a warning `Alarm{source = "hang"}` published from the monitor thread (last, since a hung bus handler may block the publish). Once per episode: next report only after a pulse.
+- An armed beat silent past its limit, in order: `error` record `hang: <name> silent for <s> s` on logger `hang` into ring only (`Logger::record`: waits on nothing); `recorder.request("hang-<name>")`; same record to file, stderr, bus (`Logger::log_unrecorded`: an `error` record waits for the file writer, and a hung disk can be what hangs, so it comes after the dump is asked for; ring holds the line once); then a warning `Alarm{source = "hang"}` published from the monitor thread (last, since a hung bus handler may block the publish). Once per episode: next report only after a pulse.
+- `Logger::record(level, m)` (ring only, when `enabled(level)`; no hub or no ring: dropped) and `Logger::log_unrecorded(level, m)` (`log` without the ring; no hub: `log`).
 - Beats:
   - `ui.main`: a `QTimer` 1 s on the main thread pulses; limit 10 s. Always registered (Qt timers are real time). nobion registers it just before `QApplication::exec()` and lets it go when the event loop returns: startup steps and teardown (closing windows, joining a running queue) hold the main thread on purpose.
   - `scheduler`: an `every("hang.beat", 1 s)` job pulses; limit 30 s. Registered only on a `SteadyClock`, once the line has started (nobion `main`, `elctl exp run`). Before the line stops: job `cancel_and_wait`, then beat disarmed (job keeps a copy of the beat).
-  - `transport.<name>`: registered disarmed (idle transports unwatched). `QueuedTransport` worker pulses when it starts a job and before every wire call in it (`do_open`, each `exchange` attempt, `write`, `read`, `poll`; calls made inline inside a `transaction` too), disarms when the job ends: beat measures silence between wire calls, not job length (a transaction of many short exchanges is no hang). Base limit `TransportOptions::hang_limit`, unset: `max(30 s, 10 × timeout × (retries + 1))`. A call given an explicit timeout longer than the configured one pulses with `max(base, 10 × its timeout)` for that episode. Its waits unchanged (clock rules). Registered only when `dynamic_cast<const VirtualClock*>(clock) == nullptr` (the one gate; callers pass the monitor whatever their clock): under a `VirtualClock` simulated waits have no fixed real-time length. Reached through `TransportOptions::hang_monitor` (`HangMonitor*`), set by `make_transport` from `TransportContext::hang_monitor`; set by `ExtractionLine` (from its options), `SpectrometerAssembler` (from `SpectrometerContext`), `elctl` `Line` (its own monitor, attached at once).
+  - `transport.<name>`: registered disarmed (idle transports unwatched). `QueuedTransport` worker pulses when it starts a job and before every wire call in it (`do_open`, each `exchange` attempt, `write`, `read`, `poll`; calls made inline inside a `transaction` too), disarms when the job ends: beat measures silence between wire calls, not job length (a transaction of many short exchanges is no hang). Base limit `TransportOptions::hang_limit`, unset: `max(30 s, 10 × timeout × (retries + 1))`. A call given an explicit timeout longer than the configured one pulses with `max(base, 10 × its timeout)` for that episode. Its waits unchanged (clock rules). Registered only when `dynamic_cast<const VirtualClock*>(clock) == nullptr` (the one gate; callers pass the monitor whatever their clock): under a `VirtualClock` simulated waits have no fixed real-time length. Reached through `TransportOptions::hang_monitor` (`HangMonitor*`), set by `make_transport` from `TransportContext::hang_monitor`; set by `ExtractionLine` (from its options), `SpectrometerAssembler` (from `SpectrometerContext`), `elctl` `Line` (its own monitor, attached at once). `LinkTransport` (`kind = "link"`) is not a `QueuedTransport` and has no beat: it makes no wire call (every I/O call fails `Config`); a driver sharing the vendor link (NGX) works through the owner's transport.
   - executor: none (waits on purpose for hours); a run stuck in one phase stays the metrics `NobionStuck` alert's job.
 - Stacks of the hung thread: out of scope (no portable in-process way). `docs/installation_runbook.md` and the bundle README give per-OS commands: `sample <pid> 10` (macOS), `gdb -p <pid> -batch -ex "thread apply all bt"` or `eu-stack -p <pid>` (Linux), `procdump -ma <pid>` (Windows).
 

@@ -8,6 +8,8 @@
 #include <mutex>
 #include <optional>
 #include <sstream>
+#include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -29,6 +31,21 @@ std::int64_t steady_stamp() noexcept {
   const auto ns =
       std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch());
   return std::max<std::int64_t>(1, ns.count());
+}
+
+// A pulse's two stores, ordered against the monitor, which loads the limit
+// and then the last pulse: whichever pair it sees, the limit it uses belongs
+// to the pulse it measures from or to an earlier, older one with a longer
+// limit, never a short limit with an old stamp (a false hang right after a
+// long call). Shortening: the stamp first; lengthening: the limit first.
+void store_pulse(std::atomic<std::int64_t>& limit, std::atomic<std::int64_t>& last, std::int64_t new_limit) noexcept {
+  if (new_limit < limit.load()) {  // only the watched thread writes `limit`
+    last.store(steady_stamp());
+    limit.store(new_limit);
+  } else {
+    limit.store(new_limit);
+    last.store(steady_stamp());
+  }
 }
 
 }  // namespace
@@ -59,10 +76,20 @@ struct HangState {
   IDumpRequester* recorder = nullptr;
   SignalBus* bus = nullptr;
   const Clock* clock = nullptr;
-  bool reporting = false;  // the monitor thread is using the four above
+  bool reporting = false;     // the monitor thread is using the four above
+  std::uint64_t detaches = 0;  // bumped by every detach(): a report started before one stops using them
+  std::thread::id monitor;    // the monitor thread, once attach() has started it
 };
 
 }  // namespace detail
+
+struct HangMonitor::Target {
+  std::optional<Logger> logger;
+  IDumpRequester* recorder = nullptr;
+  SignalBus* bus = nullptr;
+  const Clock* clock = nullptr;
+  std::uint64_t detaches = 0;  // HangState::detaches when it was copied
+};
 
 HangMonitor::Beat::Beat(std::shared_ptr<detail::HangState> state, std::shared_ptr<detail::HangEntry> entry) noexcept
     : state_(std::move(state)), entry_(std::move(entry)) {}
@@ -80,14 +107,12 @@ HangMonitor::Beat& HangMonitor::Beat::operator=(Beat&& other) noexcept {
 
 void HangMonitor::Beat::pulse() noexcept {
   if (!entry_) return;
-  entry_->limit.store(entry_->base_limit.count());
-  entry_->last.store(steady_stamp());
+  store_pulse(entry_->limit, entry_->last, entry_->base_limit.count());
 }
 
 void HangMonitor::Beat::pulse(std::chrono::milliseconds limit) noexcept {
   if (!entry_) return;
-  entry_->limit.store(std::chrono::duration_cast<std::chrono::nanoseconds>(limit).count());
-  entry_->last.store(steady_stamp());
+  store_pulse(entry_->limit, entry_->last, std::chrono::duration_cast<std::chrono::nanoseconds>(limit).count());
 }
 
 void HangMonitor::Beat::disarm() noexcept {
@@ -105,7 +130,7 @@ void HangMonitor::Beat::reset() noexcept {
 
 HangMonitor::HangMonitor(Options options) : options_(options), state_(std::make_shared<detail::HangState>()) {
   options_.poll = std::max(options_.poll, std::chrono::milliseconds(1));
-  thread_ = std::thread([this] { run(); });
+  options_.detach_wait = std::max(options_.detach_wait, std::chrono::milliseconds(0));
 }
 
 HangMonitor::HangMonitor(LogHub& log, IDumpRequester& recorder, SignalBus& bus, Options options)
@@ -114,6 +139,7 @@ HangMonitor::HangMonitor(LogHub& log, IDumpRequester& recorder, SignalBus& bus, 
 }
 
 HangMonitor::~HangMonitor() {
+  if (!thread_.joinable()) return;  // never attached: no thread was started
   {
     const std::lock_guard lock(state_->mutex);
     state_->stopping = true;
@@ -129,17 +155,38 @@ void HangMonitor::attach(LogHub& log, IDumpRequester& recorder, SignalBus& bus, 
   state_->recorder = &recorder;
   state_->bus = &bus;
   state_->clock = clock;
+  // Started here, not in the constructor: an app that never has anything to
+  // report to never runs it. Under the mutex: the thread's first look at the
+  // state waits for it, and detach() reads `monitor` under it.
+  if (!thread_.joinable()) {
+    thread_ = std::thread([this] { run(); });
+    state_->monitor = thread_.get_id();
+  }
 }
 
 void HangMonitor::detach() {
-  std::unique_lock lock(state_->mutex);
-  state_->recorder = nullptr;
-  state_->bus = nullptr;
-  state_->clock = nullptr;
-  // From inside a report (a bus handler on the monitor thread) there is
-  // nothing to wait for: the report goes on with its own copies.
-  if (std::this_thread::get_id() != thread_.get_id()) state_->idle.wait(lock, [this] { return !state_->reporting; });
-  state_->logger.reset();
+  std::optional<Logger> logger;
+  bool gave_up = false;
+  {
+    std::unique_lock lock(state_->mutex);
+    state_->recorder = nullptr;
+    state_->bus = nullptr;
+    state_->clock = nullptr;
+    ++state_->detaches;
+    // From inside a report (a bus handler on the monitor thread) there is
+    // nothing to wait for: the report goes on with its own copies.
+    if (std::this_thread::get_id() != state_->monitor) {
+      gave_up = !state_->idle.wait_for(lock, options_.detach_wait, [this] { return !state_->reporting; });
+    }
+    logger = std::move(state_->logger);
+    state_->logger.reset();
+  }
+  // The report still going is stuck in its log record or in a call to the
+  // recorder; it makes no call to the recorder or the bus once that returns.
+  if (gave_up && logger) {
+    logger->warn("hang monitor: detach gave up waiting for a report in progress after " +
+                 std::to_string(options_.detach_wait.count()) + " ms");
+  }
 }
 
 HangMonitor::Beat HangMonitor::beat(std::string name, std::chrono::milliseconds limit, bool armed) {
@@ -169,25 +216,25 @@ void HangMonitor::run() {
       entries = state_->entries;
     }
     for (const auto& entry : entries) {
+      // The limit before the stamp: the order store_pulse() writes against.
+      const std::int64_t limit = entry->limit.load();
       const std::int64_t last = entry->last.load();
       if (last == 0 || last == entry->reported) continue;
       const auto silent = std::chrono::nanoseconds(steady_stamp() - last);
-      if (silent.count() <= entry->limit.load()) continue;
-      std::optional<Logger> logger;
-      IDumpRequester* recorder = nullptr;
-      SignalBus* bus = nullptr;
-      const Clock* clock = nullptr;
+      if (silent.count() <= limit) continue;
+      Target target;
       {
         const std::lock_guard lock(state_->mutex);
         if (state_->recorder == nullptr) break;  // detached meanwhile: nothing marked
-        logger = state_->logger;
-        recorder = state_->recorder;
-        bus = state_->bus;
-        clock = state_->clock;
+        target.logger = state_->logger;
+        target.recorder = state_->recorder;
+        target.bus = state_->bus;
+        target.clock = state_->clock;
+        target.detaches = state_->detaches;
         state_->reporting = true;
       }
       entry->reported = last;  // once per episode: the next report needs a pulse
-      report(*entry, silent, *logger, *recorder, *bus, clock);
+      report(*entry, silent, target);
       {
         const std::lock_guard lock(state_->mutex);
         state_->reporting = false;
@@ -198,21 +245,33 @@ void HangMonitor::run() {
   }
 }
 
-void HangMonitor::report(const detail::HangEntry& entry, std::chrono::nanoseconds silent, const Logger& logger,
-                         IDumpRequester& recorder, SignalBus& bus, const Clock* clock) {
+bool HangMonitor::still_attached(const Target& target) const {
+  const std::lock_guard lock(state_->mutex);
+  return state_->detaches == target.detaches;
+}
+
+// The order is what a hung disk or bus leaves standing (spec 6): the record
+// goes into the ring first, which waits on nothing, so the dump asked for
+// next has it; then the dump; then the record to the file, which an `error`
+// record waits for (a hung disk holds it there); the Alarm last, since a hung
+// bus handler may block the publish. A detach() that gave up waiting for this
+// report ends it at the next step that would use the recorder or the bus.
+void HangMonitor::report(const detail::HangEntry& entry, std::chrono::nanoseconds silent, const Target& target) {
   std::ostringstream text;
   text << "hang: " << entry.name << " silent for " << std::fixed << std::setprecision(1)
        << std::chrono::duration<double>(silent).count() << " s";
   const std::string message = text.str();
-  logger.error(message);
-  recorder.request("hang-" + entry.name);
-  // Last: a hung bus handler may block the publish.
+  target.logger->record(LogLevel::Error, message);
+  if (!still_attached(target)) return;
+  target.recorder->request("hang-" + entry.name);
+  target.logger->log_unrecorded(LogLevel::Error, message);
+  if (!still_attached(target)) return;
   Alarm alarm;
   alarm.source = "hang";
   alarm.severity = AlarmSeverity::Warning;
   alarm.message = message;
-  if (clock != nullptr) alarm.ts = clock->now();  // unset otherwise: the monitor has no clock of its own
-  bus.publish(alarm);
+  if (target.clock != nullptr) alarm.ts = target.clock->now();  // unset otherwise: the monitor has no clock of its own
+  target.bus->publish(alarm);
 }
 
 }  // namespace nobion

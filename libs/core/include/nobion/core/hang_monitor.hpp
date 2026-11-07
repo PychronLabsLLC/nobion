@@ -25,6 +25,8 @@ struct HangEntry;
 // Outside HangMonitor so that `Options options = {}` can default it there.
 struct HangMonitorOptions {
   std::chrono::milliseconds poll{1000};  // how often beats are looked at
+  // How long detach() waits for a report in progress before it gives up.
+  std::chrono::milliseconds detach_wait{5000};
 };
 
 // One thread on real time, on purpose: it watches threads that may hold the
@@ -34,14 +36,18 @@ struct HangMonitorOptions {
 //
 // A beat is pulsed by the thread it watches. An armed beat silent past its
 // limit is reported, in this order: an `error` record `hang: <name> silent for
-// <s> s` on logger `hang`; `recorder.request("hang-<name>")`; then a warning
-// `Alarm{source = "hang"}` published from the monitor thread (last: a hung bus
-// handler may block the publish). Once per episode: the next report of that
-// beat comes only after a pulse.
+// <s> s` on logger `hang` into the flight recorder's ring only (it waits on
+// nothing); `recorder.request("hang-<name>")`; the same record to the file,
+// stderr and bus (Logger::log_unrecorded: an `error` record waits for the
+// disk, which may be what hangs); then a warning `Alarm{source = "hang"}`
+// published from the monitor thread (last: a hung bus handler may block the
+// publish). Once per episode: the next report of that beat comes only after a
+// pulse.
 //
 // Late attach: a monitor can be made before what it reports to (an app makes
 // it before the line whose transports it watches, and whose bus it reports
-// on), and attach()ed once those exist. Unattached it watches but reports
+// on), and attach()ed once those exist. Its thread starts at the first
+// attach(): a monitor never attached runs none. Unattached it reports
 // nothing, and a beat already silent is reported once attached. A Beat may
 // outlive the monitor: its pulses then go nowhere.
 class HangMonitor {
@@ -76,7 +82,8 @@ class HangMonitor {
     std::shared_ptr<detail::HangEntry> entry_;
   };
 
-  // Unattached: watches, reports nothing until attach().
+  // Unattached: hands out beats, runs no thread and reports nothing until
+  // attach().
   explicit HangMonitor(Options options = {});
   // Made and attached at once.
   HangMonitor(LogHub& log, IDumpRequester& recorder, SignalBus& bus, Options options = {});
@@ -91,8 +98,12 @@ class HangMonitor {
   // its ts is left unset. All must stay alive until detach() or the
   // monitor's destruction.
   void attach(LogHub& log, IDumpRequester& recorder, SignalBus& bus, const Clock* clock = nullptr);
-  // No more reports. Returns once a report in progress has finished: what
-  // was attached may then be destroyed. Idempotent.
+  // No more reports. Returns once a report in progress has finished, or
+  // after Options::detach_wait, when it logs a `warn` that it gave up: what
+  // was attached may then be destroyed. A report it gave up on makes no call
+  // to the recorder or the bus after the one it is stuck in returns (one
+  // stuck in either still is: the bound trades that for a shutdown that
+  // ends). Idempotent.
   void detach();
 
   // Detaches in its destructor. Declared after what was attached, so that it
@@ -114,13 +125,15 @@ class HangMonitor {
   [[nodiscard]] Beat beat(std::string name, std::chrono::milliseconds limit, bool armed = true);
 
  private:
+  // What one report goes to, copied under the state's mutex.
+  struct Target;
   void run();
-  static void report(const detail::HangEntry& entry, std::chrono::nanoseconds silent, const Logger& logger,
-                     IDumpRequester& recorder, SignalBus& bus, const Clock* clock);
+  void report(const detail::HangEntry& entry, std::chrono::nanoseconds silent, const Target& target);
+  [[nodiscard]] bool still_attached(const Target& target) const;
 
   Options options_;
   std::shared_ptr<detail::HangState> state_;
-  std::thread thread_;  // last: started once everything it reads is made
+  std::thread thread_;  // started by the first attach()
 };
 
 }  // namespace nobion

@@ -72,6 +72,12 @@ class Reports final : public IDumpRequester {
     return cv_.wait_for(lock, kBound, [&] { return count_locked(reason) >= n && alarms_.size() >= n; });
   }
 
+  // Waits, at most kBound, until `n` hang alarms have come.
+  bool await_alarms(std::size_t n) {
+    std::unique_lock lock(mutex_);
+    return cv_.wait_for(lock, kBound, [&] { return alarms_.size() >= n; });
+  }
+
   std::size_t requests(const std::string& reason) {
     const std::lock_guard lock(mutex_);
     return count_locked(reason);
@@ -235,4 +241,155 @@ TEST(HangMonitor, APulseLimitHoldsForItsEpisode) {
   EXPECT_EQ(reports.requests("hang-b"), 0U);
   b.pulse();  // back to the beat's own 50 ms
   ASSERT_TRUE(reports.await("hang-b", 1));
+}
+
+namespace {
+
+// A gate a test thread opens: what waits at it waits at most kBound.
+class Gate {
+ public:
+  void open() {
+    {
+      const std::lock_guard lock(mutex_);
+      open_ = true;
+    }
+    cv_.notify_all();
+  }
+  void wait() {
+    std::unique_lock lock(mutex_);
+    cv_.wait_for(lock, kBound, [this] { return open_; });
+  }
+
+ private:
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  bool open_ = false;
+};
+
+// Opens the gate on every way out, so nothing stays blocked at it.
+class OpenOnExit {
+ public:
+  explicit OpenOnExit(Gate& gate) : gate_(gate) {}
+  ~OpenOnExit() { gate_.open(); }
+  OpenOnExit(const OpenOnExit&) = delete;
+  OpenOnExit& operator=(const OpenOnExit&) = delete;
+  OpenOnExit(OpenOnExit&&) = delete;
+  OpenOnExit& operator=(OpenOnExit&&) = delete;
+
+ private:
+  Gate& gate_;
+};
+
+// A recorder whose request() says what the ring and the log path had seen
+// when it came, and may block until a gate opens.
+class Witness final : public IDumpRequester {
+ public:
+  Witness(LogHub& hub, Gate* hold) : hub_(hub), hold_(hold) {}
+
+  void request(std::string /*reason*/) override {
+    {
+      const std::lock_guard lock(mutex_);
+      ring_had_it_ = count_of(hub_.recorder_snapshot(), "hang: b silent") == 1;
+      log_had_it_ = logged_;
+      in_request_ = true;
+    }
+    cv_.notify_all();
+    if (hold_ != nullptr) hold_->wait();
+  }
+
+  void logged() {
+    const std::lock_guard lock(mutex_);
+    logged_ = true;
+  }
+
+  bool await_request() {
+    std::unique_lock lock(mutex_);
+    return cv_.wait_for(lock, kBound, [this] { return in_request_; });
+  }
+  bool ring_had_it() {
+    const std::lock_guard lock(mutex_);
+    return ring_had_it_;
+  }
+  bool log_had_it() {
+    const std::lock_guard lock(mutex_);
+    return log_had_it_;
+  }
+
+ private:
+  LogHub& hub_;
+  Gate* hold_;
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  bool logged_ = false;
+  bool in_request_ = false;
+  bool ring_had_it_ = false;
+  bool log_had_it_ = false;
+};
+
+std::shared_ptr<LogHub> make_hub_on(const Clock& clock, SignalBus& bus) {
+  config::LoggingConfig cfg;
+  cfg.dir = std::filesystem::path{};
+  cfg.dock_level = LogLevel::Info;
+  auto hub = LogHub::create(cfg, clock, &bus);
+  EXPECT_TRUE(hub.has_value());
+  return hub.has_value() ? *hub : nullptr;
+}
+
+}  // namespace
+
+// A log path that does not return (a hung disk under an `error` record; here
+// a Log handler that blocks) does not keep the dump from being asked for: the
+// record is in the ring first, then the dump, then the write that hangs.
+TEST(HangMonitor, TheDumpIsAskedForBeforeTheLogWriteThatMayHang) {
+  const SteadyClock clock;
+  SignalBus bus;
+  auto hub = make_hub_on(clock, bus);
+  ASSERT_TRUE(hub);
+  Gate log_path;
+  Witness witness(*hub, nullptr);
+  const auto stuck = bus.subscribe<Log>([&](const Log& e) {
+    if (e.logger != "hang") return;
+    witness.logged();
+    log_path.wait();
+  });
+  Reports reports(bus);
+  HangMonitor monitor(*hub, witness, bus, HangMonitor::Options{50ms});
+  const HangMonitor::DetachOnExit detach(monitor);
+  const OpenOnExit release(log_path);  // after the detach: opened before it waits
+  const auto b = monitor.beat("b", 50ms);
+
+  ASSERT_TRUE(witness.await_request()) << "no dump asked for while the log write hangs";
+  EXPECT_TRUE(witness.ring_had_it()) << "the ring did not have the record when the dump was asked for";
+  EXPECT_FALSE(witness.log_had_it()) << "the log write came before the dump";
+  log_path.open();
+  ASSERT_TRUE(reports.await_alarms(1));
+  EXPECT_EQ(count_of(hub->recorder_snapshot(), "hang: b silent"), 1U);  // once, not again from the log write
+}
+
+// detach() waits for a report in progress at most detach_wait, says it gave
+// up, and the report it left makes no call to the bus once its stuck call
+// returns.
+TEST(HangMonitor, DetachGivesUpOnAStuckReportWithinItsBound) {
+  const SteadyClock clock;
+  SignalBus bus;
+  auto hub = make_hub(clock);
+  ASSERT_TRUE(hub);
+  Gate recorder_call;
+  Witness witness(*hub, &recorder_call);
+  Reports reports(bus);
+  HangMonitor monitor(*hub, witness, bus, HangMonitor::Options{50ms, 200ms});
+  const OpenOnExit release(recorder_call);  // after the monitor: opened before it joins
+  const auto b = monitor.beat("b", 50ms);
+  ASSERT_TRUE(witness.await_request());
+
+  const auto started = std::chrono::steady_clock::now();
+  monitor.detach();
+  const auto took = std::chrono::steady_clock::now() - started;
+  EXPECT_GE(took, 200ms);
+  EXPECT_LT(took, kBound);
+  EXPECT_EQ(count_of(hub->recorder_snapshot(), "detach gave up waiting for a report in progress"), 1U);
+
+  recorder_call.open();
+  std::this_thread::sleep_for(300ms);  // six polls: room for a publish that must not come
+  EXPECT_TRUE(reports.alarms().empty());
 }
