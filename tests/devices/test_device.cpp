@@ -3,8 +3,11 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <mutex>
+#include <string>
 #include <thread>
+#include <vector>
 
 #include "log_capture.hpp"
 #include "nobion/core/events.hpp"
@@ -195,7 +198,7 @@ TEST(Plain, ConcurrentChangesFormOneChain) {
   d.set_health_bus(&bus, "gauges");
   {
     constexpr int kThreads = 8;
-    std::vector<std::jthread> threads;
+    std::vector<std::thread> threads;
     threads.reserve(kThreads);
     for (int t = 0; t < kThreads; ++t) {
       threads.emplace_back([&d, t] {
@@ -208,6 +211,9 @@ TEST(Plain, ConcurrentChangesFormOneChain) {
           }
         }
       });
+    }
+    for (auto& thread : threads) {
+      thread.join();
     }
   }
   const std::lock_guard lock(seen_mutex);
