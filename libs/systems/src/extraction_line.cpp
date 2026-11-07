@@ -673,6 +673,8 @@ void ExtractionLine::save_state() {
   table.insert("valves", std::move(valves));
   table.insert("stats", std::move(stats));
 
+  // Written on every ValveChanged/ActuationFailed with Durability::Power (measured about 4 ms): a
+  // future coalescing would start here.
   // A crash or power loss leaves the old file or the new, never a torn one.
   std::error_code ec;
   if (!options_.state_file.parent_path().empty()) {

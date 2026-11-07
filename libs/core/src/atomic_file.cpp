@@ -26,13 +26,20 @@ std::atomic<unsigned> g_counter{0};
 
 bool injected(int step) noexcept { return g_fail_at.load(std::memory_order_relaxed) == step; }
 
+// UTF-8 text of a path: text_of(path) throws on MSVC for a character the ANSI
+// code page cannot map, and these functions return errors as values.
+std::string text_of(const std::filesystem::path& path) {
+  const auto u = path.u8string();
+  return std::string(u.begin(), u.end());
+}
+
 Unexpected<Error> io(const std::string& what, const std::filesystem::path& path, int code) {
-  return fail(ErrorKind::Io, what + " " + path.string() + ": " + std::generic_category().message(code));
+  return fail(ErrorKind::Io, what + " " + text_of(path) + ": " + std::generic_category().message(code));
 }
 
 Unexpected<Error> injected_failure(int step, const std::filesystem::path& path) {
   return fail(ErrorKind::Io, "injected failure at step " + std::to_string(step) + " for " +
-                                 path.string());
+                                 text_of(path));
 }
 
 std::filesystem::path temp_path_for(const std::filesystem::path& path) {
@@ -53,7 +60,7 @@ std::filesystem::path temp_path_for(const std::filesystem::path& path) {
 std::string win_message(DWORD code) { return "Windows error " + std::to_string(code); }
 
 Unexpected<Error> win_io(const std::string& what, const std::filesystem::path& path, DWORD code) {
-  return fail(ErrorKind::Io, what + " " + path.string() + ": " + win_message(code));
+  return fail(ErrorKind::Io, what + " " + text_of(path) + ": " + win_message(code));
 }
 
 Result<void> write_windows(const std::filesystem::path& path, std::string_view bytes,
@@ -99,6 +106,8 @@ Result<void> write_windows(const std::filesystem::path& path, std::string_view b
   bool moved = false;
   for (int attempt = 0; attempt < 5 && !moved; ++attempt) {
     if (attempt > 0) {
+      // A real-time wait for the outside world (antivirus, preview), outside
+      // the virtual clock on purpose.
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
     if (injected(4)) {
@@ -170,7 +179,7 @@ Result<void> write_posix(const std::filesystem::path& path, std::string_view byt
   // Replacing a file keeps its permission bits (a 0600 file stays 0600).
   struct stat old_st {};
   if (::stat(path.c_str(), &old_st) == 0) {
-    (void)::fchmod(fd, old_st.st_mode & 07777);
+    (void)::fchmod(fd, old_st.st_mode & 0777);
   } else if (new_file_mode) {
     if (::fchmod(fd, static_cast<mode_t>(static_cast<unsigned>(*new_file_mode) & 0777)) != 0) {
       const int saved = errno;
@@ -190,7 +199,7 @@ Result<void> write_posix(const std::filesystem::path& path, std::string_view byt
     }
     if (n == 0) {
       ::close(fd);
-      return discard(fail(ErrorKind::Io, "cannot write " + tmp.string() + ": wrote no bytes"));
+      return discard(fail(ErrorKind::Io, "cannot write " + text_of(tmp) + ": wrote no bytes"));
     }
     done += static_cast<std::size_t>(n);
   }
