@@ -17,7 +17,8 @@ std::uint64_t hub_rule_epoch(const LogHub::Impl& hub) noexcept;
 // Level for `name` under the current rules, together with the epoch those
 // rules belong to (read under the same lock, so the pair is consistent).
 struct ResolvedLevel {
-  LogLevel level;
+  LogLevel level;     // the file level
+  LogLevel recorder;  // the recorder level
   std::uint64_t epoch;
 };
 ResolvedLevel hub_resolve_level(const LogHub::Impl& hub, std::string_view name) noexcept;
@@ -40,5 +41,10 @@ void ensure_thread_tag_key() noexcept;
 // LogHub::write on the Impl; a no-op once the hub has been destroyed.
 void hub_write(LogHub::Impl& hub, LogLevel level, std::string_view logger,
                std::string_view message) noexcept;
+
+// A record below the file level and at or above the recorder level. Neither
+// file, stderr nor bus see it. Never throws.
+void hub_record_only(LogHub::Impl& hub, LogLevel level, std::string_view logger,
+                     std::string_view message) noexcept;
 
 }  // namespace nobion::detail

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <iosfwd>
@@ -46,7 +47,12 @@ class Logger {
   // On a hub logger this is an explicit override that hub rules no longer replace.
   void set_level(LogLevel level) noexcept;
   LogLevel level() const noexcept;
-  bool enabled(LogLevel level) const noexcept { return level >= this->level(); }
+  // The recorder level (spec 5.1): records at or above it are kept by the
+  // flight recorder even below level(). Follows the hub's recorder rules only;
+  // set_level() leaves it alone. On a logger with no hub it is level().
+  LogLevel recorder_level() const noexcept;
+  // True when a record at `level` goes anywhere: to the file or to the recorder.
+  bool enabled(LogLevel level) const noexcept { return level >= std::min(this->level(), recorder_level()); }
 
   void log(LogLevel level, std::string_view message) const;
   void trace(std::string_view m) const { log(LogLevel::Trace, m); }
@@ -69,10 +75,12 @@ class Logger {
   static constexpr std::uint64_t kExplicitBit = 0x100;
   static constexpr int kEpochShift = 9;
 
+  // recorder_state_ packs (epoch << 9) | level the same way, with no explicit bit.
   std::string name_;
   const Clock* clock_ = nullptr;
   SignalBus* bus_ = nullptr;
   mutable std::atomic<std::uint64_t> state_{0};
+  mutable std::atomic<std::uint64_t> recorder_state_{0};
   std::ostream* echo_ = nullptr;
   std::shared_ptr<std::mutex> echo_mutex_;
   std::shared_ptr<LogHub::Impl> hub_;  // null for the legacy constructors

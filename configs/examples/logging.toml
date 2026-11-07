@@ -26,3 +26,12 @@
 # [levels]
 # "*.wire" = "trace"
 # "scheduler" = "debug"
+
+# Flight recorder: the last minutes of everything, kept in memory (also what
+# is below the file's level) and written out when something goes wrong.
+# [recorder]
+# enabled = true
+# size_mb = 32            # 4 to 512
+# default_level = "debug"
+# [recorder.levels]
+# "*.wire" = "trace"      # wire bytes are always kept

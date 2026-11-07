@@ -345,6 +345,12 @@ struct LogHub::Impl {
   mutable std::shared_mutex rules_mutex;
   LogLevel default_level = LogLevel::Info;
   std::vector<std::pair<std::string, LogLevel>> rules;
+  // The flight recorder's thresholds (spec 5.1), resolved the same way and
+  // under the same epoch. Default: off (a level above Error, the packed state
+  // keeps 8 bits), so a hub nobody configured keeps nothing below its file level.
+  // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): deliberate, see above
+  LogLevel recorder_default = static_cast<LogLevel>(static_cast<int>(LogLevel::Error) + 1);
+  std::vector<std::pair<std::string, LogLevel>> recorder_rules;
   std::atomic<std::uint64_t> epoch{1};
   std::atomic<bool> session_begun{false};
 
@@ -399,7 +405,8 @@ struct LogHub::Impl {
     }
   }
 
-  void put_rule(std::string_view pattern, LogLevel level) {
+  static void put_rule_in(std::vector<std::pair<std::string, LogLevel>>& rules, std::string_view pattern,
+                          LogLevel level) {
     for (auto& rule : rules) {
       if (rule.first == pattern) {
         rule.second = level;
@@ -409,9 +416,12 @@ struct LogHub::Impl {
     rules.emplace_back(std::string(pattern), level);
   }
 
+  void put_rule(std::string_view pattern, LogLevel level) { put_rule_in(rules, pattern, level); }
+
   // Most specific matching rule; ties: longer pattern, then the
   // lexicographically greater one. Caller holds rules_mutex.
-  LogLevel resolve_locked(std::string_view name) const noexcept {
+  static LogLevel resolve_in(const std::vector<std::pair<std::string, LogLevel>>& rules, LogLevel fallback,
+                             std::string_view name) noexcept {
     const std::pair<std::string, LogLevel>* best = nullptr;
     auto key = [](const std::string& p) {
       return std::make_tuple(log_rule_specificity(p), p.size(), std::string_view(p));
@@ -420,7 +430,25 @@ struct LogHub::Impl {
       if (!log_name_matches(rule.first, name)) continue;
       if (best == nullptr || key(rule.first) > key(best->first)) best = &rule;
     }
-    return best != nullptr ? best->second : default_level;
+    return best != nullptr ? best->second : fallback;
+  }
+
+  LogLevel resolve_locked(std::string_view name) const noexcept {
+    return resolve_in(rules, default_level, name);
+  }
+
+  // The recorder's twin of resolve_locked.
+  LogLevel resolve_recorder_locked(std::string_view name) const noexcept {
+    return resolve_in(recorder_rules, recorder_default, name);
+  }
+
+  // Takes a record below the file level but at or above the recorder level:
+  // `line` is its formatted payload (`[thread] run=.. logger: message`, one
+  // line), as the file would get it. Nothing keeps it yet; the ring (spec 5.2)
+  // takes it from here. Never throws.
+  void record_only(LogLevel level, std::string_view line) noexcept {
+    (void)level;
+    (void)line;
   }
 
   Route pin() {
@@ -1418,6 +1446,12 @@ Result<std::shared_ptr<LogHub>> LogHub::create(const config::LoggingConfig& conf
   impl->dock_level.store(config.dock_level);
   impl->default_level = config.default_level;
   for (const auto& [pattern, level] : config.levels) impl->put_rule(pattern, level);
+  if (config.recorder.enabled) {
+    impl->recorder_default = config.recorder.default_level;
+    for (const auto& [pattern, level] : config.recorder.levels) {
+      Impl::put_rule_in(impl->recorder_rules, pattern, level);
+    }
+  }
 
   std::string lock_notice;  // written once the back end runs
   LogLevel lock_notice_level = LogLevel::Info;
@@ -1753,6 +1787,15 @@ void LogHub::set_levels(LogLevel default_level, const std::vector<std::pair<std:
   impl_->epoch.fetch_add(1);
 }
 
+void LogHub::set_recorder_levels(LogLevel default_level,
+                                 const std::vector<std::pair<std::string, LogLevel>>& levels) {
+  std::unique_lock lock(impl_->rules_mutex);
+  impl_->recorder_default = default_level;
+  impl_->recorder_rules.clear();
+  for (const auto& [pattern, level] : levels) Impl::put_rule_in(impl_->recorder_rules, pattern, level);
+  impl_->epoch.fetch_add(1);
+}
+
 namespace detail {
 
 std::uint64_t hub_rule_epoch(const LogHub::Impl& hub) noexcept { return hub.epoch.load(); }
@@ -1760,10 +1803,10 @@ std::uint64_t hub_rule_epoch(const LogHub::Impl& hub) noexcept { return hub.epoc
 ResolvedLevel hub_resolve_level(const LogHub::Impl& hub, std::string_view name) noexcept {
   try {
     std::shared_lock lock(hub.rules_mutex);
-    return {hub.resolve_locked(name), hub.epoch.load()};
+    return {hub.resolve_locked(name), hub.resolve_recorder_locked(name), hub.epoch.load()};
   } catch (...) {
     // Locking failed (system_error); fall back without caching a new epoch.
-    return {LogLevel::Error, 0};
+    return {LogLevel::Error, LogLevel::Error, 0};
   }
 }
 
@@ -1776,6 +1819,34 @@ std::string thread_label() {
 void hub_write(LogHub::Impl& hub, LogLevel level, std::string_view logger,
                std::string_view message) noexcept {
   hub.write(level, logger, message);
+}
+
+void hub_record_only(LogHub::Impl& hub, LogLevel level, std::string_view logger,
+                     std::string_view message) noexcept {
+  hub.in_flight.fetch_add(1);
+  struct Leave {
+    std::atomic<int>& n;
+    ~Leave() { n.fetch_sub(1); }
+  } leave{hub.in_flight};
+  if (!hub.alive.load()) return;
+  // The calling thread's buffer: no allocation once it has grown to a record.
+  thread_local std::string line;
+  try {
+    line.clear();
+    const std::string_view tag = LogContext::thread_tag();
+    line.append("[");
+    if (tag.empty()) {
+      line.append("t").append(std::to_string(LogContext::thread_number()));
+    } else {
+      line.append(tag);
+    }
+    line.append("] ");
+    if (const auto run = LogContext::run_id(); !run.empty()) line.append("run=").append(run).append(" ");
+    line.append(logger).append(": ");
+    append_one_line(line, message);
+    hub.record_only(level, line);
+  } catch (...) {  // NOLINT(bugprone-empty-catch): out of memory; a record that is only for the recorder is lost
+  }
 }
 
 }  // namespace detail

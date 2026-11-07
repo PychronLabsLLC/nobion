@@ -560,6 +560,7 @@ config::LoggingConfig rules_config(std::vector<std::pair<std::string, LogLevel>>
   config::LoggingConfig cfg;
   cfg.default_level = default_level;
   cfg.levels = std::move(levels);
+  cfg.recorder.enabled = false;  // these tests are about the file level; enabled() also counts the recorder
   return cfg;
 }
 
@@ -576,6 +577,89 @@ TEST(LogHub, LevelFromRules) {
   EXPECT_EQ(hub->logger("transport.tcp").level(), LogLevel::Debug);
   EXPECT_EQ(hub->logger("core").level(), LogLevel::Warn);
   EXPECT_EQ(hub->logger("transport").level(), LogLevel::Warn);  // glob needs a suffix
+}
+
+TEST(Logger, LevelStaysTheFileLevel) {
+  SteadyClock clock;
+  auto hub = make_hub(rules_config({{"*.wire", LogLevel::Info}}, LogLevel::Info), clock);
+  ASSERT_TRUE(hub);
+  hub->set_recorder_levels(LogLevel::Debug, {{"*.wire", LogLevel::Trace}});
+  const Logger wire = hub->logger("ig1.wire");
+  EXPECT_EQ(wire.level(), LogLevel::Info);
+  EXPECT_EQ(wire.recorder_level(), LogLevel::Trace);
+  EXPECT_TRUE(wire.enabled(LogLevel::Trace));
+  const Logger core = hub->logger("core");
+  EXPECT_EQ(core.level(), LogLevel::Info);
+  EXPECT_EQ(core.recorder_level(), LogLevel::Debug);
+  EXPECT_TRUE(core.enabled(LogLevel::Debug));
+  EXPECT_FALSE(core.enabled(LogLevel::Trace));
+}
+
+TEST(Logger, ExplicitLevelLeavesTheRecorderAlone) {
+  SteadyClock clock;
+  auto hub = make_hub(rules_config({}, LogLevel::Info), clock);
+  ASSERT_TRUE(hub);
+  hub->set_recorder_levels(LogLevel::Debug, {{"*.wire", LogLevel::Trace}});
+  Logger wire = hub->logger("ig1.wire");
+  ASSERT_EQ(wire.recorder_level(), LogLevel::Trace);
+  wire.set_level(LogLevel::Error);
+  EXPECT_EQ(wire.level(), LogLevel::Error);
+  EXPECT_EQ(wire.recorder_level(), LogLevel::Trace);
+  hub->set_recorder_levels(LogLevel::Warn, {});  // a rule change still moves it
+  EXPECT_EQ(wire.recorder_level(), LogLevel::Warn);
+  EXPECT_EQ(wire.level(), LogLevel::Error);
+}
+
+TEST(Logger, ARecorderRuleChangeDoesNotMoveTheFileLevel) {
+  SteadyClock clock;
+  auto hub = make_hub(rules_config({}, LogLevel::Warn), clock);
+  ASSERT_TRUE(hub);
+  const Logger log = hub->logger("core");
+  ASSERT_EQ(log.level(), LogLevel::Warn);
+  hub->set_recorder_levels(LogLevel::Trace, {});
+  EXPECT_EQ(log.level(), LogLevel::Warn);
+  EXPECT_EQ(log.recorder_level(), LogLevel::Trace);
+}
+
+TEST(LogHub, ARecordBelowTheFileLevelIsNotInTheFile) {
+  TempDir tmp;
+  SteadyClock clock;
+  SignalBus bus;
+  std::vector<Log> got;
+  auto sub = bus.subscribe<Log>([&](const Log& e) { got.push_back(e); });
+  auto cfg = config_for(tmp.path());
+  cfg.default_level = LogLevel::Info;
+  cfg.dock_level = LogLevel::Trace;
+  cfg.echo_stderr = true;
+  cfg.levels = {{"*.wire", LogLevel::Info}};
+  cfg.recorder.levels = {{"*.wire", LogLevel::Trace}};
+  auto hub = make_hub(cfg, clock, &bus);
+  ASSERT_TRUE(hub);
+
+  const Logger wire = hub->logger("ig1.wire");
+  testing::internal::CaptureStderr();
+  wire.trace("below the file level");
+  wire.info("at the file level");
+  hub->flush();
+  const std::string err = testing::internal::GetCapturedStderr();
+
+  const auto text = read_file(tmp.path() / "nobion.log");
+  EXPECT_EQ(text.find("below the file level"), std::string::npos) << text;
+  EXPECT_NE(text.find("at the file level"), std::string::npos) << text;
+  EXPECT_EQ(err.find("below the file level"), std::string::npos) << err;
+  ASSERT_EQ(got.size(), 1u);
+  EXPECT_EQ(got[0].message, "at the file level");
+}
+
+TEST(LogHub, ADisabledRecorderKeepsNothingBelowTheFileLevel) {
+  SteadyClock clock;
+  auto cfg = rules_config({}, LogLevel::Info);
+  cfg.recorder.enabled = false;
+  auto hub = make_hub(cfg, clock);
+  ASSERT_TRUE(hub);
+  const Logger log = hub->logger("core");
+  EXPECT_FALSE(log.enabled(LogLevel::Debug));
+  EXPECT_TRUE(log.enabled(LogLevel::Info));
 }
 
 TEST(LogHub, BareNameRuleMatchesChildren) {

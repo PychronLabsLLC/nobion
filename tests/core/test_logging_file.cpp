@@ -203,3 +203,34 @@ TEST_F(LoggingFile, LevelsTableReplacesWholeList) {
   const std::vector<std::pair<std::string, LogLevel>> want{{"b", LogLevel::Warn}};
   EXPECT_EQ(r->config.levels, want);
 }
+
+TEST_F(LoggingFile, RecorderTableIsRead) {
+  const auto none = load_logging_config(dir, std::nullopt);
+  ASSERT_TRUE(none) << none.error().what;
+  EXPECT_TRUE(none->config.recorder.enabled);
+  EXPECT_EQ(none->config.recorder.size_mb, 32u);
+  EXPECT_EQ(none->config.recorder.default_level, LogLevel::Debug);
+  const std::vector<std::pair<std::string, LogLevel>> wire{{"*.wire", LogLevel::Trace}};
+  EXPECT_EQ(none->config.recorder.levels, wire);
+
+  write(logging_file(dir),
+        "[recorder]\nenabled = false\nsize_mb = 64\ndefault_level = \"info\"\n"
+        "[recorder.levels]\n\"a.*\" = \"warn\"\n");
+  const auto r = load_logging_config(dir, std::nullopt);
+  ASSERT_TRUE(r) << r.error().what;
+  EXPECT_FALSE(r->config.recorder.enabled);
+  EXPECT_EQ(r->config.recorder.size_mb, 64u);
+  EXPECT_EQ(r->config.recorder.default_level, LogLevel::Info);
+  const std::vector<std::pair<std::string, LogLevel>> want{{"a.*", LogLevel::Warn}};
+  EXPECT_EQ(r->config.recorder.levels, want);
+}
+
+TEST_F(LoggingFile, RecorderSizeOutOfRangeNamesTheKey) {
+  for (const char* size : {"3", "600"}) {
+    write(logging_file(dir), std::string("[recorder]\nsize_mb = ") + size + "\n");
+    const auto r = load_logging_config(dir, std::nullopt);
+    ASSERT_FALSE(r) << size;
+    EXPECT_NE(r.error().what.find("logging.toml:2"), std::string::npos) << r.error().what;
+    EXPECT_NE(r.error().what.find("size_mb"), std::string::npos) << r.error().what;
+  }
+}

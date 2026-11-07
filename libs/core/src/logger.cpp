@@ -44,6 +44,7 @@ Logger::Logger(const Logger& other)
       clock_(other.clock_),
       bus_(other.bus_),
       state_(other.state_.load()),
+      recorder_state_(other.recorder_state_.load()),
       echo_(other.echo_),
       echo_mutex_(other.echo_mutex_),
       hub_(other.hub_) {}
@@ -54,6 +55,7 @@ Logger& Logger::operator=(const Logger& other) {
     clock_ = other.clock_;
     bus_ = other.bus_;
     state_.store(other.state_.load());
+    recorder_state_.store(other.recorder_state_.load());
     echo_ = other.echo_;
     echo_mutex_ = other.echo_mutex_;
     hub_ = other.hub_;
@@ -89,10 +91,32 @@ LogLevel Logger::level() const noexcept {
   return static_cast<LogLevel>(cur & kLevelMask);
 }
 
+LogLevel Logger::recorder_level() const noexcept {
+  if (!hub_) return level();
+  std::uint64_t cur = recorder_state_.load();
+  const std::uint64_t epoch = detail::hub_rule_epoch(*hub_);
+  while ((cur >> kEpochShift) != epoch) {
+    const auto resolved = detail::hub_resolve_level(*hub_, name_);
+    const std::uint64_t next =
+        (resolved.epoch << kEpochShift) | static_cast<std::uint64_t>(resolved.recorder);
+    if (recorder_state_.compare_exchange_weak(cur, next)) {
+      cur = next;
+      break;
+    }
+  }
+  return static_cast<LogLevel>(cur & kLevelMask);
+}
+
 void Logger::log(LogLevel level, std::string_view message) const {
   if (!enabled(level)) return;
   if (hub_) {
-    detail::hub_write(*hub_, level, name_, message);
+    // File, stderr and bus only at or above the file level; below it the
+    // record is only for the recorder (spec 5.1).
+    if (level >= this->level()) {
+      detail::hub_write(*hub_, level, name_, message);
+    } else {
+      detail::hub_record_only(*hub_, level, name_, message);
+    }
     return;
   }
   Log event{level, name_, std::string(message), clock_->now(), detail::thread_label(),

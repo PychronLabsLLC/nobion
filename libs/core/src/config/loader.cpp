@@ -472,7 +472,8 @@ class ConfigBuilder {
   void parse_logging(const toml::table& t, LoggingConfig& l) {
     p_.begin(l, t, "logging");
     const auto get = lookup_in(t);
-    p_.reject_unknown(t, l, Keys{"dir", "max_size_mb", "max_files", "default_level", "dock_level", "levels", "echo_stderr"});
+    p_.reject_unknown(t, l, Keys{"dir", "max_size_mb", "max_files", "default_level", "dock_level", "levels", "echo_stderr",
+                                  "recorder"});
     std::string dir;
     // Only when the key is there: read over a table the local file gave, a
     // missing `dir` must leave the shared file's alone.
@@ -483,16 +484,27 @@ class ConfigBuilder {
     p_.read_enum(get, l, "dock_level", l.dock_level, false, kLevels);
     p_.read(get, l, "echo_stderr", l.echo_stderr);
 
-    const auto* n = p_.find(get, l, "levels", false);
-    if (n == nullptr) return;
-    const auto* lv = p_.as_table(*n, "logging.levels");
-    if (lv == nullptr) return;
-    // A levels table is the whole list. In the local file that lets one of
-    // the shared file's levels be dropped, which adding to them could not.
-    l.levels.clear();
-    for (auto&& [glob, node] : *lv) {
+    if (const auto* n = p_.find(get, l, "levels", false)) {
+      if (const auto* lv = p_.as_table(*n, "logging.levels")) {
+        // A levels table is the whole list. In the local file that lets one of
+        // the shared file's levels be dropped, which adding to them could not.
+        l.levels.clear();
+        read_level_table(*lv, "logging.levels", l.levels);
+      }
+    }
+
+    if (const auto* r = p_.find(get, l, "recorder", false)) {
+      if (const auto* rt = p_.as_table(*r, "logging.recorder")) parse_recorder(*rt, l.recorder);
+    }
+  }
+
+  // `glob = "level"` entries of `table`, appended to `out`; a bad entry is reported and skipped.
+  void read_level_table(const toml::table& table, const std::string& path,
+                        std::vector<std::pair<std::string, LogLevel>>& out) {
+    for (auto&& [glob, node] : table) {
       const auto key = std::string(glob.str());
-      const auto field = "logging.levels." + key;
+      std::string field = path;
+      field.append(".").append(key);
       const auto* s = node.as_string();
       if (s == nullptr) {
         p_.error(p_.loc(node), field, "expected string, got " + std::string(type_name(node.type())));
@@ -511,7 +523,26 @@ class ConfigBuilder {
                  "invalid value '" + s->get() + "' (expected trace | debug | info | warn | error)");
         continue;
       }
-      l.levels.emplace_back(key, level);
+      out.emplace_back(key, level);
+    }
+  }
+
+  // `[recorder]` of logging.toml (spec 5.1): the flight recorder's ring and levels.
+  void parse_recorder(const toml::table& t, RecorderConfig& r) {
+    p_.begin(r, t, "logging.recorder");
+    const auto get = lookup_in(t);
+    p_.reject_unknown(t, r, Keys{"enabled", "size_mb", "default_level", "levels"});
+    p_.read(get, r, "enabled", r.enabled);
+    auto size_mb = static_cast<std::int64_t>(r.size_mb);
+    if (p_.read(get, r, "size_mb", size_mb, false, kRecorderMinMb, kRecorderMaxMb)) {
+      r.size_mb = static_cast<std::size_t>(size_mb);
+    }
+    p_.read_enum(get, r, "default_level", r.default_level, false, kLevels);
+    if (const auto* n = p_.find(get, r, "levels", false)) {
+      if (const auto* lv = p_.as_table(*n, "logging.recorder.levels")) {
+        r.levels.clear();
+        read_level_table(*lv, "logging.recorder.levels", r.levels);
+      }
     }
   }
 
