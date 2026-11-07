@@ -1,6 +1,7 @@
 // The crash file a fatal signal leaves (spec 2026-11-06-field-diagnostics
 // sections 3.2, 3.3, 14). Each test spawns tests/core/crash_helper.cpp, which
-// dies the way its mode says, and reads what the handler wrote.
+// dies the way its mode says, and reads what the handler wrote. On Windows the
+// exception filter writes a shorter crash file and a minidump.
 
 #include <gtest/gtest.h>
 
@@ -19,7 +20,23 @@
 #include <vector>
 
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
 #include <process.h>
+#include <windows.h>
+// After windows.h. Older SDKs' dbghelp.h trips C4091.
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4091)
+#endif
+#include <dbghelp.h>
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 #else
 #include <csignal>
 #include <spawn.h>
@@ -78,8 +95,6 @@ class TempDir {
   fs::path path_;
 };
 
-#ifndef _WIN32
-
 std::string read_file(const fs::path& path) {
   std::ifstream in(path, std::ios::binary);
   std::ostringstream out;
@@ -93,6 +108,8 @@ std::vector<std::string> lines_of(const std::string& text) {
   for (std::string line; std::getline(in, line);) lines.push_back(line);
   return lines;
 }
+
+#ifndef _WIN32
 
 struct Death {
   pid_t pid = -1;
@@ -180,13 +197,104 @@ std::vector<std::string> expect_crash_file(const std::string& mode, std::initial
 
 #endif
 
-#ifdef _WIN32
-#define CRASH_TEST_PRECONDITIONS() GTEST_SKIP() << "POSIX crash handler; Windows writes a dump (Task 6)"
-#else
 #define CRASH_TEST_PRECONDITIONS()                                                       \
   do {                                                                                   \
     if (kAddressSanitizer) GTEST_SKIP() << "AddressSanitizer owns the fatal signals"; \
   } while (false)
+
+#ifdef _WIN32
+
+struct WinDeath {
+  bool spawned = false;
+  DWORD pid = 0;
+  DWORD exit_code = 0;
+};
+
+// Spawns the helper on `dir` in `mode` and waits (at most 30 s) for it to end.
+WinDeath run_helper(const fs::path& dir, const std::string& mode) {
+  WinDeath death;
+  // No crash dialog for the helper: the error mode is inherited.
+  const UINT previous = SetErrorMode(0);
+  (void)SetErrorMode(previous | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
+  const std::wstring helper = fs::path(NOBION_CRASH_HELPER).wstring();
+  // CreateProcessW may write into the command line: a buffer of our own.
+  std::wstring command = L"\"" + helper + L"\" \"" + dir.wstring() + L"\" " + fs::path(mode).wstring();
+  STARTUPINFOW startup{};
+  startup.cb = static_cast<DWORD>(sizeof(startup));
+  PROCESS_INFORMATION process{};
+  if (CreateProcessW(helper.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startup,
+                     &process) == FALSE) {
+    return death;
+  }
+  death.spawned = true;
+  death.pid = process.dwProcessId;
+  if (WaitForSingleObject(process.hProcess, 30000) != WAIT_OBJECT_0) {
+    (void)TerminateProcess(process.hProcess, 1);
+    (void)WaitForSingleObject(process.hProcess, INFINITE);
+    ADD_FAILURE() << "helper in mode " << mode << " still running after 30 s";
+  }
+  (void)GetExitCodeProcess(process.hProcess, &death.exit_code);
+  (void)CloseHandle(process.hThread);
+  (void)CloseHandle(process.hProcess);
+  return death;
+}
+
+// Number of threads in the minidump at `path`, read with dbghelp's own
+// reader from a mapped view; 0 when it cannot be read.
+ULONG32 dump_thread_count(const fs::path& path) {
+  const HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                                  FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (file == INVALID_HANDLE_VALUE) return 0;
+  ULONG32 threads = 0;
+  const HANDLE mapping = CreateFileMappingW(file, nullptr, PAGE_READONLY, 0, 0, nullptr);
+  if (mapping != nullptr) {
+    void* const base = MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0);
+    if (base != nullptr) {
+      PMINIDUMP_DIRECTORY directory = nullptr;
+      PVOID stream = nullptr;
+      ULONG size = 0;
+      if (MiniDumpReadDumpStream(base, static_cast<ULONG>(ThreadListStream), &directory, &stream, &size) != FALSE &&
+          stream != nullptr && size >= sizeof(ULONG32)) {
+        threads = static_cast<const MINIDUMP_THREAD_LIST*>(stream)->NumberOfThreads;
+      }
+      (void)UnmapViewOfFile(base);
+    }
+    (void)CloseHandle(mapping);
+  }
+  (void)CloseHandle(file);
+  return threads;
+}
+
+// The helper dies in `mode` by exception `code`; its crash file holds the
+// exception, build and thread lines, and its dump a thread list.
+// (void: ASSERT_* returns from it.)
+void check_windows_crash(const std::string& mode, const std::string& code) {
+  TempDir tmp;
+  const WinDeath death = run_helper(tmp.path(), mode);
+  ASSERT_TRUE(death.spawned) << "could not spawn " << NOBION_CRASH_HELPER;
+  EXPECT_NE(death.exit_code, 0u) << mode;
+  EXPECT_NE(death.exit_code, 4u) << mode << ": survived";
+
+  const std::string stem = "crash_helper-" + std::to_string(death.pid);
+  const fs::path text_file = tmp.path() / "crash" / (stem + ".txt");
+  const fs::path dump_file = tmp.path() / "crash" / (stem + ".dmp");
+  ASSERT_TRUE(fs::exists(text_file)) << text_file;
+  const std::string text = read_file(text_file);
+  bool exception_line = false;
+  bool build_line = false;
+  bool thread_line = false;
+  for (const auto& line : lines_of(text)) {
+    if (line == "fatal exception 0x" + code) exception_line = true;
+    if (line == "build " + nobion::build_id()) build_line = true;
+    if (line == "thread crash_helper.main") thread_line = true;
+  }
+  EXPECT_TRUE(exception_line) << mode << ": fatal exception 0x" << code << "\n" << text;
+  EXPECT_TRUE(build_line) << text;
+  EXPECT_TRUE(thread_line) << text;
+  ASSERT_TRUE(fs::exists(dump_file)) << dump_file;
+  EXPECT_GE(dump_thread_count(dump_file), 1u) << dump_file;
+}
+
 #endif
 
 }  // namespace
@@ -258,6 +366,23 @@ TEST(CrashCapture, HardenedWritesACrashFile) {
   expect_crash_file("hardened", {SIGABRT, SIGTRAP, SIGILL});
 }
 
+#endif
+
+// Windows: a null write and a stack overflow on the main thread each leave
+// the text lines and a minidump dbghelp reads.
+#ifdef _WIN32
+TEST(CrashCapture, WindowsWritesTextAndDump) {
+  // Chosen by the preprocessor, not an if on kAddressSanitizer: MSVC warns of
+  // a constant condition (C4127) and of what a skip leaves unreachable (C4702).
+#if defined(__SANITIZE_ADDRESS__)
+  GTEST_SKIP() << "AddressSanitizer owns the exceptions";
+#else
+  check_windows_crash("segv", "c0000005");           // STATUS_ACCESS_VIOLATION
+  check_windows_crash("overflow-main", "c00000fd");  // STATUS_STACK_OVERFLOW
+#endif
+}
+#else
+TEST(CrashCapture, WindowsWritesTextAndDump) { GTEST_SKIP() << "Windows only: the exception filter and minidump"; }
 #endif
 
 TEST(CrashCapture, CrashFilePathIsInTheCrashFolder) {

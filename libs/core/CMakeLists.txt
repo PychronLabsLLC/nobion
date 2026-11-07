@@ -55,5 +55,9 @@ target_compile_definitions(nobion_core PUBLIC TOML_EXCEPTIONS=0 TOML_FLOAT_CHARC
 target_link_libraries(nobion_core PUBLIC tomlplusplus::tomlplusplus Threads::Threads)
 # spdlog is an implementation detail of LogHub: never exposed (spec 4.6).
 target_link_libraries(nobion_core PRIVATE spdlog::spdlog)
+# MiniDumpWriteDump: the crash handler's minidump on Windows (log_hub.cpp).
+if(WIN32)
+  target_link_libraries(nobion_core PRIVATE dbghelp)
+endif()
 
 nobion_set_warnings(nobion_core)
