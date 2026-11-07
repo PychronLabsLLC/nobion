@@ -91,6 +91,8 @@ Result<std::unique_ptr<Line>> Line::build(config::SystemConfig config, LineOptio
   if (line->log_hub_) {
     line->flight_recorder_.emplace(*line->log_hub_, line->bus_);
     line->flight_recorder_subs_ = experiment::wire_flight_recorder(line->bus_, *line->flight_recorder_);
+    line->hang_monitor_.emplace();
+    line->hang_monitor_->attach(*line->log_hub_, *line->flight_recorder_, line->bus_, &line->clock_);
   }
 
   if (options.trace.enabled()) {
@@ -112,6 +114,7 @@ Result<std::unique_ptr<Line>> Line::build(config::SystemConfig config, LineOptio
     context.trace_dir = options.trace_dir.string();
     context.log_hub = line->log_hub_;
     context.endpoints = options.sim_endpoints.get();
+    if (line->hang_monitor_) context.hang_monitor = &*line->hang_monitor_;
     if (tc.kind == config::TransportKind::Sim) {
       // The first driver on the wire decides which device model answers.
       auto driver = std::find_if(cfg.drivers.begin(), cfg.drivers.end(),

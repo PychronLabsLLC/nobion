@@ -164,6 +164,7 @@ Result<std::unique_ptr<Transport>> SpectrometerAssembler::default_transport(cons
   tctx.bus = &context.bus;
   tctx.trace_dir = trace_dir.string();
   tctx.endpoints = endpoints;
+  tctx.hang_monitor = context.hang_monitor;
   if (c.trace) {
     std::error_code ec;
     std::filesystem::create_directories(trace_dir, ec);

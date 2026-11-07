@@ -151,6 +151,7 @@ Result<void> ExtractionLine::build() {
     context.bus = &bus_;
     context.trace_dir = options_.trace_dir.string();
     context.log_hub = log_hub_;
+    context.hang_monitor = options_.hang_monitor;
     if (endpoints) context.endpoints = &endpoints->transports;
     if (tc.kind == config::TransportKind::Sim) {
       context.sim_hook = sim_->hook_for_transport(name, config_);

@@ -8,11 +8,12 @@
 #include <string>
 #include <thread>
 
-#include "nobion/core/logger.hpp"
 
 namespace nobion {
 
+class Clock;
 class LogHub;
+class Logger;
 class SignalBus;
 struct IDumpRequester;
 
@@ -38,8 +39,11 @@ struct HangMonitorOptions {
 // handler may block the publish). Once per episode: the next report of that
 // beat comes only after a pulse.
 //
-// `log`, `recorder` and `bus` must outlive the monitor. A Beat may outlive it:
-// its pulses then go nowhere.
+// Late attach: a monitor can be made before what it reports to (an app makes
+// it before the line whose transports it watches, and whose bus it reports
+// on), and attach()ed once those exist. Unattached it watches but reports
+// nothing, and a beat already silent is reported once attached. A Beat may
+// outlive the monitor: its pulses then go nowhere.
 class HangMonitor {
  public:
   using Options = HangMonitorOptions;
@@ -54,8 +58,12 @@ class HangMonitor {
     Beat(Beat&& other) noexcept = default;
     Beat& operator=(Beat&& other) noexcept;
 
-    // Lock-free: one atomic store of steady_clock::now(). Arms a disarmed beat.
+    // Lock-free: atomic stores of steady_clock::now() and of the limit. Arms
+    // a disarmed beat. Without `limit`, the one the beat was made with.
     void pulse() noexcept;
+    // This episode's limit only (a call with a longer timeout of its own);
+    // the next pulse() goes back to the beat's.
+    void pulse(std::chrono::milliseconds limit) noexcept;
     // Not watched until the next pulse.
     void disarm() noexcept;
 
@@ -68,6 +76,9 @@ class HangMonitor {
     std::shared_ptr<detail::HangEntry> entry_;
   };
 
+  // Unattached: watches, reports nothing until attach().
+  explicit HangMonitor(Options options = {});
+  // Made and attached at once.
   HangMonitor(LogHub& log, IDumpRequester& recorder, SignalBus& bus, Options options = {});
   ~HangMonitor();  // stops and joins the monitor thread
   HangMonitor(const HangMonitor&) = delete;
@@ -75,16 +86,38 @@ class HangMonitor {
   HangMonitor(HangMonitor&&) = delete;
   HangMonitor& operator=(HangMonitor&&) = delete;
 
-  // Starts armed, as if pulsed now.
-  [[nodiscard]] Beat beat(std::string name, std::chrono::milliseconds limit);
+  // Reports go to these from now on (a second attach replaces the first).
+  // `clock`, when given, stamps the Alarm (`ts = clock->now()`); otherwise
+  // its ts is left unset. All must stay alive until detach() or the
+  // monitor's destruction.
+  void attach(LogHub& log, IDumpRequester& recorder, SignalBus& bus, const Clock* clock = nullptr);
+  // No more reports. Returns once a report in progress has finished: what
+  // was attached may then be destroyed. Idempotent.
+  void detach();
+
+  // Detaches in its destructor. Declared after what was attached, so that it
+  // goes before them on every way out.
+  class DetachOnExit {
+   public:
+    explicit DetachOnExit(HangMonitor& monitor) noexcept : monitor_(&monitor) {}
+    ~DetachOnExit() { monitor_->detach(); }
+    DetachOnExit(const DetachOnExit&) = delete;
+    DetachOnExit& operator=(const DetachOnExit&) = delete;
+    DetachOnExit(DetachOnExit&&) = delete;
+    DetachOnExit& operator=(DetachOnExit&&) = delete;
+
+   private:
+    HangMonitor* monitor_;
+  };
+
+  // `armed`: as if pulsed now; otherwise not watched until the first pulse.
+  [[nodiscard]] Beat beat(std::string name, std::chrono::milliseconds limit, bool armed = true);
 
  private:
   void run();
-  void report(detail::HangEntry& entry, std::chrono::steady_clock::duration silent);
+  static void report(const detail::HangEntry& entry, std::chrono::nanoseconds silent, const Logger& logger,
+                     IDumpRequester& recorder, SignalBus& bus, const Clock* clock);
 
-  Logger logger_;
-  IDumpRequester& recorder_;
-  SignalBus& bus_;
   Options options_;
   std::shared_ptr<detail::HangState> state_;
   std::thread thread_;  // last: started once everything it reads is made

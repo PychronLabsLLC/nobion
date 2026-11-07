@@ -167,3 +167,72 @@ TEST(HangMonitor, ABeatLetGoIsForgottenAndMayOutliveTheMonitor) {
   survivor.pulse();
   survivor.disarm();
 }
+
+// Late attach: a monitor made before what it reports to watches all along and
+// reports a beat already silent once attached, stamped by the clock given.
+TEST(HangMonitor, ABeatSilentBeforeAttachIsReportedOnceAttached) {
+  const SteadyClock clock;
+  SignalBus bus;
+  auto hub = make_hub(clock);
+  ASSERT_TRUE(hub);
+  Reports reports(bus);
+  HangMonitor monitor(HangMonitor::Options{50ms});
+  const auto b = monitor.beat("b", 50ms);
+  std::this_thread::sleep_for(500ms);  // ten polls, all past the limit, with nothing attached
+  EXPECT_EQ(reports.requests("hang-b"), 0U);
+
+  const ManualClock stamps(TimePoint{} + 42s);
+  monitor.attach(*hub, reports, bus, &stamps);
+  ASSERT_TRUE(reports.await("hang-b", 1));
+  const auto alarms = reports.alarms();
+  ASSERT_EQ(alarms.size(), 1U);
+  EXPECT_EQ(alarms[0].ts, TimePoint{} + 42s);
+  monitor.detach();
+}
+
+TEST(HangMonitor, DetachStopsReports) {
+  const SteadyClock clock;
+  SignalBus bus;
+  auto hub = make_hub(clock);
+  ASSERT_TRUE(hub);
+  Reports reports(bus);
+  HangMonitor monitor(*hub, reports, bus, HangMonitor::Options{50ms});
+  monitor.detach();
+  const auto b = monitor.beat("b", 50ms);
+  std::this_thread::sleep_for(500ms);  // ten polls, all past the limit
+  EXPECT_EQ(reports.requests("hang-b"), 0U);
+  EXPECT_TRUE(reports.alarms().empty());
+}
+
+// A beat made disarmed is not watched until its first pulse.
+TEST(HangMonitor, ABeatMadeDisarmedWaitsForItsFirstPulse) {
+  const SteadyClock clock;
+  SignalBus bus;
+  auto hub = make_hub(clock);
+  ASSERT_TRUE(hub);
+  Reports reports(bus);
+  HangMonitor monitor(*hub, reports, bus, HangMonitor::Options{50ms});
+  auto quiet = monitor.beat("quiet", 50ms, false);
+  const auto control = monitor.beat("control", 50ms);
+  ASSERT_TRUE(reports.await("hang-control", 1));
+  EXPECT_EQ(reports.requests("hang-quiet"), 0U);
+  quiet.pulse();
+  ASSERT_TRUE(reports.await("hang-quiet", 1));
+}
+
+// A pulse with a limit of its own holds for that episode only.
+TEST(HangMonitor, APulseLimitHoldsForItsEpisode) {
+  const SteadyClock clock;
+  SignalBus bus;
+  auto hub = make_hub(clock);
+  ASSERT_TRUE(hub);
+  Reports reports(bus);
+  HangMonitor monitor(*hub, reports, bus, HangMonitor::Options{50ms});
+  auto b = monitor.beat("b", 50ms, false);
+  b.pulse(1h);
+  const auto control = monitor.beat("control", 50ms);
+  ASSERT_TRUE(reports.await("hang-control", 1));
+  EXPECT_EQ(reports.requests("hang-b"), 0U);
+  b.pulse();  // back to the beat's own 50 ms
+  ASSERT_TRUE(reports.await("hang-b", 1));
+}

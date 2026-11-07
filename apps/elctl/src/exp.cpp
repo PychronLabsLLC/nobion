@@ -340,7 +340,16 @@ class Exp {
       }
     }
 
+    // Reports a scheduler or transport call gone silent (spec
+    // 2026-11-06-field-diagnostics, 6). Made before the line, so its
+    // transports are watched from their first call; attached once the line's
+    // bus and the flight recorder exist, detached before they go. Nothing is
+    // watched on a VirtualClock (the transports and the scheduler's beat
+    // check).
+    HangMonitor hang_monitor;
+
     systems::ExtractionLine::Options line_options;
+    line_options.hang_monitor = &hang_monitor;
     line_options.clock = sim_clock.get();
     line_options.force_sim = g_.sim;
     if (!g_.sim_endpoints.empty()) {
@@ -372,12 +381,12 @@ class Exp {
     if (flight_hub) flight_recorder.emplace(*flight_hub, (*line)->bus());
     std::vector<SignalBus::Subscription> flight_subs;
     if (flight_recorder) flight_subs = wire_flight_recorder((*line)->bus(), *flight_recorder);
-    // Reports a scheduler gone silent (spec 2026-11-06-field-diagnostics, 6),
-    // on a SteadyClock only: under a VirtualClock a job's period is simulated
-    // time. After the recorder and the line, so it goes before them.
-    std::optional<HangMonitor> hang_monitor;
-    if (flight_recorder && dynamic_cast<const VirtualClock*>(&(*line)->clock()) == nullptr)
-      hang_monitor.emplace(*flight_hub, *flight_recorder, (*line)->bus());
+    if (flight_recorder) hang_monitor.attach(*flight_hub, *flight_recorder, (*line)->bus(), &(*line)->clock());
+    const HangMonitor::DetachOnExit hang_detach(hang_monitor);
+    // The scheduler's beat, on a SteadyClock only: under a VirtualClock a
+    // job's period is simulated time.
+    const bool watch_scheduler =
+        flight_recorder.has_value() && dynamic_cast<const VirtualClock*>(&(*line)->clock()) == nullptr;
     std::shared_ptr<HangMonitor::Beat> scheduler_beat;
     std::optional<JobId> scheduler_beat_job;
     const Clock& clock = (*line)->clock();
@@ -407,9 +416,9 @@ class Exp {
       complain("error: " + r.error().what);
       return kFailed;
     }
-    if (hang_monitor) {
+    if (watch_scheduler) {
       // A Beat may outlive the monitor: the job's copy is harmless on a way out.
-      scheduler_beat = std::make_shared<HangMonitor::Beat>(hang_monitor->beat("scheduler", std::chrono::seconds(30)));
+      scheduler_beat = std::make_shared<HangMonitor::Beat>(hang_monitor.beat("scheduler", std::chrono::seconds(30)));
       auto job = (*line)->scheduler().every("hang.beat", std::chrono::seconds(1),
                                             [beat = scheduler_beat] { beat->pulse(); });
       if (job) scheduler_beat_job = *job;
@@ -445,7 +454,7 @@ class Exp {
         assembly.sim_endpoints = std::make_shared<const std::map<std::string, Endpoint>>(std::move(*served));
       }
       auto assembled = spectrometer::SpectrometerAssembler::assemble(
-          std::move(data), spectrometer::SpectrometerContext{clock, (*line)->scheduler(), (*line)->bus()},
+          std::move(data), spectrometer::SpectrometerContext{clock, (*line)->scheduler(), (*line)->bus(), &hang_monitor},
           std::move(assembly));
       if (!assembled) {
         complain("error: " + assembled.error().what);

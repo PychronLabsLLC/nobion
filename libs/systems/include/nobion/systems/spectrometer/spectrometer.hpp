@@ -150,6 +150,8 @@ struct SpectrometerContext {
   const Clock& clock;
   Scheduler& scheduler;
   SignalBus& bus;
+  // Watches the transports the assembler builds (TransportContext::hang_monitor).
+  HangMonitor* hang_monitor = nullptr;
 };
 
 struct SpectrometerOptions {

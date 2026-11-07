@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "nobion/core/config/logging_config.hpp"
+#include "nobion/core/hang_monitor.hpp"
 #include "nobion/core/signal_bus.hpp"
 #include "nobion/transport/endpoints.hpp"
 #include "nobion/transport/listener.hpp"
@@ -299,4 +300,17 @@ TEST(TransportFactory, SimAndLinkIgnoreEndpoints) {
   EXPECT_NE(dynamic_cast<SimTransport*>(sim->get()), nullptr);
   auto link = make_transport(cfg("shared", config::TransportKind::Link, config::LinkParams{"gauges"}), ctx);
   EXPECT_TRUE(link) << link.error().what;
+}
+
+// The context's hang monitor reaches the transport (the transport decides
+// whether to watch: never on a VirtualClock).
+TEST(TransportFactory, PassesTheHangMonitor) {
+  HangMonitor monitor;  // unattached: reports nothing
+  TransportContext ctx;
+  ctx.hang_monitor = &monitor;
+  auto t = make_transport(cfg("hm", config::TransportKind::Sim, config::SimParams{}), ctx);
+  ASSERT_TRUE(t) << t.error().what;
+  auto* queued = dynamic_cast<QueuedTransport*>(t->get());
+  ASSERT_NE(queued, nullptr);
+  EXPECT_EQ(queued->options().hang_monitor, &monitor);
 }

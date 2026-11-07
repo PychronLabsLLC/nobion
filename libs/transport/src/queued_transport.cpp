@@ -47,10 +47,10 @@ struct QueuedTransport::Impl {
     options.retries = std::max(options.retries, 0);
     // Under a VirtualClock a simulated wait has no fixed real-time length:
     // nothing to measure a call against.
+    // The one gate: callers pass the monitor whatever their clock.
     if (options.hang_monitor != nullptr && dynamic_cast<const VirtualClock*>(clock) == nullptr) {
-      beat.emplace(options.hang_monitor->beat("transport." + options.name,
-                                              options.hang_limit.value_or(default_hang_limit(options))));
-      beat->disarm();  // an idle transport is not watched
+      hang_limit = options.hang_limit.value_or(default_hang_limit(options));
+      beat.emplace(options.hang_monitor->beat("transport." + options.name, hang_limit, false));  // idle: unwatched
     }
   }
 
@@ -69,9 +69,23 @@ struct QueuedTransport::Impl {
   std::condition_variable exited;  // either of those changed; through the clock
 
   bool open = false;  // worker thread only (or after the worker has stopped)
-  // Pulsed when the worker starts a call, disarmed when it ends; worker
-  // thread only after construction.
+  // Pulsed when the worker starts a job and before each wire call in it
+  // (every attempt, and calls made inline inside a transaction), disarmed
+  // when the job ends: it measures silence between wire calls, not a job's
+  // length. Worker thread only after construction.
   std::optional<HangMonitor::Beat> beat;
+  std::chrono::milliseconds hang_limit{};
+
+  // Before a wire call that may wait up to `timeout`. A call given a timeout
+  // longer than the configured one is allowed 10 x its own for this episode.
+  void wire_call(Duration timeout) noexcept {
+    if (!beat) return;
+    if (timeout > options.timeout) {
+      beat->pulse(std::max(hang_limit, std::chrono::duration_cast<std::chrono::milliseconds>(timeout) * 10));
+    } else {
+      beat->pulse();
+    }
+  }
 
   mutable std::mutex health_mutex;
   Health health;
@@ -269,6 +283,7 @@ Result<void> QueuedTransport::open() {
   return impl_->submit<void>([this]() -> Result<void> {
     auto& impl = *impl_;
     if (impl.open) return {};
+    impl.wire_call(impl.options.timeout);
     auto r = do_open();
     impl.open = static_cast<bool>(r);
     return impl.finish(std::move(r));
@@ -309,6 +324,7 @@ Result<Bytes> QueuedTransport::exchange(Bytes tx, ReadSpec rs, Duration timeout,
     const int attempts = resend == Resend::Allowed ? impl.options.retries + 1 : 1;
     Result<Bytes> r = fail(ErrorKind::Io, "no attempt made");
     for (int attempt = 0; attempt < attempts; ++attempt) {
+      impl.wire_call(t);
       do_discard_input();
       if (auto w = do_write(tx, t); !w) {
         r = fail(w.error());
@@ -326,6 +342,7 @@ Result<void> QueuedTransport::write(Bytes tx) {
   return impl_->submit<void>([this, tx = std::move(tx)]() -> Result<void> {
     auto& impl = *impl_;
     if (!impl.open) return fail(impl.not_connected());
+    impl.wire_call(impl.options.timeout);
     return settle(do_write(tx, impl.options.timeout));
   });
 }
@@ -342,6 +359,7 @@ Result<Bytes> QueuedTransport::read(ReadSpec rs, Duration timeout) {
   return impl_->submit<Bytes>([this, rs = std::move(rs), timeout]() -> Result<Bytes> {
     auto& impl = *impl_;
     if (!impl.open) return fail(impl.not_connected());
+    impl.wire_call(impl.effective(timeout));
     return settle(do_read(rs, impl.effective(timeout)));
   });
 }
@@ -350,6 +368,7 @@ Result<std::optional<Bytes>> QueuedTransport::poll(ReadSpec rs, Duration timeout
   return impl_->submit<std::optional<Bytes>>([this, rs = std::move(rs), timeout]() -> Result<std::optional<Bytes>> {
     auto& impl = *impl_;
     if (!impl.open) return fail(impl.not_connected());
+    impl.wire_call(impl.effective(timeout));
     auto r = do_read(rs, impl.effective(timeout));
     if (!r && r.error().kind == ErrorKind::Timeout) return std::optional<Bytes>{};  // nothing yet: not a failure
     auto done = settle(std::move(r));

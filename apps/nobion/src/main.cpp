@@ -544,7 +544,15 @@ int main(int argc, char** argv) {
   splash.show();
   splash.status(QStringLiteral("Starting"));
 
+  // Reports a silent UI thread, scheduler or transport call (spec
+  // 2026-11-06-field-diagnostics, 6). Made before the line, so the line's
+  // transports are watched from their first call; attached to the line's
+  // bus and the flight recorder once those exist (below), detached before
+  // they go. Outlives the line; the beats it hands out may outlive it.
+  nobion::HangMonitor hang_monitor;
+
   nobion::systems::ExtractionLine::Options options;
+  options.hang_monitor = &hang_monitor;
   options.force_sim = sim;
   options.sim_endpoints = cli->sim_endpoints;
   options.sim_endpoints_any = cli->sim_endpoints_any;
@@ -609,12 +617,12 @@ int main(int argc, char** argv) {
   if ((*line)->log_hub()) flight_recorder.emplace(*(*line)->log_hub(), (*line)->bus());
   std::vector<nobion::SignalBus::Subscription> flight_recorder_subs;
   if (flight_recorder) flight_recorder_subs = nobion::experiment::wire_flight_recorder((*line)->bus(), *flight_recorder);
-  // Reports a silent UI thread or scheduler (spec 2026-11-06-field-diagnostics,
-  // 6): a log record, a flight recorder dump, a warning alarm. After the
-  // recorder and the line, so it goes before them; its beats are disarmed in
-  // the teardown below, before what pulses them stops.
-  std::optional<nobion::HangMonitor> hang_monitor;
-  if (flight_recorder) hang_monitor.emplace(*(*line)->log_hub(), *flight_recorder, (*line)->bus());
+  // The hang monitor reports from here on: a log record, a flight recorder
+  // dump, a warning alarm on the line's bus. Detached before the recorder
+  // and the line go, on every way out.
+  const bool hang_attached = flight_recorder.has_value();
+  if (hang_attached) hang_monitor.attach(*(*line)->log_hub(), *flight_recorder, (*line)->bus(), &(*line)->clock());
+  const nobion::HangMonitor::DetachOnExit hang_detach(hang_monitor);
   // The scheduler's beat: a job pulses it every second. Only on a
   // SteadyClock: under a VirtualClock the job's period is simulated time.
   std::shared_ptr<nobion::HangMonitor::Beat> scheduler_beat;
@@ -663,7 +671,8 @@ int main(int argc, char** argv) {
       simulation = nobion::spectrometer::is_simulated(*data);
       return nobion::spectrometer::load_spectrometer_for_app(
           std::move(*data),
-          nobion::spectrometer::SpectrometerContext{(*line)->clock(), (*line)->scheduler(), (*line)->bus()},
+          nobion::spectrometer::SpectrometerContext{(*line)->clock(), (*line)->scheduler(), (*line)->bus(),
+                                                    &hang_monitor},
           // A simulated spectrometer measures the simulated line's gas.
           nobion::spectrometer::SpectrometerBringup{
               .sim_beam_from_table = simulation,
@@ -932,9 +941,9 @@ int main(int argc, char** argv) {
             "ERROR [ui] spectrometer unavailable: extraction line did not start (shared scheduler not running)"));
       }
     }
-    if (started && hang_monitor && dynamic_cast<const nobion::VirtualClock*>(&(*line)->clock()) == nullptr) {
+    if (started && hang_attached && dynamic_cast<const nobion::VirtualClock*>(&(*line)->clock()) == nullptr) {
       scheduler_beat =
-          std::make_shared<nobion::HangMonitor::Beat>(hang_monitor->beat("scheduler", std::chrono::seconds(30)));
+          std::make_shared<nobion::HangMonitor::Beat>(hang_monitor.beat("scheduler", std::chrono::seconds(30)));
       auto job = (*line)->scheduler().every("hang.beat", std::chrono::seconds(1),
                                             [beat = scheduler_beat] { beat->pulse(); });
       if (job) scheduler_beat_job = *job;
@@ -990,8 +999,8 @@ int main(int argc, char** argv) {
     // startup step may hold the thread longer, and is not a hang.
     std::optional<nobion::HangMonitor::Beat> ui_beat;
     QTimer ui_beat_timer;
-    if (hang_monitor) {
-      ui_beat.emplace(hang_monitor->beat("ui.main", std::chrono::seconds(10)));
+    if (hang_attached) {
+      ui_beat.emplace(hang_monitor.beat("ui.main", std::chrono::seconds(10)));
       QObject::connect(&ui_beat_timer, &QTimer::timeout, [&ui_beat] { ui_beat->pulse(); });
       ui_beat_timer.start(std::chrono::seconds(1));
     }

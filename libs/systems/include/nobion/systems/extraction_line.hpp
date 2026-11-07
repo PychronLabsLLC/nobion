@@ -113,6 +113,10 @@ struct ExtractionLineOptions {
   // [transports.<name>.recovery] does not say otherwise: the lab's
   // executor.toml [links].
   LinkPolicy link_defaults;
+  // Watches every transport's calls (TransportOptions::hang_monitor; ignored
+  // on a VirtualClock). Must outlive the line's transports' calls; a
+  // monitor's beats may outlive it.
+  HangMonitor* hang_monitor = nullptr;
 };
 
 class ExtractionLine {

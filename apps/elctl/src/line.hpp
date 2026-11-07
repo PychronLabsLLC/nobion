@@ -25,6 +25,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/core/event_recorder.hpp"
 #include "nobion/core/flight_recorder_triggers.hpp"
+#include "nobion/core/hang_monitor.hpp"
 #include "nobion/core/log_hub.hpp"
 #include "nobion/core/scheduler.hpp"
 #include "nobion/core/signal_bus.hpp"
@@ -112,6 +113,10 @@ class Line {
   // after it, so they go first.
   std::optional<nobion::FlightRecorderTriggers> flight_recorder_;
   std::vector<nobion::SignalBus::Subscription> flight_recorder_subs_;
+  // Reports a transport call that does not return (spec 6); only with the
+  // recorder. After it and bus_, so it goes (and stops reporting) before
+  // them; the transports' beats may outlive it.
+  std::optional<nobion::HangMonitor> hang_monitor_;
   std::unique_ptr<Sims> sims_;
   std::vector<std::pair<std::string, std::unique_ptr<nobion::Transport>>> transports_;
   std::vector<std::pair<std::string, std::unique_ptr<nobion::Device>>> devices_;

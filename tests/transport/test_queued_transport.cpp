@@ -598,3 +598,63 @@ TEST(QueuedTransport, ATransportOnAVirtualClockIsNotWatched) {
   const auto r = call.get();
   ASSERT_TRUE(r) << r.error().what;
 }
+
+// The beat measures silence between wire calls, not a job's length: a
+// transaction of short exchanges that together outlast the limit is not a
+// hang. Each exchange takes 150 ms against a 600 ms limit; six take 900 ms.
+TEST(QueuedTransport, ATransactionOfShortExchangesIsNotReported) {
+  const SteadyClock clock;
+  SignalBus bus;
+  auto hub = hang_hub(clock);
+  ASSERT_TRUE(hub);
+  HangRequests requests;
+  HangMonitor monitor(*hub, requests, bus, HangMonitor::Options{50ms});
+  auto o = opts();
+  o.hang_monitor = &monitor;
+  o.hang_limit = 600ms;
+  auto t = SimTransport::hooked(
+      [](const Bytes&) {
+        std::this_thread::sleep_for(150ms);  // the instrument takes its time
+        return to_bytes("OK\r");
+      },
+      o);
+  ASSERT_TRUE(t->open());
+  SimTransport* const raw = t.get();
+  const auto started = std::chrono::steady_clock::now();
+  const auto r = raw->transaction([raw]() -> Result<void> {
+    for (int i = 0; i < 6; ++i) {
+      auto reply = raw->exchange(to_bytes("Q\r"), kCr);
+      if (!reply) return fail(reply.error());
+    }
+    return {};
+  });
+  ASSERT_TRUE(r) << r.error().what;
+  EXPECT_GT(std::chrono::steady_clock::now() - started, 600ms);  // the job did outlast the limit
+
+  const auto control = monitor.beat("control", 50ms);  // the monitor has looked again since
+  ASSERT_TRUE(requests.await("hang-control"));
+  EXPECT_EQ(requests.count("hang-transport.bus1"), 0U);
+}
+
+// A read given a timeout longer than the configured one is allowed ten times
+// its own: waiting it out is not a hang.
+TEST(QueuedTransport, ALongExplicitTimeoutIsNotAHang) {
+  const SteadyClock clock;
+  SignalBus bus;
+  auto hub = hang_hub(clock);
+  ASSERT_TRUE(hub);
+  HangRequests requests;
+  HangMonitor monitor(*hub, requests, bus, HangMonitor::Options{50ms});
+  auto o = opts();
+  o.hang_monitor = &monitor;
+  o.hang_limit = 100ms;
+  auto t = SimTransport::hooked([](const Bytes&) { return Bytes{}; }, o, [] { return Bytes{}; });
+  ASSERT_TRUE(t->open());
+  const auto r = t->read(kCr, 600ms);  // nothing comes: waits the whole 600 ms
+  ASSERT_FALSE(r);
+  EXPECT_EQ(r.error().kind, ErrorKind::Timeout);
+
+  const auto control = monitor.beat("control", 50ms);
+  ASSERT_TRUE(requests.await("hang-control"));
+  EXPECT_EQ(requests.count("hang-transport.bus1"), 0U);
+}
