@@ -152,6 +152,12 @@ class LogHub {
   // that one is locked); empty when there is no file.
   std::filesystem::path file_path() const;
 
+  // Where a crash of this process is written: `<dir>/crash/<stem>-<pid>.txt`,
+  // `<stem>` that of the configured file name; empty when there is no file.
+  // create() makes `<dir>/crash` and keeps there the newest 20 crashes (a
+  // `.txt` and the `.dmp` of the same name count as one).
+  std::filesystem::path crash_file_path() const;
+
   // Used by Logger; not for callers. Never throws; `message` is written
   // verbatim (it is never interpreted as a format string).
   void write(LogLevel level, std::string_view logger, std::string_view message);
@@ -162,11 +168,18 @@ class LogHub {
   //
   // - std::terminate: logs the active exception text at `error` on logger
   //   `nobion`, flushes (bounded wait), then calls the previous handler.
-  // - POSIX SIGSEGV/SIGABRT/SIGBUS/SIGFPE/SIGILL: writes `fatal signal N` with
-  //   write(2) to stderr and to a descriptor on that hub's log file (moved
-  //   onto the live file within about 1 s of a rotation), then restores the
-  //   default action and re-raises. No flush (signal-unsafe):
-  //   records below `error` younger than about 1 s may be lost.
+  // - POSIX SIGSEGV/SIGABRT/SIGBUS/SIGFPE/SIGILL/SIGTRAP (SA_ONSTACK; the
+  //   calling thread is given an alternate stack, other threads take one with
+  //   install_signal_stack()): first alarm(5), so a stuck handler still ends
+  //   the process; then, with write(2), `fatal signal N`, `build <build_id>`,
+  //   `thread <tag>` (LogContext tag, `?` if none) and the raw backtrace
+  //   (`0x<hex>`, one frame a line) to stderr, to a descriptor on that hub's
+  //   log file (moved onto the live file within about 1 s of a rotation) and
+  //   to the crash file (crash_file_path(), opened only then); the module map
+  //   (`module <path> 0x<load> 0x<size>`) to the crash file, or to stderr
+  //   when there is none. Then restores the default action and re-raises.
+  //   No flush (signal-unsafe): records below `error` younger than about
+  //   1 s may be lost. Spec 2026-11-06-field-diagnostics, 3.2 and 3.3.
   // - Windows: an unhandled-exception filter writing `fatal exception 0x..`
   //   the same way, returning EXCEPTION_CONTINUE_SEARCH.
   static void install_crash_handlers();

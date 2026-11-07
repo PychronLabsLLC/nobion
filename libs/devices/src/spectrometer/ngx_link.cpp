@@ -5,6 +5,7 @@
 #include <system_error>
 
 #include "nobion/core/log_context.hpp"
+#include "nobion/core/signal_stack.hpp"
 #include "nobion/transport/link_transport.hpp"
 
 namespace nobion::spectrometer {
@@ -175,6 +176,7 @@ void NgxLink::went_down(const Error& why) {
 }
 
 void NgxLink::reader(std::shared_ptr<Clock::Hold> started) {
+  install_signal_stack();
   Clock::Participant participant(clock_, "ngx.reader");
   const LogContext::Thread log_thread("ngx.reader");
   started.reset();

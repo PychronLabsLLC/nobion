@@ -2,6 +2,7 @@
 
 #include "nobion/core/build_info.hpp"
 #include "nobion/core/log_dir.hpp"
+#include "nobion/core/signal_stack.hpp"
 
 #include <spdlog/async_logger.h>
 #include <spdlog/details/thread_pool.h>
@@ -10,6 +11,7 @@
 #include <spdlog/sinks/rotating_file_sink.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cerrno>
 #include <chrono>
@@ -41,6 +43,7 @@
 #endif
 #include <windows.h>
 #else
+#include <execinfo.h>
 #include <fcntl.h>
 #include <sys/file.h>
 #include <sys/stat.h>
@@ -48,6 +51,7 @@
 #endif
 
 #include "log_hub_internal.hpp"
+#include "module_map.hpp"
 #include "nobion/core/log_context.hpp"
 #include "nobion/core/log_match.hpp"
 #include "nobion/core/logger.hpp"
@@ -62,6 +66,7 @@ constexpr auto kPeriodicFlush = std::chrono::seconds(1);
 constexpr auto kErrorReportInterval = std::chrono::seconds(10);
 constexpr std::size_t kSpdlogMaxRotated = 200000;  // spdlog's rotating_file_sink::MaxFiles
 constexpr auto kCrashFlushTimeout = std::chrono::seconds(2);
+constexpr std::size_t kCrashesKept = 20;  // crash files (and dumps) in <dir>/crash
 
 // The echo and the writer's error reports go to the C stream, not through
 // std::cerr: a program that tees std::cerr into its log (elctl) would log every
@@ -288,6 +293,7 @@ struct LogHub::Impl {
   std::shared_ptr<spdlog::details::thread_pool> pool;
   std::shared_ptr<spdlog::sinks::rotating_file_sink_mt> file_sink;  // null = no file
   std::filesystem::path file_path;                                   // empty = no file
+  std::filesystem::path crash_path;  // <dir>/crash/<stem>-<pid>.txt; empty = no file
   std::shared_ptr<spdlog::async_logger> logger;
   std::shared_ptr<BarrierSink> barrier_sink;
   std::shared_ptr<spdlog::async_logger> barrier;
@@ -543,6 +549,7 @@ struct LogHub::Impl {
   }
 
   void run_flusher() {
+    install_signal_stack();
     std::unique_lock lock(flusher_mutex);
     while (!stopping) {
       flusher_cv.wait_for(lock, kPeriodicFlush, [&] { return stopping; });
@@ -550,6 +557,9 @@ struct LogHub::Impl {
       lock.unlock();
       logger->flush();  // asynchronous: queued behind pending records
       refresh_crash_output(*this);  // follow nobion.log across rotation
+#ifndef _WIN32
+      detail::ModuleMap::refresh();  // a library loaded since the last tick
+#endif
       lock.lock();
     }
   }
@@ -619,7 +629,33 @@ void close_crash_target(CrashTarget target) noexcept {
 #endif
 }
 
-// Points the handler at `impl`'s log file. Caller holds CrashState::mutex.
+#ifndef _WIN32
+
+// The crash file's path, preformatted outside the signal (at install, when a
+// hub is retargeted, at begin_session). Two buffers: a new path is written
+// into the one the handler is not told about, then named, so the handler
+// never reads one half written. Written only under CrashState::mutex.
+constexpr std::size_t kCrashPathMax = 4096;
+std::array<std::array<char, kCrashPathMax>, 2> g_crash_paths{};
+std::atomic<int> g_crash_path_index{-1};  // -1: no crash file
+
+void set_crash_path(const std::filesystem::path& path) noexcept {
+  try {
+    const std::string text = path.string();
+    if (text.empty() || text.size() >= kCrashPathMax) return;
+    const int next = g_crash_path_index.load() == 0 ? 1 : 0;
+    auto& buffer = g_crash_paths[static_cast<std::size_t>(next)];
+    std::copy(text.begin(), text.end(), buffer.begin());
+    buffer[text.size()] = '\0';
+    g_crash_path_index.store(next);
+  } catch (...) {  // NOLINT(bugprone-empty-catch): out of memory; the previous path stays
+  }
+}
+
+#endif
+
+// Points the handler at `impl`'s log file and crash file. Caller holds
+// CrashState::mutex.
 //
 // POSIX: the handler's descriptor number never changes once set. A new file
 // is opened and dup2()ed onto it, which swaps the open file atomically with
@@ -627,6 +663,9 @@ void close_crash_target(CrashTarget target) noexcept {
 // be using is ever closed.
 void retarget_crash_output(const LogHub::Impl& impl) noexcept {
   if (impl.file_path.empty()) return;
+#ifndef _WIN32
+  set_crash_path(impl.crash_path);
+#endif
   const CrashTarget fresh = open_crash_target(impl.file_path);
   if (fresh == kNoCrashTarget) return;
 #ifdef _WIN32
@@ -665,6 +704,59 @@ void refresh_crash_output(const LogHub::Impl& impl) noexcept {
 #endif
 }
 
+// begin_session: the crash path is set again, for the hub the handlers follow.
+void reset_crash_path(const LogHub::Impl& impl) noexcept {
+#ifdef _WIN32
+  (void)impl;  // Windows: the dump is opened at install (Task 6)
+#else
+  try {
+    auto& state = crash_state();
+    std::lock_guard lock(state.mutex);
+    if (state.installed && state.current.lock().get() == &impl) set_crash_path(impl.crash_path);
+  } catch (...) {  // NOLINT(bugprone-empty-catch): a mutex that cannot be locked; the path set at install stays
+  }
+#endif
+}
+
+// Hub start: of the crashes in `dir` (a `<stem>.txt` and its `<stem>.dmp`
+// are one), the newest kCrashesKept stay. Errors leave files in place.
+void prune_crashes(const std::filesystem::path& dir) noexcept {
+  try {
+    struct Crash {
+      std::string stem;
+      std::filesystem::file_time_type newest;
+      std::vector<std::filesystem::path> files;
+    };
+    std::vector<Crash> crashes;
+    std::error_code ec;
+    for (std::filesystem::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
+      const auto& path = it->path();
+      const auto ext = path.extension();
+      if (ext != ".txt" && ext != ".dmp") continue;
+      if (!it->is_regular_file(ec)) continue;
+      const auto time = it->last_write_time(ec);
+      if (ec) {
+        ec.clear();
+        continue;
+      }
+      const std::string stem = path.stem().string();
+      auto crash = std::find_if(crashes.begin(), crashes.end(), [&](const Crash& c) { return c.stem == stem; });
+      if (crash == crashes.end()) {
+        crashes.push_back({stem, time, {}});
+        crash = std::prev(crashes.end());
+      }
+      crash->newest = std::max(crash->newest, time);
+      crash->files.push_back(path);
+    }
+    if (crashes.size() <= kCrashesKept) return;
+    std::sort(crashes.begin(), crashes.end(), [](const Crash& a, const Crash& b) { return a.newest > b.newest; });
+    for (std::size_t i = kCrashesKept; i < crashes.size(); ++i) {
+      for (const auto& file : crashes[i].files) std::filesystem::remove(file, ec);
+    }
+  } catch (...) {  // NOLINT(bugprone-empty-catch): pruning is housekeeping; a failure leaves old crashes
+  }
+}
+
 // Async-signal-safe write of a whole buffer; errors are ignored.
 void write_all(CrashTarget target, const char* data, std::size_t size) noexcept {
   if (target == kNoCrashTarget) return;
@@ -682,7 +774,7 @@ void write_all(CrashTarget target, const char* data, std::size_t size) noexcept 
 }
 
 // Appends the decimal (or, with base 16, hex) digits of `value` to buf at pos.
-std::size_t put_unsigned(char* buf, std::size_t pos, unsigned long value, unsigned base) noexcept {
+std::size_t put_unsigned(char* buf, std::size_t pos, std::uint64_t value, unsigned base) noexcept {
   char digits[24];
   std::size_t n = 0;
   do {
@@ -748,43 +840,148 @@ void install_fatal_handlers() noexcept { SetUnhandledExceptionFilter(&on_unhandl
 
 #else
 
+// Everything the handler writes is formatted here or on its own stack from
+// bytes made outside the signal; the handler calls only write(2), open(2),
+// backtrace(), alarm(2), sigaction(2) and raise(3) (spec 3.2).
+
 // "fatal signal N\n", preformatted at install time so the handler only
 // copies bytes.
 struct SignalLine {
   int signal = 0;
-  char text[32] = {};
+  std::array<char, 32> text{};
   std::size_t size = 0;
 };
-constexpr int kFatalSignals[] = {SIGSEGV, SIGABRT, SIGBUS, SIGFPE, SIGILL};
-SignalLine g_signal_lines[std::size(kFatalSignals)];
+constexpr std::array kFatalSignals{SIGSEGV, SIGABRT, SIGBUS, SIGFPE, SIGILL, SIGTRAP};
+std::array<SignalLine, kFatalSignals.size()> g_signal_lines;
 
-void on_fatal_signal(int sig) {
+// "build <build_id>\n", preformatted at install.
+std::array<char, 160> g_build_line{};
+std::size_t g_build_line_size = 0;
+
+// Set by the first thread into the handler. Only that one writes; the
+// static frame array below is its alone.
+std::atomic<bool> g_in_crash{false};
+constexpr int kMaxFrames = 64;
+std::array<void*, kMaxFrames> g_frames{};
+
+constexpr std::size_t kMaxTagBytes = 128;
+constexpr unsigned kHandlerAlarmSeconds = 5;
+
+// stderr, the log file, the crash file; -1 for one that is not there.
+using CrashFds = std::array<int, 3>;
+
+void write_to_all(const CrashFds& fds, const char* data, std::size_t size) noexcept {
+  for (const int fd : fds) {
+    if (fd >= 0) write_all(fd, data, size);
+  }
+}
+
+// "thread <tag>\n" from the crashing thread's LogContext tag; "?" if none.
+void write_thread_line(const CrashFds& fds) noexcept {
+  std::array<char, kMaxTagBytes + 16> line{};
+  std::size_t pos = 0;
+  for (const char c : std::string_view("thread ")) line[pos++] = c;
+  const std::string* tag = detail::thread_tag_pointer();
+  if (tag != nullptr && !tag->empty()) {
+    const char* data = tag->data();
+    const std::size_t n = std::min(tag->size(), kMaxTagBytes);
+    for (std::size_t i = 0; i < n; ++i) line[pos++] = data[i] == '\n' ? ' ' : data[i];
+  } else {
+    line[pos++] = '?';
+  }
+  line[pos++] = '\n';
+  write_to_all(fds, line.data(), pos);
+}
+
+// The raw backtrace, one `0x<hex>` a line. No symbol names: tools/symbolize.py
+// turns these and the module map into functions and lines.
+void write_frames(const CrashFds& fds) noexcept {
+  const int n = ::backtrace(g_frames.data(), kMaxFrames);
+  for (int i = 0; i < n; ++i) {
+    std::array<char, 24> line{};
+    std::size_t pos = 0;
+    line[pos++] = '0';
+    line[pos++] = 'x';
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast): the address is what is written
+    const auto address = reinterpret_cast<std::uintptr_t>(g_frames[static_cast<std::size_t>(i)]);
+    pos = put_unsigned(line.data(), pos, address, 16);
+    line[pos++] = '\n';
+    write_to_all(fds, line.data(), pos);
+  }
+}
+
+void on_fatal_signal(int sig, siginfo_t* /*info*/, void* /*context*/) {
+  // First act: a handler stuck for any reason still ends the process.
+  ::alarm(kHandlerAlarmSeconds);
+  // A second thread crashing meanwhile waits for the first to end the
+  // process (or for the alarm).
+  if (g_in_crash.exchange(true)) {
+    while (g_in_crash.load()) {
+      // the first crash ends the process
+    }
+  }
+
+  int crash_fd = -1;
+  if (const int index = g_crash_path_index.load(); index >= 0) {
+    crash_fd = ::open(g_crash_paths[static_cast<std::size_t>(index)].data(),
+                      O_CREAT | O_WRONLY | O_APPEND | O_CLOEXEC, 0644);
+  }
+  const CrashFds fds{STDERR_FILENO, g_crash_target.load(), crash_fd};
+
   for (const auto& line : g_signal_lines) {
     if (line.signal != sig) continue;
-    write_all(STDERR_FILENO, line.text, line.size);
-    write_all(g_crash_target.load(), line.text, line.size);
+    write_to_all(fds, line.text.data(), line.size);
     break;
   }
-  std::signal(sig, SIG_DFL);
-  std::raise(sig);  // delivered with the default action once this returns
+  write_to_all(fds, g_build_line.data(), g_build_line_size);
+  write_thread_line(fds);
+  write_frames(fds);
+  // The module map is long (hundreds of lines in the app): the crash file
+  // has it, stderr only when there is no crash file.
+  detail::ModuleMap::write_to(crash_fd >= 0 ? crash_fd : STDERR_FILENO);
+
+  // More preformatted spans go here, to crash_fd with write(2) only (the
+  // flight recorder ring, spec 5.4).
+
+  struct sigaction default_action {};
+  default_action.sa_handler = SIG_DFL;
+  sigemptyset(&default_action.sa_mask);
+  ::sigaction(sig, &default_action, nullptr);
+  ::raise(sig);  // delivered with the default action once this returns
 }
 
 void install_fatal_handlers() noexcept {
   static constexpr std::string_view kPrefix = "fatal signal ";
-  for (std::size_t i = 0; i < std::size(kFatalSignals); ++i) {
+  for (std::size_t i = 0; i < kFatalSignals.size(); ++i) {
     auto& line = g_signal_lines[i];
     line.signal = kFatalSignals[i];
     std::size_t pos = 0;
     for (const char c : kPrefix) line.text[pos++] = c;
-    pos = put_unsigned(line.text, pos, static_cast<unsigned long>(line.signal), 10);
+    pos = put_unsigned(line.text.data(), pos, static_cast<std::uint64_t>(line.signal), 10);
     line.text[pos++] = '\n';
     line.size = pos;
   }
+  try {
+    const std::string build = "build " + build_id() + "\n";
+    const std::size_t n = std::min(build.size(), g_build_line.size());
+    std::copy_n(build.begin(), n, g_build_line.begin());
+    g_build_line_size = n;
+  } catch (...) {  // NOLINT(bugprone-empty-catch): out of memory at install; the crash file goes without its build line
+  }
+  // backtrace() loads its unwinder on first use (glibc dlopens libgcc_s):
+  // done here, never first in a signal.
+  std::array<void*, 4> warm{};
+  (void)::backtrace(warm.data(), static_cast<int>(warm.size()));
+  detail::ModuleMap::install();
+
   for (const int sig : kFatalSignals) {
     struct sigaction action {};
-    action.sa_handler = &on_fatal_signal;
+    action.sa_sigaction = &on_fatal_signal;
     sigemptyset(&action.sa_mask);
-    action.sa_flags = 0;
+    // A second fault of another kind on the crashing thread is not handled
+    // again: the kernel ends the process with it.
+    for (const int other : kFatalSignals) sigaddset(&action.sa_mask, other);
+    action.sa_flags = SA_SIGINFO | SA_ONSTACK;
     sigaction(sig, &action, nullptr);
   }
 }
@@ -798,8 +995,9 @@ void LogHub::install_crash_handlers() {
   std::lock_guard lock(state.mutex);
   if (state.installed) return;
   state.installed = true;
+  install_signal_stack();  // the calling (main) thread's
+  install_fatal_handlers();  // before the retarget: it preformats what the handler writes
   if (auto hub = state.current.lock()) retarget_crash_output(*hub);
-  install_fatal_handlers();
   g_previous_terminate.store(std::set_terminate(&on_terminate));
 }
 
@@ -857,6 +1055,17 @@ Result<std::shared_ptr<LogHub>> LogHub::create(const config::LoggingConfig& conf
             std::min(files - 1, kSpdlogMaxRotated));
         impl->file_sink->set_formatter(make_file_formatter());
         impl->file_path = std::move(file);
+        // Crash files: `<stem>-<pid>.txt` in `<dir>/crash` (spec 3.3); the
+        // pid is in the name already, so the configured stem, not the
+        // `-<pid>` one a second hub logs to.
+        const std::filesystem::path crash_dir = dir / "crash";
+        std::error_code crash_ec;
+        std::filesystem::create_directories(crash_dir, crash_ec);
+        if (!crash_ec) {
+          prune_crashes(crash_dir);
+          impl->crash_path = crash_dir / (std::filesystem::path(config.file_name).stem().string() + "-" +
+                                          process_id() + ".txt");
+        }
       } catch (const std::exception& e) {
         impl->file_sink.reset();
         impl->report_startup_error("cannot open log file in " + dir.string() + ": " +
@@ -867,7 +1076,10 @@ Result<std::shared_ptr<LogHub>> LogHub::create(const config::LoggingConfig& conf
 
   try {
     impl->pool = std::make_shared<spdlog::details::thread_pool>(
-        kQueueSize, kWriterThreads, [] { t_is_log_writer = true; });
+        kQueueSize, kWriterThreads, [] {
+          install_signal_stack();
+          t_is_log_writer = true;
+        });
     std::vector<spdlog::sink_ptr> sinks;
     if (impl->file_sink) sinks.push_back(impl->file_sink);
     impl->logger = std::make_shared<spdlog::async_logger>(
@@ -993,6 +1205,7 @@ void LogHub::begin_session(const SessionInfo& info) {
   append_field(line, "levels", levels.empty() ? "none" : levels);
   impl_->session_begun.store(true);
   impl_->write(LogLevel::Info, "nobion", line);
+  reset_crash_path(*impl_);
 }
 
 void LogHub::flush() {
@@ -1024,6 +1237,8 @@ SignalBus* LogHub::bus() const noexcept {
 }
 
 std::filesystem::path LogHub::file_path() const { return impl_->file_path; }
+
+std::filesystem::path LogHub::crash_file_path() const { return impl_->crash_path; }
 
 LogHub::BusAttachment LogHub::attach_bus(SignalBus& bus) {
   const std::uint64_t id = impl_->next_attachment.fetch_add(1) + 1;

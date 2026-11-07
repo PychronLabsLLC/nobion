@@ -274,6 +274,7 @@ TEST(LogHub, RotatesAtSizeLimit) {
   std::vector<std::string> names;
   for (const auto& entry : fs::directory_iterator(tmp.path())) {
     if (entry.path().extension() == ".lock") continue;  // the hub's lock file
+    if (entry.path().filename() == "crash") continue;   // the crash folder
     names.push_back(entry.path().filename().string());
   }
   std::sort(names.begin(), names.end());

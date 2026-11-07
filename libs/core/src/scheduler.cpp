@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "nobion/core/log_context.hpp"
+#include "nobion/core/signal_stack.hpp"
 #include "nobion/core/signal_bus.hpp"
 
 namespace nobion {
@@ -271,6 +272,7 @@ void Scheduler::publish_log(LogLevel level, std::string message) const {
 }
 
 void Scheduler::worker_loop(std::shared_ptr<Clock::Hold> started) {
+  install_signal_stack();
   Clock::Participant participant(clock_, "scheduler.worker");
   const LogContext::Thread log_thread("scheduler");
   started.reset();
@@ -333,6 +335,7 @@ bool Scheduler::started() const {
 }
 
 void Scheduler::dispatcher_loop(std::shared_ptr<Clock::Hold> started) {
+  install_signal_stack();
   Clock::Participant participant(clock_, "scheduler.dispatch");
   const LogContext::Thread log_thread("scheduler");
   started.reset();

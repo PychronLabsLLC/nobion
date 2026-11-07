@@ -1,5 +1,7 @@
 #include "nobion/core/log_context.hpp"
 
+#include "log_hub_internal.hpp"
+
 #include <atomic>
 #include <string>
 #include <type_traits>
@@ -45,3 +47,9 @@ std::uint32_t thread_number() noexcept {
 }
 
 }  // namespace nobion::LogContext
+
+namespace nobion::detail {
+
+const std::string* thread_tag_pointer() noexcept { return LogContext::t_tag; }
+
+}  // namespace nobion::detail

@@ -64,7 +64,7 @@ Every artifact says exactly which source built it.
 
 ### 3.2 What the crash handler writes
 
-Same handlers (`LogHub::install_crash_handlers`), more written: to stderr, the log file descriptor (as today) and the crash file (3.3).
+Same handlers (`LogHub::install_crash_handlers`), more written: to stderr, the log file descriptor (as today) and the crash file (3.3). Module map (long: hundreds of lines in the app) to crash file only; to stderr when no crash file.
 
 POSIX rules for the handler (signal context): no allocation, no lock, no stdio, no `dladdr`; only preformatted bytes, `write(2)`, `open(2)`, `backtrace()`, `alarm(2)`, `raise(2)`. Everything else captured outside the signal (at install, at `begin_session`, or by the hub's flusher thread).
 
@@ -75,7 +75,7 @@ POSIX rules for the handler (signal context): no allocation, no lock, no stdio, 
   - `build <build_id>` (preformatted at install).
   - `thread <tag>`: the thread tag `log_context.hpp` keeps (a `thread_local` pointer to a static string, read without a lock); `?` if none.
   - raw backtrace: `backtrace()` into a static array of 64, written as hex addresses, one a line. `backtrace()` called once at install so its unwinder is loaded before any signal. No symbol names in the handler.
-  - module map: name, load address, size of each loaded image, from a static table (512 entries; past that, counted and written as `modules truncated: N`). Filled outside the signal: macOS: `_dyld_register_func_for_add_image` callback; Linux: `dl_iterate_phdr` at install and again from the hub's flusher thread whenever `dlpi_adds` changes. Two tables, atomic index of the current one: the handler reads a table nobody is writing.
+  - module map: name, load address, size of each loaded image, from a static table (512 entries; past that, counted and written as `modules truncated: N`). Filled outside the signal: macOS: `_dyld_register_func_for_add_image` callback; Linux: `dl_iterate_phdr` at install and again from the hub's flusher thread whenever `dlpi_adds` changes. Two tables, atomic index of the current one: the handler reads a table nobody is writing. Line form `module <path> 0x<load hex> 0x<size hex>`. macOS: load = mach header address (what `atos -l` takes), size = `__TEXT` vmsize (shared-cache images share one `__LINKEDIT` far from their text); one append-only table, entries below an atomic count never rewritten; unloaded image keeps its row. Linux: load = `dlpi_addr` + lowest `PT_LOAD` `p_vaddr` (= `dlpi_addr` for PIE and shared libraries), size = span of `PT_LOAD` segments.
   - flight recorder ring (5.4).
 - `std::terminate`: exception text as today, plus build, thread, backtrace, module map (not in a signal, same writer).
 - Windows: at install, a crash thread is started that waits on an event, and the dump file handle (`<log dir>/crash/<stem>-<pid>.dmp`) is opened then. The unhandled-exception filter writes `fatal exception 0x..`, `build`, thread id, ring (5.4) with `WriteFile`, then signals the crash thread with the `EXCEPTION_POINTERS` and waits up to 10 s; the crash thread calls `MiniDumpWriteDump` (`dbghelp`) with `MiniDumpWithThreadInfo | MiniDumpWithIndirectlyReferencedMemory`. A separate thread because a stack overflow leaves the faulting thread no stack. Best effort: heap corruption can still defeat dbghelp; text lines are written first for that reason.

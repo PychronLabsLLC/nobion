@@ -11,6 +11,7 @@
 
 #include "nobion/core/events.hpp"
 #include "nobion/core/log_context.hpp"
+#include "nobion/core/signal_stack.hpp"
 #include "nobion/core/signal_bus.hpp"
 #include "nobion/transport/transport.hpp"
 
@@ -161,6 +162,7 @@ struct QueuedTransport::Impl {
   }
 
   void run_worker(std::shared_ptr<Clock::Hold> started) {
+    install_signal_stack();
     Clock::Participant participant(*clock, "transport." + options.name);
     const LogContext::Thread log_thread("transport." + options.name);
     started.reset();

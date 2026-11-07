@@ -4,6 +4,7 @@
 // spdlog members, in log_hub.cpp). Not installed; not part of the public API.
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 
 #include "nobion/core/log_hub.hpp"
@@ -24,6 +25,11 @@ ResolvedLevel hub_resolve_level(const LogHub::Impl& hub, std::string_view name) 
 // The calling thread's label for a record: its LogContext tag, or `t<n>`
 // (LogContext::thread_number()) when it has none. Read on the logging thread.
 std::string thread_label();
+
+// The string LogContext::Thread points the calling thread at, or null: what
+// LogContext::thread_tag() reads, without a view built over it. For the crash
+// handler, which reads data() and size() and nothing else.
+const std::string* thread_tag_pointer() noexcept;
 
 // LogHub::write on the Impl; a no-op once the hub has been destroyed.
 void hub_write(LogHub::Impl& hub, LogLevel level, std::string_view logger,

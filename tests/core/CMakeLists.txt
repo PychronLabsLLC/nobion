@@ -33,7 +33,14 @@ add_executable(nobion_core_tests
   test_http.cpp
   test_keyed_noise.cpp
   test_build_info.cpp
+  test_crash_capture.cpp
 )
+
+# Dies on purpose, in the way its second argument names; test_crash_capture.cpp
+# spawns it and reads the crash file it leaves.
+add_executable(nobion_crash_helper crash_helper.cpp)
+target_link_libraries(nobion_crash_helper PRIVATE nobion::core)
+nobion_set_warnings(nobion_crash_helper)
 
 target_link_libraries(nobion_core_tests PRIVATE nobion::core GTest::gtest_main)
 # virtual_time.hpp
@@ -41,7 +48,9 @@ target_include_directories(nobion_core_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests
 nobion_set_warnings(nobion_core_tests)
 target_compile_definitions(nobion_core_tests PRIVATE
   NOBION_TEST_PROJECT_VERSION="${PROJECT_VERSION}"
-  NOBION_TEST_HAS_METRICS=$<BOOL:${NOBION_METRICS}>)
+  NOBION_TEST_HAS_METRICS=$<BOOL:${NOBION_METRICS}>
+  NOBION_CRASH_HELPER="$<TARGET_FILE:nobion_crash_helper>")
+add_dependencies(nobion_core_tests nobion_crash_helper)
 
 gtest_discover_tests(nobion_core_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)
 

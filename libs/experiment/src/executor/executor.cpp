@@ -13,6 +13,7 @@
 
 #include "nobion/core/events.hpp"
 #include "nobion/core/log_context.hpp"
+#include "nobion/core/signal_stack.hpp"
 #include "nobion/experiment/conditionals/metrics.hpp"
 #include "nobion/systems/spectrometer/spectrometer.hpp"
 #include "nobion/transport/transport.hpp"
@@ -368,6 +369,7 @@ std::unique_ptr<Executor::Slot> Executor::launch(std::size_t row, RunSpec spec, 
   // Time does not move on between the thread's start and its Participant.
   auto hold = std::make_shared<Clock::Hold>(clock_);
   s->thread = std::thread([this, s, hold]() mutable {
+    install_signal_stack();
     Clock::Participant participant(clock_, "executor.slot." + std::to_string(s->row));
     const LogContext::Thread log_thread("run");
     const LogContext::Run log_run(s->run->name());

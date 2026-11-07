@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "nobion/core/signal_stack.hpp"
 #include "nobion/core/virtual_clock.hpp"
 
 namespace nobion::testing {
@@ -121,6 +122,7 @@ class Crew {
       ++live_;
     }
     threads_.emplace_back([this, hold, name = std::move(name), body = std::move(body)]() mutable {
+      install_signal_stack();
       Clock::Participant participant(clock_, name);
       hold.reset();
       // Said while this thread is still a participant.
