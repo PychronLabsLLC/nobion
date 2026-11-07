@@ -10,6 +10,7 @@
 #include "nobion/transport/sim_transport.hpp"
 #include "nobion/systems/spectrometer/assembler.hpp"
 #include "spectrometer_fakes.hpp"
+#include "temp_path.hpp"
 
 using namespace nobion;
 using namespace nobion::spectrometer;
@@ -50,8 +51,16 @@ struct Env {
 // to "<transport>.wire" like a line transport, so the flight recorder holds them
 // at trace although the file level is info.
 TEST(SpectrometerAssembler, TransportsLogWireBytes) {
-  auto dir = std::filesystem::temp_directory_path() / "nobion_spec_wire_test";
-  std::filesystem::remove_all(dir);
+  // Declared first, so destroyed last: after the hub has closed its files, and
+  // also when an ASSERT below returns early.
+  struct Cleanup {
+    std::filesystem::path dir;
+    ~Cleanup() {
+      std::error_code ec;
+      std::filesystem::remove_all(dir, ec);
+    }
+  } cleanup{nobion::testing::unique_temp_path("nobion_spec_wire_test_")};
+  const auto& dir = cleanup.dir;
   std::filesystem::create_directories(dir);
   config::LoggingConfig lc;
   lc.dir = dir;
@@ -71,7 +80,6 @@ TEST(SpectrometerAssembler, TransportsLogWireBytes) {
   EXPECT_NE(ring.find("dac.wire: tx"), std::string::npos) << ring;
   transport->reset();
   env.log_hub.reset();
-  std::filesystem::remove_all(dir);
 }
 
 TEST(SpectrometerAssembler, BindReportsEveryProblem) {
