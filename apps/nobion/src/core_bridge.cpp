@@ -55,6 +55,7 @@ CoreBridge::CoreBridge(systems::ExtractionLine& line, QObject* parent)
   relay<PressureSample>(&CoreBridge::on_pressure);
   relay<Alarm>(&CoreBridge::on_alarm);
   relay<TransportHealth>(&CoreBridge::on_health);
+  relay<DeviceHealthChanged>(&CoreBridge::on_device_health);
   relay<Log>(&CoreBridge::on_log);
   relay<Snapshot>(&CoreBridge::on_snapshot);
   relay<ActuationFailed>(&CoreBridge::on_failed);
@@ -246,6 +247,8 @@ void CoreBridge::on_heater(const HeaterSample& e) {
 }
 
 void CoreBridge::on_alarm(const Alarm& e) { emit alarm(e); }
+
+void CoreBridge::on_device_health(const DeviceHealthChanged& e) { emit deviceHealth(e); }
 
 void CoreBridge::on_health(const TransportHealth& e) {
   state_.health[e.transport] = e;

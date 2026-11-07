@@ -377,6 +377,7 @@ MainWindow::MainWindow(systems::ExtractionLine& line, std::unique_ptr<QSettings>
   connect(banner_, &StatusBanner::alarms_clicked, this, show_alarms);
   connect(strip_, &AlarmStrip::clicked, this, show_alarms);
   connect(&bridge_, &CoreBridge::transportHealth, health_, &HealthBar::update_health);
+  connect(&bridge_, &CoreBridge::deviceHealth, health_, &HealthBar::update_device);
   // A gauge's history: a rest on its chip shows the last ten minutes, a
   // click opens its window. The popup is the main window's (it places
   // itself beside the chip and hides with the window).

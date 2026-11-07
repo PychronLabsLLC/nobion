@@ -1,11 +1,12 @@
 #pragma once
 
 // HealthBar: one chip per transport, green (connected, no errors), amber
-// (connected with errors), red (down), grey (no report yet), plus the age of
+// (connected with errors, or with a device Degraded or Faulted), red (down), grey (no report yet), plus the age of
 // the last healthy report, refreshed once a second. While the queue holds
 // (spec 4.6), a chip ahead of them says why and counts down to the hold
 // limit, at which the queue ends: "holding: <reason> · ends in 1:59:30".
 
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <optional>
@@ -43,6 +44,10 @@ class HealthBar : public QWidget {
   // Adds a grey chip for each transport not shown yet.
   void seed(const std::vector<std::string>& transports);
   void update_health(const TransportHealth& health);
+  // A device on a transport changed state: the chip turns amber while one is
+  // Degraded or Faulted (a down transport stays red), and its tooltip lists
+  // every device seen on it.
+  void update_device(const DeviceHealthChanged& event);
   // Re-renders every chip's age text and the hold's countdown.
   void refresh();
 
@@ -60,6 +65,8 @@ class HealthBar : public QWidget {
   static style::Level level_of(Status status);
 
   std::optional<Status> status(const std::string& transport) const;
+  // As shown on the chip; Unknown for a transport not on the bar.
+  Status chip_status(const QString& transport) const;
   QLabel* chip(const std::string& transport) const;
   [[nodiscard]] Summary summary() const;
 
@@ -70,9 +77,18 @@ class HealthBar : public QWidget {
  private:
   struct Chip {
     QLabel* label = nullptr;
-    Status status = Status::Unknown;
+    Status status = Status::Unknown;  // the transport's own report
     std::optional<TimePoint> last_ok;
+    QString transport_tip;
+    struct Device {
+      DeviceState state = DeviceState::Unknown;
+      std::uint64_t failures = 0;
+      std::string error;
+      std::optional<TimePoint> last_ok;
+    };
+    std::map<std::string, Device> devices;
   };
+  static Status shown_status(const Chip& chip);
 
   struct Hold {
     QString reason;

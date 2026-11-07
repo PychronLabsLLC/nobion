@@ -115,6 +115,7 @@ class CoreBridge : public QObject {
   void pressureSample(const nobion::PressureSample& event);
   void alarm(const nobion::Alarm& event);
   void transportHealth(const nobion::TransportHealth& event);
+  void deviceHealth(const nobion::DeviceHealthChanged& event);
   void logLine(const nobion::Log& event);
   void snapshot(const nobion::Snapshot& event);
   void lockChanged(const QString& name, bool locked);
@@ -138,6 +139,7 @@ class CoreBridge : public QObject {
   void on_pressure(const PressureSample& e);
   void on_alarm(const Alarm& e);
   void on_health(const TransportHealth& e);
+  void on_device_health(const DeviceHealthChanged& e);
   void on_log(const Log& e);
   void on_snapshot(const Snapshot& e);
   void on_lock(const SwitchLockChanged& e);

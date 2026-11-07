@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <utility>
 
 namespace nobion::ui {
 
@@ -65,15 +66,44 @@ void HealthBar::update_health(const TransportHealth& health) {
   if (!health.last_error.empty()) {
     tip += QStringLiteral("\nlast error: ") + QString::fromStdString(health.last_error);
   }
-  chip.label->setToolTip(tip);
+  chip.transport_tip = std::move(tip);
   render(health.transport, chip);
   if (summary() != before) emit changed();
+}
+
+void HealthBar::update_device(const DeviceHealthChanged& event) {
+  const Summary before = summary();
+  Chip& chip = chip_for(event.transport);
+  Chip::Device& device = chip.devices[event.device];
+  device.state = event.to;
+  device.failures = event.consecutive_failures;
+  device.error = event.last_error_text;
+  if (event.to == DeviceState::Ok) {
+    device.last_ok = event.ts;
+  }
+  render(event.transport, chip);
+  if (summary() != before) emit changed();
+}
+
+HealthBar::Status HealthBar::shown_status(const Chip& chip) {
+  if (chip.status == Status::Down || chip.status == Status::Degraded) {
+    return chip.status;
+  }
+  const bool bad = std::ranges::any_of(chip.devices, [](const auto& d) {
+    return d.second.state == DeviceState::Degraded || d.second.state == DeviceState::Faulted;
+  });
+  return bad ? Status::Degraded : chip.status;
+}
+
+HealthBar::Status HealthBar::chip_status(const QString& transport) const {
+  const auto it = chips_.find(transport.toStdString());
+  return it == chips_.end() ? Status::Unknown : shown_status(it->second);
 }
 
 HealthBar::Summary HealthBar::summary() const {
   Summary s;
   for (const auto& [name, chip] : chips_) {
-    switch (chip.status) {
+    switch (shown_status(chip)) {
       case Status::Ok: ++s.ok; break;
       case Status::Degraded: ++s.degraded; break;
       case Status::Down: ++s.down; break;
@@ -148,7 +178,7 @@ std::optional<HealthBar::Status> HealthBar::status(const std::string& transport)
   if (it == chips_.end()) {
     return std::nullopt;
   }
-  return it->second.status;
+  return shown_status(it->second);
 }
 
 QLabel* HealthBar::chip(const std::string& transport) const {
@@ -174,7 +204,23 @@ void HealthBar::render(const std::string& name, const Chip& chip) {
     text += QStringLiteral(" · ") + age_text(std::max(age, std::chrono::seconds{0}));
   }
   chip.label->setText(text);
-  style::set_chip(chip.label, level_of(chip.status));
+  QString tip = chip.transport_tip.isEmpty() ? QString::fromStdString(name) : chip.transport_tip;
+  for (const auto& [device, d] : chip.devices) {
+    const auto state = to_string(d.state);
+    tip += QStringLiteral("\n%1: %2, %3 failure(s) in a row").arg(QString::fromStdString(device),
+        QString::fromUtf8(state.data(), static_cast<qsizetype>(state.size())), QString::number(d.failures));
+    if (!d.error.empty()) {
+      tip += QStringLiteral(", last error: ") + QString::fromStdString(d.error);
+    }
+    if (d.last_ok) {
+      const auto age = std::chrono::duration_cast<std::chrono::seconds>(now_() - *d.last_ok);
+      tip += QStringLiteral(", last ok ") + age_text(std::max(age, std::chrono::seconds{0})) + QStringLiteral(" ago");
+    } else {
+      tip += QStringLiteral(", never ok");
+    }
+  }
+  chip.label->setToolTip(tip);
+  style::set_chip(chip.label, level_of(shown_status(chip)));
 }
 
 }  // namespace nobion::ui
