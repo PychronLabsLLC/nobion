@@ -5,7 +5,9 @@
 #include <algorithm>
 
 #include "log_capture.hpp"
+#include "nobion/core/events.hpp"
 #include "nobion/core/log_context.hpp"
+#include "nobion/core/signal_bus.hpp"
 
 using namespace nobion;
 using namespace std::chrono_literals;
@@ -105,6 +107,88 @@ TEST(Device, StateNames) {
   EXPECT_EQ(to_string(DeviceState::Ok), "ok");
   EXPECT_EQ(to_string(DeviceState::Degraded), "degraded");
   EXPECT_EQ(to_string(DeviceState::Faulted), "faulted");
+}
+
+// ---- health on the bus (spec 2026-11-06-field-diagnostics, 7) -----------
+
+namespace {
+
+// Every DeviceHealthChanged the bus carries, in order.
+struct HealthEvents {
+  explicit HealthEvents(SignalBus& bus)
+      : sub(bus.subscribe<DeviceHealthChanged>([this](const DeviceHealthChanged& e) { seen.push_back(e); })) {}
+  std::vector<DeviceHealthChanged> seen;
+  SignalBus::Subscription sub;
+};
+
+Result<void> failure(int i) { return fail(ErrorKind::Timeout, "no reply " + std::to_string(i)); }
+
+}  // namespace
+
+// fault_after failures: one event to Degraded (the first failure), one to
+// Faulted (the fault_after-th), none for the failures in between or after.
+TEST(Plain, FaultAfterPublishesOnceToFaulted) {
+  SignalBus bus;
+  HealthEvents events(bus);
+  ManualClock clock(TimePoint{} + 7s);
+  Plain d("ig1", DeviceOptions{&clock, 3});
+  d.set_health_bus(&bus, "gauges");
+  for (int i = 1; i <= 5; ++i) (void)d.observe(failure(i));
+
+  ASSERT_EQ(events.seen.size(), 2u);
+  const DeviceHealthChanged& degraded = events.seen[0];
+  EXPECT_EQ(degraded.device, "ig1");
+  EXPECT_EQ(degraded.transport, "gauges");
+  EXPECT_EQ(degraded.from, DeviceState::Unknown);
+  EXPECT_EQ(degraded.to, DeviceState::Degraded);
+  EXPECT_EQ(degraded.consecutive_failures, 1u);
+  EXPECT_EQ(degraded.last_error_kind, ErrorKind::Timeout);
+  EXPECT_EQ(degraded.last_error_text, "no reply 1");
+  EXPECT_EQ(degraded.ts, TimePoint{} + 7s);
+
+  const DeviceHealthChanged& faulted = events.seen[1];
+  EXPECT_EQ(faulted.from, DeviceState::Degraded);
+  EXPECT_EQ(faulted.to, DeviceState::Faulted);
+  EXPECT_EQ(faulted.consecutive_failures, 3u);
+  EXPECT_EQ(faulted.last_error_text, "no reply 3");
+}
+
+TEST(Plain, RecoveryPublishesOk) {
+  SignalBus bus;
+  HealthEvents events(bus);
+  Plain d("ig1", DeviceOptions{nullptr, 2});
+  d.set_health_bus(&bus, "gauges");
+  (void)d.observe(Result<void>{});  // Unknown -> Ok
+  (void)d.observe(Result<void>{});  // no change
+  (void)d.observe(failure(1));
+  (void)d.observe(failure(2));
+  (void)d.observe(Result<void>{});
+  (void)d.observe(Result<void>(fail(ErrorKind::Cancelled, "stop")));  // not a failure: no change
+
+  ASSERT_EQ(events.seen.size(), 4u);
+  EXPECT_EQ(events.seen[0].from, DeviceState::Unknown);
+  EXPECT_EQ(events.seen[0].to, DeviceState::Ok);
+  EXPECT_FALSE(events.seen[0].last_error_kind.has_value());
+  EXPECT_EQ(events.seen[1].to, DeviceState::Degraded);
+  EXPECT_EQ(events.seen[2].to, DeviceState::Faulted);
+  const DeviceHealthChanged& ok = events.seen[3];
+  EXPECT_EQ(ok.from, DeviceState::Faulted);
+  EXPECT_EQ(ok.to, DeviceState::Ok);
+  EXPECT_EQ(ok.consecutive_failures, 0u);
+  EXPECT_EQ(ok.last_error_kind, ErrorKind::Timeout);  // kept after recovery, as health() keeps it
+}
+
+TEST(Plain, NoBusPublishesNothing) {
+  SignalBus bus;
+  HealthEvents events(bus);
+  Plain d("ig1", DeviceOptions{nullptr, 1});
+  (void)d.observe(failure(1));
+  (void)d.observe(Result<void>{});
+  d.set_health_bus(&bus, "gauges");
+  d.set_health_bus(nullptr);
+  (void)d.observe(failure(2));
+  EXPECT_TRUE(events.seen.empty());
+  EXPECT_EQ(d.health().state, DeviceState::Faulted);
 }
 
 // ---- the log ---------------------------------------------------------------

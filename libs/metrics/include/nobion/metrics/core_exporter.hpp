@@ -1,8 +1,8 @@
 #pragma once
 
 // Instrument and application health, taken from the events the core already
-// publishes: pressures, temperatures, heaters, valves, alarms, transports and
-// log records. Nothing in the control path is instrumented for this; the
+// publishes: pressures, temperatures, heaters, valves, alarms, transports,
+// device health and log records. Nothing in the control path is instrumented for this; the
 // exporter is one more subscriber.
 //
 // Its handlers run on whichever thread published, so they do no more than

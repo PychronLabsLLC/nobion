@@ -4,6 +4,8 @@
 
 #include <algorithm>
 
+#include "nobion/core/events.hpp"
+#include "nobion/core/signal_bus.hpp"
 #include "nobion/devices/capabilities.hpp"
 #include "nobion/transport/sim_transport.hpp"
 
@@ -53,6 +55,19 @@ class EchoGauge : public Device, public IPressureGauge {
   double scale_;
 };
 
+// A gauge whose every reading fails, observed: its health moves.
+class DeadGauge : public Device, public IPressureGauge {
+ public:
+  explicit DeadGauge(std::string name) : Device(std::move(name)) {}
+  static DriverSchema schema() { return {"", "test gauge that never answers", {}}; }
+  static Result<std::unique_ptr<DeadGauge>> create(const DriverArgs& args) {
+    return std::make_unique<DeadGauge>(args.name);
+  }
+  Result<double> read_pressure() override {
+    return observe(begin("read_pressure"), Result<double>(fail(ErrorKind::Timeout, "no reply")));
+  }
+};
+
 class RegistryTest : public ::testing::Test {
  protected:
   RegistryTest() : sim_(silent_bus()) {
@@ -76,6 +91,33 @@ TEST_F(RegistryTest, CreatesDriverWithNameTransportAndOptions) {
   EXPECT_DOUBLE_EQ(*g->read_pressure(), 2.5);
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast): the factory under test was asked for this type
   EXPECT_EQ(&static_cast<EchoGauge&>(**d).transport(), sim_.get());
+}
+
+// Spec 2026-11-06-field-diagnostics, 7: the registry hands the line's bus to
+// what it makes, with the name of the transport the device is on.
+TEST_F(RegistryTest, HandsTheBusToTheDevice) {
+  ASSERT_TRUE(reg_.add<DeadGauge>("dead_gauge"));
+  SignalBus bus;
+  std::vector<DeviceHealthChanged> seen;
+  const auto sub = bus.subscribe<DeviceHealthChanged>([&](const DeviceHealthChanged& e) { seen.push_back(e); });
+
+  auto by_kind = reg_.create("dead_gauge", *sim_, toml::table{}, {"ig1", nullptr, nullptr, &bus});
+  ASSERT_TRUE(by_kind) << to_string(by_kind.error());
+  config::DriverConfig dc;
+  dc.name = "ig2";
+  dc.kind = "dead_gauge";
+  dc.transport = "bus";
+  auto by_config = reg_.create(dc, *sim_, nullptr, nullptr, &bus);
+  ASSERT_TRUE(by_config) << to_string(by_config.error());
+
+  (void)capability<IPressureGauge>(**by_kind)->read_pressure();
+  (void)capability<IPressureGauge>(**by_config)->read_pressure();
+  ASSERT_EQ(seen.size(), 2u);
+  EXPECT_EQ(seen[0].device, "ig1");
+  EXPECT_EQ(seen[0].transport, "bus");
+  EXPECT_EQ(seen[0].to, DeviceState::Degraded);
+  EXPECT_EQ(seen[1].device, "ig2");
+  EXPECT_EQ(seen[1].transport, "bus");
 }
 
 TEST_F(RegistryTest, NameDefaultsToKind) {

@@ -175,7 +175,7 @@ Result<void> ExtractionLine::build() {
   for (const auto& [name, dc] : config_.drivers) {
     Transport* t = transport(dc.transport);
     if (!t) return fail(ErrorKind::Config, "unknown transport '" + dc.transport + "'", name);
-    auto device = DriverRegistry::global().create(dc, *t, clock_, link(dc.transport));
+    auto device = DriverRegistry::global().create(dc, *t, clock_, link(dc.transport), &bus_);
     if (!device) return fail(device.error());
     devices_.emplace_back(name, std::move(*device));
   }

@@ -182,7 +182,7 @@ Result<std::unique_ptr<Device>> SpectrometerAssembler::default_driver(const cfg:
     for (const auto& c : dc.channels) channels.push_back(c);
     options.insert("channels", std::move(channels));
   }
-  return DriverRegistry::global().create(dc.kind, transport, options, DriverContext{dc.name, &context.clock, link});
+  return DriverRegistry::global().create(dc.kind, transport, options, DriverContext{dc.name, &context.clock, link, &context.bus});
 }
 
 Result<std::unique_ptr<Spectrometer>> SpectrometerAssembler::load(const std::filesystem::path& config_file,

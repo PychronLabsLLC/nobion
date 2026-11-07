@@ -2,8 +2,10 @@
 
 #include <array>
 #include <optional>
+#include <string>
 
 #include "nobion/core/error.hpp"
+#include "nobion/core/events.hpp"
 #include "nobion/devices/spectrometer/detectors.hpp"
 #include "nobion/systems/jobs/job.hpp"
 #include "nobion/systems/jobs/peak_center.hpp"
@@ -13,7 +15,7 @@
 namespace nobion::systems {
 namespace {
 
-constexpr std::array<EventClass, 11> kSystemsClasses{{
+constexpr std::array<EventClass, 12> kSystemsClasses{{
     {"JobStarted", LogLevel::Debug},
     {"JobFinished", LogLevel::Debug},
     {"PeakCenterTryStarted", LogLevel::Debug},
@@ -21,6 +23,7 @@ constexpr std::array<EventClass, 11> kSystemsClasses{{
     {"DetectorState", LogLevel::Debug},
     {"FieldTableChanged", LogLevel::Debug},
     {"ScanStatus", LogLevel::Debug},     // warn when it carries an error
+    {"DeviceHealthChanged", LogLevel::Info},  // warn to degraded or faulted
     {"JobProgress", std::nullopt},       // every step of a job
     {"PeakCenterPoint", std::nullopt},   // every step of a sweep
     {"IntensityReading", std::nullopt},  // every integration
@@ -98,6 +101,26 @@ SystemsEventRecorder::SystemsEventRecorder(SignalBus& bus) {
             .flag("paused", e.paused)
             .seconds("integration", e.integration)
             .text("error", e.error);
+      }));
+  // Declared in libs/core, published by every Device a line or spectrometer
+  // makes (spec 2026-11-06-field-diagnostics, 7): warn going bad, info back
+  // to ok. The error's kind and text are one field, as an Error is written.
+  subscriptions_.push_back(record_event<DeviceHealthChanged>(
+      bus, "DeviceHealthChanged",
+      [](const DeviceHealthChanged& e) -> std::optional<LogLevel> {
+        return e.to == DeviceState::Degraded || e.to == DeviceState::Faulted ? LogLevel::Warn : LogLevel::Info;
+      },
+      [](const DeviceHealthChanged& e, EventLine& l) {
+        l.text("device", e.device)
+            .text("transport", e.transport)
+            .word("from", to_string(e.from))
+            .word("to", to_string(e.to))
+            .count("consecutive_failures", e.consecutive_failures);
+        if (e.last_error_kind) {
+          std::string error(to_string(*e.last_error_kind));
+          if (!e.last_error_text.empty()) error.append(": ").append(e.last_error_text);
+          l.text("last_error", error);
+        }
       }));
 }
 

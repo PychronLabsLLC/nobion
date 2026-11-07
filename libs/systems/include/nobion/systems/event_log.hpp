@@ -1,7 +1,8 @@
 #pragma once
 
 // Bus tap for the events libs/systems publishes (jobs, peak center,
-// acquisition, spectrometer, scan service): each one record on logger
+// acquisition, spectrometer, scan service), and DeviceHealthChanged, which
+// libs/core declares and the devices a line makes publish: each one record on logger
 // "trace.<EventName>", as nobion::EventRecorder does for the core events
 // (nobion/core/event_recorder.hpp, which says how).
 

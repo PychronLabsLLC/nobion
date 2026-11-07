@@ -129,7 +129,7 @@ Result<std::unique_ptr<Line>> Line::build(config::SystemConfig config, LineOptio
   for (const auto& [name, dc] : cfg.drivers) {
     Transport* transport = line->transport(dc.transport);
     if (!transport) return fail(ErrorKind::Config, "unknown transport '" + dc.transport + "'", name);
-    auto device = DriverRegistry::global().create(dc, *transport, &line->clock_);
+    auto device = DriverRegistry::global().create(dc, *transport, &line->clock_, nullptr, &line->bus_);
     if (!device) return fail(device.error());
     line->devices_.emplace_back(name, std::move(*device));
   }

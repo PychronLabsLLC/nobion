@@ -133,6 +133,28 @@ TEST(FlightRecorderTriggers, AWarningAlarmDoesNot) {
   EXPECT_TRUE(dumps_in(tmp.path()).empty());
 }
 
+// Spec 5.3 and 7: a device going to Faulted dumps; going to Degraded or back
+// to Ok does not.
+TEST(FlightRecorderTriggers, AFaultedDeviceDumps) {
+  TempDir tmp;
+  const SteadyClock clock;
+  SignalBus bus;
+  auto hub = make_hub(tmp.path(), clock);
+  ASSERT_TRUE(hub);
+  {
+    const FlightRecorderTriggers triggers(*hub, bus);
+    bus.publish(DeviceHealthChanged{"ig1", "gauges", DeviceState::Unknown, DeviceState::Degraded, 1,
+                                    ErrorKind::Timeout, "no reply", {}});
+    bus.publish(DeviceHealthChanged{"ig1", "gauges", DeviceState::Degraded, DeviceState::Faulted, 3,
+                                    ErrorKind::Timeout, "no reply", {}});
+    bus.publish(
+        DeviceHealthChanged{"ig1", "gauges", DeviceState::Faulted, DeviceState::Ok, 0, ErrorKind::Timeout, "", {}});
+  }
+  const auto dumps = dumps_in(tmp.path());
+  ASSERT_EQ(dumps.size(), 1u);
+  EXPECT_TRUE(dumps[0].filename().string().ends_with("-faulted-ig1.log")) << dumps[0];
+}
+
 // The bus handler only queues: a dump that does not return holds up nothing
 // that publishes.
 TEST(FlightRecorderTriggers, RequestNeverBlocksThePublisher) {

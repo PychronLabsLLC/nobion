@@ -228,6 +228,27 @@ TEST_F(CoreExporterTest, TransportOutagesAreCounted) {
   EXPECT_FALSE(has(t, "nobion_transport_errors_total{transport=\"valve_bus\"}"));
 }
 
+// Spec 2026-11-06-field-diagnostics, 7: a device's state and its failures in
+// a row, as the last DeviceHealthChanged said them. The error is no label.
+TEST_F(CoreExporterTest, DeviceStateGauge) {
+  bus.publish(DeviceHealthChanged{"ig1", "gauges", DeviceState::Unknown, DeviceState::Degraded, 1, ErrorKind::Timeout,
+                                  "no reply from 10.0.0.7", {}});
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_device_state{device=\"ig1\",transport=\"gauges\"}"), 2.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_device_consecutive_failures{device=\"ig1\"}"), 1.0);
+
+  bus.publish(DeviceHealthChanged{"ig1", "gauges", DeviceState::Degraded, DeviceState::Faulted, 3, ErrorKind::Timeout,
+                                  "no reply from 10.0.0.7", {}});
+  std::string t = text();
+  EXPECT_DOUBLE_EQ(value(t, "nobion_device_state{device=\"ig1\",transport=\"gauges\"}"), 3.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_device_consecutive_failures{device=\"ig1\"}"), 3.0);
+  EXPECT_EQ(t.find("10.0.0.7"), std::string::npos);
+
+  bus.publish(DeviceHealthChanged{"ig1", "gauges", DeviceState::Faulted, DeviceState::Ok, 0, ErrorKind::Timeout, "", {}});
+  t = text();
+  EXPECT_DOUBLE_EQ(value(t, "nobion_device_state{device=\"ig1\",transport=\"gauges\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_device_consecutive_failures{device=\"ig1\"}"), 0.0);
+}
+
 TEST_F(CoreExporterTest, ATransportFirstHeardOfAsDownIsOneOutage) {
   bus.publish(TransportHealth{"gauge_net", false, 3, "refused", {}});
   bus.publish(TransportHealth{"gauge_net", false, 3, "refused", {}});  // said again: the same outage

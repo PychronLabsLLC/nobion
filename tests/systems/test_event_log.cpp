@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "log_capture.hpp"
+#include "nobion/core/events.hpp"
 #include "nobion/core/signal_bus.hpp"
 #include "nobion/devices/spectrometer/detectors.hpp"
 #include "nobion/systems/event_log.hpp"
@@ -25,18 +26,40 @@ using Lines = std::vector<std::string>;
 // Every struct libs/systems publishes on a SignalBus (jobs/job.hpp,
 // jobs/peak_center.hpp, spectrometer/acquisition.hpp, spectrometer.hpp,
 // scan_service.hpp; DetectorState is declared in libs/devices and published
-// by the Spectrometer). Kept by hand: a new event fails EveryEventClassified
+// by the Spectrometer; DeviceHealthChanged is declared in libs/core and
+// published by every Device a line makes). Kept by hand: a new event fails EveryEventClassified
 // until systems_event_classes() has it.
 const std::set<std::string_view> kSystemsEvents{
     "JobStarted",       "JobProgress",       "JobFinished",   "PeakCenterTryStarted", "PeakCenterPoint",
     "PeakCenterDone",   "IntensityReading",  "DetectorState", "MagnetMoved",          "FieldTableChanged",
-    "ScanStatus",
+    "ScanStatus",       "DeviceHealthChanged",
 };
 
 TEST(SystemsEventLog, EveryEventClassified) {
   std::set<std::string_view> classified;
   for (const auto& c : systems_event_classes()) EXPECT_TRUE(classified.insert(c.name).second) << c.name << " twice";
   EXPECT_EQ(classified, kSystemsEvents);
+}
+
+// Spec 2026-11-06-field-diagnostics, 7: warn going bad, info coming back.
+TEST(SystemsEventLog, FaultedIsAWarning) {
+  LogCapture log;
+  ASSERT_TRUE(log.ok());
+  SignalBus bus;
+  const SystemsEventRecorder recorder(bus);
+  bus.publish(DeviceHealthChanged{"ig1", "gauges", DeviceState::Degraded, DeviceState::Faulted, 3, ErrorKind::Timeout,
+                                  "no reply", {}});
+  bus.publish(DeviceHealthChanged{"ig1", "gauges", DeviceState::Unknown, DeviceState::Degraded, 1, ErrorKind::Timeout,
+                                  "no reply", {}});
+  bus.publish(
+      DeviceHealthChanged{"ig1", "gauges", DeviceState::Faulted, DeviceState::Ok, 0, ErrorKind::Timeout, "", {}});
+  EXPECT_EQ(log.trace_lines(),
+            (Lines{"[warn] trace.DeviceHealthChanged: device=ig1, transport=gauges, from=degraded, to=faulted, "
+                   "consecutive_failures=3, last_error=timeout: no reply",
+                   "[warn] trace.DeviceHealthChanged: device=ig1, transport=gauges, from=unknown, to=degraded, "
+                   "consecutive_failures=1, last_error=timeout: no reply",
+                   "[info] trace.DeviceHealthChanged: device=ig1, transport=gauges, from=faulted, to=ok, "
+                   "consecutive_failures=0, last_error=timeout"}));
 }
 
 TEST(SystemsEventLog, JobStartedAndFinished) {

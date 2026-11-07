@@ -1,7 +1,7 @@
 #pragma once
 
 // What writes out the flight recorder (spec 2026-11-06-field-diagnostics,
-// 5.3): a critical alarm, and whatever else calls request() (a failed run,
+// 5.3): a critical alarm, a device going to Faulted, and whatever else calls request() (a failed run,
 // an unsafe queue end: libs/experiment flight_recorder_wiring.hpp).
 
 #include <condition_variable>
@@ -36,15 +36,17 @@ struct IDumpRequester {
 // the disk.
 //
 // Subscribes `Alarm`: one of severity Critical asks for `alarm-<source>`.
+// Subscribes `DeviceHealthChanged`: one to Faulted asks for
+// `faulted-<device>` (spec section 7).
 //
 // At most kMaxPending requests wait; one past that is dropped (a storm keeps
 // its first dump: the hub's limits turn the rest away anyway). The
 // destructor unsubscribes, makes the dumps already asked for, then joins the
 // worker: a request made just before a program ends is still written. `hub`
-// and `bus` must outlive this object. Whatever publishes an `Alarm` on `bus`
-// from another thread is stopped before this object is destroyed: the
-// unsubscribe does not wait for a handler already running there, which would
-// then call request() on a destroyed object.
+// and `bus` must outlive this object. Whatever publishes an `Alarm` or a
+// `DeviceHealthChanged` on `bus` from another thread is stopped before this
+// object is destroyed: the unsubscribe does not wait for a handler already
+// running there, which would then call request() on a destroyed object.
 //
 // A dump the hub refuses (a limit, the recorder off) or fails to write is
 // logged at `debug` on logger `flight` (the hub logs a failed write itself).
@@ -74,7 +76,9 @@ class FlightRecorderTriggers final : public IDumpRequester {
   std::deque<std::string> pending_;
   bool stopping_ = false;
   std::thread worker_;
-  SignalBus::Subscription alarm_;  // after the worker: made once it runs, reset first in the destructor
+  // After the worker: made once it runs, reset first in the destructor.
+  SignalBus::Subscription alarm_;
+  SignalBus::Subscription device_;
 };
 
 }  // namespace nobion

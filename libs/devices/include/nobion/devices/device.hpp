@@ -8,6 +8,7 @@
 #include <string_view>
 
 #include "nobion/core/clock.hpp"
+#include "nobion/core/device_state.hpp"
 #include "nobion/core/error.hpp"
 #include "nobion/core/logger.hpp"
 #include "nobion/devices/link.hpp"
@@ -15,11 +16,9 @@
 
 namespace nobion {
 
-// Unknown: never operated. Ok: last operation succeeded. Degraded: recent
-// operations failed, below the fault threshold. Faulted: failures reached it.
-enum class DeviceState { Unknown, Ok, Degraded, Faulted };
+class SignalBus;
 
-std::string_view to_string(DeviceState state) noexcept;
+// DeviceState and its to_string: nobion/core/device_state.hpp.
 
 struct DeviceHealth {
   DeviceState state = DeviceState::Unknown;
@@ -55,6 +54,14 @@ class Device {
   // null: none, or the driver keeps its own (Qtegra, NGX).
   Link* link() const noexcept { return link_; }
 
+  // From now on each change of health().state is published on `bus` as a
+  // DeviceHealthChanged naming `transport` (spec 2026-11-06-field-diagnostics,
+  // 7); null: nothing is published. Set by the DriverRegistry right after the
+  // driver is made, before the device is used from any other thread: not
+  // safe against an operation running at the same time. `bus` must outlive
+  // the device, or be replaced first.
+  void set_health_bus(SignalBus* bus, std::string transport = {}) noexcept;
+
  protected:
   // One device operation as the log sees it: its name (a literal, snake_case:
   // "read_pressure", "open", "set_setpoint") and when it started. The start
@@ -84,7 +91,7 @@ class Device {
     } else {
       if (result.error().device.empty()) result.error().device = name_;
       const bool failing = failures_.load() > 0;
-      record_failure(result.error().kind);
+      record_failure(result.error());
       log_outcome(op, &result.error(), failing);
     }
     return result;
@@ -143,8 +150,12 @@ class Device {
     return link->call(bound, repeat, window);
   }
 
+  // Each publishes a DeviceHealthChanged when the state changes and there is
+  // a health bus. The counter's own read-modify-write decides the change, so
+  // of two threads crossing one threshold together only one publishes.
   void record_ok();
-  void record_failure(ErrorKind kind);
+  void record_failure(const Error& error);
+  void publish_change(DeviceState from, DeviceState to, std::uint64_t failures, const Error* error) const;
   // The device's clock, else steady_clock: a read, never a wait.
   [[nodiscard]] TimePoint log_now() const;
   // log_now() when a relay's trace record would be written.
@@ -157,6 +168,8 @@ class Device {
   const Clock* clock_;
   std::uint64_t fault_after_;
   Link* link_;
+  SignalBus* health_bus_ = nullptr;  // set_health_bus
+  std::string transport_;            // the transport's name, for the event
   std::atomic<bool> ever_ok_{false};
   std::atomic<TimePoint::rep> last_ok_{0};
   std::atomic<std::uint64_t> failures_{0};

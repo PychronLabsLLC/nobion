@@ -45,6 +45,11 @@ constexpr const char* kLinkReconnectsHelp = "Times a transport's link reconnecte
 constexpr const char* kLinkRepeats = "nobion_link_repeats_total";
 constexpr const char* kLinkRepeatsHelp =
     "Commands a transport's link sent again after a failure, being safe to send twice.";
+constexpr const char* kDeviceState = "nobion_device_state";
+constexpr const char* kDeviceStateHelp = "A device's health: 0 unknown, 1 ok, 2 degraded, 3 faulted.";
+constexpr const char* kDeviceFailures = "nobion_device_consecutive_failures";
+constexpr const char* kDeviceFailuresHelp =
+    "A device's failed operations in a row when its health last changed state. The log has what each said.";
 
 constexpr AlarmSeverity kSeverities[] = {AlarmSeverity::Info, AlarmSeverity::Warning, AlarmSeverity::Critical};
 constexpr LogLevel kLevels[] = {LogLevel::Trace, LogLevel::Debug, LogLevel::Info, LogLevel::Warn, LogLevel::Error};
@@ -56,6 +61,16 @@ const char* state_name(ValveState s) {
     case ValveState::Unknown: return "unknown";
   }
   return "unknown";
+}
+
+double state_value(DeviceState s) {
+  switch (s) {
+    case DeviceState::Unknown: return 0;
+    case DeviceState::Ok: return 1;
+    case DeviceState::Degraded: return 2;
+    case DeviceState::Faulted: return 3;
+  }
+  return 0;
 }
 
 const char* severity_name(AlarmSeverity s) {
@@ -139,6 +154,8 @@ CoreExporter::CoreExporter(Registry& registry, SignalBus& bus, BuildInfo build, 
   registry.declare(MetricType::Counter, kTransportOutages, kTransportOutagesHelp);
   registry.declare(MetricType::Counter, kLinkReconnects, kLinkReconnectsHelp);
   registry.declare(MetricType::Counter, kLinkRepeats, kLinkRepeatsHelp);
+  registry.declare(MetricType::Gauge, kDeviceState, kDeviceStateHelp);
+  registry.declare(MetricType::Gauge, kDeviceFailures, kDeviceFailuresHelp);
 
   registry
       .gauge("nobion_build_info", "Always 1; the labels say which build is running.",
@@ -219,6 +236,15 @@ CoreExporter::CoreExporter(Registry& registry, SignalBus& bus, BuildInfo build, 
     registry_.gauge(kTransportConnected, kTransportConnectedHelp, labels).set(e.connected ? 1.0 : 0.0);
     Counter& outages = registry_.counter(kTransportOutages, kTransportOutagesHelp, labels);
     if (went_down) outages.inc();
+  }));
+  // Published on the device's own thread when its state changes (spec
+  // 2026-11-06-field-diagnostics, 7): set two gauges and return. Like a
+  // transport's, a device's series stay for the life of the exporter.
+  subscriptions_.push_back(bus.subscribe<DeviceHealthChanged>([this](const DeviceHealthChanged& e) {
+    registry_.gauge(kDeviceState, kDeviceStateHelp, {{"device", e.device}, {"transport", e.transport}})
+        .set(state_value(e.to));
+    registry_.gauge(kDeviceFailures, kDeviceFailuresHelp, {{"device", e.device}})
+        .set(static_cast<double>(e.consecutive_failures));
   }));
 }
 

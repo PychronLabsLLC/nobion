@@ -16,10 +16,16 @@ FlightRecorderTriggers::FlightRecorderTriggers(LogHub& hub, SignalBus& bus, Dump
   alarm_ = bus.subscribe<Alarm>([this](const Alarm& a) {
     if (a.severity == AlarmSeverity::Critical) request("alarm-" + a.source);
   });
+  // Published on the device's own thread, in the middle of its operation:
+  // queue and return, never touch the device.
+  device_ = bus.subscribe<DeviceHealthChanged>([this](const DeviceHealthChanged& e) {
+    if (e.to == DeviceState::Faulted) request("faulted-" + e.device);
+  });
 }
 
 FlightRecorderTriggers::~FlightRecorderTriggers() {
   alarm_.reset();
+  device_.reset();
   {
     const std::lock_guard lock(mutex_);
     stopping_ = true;

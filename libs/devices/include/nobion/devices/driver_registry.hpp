@@ -68,6 +68,9 @@ struct DriverContext {
   std::string name;              // device name; the kind if empty
   const Clock* clock = nullptr;  // passed to the driver for health stamps
   Link* link = nullptr;          // DriverArgs::link
+  // Where the device publishes its health changes (Device::set_health_bus,
+  // with the transport's name); null: nowhere.
+  SignalBus* bus = nullptr;
 };
 
 using DriverFactory = std::function<Result<std::unique_ptr<Device>>(const DriverArgs&)>;
@@ -107,11 +110,13 @@ class DriverRegistry {
   // problems are reported together, each prefixed `file:line:` when known.
   Result<void> validate(std::string_view kind, const toml::table& options) const;
 
-  // validate() then construct. Every error carries the device name.
+  // validate() then construct, then hand the device the context's bus. Every
+  // error carries the device name.
   Result<std::unique_ptr<Device>> create(std::string_view kind, Transport& transport,
                                          const toml::table& options, DriverContext context = {}) const;
   Result<std::unique_ptr<Device>> create(const config::DriverConfig& config, Transport& transport,
-                                         const Clock* clock = nullptr, Link* link = nullptr) const;
+                                         const Clock* clock = nullptr, Link* link = nullptr,
+                                         SignalBus* bus = nullptr) const;
 
  private:
   struct Entry {

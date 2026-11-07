@@ -165,12 +165,13 @@ Result<std::unique_ptr<Device>> DriverRegistry::create(std::string_view kind, Tr
   auto made = entry.factory(DriverArgs{name, transport, options, context.clock, context.link});
   if (!made) return attributed(std::move(made).error());
   if (!*made) return attributed(Error{ErrorKind::Config, "driver factory returned no device", {}});
+  (*made)->set_health_bus(context.bus, transport.name());
   return made;
 }
 
 Result<std::unique_ptr<Device>> DriverRegistry::create(const config::DriverConfig& config, Transport& transport,
-                                                       const Clock* clock, Link* link) const {
-  return create(config.kind, transport, config.options, DriverContext{config.name, clock, link});
+                                                       const Clock* clock, Link* link, SignalBus* bus) const {
+  return create(config.kind, transport, config.options, DriverContext{config.name, clock, link, bus});
 }
 
 std::string describe(const DriverSchema& schema) {

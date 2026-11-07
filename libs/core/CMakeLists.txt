@@ -2,6 +2,7 @@ find_package(Threads REQUIRED)
 
 add_library(nobion_core
   src/error.cpp
+  src/device_state.cpp
   src/clock.cpp
   src/virtual_clock.cpp
   src/clock_mutex.cpp

@@ -10,6 +10,7 @@
 #include <string>
 
 #include "nobion/core/clock.hpp"
+#include "nobion/core/device_state.hpp"
 #include "nobion/core/error.hpp"
 
 namespace nobion {
@@ -82,6 +83,25 @@ struct LinkReconnected {
   std::uint64_t attempts = 0;
   Duration down_for{};
   TimePoint ts{};
+};
+
+// A device's health changed state (spec 2026-11-06-field-diagnostics, 7):
+// published by nobion::Device on the thread that ran the operation (a
+// transport worker, a scheduler job, the caller of the driver), once per
+// change, never once per failure. A handler copies what it needs and
+// returns: it never calls into a device or a transport, which may be the
+// very one publishing.
+struct DeviceHealthChanged {
+  std::string device;     // the configured driver name
+  std::string transport;  // the configured name of the transport it is on
+  DeviceState from = DeviceState::Unknown;
+  DeviceState to = DeviceState::Unknown;
+  std::uint64_t consecutive_failures = 0;
+  // Of the last failure; kept after a recovery, as DeviceHealth keeps it.
+  std::optional<ErrorKind> last_error_kind;
+  // The last failure's Error::what; empty on a change to Ok.
+  std::string last_error_text;
+  TimePoint ts{};  // the device's clock
 };
 
 struct Log {

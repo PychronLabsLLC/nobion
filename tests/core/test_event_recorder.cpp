@@ -19,7 +19,8 @@ using testing::LogCapture;
 using Lines = std::vector<std::string>;
 
 // Every struct published on a SignalBus that libs/core declares: events.hpp
-// and the bus's own HandlerFailed. Kept by hand: a new event fails
+// and the bus's own HandlerFailed. DeviceHealthChanged, declared there too,
+// is the systems recorder's (libs/systems event_log.hpp). Kept by hand: a new event fails
 // EveryEventClassified until core_event_classes() has it.
 const std::set<std::string_view> kCoreEvents{
     "Sample",         "ValveChanged", "PressureSample",    "TemperatureSample", "HeaterSample",

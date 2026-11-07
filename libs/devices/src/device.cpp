@@ -1,10 +1,14 @@
 #include "nobion/devices/device.hpp"
 
 #include <chrono>
+#include <cstdint>
 #include <string>
+#include <utility>
 
+#include "nobion/core/events.hpp"
 #include "nobion/core/log_context.hpp"
 #include "nobion/core/process_log.hpp"
+#include "nobion/core/signal_bus.hpp"
 
 namespace nobion {
 namespace {
@@ -25,17 +29,14 @@ std::string failed(std::string_view what, const Error& error) {
   return message;
 }
 
-}  // namespace
-
-std::string_view to_string(DeviceState state) noexcept {
-  switch (state) {
-    case DeviceState::Unknown: return "unknown";
-    case DeviceState::Ok: return "ok";
-    case DeviceState::Degraded: return "degraded";
-    case DeviceState::Faulted: return "faulted";
-  }
-  return "unknown";
+// The state `failures` in a row mean, for a device that has (or has never)
+// had an operation go through.
+DeviceState state_of(std::uint64_t failures, bool ever_ok, std::uint64_t fault_after) noexcept {
+  if (failures == 0) return ever_ok ? DeviceState::Ok : DeviceState::Unknown;
+  return failures >= fault_after ? DeviceState::Faulted : DeviceState::Degraded;
 }
+
+}  // namespace
 
 Device::Device(std::string name, DeviceOptions options)
     : name_(std::move(name)),
@@ -49,13 +50,13 @@ DeviceHealth Device::health() const {
   h.consecutive_failures = failures_.load();
   h.last_ok = TimePoint(Duration(last_ok_.load()));
   if (int e = last_error_.load(); e >= 0) h.last_error = static_cast<ErrorKind>(e);
-
-  if (h.consecutive_failures == 0) {
-    h.state = ever_ok_.load() ? DeviceState::Ok : DeviceState::Unknown;
-  } else {
-    h.state = h.consecutive_failures >= fault_after_ ? DeviceState::Faulted : DeviceState::Degraded;
-  }
+  h.state = state_of(h.consecutive_failures, ever_ok_.load(), fault_after_);
   return h;
+}
+
+void Device::set_health_bus(SignalBus* bus, std::string transport) noexcept {
+  health_bus_ = bus;
+  transport_ = std::move(transport);
 }
 
 TimePoint Device::log_now() const { return clock_ ? clock_->now() : SteadyClock().now(); }
@@ -92,14 +93,35 @@ void Device::log_relay(std::string_view what, TimePoint started, const Error* er
 void Device::record_ok() {
   const TimePoint at = log_now();
   last_ok_.store(at.time_since_epoch().count());
-  failures_.store(0);
-  ever_ok_.store(true);
+  const std::uint64_t before = failures_.exchange(0);
+  const bool was_ok = ever_ok_.exchange(true);
+  publish_change(state_of(before, was_ok, fault_after_), DeviceState::Ok, 0, nullptr);
 }
 
-void Device::record_failure(ErrorKind kind) {
-  if (kind == ErrorKind::Cancelled) return;
-  last_error_.store(static_cast<int>(kind));
-  failures_.fetch_add(1);
+void Device::record_failure(const Error& error) {
+  if (error.kind == ErrorKind::Cancelled) return;
+  last_error_.store(static_cast<int>(error.kind));
+  const std::uint64_t before = failures_.fetch_add(1);
+  const bool ok = ever_ok_.load();
+  publish_change(state_of(before, ok, fault_after_), state_of(before + 1, ok, fault_after_), before + 1, &error);
+}
+
+void Device::publish_change(DeviceState from, DeviceState to, std::uint64_t failures, const Error* error) const {
+  if (from == to || health_bus_ == nullptr) return;
+  DeviceHealthChanged e;
+  e.device = name_;
+  e.transport = transport_;
+  e.from = from;
+  e.to = to;
+  e.consecutive_failures = failures;
+  if (error != nullptr) {
+    e.last_error_kind = error->kind;
+    e.last_error_text = error->what;
+  } else if (const int kind = last_error_.load(); kind >= 0) {
+    e.last_error_kind = static_cast<ErrorKind>(kind);
+  }
+  e.ts = log_now();
+  health_bus_->publish(e);
 }
 
 }  // namespace nobion
