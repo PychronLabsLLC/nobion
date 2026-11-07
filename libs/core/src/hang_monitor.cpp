@@ -181,8 +181,9 @@ void HangMonitor::detach() {
     logger = std::move(state_->logger);
     state_->logger.reset();
   }
-  // The report still going is stuck in its log record or in a call to the
-  // recorder; it makes no call to the recorder or the bus once that returns.
+  // The report still going is stuck in a call to the log, the recorder or
+  // the bus; once that returns it makes no further call to the recorder or
+  // the bus.
   if (gave_up && logger) {
     logger->warn("hang monitor: detach gave up waiting for a report in progress after " +
                  std::to_string(options_.detach_wait.count()) + " ms");
