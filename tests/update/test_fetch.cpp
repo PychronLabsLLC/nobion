@@ -3,6 +3,7 @@
 #include <chrono>
 #include <string>
 
+#include <nobion/core/build_info.hpp>
 #include <nobion/update/update.hpp>
 
 #include "fake_http.hpp"
@@ -32,7 +33,7 @@ TEST(UpdateFetch, AsksTheRightThing) {
   EXPECT_EQ(sent[0].url, kUrl);
   EXPECT_EQ(sent[0].headers.size(), 2U);
   EXPECT_EQ(header(sent[0], "Accept"), "application/vnd.github+json");
-  EXPECT_EQ(header(sent[0], "User-Agent").rfind("nobion/", 0), 0U);
+  EXPECT_EQ(header(sent[0], "User-Agent"), "nobion/" + nobion::build_id());
   EXPECT_EQ(sent[0].timeout, std::chrono::seconds(10));
   EXPECT_TRUE(sent[0].body.empty());
 }

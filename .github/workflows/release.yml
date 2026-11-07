@@ -165,11 +165,12 @@ jobs:
         run: |
           elctl_bin=$(find build -type f \( -name elctl -o -name elctl.exe \) -perm -u+x | head -n 1)
           if [ -z "$elctl_bin" ]; then echo "no elctl built"; exit 1; fi
-          id=$("$elctl_bin" --version | head -n 1)
+          echo "checking $elctl_bin"
+          id=$("$elctl_bin" --version | head -n 1 | tr -d '\r')
           echo "$id"
-          case "$id" in
-            *.dirty*|*+unknown*) echo "build id is not a clean, known commit: $id"; exit 1 ;;
-          esac
+          if ! printf '%s\n' "$id" | grep -Eq '^elctl [0-9]+\.[0-9]+\.[0-9]+\+[0-9a-f]{12}$'; then
+            echo "build id is not a clean, known commit: $id"; exit 1
+          fi
 
       - name: Package
         run: cd build && cpack -C Release

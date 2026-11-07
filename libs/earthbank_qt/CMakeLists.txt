@@ -15,6 +15,5 @@ target_include_directories(nobion_earthbank_qt PUBLIC
 target_compile_features(nobion_earthbank_qt PUBLIC cxx_std_20)
 target_link_libraries(nobion_earthbank_qt PUBLIC nobion::earthbank nobion::core
                                            PRIVATE Qt6::Core Qt6::Network)
-target_compile_definitions(nobion_earthbank_qt PRIVATE QT_NO_KEYWORDS
-  NOBION_EARTHBANK_USER_AGENT="nobion/${PROJECT_VERSION}")
+target_compile_definitions(nobion_earthbank_qt PRIVATE QT_NO_KEYWORDS)
 nobion_set_warnings(nobion_earthbank_qt)

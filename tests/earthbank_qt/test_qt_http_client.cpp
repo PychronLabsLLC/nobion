@@ -35,6 +35,7 @@
 #define NOBION_TEST_HAS_SSL_SERVER 1
 #endif
 
+#include "nobion/core/build_info.hpp"
 #include "nobion/core/error.hpp"
 #include "nobion/earthbank/http.hpp"
 #include "nobion/earthbank/qt_http_client.hpp"
@@ -207,7 +208,7 @@ TEST(QtHttpClient, GetPostAndHeaders) {
   EXPECT_EQ(first.header("Authorization"), "Bearer not-a-real-token");
   EXPECT_EQ(first.header("Accept"), "application/json");
   EXPECT_TRUE(first.header("User-Agent").starts_with("nobion/")) << first.header("User-Agent");
-  EXPECT_GT(first.header("User-Agent").size(), std::string("nobion/").size());
+  EXPECT_EQ(first.header("User-Agent"), "nobion/" + nobion::build_id());
 
   HttpRequest post = request("POST", server.url("/api/authenticate"));
   post.headers = {{"Content-Type", "application/json"}};

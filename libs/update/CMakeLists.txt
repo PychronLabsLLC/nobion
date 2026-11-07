@@ -14,5 +14,4 @@ target_include_directories(nobion_update PUBLIC
 )
 target_compile_features(nobion_update PUBLIC cxx_std_20)
 target_link_libraries(nobion_update PUBLIC nobion::core PRIVATE nlohmann_json::nlohmann_json)
-target_compile_definitions(nobion_update PRIVATE NOBION_UPDATE_USER_AGENT="nobion/${PROJECT_VERSION}")
 nobion_set_warnings(nobion_update)

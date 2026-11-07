@@ -1,4 +1,5 @@
 #include "nobion/earthbank/qt_http_client.hpp"
+#include "nobion/core/build_info.hpp"
 
 #include <algorithm>
 #include <array>
@@ -287,7 +288,7 @@ std::string wire_form(const HttpRequest& request, const QUrl& url) {
     out += value;
     out += "\r\n";
   }
-  if (!has_agent) out += std::string("User-Agent: ") + NOBION_EARTHBANK_USER_AGENT + "\r\n";
+  if (!has_agent) out += "User-Agent: nobion/" + nobion::build_id() + "\r\n";
   const bool carries = request.method == "POST" || request.method == "PUT" || request.method == "PATCH";
   if (carries || !request.body.empty()) out += "Content-Length: " + std::to_string(request.body.size()) + "\r\n";
   out += "Connection: close\r\n\r\n";

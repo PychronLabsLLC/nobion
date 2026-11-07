@@ -8,7 +8,7 @@ only this component's. Kept compressed, as that file is.
   from bus events (`CoreExporter`, `ExperimentMetrics` in `libs/experiment`),
   not from instrumenting the control path. Three rules:
   (1) a label value is a configured name or an enumeration, never a run id,
-  an identifier or a message, and a counter is created at zero as soon as
+  an identifier or a message (exception: `git_sha` of `nobion_build_info`, bounded per release), and a counter is created at zero as soon as
   what it counts is known (one that first appears at 1 shows no increase);
   (2) a duration is a difference of event `ts` (the line's clock may be
   simulated), and an age is measured here on `RealClock` and exported as

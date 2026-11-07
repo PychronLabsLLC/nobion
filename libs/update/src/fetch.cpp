@@ -1,6 +1,7 @@
 #include <chrono>
 #include <string>
 
+#include "nobion/core/build_info.hpp"
 #include "nobion/core/http.hpp"
 #include "nobion/update/update.hpp"
 
@@ -10,7 +11,7 @@ Result<Fetched> fetch_latest(http::IHttpClient& client, std::string_view reposit
   http::HttpRequest request;
   request.method = "GET";
   request.url = "https://api.github.com/repos/" + std::string(repository) + "/releases/latest";
-  request.headers = {{"Accept", "application/vnd.github+json"}, {"User-Agent", NOBION_UPDATE_USER_AGENT}};
+  request.headers = {{"Accept", "application/vnd.github+json"}, {"User-Agent", "nobion/" + build_id()}};
   request.timeout = std::chrono::seconds(10);
 
   const auto response = client.send(request);

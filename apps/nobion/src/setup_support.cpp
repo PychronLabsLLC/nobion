@@ -12,6 +12,7 @@
 #ifdef NOBION_UI_HAS_STORE
 #pragma push_macro("signals")
 #undef signals
+#include "nobion/core/build_info.hpp"
 #include "nobion/entry/seed.hpp"
 #include "nobion/persistence/store.hpp"
 #pragma pop_macro("signals")
@@ -79,7 +80,7 @@ int self_test(std::ostream& out) {
     out << (ok ? "OK    " : "FAIL  ") << what << "\n";
     if (!ok) ++failed;
   };
-  out << "nobion " << setup::version() << "\n";
+  out << "nobion " << nobion::build_id() << "\n";
   check(QApplication::instance() != nullptr && !QGuiApplication::platformName().isEmpty(),
         "Qt platform: " + QGuiApplication::platformName().toStdString());
   const setup::Resources r = setup::find_resources();
