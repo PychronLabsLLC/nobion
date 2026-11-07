@@ -687,7 +687,13 @@ void Executor::write_state(const ExperimentQueue& queue, std::size_t next_row, c
   j << "\n}\n";
   std::error_code ec;
   if (options_.state_file.has_parent_path()) std::filesystem::create_directories(options_.state_file.parent_path(), ec);
-  (void)write_file_atomic(options_.state_file, j.str(), Durability::Power);
+  if (const auto written = write_file_atomic(options_.state_file, j.str(), Durability::Power); !written) {
+    // The run goes on; the state file is only what a restart reads back.
+    if (ctx_.services.bus != nullptr)
+      ctx_.services.bus->publish(Log{LogLevel::Warn, "executor",
+                                     "cannot write state file " + options_.state_file.string() + ": " + written.error().what,
+                                     clock_.now()});
+  }
 }
 
 Result<ExecutorStateFile> Executor::read_state(const std::filesystem::path& state_file) {

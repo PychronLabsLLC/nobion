@@ -19,6 +19,15 @@ namespace fs = std::filesystem;
 
 namespace {
 
+// Turns the injection off again however the test ends.
+struct FailAtomicWrite {
+  explicit FailAtomicWrite(int step) { nobion::testing::fail_atomic_write_at(step); }
+  ~FailAtomicWrite() { nobion::testing::fail_atomic_write_at(0); }
+  FailAtomicWrite(const FailAtomicWrite&) = delete;
+  FailAtomicWrite& operator=(const FailAtomicWrite&) = delete;
+};
+
+
 std::string slurp(const fs::path& file) {
   std::ifstream in(file, std::ios::binary);
   std::ostringstream out;
@@ -184,12 +193,11 @@ TEST_F(CalibrationStoreTest, AFailedSaveLeavesTheOldFile) {
   const CalibrationStore store(dir_ / "cal");
   ASSERT_TRUE(store.save(map(), "co2", three_));
   const std::string before = slurp(store.file("co2", "small"));
-  nobion::testing::fail_atomic_write_at(4);  // the rename fails
+  const FailAtomicWrite fail_rename(4);  // the rename fails
   const std::vector<CalibrationPoint> one{{"1", 1, 2}};
   const auto saved = store.save(map(), "co2", one);
   ASSERT_FALSE(saved);
   EXPECT_EQ(saved.error().kind, ErrorKind::Io);
-  nobion::testing::fail_atomic_write_at(0);
   EXPECT_EQ(slurp(store.file("co2", "small")), before);
 }
 

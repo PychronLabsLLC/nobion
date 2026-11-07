@@ -230,16 +230,9 @@ Result<void> write_local_file(const fs::path& file, bool exists, const std::stri
   // A write that fails leaves the file whole. The new file is as private as
   // the one it replaces (write_file_atomic keeps those bits); one made here is
   // its owner's alone, as the setup wizard makes them.
-  if (!exists) {
-    std::ofstream make(file, std::ios::binary | std::ios::trunc);
-    if (!make) return failed(ErrorKind::Io, file, "cannot be written (is its folder read-only?)");
-    make.close();
-    fs::permissions(file, fs::perms::owner_read | fs::perms::owner_write, ec);
-  }
-  if (auto written = write_file_atomic(file, after, Durability::Power); !written) {
-    if (!exists) fs::remove(file, ec);
+  if (auto written = write_file_atomic(file, after, Durability::Power, fs::perms::owner_read | fs::perms::owner_write);
+      !written)
     return failed(ErrorKind::Io, file, "could not be replaced: " + written.error().what);
-  }
   return {};
 }
 

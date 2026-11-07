@@ -139,4 +139,36 @@ TEST_F(AtomicFile, ReadOnlyDirectoryIsAnIoError) {
 }
 #endif
 
+#ifndef _WIN32
+TEST_F(AtomicFile, ANewFileGetsTheGivenMode) {
+  const auto p = dir_ / "new.txt";
+  ASSERT_TRUE(nobion::write_file_atomic(p, "x", nobion::Durability::Power, fs::perms::owner_read | fs::perms::owner_write));
+  EXPECT_EQ(fs::status(p).permissions(), fs::perms::owner_read | fs::perms::owner_write);
+}
+
+TEST_F(AtomicFile, AnExistingFileKeepsItsModeWhateverIsGiven) {
+  const auto p = dir_ / "old.txt";
+  spit(p, "old");
+  fs::permissions(p, fs::perms::owner_all | fs::perms::group_read, fs::perm_options::replace);
+  ASSERT_TRUE(nobion::write_file_atomic(p, "x", nobion::Durability::Power, fs::perms::owner_read | fs::perms::owner_write));
+  EXPECT_EQ(fs::status(p).permissions(), fs::perms::owner_all | fs::perms::group_read);
+}
+
+TEST_F(AtomicFile, ADanglingLinkTakesTheGivenModeForTheNewFile) {
+  const auto p = dir_ / "link.txt";
+  fs::create_symlink(dir_ / "nowhere", p);
+  ASSERT_TRUE(nobion::write_file_atomic(p, "x", nobion::Durability::Power, fs::perms::owner_read | fs::perms::owner_write));
+  EXPECT_FALSE(fs::is_symlink(p));
+  EXPECT_EQ(fs::status(p).permissions(), fs::perms::owner_read | fs::perms::owner_write);
+}
+#endif
+
+TEST_F(AtomicFile, AFailedWriteOfANewFileLeavesNothing) {
+  const auto p = dir_ / "never.txt";
+  const FailAt fail(4);
+  ASSERT_FALSE(nobion::write_file_atomic(p, "x", nobion::Durability::Power, fs::perms::owner_read | fs::perms::owner_write));
+  EXPECT_FALSE(fs::exists(p));
+  EXPECT_EQ(count_temps(), 0U);
+}
+
 }  // namespace

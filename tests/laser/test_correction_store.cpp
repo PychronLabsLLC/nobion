@@ -21,6 +21,15 @@ namespace fs = std::filesystem;
 
 namespace {
 
+// Turns the injection off again however the test ends.
+struct FailAtomicWrite {
+  explicit FailAtomicWrite(int step) { nobion::testing::fail_atomic_write_at(step); }
+  ~FailAtomicWrite() { nobion::testing::fail_atomic_write_at(0); }
+  FailAtomicWrite(const FailAtomicWrite&) = delete;
+  FailAtomicWrite& operator=(const FailAtomicWrite&) = delete;
+};
+
+
 const char* kMap = "circle,1.0\n\n2,3,4,5,1\n1,0,0\n2,0,5\n3,5,0\n4,0,-5\n5,-5,0\nA,1,1\n";
 
 std::string slurp(const fs::path& file) {
@@ -197,11 +206,10 @@ TEST_F(CorrectionStoreTest, AFailedSaveLeavesTheOldFile) {
   const auto s = store();
   ASSERT_TRUE(s.put(map(), "co2", "cal1", "3", three_));
   const std::string before = slurp(s.file("co2", "small"));
-  nobion::testing::fail_atomic_write_at(4);  // the rename fails
+  const FailAtomicWrite fail_rename(4);  // the rename fails
   const auto put = s.put(map(), "co2", "cal1", "2", three_);
   ASSERT_FALSE(put);
   EXPECT_EQ(put.error().kind, ErrorKind::Io);
-  nobion::testing::fail_atomic_write_at(0);
   EXPECT_EQ(slurp(s.file("co2", "small")), before);
 }
 

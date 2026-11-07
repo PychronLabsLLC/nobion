@@ -16,7 +16,7 @@ import re
 import sys
 from pathlib import Path
 
-RENAME = re.compile(r"\brename\s*\(")
+RENAME = re.compile(r"\brename\s*\(|\bMoveFileEx[AW]?\s*\(")
 SKIP_FILES = {"libs/core/src/atomic_file.cpp"}
 
 

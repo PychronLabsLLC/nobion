@@ -149,7 +149,8 @@ void close_quietly(int fd) {
 }
 
 Result<void> write_posix(const std::filesystem::path& path, std::string_view bytes,
-                         Durability durability) {
+                         Durability durability,
+                         std::optional<std::filesystem::perms> new_file_mode) {
   const auto tmp = temp_path_for(path);
   const auto discard = [&](Unexpected<Error> e) {
     ::unlink(tmp.c_str());
@@ -170,6 +171,12 @@ Result<void> write_posix(const std::filesystem::path& path, std::string_view byt
   struct stat old_st {};
   if (::stat(path.c_str(), &old_st) == 0) {
     (void)::fchmod(fd, old_st.st_mode & 07777);
+  } else if (new_file_mode) {
+    if (::fchmod(fd, static_cast<mode_t>(static_cast<unsigned>(*new_file_mode) & 0777)) != 0) {
+      const int saved = errno;
+      ::close(fd);
+      return discard(io("cannot set permissions of", tmp, saved));
+    }
   }
   std::size_t done = 0;
   while (done < bytes.size()) {
@@ -229,11 +236,13 @@ Result<void> write_posix(const std::filesystem::path& path, std::string_view byt
 }  // namespace
 
 Result<void> write_file_atomic(const std::filesystem::path& path, std::string_view bytes,
-                               Durability durability) {
+                               Durability durability,
+                               std::optional<std::filesystem::perms> new_file_mode) {
 #ifdef _WIN32
+  (void)new_file_mode;
   return write_windows(path, bytes, durability);
 #else
-  return write_posix(path, bytes, durability);
+  return write_posix(path, bytes, durability, new_file_mode);
 #endif
 }
 

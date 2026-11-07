@@ -252,8 +252,10 @@ One zip a lab sends back.
   //   5 times 50 ms apart on a sharing violation or access denied (antivirus, preview), then Io.
   // Either the old content or the new is left at `path`, never a mix or nothing.
   Result<void> write_file_atomic(const std::filesystem::path& path, std::string_view bytes,
-                                 Durability d = Durability::Power);
+                                 Durability d = Durability::Power,
+                                 std::optional<std::filesystem::perms> new_file_mode = std::nullopt);
   ```
+  `new_file_mode`: bits (masked to 0777) given to a file made where none exists (stat fails, dangling link included), set on the temp before any bytes are written; an existing file keeps its bits; Windows ignores it.
 
 - Moved onto it at `Power` (by function):
   - `Executor` state write (`executor.cpp:694`), `ExtractionLine` state write (`extraction_line.cpp:688`);

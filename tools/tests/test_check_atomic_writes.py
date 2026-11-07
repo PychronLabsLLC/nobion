@@ -56,6 +56,14 @@ class CheckAtomicWrites(unittest.TestCase):
             al = make_tree(root, {"libs/core/src/atomic_file.cpp": "::rename(a, b);\n"})
             self.assertEqual(run(root, al)[0], 0)
 
+    def test_movefileex_is_reported(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            al = make_tree(root, {"libs/x/w.cpp": "::MoveFileExW(a, b, 0);\n"})
+            status, text = run(root, al)
+            self.assertEqual(status, 1)
+            self.assertIn("w.cpp:1", text)
+
     def test_no_rename_passes(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

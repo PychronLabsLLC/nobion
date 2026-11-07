@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
 #include <string_view>
 
 #include "nobion/core/error.hpp"
@@ -22,11 +23,17 @@ enum class Durability {
 // FlushFileBuffers, then MoveFileExW(REPLACE_EXISTING | WRITE_THROUGH), retried
 // 5 times 50 ms apart on a sharing violation, then Io.
 //
+// `new_file_mode`: the permission bits (masked to 0777) of a file made where
+// none exists (stat fails, a dangling link included), set on the temp file
+// before any bytes are written; an existing file keeps its own bits, and
+// Windows ignores it.
+//
 // An Io error from the directory sync comes after the rename: the new content
 // is already in place. Any earlier error leaves the old content and no temp.
 [[nodiscard]] Result<void> write_file_atomic(const std::filesystem::path& path,
                                              std::string_view bytes,
-                                             Durability durability = Durability::Power);
+                                             Durability durability = Durability::Power,
+                                             std::optional<std::filesystem::perms> new_file_mode = std::nullopt);
 
 namespace testing {
 // Makes step `step` of write_file_atomic fail with an Io error; 0 turns it off.
