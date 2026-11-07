@@ -12,13 +12,13 @@
 #ifdef NOBION_UI_HAS_STORE
 #pragma push_macro("signals")
 #undef signals
-#include "nobion/core/build_info.hpp"
 #include "nobion/entry/seed.hpp"
 #include "nobion/persistence/store.hpp"
 #pragma pop_macro("signals")
 #endif
 
 #include "brand.hpp"
+#include "nobion/core/build_info.hpp"
 #include "nobion/core/env.hpp"
 #include "nobion/core/host_name.hpp"
 #include "nobion/setup/installer.hpp"
