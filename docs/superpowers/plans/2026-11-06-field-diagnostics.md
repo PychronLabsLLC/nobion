@@ -366,7 +366,7 @@ TEST(BuildInfo, FeaturesNameWhatWasCompiledIn) {
   - `Plain.RecoveryPublishesOk`.
   - `Plain.NoBusPublishesNothing`.
   - `SystemsEventLog.FaultedIsAWarning`.
-  - `CoreExporter.DeviceStateGauge` (`nobion_device_state{device="ig1",transport="gauges"} 3`), `nobion_device_consecutive_failures{device="ig1"} 3`.
+  - `CoreExporter.DeviceStateGauge` (`nobion_device_state{device="ig1",transport="gauges"} 3`), `nobion_device_consecutive_failures{device="ig1",transport="gauges"} 3`.
   - `FlightRecorderTriggers.AFaultedDeviceDumps`.
 - [ ] **Step 2: Run** — FAIL.
 - [ ] **Step 3: Implement.** Handlers never call into a device (comment on the event).
