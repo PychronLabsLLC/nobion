@@ -32,6 +32,14 @@ struct SessionInfo {
   std::string clock;                                  // "steady", "virtual x10", "virtual max"
 };
 
+// A session of an earlier process on the same log folder that did not end
+// cleanly (found by LogHub::create; spec 2026-11-06-field-diagnostics, 3.3).
+struct PreviousSession {
+  std::string build_id;
+  std::string started;                                // UTC, `2026-11-06T14:03:22Z`
+  std::optional<std::filesystem::path> crash_file;    // that process's crash file, if it left one
+};
+
 // File line format: `2026-10-01T14:03:22.481Z [warn] transport.serial.ig1: msg`
 // (UTC wall time, milliseconds). Records are written asynchronously by one
 // writer thread (queue 8192, producers block when full, nothing is dropped).
@@ -94,6 +102,17 @@ class LogHub {
   // so its destructor first logs `session end`. Calling it again logs another
   // start line.
   void begin_session(const SessionInfo& info);
+
+  // begin_session also makes `<dir>/<stem>.session` (the file's stem, so the
+  // `-<pid>` name of a second hub gets its own) and locks it until the
+  // destructor removes it after `session end`. create() looks at every
+  // `*.session` in the folder: one whose lock can be taken belongs to a
+  // process that is gone without a clean end (a live one's is never
+  // reported). Each is logged at `error` (`previous session <build> started
+  // <time> ended without a clean exit`) and removed.
+
+  // The latest session create() found that did not end cleanly, if any.
+  std::optional<PreviousSession> previous_session() const;
 
   // Blocks until every record written so far is on disk.
   void flush();

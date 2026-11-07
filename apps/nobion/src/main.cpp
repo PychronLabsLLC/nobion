@@ -88,6 +88,7 @@
 #include "laser_window.hpp"
 #include "main_window.hpp"
 #include "menu_hub.hpp"
+#include "unclean_exit_dialog.hpp"
 #include "no_database_persister.hpp"
 #include "pattern_maker_window.hpp"
 #include "preferences.hpp"
@@ -343,6 +344,7 @@ int run_data_reduction(const setup::SiteInstall& install, const nobion::processi
   window.apply_preferences(nobion::ui::load_preferences(QSettings()));
   window.resize(1200, 800);
   window.show();
+  nobion::ui::show_unclean_exit_notice(&window);
   // No line here, so no line clock: the computer's. Made after the window,
   // so the checker goes first; a failed automatic check is not shown.
   QSettings update_settings;
@@ -841,6 +843,7 @@ int main(int argc, char** argv) {
     }
 #endif
     window.show();
+    nobion::ui::show_unclean_exit_notice(&window);
     if (spectrometer_error) {
       window.log_dock()->append_error("startup", QStringLiteral("spectrometer not loaded"),
                                       QString::fromStdString(*spectrometer_error));

@@ -1,8 +1,18 @@
 #include <gtest/gtest.h>
 
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
 #include <process.h>
+#include <windows.h>
 #else
+#include <csignal>
+#include <spawn.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #endif
 
@@ -40,6 +50,10 @@
 
 using namespace nobion;
 namespace fs = std::filesystem;
+
+#ifndef _WIN32
+extern char** environ;  // NOLINT(readability-redundant-declaration): POSIX declares it nowhere
+#endif
 
 namespace {
 
@@ -136,6 +150,115 @@ std::shared_ptr<LogHub> make_hub(const config::LoggingConfig& cfg, const Clock& 
   auto hub = LogHub::create(cfg, clock, bus);
   EXPECT_TRUE(hub.has_value());
   return hub.has_value() ? *hub : nullptr;
+}
+
+long process_number() {
+#ifdef _WIN32
+  return static_cast<long>(_getpid());
+#else
+  return static_cast<long>(::getpid());
+#endif
+}
+
+#if defined(__SANITIZE_ADDRESS__)
+constexpr bool kAddressSanitizer = true;
+#elif defined(__has_feature) && !defined(__CPPCHECK__)
+#if __has_feature(address_sanitizer)
+constexpr bool kAddressSanitizer = true;
+#else
+constexpr bool kAddressSanitizer = false;
+#endif
+#else
+constexpr bool kAddressSanitizer = false;
+#endif
+
+// tests/core/crash_helper.cpp as a child process on `dir`.
+class HelperProcess {
+ public:
+  HelperProcess(const fs::path& dir, const std::string& mode) {
+    const std::string helper = NOBION_CRASH_HELPER;
+#ifdef _WIN32
+    const std::wstring program = fs::path(helper).wstring();
+    std::wstring command = L"\"" + program + L"\" \"" + dir.wstring() + L"\" " + fs::path(mode).wstring();
+    STARTUPINFOW startup{};
+    startup.cb = static_cast<DWORD>(sizeof(startup));
+    PROCESS_INFORMATION process{};
+    const UINT previous = SetErrorMode(0);
+    (void)SetErrorMode(previous | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
+    const BOOL created = CreateProcessW(program.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr,
+                                        nullptr, &startup, &process);
+    (void)SetErrorMode(previous);
+    if (created == FALSE) return;
+    (void)CloseHandle(process.hThread);
+    process_ = process.hProcess;
+    pid_ = static_cast<long>(process.dwProcessId);
+#else
+    std::string helper_arg = helper;
+    std::string dir_arg = dir.string();
+    std::string mode_arg = mode;
+    std::vector<char*> argv{helper_arg.data(), dir_arg.data(), mode_arg.data(), nullptr};
+    pid_t pid = -1;
+    if (posix_spawn(&pid, helper.c_str(), nullptr, nullptr, argv.data(), environ) != 0) return;
+    pid_ = pid;
+#endif
+  }
+  ~HelperProcess() { stop(); }
+  HelperProcess(const HelperProcess&) = delete;
+  HelperProcess& operator=(const HelperProcess&) = delete;
+
+  [[nodiscard]] bool started() const { return pid_ > 0; }
+  [[nodiscard]] long pid() const { return pid_; }
+
+  // Ends the child where it stands (no handler runs) and waits for it.
+  void stop() {
+    if (pid_ <= 0) return;
+#ifdef _WIN32
+    (void)TerminateProcess(process_, 1);
+    (void)WaitForSingleObject(process_, INFINITE);
+    (void)CloseHandle(process_);
+    process_ = nullptr;
+#else
+    ::kill(static_cast<pid_t>(pid_), SIGKILL);
+    int status = 0;
+    ::waitpid(static_cast<pid_t>(pid_), &status, 0);
+#endif
+    pid_ = 0;
+  }
+
+  // Waits (at most 30 s) for the child to end by itself.
+  void wait() {
+    if (pid_ <= 0) return;
+#ifdef _WIN32
+    if (WaitForSingleObject(process_, 30000) != WAIT_OBJECT_0) return;
+    (void)CloseHandle(process_);
+    process_ = nullptr;
+#else
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    int status = 0;
+    while (::waitpid(static_cast<pid_t>(pid_), &status, WNOHANG) == 0) {
+      if (std::chrono::steady_clock::now() >= deadline) return;
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+#endif
+    pid_ = 0;
+  }
+
+ private:
+  long pid_ = -1;
+#ifdef _WIN32
+  HANDLE process_ = nullptr;
+#endif
+};
+
+// True once `path` exists, within 30 s.
+bool appears(const fs::path& path) {
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+  std::error_code ec;
+  while (!fs::exists(path, ec)) {
+    if (std::chrono::steady_clock::now() >= deadline) return false;
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  return true;
 }
 
 }  // namespace
@@ -729,7 +852,7 @@ std::string current_pid() {
 #ifdef _WIN32
   return std::to_string(_getpid());
 #else
-  return std::to_string(::getpid());
+  return std::to_string(process_number());
 #endif
 }
 
@@ -1306,4 +1429,88 @@ TEST(LogHub, NoSessionNoEndLine) {
     hub->write(LogLevel::Info, "x", "work");
   }
   EXPECT_EQ(read_file(tmp.path() / "nobion.log").find("session"), std::string::npos);
+}
+
+// Session sentinel (spec 2026-11-06-field-diagnostics, 3.3).
+
+TEST(LogHub, ACleanEndLeavesNoSentinel) {
+  TempDir tmp;
+  SteadyClock clock;
+  {
+    auto hub = make_hub(config_for(tmp.path()), clock);
+    ASSERT_TRUE(hub);
+    SessionInfo info;
+    info.app = "nobion";
+    hub->begin_session(info);
+    EXPECT_TRUE(fs::exists(tmp.path() / "nobion.session"));
+    EXPECT_FALSE(hub->previous_session());
+  }
+  EXPECT_FALSE(fs::exists(tmp.path() / "nobion.session"));
+  auto again = make_hub(config_for(tmp.path()), clock);
+  ASSERT_TRUE(again);
+  EXPECT_FALSE(again->previous_session());
+  again->flush();
+  EXPECT_EQ(read_file(tmp.path() / "nobion.log").find("without a clean exit"), std::string::npos);
+}
+
+TEST(LogHub, AKilledSessionIsReportedOnce) {
+  TempDir tmp;
+  SteadyClock clock;
+  HelperProcess helper(tmp.path(), "segv");
+  ASSERT_TRUE(helper.started()) << "could not spawn " << NOBION_CRASH_HELPER;
+  const long helper_pid = helper.pid();
+  helper.wait();
+  ASSERT_TRUE(fs::exists(tmp.path() / "crash_helper.session"));
+
+  auto cfg = config_for(tmp.path());
+  cfg.file_name = "crash_helper.log";
+  {
+    auto hub = make_hub(cfg, clock);
+    ASSERT_TRUE(hub);
+    const auto previous = hub->previous_session();
+    ASSERT_TRUE(previous);
+    EXPECT_EQ(previous->build_id, build_id());
+    EXPECT_FALSE(previous->started.empty());
+    if (!kAddressSanitizer) {
+      ASSERT_TRUE(previous->crash_file);
+      EXPECT_EQ(previous->crash_file->filename().string(), "crash_helper-" + std::to_string(helper_pid) + ".txt");
+    }
+    hub->flush();
+    const std::string text = read_file(tmp.path() / "crash_helper.log");
+    EXPECT_NE(text.find("[error]"), std::string::npos) << text;
+    EXPECT_NE(text.find("previous session " + build_id() + " started"), std::string::npos) << text;
+    EXPECT_NE(text.find("ended without a clean exit"), std::string::npos) << text;
+    EXPECT_FALSE(fs::exists(tmp.path() / "crash_helper.session"));
+  }
+  auto third = make_hub(cfg, clock);
+  ASSERT_TRUE(third);
+  EXPECT_FALSE(third->previous_session());
+}
+
+TEST(LogHub, ALiveSecondProcessIsNeverReportedUnclean) {
+  TempDir tmp;
+  SteadyClock clock;
+  HelperProcess helper(tmp.path(), "sleep");
+  ASSERT_TRUE(helper.started()) << "could not spawn " << NOBION_CRASH_HELPER;
+  ASSERT_TRUE(appears(tmp.path() / "crash_helper.session"));
+
+  auto cfg = config_for(tmp.path());
+  cfg.file_name = "crash_helper.log";
+  {
+    auto hub = make_hub(cfg, clock);
+    ASSERT_TRUE(hub);
+    EXPECT_FALSE(hub->previous_session());
+    SessionInfo info;
+    info.app = "test";
+    hub->begin_session(info);  // its own sentinel, crash_helper-<pid>.session
+    EXPECT_TRUE(fs::exists(tmp.path() / ("crash_helper-" + std::to_string(process_number()) + ".session")));
+    EXPECT_TRUE(fs::exists(tmp.path() / "crash_helper.session"));
+    hub->flush();
+    EXPECT_EQ(read_file(hub->file_path()).find("without a clean exit"), std::string::npos);
+  }
+  EXPECT_TRUE(fs::exists(tmp.path() / "crash_helper.session"));
+  helper.stop();
+  auto after = make_hub(cfg, clock);
+  ASSERT_TRUE(after);
+  EXPECT_TRUE(after->previous_session());  // now that it is gone, it is reported
 }

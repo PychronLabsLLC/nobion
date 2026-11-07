@@ -24,4 +24,8 @@ std::shared_ptr<nobion::LogHub> open_process_log(const std::vector<std::string>&
                                                   const nobion::Clock& clock, nobion::HostOs os,
                                                   const nobion::EnvLookup& env, std::ostream& err);
 
+// One line on `err` when `hub` found a session that did not end cleanly
+// (spec 2026-11-06-field-diagnostics, 3.3); nothing otherwise.
+void say_previous_session(const nobion::LogHub& hub, std::ostream& err);
+
 }  // namespace elctl

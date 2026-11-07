@@ -17,6 +17,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <csignal>
+#include <ctime>
 #include <cstdint>
 #include <cstdio>
 #include <exception>
@@ -189,12 +190,13 @@ class FileLock {
   FileLock(FileLock&&) = delete;
   FileLock& operator=(FileLock&&) = delete;
 
-  Outcome acquire(const std::filesystem::path& path) noexcept {
+  // `create` false: the file must exist already (Failed if not).
+  Outcome acquire(const std::filesystem::path& path, bool create = true) noexcept {
     release();
 #ifdef _WIN32
     const HANDLE h = CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE,
                                  FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
-                                 OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+                                 create ? OPEN_ALWAYS : OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h == INVALID_HANDLE_VALUE) return Outcome::Failed;
     OVERLAPPED overlapped{};
     if (LockFileEx(h, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &overlapped)) {
@@ -205,7 +207,7 @@ class FileLock {
     CloseHandle(h);
     return error == ERROR_LOCK_VIOLATION ? Outcome::Busy : Outcome::Failed;
 #else
-    const int fd = ::open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644);
+    const int fd = ::open(path.c_str(), (create ? O_RDWR | O_CREAT : O_RDWR) | O_CLOEXEC, 0644);
     if (fd < 0) return Outcome::Failed;
     if (::flock(fd, LOCK_EX | LOCK_NB) == 0) {
       fd_ = fd;
@@ -215,6 +217,45 @@ class FileLock {
     ::close(fd);
     return error == EWOULDBLOCK ? Outcome::Busy : Outcome::Failed;
 #endif
+  }
+
+  // Replaces the file's content with `text`; false if it could not be written.
+  bool write_text(std::string_view text) noexcept {
+#ifdef _WIN32
+    if (handle_ == INVALID_HANDLE_VALUE) return false;
+    DWORD written = 0;
+    OVERLAPPED at{};
+    if (WriteFile(handle_, text.data(), static_cast<DWORD>(text.size()), &written, &at) == FALSE ||
+        written != text.size())
+      return false;
+    return SetEndOfFile(handle_) != FALSE;
+#else
+    if (fd_ < 0 || ::ftruncate(fd_, 0) != 0) return false;
+    std::size_t done = 0;
+    while (done < text.size()) {
+      const ssize_t n = ::pwrite(fd_, text.data() + done, text.size() - done, static_cast<off_t>(done));
+      if (n <= 0) return false;
+      done += static_cast<std::size_t>(n);
+    }
+    return true;
+#endif
+  }
+
+  // The file's content (up to 4 KiB); empty when it cannot be read.
+  [[nodiscard]] std::string read_text() const {
+    std::string out(4096, '\0');
+#ifdef _WIN32
+    if (handle_ == INVALID_HANDLE_VALUE) return {};
+    DWORD got = 0;
+    OVERLAPPED at{};
+    if (ReadFile(handle_, out.data(), static_cast<DWORD>(out.size()), &got, &at) == FALSE) return {};
+    out.resize(got);
+#else
+    if (fd_ < 0) return {};
+    const ssize_t n = ::pread(fd_, out.data(), out.size(), 0);
+    out.resize(n > 0 ? static_cast<std::size_t>(n) : 0);
+#endif
+    return out;
   }
 
   // Closing the descriptor (handle) drops the lock.
@@ -285,6 +326,15 @@ struct LogHub::Impl {
   SignalBus::Subscription attached_failures;      // handlers of the attached bus that threw
 
   FileLock file_lock;  // on `<dir>/<file_name>.lock`, for the hub's life
+
+  // Session sentinel (spec 3.3): `<dir>/<stem>.session`, locked from
+  // begin_session to the destructor. `previous` is what create() found of a
+  // session that did not end cleanly; fixed from then on.
+  std::mutex session_mutex;
+  FileLock session_lock;
+  std::filesystem::path session_path;  // empty until the sentinel exists
+  std::string crash_stem;              // configured file stem, for `<stem>-<pid>.txt`
+  std::optional<PreviousSession> previous;
 
   // Level rules. `epoch` is bumped (under the unique lock) on every change;
   // hub loggers cache (level, epoch) and re-resolve when it moves.
@@ -811,7 +861,10 @@ void prune_crashes(const std::filesystem::path& dir) noexcept {
       const auto& path = it->path();
       const auto ext = path.extension();
       if (ext != ".txt" && ext != ".dmp") continue;
-      if (!it->is_regular_file(ec)) continue;
+      if (!it->is_regular_file(ec)) {
+        ec.clear();  // a live process's file on Windows is held open: not ours to look at
+        continue;
+      }
       const auto time = it->last_write_time(ec);
       if (ec) {
         ec.clear();
@@ -1203,6 +1256,88 @@ void LogHub::install_crash_handlers() {
   g_previous_terminate.store(std::set_terminate(&on_terminate));
 }
 
+namespace {
+
+std::string utc_stamp(std::chrono::system_clock::time_point at) {
+  const std::time_t t = std::chrono::system_clock::to_time_t(at);
+  std::tm parts{};
+#ifdef _WIN32
+  if (gmtime_s(&parts, &t) != 0) return "unknown";
+#else
+  if (gmtime_r(&t, &parts) == nullptr) return "unknown";
+#endif
+  std::array<char, 32> buf{};
+  const std::size_t n = std::strftime(buf.data(), buf.size(), "%Y-%m-%dT%H:%M:%SZ", &parts);
+  return std::string(buf.data(), n);
+}
+
+// The value of line `key=...` in a sentinel's text; empty if there is none.
+std::string sentinel_field(const std::string& text, std::string_view key) {
+  std::size_t pos = 0;
+  while (pos < text.size()) {
+    std::size_t end = text.find('\n', pos);
+    if (end == std::string::npos) end = text.size();
+    const std::string_view line(text.data() + pos, end - pos);
+    if (line.size() > key.size() && line.starts_with(key) && line[key.size()] == '=')
+      return std::string(line.substr(key.size() + 1));
+    pos = end + 1;
+  }
+  return {};
+}
+
+// Hub start: every `*.session` in the log dir whose lock can be taken belongs
+// to a process that is gone without a clean end (a live one holds its lock; a
+// reused pid does not matter). Each is logged at error and removed; the
+// latest is kept for previous_session(). A sentinel that cannot be opened or
+// locked is skipped, never an error: on Windows a live process's files can
+// refuse another process.
+void find_unclean_sessions(LogHub::Impl& impl) noexcept {
+  try {
+    const std::filesystem::path dir = impl.file_path.parent_path();
+    std::vector<std::filesystem::path> sentinels;
+    std::error_code ec;
+    for (std::filesystem::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
+      if (it->path().extension() != ".session") continue;
+      if (!it->is_regular_file(ec)) {
+        ec.clear();
+        continue;
+      }
+      sentinels.push_back(it->path());
+    }
+    std::sort(sentinels.begin(), sentinels.end());
+    for (const auto& path : sentinels) {
+      std::string text;
+      {
+        FileLock probe;
+        if (probe.acquire(path, false) != FileLock::Outcome::Held) continue;
+        text = probe.read_text();
+      }  // closed (and so unlocked) before it is removed
+      std::error_code remove_ec;
+      std::filesystem::remove(path, remove_ec);
+      const std::string build = sentinel_field(text, "build");
+      const std::string started = sentinel_field(text, "started");
+      const std::string pid = sentinel_field(text, "pid");
+      if (build.empty() && started.empty()) continue;  // never filled in: nothing to say
+      PreviousSession session;
+      session.build_id = build;
+      session.started = started;
+      if (!pid.empty() && !impl.crash_stem.empty()) {
+        std::filesystem::path crash = dir / "crash" / (impl.crash_stem + "-" + pid + ".txt");
+        std::error_code exists_ec;
+        if (std::filesystem::is_regular_file(crash, exists_ec)) session.crash_file = std::move(crash);
+      }
+      std::string message = "previous session ";
+      message.append(build).append(" started ").append(started).append(" ended without a clean exit");
+      if (session.crash_file) message += "; crash file " + session.crash_file->string();
+      impl.write(LogLevel::Error, "nobion", message);
+      if (!impl.previous || impl.previous->started <= session.started) impl.previous = std::move(session);
+    }
+  } catch (...) {  // NOLINT(bugprone-empty-catch): a look at old files; failing it must not stop logging
+  }
+}
+
+}  // namespace
+
 Result<std::shared_ptr<LogHub>> LogHub::create(const config::LoggingConfig& config,
                                                const Clock& clock, SignalBus* bus) {
   auto impl = std::make_shared<Impl>();
@@ -1265,6 +1400,7 @@ Result<std::shared_ptr<LogHub>> LogHub::create(const config::LoggingConfig& conf
         std::filesystem::create_directories(crash_dir, crash_ec);
         if (!crash_ec) {
           prune_crashes(crash_dir);
+          impl->crash_stem = std::filesystem::path(config.file_name).stem().string();
           impl->crash_path = crash_dir / (std::filesystem::path(config.file_name).stem().string() + "-" +
                                           process_id() + ".txt");
         }
@@ -1313,6 +1449,7 @@ Result<std::shared_ptr<LogHub>> LogHub::create(const config::LoggingConfig& conf
     if (state.installed) retarget_crash_output(*impl);
   }
   if (!lock_notice.empty()) impl->write(lock_notice_level, "logging", lock_notice);
+  if (!impl->file_path.empty()) find_unclean_sessions(*impl);
   return std::shared_ptr<LogHub>(new LogHub(std::move(impl)));
 }
 
@@ -1335,6 +1472,12 @@ LogHub::~LogHub() {
     impl_->sync_flush();
   } catch (...) {  // NOLINT(bugprone-empty-catch): a destructor has no one to tell
   }
+  // The clean end: the sentinel goes, then its lock.
+  if (!impl_->session_path.empty()) {
+    std::error_code ec;
+    std::filesystem::remove(impl_->session_path, ec);
+  }
+  impl_->session_lock.release();
   // Loggers first; the pool's destructor drains whatever is still queued and
   // joins the writer thread.
   impl_->logger.reset();
@@ -1382,6 +1525,41 @@ void append_field(std::string& out, std::string_view key, std::string_view value
 
 }  // namespace
 
+namespace {
+
+// `<dir>/<stem>.session` with pid, build and start time, locked for the rest
+// of the process. Made under another name and renamed into place once locked
+// and filled in: a start that looks for stale sentinels never sees a
+// half-made one (the lock follows the file through the rename).
+void make_sentinel(LogHub::Impl& impl) noexcept {
+  try {
+    std::lock_guard lock(impl.session_mutex);
+    if (impl.file_path.empty() || !impl.session_path.empty()) return;
+    std::filesystem::path final_path = impl.file_path;
+    final_path.replace_extension(".session");
+    std::filesystem::path building = final_path;
+    building += ".new";
+    if (impl.session_lock.acquire(building) != FileLock::Outcome::Held) return;
+    const std::string text = "pid=" + process_id() + "\nbuild=" + build_id() +
+                             "\nstarted=" + utc_stamp(std::chrono::system_clock::now()) + "\n";
+    std::error_code ec;
+    bool placed = impl.session_lock.write_text(text);
+    if (placed) {
+      std::filesystem::rename(building, final_path, ec);
+      placed = !ec;
+    }
+    if (!placed) {
+      impl.session_lock.release();
+      std::filesystem::remove(building, ec);
+      return;
+    }
+    impl.session_path = std::move(final_path);
+  } catch (...) {  // NOLINT(bugprone-empty-catch): no sentinel is a missing report, not a failure
+  }
+}
+
+}  // namespace
+
 void LogHub::begin_session(const SessionInfo& info) {
   std::string line = "session start";
   append_field(line, "app", info.app);
@@ -1408,7 +1586,10 @@ void LogHub::begin_session(const SessionInfo& info) {
   impl_->session_begun.store(true);
   impl_->write(LogLevel::Info, "nobion", line);
   reset_crash_path(*impl_);
+  make_sentinel(*impl_);
 }
+
+std::optional<PreviousSession> LogHub::previous_session() const { return impl_->previous; }
 
 void LogHub::flush() {
   try {

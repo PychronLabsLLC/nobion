@@ -28,6 +28,15 @@ class CerrRedirect {
 
 }  // namespace
 
+void say_previous_session(const nobion::LogHub& hub, std::ostream& err) {
+  const auto previous = hub.previous_session();
+  if (!previous) return;
+  err << "elctl: previous session " << previous->build_id << " started " << previous->started
+      << " ended without a clean exit";
+  if (previous->crash_file) err << "; crash file " << previous->crash_file->string();
+  err << '\n';
+}
+
 std::shared_ptr<nobion::LogHub> open_process_log(const std::vector<std::string>& args,
                                                   const nobion::Clock& clock, nobion::HostOs os,
                                                   const nobion::EnvLookup& env, std::ostream& err) {
@@ -106,6 +115,7 @@ std::shared_ptr<nobion::LogHub> open_process_log(const std::vector<std::string>&
   info.simulated = sim;
   info.clock = "steady";
   hub->begin_session(info);
+  say_previous_session(*hub, err);
   return hub;
 }
 

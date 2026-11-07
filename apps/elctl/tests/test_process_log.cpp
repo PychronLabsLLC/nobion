@@ -79,6 +79,24 @@ TEST_F(ProcessLog, NoInstallWritesToOsFolder) {
   EXPECT_TRUE(contains(slurp(file), "app=elctl")) << slurp(file);
 }
 
+// A sentinel nobody holds is a session that ended without a clean exit: one
+// line on err (spec 2026-11-06-field-diagnostics, 3.3).
+TEST_F(ProcessLog, AnUncleanPreviousSessionIsSaidOnErr) {
+  const auto dir = path("home") / "Library" / "Logs" / "nobion";
+  fs::create_directories(dir);
+  {
+    std::ofstream out(dir / "elctl.session");
+    out << "pid=99999\nbuild=abc123\nstarted=2026-11-06T14:03:22Z\n";
+  }
+  std::ostringstream err;
+  auto hub = open_process_log({"version"}, clock_, nobion::HostOs::Mac, home_env(), err);
+  ASSERT_NE(hub, nullptr) << err.str();
+  EXPECT_TRUE(contains(err.str(),
+                       "elctl: previous session abc123 started 2026-11-06T14:03:22Z ended without a clean exit"))
+      << err.str();
+  EXPECT_TRUE(hub->previous_session());
+}
+
 TEST_F(ProcessLog, InstallWritesToRootLogs) {
   const auto root = make_install();
   std::ostringstream err;

@@ -4,7 +4,7 @@
 //
 // Makes a hub on <log dir> (file crash_helper.log), installs the crash
 // handlers, logs `ring marker` at info, then acts by <mode>:
-//   sleep            blocks until killed (the session sentinel test, Task 7)
+//   sleep            blocks until killed (the session sentinel tests of test_log_hub.cpp)
 //   segv             writes through a null pointer
 //   abort            std::abort()
 //   bus fpe ill trap raise(SIGBUS) and so on (POSIX)
@@ -88,6 +88,10 @@ int main(int argc, char** argv) {
   auto hub = nobion::LogHub::create(config, clock);
   if (!hub) return 3;
   nobion::LogHub::install_crash_handlers();
+  nobion::SessionInfo session;
+  session.app = "crash_helper";
+  session.clock = "steady";
+  (*hub)->begin_session(session);  // makes the session sentinel (Task 7)
   (*hub)->logger("crash_helper").info("ring marker");
 
   if (mode == "sleep") {

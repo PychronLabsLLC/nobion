@@ -4,9 +4,11 @@
 #include <cstdint>
 #include <cstdio>
 #include <deque>
+#include <iostream>
 #include <memory>
 
 #include "nobion/core/process_log.hpp"
+#include "process_log.hpp"
 #include "nobion/devices/capabilities.hpp"
 #include "nobion/devices/channel_gauge.hpp"
 #include "nobion/devices/driver_registry.hpp"
@@ -78,6 +80,7 @@ Result<std::unique_ptr<Line>> Line::build(config::SystemConfig config, LineOptio
     line->log_hub_ = std::move(process_hub);
   } else if (auto hub = LogHub::create(cfg.logging, line->clock_, &line->bus_)) {
     line->log_hub_ = std::move(*hub);
+    say_previous_session(*line->log_hub_, std::cerr);
   } else {
     std::fprintf(stderr, "elctl: logging disabled: %s\n", hub.error().what.c_str());
   }
