@@ -16,6 +16,9 @@ if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
       message(STATUS "nobion: toolchain libc++ headers incomplete; using ${_nobion_sdk_libcxx}")
       add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>"
                           "$<$<COMPILE_LANGUAGE:CXX>:SHELL:-isystem ${_nobion_sdk_libcxx}>")
+      # The same, for configure checks (check_cxx_source_compiles does not
+      # see add_compile_options): cmake/NobionHardening.cmake reads it.
+      set(NOBION_LIBCXX_CHECK_FLAGS "-nostdinc++ -isystem \"${_nobion_sdk_libcxx}\"")
     else()
       message(WARNING "nobion: <version> header not found and no SDK libc++ fallback found")
     endif()

@@ -7,7 +7,8 @@
 #   libstdc++            _GLIBCXX_ASSERTIONS
 #   libc++ with hardening modes  _LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST
 #                        (a capability check, not a version: upstream 17 has
-#                        another macro, Apple's 170006 has this one)
+#                        another macro; Apple clang on the developer's Mac
+#                        has this one)
 #   other libc++         nothing
 #   MSVC                 nothing (its debug checks are not a release build's)
 #
@@ -23,6 +24,13 @@ set(NOBION_HARDENING_DEFINITIONS "")
 
 if(NOT NOBION_SANITIZE AND NOT MSVC)
   include(CheckCXXSourceCompiles)
+  include(CMakePushCheckState)
+  cmake_push_check_state()
+  # The headers the build compiles against: NobionToolchainFixes.cmake can
+  # have swapped a stale toolchain's libc++ headers for the SDK's.
+  if(NOBION_LIBCXX_CHECK_FLAGS)
+    string(APPEND CMAKE_REQUIRED_FLAGS " ${NOBION_LIBCXX_CHECK_FLAGS}")
+  endif()
   check_cxx_source_compiles("
 #include <version>
 #ifndef __GLIBCXX__
@@ -35,6 +43,7 @@ int main() { return 0; }" NOBION_STDLIB_IS_LIBSTDCXX)
 #error no libc++ hardening modes
 #endif
 int main() { return 0; }" NOBION_STDLIB_HAS_LIBCXX_HARDENING_MODES)
+  cmake_pop_check_state()
 
   if(NOBION_STDLIB_IS_LIBSTDCXX)
     set(NOBION_HARDENING_DEFINITIONS _GLIBCXX_ASSERTIONS)
