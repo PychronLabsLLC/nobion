@@ -9,6 +9,7 @@
 #include <ostream>
 #include <string_view>
 
+#include "nobion/core/build_info.hpp"
 #include "nobion/core/error.hpp"
 #include "nobion/arar/report.hpp"
 #include "nobion/processing/units.hpp"
@@ -177,9 +178,7 @@ int run(const Args& a, const pp::Domain& domain, Io io) {
   options.nsigma = a.sigma;
   options.laboratory = a.lab;
   options.notes = a.notes;
-#ifdef NOBION_ELCTL_VERSION
-  options.software = std::string("nobion ") + NOBION_ELCTL_VERSION;
-#endif
+  options.software = "nobion " + nobion::build_id();
   options.plateau = a.ages.criteria();
   const pp::Report report = pp::make_report(*dataset, options);
   for (const auto& w : report.warnings) io.err << "warning: " << w << '\n';

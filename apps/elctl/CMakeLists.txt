@@ -62,8 +62,7 @@ if(TARGET nobion_persistence)
   target_link_libraries(nobion_elctl_lib PUBLIC nobion_persistence nobion::dvc nobion::ingest nobion::entry
     nobion::processing_store nobion::arar_store nobion::experiment_store nobion::earthbank nobion::publish
     PRIVATE nlohmann_json::nlohmann_json)
-  target_compile_definitions(nobion_elctl_lib PUBLIC NOBION_ELCTL_HAS_STORE=1 NOBION_ELCTL_IMPORT
-    PRIVATE NOBION_ELCTL_VERSION="${PROJECT_VERSION}")
+  target_compile_definitions(nobion_elctl_lib PUBLIC NOBION_ELCTL_HAS_STORE=1 NOBION_ELCTL_IMPORT)
 endif()
 if(TARGET nobion_earthbank_qt)
   target_link_libraries(nobion_elctl_lib PUBLIC nobion::earthbank_qt)

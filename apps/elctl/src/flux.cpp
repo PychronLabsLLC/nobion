@@ -19,6 +19,7 @@
 #include <system_error>
 #include <utility>
 
+#include "nobion/core/build_info.hpp"
 #include "nobion/core/env.hpp"
 #include "nobion/core/host_name.hpp"
 #include "nobion/core/error.hpp"
@@ -323,11 +324,7 @@ std::string format_flux_save(const pp::FluxSaveOutcome& outcome, std::string_vie
 namespace {
 
 std::string software() {
-#ifdef NOBION_ELCTL_VERSION
-  return std::string("nobion ") + NOBION_ELCTL_VERSION;
-#else
-  return "nobion";
-#endif
+  return "nobion " + nobion::build_id();
 }
 
 // The options of a level: its saved fit's, else the defaults, each flag given replacing its field.

@@ -9,6 +9,7 @@
 #include <sstream>
 
 #include "cli.hpp"
+#include "nobion/core/build_info.hpp"
 #include "nobion/publish/manifest.hpp"
 #include "release_fixture.hpp"
 
@@ -104,6 +105,8 @@ TEST_P(ElctlPublishTest, BuildWritesDirectoryAndVerifyPasses) {
   EXPECT_EQ(b.code, elctl::kOk) << b.err;
   EXPECT_TRUE(fs::exists(out_ / "r-v1" / "manifest.json")) << b.out << b.err;
   EXPECT_NE(b.out.find((out_ / "r-v1").string()), std::string::npos) << b.out;
+  EXPECT_NE(slurp(out_ / "r-v1" / "manifest.json").find("nobion/" + nobion::build_id()), std::string::npos)
+      << "the manifest names the build that made it";
   const Outcome v = run({"verify", (out_ / "r-v1").string()});
   EXPECT_EQ(v.code, elctl::kOk) << v.err;
   EXPECT_NE(v.out.find("ok"), std::string::npos) << v.out;

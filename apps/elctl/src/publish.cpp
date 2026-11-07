@@ -13,6 +13,7 @@
 #include <sstream>
 #include <string_view>
 
+#include "nobion/core/build_info.hpp"
 #include "nobion/core/env.hpp"
 #include "nobion/core/error.hpp"
 #include "nobion/core/host_name.hpp"
@@ -102,11 +103,7 @@ bool take(const std::vector<std::string>& args, std::size_t& i, const char* flag
 }
 
 std::string software_version() {
-#ifdef NOBION_ELCTL_VERSION
-  return std::string("nobion/") + NOBION_ELCTL_VERSION;
-#else
-  return "nobion";
-#endif
+  return "nobion/" + nobion::build_id();
 }
 
 struct Opened {
