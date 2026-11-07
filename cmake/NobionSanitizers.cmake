@@ -14,6 +14,9 @@ if(NOBION_SANITIZE)
     # end, front() of an empty container. libstdc++ reads the first, libc++ the
     # second; each ignores the other's.
     add_compile_definitions(_GLIBCXX_ASSERTIONS _LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE)
+    # The checks are on, so the build says so (cmake/NobionHardening.cmake adds
+    # nothing of its own here).
+    set(NOBION_HARDENED_STDLIB ON)
   endif()
   message(STATUS "nobion: sanitizers enabled: ${NOBION_SANITIZE}")
 endif()

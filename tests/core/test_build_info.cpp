@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cctype>
 #include <string>
+#include <version>
 
 // tests/core/CMakeLists.txt gives the test target NOBION_TEST_PROJECT_VERSION
 // and NOBION_TEST_HAS_METRICS.
@@ -27,6 +28,21 @@ TEST(BuildInfo, IdJoinsVersionAndSha) {
 TEST(BuildInfo, FeaturesNameWhatWasCompiledIn) {
   EXPECT_EQ(nobion::has_feature("metrics"), NOBION_TEST_HAS_METRICS != 0);
   EXPECT_FALSE(nobion::has_feature("no_such_feature"));
+}
+
+// The feature is on exactly where the standard library's own checks are on in
+// this translation unit: libstdc++ asserts, libc++ 17 or later hardening mode
+// (cmake/NobionHardening.cmake; a sanitizer build has them on as well).
+TEST(BuildInfo, HardenedStdlibOnWhereSupported) {
+#if defined(_GLIBCXX_ASSERTIONS) || defined(_LIBCPP_HARDENING_MODE)
+  constexpr bool checks_on = true;
+#else
+  constexpr bool checks_on = false;
+#endif
+  EXPECT_EQ(nobion::has_feature("hardened_stdlib"), checks_on);
+#if defined(__GLIBCXX__) || (defined(_LIBCPP_VERSION) && _LIBCPP_VERSION >= 170000)
+  EXPECT_TRUE(nobion::has_feature("hardened_stdlib"));
+#endif
 }
 
 TEST(BuildInfo, BuildTypeIsNamed) { EXPECT_FALSE(nobion::build_info().build_type.empty()); }
