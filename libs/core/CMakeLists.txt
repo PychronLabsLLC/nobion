@@ -12,6 +12,7 @@ add_library(nobion_core
   src/log_context.cpp
   src/log_error.cpp
   src/log_summary.cpp
+  src/redact.cpp
   src/log_match.cpp
   src/log_hub.cpp
   src/byte_ring.cpp
