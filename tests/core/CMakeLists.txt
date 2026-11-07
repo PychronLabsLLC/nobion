@@ -52,7 +52,7 @@ target_compile_definitions(nobion_core_tests PRIVATE
   NOBION_CRASH_HELPER="$<TARGET_FILE:nobion_crash_helper>")
 add_dependencies(nobion_core_tests nobion_crash_helper)
 
-gtest_discover_tests(nobion_core_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)
+gtest_discover_tests(nobion_core_tests DISCOVERY_TIMEOUT 60 PROPERTIES LABELS release_config TIMEOUT 60)
 
 # The sha the build-info script writes when git gives none (CI's GITHUB_SHA).
 add_test(NAME BuildInfoScript.GithubShaFallback

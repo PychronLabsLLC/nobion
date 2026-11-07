@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Split the debug information of a release build into one archive.
 
-    python3 tools/split_symbols.py <build dir> <out dir> --os macos|linux|windows
+    python3 tools/split_symbols.py <build dir> <out dir> --os macos|linux|windows [--only NAME...]
 
 Reads `<build>/symbol_files.txt` (or `symbol_files_<config>.txt` from a
 multi-config generator; cmake/NobionInstall.cmake writes it): our programs and
@@ -81,6 +81,9 @@ def main(argv=None):
     parser.add_argument("out", type=Path)
     parser.add_argument("--os", choices=["macos", "linux", "windows"], required=True)
     parser.add_argument("--config", default="RelWithDebInfo")
+    parser.add_argument("--only", nargs="+", metavar="NAME",
+                        help="keep only the listed files of the list, by file name (a tests build lists "
+                             "programs it does not build)")
     args = parser.parse_args(argv)
 
     version = (ROOT / "version.txt").read_text().strip()
@@ -88,6 +91,11 @@ def main(argv=None):
     arch = {"windows": "x64"}.get(args.os) or ("arm64" if machine in ("arm64", "aarch64") and args.os == "macos"
                                                else machine)
     files = read_list(args.build, args.config)
+    if args.only:
+        wanted = set(args.only)
+        files = [f for f in files if f.name in wanted or f.stem in wanted]
+        if not files:
+            raise SystemExit(f"--only {' '.join(args.only)}: none of them is in the list")
     missing = [f for f in files if not f.exists()]
     if missing:
         raise SystemExit("not built: " + ", ".join(map(str, missing)))

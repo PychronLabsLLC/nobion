@@ -12,13 +12,13 @@ target_link_libraries(nobion_processing_tests PRIVATE nobion::processing GTest::
 target_compile_definitions(nobion_processing_tests PRIVATE
   NOBION_PROCESSING_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 nobion_set_warnings(nobion_processing_tests)
-gtest_discover_tests(nobion_processing_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)
+gtest_discover_tests(nobion_processing_tests DISCOVERY_TIMEOUT 60 PROPERTIES LABELS release_config TIMEOUT 60)
 
 if(TARGET nobion_processing_records)
   add_executable(nobion_processing_records_tests test_record_source.cpp)
   target_link_libraries(nobion_processing_records_tests PRIVATE nobion::processing_records GTest::gtest_main)
   nobion_set_warnings(nobion_processing_records_tests)
-  gtest_discover_tests(nobion_processing_records_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)
+  gtest_discover_tests(nobion_processing_records_tests DISCOVERY_TIMEOUT 60 PROPERTIES LABELS release_config TIMEOUT 60)
 endif()
 
 if(TARGET nobion_processing_store)
@@ -32,5 +32,5 @@ if(TARGET nobion_processing_store)
   target_link_libraries(nobion_processing_store_tests PRIVATE nobion::processing_store TinyOrm::TinyOrm Qt6::Core
     Qt6::Sql nlohmann_json::nlohmann_json GTest::gtest_main)
   nobion_set_warnings(nobion_processing_store_tests)
-  gtest_discover_tests(nobion_processing_store_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 120)
+  gtest_discover_tests(nobion_processing_store_tests DISCOVERY_TIMEOUT 60 PROPERTIES LABELS release_config TIMEOUT 120)
 endif()

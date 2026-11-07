@@ -13,5 +13,5 @@ if(NOBION_REDUCTION_TESTS)
     NOBION_REDUCTION_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/arar/golden")
   nobion_set_warnings(nobion_reduction_tests)
   # -ffp-contract=off (unfused test arithmetic) comes PUBLIC from nobion::reduction.
-  gtest_discover_tests(nobion_reduction_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)
+  gtest_discover_tests(nobion_reduction_tests DISCOVERY_TIMEOUT 60 PROPERTIES LABELS release_config TIMEOUT 60)
 endif()

@@ -11,7 +11,11 @@ macOS, `<name>.debug` files on Linux. A frame is looked up in the module whose
 range holds it; with no symbol file for that module the module's own path is
 tried (a build tree's binary still has its debug info).
 
-Prints `#n function file:line` per frame. A `.dmp` (Windows) is not read here:
+Prints `#n function file:line` per frame. Every frame after the first holds a
+return address, the instruction after the call: it is looked up at address - 1,
+so the line is the call's, not the next statement's. Exit status 1: no frame
+resolved to a file and line (symbols that do not match the crash, say); 2: the
+crash file or a tool (atos, addr2line) is missing. A `.dmp` (Windows) is not read here:
 the steps for WinDbg and Visual Studio are printed instead.
 """
 
@@ -86,8 +90,9 @@ def symbolize_macos(symbols, crash, address, module):
                          capture_output=True, text=True, check=False)
     text = out.stdout.strip().splitlines()[0] if out.stdout.strip() else hex(address)
     if m := _ATOS.match(text):
-        return f"{m.group('fn')} {m.group('loc')}" if m.group("loc") else m.group("fn")
-    return text
+        loc = m.group("loc")
+        return (f"{m.group('fn')} {loc}", True) if loc and ":" in loc else (m.group("fn"), False)
+    return text, False
 
 
 def _location(text):
@@ -106,8 +111,9 @@ def symbolize_linux(symbols, crash, address, module):
     out = subprocess.run(cmd, capture_output=True, text=True, check=False)
     lines = [ln for ln in out.stdout.splitlines() if ln.strip()]
     if len(lines) < 2:
-        return hex(address)
-    return f"{lines[0]} {_location(lines[1])}"
+        return hex(address), False
+    where = _location(lines[1])
+    return f"{lines[0]} {where}", not where.startswith("??")
 
 
 WINDOWS_STEPS = """\
@@ -140,17 +146,33 @@ def main(argv=None):
         print(WINDOWS_STEPS.format(dmp=args.crash_file, symbols=args.symbols))
         return 0
 
-    crash = parse_crash(args.crash_file.read_text(errors="replace"))
+    try:
+        crash = parse_crash(args.crash_file.read_text(errors="replace"))
+    except OSError as e:
+        print(f"symbolize: cannot read {args.crash_file}: {e.strerror}", file=sys.stderr)
+        return 2
     if not crash.frames:
         print(f"{args.crash_file}: no frame lines", file=sys.stderr)
         return 1
     resolve = symbolize_macos if args.os == "macos" else symbolize_linux
+    print("frames after #0 are return addresses, looked up at address - 1")
+    resolved = 0
     for n, address in enumerate(crash.frames):
         module = crash.module_of(address)
         if module is None:
             print(f"#{n} {hex(address)} (no module)")
-        else:
-            print(f"#{n} {resolve(args.symbols, crash, address, module)}")
+            continue
+        try:
+            text, ok = resolve(args.symbols, crash, address - (1 if n else 0), module)
+        except FileNotFoundError as e:
+            print(f"symbolize: {e.filename} not found: install it, or run on the platform of the crash",
+                  file=sys.stderr)
+            return 2
+        resolved += ok
+        print(f"#{n} {text}")
+    if not resolved:
+        print("symbolize: no frame resolved to a file and line", file=sys.stderr)
+        return 1
     return 0
 
 

@@ -51,7 +51,7 @@ Every artifact says exactly which source built it.
 
 ### 3.1 Symbols kept per release
 
-- `release.yml` builds `RelWithDebInfo` (was `Release`): `-O2 -g -DNDEBUG` on gcc/clang (was `-O3`), `/O2 /Zi` + `/DEBUG:FULL` on MSVC.
+- `release.yml` builds `RelWithDebInfo` (was `Release`): `-O2 -g -DNDEBUG` on gcc/clang (was `-O3`), `/O2 /Zi` + `/DEBUG:FULL` on MSVC, with `/INCREMENTAL:NO /OPT:REF /OPT:ICF` set by `cmake/NobionToolchainFixes.cmake` (RelWithDebInfo's own link flags are `/INCREMENTAL` and drop `/OPT:*`).
 - CMake writes `<build>/symbol_files.txt` (`file(GENERATE)`, `$<TARGET_FILE:...>` and on MSVC `$<TARGET_PDB_FILE:...>` of every executable and shared library target of ours). Third-party and bundled libraries (Qt, Python, OpenCV if bundled) not covered: their vendors' symbols serve.
 - A `release.yml` step after build, before `cpack`, runs `tools/split_symbols.py <build> <out>` over that list:
   - macOS: `dsymutil` each → `nobion-<version>-macOS-<arch>.dSYM.zip`.

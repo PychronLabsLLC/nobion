@@ -76,6 +76,10 @@ class Run(unittest.TestCase):
         return subprocess.run([sys.executable, "-I", str(TOOLS / "symbolize.py"), *args], env=self.env,
                               capture_output=True, text=True)
 
+    @staticmethod
+    def frame_lines(result):
+        return [ln for ln in result.stdout.splitlines() if ln.startswith("#")]
+
     def calls(self, name):
         return (self.bin / f"{name}.calls").read_text().splitlines()
 
@@ -89,10 +93,12 @@ class Run(unittest.TestCase):
         calls = self.calls("atos")
         self.assertEqual(len(calls), 3)
         self.assertEqual(calls[0], f"-o {dwarf / 'crash_helper'} -l 0x1021fc000 0x10221c520")
-        self.assertIn("-l 0x181a09000 0x181b03744", calls[2])
-        lines = result.stdout.splitlines()
+        self.assertEqual(calls[1], f"-o {dwarf / 'crash_helper'} -l 0x1021fc000 0x10221b82b")  # return address - 1
+        self.assertIn("-l 0x181a09000 0x181b03743", calls[2])
+        lines = self.frame_lines(result)
         self.assertEqual(lines[0], "#0 main crash_helper.cpp:86")
         self.assertEqual(len(lines), 3)
+        self.assertIn("return addresses", result.stdout.splitlines()[0])
 
     def test_linux_offset_into_the_module_and_the_debug_file(self):
         stand_in(self.bin, "addr2line", "main\n/src/tests/core/crash_helper.cpp:86")
@@ -101,7 +107,8 @@ class Run(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.calls("addr2line")
         self.assertEqual(calls[0], f"-f -C -e {self.symbols / 'crash_helper.debug'} 0x20520")
-        self.assertEqual(result.stdout.splitlines()[0], "#0 main /src/tests/core/crash_helper.cpp:86")
+        self.assertEqual(calls[1], f"-f -C -e {self.symbols / 'crash_helper.debug'} 0x1f82b")
+        self.assertEqual(self.frame_lines(result)[0], "#0 main /src/tests/core/crash_helper.cpp:86")
 
     def test_linux_prefers_llvm_symbolizer_when_present(self):
         stand_in(self.bin, "llvm-symbolizer", "main\n/src/crash_helper.cpp:86:3\n")
@@ -115,7 +122,28 @@ class Run(unittest.TestCase):
         stand_in(self.bin, "addr2line", "main\ncrash_helper.cpp:1")
         self.crash.write_text("0x5\nmodule /x/crash_helper 0x1000 0x100\n")
         result = self.run_tool(str(self.crash), "--symbols", str(self.symbols), "--os", "linux")
-        self.assertEqual(result.stdout.strip(), "#0 0x5 (no module)")
+        self.assertIn("#0 0x5 (no module)", result.stdout)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("no frame resolved", result.stderr)
+
+    def test_unresolved_frames_exit_1(self):
+        stand_in(self.bin, "addr2line", "??\n??:0")
+        result = self.run_tool(str(self.crash), "--symbols", str(self.symbols), "--os", "linux")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("no frame resolved", result.stderr)
+
+    def test_a_missing_crash_file_exits_2(self):
+        result = self.run_tool(str(self.dir / "nope.txt"), "--symbols", str(self.symbols), "--os", "linux")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("cannot read", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_a_missing_tool_exits_2(self):
+        self.env["PATH"] = str(self.bin)  # no addr2line, no llvm-symbolizer
+        result = self.run_tool(str(self.crash), "--symbols", str(self.symbols), "--os", "linux")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("addr2line not found", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
 
     def test_a_dmp_prints_the_windows_steps(self):
         dmp = self.dir / "elctl-1.dmp"
@@ -141,6 +169,24 @@ class Split(unittest.TestCase):
             (build / "symbol_files.txt").unlink()
             (build / "symbol_files_RelWithDebInfo.txt").write_text("C:/b/elctl.exe\n")
             self.assertEqual(split_symbols.read_list(build, "RelWithDebInfo"), [Path("C:/b/elctl.exe")])
+
+
+    def test_only_keeps_the_named_files_and_never_asks_for_the_rest(self):
+        with tempfile.TemporaryDirectory() as d:
+            build = Path(d)
+            helper = build / "nobion_crash_helper"
+            helper.write_text("")
+            (build / "symbol_files.txt").write_text(f"{build}/elctl\n{helper}\n")  # elctl is not built here
+            stand_in(build, "dsymutil", "")
+            env = dict(os.environ, PATH=f"{build}{os.pathsep}{os.environ['PATH']}")
+            run = lambda *a: subprocess.run([sys.executable, "-I", str(TOOLS / "split_symbols.py"), str(build),
+                                             str(build / "out"), "--os", "macos", *a], env=env,
+                                            capture_output=True, text=True)
+            self.assertIn("not built", run().stderr)
+            ok = run("--only", "nobion_crash_helper")
+            self.assertEqual(ok.returncode, 0, ok.stderr)
+            self.assertIn("dSYM.zip", ok.stdout)
+            self.assertEqual(run("--only", "nothing").returncode, 1)
 
 
 if __name__ == "__main__":

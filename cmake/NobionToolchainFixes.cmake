@@ -21,3 +21,13 @@ if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     endif()
   endif()
 endif()
+
+# MSVC's RelWithDebInfo links /INCREMENTAL and keeps unreferenced code and
+# duplicate functions (/OPT:REF and /OPT:ICF are off with /DEBUG): not what a
+# release is. Put back what Release does, and keep the PDB complete
+# (/DEBUG:FULL), which release.yml's symbols archive needs.
+if(MSVC)
+  foreach(_kind EXE SHARED MODULE)
+    set(CMAKE_${_kind}_LINKER_FLAGS_RELWITHDEBINFO "/DEBUG:FULL /INCREMENTAL:NO /OPT:REF /OPT:ICF")
+  endforeach()
+endif()
