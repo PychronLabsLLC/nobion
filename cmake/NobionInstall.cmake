@@ -93,6 +93,32 @@ if(TARGET nobion)
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT ${NOBION_COMPONENT})
 endif()
 
+# Files whose symbols a release keeps (tools/split_symbols.py reads the list):
+# the programs installed above, and any shared library of ours (none today: add
+# it to the list). Third-party and bundled libraries are not listed: their
+# vendors' symbols serve. A multi-config generator (Visual Studio) names a file
+# per configuration, because the paths differ.
+set(_nobion_symbol_targets ${_nobion_programs})
+# The crash helper is not installed; a tests build lists it so that release.yml
+# can crash it and symbolize the result against the split symbols.
+if(TARGET nobion_crash_helper)
+  list(APPEND _nobion_symbol_targets nobion_crash_helper)
+endif()
+set(_nobion_symbol_lines "")
+foreach(_t IN LISTS _nobion_symbol_targets)
+  string(APPEND _nobion_symbol_lines "$<TARGET_FILE:${_t}>\n")
+  if(MSVC)
+    string(APPEND _nobion_symbol_lines "$<TARGET_PDB_FILE:${_t}>\n")
+  endif()
+endforeach()
+get_property(_nobion_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if(_nobion_multi_config)
+  set(_nobion_symbol_list "${CMAKE_BINARY_DIR}/symbol_files_$<CONFIG>.txt")
+else()
+  set(_nobion_symbol_list "${CMAKE_BINARY_DIR}/symbol_files.txt")
+endif()
+file(GENERATE OUTPUT "${_nobion_symbol_list}" CONTENT "${_nobion_symbol_lines}")
+
 # --- shared files ---------------------------------------------------------------
 
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/profiles/" DESTINATION "${NOBION_INSTALL_RESOURCES}/profiles"

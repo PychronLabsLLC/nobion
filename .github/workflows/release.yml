@@ -151,13 +151,13 @@ jobs:
         run: |
           gen=(-G Ninja)
           if [ "$RUNNER_OS" = Windows ]; then gen=(-G "Visual Studio 17 2022" -A x64); fi
-          cmake -S . -B build "${gen[@]}" -DCMAKE_BUILD_TYPE=Release \
+          cmake -S . -B build "${gen[@]}" -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DBUILD_UI=ON -DBUILD_TESTS=OFF -DNOBION_WARNINGS_AS_ERRORS=OFF \
             -DPython_ROOT_DIR="$PBS" -DPython_FIND_STRATEGY=LOCATION \
             -DNOBION_BUNDLE_PYTHON="$PBS"
 
       - name: Build
-        run: cmake --build build --config Release --parallel
+        run: cmake --build build --config RelWithDebInfo --parallel
 
       # A release names the commit it was built from, and a clean one: a build id
       # ending in ".dirty" or "+unknown" cannot be traced to a source.
@@ -172,8 +172,73 @@ jobs:
             echo "build id is not a clean, known commit: $id"; exit 1
           fi
 
+      # RelWithDebInfo compiles with -O2 -g where Release did -O3: a numeric
+      # fixture that differs under that stops the release. What is packaged
+      # (BUILD_TESTS=OFF above) is not changed for it: the suites are built in
+      # a second directory, without the UI, which none of them reads.
+      - name: Configure the tests
+        run: |
+          gen=(-G Ninja)
+          if [ "$RUNNER_OS" = Windows ]; then gen=(-G "Visual Studio 17 2022" -A x64); fi
+          cmake -S . -B build-tests "${gen[@]}" -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DBUILD_UI=OFF -DBUILD_TESTS=ON -DNOBION_WARNINGS_AS_ERRORS=OFF \
+            -DPython_ROOT_DIR="$PBS" -DPython_FIND_STRATEGY=LOCATION \
+            -DNOBION_BUNDLE_PYTHON="$PBS"
+
+      - name: Test (release configuration)
+        run: |
+          suites="nobion_arar_tests nobion_reduction_tests nobion_processing_tests nobion_core_tests nobion_vision_tests"
+          cmake --build build-tests --config RelWithDebInfo --parallel --target $suites nobion_crash_helper
+          for suite in $suites; do
+            bin=$(find build-tests -type f \( -name "$suite" -o -name "$suite.exe" \) | head -n 1)
+            if [ -z "$bin" ]; then echo "$suite not built"; exit 1; fi
+            echo "== $bin"
+            "$bin"
+          done
+
+      # The debug information of the programs, kept as a release asset beside
+      # the installers (never inside one). Linux: this also adds the debuglink
+      # section to the build-tree files, before cpack copies and strips them.
+      - name: Split the symbols
+        run: |
+          case "$RUNNER_OS" in macOS) os=macos;; Linux) os=linux;; *) os=windows;; esac
+          python3 tools/split_symbols.py build symbols --os "$os" --config RelWithDebInfo
+
       - name: Package
-        run: cd build && cpack -C Release
+        run: cd build && cpack -C RelWithDebInfo
+
+      # A crash of the test helper, named from the split symbols: a symbol
+      # archive that does not name a frame of crash_helper.cpp is no use to
+      # anyone reading a field crash file. The helper's own symbols come from
+      # the tests build (the helper is not packaged).
+      - name: Symbolize a crash
+        run: |
+          case "$RUNNER_OS" in macOS) os=macos;; Linux) os=linux;; *) os=windows;; esac
+          python3 tools/split_symbols.py build-tests symbols-tests --os "$os" --config RelWithDebInfo
+          mkdir -p "$RUNNER_TEMP/syms" "$RUNNER_TEMP/crashlog"
+          helper=$(find build-tests -type f \( -name nobion_crash_helper -o -name nobion_crash_helper.exe \) | head -n 1)
+          "$helper" "$RUNNER_TEMP/crashlog" segv || true
+          if [ "$os" = windows ]; then
+            # Windows leaves a minidump: WinDbg or Visual Studio read it, with
+            # the PDB archive; the steps are printed, not run.
+            dmp=$(find "$RUNNER_TEMP/crashlog/crash" -name '*.dmp' | head -n 1)
+            if [ -z "$dmp" ]; then echo "no minidump left"; exit 1; fi
+            unzip -q symbols-tests/*.zip -d "$RUNNER_TEMP/syms"
+            python3 tools/symbolize.py "$dmp" --symbols "$RUNNER_TEMP/syms"
+            exit 0
+          fi
+          if [ "$os" = macos ]; then
+            unzip -q symbols-tests/*.zip -d "$RUNNER_TEMP/syms"
+          else
+            tar --zstd -xf symbols-tests/*.tar.zst -C "$RUNNER_TEMP/syms"
+          fi
+          crash=$(find "$RUNNER_TEMP/crashlog/crash" -name '*.txt' | head -n 1)
+          if [ -z "$crash" ]; then echo "no crash file left"; exit 1; fi
+          python3 tools/symbolize.py "$crash" --symbols "$RUNNER_TEMP/syms" --os "$os" | tee "$RUNNER_TEMP/symbolized.txt"
+          if ! grep -q crash_helper.cpp "$RUNNER_TEMP/symbolized.txt"; then
+            echo "::error::No frame of the symbolized crash names crash_helper.cpp"
+            exit 1
+          fi
 
       # Nobion.app was signed when cpack made the image (packaging/macos/cpack_sign.cmake).
       - name: Sign and notarize the disk image (macOS)
@@ -267,6 +332,7 @@ jobs:
             build/*.dmg
             build/*.exe
             build/*.zip
+            symbols/*
           if-no-files-found: error
 
   release:
