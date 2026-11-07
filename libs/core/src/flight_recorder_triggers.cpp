@@ -9,7 +9,8 @@
 
 namespace nobion {
 
-FlightRecorderTriggers::FlightRecorderTriggers(LogHub& hub, SignalBus& bus, DumpFn dump) : dump_(std::move(dump)) {
+FlightRecorderTriggers::FlightRecorderTriggers(LogHub& hub, SignalBus& bus, DumpFn dump)
+    : dump_(std::move(dump)), log_(hub.logger("flight")) {
   if (!dump_) dump_ = [&hub](std::string_view reason) { return hub.dump_recorder(reason); };
   worker_ = std::thread([this] { work(); });
   alarm_ = bus.subscribe<Alarm>([this](const Alarm& a) {
@@ -46,8 +47,9 @@ void FlightRecorderTriggers::work() {
     const std::string reason = std::move(pending_.front());
     pending_.pop_front();
     lock.unlock();
-    // A failure is the hub's to log (Io), or means the recorder is off (Config).
-    (void)dump_(reason);
+    // Not discarded unseen; at debug only, since the hub has already logged a
+    // write that failed (Io) and a refusal is what the limits are for.
+    if (auto made = dump_(reason); !made) log_.debug("flight recorder dump " + reason + ": " + made.error().what);
     lock.lock();
   }
 }

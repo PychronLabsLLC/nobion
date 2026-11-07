@@ -15,6 +15,7 @@
 #include <thread>
 
 #include "nobion/core/error.hpp"
+#include "nobion/core/logger.hpp"
 #include "nobion/core/signal_bus.hpp"
 
 namespace nobion {
@@ -40,7 +41,13 @@ struct IDumpRequester {
 // its first dump: the hub's limits turn the rest away anyway). The
 // destructor unsubscribes, makes the dumps already asked for, then joins the
 // worker: a request made just before a program ends is still written. `hub`
-// and `bus` must outlive this object.
+// and `bus` must outlive this object. Whatever publishes an `Alarm` on `bus`
+// from another thread is stopped before this object is destroyed: the
+// unsubscribe does not wait for a handler already running there, which would
+// then call request() on a destroyed object.
+//
+// A dump the hub refuses (a limit, the recorder off) or fails to write is
+// logged at `debug` on logger `flight` (the hub logs a failed write itself).
 class FlightRecorderTriggers final : public IDumpRequester {
  public:
   using DumpFn = std::function<Result<std::filesystem::path>(std::string_view)>;
@@ -61,6 +68,7 @@ class FlightRecorderTriggers final : public IDumpRequester {
   void work();
 
   DumpFn dump_;
+  Logger log_;
   std::mutex mutex_;
   std::condition_variable cv_;
   std::deque<std::string> pending_;
