@@ -300,6 +300,27 @@ TEST(BuildInfo, FeaturesNameWhatWasCompiledIn) {
   as Task 11 built it (a record below the file level is formatted into the ring
   only), `enabled()` keeps its two atomic loads, and spec 5.1 says so (no cached
   `gate`).
+
+  Re-measured after Task 16 (2026-11-07, same machine): spectrometer
+  transports now log to `<transport>.wire`. The `sim_*` spectrometer drivers
+  never touch a transport, so the load is the example Qtegra spectrometer
+  (`spectrometer.qtegra.toml`) served by `elctl sim serve` and driven by
+  `elctl --sim-endpoints ... exp run queues/experiment.toml` (real time,
+  `RelWithDebInfo`, a copy of `configs/examples`, log folder and `HOME` in a
+  temporary directory; `nobion --sim` is no use here, its spectrometer is idle
+  without a run started by hand). 20 s left out, then 300 one-second `ps -o %cpu`
+  samples of the client, which holds the recorder:
+
+  | | `ps -o %cpu` mean (max) | CPU time over the 300 s | of one core |
+  |---|---|---|---|
+  | recorder on, `*.wire = "trace"` (default) | 0.064% (0.5) | 1.01 s | 0.34% |
+  | `[logging.recorder] enabled = false` | 0.069% (1.4) | 0.97 s | 0.32% |
+
+  Records: a run with the file at `debug` and `*.wire = "trace"` wrote 10331
+  lines in 324 s, 9726 of them `*.wire`, 1068 of those `qtegra.wire`: about 30
+  wire records a second in all, 3 a second from the spectrometer. Added by the
+  recorder: 0.04 s of CPU in 300 s (0.01 percentage points of one core), within
+  noise; under 2%, nothing changed.
 - [ ] **Step 5: Run** suites — PASS; TSan run of the two new suites. **Commit** `feat: alarms, failed runs and the operator write out the flight recorder`
 
 ### Task 13: Hang monitor
