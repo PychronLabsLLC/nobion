@@ -672,7 +672,7 @@ int main(int argc, char** argv) {
       return nobion::spectrometer::load_spectrometer_for_app(
           std::move(*data),
           nobion::spectrometer::SpectrometerContext{(*line)->clock(), (*line)->scheduler(), (*line)->bus(),
-                                                    &hang_monitor},
+                                                    &hang_monitor, (*line)->log_hub()},
           // A simulated spectrometer measures the simulated line's gas.
           nobion::spectrometer::SpectrometerBringup{
               .sim_beam_from_table = simulation,

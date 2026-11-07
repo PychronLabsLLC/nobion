@@ -454,7 +454,8 @@ class Exp {
         assembly.sim_endpoints = std::make_shared<const std::map<std::string, Endpoint>>(std::move(*served));
       }
       auto assembled = spectrometer::SpectrometerAssembler::assemble(
-          std::move(data), spectrometer::SpectrometerContext{clock, (*line)->scheduler(), (*line)->bus(), &hang_monitor},
+          std::move(data), spectrometer::SpectrometerContext{clock, (*line)->scheduler(), (*line)->bus(), &hang_monitor,
+                                                    (*line)->log_hub()},
           std::move(assembly));
       if (!assembled) {
         complain("error: " + assembled.error().what);

@@ -33,6 +33,7 @@
 #include "nobion/core/clock.hpp"
 #include "nobion/core/clock_mutex.hpp"
 #include "nobion/core/error.hpp"
+#include "nobion/core/log_hub.hpp"
 #include "nobion/core/scheduler.hpp"
 #include "nobion/core/signal_bus.hpp"
 #include "nobion/devices/device.hpp"
@@ -152,6 +153,9 @@ struct SpectrometerContext {
   SignalBus& bus;
   // Watches the transports the assembler builds (TransportContext::hang_monitor).
   HangMonitor* hang_monitor = nullptr;
+  // When set, every transport the assembler builds logs its bytes at trace to
+  // "<name>.wire" (TransportContext::log_hub).
+  std::shared_ptr<LogHub> log_hub = nullptr;
 };
 
 struct SpectrometerOptions {

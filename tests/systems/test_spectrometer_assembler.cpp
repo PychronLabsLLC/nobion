@@ -4,6 +4,7 @@
 #include <fstream>
 #include <map>
 
+#include "nobion/core/log_hub.hpp"
 #include "nobion/devices/connectable.hpp"
 #include "nobion/sim/spectrometer/beam_model.hpp"
 #include "nobion/transport/sim_transport.hpp"
@@ -38,11 +39,40 @@ struct Env {
   ManualClock clock;
   SignalBus bus;
   Scheduler scheduler{clock, &bus, Scheduler::Options{0}};
-  SpectrometerContext ctx() { return SpectrometerContext{clock, scheduler, bus}; }
+  std::shared_ptr<LogHub> log_hub;
+  SpectrometerContext ctx() { return SpectrometerContext{clock, scheduler, bus, nullptr, log_hub}; }
   ~Env() { sim::BeamModelRegistry::global().clear(); }
 };
 
 }  // namespace
+
+// Spec 2026-11-06-field-diagnostics: a spectrometer transport mirrors its bytes
+// to "<transport>.wire" like a line transport, so the flight recorder holds them
+// at trace although the file level is info.
+TEST(SpectrometerAssembler, TransportsLogWireBytes) {
+  auto dir = std::filesystem::temp_directory_path() / "nobion_spec_wire_test";
+  std::filesystem::remove_all(dir);
+  std::filesystem::create_directories(dir);
+  config::LoggingConfig lc;
+  lc.dir = dir;
+  lc.default_level = LogLevel::Info;
+  Env env;
+  auto hub = LogHub::create(lc, env.clock);
+  ASSERT_TRUE(hub) << hub.error().what;
+  env.log_hub = std::move(*hub);
+
+  auto data = load("spectrometer.sim-legacy.toml");
+  const auto& tc = data.config.transports.at("dac");
+  auto transport = SpectrometerAssembler::default_transport(tc, env.ctx(), dir / "traces");
+  ASSERT_TRUE(transport) << transport.error().what;
+  (void)(*transport)->write(Bytes{0x0a, 0x0d});
+
+  const std::string ring = env.log_hub->recorder_snapshot();
+  EXPECT_NE(ring.find("dac.wire: tx"), std::string::npos) << ring;
+  transport->reset();
+  env.log_hub.reset();
+  std::filesystem::remove_all(dir);
+}
 
 TEST(SpectrometerAssembler, BindReportsEveryProblem) {
   auto data = load("spectrometer.sim-legacy.toml");
