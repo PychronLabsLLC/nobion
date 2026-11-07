@@ -9,8 +9,9 @@ if(GIT_EXECUTABLE)
     WORKING_DIRECTORY "${SOURCE_DIR}"
     OUTPUT_VARIABLE head OUTPUT_STRIP_TRAILING_WHITESPACE
     RESULT_VARIABLE rc ERROR_QUIET)
-  if(rc EQUAL 0 AND head MATCHES "^[0-9a-fA-F]+$")
+  if(rc EQUAL 0 AND head MATCHES "^[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]*$")
     string(SUBSTRING "${head}" 0 12 sha)
+    string(TOLOWER "${sha}" sha)
     execute_process(
       COMMAND "${GIT_EXECUTABLE}" status --porcelain --untracked-files=no
       WORKING_DIRECTORY "${SOURCE_DIR}"
@@ -21,8 +22,11 @@ if(GIT_EXECUTABLE)
     endif()
   endif()
 endif()
-if(sha STREQUAL "" AND "$ENV{GITHUB_SHA}" MATCHES "^[0-9a-fA-F][0-9a-fA-F]+")
+# Only 12 or more hex digits and nothing else: the value ends up inside a C++
+# string literal, and the header promises 12 hex digits or "unknown".
+if(sha STREQUAL "" AND "$ENV{GITHUB_SHA}" MATCHES "^[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]*$")
   string(SUBSTRING "$ENV{GITHUB_SHA}" 0 12 sha)
+  string(TOLOWER "${sha}" sha)
 endif()
 if(sha STREQUAL "")
   set(sha "unknown")

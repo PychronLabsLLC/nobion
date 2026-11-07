@@ -44,6 +44,12 @@ target_compile_definitions(nobion_core_tests PRIVATE
 
 gtest_discover_tests(nobion_core_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)
 
+# The sha the build-info script writes when git gives none (CI's GITHUB_SHA).
+add_test(NAME BuildInfoScript.GithubShaFallback
+  COMMAND "${CMAKE_COMMAND}" -DROOT=${PROJECT_SOURCE_DIR} -DWORK=${CMAKE_CURRENT_BINARY_DIR}/build_info_script
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/build_info_script_test.cmake")
+set_tests_properties(BuildInfoScript.GithubShaFallback PROPERTIES TIMEOUT 60)
+
 # tools/quality_check.py (static analysis of a branch's changes) is tested with
 # the standard library's unittest; the analysers themselves are not run.
 find_package(Python3 3.11 COMPONENTS Interpreter QUIET)
