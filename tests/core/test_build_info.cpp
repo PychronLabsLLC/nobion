@@ -31,11 +31,20 @@ TEST(BuildInfo, FeaturesNameWhatWasCompiledIn) {
 }
 
 // The feature is on exactly where the standard library's own checks are on in
-// this translation unit: libstdc++ asserts, libc++ 17 or later hardening mode
-// (cmake/NobionHardening.cmake; a sanitizer build has them on as well).
+// this translation unit: libstdc++ asserts, libc++ with hardening modes at a
+// mode other than none (cmake/NobionHardening.cmake; a sanitizer build has them
+// on as well). The mode's value, not whether it is defined: libc++'s <version>
+// defines _LIBCPP_HARDENING_MODE to its default, which is none, when nothing
+// asked for hardening (Apple clang does).
 TEST(BuildInfo, HardenedStdlibOnWhereSupported) {
-#if defined(_GLIBCXX_ASSERTIONS) || defined(_LIBCPP_HARDENING_MODE)
+#if defined(_GLIBCXX_ASSERTIONS)
   constexpr bool checks_on = true;
+#elif defined(_LIBCPP_HARDENING_MODE) && defined(_LIBCPP_HARDENING_MODE_NONE)
+#if _LIBCPP_HARDENING_MODE != _LIBCPP_HARDENING_MODE_NONE
+  constexpr bool checks_on = true;
+#else
+  constexpr bool checks_on = false;
+#endif
 #else
   constexpr bool checks_on = false;
 #endif
@@ -43,7 +52,10 @@ TEST(BuildInfo, HardenedStdlibOnWhereSupported) {
 #if defined(_LIBCPP_HARDENING_MODE_FAST)
   // True only if the library understood the macro the build defined.
   EXPECT_TRUE(nobion::has_feature("hardened_stdlib"));
-  EXPECT_TRUE(_LIBCPP_HARDENING_MODE == _LIBCPP_HARDENING_MODE_FAST || _LIBCPP_HARDENING_MODE == _LIBCPP_HARDENING_MODE_EXTENSIVE);
+  // FAST is what cmake/NobionHardening.cmake asks for; EXTENSIVE is what a
+  // sanitizer build asks for instead (cmake/NobionSanitizers.cmake).
+  EXPECT_TRUE(_LIBCPP_HARDENING_MODE == _LIBCPP_HARDENING_MODE_FAST ||
+              _LIBCPP_HARDENING_MODE == _LIBCPP_HARDENING_MODE_EXTENSIVE);
 #elif defined(__GLIBCXX__)
   EXPECT_TRUE(nobion::has_feature("hardened_stdlib"));
 #endif
