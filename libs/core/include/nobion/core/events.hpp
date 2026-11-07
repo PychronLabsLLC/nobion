@@ -89,9 +89,8 @@ struct LinkReconnected {
 // published by nobion::Device on the thread that ran the operation (a
 // transport worker, a scheduler job, the caller of the driver), once per
 // change, never once per failure, in the order the changes were made. A
-// handler copies what it needs and
-// returns: it never calls into a device or a transport, which may be the
-// very one publishing.
+// handler copies what it needs and returns: it never calls into a device or
+// a transport, which may be the very one publishing.
 struct DeviceHealthChanged {
   std::string device;     // the configured driver name
   std::string transport;  // the configured name of the transport it is on
