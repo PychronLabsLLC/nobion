@@ -433,6 +433,7 @@ Result<void> SwitchManager::refresh() {
   }
   if (errors.empty()) return {};
   std::vector<std::string> lines;
+  lines.reserve(errors.size());
   for (const auto& err : errors) lines.push_back(nobion::to_string(err));
   return fail(errors.front().kind, join(lines), errors.front().device);
 }
