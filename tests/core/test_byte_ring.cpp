@@ -152,30 +152,38 @@ TEST(ByteRing, ConcurrentWritersAndALockFreeReader) {
       done.fetch_add(1);
     });
   }
+  // Whole lines that a writer wrote, every one; false (and a failure) at the
+  // first that is not. A failure stops the reading, never the joins below.
   std::size_t checked = 0;
+  const auto all_written = [&checked](std::string_view text, const char* what) {
+    while (!text.empty()) {
+      const std::size_t end = text.find('\n');
+      if (end == std::string_view::npos) {
+        ADD_FAILURE() << what << " that does not end with a line break";
+        return false;
+      }
+      const std::string_view line = text.substr(0, end);
+      if (!written_line(line)) {
+        ADD_FAILURE() << what << " with a torn or foreign line: " << line;
+        return false;
+      }
+      ++checked;
+      text.remove_prefix(end + 1);
+    }
+    return true;
+  };
   std::size_t copies = 0;
+  std::size_t kept = 0;  // copies with an untouched part that is not empty
   do {  // at least once, however soon the writers finish
     const std::string copy = lock_free_copy(ring);
     ++copies;
-    std::string_view rest(copy);
-    while (!rest.empty()) {
-      const std::size_t end = rest.find('\n');
-      ASSERT_NE(end, std::string_view::npos) << "a copy that does not end with a line break";
-      const std::string_view line = rest.substr(0, end);
-      ASSERT_TRUE(written_line(line)) << "torn or foreign line: " << line;
-      ++checked;
-      rest.remove_prefix(end + 1);
-    }
-    const std::string snap = ring.snapshot();
-    std::string_view lines(snap);
-    while (!lines.empty()) {
-      const std::size_t end = lines.find('\n');
-      ASSERT_NE(end, std::string_view::npos);
-      ASSERT_TRUE(written_line(lines.substr(0, end))) << lines.substr(0, end);
-      lines.remove_prefix(end + 1);
-    }
+    if (!copy.empty()) ++kept;
+    if (!all_written(copy, "a lock-free copy")) break;
+    if (!all_written(ring.snapshot(), "a snapshot")) break;
   } while (done.load() < kWriters);
   for (auto& w : writers) w.join();
   EXPECT_GT(copies, 0u);
   EXPECT_GT(checked, 0u);
+  // The check above means something only if most copies keep lines to check.
+  EXPECT_GE(kept, copies / 4) << kept << " of " << copies << " copies kept a part to check";
 }

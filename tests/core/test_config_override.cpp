@@ -120,6 +120,11 @@ dock_level = "warn"
 [logging.levels]
 scheduler = "debug"
 "*.wire" = "trace"
+[logging.recorder]
+size_mb = 64
+default_level = "info"
+[logging.recorder.levels]
+"*.wire" = "debug"
 [metrics]
 enabled = true
 port = 9500
@@ -155,6 +160,21 @@ TEST(ConfigOverride, LocalLoggingKeysWinAndTheRestStay) {
   EXPECT_EQ(r.config->logging.max_files, 3);  // the shared file's
   EXPECT_EQ(r.config->logging.dir, std::filesystem::path("/var/log/nobion"));
   EXPECT_EQ(r.config->logging.levels.size(), 2u);
+}
+
+// `[logging.recorder]` is read over the shared file's the same way: a key it
+// does not name stays the shared file's.
+TEST(ConfigOverride, LocalLoggingRecorderKeysWinAndTheRestStay) {
+  const auto r = load_over_logging("[logging.recorder]\nenabled = false\n");
+  ASSERT_TRUE(r.ok()) << testing::PrintToString(test::formatted(r.diagnostics));
+  const RecorderConfig& rec = r.config->logging.recorder;
+  EXPECT_FALSE(rec.enabled);
+  EXPECT_EQ(rec.size_mb, 64u);                  // the shared file's
+  EXPECT_EQ(rec.default_level, LogLevel::Info);  // the shared file's
+  ASSERT_EQ(rec.levels.size(), 1u);              // the shared file's
+  EXPECT_EQ(rec.levels[0].first, "*.wire");
+  EXPECT_EQ(rec.levels[0].second, LogLevel::Debug);
+  EXPECT_EQ(r.config->logging.default_level, LogLevel::Warn);  // [logging] itself untouched
 }
 
 TEST(ConfigOverride, LocalDockLevelWinsAndWhenOmittedTheSharedOneStays) {
