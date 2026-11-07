@@ -22,14 +22,14 @@
 #include "rise_rate.hpp"
 #include "rise_rate_panel.hpp"
 
-using namespace pychron;
-using pychron::spectrometer::IntensityReading;
-using pychron::spectrometer::Value;
-using pychron::ui::rise_rate;
-using pychron::ui::RisePoint;
-using pychron::ui::DetectorSeries;
-using pychron::ui::RiseRatePanel;
-using pychron::ui::RiseRun;
+using namespace nobion;
+using nobion::spectrometer::IntensityReading;
+using nobion::spectrometer::Value;
+using nobion::ui::rise_rate;
+using nobion::ui::RisePoint;
+using nobion::ui::DetectorSeries;
+using nobion::ui::RiseRatePanel;
+using nobion::ui::RiseRun;
 
 namespace {
 

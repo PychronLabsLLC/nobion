@@ -13,14 +13,14 @@
 #include "nobion/processing/units.hpp"
 #include "nobion/arar/arar_reduction.hpp"
 
-namespace pp = pychron::processing;
-namespace r = pychron::reduction;
-using pychron::arar::test::make_step;
+namespace pp = nobion::processing;
+namespace r = nobion::reduction;
+using nobion::arar::test::make_step;
 
 namespace {
 
 // The Ar-Ar domain's units: core's and the figures.
-const pp::UnitRegistry& arar_units() { return pychron::arar::make_domain()->units(); }
+const pp::UnitRegistry& arar_units() { return nobion::arar::make_domain()->units(); }
 
 // Eight steps of one aliquot with varying gas and atmospheric content.
 pp::Dataset steps(int n = 8, double f = 10.0) {
@@ -29,7 +29,7 @@ pp::Dataset steps(int n = 8, double f = 10.0) {
   const double ar36[] = {0.5, 0.3, 0.2, 0.1, 0.08, 0.06, 0.1, 0.2, 0.3, 0.4};
   for (int i = 0; i < n; ++i) {
     pp::DatasetItem item;
-    item.analysis = pychron::arar::reduce_with_arar(make_step(i, ar39[i], ar36[i], f));
+    item.analysis = nobion::arar::reduce_with_arar(make_step(i, ar39[i], ar36[i], f));
     d.mutable_items().push_back(item);
   }
   return d;
@@ -107,10 +107,10 @@ TEST(ArArGroups, IsochronRecoversFAndTrapped) {
 TEST(ArArGroups, AnUnknownWithoutProductionStaysOutOfGroupAges) {
   auto d = steps();
   auto odd = make_step(8, 30.0, 0.1, 50.0);
-  pychron::arar::edit_analysis_data(*odd).production.reset();
+  nobion::arar::edit_analysis_data(*odd).production.reset();
   pp::DatasetItem item;
-  item.analysis = pychron::arar::reduce_with_arar(odd);
-  const auto* arar = pychron::arar::reduced_of(*item.analysis);
+  item.analysis = nobion::arar::reduce_with_arar(odd);
+  const auto* arar = nobion::arar::reduced_of(*item.analysis);
   ASSERT_TRUE(arar);
   EXPECT_FALSE(arar->arar.ages);
   EXPECT_FALSE(arar->j);
@@ -202,7 +202,7 @@ TEST(Ideogram, ExclusionDashesTheOriginalCurveAndMovesTheMean) {
   auto d = steps();
   // A stray analysis: F = 12.
   pp::DatasetItem odd;
-  odd.analysis = pychron::arar::reduce_with_arar(make_step(9, 30, 0.1, 12.0, "S2"));
+  odd.analysis = nobion::arar::reduce_with_arar(make_step(9, 30, 0.1, 12.0, "S2"));
   d.mutable_items().push_back(odd);
   pp::Options o(pp::ideogram_schema());
   auto with = pp::build_ideogram(d, o);
@@ -404,7 +404,7 @@ TEST(Spectrum, DiscordantStepsAndFixedPlateau) {
   for (int i = 0; i < 8; ++i) {
     pp::DatasetItem item;
     // Two young low-temperature steps.
-    item.analysis = pychron::arar::reduce_with_arar(make_step(i, ar39[i], 0.1, i < 2 ? 7.0 : 10.0));
+    item.analysis = nobion::arar::reduce_with_arar(make_step(i, ar39[i], 0.1, i < 2 ? 7.0 : 10.0));
     d.mutable_items().push_back(item);
   }
   pp::Options o(pp::spectrum_schema());
@@ -565,7 +565,7 @@ TEST(Isochron, ExcludeNonPlateau) {
   const double ar39[] = {5, 10, 40, 60, 50, 30, 15, 5};
   for (int i = 0; i < 8; ++i) {
     pp::DatasetItem item;
-    item.analysis = pychron::arar::reduce_with_arar(make_step(i, ar39[i], 0.1 + 0.02 * i, i < 2 ? 7.0 : 10.0));
+    item.analysis = nobion::arar::reduce_with_arar(make_step(i, ar39[i], 0.1 + 0.02 * i, i < 2 ? 7.0 : 10.0));
     d.mutable_items().push_back(item);
   }
   pp::Options o(pp::isochron_schema());
@@ -585,7 +585,7 @@ pp::Dataset discordant_steps() {
   const double ar39[] = {5, 10, 40, 60, 50, 30, 15, 5};
   for (int i = 0; i < 8; ++i) {
     pp::DatasetItem item;
-    item.analysis = pychron::arar::reduce_with_arar(make_step(i, ar39[i], 0.1 + 0.02 * i, i < 2 ? 7.0 : 10.0));
+    item.analysis = nobion::arar::reduce_with_arar(make_step(i, ar39[i], 0.1 + 0.02 * i, i < 2 ? 7.0 : 10.0));
     d.mutable_items().push_back(item);
   }
   return d;

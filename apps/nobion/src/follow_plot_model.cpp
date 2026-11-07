@@ -5,7 +5,7 @@
 #include <numbers>
 #include <utility>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -67,4 +67,4 @@ void FollowPlotModel::clear() {
   empty_ = true;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -8,7 +8,7 @@
 // "scanner") and, inside a run scope, the run id. Both are read on the thread
 // that logs, when the record is made; nothing here is shared between threads
 // apart from the counter behind thread_number().
-namespace pychron::LogContext {
+namespace nobion::LogContext {
 
 // Names the current thread for the life of the scope; the previous tag comes
 // back when it ends. Scopes are stack-like: destroyed in reverse order of
@@ -68,4 +68,4 @@ class Polling {
 // A small number for the current thread, assigned on its first call, from 1.
 [[nodiscard]] std::uint32_t thread_number() noexcept;
 
-}  // namespace pychron::LogContext
+}  // namespace nobion::LogContext

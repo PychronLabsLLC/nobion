@@ -13,7 +13,7 @@
 
 class QAction;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class DataMainWindow : public QMainWindow {
   Q_OBJECT
@@ -53,4 +53,4 @@ class DataMainWindow : public QMainWindow {
   PreferencesDialog::Reopen data_source_reopen_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

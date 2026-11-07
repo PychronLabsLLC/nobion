@@ -10,7 +10,7 @@
 
 #include "nobion/arar/flux_store.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 using Json = nlohmann::json;
 using reduction::Axis;
@@ -167,4 +167,4 @@ bool same_flux_value(const persistence::FluxValue& a, const persistence::FluxVal
   return rest_a == rest_b;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

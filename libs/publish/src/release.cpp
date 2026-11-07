@@ -9,7 +9,7 @@
 #include <map>
 #include <set>
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 namespace ps = persistence;
 
@@ -250,4 +250,4 @@ Result<ps::ReleaseRow> find_release(ps::IStore& store, std::string_view name_or_
   return fail(ErrorKind::Config, "no release " + text);
 }
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

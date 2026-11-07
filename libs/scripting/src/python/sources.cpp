@@ -5,7 +5,7 @@
 
 #include "internal.hpp"
 
-namespace pychron::scripting::python {
+namespace nobion::scripting::python {
 
 const char* const kRuntimeSource = R"PY(
 import ast
@@ -486,4 +486,4 @@ def signal_pump_time_start():
     _h.signal_pump_time_start()
 )PY";
 
-}  // namespace pychron::scripting::python
+}  // namespace nobion::scripting::python

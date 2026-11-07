@@ -25,9 +25,9 @@
 
 #include <qcustomplot.h>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 namespace {
 
@@ -529,13 +529,13 @@ void SceneView::reset_view() {
 
 bool SceneView::save_png(const QString& path, int width, int height) {
   if (!plot_->savePng(path, width, height)) return false;
-  pychron::mark_as_user_file(std::filesystem::path(path.toStdString()));
+  nobion::mark_as_user_file(std::filesystem::path(path.toStdString()));
   return true;
 }
 
 bool SceneView::save_pdf(const QString& path) {
   if (!plot_->savePdf(path)) return false;
-  pychron::mark_as_user_file(std::filesystem::path(path.toStdString()));
+  nobion::mark_as_user_file(std::filesystem::path(path.toStdString()));
   return true;
 }
 
@@ -730,4 +730,4 @@ void SceneView::show_context_menu(const QPoint& pos) {
   menu.exec(plot_->mapToGlobal(pos));
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

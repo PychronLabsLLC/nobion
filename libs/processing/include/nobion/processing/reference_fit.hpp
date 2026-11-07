@@ -33,7 +33,7 @@
 #include "nobion/processing/scene.hpp"
 #include "nobion/processing/source.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 enum class ReferenceFitKind {
   Preceding,
@@ -221,4 +221,4 @@ class Unit;
 // The blank_fit / icfactor_fit units: (unknowns, references) -> (figure, fits).
 std::unique_ptr<Unit> make_reference_fit_unit(ReferenceFitTarget target);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

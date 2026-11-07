@@ -24,7 +24,7 @@
 #include "nobion/core/signal_bus.hpp"
 #include "nobion/metrics/registry.hpp"
 
-namespace pychron::metrics {
+namespace nobion::metrics {
 
 // What pychron_build_info says about this build.
 struct BuildInfo {
@@ -35,7 +35,7 @@ struct BuildInfo {
 // compiler ("clang 17.0", "gcc 14.2", "msvc 1940").
 BuildInfo build_info(std::string version);
 
-// What one link (a transport's recovery, `pychron::Link` in libs/devices) has
+// What one link (a transport's recovery, `nobion::Link` in libs/devices) has
 // done since it was made. Read from the links themselves at each scrape: the
 // exporter does not depend on the devices library, so whoever owns the links
 // hands it a function that reads them.
@@ -89,4 +89,4 @@ class CoreExporter {
   std::vector<SignalBus::Subscription> subscriptions_;
 };
 
-}  // namespace pychron::metrics
+}  // namespace nobion::metrics

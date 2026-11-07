@@ -38,15 +38,15 @@
 #include "nobion/experiment/lab/lab.hpp"
 #include "nobion/experiment/lab/notifier.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 class ExtractionLine;
 }
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 class Spectrometer;
 class ScanService;
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 class Lasers;
 
@@ -197,4 +197,4 @@ class LabSession {
   std::condition_variable thread_done_cv_;
 };
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

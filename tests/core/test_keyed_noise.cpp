@@ -10,9 +10,9 @@
 
 namespace {
 
-using pychron::keyed_bits;
-using pychron::keyed_gauss;
-using pychron::keyed_poisson;
+using nobion::keyed_bits;
+using nobion::keyed_gauss;
+using nobion::keyed_poisson;
 
 TEST(KeyedNoise, SameKeySameDraw) {
   EXPECT_EQ(keyed_bits(0x5eed, "bone", 42), keyed_bits(0x5eed, "bone", 42));

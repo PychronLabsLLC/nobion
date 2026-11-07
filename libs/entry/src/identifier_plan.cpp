@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 namespace ps = persistence;
 
@@ -77,4 +77,4 @@ Result<std::vector<ps::LevelSheet>> package_sheets(ps::IStore& store, ps::Uuid p
   return out;
 }
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

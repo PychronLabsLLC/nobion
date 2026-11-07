@@ -47,7 +47,7 @@
 #include "nobion/systems/spectrometer/move_protocol.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 // ---- position request -----------------------------------------------------
 
@@ -410,4 +410,4 @@ DetectorConfig to_detector_config(const cfg::DetectorConfig& d);
 FieldTable to_field_table(const cfg::TableFile& table);
 IMassPositioner::Axis to_axis(cfg::Axis axis) noexcept;
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

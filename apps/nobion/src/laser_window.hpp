@@ -29,7 +29,7 @@ class QPushButton;
 class QTableWidget;
 class QTimer;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class CameraView;
 class FollowPlotView;
@@ -134,4 +134,4 @@ class LaserWindow : public QMainWindow {
   QPushButton* pattern_maker_ = nullptr;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

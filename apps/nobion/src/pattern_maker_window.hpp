@@ -21,7 +21,7 @@ class QLabel;
 class QLineEdit;
 class QPushButton;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class PatternPreview;
 
@@ -67,4 +67,4 @@ class PatternMakerWindow : public QMainWindow {
   QPushButton* save_ = nullptr;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

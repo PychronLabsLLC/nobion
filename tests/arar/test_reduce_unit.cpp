@@ -21,10 +21,10 @@
 #include "nobion/processing/units.hpp"
 #include "reduce_golden.hpp"
 
-namespace pp = pychron::processing;
-namespace r = pychron::reduction;
-namespace g = pychron::reduction::golden;
-using pychron::arar::edit_analysis_data;
+namespace pp = nobion::processing;
+namespace r = nobion::reduction;
+namespace g = nobion::reduction::golden;
+using nobion::arar::edit_analysis_data;
 
 namespace {
 
@@ -116,7 +116,7 @@ std::shared_ptr<pp::Analysis> analysis_of(const g::Json& in, const r::ReductionC
 // make_unknown(1) with real decay and production ratios (Phase 1's reference
 // values, variant B).
 std::shared_ptr<pp::Analysis> decayed_unknown() {
-  auto a = pychron::arar::test::make_unknown(1);
+  auto a = nobion::arar::test::make_unknown(1);
   const auto t = static_cast<std::int64_t>(a->timestamp);
   edit_analysis_data(*a).chronology = {r::Dose{1.0, t - 365 * 86'400, t - 365 * 86'400 + 36'000}};
   r::ProductionRatios p;
@@ -151,14 +151,14 @@ TEST(ArArReduceUnit, MatchesTheGoldenReduce) {
   }
   ASSERT_EQ(cases.size(), 42u);
 
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   const Ran ran = run_chain(source, *domain);
   ASSERT_TRUE(ran.dataset);
   ASSERT_EQ(ran.dataset->items().size(), cases.size());
   for (const auto& item : ran.dataset->items()) {
     const g::Json& c = *cases.at(item.analysis->analysis->uuid);
     SCOPED_TRACE(c["name"].string);
-    const auto* arar = pychron::arar::reduced_of(*item.analysis);
+    const auto* arar = nobion::arar::reduced_of(*item.analysis);
     ASSERT_NE(arar, nullptr) << item.analysis->reduction_error;
     ASSERT_TRUE(arar->arar.ages);
     const g::Tol t = g::tol_of(c);
@@ -171,7 +171,7 @@ TEST(ArArReduceUnit, MatchesTheGoldenReduce) {
 TEST(ArArReduceUnit, StagesShareVariablesWithTheCoreStages) {
   pp::MemorySource source;
   source.add(decayed_unknown());
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   const Ran ran = run_chain(source, *domain);
   ASSERT_TRUE(ran.dataset);
   ASSERT_EQ(ran.dataset->items().size(), 1u);
@@ -219,14 +219,14 @@ TEST(ArArReduceUnit, AHeliumOnlyAnalysisDoesNotReduce) {
   }
   pp::MemorySource source;
   source.add(a);
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   const Ran ran = run_chain(source, *domain);
   ASSERT_TRUE(ran.dataset);
   ASSERT_EQ(ran.dataset->items().size(), 1u);
   const pp::ReducedAnalysis& ra = *ran.dataset->items()[0].analysis;
   EXPECT_FALSE(ra.reduction_error.empty());
   EXPECT_EQ(ra.domain, nullptr);
-  EXPECT_EQ(pychron::arar::reduced_of(ra), nullptr);
+  EXPECT_EQ(nobion::arar::reduced_of(ra), nullptr);
   EXPECT_EQ(ra.isotope_signals.size(), 2u);
   EXPECT_TRUE(ra.stage("He4", pp::Stage::IcCorrected));
   // The unit says "1 analyses did not reduce"; the runner names the node.
@@ -238,11 +238,11 @@ TEST(ArArReduceUnit, AHeliumOnlyAnalysisDoesNotReduce) {
 TEST(ArArReduceUnit, WritesTheCacheOnceWithTheArArVersion) {
   SinkSource source;
   for (int i = 0; i < 2; ++i) {
-    auto a = pychron::arar::test::make_unknown(i);
+    auto a = nobion::arar::test::make_unknown(i);
     a->input_fingerprint = std::string(64, 'a');
     source.add(a);
   }
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   pp::Runner runner(domain->units(), &source, domain.get());
   const auto pipeline = reduce_pipeline(*domain);
 
@@ -278,12 +278,12 @@ TEST(ArArReduceUnit, WritesTheCacheOnceWithTheArArVersion) {
 TEST(ArArReduceUnit, TheJQuantityIsAnIndependentVariable) {
   pp::MemorySource source;
   source.add(decayed_unknown());
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   const Ran ran = run_chain(source, *domain);
   ASSERT_TRUE(ran.dataset);
   ASSERT_EQ(ran.dataset->items().size(), 1u);
   const pp::ReducedAnalysis& ra = *ran.dataset->items()[0].analysis;
-  const auto* arar = pychron::arar::reduced_of(ra);
+  const auto* arar = nobion::arar::reduced_of(ra);
   ASSERT_NE(arar, nullptr) << ra.reduction_error;
   ASSERT_TRUE(arar->j && arar->arar.ages);
 

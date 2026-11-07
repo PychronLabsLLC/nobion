@@ -43,7 +43,7 @@ class QLineEdit;
 class QPushButton;
 class QTableView;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class SpectrometerWindow : public QMainWindow {
   Q_OBJECT
@@ -170,4 +170,4 @@ class SpectrometerWindow : public QMainWindow {
   std::function<bool(double)> confirm_move_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

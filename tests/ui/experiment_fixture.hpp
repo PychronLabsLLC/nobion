@@ -27,12 +27,12 @@
 #include "nobion/systems/spectrometer/scan_service.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::ui::test {
+namespace nobion::ui::test {
 
 inline std::filesystem::path scratch_lab() {
   namespace fs = std::filesystem;
-  const fs::path dir = pychron::testing::unique_temp_path("nobion-lab-");
-  pychron::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir);
+  const fs::path dir = nobion::testing::unique_temp_path("nobion-lab-");
+  nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir);
   return dir;
 }
 
@@ -116,4 +116,4 @@ struct SimLab {
   experiment::QueueSpec queue() const { return example_queue(dir, lab.ids); }
 };
 
-}  // namespace pychron::ui::test
+}  // namespace nobion::ui::test

@@ -14,7 +14,7 @@
 #include "nobion/earthbank/model.hpp"
 #include "records_support.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using testing::all_fields;
@@ -328,4 +328,4 @@ TEST(Model, ContentHashChangesWithAValue) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

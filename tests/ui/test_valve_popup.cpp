@@ -15,11 +15,11 @@
 #include "ui_fixture.hpp"
 #include "valve_popup.hpp"
 
-using namespace pychron;
-using pychron::systems::SwitchOp;
-using pychron::ui::CanvasView;
-using pychron::ui::CoreBridge;
-using pychron::ui::ValvePopup;
+using namespace nobion;
+using nobion::systems::SwitchOp;
+using nobion::ui::CanvasView;
+using nobion::ui::CoreBridge;
+using nobion::ui::ValvePopup;
 
 class TestValvePopup : public QObject {
   Q_OBJECT

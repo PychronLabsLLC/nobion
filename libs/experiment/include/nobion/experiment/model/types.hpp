@@ -8,7 +8,7 @@
 #include <variant>
 #include <vector>
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 // Seconds. Every duration in the model is a plain seconds value.
 using Duration = std::chrono::duration<double>;
@@ -57,4 +57,4 @@ struct SampleInfo {
   friend bool operator==(const SampleInfo&, const SampleInfo&) = default;
 };
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

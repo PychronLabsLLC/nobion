@@ -11,7 +11,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/core/events.hpp"
 
-namespace pychron {
+namespace nobion {
 
 std::string_view to_string(ValveState state) noexcept;
 
@@ -28,4 +28,4 @@ struct ValveAddress {
   friend bool operator<(const ValveAddress& a, const ValveAddress& b) { return a.value < b.value; }
 };
 
-}  // namespace pychron
+}  // namespace nobion

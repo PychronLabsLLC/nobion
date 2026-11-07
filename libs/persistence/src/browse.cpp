@@ -11,7 +11,7 @@
 #include "sql/browse.hpp"
 #include "store_impl.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 
 namespace {
 
@@ -426,4 +426,4 @@ Result<ChangeSeq> latest_change_seq(Db& db) {
   return *row ? (*row)->value("n").toLongLong() : ChangeSeq{0};
 }
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

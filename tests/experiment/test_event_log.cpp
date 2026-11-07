@@ -18,10 +18,10 @@
 #include "nobion/experiment/run/run.hpp"
 #include "nobion/experiment/run/state.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
-using pychron::testing::LogCapture;
+using nobion::testing::LogCapture;
 using Lines = std::vector<std::string>;
 using executor::ExecutorState;
 using run::RunState;
@@ -191,4 +191,4 @@ TEST_F(ExperimentEventLogTest, NeverLoggedEventsWriteNothing) {
 }
 
 }  // namespace
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

@@ -15,7 +15,7 @@
 #include "nobion/systems/spectrometer/spectrometer.hpp"
 #include "spectrometer_fakes.hpp"
 
-namespace pychron::spectrometer::testing {
+namespace nobion::spectrometer::testing {
 
 struct BeamAcquirer : IIntensityAcquirer {
   using Signal = std::function<double(const ChannelId&)>;
@@ -122,4 +122,4 @@ struct JobRig {
   }
 };
 
-}  // namespace pychron::spectrometer::testing
+}  // namespace nobion::spectrometer::testing

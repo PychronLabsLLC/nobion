@@ -44,19 +44,19 @@
 #include "settings_guard.hpp"
 #include "ui_fixture.hpp"
 
-using namespace pychron;
-using pychron::systems::SwitchOp;
+using namespace nobion;
+using nobion::systems::SwitchOp;
 using namespace std::chrono_literals;
-using pychron::ui::AlarmDock;
-using pychron::ui::HealthBar;
-using pychron::ui::LogDock;
-using pychron::ui::LogModel;
-using pychron::ui::LogRecord;
+using nobion::ui::AlarmDock;
+using nobion::ui::HealthBar;
+using nobion::ui::LogDock;
+using nobion::ui::LogModel;
+using nobion::ui::LogRecord;
 
 namespace {
 
 // The error lines a LogCapture holds, in order.
-std::vector<std::string> error_lines(const pychron::testing::LogCapture& capture) {
+std::vector<std::string> error_lines(const nobion::testing::LogCapture& capture) {
   std::vector<std::string> out;
   for (auto& l : capture.lines())
     if (l.starts_with("[error]")) out.push_back(std::move(l));
@@ -69,7 +69,7 @@ class TestDocks : public QObject {
   Q_OBJECT
 
  private:
-  pychron::ui::test::ApplicationSettingsGuard app_settings_;
+  nobion::ui::test::ApplicationSettingsGuard app_settings_;
   // Log, Alarms, then the cryostat's and the heaters' when the line has them.
   static QList<QDockWidget*> main_docks(const ui::MainWindow& window) {
     QList<QDockWidget*> docks{window.log_dock(), window.alarm_dock()};
@@ -160,7 +160,7 @@ class TestDocks : public QObject {
   // An error shown on the dock is in the log file too: written once, shown once.
   // The hub publishes on the bus the dock is fed from: the row comes back that way.
   void dockErrorOnTheFedBusIsWrittenAndShownOnce() {
-    const pychron::testing::LogCapture capture;
+    const nobion::testing::LogCapture capture;
     QVERIFY(capture.ok());
     SignalBus bus;
     auto attached = capture.hub().attach_bus(bus);
@@ -181,7 +181,7 @@ class TestDocks : public QObject {
 
   // The hub on another bus: the dock shows the line itself, the file has it once.
   void dockErrorWithTheHubOnAnotherBusIsWrittenAndShownOnce() {
-    const pychron::testing::LogCapture capture;
+    const nobion::testing::LogCapture capture;
     QVERIFY(capture.ok());
     SignalBus hub_bus;
     SignalBus dock_bus;
@@ -208,7 +208,7 @@ class TestDocks : public QObject {
 
   // The source of an ERROR line names the logger: ui.<source>, unless it is ui already.
   void dockErrorSourceMapsToAUiLogger() {
-    const pychron::testing::LogCapture capture;
+    const nobion::testing::LogCapture capture;
     QVERIFY(capture.ok());
     LogDock dock;
     dock.append_line(QStringLiteral("ERROR [cryo] a"));
@@ -328,7 +328,7 @@ class TestDocks : public QObject {
 
     LogDock dock;
     auto sub = bus.subscribe<Log>([&dock](const Log& e) { dock.append_log(e); });
-    dock.set_level_callback(pychron::ui::hub_level_callback(hub));
+    dock.set_level_callback(nobion::ui::hub_level_callback(hub));
     dock.set_min_level(LogLevel::Warn);
     dock.apply_level(QStringLiteral("*.wire"), LogLevel::Trace);
     QCOMPARE(hub->dock_level(), LogLevel::Trace);
@@ -430,7 +430,7 @@ class TestDocks : public QObject {
     QCOMPARE(last.logger, QStringLiteral("transport.serial.ig1"));
     QCOMPARE(last.message, QStringLiteral("line 1499"));
     // UTC in the file, shown as the same instant in local wall time.
-    QCOMPARE(pychron::ui::log_wall_time(last.ts).toUTC(),
+    QCOMPARE(nobion::ui::log_wall_time(last.ts).toUTC(),
              QDateTime(QDate(2026, 10, 1), QTime(14, 3, 22, 481), QTimeZone::utc()));
     const QModelIndex idx = dock.model()->index(999, LogModel::MessageCol);
     QVERIFY(dock.model()->data(idx, Qt::ForegroundRole).isValid());
@@ -787,8 +787,8 @@ class TestDocks : public QObject {
   }
 
   void spectrometerActionDisabledWithoutSpectrometer() {
-    auto line = pychron::ui::test::make_example_line();
-    pychron::ui::MainWindow window(*line);
+    auto line = nobion::ui::test::make_example_line();
+    nobion::ui::MainWindow window(*line);
     QVERIFY(!window.spectrometer_action()->isEnabled());
     QCOMPARE(window.spectrometer_action()->text(), QStringLiteral("Spectrometer"));
     QCOMPARE(window.spectrometer_action()->shortcut(), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
@@ -797,8 +797,8 @@ class TestDocks : public QObject {
 
   // ---- Spectrometer > Field Table… (field table editor plan, task 16) ----
   void fieldTableMenuDisabledWithoutSpectrometer() {
-    auto line = pychron::ui::test::make_example_line();
-    pychron::ui::MainWindow window(*line);
+    auto line = nobion::ui::test::make_example_line();
+    nobion::ui::MainWindow window(*line);
     QAction* action = window.field_table_action();
     QVERIFY(action != nullptr);
     QCOMPARE(action->text(), QStringLiteral("Field Table…"));
@@ -809,11 +809,11 @@ class TestDocks : public QObject {
   }
 
   void fieldTableMenuOpensOneEditor() {
-    auto line = pychron::ui::test::make_example_line();
-    auto sim = pychron::ui::test::make_sim_spectrometer();
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
     {
-      pychron::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
-      pychron::ui::MainWindow window(*line);
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
       window.set_spectrometer(&bridge, true);
       QAction* action = window.field_table_action();
       QVERIFY(action->isEnabled());
@@ -836,13 +836,13 @@ class TestDocks : public QObject {
   }
 
   void spectrometerWindowMenuOpensTheSameEditor() {
-    auto line = pychron::ui::test::make_example_line();
-    auto sim = pychron::ui::test::make_sim_spectrometer();
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
     QTemporaryDir dir;
     const QString path = dir.filePath(QStringLiteral("settings.ini"));
     {
-      pychron::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
-      pychron::ui::MainWindow window(*line);
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
       window.set_spectrometer(&bridge, true,
                               [path] { return std::make_unique<QSettings>(path, QSettings::IniFormat); });
       window.field_table_action()->trigger();
@@ -852,8 +852,8 @@ class TestDocks : public QObject {
       auto* spectrometer = window.spectrometer_window();
       QVERIFY(spectrometer != nullptr);
       // The spectrometer window's bar has Spectrometer > Field Table…
-      QMenuBar* bar = pychron::ui::MenuHub::instance().install(spectrometer);
-      if (bar == nullptr) bar = pychron::ui::MenuHub::instance().bar_for(spectrometer);
+      QMenuBar* bar = nobion::ui::MenuHub::instance().install(spectrometer);
+      if (bar == nullptr) bar = nobion::ui::MenuHub::instance().bar_for(spectrometer);
       QVERIFY(bar != nullptr);
       QAction* item = nullptr;
       for (QAction* m : bar->actions()) {
@@ -871,13 +871,13 @@ class TestDocks : public QObject {
   }
 
   void spectrometerActionOpensWindowOnce() {
-    auto line = pychron::ui::test::make_example_line();
-    auto sim = pychron::ui::test::make_sim_spectrometer();
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
     QTemporaryDir dir;
     const QString path = dir.filePath(QStringLiteral("settings.ini"));
     {
-      pychron::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
-      pychron::ui::MainWindow window(*line);
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
       window.set_spectrometer(&bridge, true,
                               [path] { return std::make_unique<QSettings>(path, QSettings::IniFormat); });
       QVERIFY(window.spectrometer_action()->isEnabled());
@@ -895,8 +895,8 @@ class TestDocks : public QObject {
 
   // ---- Spectrometer > Peak Center… (peak center window) ----
   void peakCenterMenuDisabledWithoutSpectrometer() {
-    auto line = pychron::ui::test::make_example_line();
-    pychron::ui::MainWindow window(*line);
+    auto line = nobion::ui::test::make_example_line();
+    nobion::ui::MainWindow window(*line);
     QAction* action = window.peak_center_action();
     QVERIFY(action != nullptr);
     QCOMPARE(action->text(), QStringLiteral("Peak Center…"));
@@ -907,19 +907,19 @@ class TestDocks : public QObject {
   }
 
   void peakCenterMenuOpensOneWindowBesideFieldTable() {
-    auto line = pychron::ui::test::make_example_line();
-    auto sim = pychron::ui::test::make_sim_spectrometer();
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
     QTemporaryDir dir;
     {
-      pychron::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
-      pychron::ui::MainWindow window(*line);
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
       window.set_spectrometer(&bridge, true, settings_on(dir));
       QAction* action = window.peak_center_action();
       QVERIFY(action->isEnabled());
       QVERIFY(action->toolTip() != QStringLiteral("no spectrometer configured"));
       // In the Spectrometer menu, after Field Table…
-      QMenuBar* bar = pychron::ui::MenuHub::instance().install(&window);
-      if (bar == nullptr) bar = pychron::ui::MenuHub::instance().bar_for(&window);
+      QMenuBar* bar = nobion::ui::MenuHub::instance().install(&window);
+      if (bar == nullptr) bar = nobion::ui::MenuHub::instance().bar_for(&window);
       QVERIFY(bar != nullptr);
       QStringList items;
       for (QAction* m : bar->actions()) {
@@ -947,13 +947,13 @@ class TestDocks : public QObject {
   }
 
   void peakCenterWindowGetsThePeakCenterFile() {
-    auto line = pychron::ui::test::make_example_line();
-    auto sim = pychron::ui::test::make_sim_spectrometer();
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
     QTemporaryDir dir;
     const std::filesystem::path file = std::filesystem::path(dir.path().toStdString()) / "peak_center.toml";
     {
-      pychron::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
-      pychron::ui::MainWindow window(*line);
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
       window.set_peak_center_file(file);
       window.set_spectrometer(&bridge, true, settings_on(dir));
       window.peak_center_action()->trigger();
@@ -963,15 +963,15 @@ class TestDocks : public QObject {
   }
 
   void replacingTheSpectrometerCancelsAPeakCenterWithoutAsking() {
-    auto line = pychron::ui::test::make_example_line();
-    auto sim = pychron::ui::test::make_sim_spectrometer();
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
     QTemporaryDir dir;
     const std::filesystem::path file = std::filesystem::path(dir.path().toStdString()) / "peak_center.toml";
     std::ofstream(file) << "[default]\nisotope = \"Ar40\"\nwindow = 0.06\nstep = 0.0005\nintegration_s = 0.1\n"
                            "settle_s = 0.1\n";
     {
-      pychron::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
-      pychron::ui::MainWindow window(*line);
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
       window.set_peak_center_file(file);
       window.set_spectrometer(&bridge, true, settings_on(dir));
       window.spectrometer_action()->trigger();
@@ -994,15 +994,15 @@ class TestDocks : public QObject {
   }
 
   void quittingCancelsAPeakCenterWithoutAsking() {
-    auto line = pychron::ui::test::make_example_line();
-    auto sim = pychron::ui::test::make_sim_spectrometer();
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
     QTemporaryDir dir;
     const std::filesystem::path file = std::filesystem::path(dir.path().toStdString()) / "peak_center.toml";
     std::ofstream(file) << "[default]\nisotope = \"Ar40\"\nwindow = 0.06\nstep = 0.0005\nintegration_s = 0.1\n"
                            "settle_s = 0.1\n";
     {
-      pychron::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
-      pychron::ui::MainWindow window(*line);
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
       window.set_peak_center_file(file);
       window.set_spectrometer(&bridge, true, settings_on(dir));
       window.show();
@@ -1023,13 +1023,13 @@ class TestDocks : public QObject {
   }
 
   void closingMainWindowClosesSpectrometerWindowAndStopsScan() {
-    auto line = pychron::ui::test::make_example_line();
-    auto sim = pychron::ui::test::make_sim_spectrometer();
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
     QTemporaryDir dir;
     const QString path = dir.filePath(QStringLiteral("settings.ini"));
     {
-      pychron::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
-      pychron::ui::MainWindow window(*line);
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
       window.set_spectrometer(&bridge, true,
                               [path] { return std::make_unique<QSettings>(path, QSettings::IniFormat); });
       window.show();
@@ -1043,13 +1043,13 @@ class TestDocks : public QObject {
     }
   }
   void clearingSpectrometerSavesSettingsAndDisablesAction() {
-    auto line = pychron::ui::test::make_example_line();
-    auto sim = pychron::ui::test::make_sim_spectrometer();
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
     QTemporaryDir dir;
     const QString path = dir.filePath(QStringLiteral("settings.ini"));
     {
-      pychron::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
-      pychron::ui::MainWindow window(*line);
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
       window.set_spectrometer(&bridge, true,
                               [path] { return std::make_unique<QSettings>(path, QSettings::IniFormat); });
       window.spectrometer_action()->trigger();
@@ -1069,13 +1069,13 @@ class TestDocks : public QObject {
   // The app-quit path: the spectrometer is cleared and the bridge destroyed
   // while a magnet move is still on the bridge's executor.
   void clearingSpectrometerWithMoveInFlightStopsScan() {
-    auto line = pychron::ui::test::make_example_line();
-    auto sim = pychron::ui::test::make_sim_spectrometer();
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
     QTemporaryDir dir;
     const QString path = dir.filePath(QStringLiteral("settings.ini"));
     {
-      auto bridge = std::make_unique<pychron::ui::SpectrometerBridge>(*sim->spec, *sim->scan, sim->bus);
-      pychron::ui::MainWindow window(*line);
+      auto bridge = std::make_unique<nobion::ui::SpectrometerBridge>(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
       window.set_spectrometer(bridge.get(), true,
                               [path] { return std::make_unique<QSettings>(path, QSettings::IniFormat); });
       window.spectrometer_action()->trigger();

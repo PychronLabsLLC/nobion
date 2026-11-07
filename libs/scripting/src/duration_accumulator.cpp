@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 
 void DurationAccumulator::add(Duration d, std::string command, std::string script, int line) {
   if (d < Duration::zero()) d = Duration::zero();
@@ -15,4 +15,4 @@ void DurationAccumulator::flag_unbounded(std::string reason) {
     unbounded_.push_back(std::move(reason));
 }
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

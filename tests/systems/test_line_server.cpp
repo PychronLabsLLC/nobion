@@ -18,8 +18,8 @@
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::systems;
+using namespace nobion;
+using namespace nobion::systems;
 namespace fs = std::filesystem;
 
 const fs::path kExamples = PYCHRON_EXAMPLE_CONFIGS_DIR;
@@ -33,7 +33,7 @@ std::string read_text(const fs::path& p) {
 
 config::SystemConfig example(bool on_the_wire) {
   std::string text = read_text(kExamples / "extraction_line.toml");
-  if (on_the_wire) text = pychron::testing::hardware_style(text);
+  if (on_the_wire) text = nobion::testing::hardware_style(text);
   auto cfg = config::load_system_config_from_string(text, (kExamples / "extraction_line.toml").string());
   EXPECT_TRUE(cfg) << cfg.error().what;
   return *cfg;

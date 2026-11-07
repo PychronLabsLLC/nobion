@@ -9,7 +9,7 @@
 
 #include "schema_builder.hpp"
 
-namespace pychron::processing::detail {
+namespace nobion::processing::detail {
 
 namespace {
 
@@ -174,9 +174,9 @@ std::string mean_text(const std::string& prefix, double value, double error, con
   return s;
 }
 
-}  // namespace pychron::processing::detail
+}  // namespace nobion::processing::detail
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 Color group_color(const Options& figure, int group) {
   if (!figure.schema() || !figure.schema()->list("groups")) return palette_color(group);
@@ -184,4 +184,4 @@ Color group_color(const Options& figure, int group) {
   return detail::row_color(group >= 0 && static_cast<std::size_t>(group) < rows.size() ? &rows[group] : nullptr, group);
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

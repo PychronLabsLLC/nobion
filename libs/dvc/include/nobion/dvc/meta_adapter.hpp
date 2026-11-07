@@ -67,7 +67,7 @@
 #include "nobion/dvc/git_reader.hpp"
 #include "nobion/ingest/adapter.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
 struct MetaAdapterConfig {
   GitConfig git;              // the repository and branch to read
@@ -123,4 +123,4 @@ class MetaRepoAdapter final : public ingest::ISourceAdapter {
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

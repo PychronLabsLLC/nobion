@@ -22,7 +22,7 @@
 #include "nobion/core/host_name.hpp"
 #include "nobion/setup/installer.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 SetupWizard::OpenDatabase database_opener() {
 #ifdef PYCHRON_UI_HAS_STORE
@@ -55,7 +55,7 @@ SetupWizard::SeedDatabase database_seeder() {
     auto seed = entry::parse_seed(text.str(), seed_file.string());
     if (!seed) return fail(std::move(seed).error());
     auto client = (*store)->register_client(
-        {pychron::host_name(), "reduction", std::nullopt, "nobion"});
+        {nobion::host_name(), "reduction", std::nullopt, "nobion"});
     if (!client) return fail(std::move(client).error());
     auto user = (*store)->ensure_user(*client, env_var("USER").value_or("pychron"));
     if (!user) return fail(std::move(user).error());
@@ -126,4 +126,4 @@ int write_icons(const std::filesystem::path& dir, std::ostream& out) {
   return failed == 0 ? 0 : 1;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

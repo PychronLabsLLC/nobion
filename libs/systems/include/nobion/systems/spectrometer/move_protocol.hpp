@@ -26,7 +26,7 @@
 #include "nobion/devices/spectrometer/roles.hpp"
 #include "nobion/devices/spectrometer/types.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 struct AfDemagSettings {
   bool enabled = false;
@@ -85,4 +85,4 @@ Result<MoveOutcome> execute_move(const MovePlan& plan, const MoveDeps& deps);
 // Blocks until `clock` reaches now + d (returns at once for d <= 0).
 void sleep_on(const Clock& clock, Duration d);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

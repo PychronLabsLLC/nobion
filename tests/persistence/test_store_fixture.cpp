@@ -12,7 +12,7 @@
 
 #include "store_fixture.hpp"
 
-using pychron::persistence::testing::TestDatabase;
+using nobion::persistence::testing::TestDatabase;
 
 // ctest runs one process per test, so a per-process counter is always 0: the
 // name must be unique across processes on its own.
@@ -48,7 +48,7 @@ TEST(StoreFixture, SqliteSideFilesGoWithTheMainFile) {
   {
     TestDatabase database("sqlite", true);
     url = database.url();
-    auto store = pychron::persistence::testing::open_or_die(url);
+    auto store = nobion::persistence::testing::open_or_die(url);
     ASSERT_TRUE(store);
     ASSERT_TRUE(store->register_client({"c", "importer", std::nullopt, "test"}));
   }

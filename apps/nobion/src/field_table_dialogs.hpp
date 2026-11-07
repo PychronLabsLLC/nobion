@@ -17,7 +17,7 @@ class QCheckBox;
 class QComboBox;
 class QLineEdit;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // Fit and override changes listed above; below, one row per difference:
 // Isotope, Detector, Old, New, Δ. A row only one side has is marked
@@ -79,4 +79,4 @@ class FieldTableAddRowDialog : public QDialog {
   QComboBox* isotope_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

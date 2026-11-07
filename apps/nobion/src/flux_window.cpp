@@ -52,12 +52,12 @@
 #include "nobion/arar/flux_store.hpp"
 #pragma pop_macro("signals")
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
-namespace pp = pychron::processing;
-namespace ps = pychron::persistence;
+namespace pp = nobion::processing;
+namespace ps = nobion::persistence;
 
 constexpr int kFitDelayMs = 150;  // W5: a refit follows the last change by this much
 
@@ -1239,7 +1239,7 @@ Result<void> FluxWindow::export_csv(const QString& path) {
   const auto size = static_cast<qint64>(text.size());
   if (!file.open(QIODevice::WriteOnly) || file.write(text.data(), size) != size || !file.commit())
     return fail(ErrorKind::Io, tr("could not write %1: %2").arg(path, file.errorString()).toStdString());
-  pychron::mark_as_user_file(std::filesystem::path(path.toStdU16String()));
+  nobion::mark_as_user_file(std::filesystem::path(path.toStdU16String()));
   return {};
 }
 
@@ -1352,4 +1352,4 @@ void FluxWindow::group_changed() {
       [this, back = shown_] { show_group(back); });
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

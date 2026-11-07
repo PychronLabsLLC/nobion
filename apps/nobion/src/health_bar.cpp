@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <chrono>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -177,4 +177,4 @@ void HealthBar::render(const std::string& name, const Chip& chip) {
   style::set_chip(chip.label, level_of(chip.status));
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

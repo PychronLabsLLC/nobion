@@ -7,7 +7,7 @@
 #include "nobion/core/sha256.hpp"
 #include "sql/statements.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 namespace {
 
 std::string upper_trimmed(std::string_view s) {
@@ -163,4 +163,4 @@ Result<std::vector<AppliedMigration>> migrate(Db& db, bool apply, std::optional<
   return out;
 }
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

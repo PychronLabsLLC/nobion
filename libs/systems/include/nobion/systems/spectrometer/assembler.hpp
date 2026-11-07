@@ -25,7 +25,7 @@
 #include "nobion/transport/endpoints.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 using TransportMaker =
     std::function<Result<std::unique_ptr<Transport>>(const cfg::TransportConfig&, const SpectrometerContext&)>;
@@ -35,7 +35,7 @@ using DriverMaker = std::function<Result<std::unique_ptr<Device>>(const cfg::Dri
                                                                   const SpectrometerContext&, Link*)>;
 
 struct AssemblerOptions {
-  TransportMaker make_transport;  // default: pychron::make_transport
+  TransportMaker make_transport;  // default: nobion::make_transport
   DriverMaker make_driver;        // default: DriverRegistry::global()
   Spectrometer::Options spectrometer;
   // What a transport's [transports.<name>.recovery] does not say: the lab's
@@ -71,4 +71,4 @@ class SpectrometerAssembler {
                                                         const SpectrometerContext& context, Link* link = nullptr);
 };
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

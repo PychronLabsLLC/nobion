@@ -19,7 +19,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/setup/site.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 struct LocalDatabase {
   std::filesystem::path file = "data/pychron.db";  // relative to root, or absolute
@@ -130,4 +130,4 @@ Result<DataSourceCheck> check_data_source(const DataSourceChange& change, const 
 std::vector<std::string> seed_data_source(const DataSourceChange& change, const DataSource& to,
                                           const DataSourceOpeners& openers, const DataSourceCheck& check);
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

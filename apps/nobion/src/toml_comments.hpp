@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <string>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // A '#' outside a string: a comment the canonical file would not have.
 [[nodiscard]] inline bool has_toml_comment(const std::string& text) {
@@ -25,4 +25,4 @@ namespace pychron::ui {
   return false;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

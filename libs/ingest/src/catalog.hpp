@@ -14,7 +14,7 @@
 #include "nobion/ingest/batch.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::ingest::detail {
+namespace nobion::ingest::detail {
 
 // Every lookup is an ensure-by-natural-key store call: a missing row is
 // created, with an id derived from its natural key where the store accepts
@@ -108,4 +108,4 @@ class CatalogResolver {
   std::set<std::string> reported_;      // "<family>\n<given>" whose namesakes were reported
 };
 
-}  // namespace pychron::ingest::detail
+}  // namespace nobion::ingest::detail

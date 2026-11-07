@@ -19,7 +19,7 @@
 #include <utility>
 #include <vector>
 
-namespace pychron::setup::legacy {
+namespace nobion::setup::legacy {
 
 struct YNode {
   enum class Kind { Null, Scalar, Seq, Map };
@@ -60,4 +60,4 @@ std::string trim(std::string_view s);
 // "a, b" / "a,b" / "a" -> parts, trimmed, empty ones dropped.
 std::vector<std::string> split_list(std::string_view s, char sep = ',');
 
-}  // namespace pychron::setup::legacy
+}  // namespace nobion::setup::legacy

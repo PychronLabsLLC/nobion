@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-namespace pychron {
+namespace nobion {
 
 ReadSpec ReadSpec::until(Bytes terminator) {
   ReadSpec s;
@@ -109,4 +109,4 @@ std::optional<std::size_t> frame_length(const ReadSpec& spec, const Bytes& buffe
   return std::nullopt;
 }
 
-}  // namespace pychron
+}  // namespace nobion

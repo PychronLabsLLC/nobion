@@ -27,7 +27,7 @@
 class QLabel;
 class QStackedWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class HistoryChart;
 
@@ -70,4 +70,4 @@ class GaugePopup : public QFrame {
   QLabel* message_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

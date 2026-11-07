@@ -45,7 +45,7 @@
 #include "nobion/systems/spectrometer/data_dir.hpp"
 #include "nobion/transport/endpoints.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 struct LineServerOptions {
   std::string bind = "127.0.0.1";
@@ -106,4 +106,4 @@ class LineServer {
   std::unique_ptr<sim::WireServer> wire_;
 };
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

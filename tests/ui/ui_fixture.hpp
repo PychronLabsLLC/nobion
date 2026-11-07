@@ -18,7 +18,7 @@
 #include "nobion/systems/extraction_line.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::ui::test {
+namespace nobion::ui::test {
 
 // The options every example line here is made with: every transport simulated,
 // the scheduler stopped, the line's state file a temporary one.
@@ -37,7 +37,7 @@ inline systems::ExtractionLine::Options example_line_options(const Clock* clock 
   options.sim_file = std::filesystem::path{};
   // Locks persist beside the config by default; keep tests out of the repo
   // and independent of each other.
-  options.state_file = pychron::testing::unique_temp_path("nobion-test-", ".state.toml");
+  options.state_file = nobion::testing::unique_temp_path("nobion-test-", ".state.toml");
   return options;
 }
 
@@ -159,4 +159,4 @@ driver = "bake_plc"
   return std::move(*line);
 }
 
-}  // namespace pychron::ui::test
+}  // namespace nobion::ui::test

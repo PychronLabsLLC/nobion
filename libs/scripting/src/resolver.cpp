@@ -5,7 +5,7 @@
 
 #include "nobion/scripting/services.hpp"
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 
 Result<std::string> normalize_script_name(std::string_view name) {
   std::string out(name);
@@ -67,4 +67,4 @@ Result<Script> MapScriptResolver::resolve(std::string_view name, ScriptKind from
   return not_found(name);
 }
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

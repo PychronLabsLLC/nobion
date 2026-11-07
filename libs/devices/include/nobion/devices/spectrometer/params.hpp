@@ -15,7 +15,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/devices/spectrometer/types.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 enum class SourceParam {
   HV,
@@ -90,4 +90,4 @@ const ParamSpec* find_spec(std::span<const ParamSpec> specs, const ParamId& id) 
 // The spec whose vendor_name is `vendor_name`, or nullptr.
 const ParamSpec* find_vendor(std::span<const ParamSpec> specs, std::string_view vendor_name) noexcept;
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

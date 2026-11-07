@@ -12,7 +12,7 @@
 
 #include "nobion/core/env.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 namespace {
 
@@ -638,4 +638,4 @@ std::vector<std::pair<std::string, std::string>> unset_secrets(const Notificatio
   return out;
 }
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

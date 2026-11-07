@@ -14,7 +14,7 @@
 #include "menu_hub.hpp"
 #include "update_checker.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -149,4 +149,4 @@ void install_update_check(QMainWindow* window, UpdateChecker& checker) {
   });
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -16,7 +16,7 @@
 #include <QPolygonF>
 #include <QStringList>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -937,4 +937,4 @@ void GaugeLabelItem::refresh() {
   setTransform(QTransform::fromTranslate(-(r.width() - dial) / 2, -r.height() / 2));
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

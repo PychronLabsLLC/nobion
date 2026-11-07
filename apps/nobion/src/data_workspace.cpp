@@ -17,7 +17,7 @@
 #include "row_colors.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 DataWorkspace::DataWorkspace(QWidget* owner, std::function<void(const QString&)> log)
     : QObject(owner), owner_(owner), log_(std::move(log)) {}
@@ -218,4 +218,4 @@ QWidget* DataWorkspace::open_figure(const QString& kind, const QStringList& uuid
   return w;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

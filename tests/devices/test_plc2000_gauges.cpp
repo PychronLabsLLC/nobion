@@ -10,9 +10,9 @@
 #include "nobion/devices/driver_registry.hpp"
 #include "nobion/devices/modbus_device_sim.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
-namespace mb = pychron::codec::modbus;
+namespace mb = nobion::codec::modbus;
 
 namespace {
 

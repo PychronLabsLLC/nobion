@@ -11,7 +11,7 @@
 
 #include "nobion/vision/dragonfly.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 // A dragonfly in progress.
 struct PatternRunner::Follow {
@@ -404,4 +404,4 @@ Result<void> PatternRunner::stop_pattern() {
   return {};
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

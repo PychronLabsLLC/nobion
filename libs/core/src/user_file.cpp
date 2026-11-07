@@ -7,7 +7,7 @@
 #include <sys/xattr.h>
 #endif
 
-namespace pychron {
+namespace nobion {
 
 bool mark_as_user_file(const std::filesystem::path& path) noexcept {
   std::error_code code;
@@ -20,4 +20,4 @@ bool mark_as_user_file(const std::filesystem::path& path) noexcept {
 #endif
 }
 
-}  // namespace pychron
+}  // namespace nobion

@@ -8,7 +8,7 @@
 #include <limits>
 #include <nlohmann/json.hpp>
 
-namespace pychron::codec::qtegra {
+namespace nobion::codec::qtegra {
 
 namespace {
 
@@ -475,4 +475,4 @@ Bytes encode_data(std::span<const std::pair<std::string, double>> pairs) {
 }
 Bytes encode_line(std::string_view text) { return to_bytes(std::string(text) + "\n"); }
 
-}  // namespace pychron::codec::qtegra
+}  // namespace nobion::codec::qtegra

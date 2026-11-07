@@ -31,7 +31,7 @@
 #include "project_import.hpp"
 #include "nobion/ingest/ids.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
 namespace {
 
@@ -235,4 +235,4 @@ Result<std::optional<std::int64_t>> ProjectRepoAdapter::order_of(std::string_vie
   });
 }
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

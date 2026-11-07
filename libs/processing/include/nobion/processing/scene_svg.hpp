@@ -12,9 +12,9 @@
 #include "nobion/processing/scene_draw.hpp"
 #include "nobion/processing/scene_layout.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 std::string draw_list_svg(const DrawList& list);
 std::string scene_svg(const Scene& scene, const FigureSize& size = {});
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

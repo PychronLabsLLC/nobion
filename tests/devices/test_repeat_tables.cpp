@@ -53,7 +53,7 @@
 #include "nobion/transport/sim_transport.hpp"
 #include "virtual_time.hpp"
 
-namespace pychron {
+namespace nobion {
 namespace {
 
 using namespace std::chrono_literals;
@@ -785,4 +785,4 @@ TEST_F(RepeatTable, Map215Dac) {
 }
 
 }  // namespace
-}  // namespace pychron
+}  // namespace nobion

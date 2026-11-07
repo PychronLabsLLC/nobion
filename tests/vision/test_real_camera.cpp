@@ -13,11 +13,11 @@
 #include "nobion/vision/camera_backend.hpp"
 #include "nobion/vision/live_feed.hpp"
 
-using namespace pychron;
-using namespace pychron::vision;
+using namespace nobion;
+using namespace nobion::vision;
 
 TEST(RealCamera, GivesFramesThroughALiveFeed) {
-  const auto index = pychron::env_var("NOBION_TEST_CAMERA");
+  const auto index = nobion::env_var("NOBION_TEST_CAMERA");
   if (!index || index->empty()) GTEST_SKIP() << "set NOBION_TEST_CAMERA=<index> to open a real camera";
   CameraRequest request;
   request.backend = "opencv";

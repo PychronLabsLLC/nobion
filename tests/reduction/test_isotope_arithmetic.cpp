@@ -7,7 +7,7 @@
 #include <cmath>
 #include <string>
 
-using namespace pychron::reduction;
+using namespace nobion::reduction;
 
 namespace {
 
@@ -101,7 +101,7 @@ TEST(IsotopeArithmetic, DeadtimeFormulaAndDomain) {
   const double tau_edge = 1.0 / n;
   const auto edge = deadtime_correct(s, tau_edge * 1.0000001);
   ASSERT_FALSE(edge);
-  EXPECT_EQ(edge.error().kind, pychron::ErrorKind::Config);
+  EXPECT_EQ(edge.error().kind, nobion::ErrorKind::Config);
   EXPECT_NE(edge.error().what.find("reduction: "), std::string::npos);
   EXPECT_NE(edge.error().what.find("deadtime"), std::string::npos);
   EXPECT_FALSE(deadtime_correct(s, 1e-3));

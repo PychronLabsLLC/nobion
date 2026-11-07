@@ -7,8 +7,8 @@
 #include <sstream>
 #include <string>
 
-namespace ps = pychron::spectrometer;
-using pychron::ErrorKind;
+namespace ps = nobion::spectrometer;
+using nobion::ErrorKind;
 
 TEST(MftableCsv, ReadsPychronLayoutWithMassesFromWeights) {
   auto t = ps::read_mftable_csv(
@@ -18,7 +18,7 @@ TEST(MftableCsv, ReadsPychronLayoutWithMassesFromWeights) {
       "\n"
       "Ar36,5.35,5.45,5.56\n",
       ps::MolecularWeights::defaults());
-  ASSERT_TRUE(t.has_value()) << pychron::to_string(t.error());
+  ASSERT_TRUE(t.has_value()) << nobion::to_string(t.error());
   EXPECT_EQ(t->axis(), ps::TableAxis::Dac);
   EXPECT_EQ(t->default_fit(), ps::FitKind::Quadratic);
   ASSERT_EQ(t->points().size(), 3u);
@@ -35,7 +35,7 @@ TEST(MftableCsv, FitRowSetsPerDetectorOverrides) {
       "Ar40,5.89,6.1\n"
       "Ar36,5.45,5.6\n",
       ps::MolecularWeights::defaults());
-  ASSERT_TRUE(t.has_value()) << pychron::to_string(t.error());
+  ASSERT_TRUE(t.has_value()) << nobion::to_string(t.error());
   EXPECT_EQ(t->fit("H1"), ps::FitKind::Quadratic);
   EXPECT_EQ(t->fit("CDD"), ps::FitKind::Linear);
   EXPECT_EQ(t->fit_overrides().size(), 1u);
@@ -44,7 +44,7 @@ TEST(MftableCsv, FitRowSetsPerDetectorOverrides) {
 TEST(MftableCsv, MassColumnWinsOverWeights) {
   auto t = ps::read_mftable_csv("iso, mass ,H1\nFoo,12.5, 1.0\nAr40,40.0,5.0\n", ps::MolecularWeights{},
                                 ps::TableAxis::Field);
-  ASSERT_TRUE(t.has_value()) << pychron::to_string(t.error());
+  ASSERT_TRUE(t.has_value()) << nobion::to_string(t.error());
   EXPECT_DOUBLE_EQ(t->points()[0].mass, 12.5);
   EXPECT_DOUBLE_EQ(t->points()[0].values.at("H1"), 1.0);
   EXPECT_EQ(t->axis(), ps::TableAxis::Field);
@@ -90,7 +90,7 @@ std::string read_fixture(const std::string& name) {
 
 ps::FitKind first_line_fit(const std::string& fit_line) {
   auto t = ps::read_mftable_csv(fit_line + "\niso,H1\nAr40,5.8\nAr36,5.4\n", ps::MolecularWeights::defaults());
-  EXPECT_TRUE(t.has_value()) << pychron::to_string(t.error());
+  EXPECT_TRUE(t.has_value()) << nobion::to_string(t.error());
   return t ? t->default_fit() : ps::FitKind::Quadratic;
 }
 
@@ -113,7 +113,7 @@ TEST(MftableCsv, ReadsTheMelbourneFileWithItsH2Column) {
   ASSERT_FALSE(text.empty());
   ASSERT_NE(text.find("\r\n"), std::string::npos);  // fixture keeps the lab's CRLF
   auto t = ps::read_mftable_csv(text, ps::MolecularWeights::defaults());
-  ASSERT_TRUE(t.has_value()) << pychron::to_string(t.error());
+  ASSERT_TRUE(t.has_value()) << nobion::to_string(t.error());
   EXPECT_EQ(t->default_fit(), ps::FitKind::Quadratic);
   EXPECT_TRUE(t->fit_overrides().empty());
   ASSERT_EQ(t->points().size(), 3u);
@@ -139,7 +139,7 @@ TEST(MftableCsv, HashFitRowStillRead) {
       "Ar39,5.7,5.9\n"
       "Ar36,5.45,5.6\n",
       ps::MolecularWeights::defaults());
-  ASSERT_TRUE(t.has_value()) << pychron::to_string(t.error());
+  ASSERT_TRUE(t.has_value()) << nobion::to_string(t.error());
   EXPECT_EQ(t->default_fit(), ps::FitKind::Linear);
   EXPECT_EQ(t->fit("H1"), ps::FitKind::Quadratic);
   EXPECT_EQ(t->fit("CDD"), ps::FitKind::Cubic);

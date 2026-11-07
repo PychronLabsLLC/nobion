@@ -13,7 +13,7 @@
 #include "nobion/devices/link.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // Unknown: never operated. Ok: last operation succeeded. Degraded: recent
 // operations failed, below the fault threshold. Faulted: failures reached it.
@@ -164,4 +164,4 @@ class Device {
   Logger log_;                       // device.<name>, taken when the device is made
 };
 
-}  // namespace pychron
+}  // namespace nobion

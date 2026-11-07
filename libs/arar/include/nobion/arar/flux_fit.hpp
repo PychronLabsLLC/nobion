@@ -16,7 +16,7 @@
 #include "nobion/reduction/stats.hpp"
 #include "nobion/reduction/ufloat.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 // One monitor standard: its age and the decay constants it is quoted with.
 struct MonitorSet {
@@ -181,4 +181,4 @@ FittedPosition evaluate_position(const LevelPosition& position, const MonitorSet
 // `edits.include_positions` overrides a carried exclusion.
 Result<LevelFit> fit_level(const LevelInputs& inputs, const FluxOptions& options, const Edits& edits);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

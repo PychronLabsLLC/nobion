@@ -1,6 +1,6 @@
 #include "nobion/devices/spectrometer/qtegra_valves.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace q = codec::qtegra;
 
@@ -87,6 +87,6 @@ Result<ValveState> QtegraValves::read(const ValveAddress& address) {
       Repeat::Safe);
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer
 
-REGISTER_DRIVER("qtegra_valves", pychron::spectrometer::QtegraValves);
+REGISTER_DRIVER("qtegra_valves", nobion::spectrometer::QtegraValves);

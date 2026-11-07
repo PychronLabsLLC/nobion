@@ -49,7 +49,7 @@
 #include "nobion/vision/frame.hpp"
 #include "nobion/vision/source.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 class PatternRunner;
 
@@ -361,4 +361,4 @@ class LaserSystem final : public extraction::IExtractionDevice,
   std::filesystem::path snapshot_dir_;
 };
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

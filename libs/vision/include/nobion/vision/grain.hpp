@@ -14,7 +14,7 @@
 #include "nobion/vision/synth.hpp"
 #include "nobion/vision/types.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 // The model's step. Time at tick n is the state after n ticks.
 inline constexpr Duration kGrainTick = std::chrono::milliseconds(10);
@@ -125,4 +125,4 @@ class GrainModel {
   std::vector<Slot> slots_;
 };
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

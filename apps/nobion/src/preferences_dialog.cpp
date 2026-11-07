@@ -25,7 +25,7 @@
 #include "spectrometer_window.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -465,4 +465,4 @@ void PreferencesDialog::restore_defaults() {
   set_values(Values{Preferences{}, SpectrometerWindow::kDefaultConfirmMoveAmu, std::move(line)});
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

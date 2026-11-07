@@ -11,7 +11,7 @@
 
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 FacetBox::FacetBox(const QString& title, QWidget* parent)
     : QWidget(parent),
@@ -137,4 +137,4 @@ void FacetBox::update_header() {
   toggle_->setText(ticked > 0 ? tr("%1 (%2)").arg(title_).arg(ticked) : title_);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

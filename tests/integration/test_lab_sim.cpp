@@ -58,7 +58,7 @@
 #include "virtual_time.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 namespace {
 
 namespace fs = std::filesystem;
@@ -92,8 +92,8 @@ class ScratchLab {
  public:
   // `prepare` changes the copy before anything is loaded from it.
   explicit ScratchLab(const std::function<void(const fs::path&)>& prepare = {})
-      : dir_(pychron::testing::unique_temp_path("pychron-labsim-")) {
-    pychron::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_);
+      : dir_(nobion::testing::unique_temp_path("pychron-labsim-")) {
+    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_);
     if (prepare) prepare(dir_);
 
     systems::ExtractionLine::Options options;
@@ -396,7 +396,7 @@ void record_value(const std::string& name, double value) {
   ::testing::Test::RecordProperty(name, text.str());
 }
 
-class LabSim : public pychron::testing::VirtualTimeTest {
+class LabSim : public nobion::testing::VirtualTimeTest {
  protected:
   // The five-run queue is half a minute under a sanitizer on a machine of
   // its own, and 47 s was seen on a four-core CI runner with every core
@@ -1130,4 +1130,4 @@ TEST_F(LabSim, StagedReleaseSimEachGasAppearsOnlyAfterItsRelease) {
 }
 
 }  // namespace
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

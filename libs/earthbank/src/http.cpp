@@ -9,7 +9,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 // RFC 3986, section 2.3.
@@ -92,4 +92,4 @@ std::optional<std::string_view> find_header(const HttpRequest& request, std::str
 
 std::string request_line(const HttpRequest& request) { return request.method + " " + url_path(request.url); }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

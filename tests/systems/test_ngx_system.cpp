@@ -27,8 +27,8 @@
 #include "nobion/transport/sim_transport.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace std::chrono_literals;
 
 namespace {
@@ -69,7 +69,7 @@ TEST(NgxExampleConfig, ALinkTransportLoads) {
   fs::remove_all(dir);
 }
 
-class NgxSystem : public pychron::testing::VirtualTimeTest {
+class NgxSystem : public nobion::testing::VirtualTimeTest {
  protected:
   // Ten simulated minutes cost some twenty seconds under the thread sanitizer,
   // and 44 were seen under AddressSanitizer on a four-core CI runner with
@@ -217,7 +217,7 @@ systems::ExtractionLine::Options line_options(const Clock& clock, bool sim) {
 }
 
 // A line stuck in the clock fails with a message; it does not hang.
-struct NgxLine : pychron::testing::VirtualTimeTest {};
+struct NgxLine : nobion::testing::VirtualTimeTest {};
 
 }  // namespace
 

@@ -10,7 +10,7 @@
 
 #include "holder_view.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace ps = persistence;
 
@@ -172,4 +172,4 @@ Result<int> write_package_pdf(const QString& path, const PackageSheets& s) {
   return pages;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

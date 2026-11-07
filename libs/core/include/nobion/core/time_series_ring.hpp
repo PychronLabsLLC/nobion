@@ -5,7 +5,7 @@
 #include <optional>
 #include <utility>
 
-namespace pychron {
+namespace nobion {
 
 // Time-bounded history of (t, value) samples. Points older than `span` behind
 // the newest sample are dropped, and the buffer never exceeds kMaxPoints.
@@ -44,4 +44,4 @@ class TimeSeriesRing {
   std::deque<Point> points_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

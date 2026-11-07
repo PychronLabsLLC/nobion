@@ -25,7 +25,7 @@
 #include "nobion/experiment/measurement/results.hpp"
 #include "nobion/experiment/record/builder.hpp"
 
-namespace pychron::experiment::run {
+namespace nobion::experiment::run {
 
 namespace {
 
@@ -487,7 +487,7 @@ SafeStateResult Run::make_safe() {
 
 Result<void> Run::keep_trying(const std::string& step, const std::function<Result<void>()>& op) {
   const measurement::KeepTrying how{*s_.clock, s_.bus, "safe state",
-                                    [this](pychron::Duration d) {
+                                    [this](nobion::Duration d) {
                                       s_.clock->sleep_for(d);
                                       return true;
                                     },
@@ -902,4 +902,4 @@ Result<void> Run::save(const std::optional<Error>& failure) {
   return {};
 }
 
-}  // namespace pychron::experiment::run
+}  // namespace nobion::experiment::run

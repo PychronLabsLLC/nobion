@@ -14,7 +14,7 @@
 #include "nobion/systems/spectrometer/data_dir.hpp"
 #include "nobion/transport/tcp_transport.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 namespace fs = std::filesystem;
 
@@ -299,4 +299,4 @@ Result<std::string> database_url(const SiteInstall& install) {
   return url.substr(0, at) + ":" + percent_encode(**kept) + url.substr(at);
 }
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

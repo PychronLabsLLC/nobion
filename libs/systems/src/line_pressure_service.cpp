@@ -4,7 +4,7 @@
 #include <chrono>
 #include <cstdio>
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 std::chrono::milliseconds gauge_stale_after(const config::SystemSection& system, int scans) {
   return std::max(1, scans) * std::chrono::milliseconds(std::max<std::int64_t>(1, system.scan_interval_ms));
@@ -35,4 +35,4 @@ Result<double> LinePressureService::get_pressure(std::string_view controller, st
 
 Result<double> LinePressureService::get_manometer_pressure(std::string_view name) { return get_pressure({}, name); }
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

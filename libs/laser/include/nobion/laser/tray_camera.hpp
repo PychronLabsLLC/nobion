@@ -29,7 +29,7 @@
 #include "nobion/vision/source.hpp"
 #include "nobion/vision/synth.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 // What the camera is over: where the stage is, and where the calibration
 // says the current tray's holes are (stage mm). No tray: no holes.
@@ -121,4 +121,4 @@ Result<std::unique_ptr<vision::IFrameSource>> make_frame_source(const CameraConf
                                                                 const std::filesystem::path& lab, TraySightFn sight,
                                                                 const Clock& clock);
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

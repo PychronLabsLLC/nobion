@@ -5,8 +5,8 @@
 #include "nobion/devices/driver_registry.hpp"
 #include "spectrometer/legacy/sim_util.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace legacy_test;
 
 TEST(SerialHv, SetHvSendsVsetAndExpectsOk) {

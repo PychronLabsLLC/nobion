@@ -31,7 +31,7 @@
 #include "nobion/earthbank/profiles.hpp"
 
 // A namespace of its own: the suite is called Profiles, as the type is.
-namespace pychron::earthbank::profiles_test {
+namespace nobion::earthbank::profiles_test {
 namespace {
 
 namespace fs = std::filesystem;
@@ -699,4 +699,4 @@ TEST_F(Profiles, TheServiceIsNamedInOneFileOnly) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank::profiles_test
+}  // namespace nobion::earthbank::profiles_test

@@ -23,8 +23,8 @@
 
 namespace elctl::import_detail {
 
-namespace dvc = pychron::dvc;
-namespace ingest = pychron::ingest;
+namespace dvc = nobion::dvc;
+namespace ingest = nobion::ingest;
 
 namespace {
 
@@ -145,7 +145,7 @@ Result<std::map<std::string, std::string>> read_author_map(const fs::path& file)
 }
 
 fs::path default_cache_dir() {
-  using pychron::env_var;
+  using nobion::env_var;
   const auto set = [](const char* name) -> std::optional<fs::path> {
     auto value = env_var(name);
     if (!value || value->empty()) return std::nullopt;
@@ -228,7 +228,7 @@ Result<std::vector<Source>> select_sources(Context& ctx, const std::optional<std
 }
 
 Result<P::Uuid> importer_client(P::IStore& store) {
-  using pychron::env_var;
+  using nobion::env_var;
   std::string host = env_var("HOSTNAME").value_or("");
   if (host.empty()) host = env_var("COMPUTERNAME").value_or("");
   if (host.empty()) host = "localhost";

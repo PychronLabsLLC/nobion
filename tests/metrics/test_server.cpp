@@ -13,8 +13,8 @@
 #include "metrics_text.hpp"
 #include "nobion/metrics/registry.hpp"
 
-using namespace pychron;
-using namespace pychron::metrics;
+using namespace nobion;
+using namespace nobion::metrics;
 using namespace std::chrono_literals;
 using http_client::body;
 using http_client::get;

@@ -49,7 +49,7 @@ namespace elctl {
 
 // `words` is {"track", <scenario>}. Prints the table; a bad scenario is an
 // error on stderr and kFailed.
-int laser_track(const std::vector<std::string>& words, const pychron::laser::TrackOptions& options, Io io);
+int laser_track(const std::vector<std::string>& words, const nobion::laser::TrackOptions& options, Io io);
 
 int laser_command(const std::vector<std::string>& args, const ExpGlobals& globals, Io io);
 

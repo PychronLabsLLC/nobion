@@ -19,7 +19,7 @@
 
 #include "nobion/codecs/codec.hpp"
 
-namespace pychron::codec::varian_xgs600 {
+namespace nobion::codec::varian_xgs600 {
 
 inline constexpr std::string_view kTerminator = "\r";
 const ReadSpec& reply_spec() noexcept;
@@ -40,4 +40,4 @@ Bytes encode_pressure(double value);  // ">1.234E-07\r"
 Bytes encode_off();                   // ">OFF\r"
 Bytes encode_rejected();              // "?FF\r"
 
-}  // namespace pychron::codec::varian_xgs600
+}  // namespace nobion::codec::varian_xgs600

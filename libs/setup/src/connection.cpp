@@ -11,7 +11,7 @@
 #include "nobion/systems/spectrometer/bringup.hpp"
 #include "nobion/systems/spectrometer/data_dir.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 namespace fs = std::filesystem;
 
@@ -84,4 +84,4 @@ Result<std::string> test_instrument_connection(const ProfileLibrary& library, co
   return connect_spectrometer(config);
 }
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

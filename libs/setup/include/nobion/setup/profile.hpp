@@ -52,7 +52,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/setup/template.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 enum class ProfileKind { Instrument, DataReduction, Fragment };
 std::string_view to_string(ProfileKind k) noexcept;
@@ -150,4 +150,4 @@ Result<Answers> answers_from_toml(std::string_view text, std::string_view name);
 // "id=value" from the command line, as text for parse_answer.
 Result<std::pair<std::string, std::string>> parse_assignment(std::string_view text);
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

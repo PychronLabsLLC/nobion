@@ -5,10 +5,10 @@
 #include "nobion/entry/identifier_plan.hpp"
 #include "nobion/entry/positions_import.hpp"
 
-using namespace pychron;
-using namespace pychron::entry;
-using namespace pychron::persistence;
-using namespace pychron::persistence::testing;
+using namespace nobion;
+using namespace nobion::entry;
+using namespace nobion::persistence;
+using namespace nobion::persistence::testing;
 
 namespace {
 class ExportTest : public EntryTest {};

@@ -16,7 +16,7 @@
 #endif
 #endif
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 #ifdef PYCHRON_VISION_OPENCV_ENABLED
 
@@ -272,4 +272,4 @@ std::unique_ptr<ITargetFinder> make_legacy_finder() { return nullptr; }
 
 #endif
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

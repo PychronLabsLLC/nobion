@@ -8,7 +8,7 @@
 
 #include "nobion/core/env.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 namespace fs = std::filesystem;
 
@@ -133,4 +133,4 @@ Result<void> save_site(const SiteConfig& site, const fs::path& path) {
   return {};
 }
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

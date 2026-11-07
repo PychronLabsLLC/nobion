@@ -15,9 +15,9 @@
 #include "nobion/ingest/ids.hpp"
 #include "rewrites.hpp"
 
-namespace pychron::ingest {
+namespace nobion::ingest {
 
-namespace P = pychron::persistence;
+namespace P = nobion::persistence;
 using P::Kind;
 using P::Uuid;
 
@@ -1237,4 +1237,4 @@ Result<RunStats> BatchWriter::run(ISourceAdapter& adapter, std::optional<int> ma
 
 IImportState& BatchWriter::state() { return *impl_; }
 
-}  // namespace pychron::ingest
+}  // namespace nobion::ingest

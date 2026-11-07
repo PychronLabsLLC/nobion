@@ -3,7 +3,7 @@
 #include "log_model.hpp"
 #include "nobion/core/log_match.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // begin/endFilterChange arrived in Qt 6.10 (and deprecate invalidateRowsFilter);
 // Ubuntu 24.04 ships 6.4.
@@ -49,4 +49,4 @@ bool LogFilterProxy::filterAcceptsRow(int source_row, const QModelIndex& source_
   return true;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -10,11 +10,11 @@
 #include "queue_table_model.hpp"
 #include "theme.hpp"
 
-using pychron::experiment::QueueSpec;
-using pychron::experiment::run::RunState;
-using pychron::ui::QueueTableModel;
-namespace exec = pychron::experiment::executor;
-namespace lab = pychron::experiment::lab;
+using nobion::experiment::QueueSpec;
+using nobion::experiment::run::RunState;
+using nobion::ui::QueueTableModel;
+namespace exec = nobion::experiment::executor;
+namespace lab = nobion::experiment::lab;
 
 class TestQueueTableModel : public QObject {
   Q_OBJECT
@@ -24,7 +24,7 @@ class TestQueueTableModel : public QObject {
 
   std::unique_ptr<QueueTableModel> model() {
     auto m = std::make_unique<QueueTableModel>(lab_->ids, [this](const QueueSpec& q) { return lab::check_lab_queue(*lab_, q); });
-    m->set_queue(pychron::ui::test::example_queue(dir_, lab_->ids));
+    m->set_queue(nobion::ui::test::example_queue(dir_, lab_->ids));
     return m;
   }
   static QString cell(const QueueTableModel& m, int row, int col) { return m.data(m.index(row, col)).toString(); }
@@ -36,8 +36,8 @@ class TestQueueTableModel : public QObject {
 
  private slots:
   void initTestCase() {
-    dir_ = pychron::ui::test::scratch_lab();
-    lab_ = std::make_unique<lab::Lab>(lab::load_lab(pychron::ui::test::lab_paths(dir_)));
+    dir_ = nobion::ui::test::scratch_lab();
+    lab_ = std::make_unique<lab::Lab>(lab::load_lab(nobion::ui::test::lab_paths(dir_)));
     QVERIFY(lab_->problems.empty());
   }
   void cleanupTestCase() {
@@ -79,7 +79,7 @@ class TestQueueTableModel : public QObject {
     QVERIFY(!m->runnable());
     QVERIFY(m->data(plan, Qt::ToolTipRole).toString().contains(QStringLiteral("no_such_plan")));
     QCOMPARE(m->data(m->index(2, QueueTableModel::Identifier), Qt::BackgroundRole).value<QBrush>().color(),
-             pychron::ui::theme().error_bg);
+             nobion::ui::theme().error_bg);
     QVERIFY(!m->row_has_error(1));
     QVERIFY(m->setData(plan, QStringLiteral("sim_multicollect")));
     QVERIFY(!m->row_has_error(2));
@@ -150,9 +150,9 @@ class TestQueueTableModel : public QObject {
     auto m = model();
     std::vector<std::pair<std::uint64_t, std::size_t>> offered;  // (base, rows)
     bool accept = true;
-    m->set_live(0, [&](std::uint64_t base, const QueueSpec& q) -> pychron::Result<std::uint64_t> {
+    m->set_live(0, [&](std::uint64_t base, const QueueSpec& q) -> nobion::Result<std::uint64_t> {
       offered.emplace_back(base, q.runs.size());
-      if (!accept) return pychron::fail(pychron::ErrorKind::Config, "the queue changed");
+      if (!accept) return nobion::fail(nobion::ErrorKind::Config, "the queue changed");
       return base + 1;
     });
     QVERIFY(m->live());
@@ -223,7 +223,7 @@ class TestQueueTableModel : public QObject {
   // queue has none.
   void executedFollowsTheFrontierAndOutlivesTheQueue() {
     auto m = model();
-    m->set_live(0, [](std::uint64_t base, const QueueSpec&) -> pychron::Result<std::uint64_t> { return base + 1; });
+    m->set_live(0, [](std::uint64_t base, const QueueSpec&) -> nobion::Result<std::uint64_t> { return base + 1; });
     QSignalSpy executed(m.get(), &QueueTableModel::executedChanged);
     QSignalSpy refused(m.get(), &QueueTableModel::editRefused);
     m->set_frozen(1);
@@ -246,14 +246,14 @@ class TestQueueTableModel : public QObject {
     QVERIFY(refused.last().front().toString().contains(QStringLiteral("reached")));
     QCOMPARE(m->rowCount(), 3);
 
-    m->set_queue(pychron::ui::test::example_queue(dir_, lab_->ids));
+    m->set_queue(nobion::ui::test::example_queue(dir_, lab_->ids));
     QCOMPARE(m->executed_rows(), 0u);
     QCOMPARE(executed.last().front().toInt(), 0);
   }
 
   void aQueueEditKeepsTheBoundary() {
     auto m = model();
-    m->set_live(0, [](std::uint64_t base, const QueueSpec&) -> pychron::Result<std::uint64_t> { return base + 1; });
+    m->set_live(0, [](std::uint64_t base, const QueueSpec&) -> nobion::Result<std::uint64_t> { return base + 1; });
     m->set_frozen(1);
     exec::QueueEdited e;
     e.queue = m->queue();
@@ -277,14 +277,14 @@ class TestQueueTableModel : public QObject {
     QCOMPARE(m->status(0), std::optional<RunState>(RunState::Success));
     QVERIFY(!m->status(1));
     // The cleared row's run id is forgotten too: a late state change for it is ignored.
-    m->on_run_state(pychron::experiment::run::RunStateChanged{"uuid-1", RunState::Preparing, RunState::Measuring, {}, {}});
+    m->on_run_state(nobion::experiment::run::RunStateChanged{"uuid-1", RunState::Preparing, RunState::Measuring, {}, {}});
     QVERIFY(!m->status(1));
   }
 
   void runnableNeedsARowNotExecuted() {
     auto m = model();
     QVERIFY(m->runnable());
-    m->set_live(0, [](std::uint64_t base, const QueueSpec&) -> pychron::Result<std::uint64_t> { return base + 1; });
+    m->set_live(0, [](std::uint64_t base, const QueueSpec&) -> nobion::Result<std::uint64_t> { return base + 1; });
     m->set_frozen(3);
     m->end_live();
     QVERIFY(!m->runnable());
@@ -292,7 +292,7 @@ class TestQueueTableModel : public QObject {
 
   void resetExecutedPutsEveryRowBack() {
     auto m = model();
-    m->set_live(0, [](std::uint64_t base, const QueueSpec&) -> pychron::Result<std::uint64_t> { return base + 1; });
+    m->set_live(0, [](std::uint64_t base, const QueueSpec&) -> nobion::Result<std::uint64_t> { return base + 1; });
     m->set_frozen(2);
     exec::RunSummary s;
     s.row = 0;
@@ -318,7 +318,7 @@ class TestQueueTableModel : public QObject {
   void clearExecutedRemovesThem() {
     auto m = model();
     const auto third = m->queue().runs[2].id;
-    m->set_live(0, [](std::uint64_t base, const QueueSpec&) -> pychron::Result<std::uint64_t> { return base + 1; });
+    m->set_live(0, [](std::uint64_t base, const QueueSpec&) -> nobion::Result<std::uint64_t> { return base + 1; });
     m->set_frozen(2);
     QVERIFY(!m->clear_executed());  // refused while live
     QCOMPARE(m->rowCount(), 3);
@@ -383,8 +383,8 @@ class TestQueueTableModel : public QObject {
 
   void repeatWhileLiveGoesThroughTheCommitter() {
     auto m = model();
-    m->set_live(0, [](std::uint64_t, const QueueSpec&) -> pychron::Result<std::uint64_t> {
-      return pychron::fail(pychron::ErrorKind::Config, "stale");
+    m->set_live(0, [](std::uint64_t, const QueueSpec&) -> nobion::Result<std::uint64_t> {
+      return nobion::fail(nobion::ErrorKind::Config, "stale");
     });
     m->set_frozen(1);
     QSignalSpy refused(m.get(), &QueueTableModel::editRefused);
@@ -397,7 +397,7 @@ class TestQueueTableModel : public QObject {
   void repeatWhileLiveInsertsAtTheFrontier() {
     auto m = model();
     std::size_t offered = 0;
-    m->set_live(0, [&](std::uint64_t base, const QueueSpec& q) -> pychron::Result<std::uint64_t> {
+    m->set_live(0, [&](std::uint64_t base, const QueueSpec& q) -> nobion::Result<std::uint64_t> {
       offered = q.runs.size();
       return base + 1;
     });
@@ -427,7 +427,7 @@ class TestQueueTableModel : public QObject {
     QCOMPARE(m->executed_rows(), 1u);
     QCOMPARE(m->status(0), std::optional<RunState>(RunState::Failed));
     QVERIFY(!m->status(1));
-    m->set_live(1, [](std::uint64_t base, const QueueSpec&) -> pychron::Result<std::uint64_t> { return base + 1; });
+    m->set_live(1, [](std::uint64_t base, const QueueSpec&) -> nobion::Result<std::uint64_t> { return base + 1; });
     QVERIFY(!m->resume_from(2, {}));
     QCOMPARE(m->executed_rows(), 1u);
   }
@@ -453,7 +453,7 @@ class TestQueueTableModel : public QObject {
     QVERIFY(m->set_conditionals({0, 1}, {"default_unknown"}));
     QCOMPARE(edited.count(), 1);
     QVERIFY(validated.count() >= 1);
-    const pychron::experiment::ConditionalRef ref{"default_unknown", "action"};
+    const nobion::experiment::ConditionalRef ref{"default_unknown", "action"};
     QCOMPARE(m->queue().runs[0].conditionals, std::vector{ref});
     QCOMPARE(m->queue().runs[1].conditionals, std::vector{ref});
     QVERIFY(m->queue().runs[2].conditionals.empty());
@@ -474,7 +474,7 @@ class TestQueueTableModel : public QObject {
     q.runs[0].conditionals = {{"system", "truncate"}};
     m->set_queue(q);
     QVERIFY(m->set_conditionals({0}, {"system", "default_unknown"}));
-    using Ref = pychron::experiment::ConditionalRef;
+    using Ref = nobion::experiment::ConditionalRef;
     QCOMPARE(m->queue().runs[0].conditionals, (std::vector<Ref>{{"system", "truncate"}, {"default_unknown", "action"}}));
   }
 
@@ -487,14 +487,14 @@ class TestQueueTableModel : public QObject {
     QVERIFY(m->set_conditionals({0}, {"gone"}));  // unchanged: accepted, nothing to do
     QCOMPARE(edited.count(), 0);
     QCOMPARE(cell(*m, 0, QueueTableModel::Conditionals), QStringLiteral("gone"));
-    using Ref = pychron::experiment::ConditionalRef;
+    using Ref = nobion::experiment::ConditionalRef;
     QCOMPARE(m->queue().runs[0].conditionals, (std::vector<Ref>{{"gone", "truncate"}}));
   }
 
   void setConditionalsFollowsTheFrozenRows() {
     auto m = model();
     int offered = 0;
-    m->set_live(1, [&](std::uint64_t base, const QueueSpec&) -> pychron::Result<std::uint64_t> {
+    m->set_live(1, [&](std::uint64_t base, const QueueSpec&) -> nobion::Result<std::uint64_t> {
       ++offered;
       return base + 1;
     });
@@ -515,9 +515,9 @@ class TestQueueTableModel : public QObject {
     auto m = model();
     int offered = 0;
     bool accept = true;
-    m->set_live(0, [&](std::uint64_t base, const QueueSpec&) -> pychron::Result<std::uint64_t> {
+    m->set_live(0, [&](std::uint64_t base, const QueueSpec&) -> nobion::Result<std::uint64_t> {
       ++offered;
-      if (!accept) return pychron::fail(pychron::ErrorKind::Config, "the queue changed");
+      if (!accept) return nobion::fail(nobion::ErrorKind::Config, "the queue changed");
       return base + 1;
     });
     QSignalSpy edited(m.get(), &QueueTableModel::edited);
@@ -551,7 +551,7 @@ class TestQueueTableModel : public QObject {
     QVERIFY(m->set_queue_conditionals(""));
     QVERIFY(m->runnable());
 
-    m->set_live(0, [](std::uint64_t base, const QueueSpec&) -> pychron::Result<std::uint64_t> { return base + 1; });
+    m->set_live(0, [](std::uint64_t base, const QueueSpec&) -> nobion::Result<std::uint64_t> { return base + 1; });
     QVERIFY(!m->set_queue_conditionals("default_unknown"));
     QVERIFY(m->queue().queue_conditionals.empty());
     m->end_live();
@@ -563,7 +563,7 @@ class TestQueueTableModel : public QObject {
     auto m = model();
     m->on_run_started(exec::RunStarted{1, "uuid-1", "66001", "66001-01", {}});
     QCOMPARE(cell(*m, 1, QueueTableModel::Status), QStringLiteral("preparing"));
-    m->on_run_state(pychron::experiment::run::RunStateChanged{"uuid-1", RunState::Preparing, RunState::Measuring, {}, {}});
+    m->on_run_state(nobion::experiment::run::RunStateChanged{"uuid-1", RunState::Preparing, RunState::Measuring, {}, {}});
     QCOMPARE(cell(*m, 1, QueueTableModel::Status), QStringLiteral("measuring"));
     QCOMPARE(m->data(m->index(1, QueueTableModel::Status), Qt::BackgroundRole).value<QBrush>().color(),
              QueueTableModel::state_color(RunState::Measuring));
@@ -572,7 +572,7 @@ class TestQueueTableModel : public QObject {
       QCOMPARE(m->data(m->index(1, c), Qt::BackgroundRole).value<QBrush>().color(),
                QueueTableModel::state_color(RunState::Measuring));
     QVERIFY(!m->data(m->index(0, QueueTableModel::Identifier), Qt::BackgroundRole).isValid());
-    m->on_run_state(pychron::experiment::run::RunStateChanged{"other", RunState::Preparing, RunState::Failed, {}, {}});
+    m->on_run_state(nobion::experiment::run::RunStateChanged{"other", RunState::Preparing, RunState::Failed, {}, {}});
     QCOMPARE(cell(*m, 1, QueueTableModel::Status), QStringLiteral("measuring"));
 
     exec::RunSummary s;
@@ -611,14 +611,14 @@ class TestQueueTableModel : public QObject {
     QCOMPARE(cell(*m, 2, QueueTableModel::Status), QStringLiteral("failed"));
     QVERIFY(m->data(m->index(2, QueueTableModel::Status), Qt::ToolTipRole).toString().contains(QStringLiteral("no reading")));
     // Failed past its point of no return: what it measured was saved, in a record flagged failed.
-    s.status = pychron::experiment::record::RecordStatus::Failed;
+    s.status = nobion::experiment::record::RecordStatus::Failed;
     m->on_run_finished(exec::RunFinished{s});
     QCOMPARE(cell(*m, 2, QueueTableModel::Status), QStringLiteral("failed (saved)"));
     s.save_error = true;  // and kept in the spool: not said as saved
     m->on_run_finished(exec::RunFinished{s});
     QCOMPARE(cell(*m, 2, QueueTableModel::Status), QStringLiteral("failed"));
     s.save_error = false;
-    s.status = pychron::experiment::record::RecordStatus::Complete;
+    s.status = nobion::experiment::record::RecordStatus::Complete;
 
     // A queue snapshot from the executor keeps the statuses; a new queue drops them.
     auto spec = m->queue();

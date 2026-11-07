@@ -14,7 +14,7 @@
 #include "nobion/core/logger.hpp"
 #include "nobion/scripting/script_host.hpp"
 
-namespace pychron::scripting::python {
+namespace nobion::scripting::python {
 
 namespace py = pybind11;
 
@@ -227,4 +227,4 @@ class HostState {
   py::object last_exception_;
 };
 
-}  // namespace pychron::scripting::python
+}  // namespace nobion::scripting::python

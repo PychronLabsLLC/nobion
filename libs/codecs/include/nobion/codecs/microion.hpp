@@ -20,7 +20,7 @@
 
 #include "nobion/codecs/codec.hpp"
 
-namespace pychron::codec::microion {
+namespace nobion::codec::microion {
 
 inline constexpr int kMinAddress = 0x00;
 inline constexpr int kMaxAddress = 0xFF;
@@ -74,4 +74,4 @@ Bytes encode_ok(int address);
 // "?<aa> <message>\r", e.g. message "SYNTX ER".
 Bytes encode_error(int address, std::string_view message);
 
-}  // namespace pychron::codec::microion
+}  // namespace nobion::codec::microion

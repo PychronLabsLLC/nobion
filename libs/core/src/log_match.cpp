@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-namespace pychron {
+namespace nobion {
 
 namespace {
 
@@ -47,4 +47,4 @@ int log_rule_specificity(std::string_view pattern) noexcept {
   return (literals << 1) | (has_star ? 0 : 1);
 }
 
-}  // namespace pychron
+}  // namespace nobion

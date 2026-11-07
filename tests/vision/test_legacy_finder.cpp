@@ -16,7 +16,7 @@
 #include "nobion/vision/pgm.hpp"
 #include "nobion/vision/synth.hpp"
 
-using namespace pychron::vision;
+using namespace nobion::vision;
 
 namespace {
 
@@ -201,7 +201,7 @@ TEST(OpenCvSource, StubReportsConfigErrorWhenDisabled) {
   if (opencv_enabled()) GTEST_SKIP() << "built with OpenCV";
   const auto r = open_opencv_source("0", SourceConfig{});
   ASSERT_FALSE(r.has_value());
-  EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
   EXPECT_NE(r.error().what.find("built without OpenCV"), std::string::npos);
 }
 
@@ -209,7 +209,7 @@ TEST(OpenCvSource, MissingFileIsIoError) {
   if (!opencv_enabled()) GTEST_SKIP() << "built without OpenCV";
   const auto r = open_opencv_source("/nonexistent/pychron_no_such_video.avi", SourceConfig{});
   ASSERT_FALSE(r.has_value());
-  EXPECT_EQ(r.error().kind, pychron::ErrorKind::Io);
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Io);
 }
 
 TEST(OpenCvSource, BadRotationIsConfigError) {
@@ -218,5 +218,5 @@ TEST(OpenCvSource, BadRotationIsConfigError) {
   c.rotate = 45;
   const auto r = open_opencv_source("/nonexistent/pychron_no_such_video.avi", c);
   ASSERT_FALSE(r.has_value());
-  EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
 }

@@ -27,7 +27,7 @@
 #include "nobion/experiment/factory/blocks.hpp"
 #include "nobion/experiment/model/positions.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -916,4 +916,4 @@ QStringList RunFactoryPanel::block_choices() const {
   return out;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

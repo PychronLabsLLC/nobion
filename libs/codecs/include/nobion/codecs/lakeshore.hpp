@@ -23,7 +23,7 @@
 
 #include "nobion/codecs/codec.hpp"
 
-namespace pychron::codec::lakeshore {
+namespace nobion::codec::lakeshore {
 
 inline constexpr std::string_view kTerminator = "\n";
 const ReadSpec& reply_spec() noexcept;
@@ -64,4 +64,4 @@ Result<Request> decode_request(const Bytes& tx);
 Bytes encode_number(double value);  // "+077.123\r\n"
 Bytes encode_line(std::string_view text);
 
-}  // namespace pychron::codec::lakeshore
+}  // namespace nobion::codec::lakeshore

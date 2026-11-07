@@ -14,7 +14,7 @@
 #include "nobion/experiment/plan/duration.hpp"
 #include "nobion/experiment/plan/plan_loader.hpp"
 
-namespace pychron::experiment::plan {
+namespace nobion::experiment::plan {
 
 class PlanLibrary : public IPlanResolver {
  public:
@@ -71,4 +71,4 @@ class PlanLibrary : public IPlanResolver {
   mutable LoadCache cache_;  // load() is const: what it keeps is not the library's state
 };
 
-}  // namespace pychron::experiment::plan
+}  // namespace nobion::experiment::plan

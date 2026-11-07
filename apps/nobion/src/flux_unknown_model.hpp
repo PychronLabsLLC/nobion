@@ -6,7 +6,7 @@
 
 #include "flux_model_support.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class FluxUnknownModel : public FluxPositionModel {
   Q_OBJECT
@@ -26,4 +26,4 @@ class FluxUnknownModel : public FluxPositionModel {
   void save_toggled(int hole, bool save);
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

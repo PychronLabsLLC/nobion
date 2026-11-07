@@ -7,7 +7,7 @@
 
 #include "nobion/devices/driver_registry.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {

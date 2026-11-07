@@ -22,7 +22,7 @@ class QToolButton;
 class QTreeWidget;
 class QTreeWidgetItem;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class IrradiationTree : public QWidget {
   Q_OBJECT
@@ -73,4 +73,4 @@ class IrradiationTree : public QWidget {
   bool updating_ = false;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

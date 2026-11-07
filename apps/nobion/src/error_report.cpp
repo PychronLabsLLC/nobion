@@ -5,7 +5,7 @@
 #include "nobion/core/log_error.hpp"
 #include "nobion/core/process_log.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 namespace {
 
 Logger area_logger(std::string_view area) {
@@ -48,4 +48,4 @@ void log_action(const QString& what) {
   if (logger.enabled(LogLevel::Info)) logger.info(what.toStdString());
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

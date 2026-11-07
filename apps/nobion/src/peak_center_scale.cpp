@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 std::optional<std::vector<double>> scale_to_reference(std::span<const double> reference,
                                                       std::span<const double> other) {
@@ -19,4 +19,4 @@ std::optional<std::vector<double>> scale_to_reference(std::span<const double> re
   return out;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

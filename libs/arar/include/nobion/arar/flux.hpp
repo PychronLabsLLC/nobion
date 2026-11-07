@@ -19,7 +19,7 @@
 #include "nobion/reduction/stats.hpp"
 #include "nobion/reduction/ufloat.hpp"
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 // The monitor's known age (years) and total 40K decay constant (1/year).
 struct MonitorConstants {
@@ -129,4 +129,4 @@ std::size_t minimum_monitors(const FitOptions& options);
 Result<FluxFit> fit_flux(std::span<const Monitor> monitors, std::span<const Point> predict_at,
                          const FitOptions& options);
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

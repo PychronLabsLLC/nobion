@@ -2,7 +2,7 @@
 
 #include <system_error>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace fs = std::filesystem;
 
@@ -34,4 +34,4 @@ QStringList RecentQueues::entries() {
 
 void RecentQueues::clear() { settings_.remove(QLatin1String(kKey)); }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

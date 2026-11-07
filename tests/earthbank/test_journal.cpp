@@ -16,7 +16,7 @@
 #include "nobion/earthbank/journal.hpp"
 #include "upload_support.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 namespace fs = std::filesystem;
@@ -240,4 +240,4 @@ TEST(Journal, EmptyMeansNothingIsRecorded) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

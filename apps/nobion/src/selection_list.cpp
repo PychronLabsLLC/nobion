@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <iterator>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -66,4 +66,4 @@ std::vector<std::string> SelectionList::uuids() const {
   return out;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

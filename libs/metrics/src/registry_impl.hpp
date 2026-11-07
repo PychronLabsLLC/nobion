@@ -8,7 +8,7 @@
 
 #include "nobion/metrics/registry.hpp"
 
-namespace pychron::metrics {
+namespace nobion::metrics {
 
 struct CollectorHandle::Collectors {
   // Held while a collector runs, so reset() returns only when it is not.
@@ -38,4 +38,4 @@ std::string render_text(const std::map<std::string, Family, std::less<>>& famili
 
 }  // namespace detail
 
-}  // namespace pychron::metrics
+}  // namespace nobion::metrics

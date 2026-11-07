@@ -10,11 +10,11 @@
 #include "nobion/processing/domain.hpp"
 #include "schema_builder.hpp"
 
-namespace pychron::arar {
+namespace nobion::arar {
 
 namespace {
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 class ArArReduceUnit final : public pp::Unit {
  public:
@@ -74,4 +74,4 @@ class ArArReduceUnit final : public pp::Unit {
 
 std::unique_ptr<processing::Unit> make_arar_reduce_unit() { return std::make_unique<ArArReduceUnit>(); }
 
-}  // namespace pychron::arar
+}  // namespace nobion::arar

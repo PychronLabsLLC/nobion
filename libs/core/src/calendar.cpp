@@ -3,7 +3,7 @@
 #include <chrono>
 #include <cstddef>
 
-namespace pychron {
+namespace nobion {
 
 bool is_calendar_date(std::string_view text) {
   if (text.size() != 10 || text[4] != '-' || text[7] != '-') return false;
@@ -20,4 +20,4 @@ bool is_calendar_date(std::string_view text) {
   return parts[0] >= 1 && day.ok();
 }
 
-}  // namespace pychron
+}  // namespace nobion

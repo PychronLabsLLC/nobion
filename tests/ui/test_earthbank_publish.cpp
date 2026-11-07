@@ -40,20 +40,20 @@
 #include "nobion/processing/source.hpp"
 #include "settings_guard.hpp"
 
-using namespace pychron;
-namespace eb = pychron::earthbank;
-namespace pp = pychron::processing;
+using namespace nobion;
+namespace eb = nobion::earthbank;
+namespace pp = nobion::processing;
 using eb::testing::AnalysisList;
-using pychron::ui::DataBrowserWindow;
-using pychron::ui::EarthbankPublishPanel;
-using Action = pychron::ui::EarthbankPublishPanel::Action;
-using Column = pychron::ui::EarthbankPublishPanel::Column;
+using nobion::ui::DataBrowserWindow;
+using nobion::ui::EarthbankPublishPanel;
+using Action = nobion::ui::EarthbankPublishPanel::Action;
+using Column = nobion::ui::EarthbankPublishPanel::Column;
 
 namespace {
 
 // The Ar-Ar domain: what a browser's toolbar is built from.
 const pp::Domain& arar_domain() {
-  static const std::unique_ptr<pp::Domain> domain = pychron::arar::make_domain();
+  static const std::unique_ptr<pp::Domain> domain = nobion::arar::make_domain();
   return *domain;
 }
 

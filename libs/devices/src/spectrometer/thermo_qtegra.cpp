@@ -9,7 +9,7 @@
 #include "nobion/devices/spectrometer/legacy/polled_acquirer.hpp"
 #include "nobion/transport/link_transport.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace q = codec::qtegra;
 
@@ -472,4 +472,4 @@ Result<std::optional<Frame>> QtegraSpectrometer::next(Duration timeout) {
 
 REGISTER_DRIVER("thermo_qtegra", QtegraSpectrometer);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

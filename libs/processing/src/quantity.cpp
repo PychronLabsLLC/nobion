@@ -14,9 +14,9 @@
 
 #include "nobion/processing/domain.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 
 namespace {
 
@@ -435,4 +435,4 @@ std::vector<std::string> available_quantities(const std::vector<ReducedPtr>& ana
   return out;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

@@ -11,9 +11,9 @@
 #include "jobs_fakes.hpp"
 #include "nobion/systems/jobs/job_runner.hpp"
 
-using namespace pychron;
-using namespace pychron::jobs;
-using namespace pychron::spectrometer::testing;
+using namespace nobion;
+using namespace nobion::jobs;
+using namespace nobion::spectrometer::testing;
 using namespace std::chrono_literals;
 
 namespace {

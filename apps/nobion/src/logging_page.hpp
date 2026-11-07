@@ -17,7 +17,7 @@ class QPushButton;
 class QSpinBox;
 class QTableWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class LoggingPage : public QWidget {
   Q_OBJECT
@@ -64,4 +64,4 @@ class LoggingPage : public QWidget {
   QLabel* problem_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -22,8 +22,8 @@
 #include "nobion/devices/extraction/chromium_sim.hpp"
 #include "nobion/transport/sim_transport.hpp"
 
-using namespace pychron;
-using namespace pychron::extraction;
+using namespace nobion;
+using namespace nobion::extraction;
 using namespace std::chrono_literals;
 
 namespace {

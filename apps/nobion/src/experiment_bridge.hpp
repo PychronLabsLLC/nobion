@@ -33,7 +33,7 @@
 #include "nobion/experiment/run/state.hpp"
 #include "nobion/systems/jobs/peak_center.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class ExperimentBridge : public QObject {
   Q_OBJECT
@@ -71,29 +71,29 @@ class ExperimentBridge : public QObject {
   bool saves_to_database() const noexcept { return saves_to_database_; }
 
  signals:
-  void executorStateChanged(const pychron::experiment::executor::ExecutorStateChanged& event);
-  void runStarted(const pychron::experiment::executor::RunStarted& event);
-  void runFinished(const pychron::experiment::executor::RunFinished& event);
-  void executorWaiting(const pychron::experiment::executor::ExecutorWaiting& event);
-  void executorHolding(const pychron::experiment::executor::ExecutorHolding& event);
-  void queueEdited(const pychron::experiment::executor::QueueEdited& event);
-  void queueFrontier(const pychron::experiment::executor::QueueFrontier& event);
-  void notificationSent(const pychron::experiment::lab::NotificationSent& event);
-  void queueStarted(const pychron::experiment::lab::QueueStarted& event);
-  void queueEnded(const pychron::experiment::lab::QueueEnded& event);
-  void runStateChanged(const pychron::experiment::run::RunStateChanged& event);
-  void runNote(const pychron::experiment::run::RunNote& event);
-  void blockStarted(const pychron::experiment::measurement::BlockStarted& event);
-  void blockFinished(const pychron::experiment::measurement::BlockFinished& event);
-  void countsProgress(const pychron::experiment::measurement::CountsProgress& event);
-  void measurementGap(const pychron::experiment::measurement::MeasurementGap& event);
-  void conditionalTripped(const pychron::experiment::measurement::ConditionalTripped& event);
-  void peakCenterDone(const pychron::jobs::PeakCenterDone& event);
-  void peakCenterTryStarted(const pychron::jobs::PeakCenterTryStarted& event);
-  void peakCenterPoint(const pychron::jobs::PeakCenterPoint& event);
-  void seriesUpdated(const std::vector<pychron::experiment::collect::SeriesUpdated>& batch);
+  void executorStateChanged(const nobion::experiment::executor::ExecutorStateChanged& event);
+  void runStarted(const nobion::experiment::executor::RunStarted& event);
+  void runFinished(const nobion::experiment::executor::RunFinished& event);
+  void executorWaiting(const nobion::experiment::executor::ExecutorWaiting& event);
+  void executorHolding(const nobion::experiment::executor::ExecutorHolding& event);
+  void queueEdited(const nobion::experiment::executor::QueueEdited& event);
+  void queueFrontier(const nobion::experiment::executor::QueueFrontier& event);
+  void notificationSent(const nobion::experiment::lab::NotificationSent& event);
+  void queueStarted(const nobion::experiment::lab::QueueStarted& event);
+  void queueEnded(const nobion::experiment::lab::QueueEnded& event);
+  void runStateChanged(const nobion::experiment::run::RunStateChanged& event);
+  void runNote(const nobion::experiment::run::RunNote& event);
+  void blockStarted(const nobion::experiment::measurement::BlockStarted& event);
+  void blockFinished(const nobion::experiment::measurement::BlockFinished& event);
+  void countsProgress(const nobion::experiment::measurement::CountsProgress& event);
+  void measurementGap(const nobion::experiment::measurement::MeasurementGap& event);
+  void conditionalTripped(const nobion::experiment::measurement::ConditionalTripped& event);
+  void peakCenterDone(const nobion::jobs::PeakCenterDone& event);
+  void peakCenterTryStarted(const nobion::jobs::PeakCenterTryStarted& event);
+  void peakCenterPoint(const nobion::jobs::PeakCenterPoint& event);
+  void seriesUpdated(const std::vector<nobion::experiment::collect::SeriesUpdated>& batch);
   // Live fits, coalesced like seriesUpdated and delivered right after it.
-  void fitsUpdated(const std::vector<pychron::experiment::collect::FitsUpdated>& batch);
+  void fitsUpdated(const std::vector<nobion::experiment::collect::FitsUpdated>& batch);
 
  private:
   struct Gate;
@@ -109,4 +109,4 @@ class ExperimentBridge : public QObject {
   std::vector<SignalBus::Subscription> subscriptions_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

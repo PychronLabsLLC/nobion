@@ -13,10 +13,10 @@
 #include "extraction/fake.hpp"
 #include "laser_harness.hpp"
 
-using namespace pychron;
-using namespace pychron::extraction;
-using namespace pychron::laser;
-using namespace pychron::laser::harness;
+using namespace nobion;
+using namespace nobion::extraction;
+using namespace nobion::laser;
+using namespace nobion::laser::harness;
 using namespace std::chrono_literals;
 
 namespace {

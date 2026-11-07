@@ -29,7 +29,7 @@
 #include "nobion/persistence/model.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
 // ---------------------------------------------------------------- paths
 
@@ -221,4 +221,4 @@ struct ParsedProduction {
 Result<ParsedProduction> parse_frozen_production(std::string_view json, std::string_view irradiation,
                                                  std::string_view level);
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

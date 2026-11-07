@@ -5,7 +5,7 @@
 
 // Canonical TOML scalar text shared by the library's writers (queue files,
 // step heat templates). Private to libs/experiment.
-namespace pychron::experiment::detail {
+namespace nobion::experiment::detail {
 
 // A basic (double-quoted) TOML string, control characters escaped.
 [[nodiscard]] std::string toml_string(std::string_view s);
@@ -14,4 +14,4 @@ namespace pychron::experiment::detail {
 // ("30.0", not "30"), exponent form only for very large or small magnitudes.
 [[nodiscard]] std::string toml_float(double v);
 
-}  // namespace pychron::experiment::detail
+}  // namespace nobion::experiment::detail

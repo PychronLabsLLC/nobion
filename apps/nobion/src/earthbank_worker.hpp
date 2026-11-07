@@ -57,7 +57,7 @@
 
 class QThread;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // What the EarthBank pages work with. `system()` is the real thing: the
 // client over HTTPS (null in a build without Qt Network), the system's
@@ -189,8 +189,8 @@ class EarthbankWorker : public QObject {
  Q_SIGNALS:
   // `note`: empty, or why the password that signed in was not kept.
   void tested(const QString& profile, const QString& name, const QString& login, const QString& note);
-  void packages_listed(const QString& profile, const std::vector<pychron::earthbank::DataPackage>& packages);
-  void package_created(const QString& profile, const pychron::earthbank::DataPackage& package);
+  void packages_listed(const QString& profile, const std::vector<nobion::earthbank::DataPackage>& packages);
+  void package_created(const QString& profile, const nobion::earthbank::DataPackage& package);
   // A request that asked the service for something and did not get it:
   // `test` and the publishing requests.
   void failed(const QString& profile, const QString& what);
@@ -200,11 +200,11 @@ class EarthbankWorker : public QObject {
   void package_failed(const QString& profile, const QString& what, bool creating);
   void password_kept(const QString& profile, const QString& problem);
   void progress(int done, int total, const QString& what);
-  void surveyed(const std::vector<pychron::ui::EarthbankSampleRow>& rows);
-  void preflighted(const pychron::earthbank::PreflightReport& report);
-  void exported(const pychron::earthbank::XlsxResult& result);
-  void upload_prepared(const pychron::ui::EarthbankConfirmation& confirmation);
-  void uploaded(const pychron::earthbank::UploadReport& report);
+  void surveyed(const std::vector<nobion::ui::EarthbankSampleRow>& rows);
+  void preflighted(const nobion::earthbank::PreflightReport& report);
+  void exported(const nobion::earthbank::XlsxResult& result);
+  void upload_prepared(const nobion::ui::EarthbankConfirmation& confirmation);
+  void uploaded(const nobion::earthbank::UploadReport& report);
   // After every answer, with what is still outstanding.
   void outstanding_changed(int outstanding);
 
@@ -227,4 +227,4 @@ class EarthbankWorker : public QObject {
   int outstanding_ = 0;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

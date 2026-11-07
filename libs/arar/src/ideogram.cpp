@@ -12,12 +12,12 @@
 #include "nobion/processing/units.hpp"
 #include "schema_builder.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
 using namespace detail;
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 
 const std::vector<std::string> kMarkers{"circle", "square", "diamond", "triangle", "cross", "plus", "star"};
 
@@ -494,4 +494,4 @@ class IdeogramUnit final : public Unit {
 
 std::unique_ptr<Unit> make_ideogram_unit() { return std::make_unique<IdeogramUnit>(); }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

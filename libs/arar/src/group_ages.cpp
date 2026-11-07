@@ -11,7 +11,7 @@
 #include "nobion/arar/reduce.hpp"
 #include "nobion/reduction/ufloat.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace r = reduction;
 
@@ -82,4 +82,4 @@ Result<r::Mean> group_weighted_mean(const GroupItems& items, r::MeanErrorKind er
   return r::weighted_mean(vs, es, error);
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

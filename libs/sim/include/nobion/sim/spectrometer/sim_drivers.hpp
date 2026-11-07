@@ -29,7 +29,7 @@
 #include "nobion/devices/spectrometer/roles.hpp"
 #include "nobion/sim/spectrometer/beam_model.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 
 namespace detail {
 
@@ -246,4 +246,4 @@ class SimHvSupply final : public Device, public spectrometer::IBeamSource {
   detail::SimSourceCore source_;
 };
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

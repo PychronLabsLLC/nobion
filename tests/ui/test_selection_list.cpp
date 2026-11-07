@@ -9,9 +9,9 @@
 #include "analysis_table_model.hpp"
 #include "selection_list.hpp"
 
-namespace pp = pychron::processing;
-using pychron::ui::AnalysisTableModel;
-using pychron::ui::SelectionList;
+namespace pp = nobion::processing;
+using nobion::ui::AnalysisTableModel;
+using nobion::ui::SelectionList;
 
 namespace {
 

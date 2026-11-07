@@ -20,7 +20,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/setup/profile.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 struct PlannedFile {
   enum class Action {
@@ -81,4 +81,4 @@ Result<void> write_install_record(const std::filesystem::path& root, const Insta
 
 std::string sha256_hex(std::string_view bytes);
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

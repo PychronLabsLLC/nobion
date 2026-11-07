@@ -13,7 +13,7 @@
 #include "nobion/processing/options.hpp"
 #include "nobion/processing/units.hpp"
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 // The program writes "color" (as the data browser's "Color by" and the
 // detector table's "Color" do): no label, help text or message of an options
@@ -60,7 +60,7 @@ TEST(Options, AValueThatIsNoColorIsRefusedInThoseWords) {
 // Every unit's schema defaults are valid values: the Ar-Ar domain's registry
 // (core's units and the Ar-Ar figures).
 TEST(Options, EveryArArUnitsDefaultsAreValid) {
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   const auto& registry = domain->units();
   for (const auto& kind : registry.kinds()) {
     const auto& schema = registry.find(kind)->schema();

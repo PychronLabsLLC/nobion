@@ -22,7 +22,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/transport/bytes.hpp"
 
-namespace pychron::codec::proxr {
+namespace nobion::codec::proxr {
 
 inline constexpr std::uint8_t kPrefix = 0xFE;
 inline constexpr std::uint8_t kSelectBank = 49;
@@ -62,4 +62,4 @@ Result<void> decode_ack(const Bytes& reply);
 // Reply to read_relay: true when the relay is energized.
 Result<bool> decode_relay_state(const Bytes& reply);
 
-}  // namespace pychron::codec::proxr
+}  // namespace nobion::codec::proxr

@@ -27,7 +27,7 @@ class QTableView;
 class QTableWidget;
 class QTreeWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class HolderView;
 
@@ -141,4 +141,4 @@ class PackagesWindow : public QMainWindow {
   bool notifying_ = false;                       // the bridge's changed() is this window's own
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

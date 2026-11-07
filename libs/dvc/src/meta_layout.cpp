@@ -10,9 +10,9 @@
 #include "nobion/ingest/tz.hpp"
 #include "nobion/persistence/ids.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 
 namespace {
 
@@ -404,4 +404,4 @@ Result<ParsedHolder> parse_holder(std::string_view text) try {
   return fail(unexpected_content(e));
 }
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

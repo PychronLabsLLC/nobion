@@ -36,10 +36,10 @@
 #include "nobion/processing/units.hpp"
 #include "store_source_fixture.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 namespace {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 using test::argon_parts;
 using test::first_row;
 
@@ -967,13 +967,13 @@ TEST_F(StoreSourceTest, NullInterceptLoadsAsUnknownAndDoesNotReduce) {
 }
 
 }  // namespace
-}  // namespace pychron::processing
+}  // namespace nobion::processing
 
-namespace pychron::arar::test {
+namespace nobion::arar::test {
 namespace {
 
-namespace pp = pychron::processing;
-namespace ps = pychron::persistence;
+namespace pp = nobion::processing;
+namespace ps = nobion::persistence;
 
 // The seeded store read with the Ar-Ar loader, as the applications open it
 // under arar.
@@ -1109,4 +1109,4 @@ TEST_F(ArArReduceUnit, WithoutTheLoaderNothingReduces) {
 }
 
 }  // namespace
-}  // namespace pychron::arar::test
+}  // namespace nobion::arar::test

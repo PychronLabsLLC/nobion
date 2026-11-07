@@ -19,7 +19,7 @@
 
 #include "nobion/experiment/record/types.hpp"
 
-namespace pychron::experiment::record {
+namespace nobion::experiment::record {
 
 // "H1:Ar40": an analysis' key of an isotope measured on several detectors.
 std::string detector_isotope_key(std::string_view detector, std::string_view isotope);
@@ -93,4 +93,4 @@ struct InterceptName {
 // has no series of it.
 std::optional<InterceptName> intercept_name(const Data& data, std::string_view result_key);
 
-}  // namespace pychron::experiment::record
+}  // namespace nobion::experiment::record

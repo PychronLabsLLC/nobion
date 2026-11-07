@@ -20,14 +20,14 @@
 #include "nobion/systems/canvas/loader.hpp"
 #include "temp_path.hpp"
 
-using namespace pychron;
-using namespace pychron::setup;
+using namespace nobion;
+using namespace nobion::setup;
 namespace fs = std::filesystem;
 
 namespace {
 
 struct Tmp {
-  fs::path dir = pychron::testing::unique_temp_path("pychron-legacy-");
+  fs::path dir = nobion::testing::unique_temp_path("pychron-legacy-");
   Tmp() { fs::create_directories(dir); }
   ~Tmp() { fs::remove_all(dir); }
   void write(const fs::path& rel, const std::string& text) const {

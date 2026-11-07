@@ -14,7 +14,7 @@ class QLabel;
 class QLineEdit;
 class QSpinBox;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class MetricsPage : public QWidget {
   Q_OBJECT
@@ -46,4 +46,4 @@ class MetricsPage : public QWidget {
   QLabel* status_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

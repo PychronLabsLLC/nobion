@@ -17,9 +17,9 @@
 #include "nobion/scripting/vocabulary.hpp"
 #include "rehearse_fakes.hpp"
 
-using namespace pychron;
-using namespace pychron::scripting;
-using namespace pychron::scripting::testing;
+using namespace nobion;
+using namespace nobion::scripting;
+using namespace nobion::scripting::testing;
 
 namespace {
 

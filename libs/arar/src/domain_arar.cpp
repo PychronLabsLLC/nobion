@@ -20,7 +20,7 @@
 #include "nobion/processing/domain.hpp"
 #include "nobion/processing/units.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
@@ -70,7 +70,7 @@ Result<void> write_schaen(const std::filesystem::path& path, const std::vector<s
   return save_report(make_report(by_key, ReportOptions{}), path);
 }
 
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 
 std::optional<Value> val(const std::optional<r::UFloat>& u) {
   if (!u || !std::isfinite(u->nominal())) return std::nullopt;
@@ -231,9 +231,9 @@ class ArArDomain final : public Domain {
 
 }  // namespace
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing
 
-namespace pychron::arar {
+namespace nobion::arar {
 
 std::unique_ptr<processing::Domain> make_domain() { return std::make_unique<processing::ArArDomain>(); }
 
@@ -242,4 +242,4 @@ const processing::Domain& shared_domain() {
   return domain;
 }
 
-}  // namespace pychron::arar
+}  // namespace nobion::arar

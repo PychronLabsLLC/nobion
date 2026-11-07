@@ -13,8 +13,8 @@
 
 #include "nobion/systems/switch_manager.hpp"
 
-using namespace pychron;
-using namespace pychron::systems;
+using namespace nobion;
+using namespace nobion::systems;
 
 namespace {
 

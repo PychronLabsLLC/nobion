@@ -3,9 +3,9 @@
 #include <algorithm>
 #include <charconv>
 
-namespace pychron::processing {
+namespace nobion::processing {
 
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 
 Result<SeriesFit> fit_series(const RawSeries& s, const r::FitSpec& spec, const std::vector<std::size_t>& user_excluded,
                              double origin) {
@@ -138,4 +138,4 @@ std::string describe_fit_edits(const Analysis& before, const std::vector<EditedF
   return out;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

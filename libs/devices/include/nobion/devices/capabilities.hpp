@@ -11,7 +11,7 @@
 #include "nobion/devices/device.hpp"
 #include "nobion/devices/types.hpp"
 
-namespace pychron {
+namespace nobion {
 
 struct IPressureGauge {
   virtual ~IPressureGauge() = default;
@@ -48,4 +48,4 @@ Capability* capability(Device& device) noexcept {
   return dynamic_cast<Capability*>(&device);
 }
 
-}  // namespace pychron
+}  // namespace nobion

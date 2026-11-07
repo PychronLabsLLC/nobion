@@ -7,7 +7,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/vision/types.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 // One calibration jog: the stage moved by stage_delta_mm and a fixed target
 // shifted by image_delta_px in the image.
@@ -39,4 +39,4 @@ struct CameraStageMap {
   static Result<CameraStageMap> from_toml(std::string_view text);
 };
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

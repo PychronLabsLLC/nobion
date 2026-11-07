@@ -32,7 +32,7 @@ TEST(DbCmd, StubWithoutPersistence) {
 
 namespace {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 namespace fs = std::filesystem;
 
 class DbCmd : public elctl::testing::ElctlTest {

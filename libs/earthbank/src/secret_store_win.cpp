@@ -28,7 +28,7 @@
 #include "nobion/earthbank/secret_store.hpp"
 #include "secret_store_detail.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 constexpr std::string_view kBackend = "credential-manager";
@@ -139,4 +139,4 @@ std::unique_ptr<ISecretStore> detail::make_system_secret_store(std::string_view 
   return store;
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

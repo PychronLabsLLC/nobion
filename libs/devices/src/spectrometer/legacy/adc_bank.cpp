@@ -5,7 +5,7 @@
 
 #include "nobion/codecs/modbus_adc.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace mb = codec::modbus_adc;
 
@@ -101,4 +101,4 @@ SimTransport::Hook adc_sim_hook(AdcSimModel model) {
 
 REGISTER_DRIVER("adc_bank", AdcBank);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

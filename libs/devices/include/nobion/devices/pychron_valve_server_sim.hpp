@@ -15,7 +15,7 @@
 
 #include "nobion/transport/sim_transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 class PychronValveServerSim {
  public:
@@ -41,4 +41,4 @@ class PychronValveServerSim {
   std::map<std::string, bool> open_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

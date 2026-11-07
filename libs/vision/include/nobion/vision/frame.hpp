@@ -6,7 +6,7 @@
 #include "nobion/core/clock.hpp"
 #include "nobion/vision/types.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 struct FrameView;
 
@@ -48,4 +48,4 @@ Frame crop(const FrameView& v, Rect r);
 // its corner is limited to +-1e9 so a huge offset cannot overflow int.
 Rect centered_rect(const FrameView& v, int side, Vec2 offset_px = {});
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

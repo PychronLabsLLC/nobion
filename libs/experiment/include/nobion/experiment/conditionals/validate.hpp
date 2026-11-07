@@ -11,7 +11,7 @@
 
 #include "nobion/experiment/conditionals/conditional.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 struct MetricCatalog {
   std::set<std::string> isotopes;   // e.g. Ar36..Ar40
@@ -31,4 +31,4 @@ struct ConditionalDiagnostic {
 
 std::vector<ConditionalDiagnostic> validate_conditionals(const ConditionalSet& set, const MetricCatalog& catalog);
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

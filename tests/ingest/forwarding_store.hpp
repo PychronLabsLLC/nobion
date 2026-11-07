@@ -10,7 +10,7 @@
 
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::ingest::testing {
+namespace nobion::ingest::testing {
 
 // clang-format off
 class ForwardingStore : public persistence::IStore {
@@ -146,4 +146,4 @@ class ForwardingStore : public persistence::IStore {
 };
 // clang-format on
 
-}  // namespace pychron::ingest::testing
+}  // namespace nobion::ingest::testing

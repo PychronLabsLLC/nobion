@@ -6,7 +6,7 @@
 #include <locale>
 #include <sstream>
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
 namespace {
 
@@ -137,7 +137,7 @@ std::optional<double> as_double(const Json& j) {
     const char first = s.front() == '-' || s.front() == '+' ? (s.size() > 1 ? s[1] : '\0') : s.front();
     if (!((first >= '0' && first <= '9') || first == '.')) return std::nullopt;
     const std::string_view digits = s.front() == '+' ? s.substr(1) : s;
-    return pychron::parse_double(digits);
+    return nobion::parse_double(digits);
   }
   return std::nullopt;
 }
@@ -228,4 +228,4 @@ std::optional<std::string> extra_text(const Json& object) {
   return dump(object);
 }
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

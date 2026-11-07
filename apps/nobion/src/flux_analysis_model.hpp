@@ -8,7 +8,7 @@
 
 #include "nobion/arar/flux_fit.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class FluxAnalysisModel : public QAbstractTableModel {
   Q_OBJECT
@@ -37,4 +37,4 @@ class FluxAnalysisModel : public QAbstractTableModel {
   const processing::FittedPosition* position_ = nullptr;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

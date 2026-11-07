@@ -7,7 +7,7 @@
 #include "nobion/experiment/factory/step_heat_template.hpp"
 #include "nobion/experiment/model/positions.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 bool is_digit(char c) { return std::isdigit(static_cast<unsigned char>(c)) != 0; }
@@ -134,4 +134,4 @@ std::vector<double> step_values(double start, double increment, int n) {
   return out;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

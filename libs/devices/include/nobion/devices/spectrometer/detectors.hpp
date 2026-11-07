@@ -15,7 +15,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/devices/spectrometer/types.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 // Selects host-integration math and the applicable IDetectorControl caps.
 enum class DetectorKind { Faraday, Counter, Cdd, Atona };
@@ -118,4 +118,4 @@ class DetectorSet {
   Listener listener_;
 };
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

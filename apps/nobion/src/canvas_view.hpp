@@ -34,7 +34,7 @@ class QToolButton;
 #include "core_bridge.hpp"
 #include "valve_popup.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class CanvasView : public QGraphicsView {
   Q_OBJECT
@@ -217,4 +217,4 @@ class CanvasView : public QGraphicsView {
   bool gauge_rested_ = false;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

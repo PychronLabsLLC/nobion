@@ -19,8 +19,8 @@
 #include "nobion/setup/template.hpp"
 #include "question_editor.hpp"
 
-using namespace pychron;
-using namespace pychron::ui;
+using namespace nobion;
+using namespace nobion::ui;
 
 namespace {
 

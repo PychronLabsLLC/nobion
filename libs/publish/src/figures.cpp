@@ -13,7 +13,7 @@
 #include "nobion/processing/scene_svg.hpp"
 #include "nobion/publish/tables.hpp"
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 namespace pp = processing;
 
@@ -97,4 +97,4 @@ std::vector<FigureFile> sample_figures(const pp::Dataset& sample, const std::str
   return std::move(out.files);
 }
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

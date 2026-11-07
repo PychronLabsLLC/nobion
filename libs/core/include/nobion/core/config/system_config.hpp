@@ -16,7 +16,7 @@
 #include "nobion/core/config/metrics_config.hpp"
 #include "nobion/core/config/recovery_config.hpp"
 
-namespace pychron::config {
+namespace nobion::config {
 
 struct SystemSection : Located {
   std::string name;
@@ -207,4 +207,4 @@ struct SystemConfig {
   SimSection sim;
 };
 
-}  // namespace pychron::config
+}  // namespace nobion::config

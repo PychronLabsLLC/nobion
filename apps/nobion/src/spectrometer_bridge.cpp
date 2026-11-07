@@ -21,7 +21,7 @@
 #include "nobion/core/log_context.hpp"
 #include "nobion/systems/spectrometer/field_table_store.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 bool valid_set_name(const QString& name) {
   if (name.isEmpty()) {
@@ -697,4 +697,4 @@ void SpectrometerBridge::on_scan(const ScanStatus& e) {
   emit scanStatus(e);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

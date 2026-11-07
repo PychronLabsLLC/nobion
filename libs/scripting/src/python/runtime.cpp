@@ -10,7 +10,7 @@
 #include "nobion/core/env.hpp"
 #include "nobion/core/process.hpp"
 
-namespace pychron::scripting::python {
+namespace nobion::scripting::python {
 namespace {
 
 Runtime* g_runtime = nullptr;
@@ -240,4 +240,4 @@ void ensure_interpreter() {
 
 Runtime& runtime() { return *g_runtime; }
 
-}  // namespace pychron::scripting::python
+}  // namespace nobion::scripting::python

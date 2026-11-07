@@ -34,7 +34,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 // The kinds of field. Ages are in Ma, uncertainties 1 sigma and absolute,
 // intensities in the data point's `analysisUnits`.
@@ -346,4 +346,4 @@ nlohmann::json to_json(const AgeSummary& record);
 // aliquots and of measurements counts.
 std::string content_hash(const Submission& submission);
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

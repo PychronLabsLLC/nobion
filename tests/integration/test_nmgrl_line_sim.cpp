@@ -15,12 +15,12 @@
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::systems;
+using namespace nobion;
+using namespace nobion::systems;
 
 const std::filesystem::path kDir = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "nmgrl";
 
-using NmgrlLineSim = pychron::testing::VirtualTimeTest;
+using NmgrlLineSim = nobion::testing::VirtualTimeTest;
 
 TEST_F(NmgrlLineSim, LoadsAndActuatesOnEveryController) {
   VirtualClock clock;

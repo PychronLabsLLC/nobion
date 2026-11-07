@@ -68,11 +68,11 @@ class QTableWidget;
 class QTimer;
 class QWidget;
 
-namespace pychron::processing {
+namespace nobion::processing {
 class StoreSource;
 }
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class EarthbankPublishPanel;
 class EntryBridge;
@@ -281,4 +281,4 @@ class PublishDialog : public QDialog {
   QTimer* check_timer_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

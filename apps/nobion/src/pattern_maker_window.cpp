@@ -23,7 +23,7 @@
 #include "plot_style.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -389,4 +389,4 @@ void PatternMakerWindow::save() {
   emit saved(QString::fromStdString(p.name));
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

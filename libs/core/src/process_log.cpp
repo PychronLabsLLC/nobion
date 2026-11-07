@@ -3,7 +3,7 @@
 #include <mutex>
 #include <utility>
 
-namespace pychron {
+namespace nobion {
 
 namespace {
 
@@ -45,4 +45,4 @@ ProcessLogScope::ProcessLogScope(std::shared_ptr<LogHub> hub) : previous_(proces
 
 ProcessLogScope::~ProcessLogScope() { set_process_log_hub(std::move(previous_)); }
 
-}  // namespace pychron
+}  // namespace nobion

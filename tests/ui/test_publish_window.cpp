@@ -29,12 +29,12 @@
 #include "nobion/publish/workflow.hpp"
 #include "release_seed.hpp"
 
-namespace ps = pychron::persistence;
-namespace pp = pychron::processing;
-namespace pb = pychron::publish;
-using pychron::ui::EntryBridge;
-using pychron::ui::PublishActions;
-using pychron::ui::PublishWindow;
+namespace ps = nobion::persistence;
+namespace pp = nobion::processing;
+namespace pb = nobion::publish;
+using nobion::ui::EntryBridge;
+using nobion::ui::PublishActions;
+using nobion::ui::PublishWindow;
 
 namespace {
 
@@ -73,7 +73,7 @@ class TestPublishWindow : public QObject {
 
   void create(const std::string& name) {
     auto created = pb::create_release(*store_, seed_.reducer(), spec(name));
-    QVERIFY2(created.has_value(), created ? "" : pychron::to_string(created.error()).c_str());
+    QVERIFY2(created.has_value(), created ? "" : nobion::to_string(created.error()).c_str());
   }
 
   // A window on its own bridge and source, as PublishActions makes it.
@@ -84,11 +84,11 @@ class TestPublishWindow : public QObject {
   };
   Open open(std::function<QStringList()> selection = {}) {
     Open o;
-    auto source = pp::StoreSource::open(ps::StoreConfig{url_, false}, pychron::arar::store_source_options());
-    if (!source) qFatal("source: %s", pychron::to_string(source.error()).c_str());
+    auto source = pp::StoreSource::open(ps::StoreConfig{url_, false}, nobion::arar::store_source_options());
+    if (!source) qFatal("source: %s", nobion::to_string(source.error()).c_str());
     o.source = std::move(*source);
     auto bridge = EntryBridge::open({url_, "tester", "test-host", "publisher", "nobion/test"});
-    if (!bridge) qFatal("bridge: %s", pychron::to_string(bridge.error()).c_str());
+    if (!bridge) qFatal("bridge: %s", nobion::to_string(bridge.error()).c_str());
     o.bridge = std::move(*bridge);
     o.window = std::make_unique<PublishWindow>(*o.bridge, *o.source, url_, std::move(selection));
     return o;
@@ -136,10 +136,10 @@ class TestPublishWindow : public QObject {
     static int n = 0;
     url_ = "sqlite:" + dir_.filePath(QStringLiteral("store-%1.db").arg(++n)).toStdString();
     auto s = ps::open_store(ps::StoreConfig{url_, true});
-    QVERIFY2(s.has_value(), s ? "" : pychron::to_string(s.error()).c_str());
+    QVERIFY2(s.has_value(), s ? "" : nobion::to_string(s.error()).c_str());
     store_ = std::move(*s);
     auto seeded = pb::testing::seed_release_store(*store_);
-    QVERIFY2(seeded.has_value(), seeded ? "" : pychron::to_string(seeded.error()).c_str());
+    QVERIFY2(seeded.has_value(), seeded ? "" : nobion::to_string(seeded.error()).c_str());
     seed_ = *seeded;
   }
 
@@ -289,7 +289,7 @@ class TestPublishWindow : public QObject {
     });
     o.window->build();
     o.window.reset();  // closed while the worker builds
-    QVERIFY((o.bridge->run_sync<bool>([](ps::IStore&, const ps::Actor&) -> pychron::Result<bool> { return true; })));
+    QVERIFY((o.bridge->run_sync<bool>([](ps::IStore&, const ps::Actor&) -> nobion::Result<bool> { return true; })));
     QCoreApplication::processEvents();  // the queued stages and the result find no window
     QVERIFY(QFile::exists(out + QStringLiteral("/r-v1/manifest.json")));
   }

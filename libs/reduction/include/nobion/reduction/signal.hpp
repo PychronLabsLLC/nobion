@@ -9,7 +9,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/reduction/ufloat.hpp"
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 // ---- Values and stored rows -----------------------------------------------
 
@@ -84,4 +84,4 @@ Result<UFloat> deadtime_correct(const UFloat& signal_fa, double tau_s,
 Result<UFloat> deadtime_corrected_intercept(const IsotopeSignal& s,
                                             double fa_to_cps = kFaToCountsPerSecond);
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

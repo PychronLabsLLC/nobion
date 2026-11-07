@@ -1,6 +1,6 @@
 #include "no_database_persister.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 NoDatabasePersister::NoDatabasePersister(const std::string& reason)
     : why_("the database cannot be reached: " + reason) {}
@@ -28,4 +28,4 @@ Result<std::vector<std::string>> NoDatabasePersister::check_queue(const experime
   return std::vector<std::string>{why_};
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

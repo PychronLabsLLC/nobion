@@ -2,7 +2,7 @@
 
 #include <string_view>
 
-namespace pychron {
+namespace nobion {
 
 // Logger-name rule matching. A pattern without '*' is a bare name: it matches
 // the logger of the same name and any dotted child ("a.b" matches "a.b.c").
@@ -14,4 +14,4 @@ bool log_name_matches(std::string_view pattern, std::string_view logger) noexcep
 // Higher is more specific: (literal_chars << 1) | (no_star ? 1 : 0).
 int log_rule_specificity(std::string_view pattern) noexcept;
 
-}  // namespace pychron
+}  // namespace nobion

@@ -18,7 +18,7 @@
 #include "nobion/arar/arar_reduction.hpp"
 #include "nobion/arar/reduce.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace r = reduction;
 using arar::analysis_data_of;
@@ -810,4 +810,4 @@ Result<void> save_report(const Report& report, const std::filesystem::path& path
   return {};
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

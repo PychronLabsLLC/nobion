@@ -13,7 +13,7 @@
 #include "core_bridge.hpp"
 #include "nobion/systems/switch_rules.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class ICanvasState : public QObject {
   Q_OBJECT
@@ -58,4 +58,4 @@ class CoreBridgeCanvasState final : public ICanvasState {
   CoreBridge& bridge_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <utility>
 
-namespace pychron::ingest::detail {
+namespace nobion::ingest::detail {
 
 namespace {
 
@@ -163,4 +163,4 @@ std::optional<std::string> with_rewrites(std::string_view stored, std::string_vi
   return out + "]}";
 }
 
-}  // namespace pychron::ingest::detail
+}  // namespace nobion::ingest::detail

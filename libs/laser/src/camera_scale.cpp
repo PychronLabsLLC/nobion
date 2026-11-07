@@ -14,7 +14,7 @@
 #include "nobion/laser/calibration_store.hpp"
 #include "nobion/laser/laser_system.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 namespace {
 
@@ -232,4 +232,4 @@ Result<void> CameraScaleStore::clear(std::string_view device) const {
   return {};
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

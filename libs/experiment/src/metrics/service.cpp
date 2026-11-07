@@ -12,7 +12,7 @@
 #include "nobion/metrics/scheduler_metrics.hpp"
 #include "nobion/metrics/server.hpp"
 
-namespace pychron::experiment::metrics {
+namespace nobion::experiment::metrics {
 
 // Declared in the order of dependence, so that destruction (the reverse)
 // stops the endpoint first and frees the registry last.
@@ -32,11 +32,11 @@ struct MetricsService::Impl {
   SignalBus& bus;
   const Clock& clock;
   std::optional<Logger> logger;
-  pychron::metrics::Registry registry;
-  std::unique_ptr<pychron::metrics::CoreExporter> core;
+  nobion::metrics::Registry registry;
+  std::unique_ptr<nobion::metrics::CoreExporter> core;
   std::unique_ptr<ExperimentMetrics> experiment;
-  std::unique_ptr<pychron::metrics::SchedulerMetrics> scheduler;
-  std::unique_ptr<pychron::metrics::MetricsServer> server;
+  std::unique_ptr<nobion::metrics::SchedulerMetrics> scheduler;
+  std::unique_ptr<nobion::metrics::MetricsServer> server;
   std::string error;  // why there is no server
 };
 
@@ -49,18 +49,18 @@ std::unique_ptr<MetricsService> MetricsService::start(const config::MetricsConfi
   Impl* self = impl.get();
   impl->registry.on_family_full([self](std::string_view family) {
     self->say(LogLevel::Warn, "metrics: " + std::string(family) + " has reached its limit of " +
-                                  std::to_string(pychron::metrics::Registry::kMaxSeriesPerFamily) +
+                                  std::to_string(nobion::metrics::Registry::kMaxSeriesPerFamily) +
                                   " series; further ones are not exported");
   });
-  impl->core = std::make_unique<pychron::metrics::CoreExporter>(impl->registry, bus,
-                                                               pychron::metrics::build_info(std::move(version)));
+  impl->core = std::make_unique<nobion::metrics::CoreExporter>(impl->registry, bus,
+                                                               nobion::metrics::build_info(std::move(version)));
   impl->experiment = std::make_unique<ExperimentMetrics>(impl->registry, bus);
-  impl->scheduler = std::make_unique<pychron::metrics::SchedulerMetrics>(impl->registry, scheduler);
+  impl->scheduler = std::make_unique<nobion::metrics::SchedulerMetrics>(impl->registry, scheduler);
 
-  pychron::metrics::MetricsServer::Options options;
+  nobion::metrics::MetricsServer::Options options;
   options.bind = config.bind;
   options.port = static_cast<std::uint16_t>(config.port);
-  auto server = pychron::metrics::MetricsServer::start(impl->registry, options);
+  auto server = nobion::metrics::MetricsServer::start(impl->registry, options);
   if (server) {
     impl->server = std::move(*server);
     impl->say(LogLevel::Info,
@@ -87,18 +87,18 @@ const std::string& MetricsService::error() const noexcept { return impl_->error;
 
 std::uint16_t MetricsService::port() const noexcept { return impl_->server ? impl_->server->port() : 0; }
 
-pychron::metrics::Registry& MetricsService::registry() noexcept { return impl_->registry; }
+nobion::metrics::Registry& MetricsService::registry() noexcept { return impl_->registry; }
 
 void MetricsService::watch_links(const std::vector<Link*>& links) {
   std::vector<Link*> watched;
   for (Link* l : links)
     if (l != nullptr && std::find(watched.begin(), watched.end(), l) == watched.end()) watched.push_back(l);
   impl_->core->watch_links([watched = std::move(watched)] {
-    std::vector<pychron::metrics::LinkTotals> out;
+    std::vector<nobion::metrics::LinkTotals> out;
     out.reserve(watched.size());
     for (const Link* l : watched) out.push_back({l->transport().name(), l->reconnects(), l->repeats()});
     return out;
   });
 }
 
-}  // namespace pychron::experiment::metrics
+}  // namespace nobion::experiment::metrics

@@ -19,7 +19,7 @@
 #include "nobion/systems/jobs/sweep.hpp"
 #include "nobion/systems/spectrometer/spectrometer.hpp"
 
-namespace pychron::jobs {
+namespace nobion::jobs {
 
 using JobId = std::uint64_t;
 using spectrometer::SpectrometerState;
@@ -82,4 +82,4 @@ struct JobFinished {
 // Kind "sweep": runs Sweep; result is std::vector<SweepPoint>.
 JobSpec sweep_job(SweepSpec spec, Sweep::Options options = {});
 
-}  // namespace pychron::jobs
+}  // namespace nobion::jobs

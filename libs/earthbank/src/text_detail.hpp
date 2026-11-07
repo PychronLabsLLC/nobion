@@ -2,13 +2,13 @@
 
 // What a term is compared by, in one place: the session, the lookup, the
 // pre-flight check and the vocabulary all trim a name and compare it without
-// case, and must mean the same by both. Internal to pychron::earthbank.
+// case, and must mean the same by both. Internal to nobion::earthbank.
 
 #include <cstddef>
 #include <string>
 #include <string_view>
 
-namespace pychron::earthbank::detail {
+namespace nobion::earthbank::detail {
 
 // A space, a tab or a line end: what stands around a name and is no part of
 // it.
@@ -53,4 +53,4 @@ constexpr bool same_but_case(std::string_view a, std::string_view b) {
   return true;
 }
 
-}  // namespace pychron::earthbank::detail
+}  // namespace nobion::earthbank::detail

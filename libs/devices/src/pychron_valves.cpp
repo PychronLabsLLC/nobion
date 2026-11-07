@@ -1,6 +1,6 @@
 #include "nobion/devices/pychron_valves.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace tx = codec::pychron_tx;
 
@@ -69,6 +69,6 @@ Result<ValveState> PychronValves::read(const ValveAddress& address) {
   return observe(op, std::move(state));
 }
 
-}  // namespace pychron
+}  // namespace nobion
 
-REGISTER_DRIVER("pychron_valves", pychron::PychronValves);
+REGISTER_DRIVER("pychron_valves", nobion::PychronValves);

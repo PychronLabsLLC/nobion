@@ -27,7 +27,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/laser/tray_map.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 struct HoleCorrection {
   double x = 0;  // stage mm
@@ -65,4 +65,4 @@ class CorrectionStore {
   std::filesystem::path dir_;
 };
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

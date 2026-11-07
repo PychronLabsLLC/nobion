@@ -1,6 +1,6 @@
 #include "nobion/devices/spectrometer/roles.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 Error unsupported(DetectorCap cap) {
   return Error{ErrorKind::Config, to_string(cap) + " not supported", {}};
@@ -43,4 +43,4 @@ Result<IMassPositioner::Axis> parse_axis(std::string_view text) {
   return fail(ErrorKind::Config, "unknown positioner axis '" + std::string(text) + "'");
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

@@ -6,7 +6,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace pychron::update {
+namespace nobion::update {
 
 using json = nlohmann::json;
 
@@ -71,4 +71,4 @@ Result<Release> parse_latest_release(std::string_view text) {
   return release;
 }
 
-}  // namespace pychron::update
+}  // namespace nobion::update

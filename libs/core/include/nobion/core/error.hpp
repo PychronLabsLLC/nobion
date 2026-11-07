@@ -5,7 +5,7 @@
 
 #include "nobion/core/expected.hpp"
 
-namespace pychron {
+namespace nobion {
 
 enum class ErrorKind { Timeout, Io, Protocol, Config, NotConnected, Interlock, Cancelled };
 
@@ -38,4 +38,4 @@ inline Unexpected<Error> fail(ErrorKind kind, std::string what, std::string devi
 
 inline Unexpected<Error> fail(Error error) { return Unexpected<Error>(std::move(error)); }
 
-}  // namespace pychron
+}  // namespace nobion

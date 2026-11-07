@@ -16,7 +16,7 @@
 #include <opencv2/videoio.hpp>
 #endif
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 #ifdef PYCHRON_VISION_OPENCV_ENABLED
 
@@ -209,4 +209,4 @@ std::vector<CameraFound> list_opencv_cameras() { return {}; }
 
 #endif
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

@@ -28,7 +28,7 @@
 //                        from a commit the walk no longer has is not marked:
 //                        that history was rewritten, and it is blocking.
 
-namespace pychron::ingest {
+namespace nobion::ingest {
 
 inline constexpr char kMarkerImported[] = "imported";
 inline constexpr char kMarkerSynthesized[] = "synthesized";
@@ -44,4 +44,4 @@ inline constexpr char kReasonSpectrometerFileAfterCollection[] = "spectrometer_f
 // store; the oldest was taken, and the detail names it and the others.
 inline constexpr const char* kReasonPiNamesakesOldestTaken = "pi_namesakes_oldest_taken";
 
-}  // namespace pychron::ingest
+}  // namespace nobion::ingest

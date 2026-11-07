@@ -32,7 +32,7 @@
 // n being its item in the list of fixtures/README.md. A test holds the marks
 // and the list to each other (FakeEarthBank.EveryAssumptionIsMarkedAndListed).
 
-namespace pychron::earthbank::testing {
+namespace nobion::earthbank::testing {
 namespace {
 
 using nlohmann::json;
@@ -1146,4 +1146,4 @@ HttpResponse FakeEarthBank::create_sub_record(const Call& call, std::string_view
   return answer(created_status_, body);
 }
 
-}  // namespace pychron::earthbank::testing
+}  // namespace nobion::earthbank::testing

@@ -10,7 +10,7 @@
 #include "nobion/vision/frame.hpp"
 #include "nobion/vision/types.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 struct AutocenterParams {
   double hole_radius_mm = 0.5;
@@ -61,4 +61,4 @@ class Autocenter {
   TimePoint last_ts_{};
 };
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

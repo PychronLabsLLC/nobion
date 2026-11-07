@@ -22,7 +22,7 @@ class QLineEdit;
 class QListWidget;
 class QSpinBox;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class ConditionalForm : public QWidget {
   Q_OBJECT
@@ -44,7 +44,7 @@ class ConditionalForm : public QWidget {
   bool shows_run_flags() const;
 
  signals:
-  void edited(const pychron::experiment::Conditional& c);
+  void edited(const nobion::experiment::Conditional& c);
 
  private:
   void show_fields();         // visibility and the action list for c_.kind
@@ -87,4 +87,4 @@ class ConditionalForm : public QWidget {
   QComboBox* run_flag_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

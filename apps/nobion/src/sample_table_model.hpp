@@ -14,7 +14,7 @@
 
 #include "entry_headers.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // A sample entered in the new-sample form. Its PI is a stored one or one
 // staged with SampleTableModel::add_pi, by uuid (PI spec 6: a PI is entered
@@ -102,4 +102,4 @@ class SampleTableModel : public QAbstractTableModel {
   std::map<persistence::Uuid, persistence::CatalogFields> stale_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

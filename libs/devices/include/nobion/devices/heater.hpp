@@ -10,7 +10,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron {
+namespace nobion {
 
 struct IHeater {
   virtual ~IHeater() = default;
@@ -23,4 +23,4 @@ struct IHeater {
   virtual Result<bool> use_pid() = 0;
 };
 
-}  // namespace pychron
+}  // namespace nobion

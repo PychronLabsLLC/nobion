@@ -10,8 +10,8 @@
 #include "nobion/devices/driver_registry.hpp"
 #include "valve_conformance.hpp"
 
-using namespace pychron;
-using namespace pychron::test;
+using namespace nobion;
+using namespace nobion::test;
 using namespace std::chrono_literals;
 
 namespace {

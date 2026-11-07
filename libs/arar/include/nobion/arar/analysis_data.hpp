@@ -15,7 +15,7 @@
 #include "nobion/arar/arar_types.hpp"
 #include "nobion/processing/model.hpp"
 
-namespace pychron::arar {
+namespace nobion::arar {
 
 struct ArArAnalysisData final : processing::DomainAnalysisData {
   std::optional<reduction::Flux> flux;
@@ -38,4 +38,4 @@ struct ArArAnalysisData final : processing::DomainAnalysisData {
 // copies of an analysis, so this never changes another copy's.
 [[nodiscard]] ArArAnalysisData& edit_analysis_data(processing::Analysis& analysis);
 
-}  // namespace pychron::arar
+}  // namespace nobion::arar

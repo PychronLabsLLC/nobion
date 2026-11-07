@@ -32,7 +32,7 @@
 
 #include "nobion/devices/spectrometer/roles.hpp"
 
-namespace pychron::spectrometer::conformance {
+namespace nobion::spectrometer::conformance {
 
 template <class H>
 double tolerance(const H& h) {
@@ -63,7 +63,7 @@ inline bool near(double a, double b, double tol) {
 
 constexpr int kPollLimit = 1000;
 
-}  // namespace pychron::spectrometer::conformance
+}  // namespace nobion::spectrometer::conformance
 
 // --- IMassPositioner --------------------------------------------------------
 
@@ -80,7 +80,7 @@ TYPED_TEST_P(PositionerConformance, LimitsAreAValidNonEmptyRange) {
 }
 
 TYPED_TEST_P(PositionerConformance, SetWithinLimitsReadsBack) {
-  using namespace pychron::spectrometer::conformance;
+  using namespace nobion::spectrometer::conformance;
   auto& p = this->harness.positioner();
   auto limits = p.limits();
   for (double f : {0.25, 0.5, 0.75}) {
@@ -111,7 +111,7 @@ TYPED_TEST_P(PositionerConformance, SetOutsideLimitsFailsWithConfigAndDoesNotMov
   for (double outside : {limits.max + span, limits.min - span}) {
     auto r = p.set(outside);
     ASSERT_FALSE(r.has_value()) << "set " << outside << " should fail";
-    EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
+    EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
     auto after = p.read();
     ASSERT_TRUE(after.has_value());
     EXPECT_DOUBLE_EQ(*after, *before);
@@ -119,7 +119,7 @@ TYPED_TEST_P(PositionerConformance, SetOutsideLimitsFailsWithConfigAndDoesNotMov
 }
 
 TYPED_TEST_P(PositionerConformance, MovingSettles) {
-  using namespace pychron::spectrometer::conformance;
+  using namespace nobion::spectrometer::conformance;
   auto& p = this->harness.positioner();
   auto limits = p.limits();
   ASSERT_TRUE(p.set(limits.min + 0.1 * (limits.max - limits.min)).has_value());
@@ -146,15 +146,15 @@ class AcquirerConformance : public ::testing::Test {
   H harness;
 
   // Up to `n` frames after start(); fails the test on error or timeout.
-  std::vector<pychron::spectrometer::Frame> collect(int n) {
-    using namespace pychron::spectrometer::conformance;
+  std::vector<nobion::spectrometer::Frame> collect(int n) {
+    using namespace nobion::spectrometer::conformance;
     auto& a = harness.acquirer();
-    std::vector<pychron::spectrometer::Frame> frames;
+    std::vector<nobion::spectrometer::Frame> frames;
     for (int i = 0; i < kPollLimit && std::cmp_less(frames.size(), n); ++i) {
       EXPECT_TRUE(a.trigger().has_value());
       advance(harness);
       auto f = a.next(timeout(harness));
-      EXPECT_TRUE(f.has_value()) << (f ? "" : pychron::to_string(f.error()));
+      EXPECT_TRUE(f.has_value()) << (f ? "" : nobion::to_string(f.error()));
       if (!f) break;
       if (*f) frames.push_back(std::move(**f));
     }
@@ -174,11 +174,11 @@ TYPED_TEST_P(AcquirerConformance, ChannelsAreNonEmptyAndUnique) {
 
 TYPED_TEST_P(AcquirerConformance, NonPositiveIntegrationIsRejected) {
   auto& a = this->harness.acquirer();
-  for (auto d : {pychron::Duration::zero(), -std::chrono::duration_cast<pychron::Duration>(
+  for (auto d : {nobion::Duration::zero(), -std::chrono::duration_cast<nobion::Duration>(
                                                    std::chrono::seconds(1))}) {
     auto r = a.configure(d);
     ASSERT_FALSE(r.has_value());
-    EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
+    EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
   }
 }
 
@@ -204,7 +204,7 @@ TYPED_TEST_P(AcquirerConformance, FramesMatchDeclaredShape) {
   ASSERT_TRUE(a.stop().has_value());
   for (const auto& f : frames) {
     EXPECT_EQ(f.integrated, a.integrates());
-    EXPECT_GT(f.span, pychron::Duration::zero());
+    EXPECT_GT(f.span, nobion::Duration::zero());
     EXPECT_FALSE(f.values.empty());
     std::set<std::string> seen;
     for (const auto& [channel, value] : f.values) {
@@ -247,7 +247,7 @@ TYPED_TEST_P(SourceConformance, ParamsAreUniqueNamedAndValid) {
   std::set<std::string> ids;
   std::set<std::string> vendor;
   for (const auto& s : specs) {
-    const auto id = pychron::spectrometer::to_string(s.id);
+    const auto id = nobion::spectrometer::to_string(s.id);
     EXPECT_TRUE(ids.insert(id).second) << "duplicate param " << id;
     EXPECT_FALSE(s.vendor_name.empty()) << id;
     EXPECT_TRUE(vendor.insert(s.vendor_name).second) << "duplicate vendor name " << s.vendor_name;
@@ -257,7 +257,7 @@ TYPED_TEST_P(SourceConformance, ParamsAreUniqueNamedAndValid) {
 }
 
 TYPED_TEST_P(SourceConformance, HvSetReadsBack) {
-  using namespace pychron::spectrometer;
+  using namespace nobion::spectrometer;
   auto& src = this->harness.source();
   double target = 4500.0;
   if (const auto* hv = find_spec(src.params(), ParamId{SourceParam::HV})) {
@@ -272,7 +272,7 @@ TYPED_TEST_P(SourceConformance, HvSetReadsBack) {
 }
 
 TYPED_TEST_P(SourceConformance, WritableParamsReadBackSetpoint) {
-  using namespace pychron::spectrometer;
+  using namespace nobion::spectrometer;
   auto& src = this->harness.source();
   for (const auto& s : src.params()) {
     if (!s.writable) continue;
@@ -291,24 +291,24 @@ TYPED_TEST_P(SourceConformance, WritableParamsReadBackSetpoint) {
 }
 
 TYPED_TEST_P(SourceConformance, ReadOnlyParamsRejectWritesAndWriteOnlyRejectReads) {
-  using namespace pychron::spectrometer;
+  using namespace nobion::spectrometer;
   auto& src = this->harness.source();
   for (const auto& s : src.params()) {
     if (!s.writable) {
       auto r = src.set_param(s.id, s.range.min);
       ASSERT_FALSE(r.has_value()) << to_string(s.id);
-      EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
+      EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
     }
     if (!s.readable) {
       auto r = src.read_param(s.id);
       ASSERT_FALSE(r.has_value()) << to_string(s.id);
-      EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
+      EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
     }
   }
 }
 
 TYPED_TEST_P(SourceConformance, UnadvertisedParamsFailWithConfig) {
-  using namespace pychron::spectrometer;
+  using namespace nobion::spectrometer;
   auto& src = this->harness.source();
   std::vector<ParamId> missing{ParamId{Custom{"__conformance_unsupported__"}}};
   for (const auto& info : source_params()) {
@@ -317,10 +317,10 @@ TYPED_TEST_P(SourceConformance, UnadvertisedParamsFailWithConfig) {
   for (const auto& id : missing) {
     auto w = src.set_param(id, 1.0);
     ASSERT_FALSE(w.has_value()) << to_string(id);
-    EXPECT_EQ(w.error().kind, pychron::ErrorKind::Config) << to_string(id);
+    EXPECT_EQ(w.error().kind, nobion::ErrorKind::Config) << to_string(id);
     auto r = src.read_param(id);
     ASSERT_FALSE(r.has_value()) << to_string(id);
-    EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config) << to_string(id);
+    EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config) << to_string(id);
   }
 }
 
@@ -339,13 +339,13 @@ class DetectorControlConformance : public ::testing::Test {
 TYPED_TEST_SUITE_P(DetectorControlConformance);
 
 TYPED_TEST_P(DetectorControlConformance, OpsOutsideCapsFailWithConfig) {
-  using namespace pychron::spectrometer;
+  using namespace nobion::spectrometer;
   auto& dc = this->harness.detector_control();
   const auto ch = this->harness.channel();
   const Caps caps = dc.caps();
   auto expect_config = [](const auto& r, const char* op) {
     ASSERT_FALSE(r.has_value()) << op;
-    EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config) << op;
+    EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config) << op;
   };
   if (!caps.has(DetectorCap::Deflection)) {
     expect_config(dc.set_deflection(ch, 1.0), "set_deflection");
@@ -360,7 +360,7 @@ TYPED_TEST_P(DetectorControlConformance, OpsOutsideCapsFailWithConfig) {
 }
 
 TYPED_TEST_P(DetectorControlConformance, SupportedOpsRoundTrip) {
-  using namespace pychron::spectrometer;
+  using namespace nobion::spectrometer;
   auto& dc = this->harness.detector_control();
   const auto ch = this->harness.channel();
   const Caps caps = dc.caps();

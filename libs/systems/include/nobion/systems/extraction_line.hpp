@@ -70,7 +70,7 @@
 #include "nobion/transport/endpoints.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 struct ExtractionLineOptions {
   const Clock* clock = nullptr;  // SteadyClock if null; must outlive the line
@@ -287,4 +287,4 @@ class ExtractionLine {
   std::set<std::string> heaters_failed_;  // scan thread only
 };
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

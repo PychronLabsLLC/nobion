@@ -8,7 +8,7 @@
 #include "nobion/processing/reduced.hpp"
 #include "nobion/processing/units.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
@@ -122,4 +122,4 @@ Result<DeriveStats> derive_ages(StoreSource& source, const Domain& domain, const
   return derive_ages(adapter, domain, options, keep_going);
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

@@ -2,7 +2,7 @@
 
 #include <cstdio>
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 const IsotopeData* Analysis::find_isotope(std::string_view key) const {
   for (const auto& iso : isotopes)
@@ -55,4 +55,4 @@ std::string make_runid(const std::string& identifier, int aliquot, int increment
   return identifier + "-" + buf + step_letters(increment);
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

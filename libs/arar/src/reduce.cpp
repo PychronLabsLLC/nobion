@@ -10,10 +10,10 @@
 #include "nobion/arar/analysis_data.hpp"
 #include "nobion/arar/quantities.hpp"
 
-namespace pychron::arar {
+namespace nobion::arar {
 
-namespace r = pychron::reduction;
-namespace pp = pychron::processing;
+namespace r = nobion::reduction;
+namespace pp = nobion::processing;
 
 namespace {
 
@@ -202,4 +202,4 @@ pp::ReducedPtr reduce_with_arar(pp::AnalysisPtr analysis, const ArArSettings& se
   return attach_arar(*core, settings);
 }
 
-}  // namespace pychron::arar
+}  // namespace nobion::arar

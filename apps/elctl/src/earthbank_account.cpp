@@ -1,6 +1,6 @@
 // elctl earthbank login, account, packages and import-profiles: the account
 // the user publishes as. The session and the words for what went wrong are
-// pychron::earthbank's (session.hpp); this file reads the flags, finds the
+// nobion::earthbank's (session.hpp); this file reads the flags, finds the
 // profile and its password, and says the results.
 
 #include <charconv>
@@ -20,11 +20,11 @@
 namespace elctl::earthbank_cli {
 
 namespace fs = std::filesystem;
-namespace eb = pychron::earthbank;
-using pychron::Error;
-using pychron::ErrorKind;
-using pychron::fail;
-using pychron::Result;
+namespace eb = nobion::earthbank;
+using nobion::Error;
+using nobion::ErrorKind;
+using nobion::fail;
+using nobion::Result;
 
 int fatal(Io io, std::string_view message) {
   constexpr std::string_view kLibrary = "earthbank: ";
@@ -57,7 +57,7 @@ Result<std::int64_t> whole_number(const std::string& flag, const std::string& te
 }
 
 std::optional<std::string> password_from_environment() {
-  auto value = pychron::env_var(kPasswordVariable);
+  auto value = nobion::env_var(kPasswordVariable);
   if (!value || value->empty()) return std::nullopt;
   return value;
 }

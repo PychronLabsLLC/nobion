@@ -15,7 +15,7 @@
 
 #include "nobion/core/config/system_config.hpp"
 
-namespace pychron::spectrometer::cfg {
+namespace nobion::spectrometer::cfg {
 
 using config::Located;
 using config::SourceLoc;
@@ -212,4 +212,4 @@ struct ChannelRef {
 };
 std::optional<ChannelRef> parse_channel_ref(std::string_view text);
 
-}  // namespace pychron::spectrometer::cfg
+}  // namespace nobion::spectrometer::cfg

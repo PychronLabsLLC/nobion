@@ -21,7 +21,7 @@
 
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class HealthBar : public QWidget {
   Q_OBJECT
@@ -91,4 +91,4 @@ class HealthBar : public QWidget {
   std::map<std::string, Chip> chips_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

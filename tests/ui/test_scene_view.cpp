@@ -12,8 +12,8 @@
 #include "nobion/processing/scene_draw.hpp"
 #include "scene_view.hpp"
 
-namespace pp = pychron::processing;
-using pychron::ui::SceneView;
+namespace pp = nobion::processing;
+using nobion::ui::SceneView;
 
 class TestSceneView : public QObject {
   Q_OBJECT

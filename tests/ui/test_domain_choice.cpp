@@ -8,8 +8,8 @@
 #include "domain_choice.hpp"
 #include "nobion/processing/domain.hpp"
 
-using pychron::ui::choose_domain;
-namespace pp = pychron::processing;
+using nobion::ui::choose_domain;
+namespace pp = nobion::processing;
 
 class TestDomainChoice : public QObject {
   Q_OBJECT

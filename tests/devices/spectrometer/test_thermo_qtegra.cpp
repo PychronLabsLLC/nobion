@@ -12,8 +12,8 @@
 #include "spectrometer/qtegra_session.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace legacy_test;
 using namespace qtegra_test;
 
@@ -56,7 +56,7 @@ class FlakyTransport final : public Transport {
 
 // A test whose thread takes part in a virtual clock: the link's backoff and
 // call window pass in no real time.
-struct QtegraVirtual : pychron::testing::VirtualTimeTest {
+struct QtegraVirtual : nobion::testing::VirtualTimeTest {
   VirtualClock clock;
   Clock::Participant main{clock, "test"};
 };

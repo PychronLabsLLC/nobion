@@ -9,7 +9,7 @@
 
 #include "nobion/processing/scene_layout.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 namespace {
 
 Panel panel_of(std::vector<double> y, std::vector<double> y_err = {}) {
@@ -339,4 +339,4 @@ TEST(SceneLayout, HugeColumnCountIsOneRow) {
 }
 
 }  // namespace
-}  // namespace pychron::processing
+}  // namespace nobion::processing

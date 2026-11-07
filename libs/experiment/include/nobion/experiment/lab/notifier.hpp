@@ -40,7 +40,7 @@
 #include "nobion/core/signal_bus.hpp"
 #include "nobion/experiment/lab/notifications.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 struct NotificationSent {
   std::string channel;  // empty when no channel is configured
@@ -153,4 +153,4 @@ class Notifier {
   SignalBus::Subscription run_finished_, holding_, state_changed_;
 };
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

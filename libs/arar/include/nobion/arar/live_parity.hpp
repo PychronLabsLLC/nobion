@@ -8,7 +8,7 @@
 #include "nobion/arar/arar_types.hpp"
 #include "nobion/reduction/arar.hpp"
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 // Live constants from the same sources as reduce() (spec 8.2): nominal values
 // of the production ratios, atm4036, J and lambda_K (lambda_k_total when set
@@ -21,4 +21,4 @@ ArArConstants to_live_constants(const ReductionConstants& c, const ProductionRat
                                 const Flux& flux, const DecayFactors& df,
                                 std::optional<double> decay_days = std::nullopt);
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

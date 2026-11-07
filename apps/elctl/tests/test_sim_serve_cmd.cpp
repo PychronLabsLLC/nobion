@@ -28,7 +28,7 @@ class SimServeCmd : public elctl::testing::ElctlTest {
     std::ostringstream text;
     text << in.rdbuf();
     in.close();
-    write("extraction_line.toml", pychron::testing::hardware_style(text.str()));
+    write("extraction_line.toml", nobion::testing::hardware_style(text.str()));
   }
 
   // Runs the command on a thread until stop(); `ready` is set once the
@@ -77,7 +77,7 @@ TEST_F(SimServeCmd, WritesEndpointsAndRemovesThemOnStop) {
   serve(s, {});
   const auto file = path("sim-endpoints.toml");
   ASSERT_TRUE(appears(file));
-  auto endpoints = pychron::read_sim_endpoints(file);
+  auto endpoints = nobion::read_sim_endpoints(file);
   ASSERT_TRUE(endpoints) << endpoints.error().what;
   EXPECT_EQ(endpoints->transports.size(), 6U);
   for (const auto& [name, e] : endpoints->transports) EXPECT_NE(e.port, 0) << name;
@@ -177,10 +177,10 @@ TEST_F(SimServeCmd, SimEndpointsWithSimSpeedRefused) {
 }
 
 TEST_F(SimServeCmd, MissingEntryFailsTheCommand) {
-  pychron::SimEndpoints endpoints;
+  nobion::SimEndpoints endpoints;
   endpoints.config = fs::weakly_canonical(path("extraction_line.toml"));
   endpoints.host = "127.0.0.1";
-  ASSERT_TRUE(pychron::write_sim_endpoints(path("ep.toml"), endpoints));
+  ASSERT_TRUE(nobion::write_sim_endpoints(path("ep.toml"), endpoints));
   const auto o = run({"--sim-endpoints", path("ep.toml").string(), "read", "CG1"});
   EXPECT_NE(o.code, elctl::kOk);
   EXPECT_TRUE(contains(o.err, "has no entry in the sim endpoints file")) << o.err;
@@ -191,7 +191,7 @@ TEST_F(SimServeCmd, ServesTheSpectrometerWhenGiven) {
   serve(s, {"--spectrometer", qtegra_spectrometer().string()});
   const auto file = path("sim-endpoints.toml");
   ASSERT_TRUE(appears(file));
-  auto endpoints = pychron::read_sim_endpoints(file);
+  auto endpoints = nobion::read_sim_endpoints(file);
   s.stop = true;
   s.thread.join();
   ASSERT_TRUE(endpoints) << endpoints.error().what;
@@ -206,7 +206,7 @@ TEST_F(SimServeCmd, NoSpectrometerLeavesItOut) {
   serve(s, {"--no-spectrometer"}, qtegra_spectrometer());
   const auto file = path("sim-endpoints.toml");
   ASSERT_TRUE(appears(file));
-  auto endpoints = pychron::read_sim_endpoints(file);
+  auto endpoints = nobion::read_sim_endpoints(file);
   s.stop = true;
   s.thread.join();
   ASSERT_TRUE(endpoints) << endpoints.error().what;
@@ -218,7 +218,7 @@ TEST_F(SimServeCmd, InstallSpectrometerServedByDefault) {
   serve(s, {}, qtegra_spectrometer());
   const auto file = path("sim-endpoints.toml");
   ASSERT_TRUE(appears(file));
-  auto endpoints = pychron::read_sim_endpoints(file);
+  auto endpoints = nobion::read_sim_endpoints(file);
   s.stop = true;
   s.thread.join();
   ASSERT_TRUE(endpoints) << endpoints.error().what;

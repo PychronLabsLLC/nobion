@@ -20,11 +20,11 @@
 #include "store_fixture.hpp"
 #include "verify_support.hpp"
 
-using namespace pychron;
-using namespace pychron::dvc;
-using namespace pychron::dvc::testing;
-namespace P = pychron::persistence;
-namespace pd = pychron::persistence::detail;
+using namespace nobion;
+using namespace nobion::dvc;
+using namespace nobion::dvc::testing;
+namespace P = nobion::persistence;
+namespace pd = nobion::persistence::detail;
 using ingest::RunStats;
 using P::Uuid;
 

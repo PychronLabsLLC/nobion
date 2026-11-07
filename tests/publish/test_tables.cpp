@@ -16,12 +16,12 @@
 
 #include "table_inputs.hpp"
 
-namespace ps = pychron::persistence;
-using namespace pychron::publish;
+namespace ps = nobion::persistence;
+using namespace nobion::publish;
 
 namespace {
 
-using pychron::publish::testing::inputs;
+using nobion::publish::testing::inputs;
 
 const Cell& cell(const Table& t, std::size_t row, const char* column) {
   const auto c = t.column(column);
@@ -202,7 +202,7 @@ TEST(Tables, RowsSha256IsStableAcrossTwoBuilds) {
   EXPECT_EQ(rows_sha256(a.isotopes), rows_sha256(b.isotopes));
   EXPECT_NE(rows_sha256(a.analyses), rows_sha256(a.isotopes));
   Table empty;
-  EXPECT_EQ(pychron::to_hex(rows_sha256(empty)), pychron::to_hex(pychron::sha256(std::string_view{})));
+  EXPECT_EQ(nobion::to_hex(rows_sha256(empty)), nobion::to_hex(nobion::sha256(std::string_view{})));
 }
 
 TEST(Tables, WkbPointIsTwentyOneBytesLittleEndian) {
@@ -238,7 +238,7 @@ TEST(Tables, RowHashesEqualTheCommittedFixture) {
   const auto tables = build_tables(inputs());
   std::string actual;
   for (const Table* t : {&tables.samples, &tables.positions, &tables.analyses, &tables.isotopes, &tables.interpreted_ages})
-    actual += t->name + " " + std::to_string(t->rows.size()) + " " + pychron::to_hex(rows_sha256(*t)) + "\n";
+    actual += t->name + " " + std::to_string(t->rows.size()) + " " + nobion::to_hex(rows_sha256(*t)) + "\n";
   const std::filesystem::path fixture = std::filesystem::path(PYCHRON_PUBLISH_FIXTURE_DIR) / "table-inputs.rows_sha256";
   if (const char* write = std::getenv("NOBION_WRITE_FIXTURE"); write && std::string(write) == "1") {
     std::ofstream out(fixture, std::ios::binary);

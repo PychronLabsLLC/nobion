@@ -5,7 +5,7 @@
 #include <iterator>
 #include <utility>
 
-namespace pychron::experiment::plan {
+namespace nobion::experiment::plan {
 
 namespace {
 
@@ -183,4 +183,4 @@ reduction::FitSpec baseline_fit(const Fits& fits, const std::string& detector) {
   return spec;
 }
 
-}  // namespace pychron::experiment::plan
+}  // namespace nobion::experiment::plan

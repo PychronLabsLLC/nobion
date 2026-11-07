@@ -4,8 +4,8 @@
 
 #include "nobion/systems/spectrometer/corrections.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using Axis = IMassPositioner::Axis;
 
 namespace {

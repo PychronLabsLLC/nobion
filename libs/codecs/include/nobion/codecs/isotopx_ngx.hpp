@@ -66,7 +66,7 @@
 
 #include "nobion/codecs/codec.hpp"
 
-namespace pychron::codec::ngx {
+namespace nobion::codec::ngx {
 
 // Event line terminator (SP readline("#\r\n")).
 inline constexpr std::string_view kTerminator = "#\r\n";
@@ -219,4 +219,4 @@ class Demultiplexer {
   std::string buffer_;
 };
 
-}  // namespace pychron::codec::ngx
+}  // namespace nobion::codec::ngx

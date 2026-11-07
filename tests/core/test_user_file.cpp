@@ -16,9 +16,9 @@ TEST(UserFile, AFileWithoutTheAttributeIsFineAndAMissingOneIsNot) {
   fs::create_directories(dir);
   const fs::path file = dir / "report.csv";
   std::ofstream(file) << "# a report\n";
-  EXPECT_TRUE(pychron::mark_as_user_file(file));
-  EXPECT_TRUE(pychron::mark_as_user_file(file));  // idempotent
-  EXPECT_FALSE(pychron::mark_as_user_file(dir / "never-written.csv"));
+  EXPECT_TRUE(nobion::mark_as_user_file(file));
+  EXPECT_TRUE(nobion::mark_as_user_file(file));  // idempotent
+  EXPECT_FALSE(nobion::mark_as_user_file(dir / "never-written.csv"));
   // The file is untouched.
   std::string line;
   {

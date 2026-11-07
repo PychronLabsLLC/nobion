@@ -18,7 +18,7 @@ class QMainWindow;
 class QPushButton;
 class QTextBrowser;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class UpdateChecker;
 
@@ -78,4 +78,4 @@ class UpdateIndicator : public QToolButton {
 // update widgets or is destroyed before them.
 void install_update_check(QMainWindow* window, UpdateChecker& checker);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

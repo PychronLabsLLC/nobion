@@ -19,7 +19,7 @@
 
 #include "preferences_dialog.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -195,4 +195,4 @@ config::LoggingConfig LoggingPage::value() const {
   return out;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

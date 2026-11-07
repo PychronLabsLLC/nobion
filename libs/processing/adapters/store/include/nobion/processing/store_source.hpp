@@ -25,7 +25,7 @@
 #include "nobion/processing/revisions.hpp"
 #include "nobion/processing/source.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 // What load() assembles. `refs` are the payloads of the resolved references.
 struct StoreAnalysisParts {
@@ -193,4 +193,4 @@ std::map<std::string, double> flat_json_numbers(std::string_view json);
 // Infinity and stored as NULL. Empty without such a member or on malformed text.
 std::vector<std::string> nonfinite_pointers(std::string_view extra_json);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

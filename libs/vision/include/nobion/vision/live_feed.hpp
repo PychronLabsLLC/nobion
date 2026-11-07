@@ -33,7 +33,7 @@
 #include "nobion/vision/opencv_source.hpp"
 #include "nobion/vision/source.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 struct LiveFeedOptions {
   std::chrono::milliseconds timeout{1000};
@@ -76,4 +76,4 @@ class LiveFeed final : public IFrameSource {
   std::shared_ptr<State> state_;
 };
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

@@ -44,7 +44,7 @@
 #include "temp_path.hpp"
 #include "virtual_time.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 namespace {
 
 namespace fs = std::filesystem;
@@ -69,18 +69,18 @@ struct Outcome {
 // One link down for `length` from `at` after the queue starts.
 struct Fault {
   std::string transport;
-  pychron::Duration at{};
-  pychron::Duration length{};
+  nobion::Duration at{};
+  nobion::Duration length{};
 };
 
 // The example lab's line and spectrometer, simulated, on a clock of their own.
 class World {
  public:
   World()
-      : dir_(pychron::testing::unique_temp_path("pychron-outage-")),
+      : dir_(nobion::testing::unique_temp_path("pychron-outage-")),
         clock_(clock_options()),
         still_(std::in_place, clock_) {
-    pychron::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_);
+    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_);
     systems::ExtractionLine::Options options;
     options.clock = &clock_;
     options.force_sim = true;
@@ -149,7 +149,7 @@ class World {
   }
 
   Outcome run(std::optional<Fault> fault = std::nullopt) {
-    pychron::testing::Crew crew(clock_);
+    nobion::testing::Crew crew(clock_);
     SimTransport* sim = fault ? sim_transport(fault->transport) : nullptr;
     if (fault) {
       EXPECT_NE(sim, nullptr) << fault->transport;
@@ -240,14 +240,14 @@ class World {
 
 // The instants a fault starts at, after the queue starts: every phase
 // boundary of every run of the fault-free queue, and `extra` from a seed.
-std::vector<pychron::Duration> instants(const Outcome& clean, std::size_t extra, std::uint32_t seed) {
-  std::vector<pychron::Duration> out;
+std::vector<nobion::Duration> instants(const Outcome& clean, std::size_t extra, std::uint32_t seed) {
+  std::vector<nobion::Duration> out;
   out.reserve(clean.phases.size() + extra);
   for (const auto& [what, ts] : clean.phases) out.push_back(ts - clean.began);
   std::mt19937 rng(seed);
   std::uniform_real_distribution<double> at(0.0, std::chrono::duration<double>(clean.ended - clean.began).count());
   for (std::size_t i = 0; i < extra; ++i)
-    out.push_back(std::chrono::duration_cast<pychron::Duration>(std::chrono::duration<double>(at(rng))));
+    out.push_back(std::chrono::duration_cast<nobion::Duration>(std::chrono::duration<double>(at(rng))));
   std::sort(out.begin(), out.end());
   out.erase(std::unique(out.begin(), out.end()), out.end());
   return out;
@@ -282,7 +282,7 @@ void expect_the_rules(const Outcome& o, const Fault& f) {
   }
 }
 
-class Outage : public pychron::testing::VirtualTimeTest {
+class Outage : public nobion::testing::VirtualTimeTest {
  protected:
   Outage() : VirtualTimeTest(std::chrono::seconds(600)) {}
 };
@@ -297,7 +297,7 @@ TEST_F(Outage, AFaultFreeQueueCompletes) {
 
 // One case a required link (by index): its fault-free queue, then a fault
 // of that link at each instant. Indices past the lab's links are skipped.
-class LinkOutage : public pychron::testing::VirtualTimeTest, public ::testing::WithParamInterface<int> {
+class LinkOutage : public nobion::testing::VirtualTimeTest, public ::testing::WithParamInterface<int> {
  protected:
   LinkOutage() : VirtualTimeTest(std::chrono::seconds(600)) {}
 
@@ -398,4 +398,4 @@ TEST_F(Outage, AFaultFreeQueueIsExact) {
 }
 
 }  // namespace
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

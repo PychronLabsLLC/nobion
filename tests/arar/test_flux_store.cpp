@@ -25,10 +25,10 @@
 #include "nobion/processing/reduced.hpp"
 #include "nobion/processing/units.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 namespace {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 
 class FluxMonitors : public testing::FluxStoreTest {};
 
@@ -169,7 +169,7 @@ TEST(FluxMonitorsParse, ADocumentWithNoDefaultTakesTheFirstSet) {
 
 // ---- The options JSON (design section 6.4) ----------------------------------
 
-namespace pr = pychron::reduction;
+namespace pr = nobion::reduction;
 
 bool has(const std::string& text, const std::string& part) { return text.find(part) != std::string::npos; }
 
@@ -2002,4 +2002,4 @@ INSTANTIATE_TEST_SUITE_P(Engines, FluxHeadInfo, ::testing::ValuesIn(testing::eng
                          [](const auto& p) { return p.param; });
 
 }  // namespace
-}  // namespace pychron::processing
+}  // namespace nobion::processing

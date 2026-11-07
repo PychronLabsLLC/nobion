@@ -17,7 +17,7 @@
 #include "plot_style.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -370,4 +370,4 @@ void PeakCenterView::on_mouse_move(QMouseEvent* event) {
   QToolTip::showText(event->globalPosition().toPoint(), tooltip_at(best_series, best_point), plot_);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

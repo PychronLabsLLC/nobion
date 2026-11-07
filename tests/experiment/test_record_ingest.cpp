@@ -18,10 +18,10 @@
 #include "nobion/persistence/blob.hpp"
 #include "store_records.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment;
-using namespace pychron::experiment::testing;
-namespace ps = pychron::persistence;
+using namespace nobion;
+using namespace nobion::experiment;
+using namespace nobion::experiment::testing;
+namespace ps = nobion::persistence;
 using nlohmann::json;
 
 namespace {

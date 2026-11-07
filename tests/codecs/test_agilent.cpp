@@ -3,8 +3,8 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-namespace ag = pychron::codec::agilent;
+using namespace nobion;
+namespace ag = nobion::codec::agilent;
 
 namespace {
 

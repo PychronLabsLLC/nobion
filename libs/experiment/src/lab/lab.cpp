@@ -14,7 +14,7 @@
 #include "nobion/experiment/model/identifiers.hpp"
 #include "nobion/experiment/model/rules.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 namespace fs = std::filesystem;
 
@@ -374,4 +374,4 @@ std::string describe(const Diagnostic& d) {
   return where + ": " + d.message;
 }
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

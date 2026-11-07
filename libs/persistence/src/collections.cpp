@@ -7,7 +7,7 @@
 #include "sql/statements.hpp"
 #include "store_impl.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 namespace {
 
 QString qstr(std::string_view s) { return QString::fromUtf8(s.data(), static_cast<qsizetype>(s.size())); }
@@ -192,4 +192,4 @@ Result<CommitOutcome> rollback_to_collection(Db& db, const Actor& actor, Uuid an
   return commit_moves(db, actor, ChangesetKind::Rollback, std::move(message), moves, MoveReason::CollectionRestore);
 }
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

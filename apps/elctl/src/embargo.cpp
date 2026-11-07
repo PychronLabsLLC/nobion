@@ -16,12 +16,12 @@
 
 namespace elctl {
 
-namespace ps = pychron::persistence;
-namespace pb = pychron::publish;
-using pychron::Error;
-using pychron::ErrorKind;
-using pychron::fail;
-using pychron::Result;
+namespace ps = nobion::persistence;
+namespace pb = nobion::publish;
+using nobion::Error;
+using nobion::ErrorKind;
+using nobion::fail;
+using nobion::Result;
 
 namespace {
 
@@ -98,9 +98,9 @@ struct Opened {
 Result<Opened> open_as_publisher(const std::string& url) {
   auto store = ps::open_store(ps::StoreConfig{url, false});
   if (!store) return fail(store.error());
-  auto client = (*store)->register_client({pychron::host_name(), "publisher", std::nullopt, "elctl"});
+  auto client = (*store)->register_client({nobion::host_name(), "publisher", std::nullopt, "elctl"});
   if (!client) return fail(client.error());
-  const std::string user = pychron::env_var("USER").value_or(pychron::env_var("USERNAME").value_or("pychron"));
+  const std::string user = nobion::env_var("USER").value_or(nobion::env_var("USERNAME").value_or("pychron"));
   auto user_id = (*store)->ensure_user(*client, user.empty() ? "pychron" : user);
   if (!user_id) return fail(user_id.error());
   return Opened{std::move(*store), ps::Actor{*user_id, *client}};

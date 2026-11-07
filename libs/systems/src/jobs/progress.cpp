@@ -4,7 +4,7 @@
 
 #include "nobion/systems/jobs/cancel.hpp"
 
-namespace pychron::jobs {
+namespace nobion::jobs {
 
 // ---- CancelToken ------------------------------------------------------------
 
@@ -49,4 +49,4 @@ ProgressUpdate Progress::last() const {
   return last_;
 }
 
-}  // namespace pychron::jobs
+}  // namespace nobion::jobs

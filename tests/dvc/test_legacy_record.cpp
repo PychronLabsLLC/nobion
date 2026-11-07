@@ -13,10 +13,10 @@
 #include "nobion/dvc/legacy_layout.hpp"
 #include "nobion/persistence/blob.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 namespace {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 using nlohmann::json;
 using testing::fixture;
 using testing::kBlank;
@@ -703,4 +703,4 @@ TEST(Layout, SpectrometerSettingsAndUnknownKeys) {
 }
 
 }  // namespace
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

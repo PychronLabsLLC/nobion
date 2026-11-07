@@ -9,7 +9,7 @@
 #include "nobion/systems/extraction_line.hpp"
 #include "nobion/vision/live_feed.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 Lasers::Lease& Lasers::Lease::operator=(Lease&& other) noexcept {
   if (this != &other) {
@@ -173,4 +173,4 @@ std::vector<std::string> Lasers::stopped() const {
   return out;
 }
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

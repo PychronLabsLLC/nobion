@@ -10,7 +10,7 @@
 #include "nobion/processing/reduced.hpp"
 #include "nobion/processing/source.hpp"
 
-namespace pychron::processing::test {
+namespace nobion::processing::test {
 
 // An air-like analysis: Ar40/Ar36 = ratio, Ar36 = 10 fA, small baseline and
 // blank, one hour apart per index.
@@ -88,4 +88,4 @@ inline std::shared_ptr<Analysis> make_step(int step, double ar39, double ar36, d
   return a;
 }
 
-}  // namespace pychron::processing::test
+}  // namespace nobion::processing::test

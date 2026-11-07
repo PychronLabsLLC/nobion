@@ -8,7 +8,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/systems/spectrometer/field_table.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 // Versioned persistence for one named table:
 //
@@ -55,4 +55,4 @@ class FieldTableStore {
 // "YYYYMMDDTHHMMSSZ" in UTC.
 std::string format_version(FieldTableStore::WallTime when);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

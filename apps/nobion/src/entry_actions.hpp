@@ -16,7 +16,7 @@
 class QAction;
 class QWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class EntryBridge;
 class PackagesWindow;
@@ -60,4 +60,4 @@ class EntryActions : public QObject {
   QAction* packages_action_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

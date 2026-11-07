@@ -9,7 +9,7 @@
 #include "store_fixture.hpp"
 #include "store_impl.hpp"
 
-namespace pychron::persistence::testing {
+namespace nobion::persistence::testing {
 namespace {
 
 std::vector<std::string> values(const Result<std::vector<FacetValue>>& facet) {
@@ -75,7 +75,7 @@ class BrowseTest : public StoreTest {
   // Caches an age for the analysis as the age sink would: one `age` row, in
   // Ma; a null value is an analysis cached as having no age.
   void cache_age(Uuid analysis, std::optional<double> age, std::optional<double> err) {
-    const auto fp = pychron::sha256(std::string_view{"fingerprint of " + analysis.str()});
+    const auto fp = nobion::sha256(std::string_view{"fingerprint of " + analysis.str()});
     auto ok = store_->put_derived(analysis, fp, "red-1", {DerivedRow{"age", age, err, std::string("Ma")}});
     ASSERT_TRUE(ok) << to_string(ok.error());
   }
@@ -357,7 +357,7 @@ TEST_P(BrowseTest, RowsCarryTheCachedAge) {
   EXPECT_EQ((*d)->row.age, 20.0);
   EXPECT_EQ((*d)->row.age_err, 0.2);
   // A new fingerprint replaces the age: still one row for the analysis.
-  const auto fp = pychron::sha256(std::string_view{"new inputs"});
+  const auto fp = nobion::sha256(std::string_view{"new inputs"});
   ASSERT_TRUE(store_->put_derived(a1_, fp, "red-1", {DerivedRow{"age", 11.0, 0.3, std::string("Ma")}}));
   const auto again = browse({});
   EXPECT_EQ(again.rows.size(), 5u);
@@ -530,4 +530,4 @@ TEST_P(BrowseTest, BrowseRowsCarryIrradiationAndLevelUuids) {
 INSTANTIATE_TEST_SUITE_P(Engines, BrowseTest, ::testing::ValuesIn(engines()), [](const auto& p) { return p.param; });
 
 }  // namespace
-}  // namespace pychron::persistence::testing
+}  // namespace nobion::persistence::testing

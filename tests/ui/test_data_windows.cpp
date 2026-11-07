@@ -79,18 +79,18 @@
 #pragma pop_macro("signals")
 #endif
 
-using namespace pychron;
-namespace pp = pychron::processing;
-using pychron::arar::edit_analysis_data;
-using pychron::ui::AnalysisTableModel;
-using pychron::ui::DataBrowserWindow;
-using pychron::ui::DataWorkspace;
-using pychron::ui::FigureWindow;
-using pychron::ui::OptionsEditor;
-using pychron::ui::ProcessingBridge;
-using pychron::ui::RecallWindow;
-using pychron::ui::ReferenceFitWindow;
-using pychron::ui::IsotopeEvolutionWindow;
+using namespace nobion;
+namespace pp = nobion::processing;
+using nobion::arar::edit_analysis_data;
+using nobion::ui::AnalysisTableModel;
+using nobion::ui::DataBrowserWindow;
+using nobion::ui::DataWorkspace;
+using nobion::ui::FigureWindow;
+using nobion::ui::OptionsEditor;
+using nobion::ui::ProcessingBridge;
+using nobion::ui::RecallWindow;
+using nobion::ui::ReferenceFitWindow;
+using nobion::ui::IsotopeEvolutionWindow;
 
 namespace {
 
@@ -147,7 +147,7 @@ std::shared_ptr<pp::Analysis> analysis(int i) {
   a->gains = {{"H1", 1.0}};
   // Ar-Ar data with no flux, as the Ar-Ar loaders give an air: it reduces
   // under arar (and is ignored under noble_gas).
-  a->extension = std::make_shared<const pychron::arar::ArArAnalysisData>();
+  a->extension = std::make_shared<const nobion::arar::ArArAnalysisData>();
   return a;
 }
 
@@ -599,13 +599,13 @@ QTreeWidgetItem* find_node(QTreeWidget* tree, const QString& text) {
   return nullptr;
 }
 
-pychron::processing::PositionRow position_row(const std::string& irradiation, const std::string& level, std::string identifier,
+nobion::processing::PositionRow position_row(const std::string& irradiation, const std::string& level, std::string identifier,
                                               std::string sample, std::string project) {
   const std::string level_key = irradiation.empty() ? std::string{} : irradiation + "/" + level;
   return {irradiation, irradiation, level_key, level, std::move(identifier), std::move(sample), std::move(project)};
 }
 
-std::vector<pychron::processing::PositionRow> tree_rows() {
+std::vector<nobion::processing::PositionRow> tree_rows() {
   return {position_row("NM-300", "A", "77000", "FC-2", "Fish Canyon"),
           position_row("NM-300", "A", "77001", "GA1550", ""),
           position_row("NM-300", "B", "77002", "FC-2", "Fish Canyon"),  // a second level: A alone is not all of NM-300
@@ -653,7 +653,7 @@ class TestDataWindows : public QObject {
   static pp::DomainRegistry make_domains() {
     pp::DomainRegistry domains;
     domains.add(pp::make_noble_gas_domain());
-    domains.add(pychron::arar::make_domain());
+    domains.add(nobion::arar::make_domain());
     return domains;
   }
 
@@ -1030,11 +1030,11 @@ class TestDataWindows : public QObject {
     identifier->setCheckState(0, Qt::Checked);
     const auto sel = tree.selection();
     QVERIFY(sel.has_value());
-    QCOMPARE(*sel, (pychron::processing::PositionSelection{.identifiers = {"99000"}}));
+    QCOMPARE(*sel, (nobion::processing::PositionSelection{.identifiers = {"99000"}}));
   }
 
   void irradiation_tree_selection_is_the_highest_full_node() {
-    namespace pp = pychron::processing;
+    namespace pp = nobion::processing;
     ui::IrradiationTree tree(QStringLiteral("Irradiation"));
     tree.set_rows(tree_rows());
     QVERIFY(!tree.selection().has_value());
@@ -1092,7 +1092,7 @@ class TestDataWindows : public QObject {
   }
 
   void irradiation_tree_keeps_a_tick_no_longer_listed() {
-    namespace pp = pychron::processing;
+    namespace pp = nobion::processing;
     ui::IrradiationTree tree(QStringLiteral("Irradiation"));
     QSignalSpy changed(&tree, &ui::IrradiationTree::changed);
     tree.set_rows(tree_rows());
@@ -1317,7 +1317,7 @@ class TestDataWindows : public QObject {
   // What a queue saves reaches the browser at the next refresh: the store is
   // written through another handle, as the acquisition's is.
   void browser_refresh_shows_a_run_that_just_landed() {
-    namespace ps = pychron::persistence;
+    namespace ps = nobion::persistence;
     QTemporaryDir dir;
     const std::string url = "sqlite:" + dir.filePath(QStringLiteral("store.db")).toStdString();
     auto store = ps::open_store(ps::StoreConfig{url, true});

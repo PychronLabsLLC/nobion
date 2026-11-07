@@ -31,7 +31,7 @@
 #include "nobion/core/signal_bus.hpp"
 #include "nobion/systems/extraction_line.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class CoreBridge : public QObject {
   Q_OBJECT
@@ -111,22 +111,22 @@ class CoreBridge : public QObject {
   void drain();
 
  signals:
-  void valveChanged(const pychron::ValveChanged& event);
-  void pressureSample(const pychron::PressureSample& event);
-  void alarm(const pychron::Alarm& event);
-  void transportHealth(const pychron::TransportHealth& event);
-  void logLine(const pychron::Log& event);
-  void snapshot(const pychron::Snapshot& event);
+  void valveChanged(const nobion::ValveChanged& event);
+  void pressureSample(const nobion::PressureSample& event);
+  void alarm(const nobion::Alarm& event);
+  void transportHealth(const nobion::TransportHealth& event);
+  void logLine(const nobion::Log& event);
+  void snapshot(const nobion::Snapshot& event);
   void lockChanged(const QString& name, bool locked);
-  void actuationFailed(const pychron::ActuationFailed& event);
+  void actuationFailed(const nobion::ActuationFailed& event);
   void actuationStarted(const QString& name);
-  void actuationFinished(const QString& name, const pychron::Result<void>& result);
-  void temperatureSample(const pychron::TemperatureSample& event);
+  void actuationFinished(const QString& name, const nobion::Result<void>& result);
+  void temperatureSample(const nobion::TemperatureSample& event);
   // `set`: whether this answers set_cryo_setpoint (a failed set carries its
   // error) or read_cryo_setpoint.
-  void cryoSetpoint(int output, bool set, const pychron::Result<double>& setpoint);
-  void heaterSample(const pychron::HeaterSample& event);
-  void heaterCommandFinished(const QString& name, const pychron::Result<void>& result);
+  void cryoSetpoint(int output, bool set, const nobion::Result<double>& setpoint);
+  void heaterSample(const nobion::HeaterSample& event);
+  void heaterCommandFinished(const QString& name, const nobion::Result<void>& result);
 
  private:
   struct Gate;
@@ -161,4 +161,4 @@ class CoreBridge : public QObject {
   QObject* worker_ = nullptr;  // lives on executor_
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

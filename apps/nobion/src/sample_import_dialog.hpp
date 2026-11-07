@@ -18,7 +18,7 @@ class QPlainTextEdit;
 class QPushButton;
 class QTableWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class SampleImportDialog : public QDialog {
   Q_OBJECT
@@ -67,4 +67,4 @@ class SampleImportDialog : public QDialog {
   PiAsk ask_pi_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -12,7 +12,7 @@
 #include "preferences_dialog.hpp"
 #include "nobion/core/config/loader.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 const char* const kLoopback = "127.0.0.1";
@@ -90,4 +90,4 @@ QString MetricsPage::problem() const {
   return {};
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

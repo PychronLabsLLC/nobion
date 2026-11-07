@@ -19,7 +19,7 @@
 #include <cmath>
 #include <cstring>
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 namespace {
 
@@ -275,6 +275,6 @@ std::string_view parquet_writer_name() {
   return name;
 }
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish
 
 #endif  // PYCHRON_PUBLISH_ARROW_ENABLED

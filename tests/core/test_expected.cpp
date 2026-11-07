@@ -5,7 +5,7 @@
 
 #include "nobion/core/error.hpp"
 
-using namespace pychron;
+using namespace nobion;
 
 namespace {
 

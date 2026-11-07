@@ -9,7 +9,7 @@
 #include "log_capture.hpp"
 #include "nobion/core/signal_bus.hpp"
 
-using namespace pychron;
+using namespace nobion;
 
 namespace {
 struct Capture {
@@ -56,7 +56,7 @@ TEST(LogAndPublish, WithoutAProcessHubTheLineGoesToTheBusAlone) {
 }
 
 TEST(LogAndPublish, WithAProcessHubTheLineIsInTheFileAndOnAnotherBusOnce) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   ManualClock clock;
   SignalBus bus;
@@ -69,7 +69,7 @@ TEST(LogAndPublish, WithAProcessHubTheLineIsInTheFileAndOnAnotherBusOnce) {
 }
 
 TEST(LogAndPublish, OnTheHubsOwnBusTheLineIsPublishedOnce) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   ManualClock clock;
   SignalBus bus;

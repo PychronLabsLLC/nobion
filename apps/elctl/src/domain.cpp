@@ -20,11 +20,11 @@ std::string join(const std::vector<std::string>& ids) {
 
 }  // namespace
 
-const pychron::processing::Domain* choose_domain(pychron::processing::DomainRegistry& registry, std::string_view id,
+const nobion::processing::Domain* choose_domain(nobion::processing::DomainRegistry& registry, std::string_view id,
                                                  std::ostream& err) {
-  registry.add(pychron::processing::make_noble_gas_domain());
-  registry.add(pychron::arar::make_domain());
-  auto known = pychron::setup::known_domains();
+  registry.add(nobion::processing::make_noble_gas_domain());
+  registry.add(nobion::arar::make_domain());
+  auto known = nobion::setup::known_domains();
   const auto registered = registry.ids();  // sorted
   std::sort(known.begin(), known.end());
   if (known != registered) {

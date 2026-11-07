@@ -6,7 +6,7 @@
 #include "nobion/entry/names.hpp"
 #include "nobion/core/number.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 namespace ps = persistence;
 
@@ -110,4 +110,4 @@ PositionImportResult apply_position_import(const CsvTable& table, const CatalogS
   return out;
 }
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

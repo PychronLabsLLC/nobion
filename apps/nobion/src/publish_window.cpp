@@ -46,7 +46,7 @@
 #include "nobion/arar/arar_types.hpp"
 #pragma pop_macro("signals")
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace ps = persistence;
 namespace pb = publish;
@@ -685,4 +685,4 @@ void PublishWindow::refresh() {
       });
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

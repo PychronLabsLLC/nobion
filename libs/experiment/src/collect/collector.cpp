@@ -5,7 +5,7 @@
 #include <chrono>
 #include <numeric>
 
-namespace pychron::experiment::collect {
+namespace nobion::experiment::collect {
 
 namespace {
 
@@ -573,4 +573,4 @@ std::optional<double> Collector::Metrics::elapsed() const {
   return now - c_.time_zero_locked(c_.spec_.gas);
 }
 
-}  // namespace pychron::experiment::collect
+}  // namespace nobion::experiment::collect

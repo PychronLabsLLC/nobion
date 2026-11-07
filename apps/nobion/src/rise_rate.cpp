@@ -4,7 +4,7 @@
 #include <cmath>
 #include <utility>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 std::optional<RiseRate> rise_rate(std::span<const RisePoint> points) {
   std::vector<RisePoint> used;
@@ -87,4 +87,4 @@ std::optional<RiseRate> RiseRun::current() const {
 std::optional<TimePoint> RiseRun::first() const { return first_; }
 std::optional<TimePoint> RiseRun::last() const { return last_; }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

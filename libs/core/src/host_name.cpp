@@ -8,7 +8,7 @@
 #include <unistd.h>
 #endif
 
-namespace pychron {
+namespace nobion {
 
 std::string host_name() {
 #ifdef _WIN32
@@ -24,4 +24,4 @@ std::string host_name() {
   return name.empty() ? "localhost" : name;
 }
 
-}  // namespace pychron
+}  // namespace nobion

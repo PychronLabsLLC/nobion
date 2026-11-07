@@ -5,7 +5,7 @@
 
 #include <QCoreApplication>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -46,4 +46,4 @@ std::optional<ResumeOffer> resume_offer(const experiment::executor::ExecutorStat
   return offer;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -7,8 +7,8 @@
 
 #include <clocale>
 
-using pychron::parse_double;
-using pychron::parse_double_prefix;
+using nobion::parse_double;
+using nobion::parse_double_prefix;
 
 TEST(Number, WholeTextOnlyAndFinite) {
   EXPECT_EQ(parse_double("34.5"), 34.5);

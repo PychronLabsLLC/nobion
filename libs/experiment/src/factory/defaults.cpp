@@ -9,7 +9,7 @@
 
 #include "nobion/experiment/model/rules.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 constexpr std::string_view kAnyDevice = "*";
@@ -221,4 +221,4 @@ Result<RunSpec> make_special_run(AnalysisType type, const IdentifierRules& ids, 
   return make_run(prefix, ids, extract_device, defaults);
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

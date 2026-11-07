@@ -2,8 +2,8 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-namespace adc = pychron::codec::modbus_adc;
+using namespace nobion;
+namespace adc = nobion::codec::modbus_adc;
 
 namespace {
 

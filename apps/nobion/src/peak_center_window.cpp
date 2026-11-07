@@ -14,7 +14,7 @@
 #include "peak_center_panel.hpp"
 #include "peak_center_view.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 PeakCenterWindow::PeakCenterWindow(SpectrometerBridge& bridge, bool simulation, std::unique_ptr<QSettings> settings,
                                    QWidget* parent)
@@ -111,4 +111,4 @@ void PeakCenterWindow::closeEvent(QCloseEvent* event) {
   QMainWindow::closeEvent(event);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

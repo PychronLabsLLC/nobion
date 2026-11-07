@@ -14,7 +14,7 @@
 
 #include <qcustomplot.h>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -208,4 +208,4 @@ void HistoryChart::redraw() {
   if (any) plot_->replot();  // behind the empty label there is nothing to draw
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

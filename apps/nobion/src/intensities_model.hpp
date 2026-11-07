@@ -16,7 +16,7 @@
 
 #include "strip_chart_model.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class IntensitiesModel : public QAbstractTableModel {
   Q_OBJECT
@@ -55,4 +55,4 @@ class IntensitiesModel : public QAbstractTableModel {
   std::vector<Row> rows_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

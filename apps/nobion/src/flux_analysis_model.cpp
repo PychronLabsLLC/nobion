@@ -4,11 +4,11 @@
 
 #include "flux_model_support.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 bool checkable(pp::AnalysisState s) { return s != pp::AnalysisState::NotReduced && s != pp::AnalysisState::NoJ; }
 
@@ -87,4 +87,4 @@ bool FluxAnalysisModel::setData(const QModelIndex& index, const QVariant& value,
   return true;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

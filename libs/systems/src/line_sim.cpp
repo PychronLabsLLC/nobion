@@ -7,7 +7,7 @@
 #include "nobion/sim/sim_config.hpp"
 #include "nobion/systems/network_graph.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 namespace {
 
@@ -181,4 +181,4 @@ Result<LineSim> build_line_sim(const config::SystemConfig& config, const canvas:
   return out;
 }
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

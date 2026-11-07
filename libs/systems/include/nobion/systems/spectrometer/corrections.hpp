@@ -13,7 +13,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/devices/spectrometer/roles.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 struct CorrectionInputs {
   IMassPositioner::Axis axis = IMassPositioner::Axis::Dac;
@@ -40,4 +40,4 @@ Result<double> correct(double table_value, const CorrectionInputs& in);
 // Native value -> table value; exact inverse of correct().
 Result<double> uncorrect(double native_value, const CorrectionInputs& in);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

@@ -16,7 +16,7 @@
 #include "nobion/processing/model.hpp"
 #include "nobion/arar/arar_types.hpp"
 
-namespace pychron::earthbank::testing {
+namespace nobion::earthbank::testing {
 
 using AnalysisList = std::vector<processing::AnalysisPtr>;
 
@@ -145,4 +145,4 @@ AnalysisList with_edit_all(const AnalysisList& list, Edit edit) {
   return out;
 }
 
-}  // namespace pychron::earthbank::testing
+}  // namespace nobion::earthbank::testing

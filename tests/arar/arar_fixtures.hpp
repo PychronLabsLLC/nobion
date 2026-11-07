@@ -12,7 +12,7 @@
 #include "../processing/fixtures.hpp"
 #include "nobion/arar/analysis_data.hpp"
 
-namespace pychron::arar::test {
+namespace nobion::arar::test {
 
 // Ar-Ar data without a flux, production or chronology: what the loaders give
 // an air.
@@ -51,4 +51,4 @@ inline std::shared_ptr<processing::Analysis> make_step(int step, double ar39, do
   return a;
 }
 
-}  // namespace pychron::arar::test
+}  // namespace nobion::arar::test

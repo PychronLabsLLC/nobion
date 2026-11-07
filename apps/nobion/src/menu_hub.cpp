@@ -26,7 +26,7 @@
 #include <QSplashScreen>
 #include <QWindow>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -668,4 +668,4 @@ void MenuHub::update_gates() {
   update_file_actions();
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

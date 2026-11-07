@@ -20,8 +20,8 @@
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::sim;
+using namespace nobion;
+using namespace nobion::sim;
 
 constexpr std::size_t kAr36 = index(Species::Ar36);
 constexpr std::size_t kAr40 = index(Species::Ar40);

@@ -21,7 +21,7 @@
 #include "nobion/reduction/stats.hpp"
 #include "records_support.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using reduction::ConstantsPreset;
@@ -709,4 +709,4 @@ TEST(Vocab, TheMonitorAliasesAreOfTheTemplatesList) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

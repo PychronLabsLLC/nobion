@@ -16,7 +16,7 @@
 #include "nobion/devices/extraction/services.hpp"
 #include "nobion/scripting/script_host.hpp"
 
-namespace pychron::scripting::testing {
+namespace nobion::scripting::testing {
 
 struct CallLog {
   std::mutex mutex;
@@ -282,4 +282,4 @@ struct Rig {
   }
 };
 
-}  // namespace pychron::scripting::testing
+}  // namespace nobion::scripting::testing

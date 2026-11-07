@@ -8,7 +8,7 @@
 #include <termios.h>
 #endif
 
-namespace pychron {
+namespace nobion {
 
 struct SerialTransport::Io {
   asio::io_context io;
@@ -74,4 +74,4 @@ Result<Bytes> SerialTransport::do_read(const ReadSpec& rs, Duration timeout) {
   return detail::read_frame(io_->io, io_->port, io_->pending, rs, timeout);
 }
 
-}  // namespace pychron
+}  // namespace nobion

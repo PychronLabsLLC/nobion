@@ -98,7 +98,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/earthbank/model.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 struct XlsxOptions {
   std::filesystem::path template_dir;  // holds the two templates; empty: default_template_dir()
@@ -176,4 +176,4 @@ struct XlsxColumn {
 // A: what export_xlsx does with these templates, for a guide or a check.
 Result<std::vector<XlsxColumn>> xlsx_columns(const std::filesystem::path& template_dir = {});
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

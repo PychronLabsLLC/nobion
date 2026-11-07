@@ -21,7 +21,7 @@
 
 #include "history_chart.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -202,4 +202,4 @@ void GaugeWindow::save(const QString& leaf, const QVariant& value) const {
   deps_.settings()->setValue(key(leaf), value);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -5,11 +5,11 @@
 
 #ifndef PYCHRON_PUBLISH_ARROW_ENABLED
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 std::unique_ptr<IParquetWriter> make_parquet_writer() { return nullptr; }
 std::string_view parquet_writer_name() { return {}; }
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish
 
 #endif  // !PYCHRON_PUBLISH_ARROW_ENABLED

@@ -7,7 +7,7 @@
 #include "nobion/core/logger.hpp"
 #include "nobion/core/signal_bus.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // One error record at error level: "<attempted>: <kind>: <what> (<device>)".
 // The parenthesis is left out when the error names no device.
@@ -27,4 +27,4 @@ void log_handled(const Logger& logger, LogLevel level, const Error& error, std::
 void log_and_publish(const Logger& logger, SignalBus* bus, std::string_view source, LogLevel level,
                      std::string message, TimePoint ts);
 
-}  // namespace pychron
+}  // namespace nobion

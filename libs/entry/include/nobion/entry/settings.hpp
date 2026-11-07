@@ -12,7 +12,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 inline constexpr std::string_view kSettingsKey = "pychron/entry_settings.json";
 
@@ -45,4 +45,4 @@ Result<LoadedSettings> load_settings(persistence::IStore& store);
 Result<persistence::CommitOutcome> save_settings(persistence::IStore& store, const persistence::Actor& actor,
                                                  const EntrySettings& settings, const LoadedSettings& loaded);
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

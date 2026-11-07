@@ -31,7 +31,7 @@
 #include "nobion/core/log_summary.hpp"
 #include "nobion/core/logger.hpp"
 
-namespace pychron::scripting::python {
+namespace nobion::scripting::python {
 
 class HostCallTrace {
  public:
@@ -153,4 +153,4 @@ class HostCallTrace {
   std::optional<Error> error_;
 };
 
-}  // namespace pychron::scripting::python
+}  // namespace nobion::scripting::python

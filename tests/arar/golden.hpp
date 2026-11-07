@@ -9,7 +9,7 @@
 #include "golden_json.hpp"
 #include "nobion/arar/arar_types.hpp"
 
-namespace pychron::reduction::golden {
+namespace nobion::reduction::golden {
 
 // ---- Shared case parsing ----------------------------------------------------
 
@@ -67,4 +67,4 @@ inline bool constants_of(const Json& k, ReductionConstants& rc, const std::strin
   return ok;
 }
 
-}  // namespace pychron::reduction::golden
+}  // namespace nobion::reduction::golden

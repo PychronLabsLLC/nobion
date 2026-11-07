@@ -34,7 +34,7 @@ class QListWidget;
 class QTabWidget;
 class QTreeWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class ScriptEditorWindow : public QMainWindow {
   Q_OBJECT
@@ -92,7 +92,7 @@ class ScriptEditorWindow : public QMainWindow {
   // A script was created or saved (the lab's script lists may have changed).
   void scriptsChanged();
   // Rehearse… on the current tab: its kind, queue name and text as it stands.
-  void rehearseRequested(pychron::scripting::ScriptKind kind, const QString& name, const QString& text);
+  void rehearseRequested(nobion::scripting::ScriptKind kind, const QString& name, const QString& text);
 
  protected:
   void closeEvent(QCloseEvent* event) override;
@@ -132,4 +132,4 @@ class ScriptEditorWindow : public QMainWindow {
   std::function<Unsaved(const QString&)> ask_unsaved_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

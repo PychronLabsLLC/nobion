@@ -16,9 +16,9 @@
 #include "nobion/reduction/stats.hpp"
 #include "schema_builder.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 using namespace detail;
 
 namespace {
@@ -862,4 +862,4 @@ std::unique_ptr<Unit> make_reference_fit_unit(ReferenceFitTarget target) {
   return std::make_unique<ReferenceFitUnit>(target);
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

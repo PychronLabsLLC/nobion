@@ -242,7 +242,7 @@ Inner loop (keep waits short):
   dependency on `reduction` or `processing`; import's derive pass is in
   `apps/elctl`, after walk ends.
 - A file the application writes for the user to open elsewhere (report,
-  figure, template, sheet) goes through `pychron::mark_as_user_file`
+  figure, template, sheet) goes through `nobion::mark_as_user_file`
   (`libs/core` `user_file.hpp`) after it is written: downloaded, unsigned
   macOS application quarantines what it writes, and Gatekeeper then refuses
   the file. Files pychron reads back itself (configs, stores) do not.
@@ -340,7 +340,7 @@ configured build directory; setup in `docs/dev_setup.md`, "Static analysis".
 C++20 (`CMAKE_CXX_STANDARD` in top-level `CMakeLists.txt`); do not set a
 standard per target. Follow C++ Core Guidelines where this file is silent.
 
-- Errors are values: a function that can fail returns `pychron::Result<T>`
+- Errors are values: a function that can fail returns `nobion::Result<T>`
   (`libs/core` `error.hpp`). `libs/` throws only for a mistake in the calling
   code (`Scheduler::stop()` from a job on its own dispatcher) and, in
   `libs/scripting`, to hand a Python error back to pybind11.
@@ -385,7 +385,7 @@ it did, ASan on Linux read a destroyed runner.
 
 ## Time
 
-Time is injected (`pychron::Clock`, `libs/core` `clock.hpp`). On hardware it
+Time is injected (`nobion::Clock`, `libs/core` `clock.hpp`). On hardware it
 is a `SteadyClock`. A simulated run uses a `VirtualClock`, which stands still
 while any thread taking part in it has work to do and jumps to the next
 deadline when all of them are waiting, so a simulated hour costs its CPU time
@@ -436,7 +436,7 @@ and time stops; a thread woken any other way is not heard. Hence:
   `max_wall_time`, the notifier, the UI's own threads) is listed in the spec,
   sections 4.4 and 4.5; add to that list rather than to the code.
 
-Tests (`tests/support/virtual_time.hpp`, namespace `pychron::testing`):
+Tests (`tests/support/virtual_time.hpp`, namespace `nobion::testing`):
 
 - A test in simulated time derives from `VirtualTimeTest`, declares the
   `VirtualClock` first, makes its own thread a `Clock::Participant` and moves

@@ -6,7 +6,7 @@
 
 #include "nobion/reduction/arar.hpp"
 
-using namespace pychron::reduction;
+using namespace nobion::reduction;
 
 TEST(ArAr, HandComputedFixture) {
   ArArConstants c;

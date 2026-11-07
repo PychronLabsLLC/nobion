@@ -15,9 +15,9 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace eb = pychron::earthbank;
+namespace eb = nobion::earthbank;
 
 EarthbankSetup EarthbankSetup::system() {
   EarthbankSetup setup;
@@ -487,4 +487,4 @@ void EarthbankWorker::abandon_upload() {
   });
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

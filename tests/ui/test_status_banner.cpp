@@ -19,13 +19,13 @@
 #include "status_banner.hpp"
 #include "ui_fixture.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
-using pychron::ui::AlarmDock;
-using pychron::ui::AlarmStrip;
-using pychron::ui::HealthBar;
-using pychron::ui::StatusBanner;
-namespace exec = pychron::experiment::executor;
+using nobion::ui::AlarmDock;
+using nobion::ui::AlarmStrip;
+using nobion::ui::HealthBar;
+using nobion::ui::StatusBanner;
+namespace exec = nobion::experiment::executor;
 
 namespace {
 

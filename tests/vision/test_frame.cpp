@@ -5,7 +5,7 @@
 
 #include "nobion/vision/frame.hpp"
 
-using namespace pychron::vision;
+using namespace nobion::vision;
 
 TEST(Frame, MakeFillsAndAddressesRowMajor) {
   auto f = Frame::make(4, 3, 4095, 9);

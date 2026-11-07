@@ -10,7 +10,7 @@
 
 #include "nobion/processing/source.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class SelectionList {
  public:
@@ -35,4 +35,4 @@ class SelectionList {
   std::unordered_set<std::string> held_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -17,7 +17,7 @@
 #include "nobion/processing/store_source.hpp"
 #pragma pop_macro("signals")
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 FitActions::FitActions(QWidget* owner, std::string store_url, EntryActions& entry, processing::PresetStore& presets,
                        std::function<void(const QString& uuid)> open_recall)
@@ -88,4 +88,4 @@ void FitActions::open_flux(const QString& irradiation, const QString& level) {
   if (flux_ != nullptr) flux_->open_level(irradiation, level);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

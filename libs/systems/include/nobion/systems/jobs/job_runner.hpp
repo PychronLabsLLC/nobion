@@ -21,7 +21,7 @@
 #include "nobion/core/signal_bus.hpp"
 #include "nobion/systems/jobs/job.hpp"
 
-namespace pychron::jobs {
+namespace nobion::jobs {
 
 class JobRunner {
  public:
@@ -76,4 +76,4 @@ class JobRunner {
   JobId next_id_ = 1;
 };
 
-}  // namespace pychron::jobs
+}  // namespace nobion::jobs

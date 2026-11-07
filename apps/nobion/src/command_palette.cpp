@@ -17,7 +17,7 @@
 #include "shortcuts.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -234,4 +234,4 @@ QAction* make_command_palette_action(QWidget* window) {
   return action;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

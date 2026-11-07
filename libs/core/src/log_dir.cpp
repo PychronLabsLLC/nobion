@@ -2,7 +2,7 @@
 
 #include "nobion/core/env.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace fs = std::filesystem;
 
@@ -72,4 +72,4 @@ void resolve_log_dir(config::LoggingConfig& config, const std::optional<fs::path
   if (!config.dir) config.dir = default_log_dir(install_root, os, env);
 }
 
-}  // namespace pychron
+}  // namespace nobion

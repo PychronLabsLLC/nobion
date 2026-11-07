@@ -23,7 +23,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 struct SeedSample {
   std::string identifier, analysis_type, sample, material;
@@ -75,4 +75,4 @@ Result<SeedReport> apply_seed(persistence::IStore& store, const Seed& seed, cons
 // (only what was made), or "seed: nothing to add (21 already there)".
 std::string describe(const SeedReport& report);
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

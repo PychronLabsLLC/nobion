@@ -13,7 +13,7 @@
 #include <QMenuBar>
 #include <QStatusBar>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 DataMainWindow::DataMainWindow(processing::IAnalysisSource& source, processing::PresetStore& presets,
                                const processing::Domain& domain, const QString& title, QWidget* parent)
@@ -81,4 +81,4 @@ void DataMainWindow::apply_preferences(const Preferences& preferences) {
   data_->apply_preferences(preferences);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

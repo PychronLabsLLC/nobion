@@ -14,14 +14,14 @@
 #include "nobion/core/process_log.hpp"
 #include "nobion/scripting/script_host.hpp"
 
-using namespace pychron;
-using namespace pychron::scripting;
-using namespace pychron::scripting::testing;
+using namespace nobion;
+using namespace nobion::scripting;
+using namespace nobion::scripting::testing;
 
 namespace {
 
 // The messages of the `script.inline.py` records, in order.
-std::vector<std::string> script_records(const pychron::testing::LogCapture& capture) {
+std::vector<std::string> script_records(const nobion::testing::LogCapture& capture) {
   std::vector<std::string> out;
   for (const auto& line : capture.lines()) {
     const std::string marker = "script.inline.py: ";
@@ -43,7 +43,7 @@ class ScriptLog : public ::testing::Test {
     ASSERT_TRUE(capture.ok());
     host = make_script_host();
   }
-  pychron::testing::LogCapture capture;
+  nobion::testing::LogCapture capture;
   Rig rig;
   CancelToken token;
   std::unique_ptr<IScriptHost> host;
@@ -128,7 +128,7 @@ TEST_F(ScriptLog, RehearsalStepsLogAtTrace) {
 // No host call takes a password: the redaction is the summary's, reached through
 // the trace with a call that would.
 TEST(ScriptLogTrace, SecretArgumentRedacted) {
-  pychron::testing::LogCapture capture;
+  nobion::testing::LogCapture capture;
   ASSERT_TRUE(capture.ok());
   SteadyClock clock;
   auto logger = process_logger("script.secret.py");

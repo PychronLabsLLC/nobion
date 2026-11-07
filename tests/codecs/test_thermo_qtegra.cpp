@@ -8,8 +8,8 @@
 #include <sstream>
 #include <string_view>
 
-using namespace pychron;
-namespace q = pychron::codec::qtegra;
+using namespace nobion;
+namespace q = nobion::codec::qtegra;
 
 namespace {
 

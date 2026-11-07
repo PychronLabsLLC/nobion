@@ -32,13 +32,13 @@
 #include "spectrometer_bridge.hpp"
 #include "spectrometer_fixture.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
-using pychron::spectrometer::DetectorState;
-using pychron::spectrometer::IntensityReading;
-using pychron::spectrometer::MagnetMoved;
-using pychron::spectrometer::ScanStatus;
-using pychron::ui::SpectrometerBridge;
+using nobion::spectrometer::DetectorState;
+using nobion::spectrometer::IntensityReading;
+using nobion::spectrometer::MagnetMoved;
+using nobion::spectrometer::ScanStatus;
+using nobion::ui::SpectrometerBridge;
 
 namespace {
 

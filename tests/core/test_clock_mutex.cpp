@@ -16,32 +16,32 @@
 #include "virtual_time.hpp"
 
 using namespace std::chrono_literals;
-using pychron::Clock;
-using pychron::SteadyClock;
-using pychron::TimePoint;
-using pychron::VirtualClock;
-using pychron::testing::await_waiters;
-using pychron::testing::Crew;
+using nobion::Clock;
+using nobion::SteadyClock;
+using nobion::TimePoint;
+using nobion::VirtualClock;
+using nobion::testing::await_waiters;
+using nobion::testing::Crew;
 
 namespace {
 
-// (The fixture has the suite's name, so the class is spelt pychron::ClockMutex.)
-struct ClockMutex : pychron::testing::VirtualTimeTest {};
+// (The fixture has the suite's name, so the class is spelt nobion::ClockMutex.)
+struct ClockMutex : nobion::testing::VirtualTimeTest {};
 
-struct ClockMutexVirtual : pychron::testing::VirtualTimeTest {
+struct ClockMutexVirtual : nobion::testing::VirtualTimeTest {
   VirtualClock clock;
   Clock::Participant main{clock, "test"};
   const TimePoint kStart = clock.now();
 };
 
-struct RecursiveClockMutex : pychron::testing::VirtualTimeTest {};
+struct RecursiveClockMutex : nobion::testing::VirtualTimeTest {};
 using RecursiveClockMutexVirtual = ClockMutexVirtual;
 
 }  // namespace
 
 TEST_F(ClockMutex, ExcludesOnSteadyClock) {
   SteadyClock clock;
-  pychron::ClockMutex mutex(clock);
+  nobion::ClockMutex mutex(clock);
   int total = 0;  // plain: only the mutex keeps the increments apart
   std::vector<std::thread> threads;
   for (int t = 0; t < 4; ++t) {
@@ -58,7 +58,7 @@ TEST_F(ClockMutex, ExcludesOnSteadyClock) {
 
 TEST_F(ClockMutex, TryLockFailsWhileHeld) {
   SteadyClock clock;
-  pychron::ClockMutex mutex(clock);
+  nobion::ClockMutex mutex(clock);
   ASSERT_TRUE(mutex.try_lock());
   EXPECT_FALSE(mutex.try_lock());
   // Nor from another thread.
@@ -73,7 +73,7 @@ TEST_F(ClockMutex, TryLockFailsWhileHeld) {
 // The holder sleeps in the clock with the mutex; the contender has to be
 // asleep in the clock too, or nobody moves time on and the holder never wakes.
 TEST_F(ClockMutexVirtual, AContenderDoesNotHoldTime) {
-  pychron::ClockMutex mutex(clock);
+  nobion::ClockMutex mutex(clock);
   const auto real_start = std::chrono::steady_clock::now();
   TimePoint got{};
   Crew crew(clock);
@@ -93,7 +93,7 @@ TEST_F(ClockMutexVirtual, AContenderDoesNotHoldTime) {
 }
 
 TEST_F(ClockMutexVirtual, HandOffIsInOrderOfNothingButCorrectness) {
-  pychron::ClockMutex mutex(clock);
+  nobion::ClockMutex mutex(clock);
   std::vector<TimePoint> taken;  // under `mutex`
   Crew crew(clock);
   for (int i = 0; i < 3; ++i) {
@@ -112,7 +112,7 @@ TEST_F(ClockMutexVirtual, HandOffIsInOrderOfNothingButCorrectness) {
 
 TEST_F(RecursiveClockMutex, TheOwnerLocksAgain) {
   SteadyClock clock;
-  pychron::RecursiveClockMutex mutex(clock);
+  nobion::RecursiveClockMutex mutex(clock);
   const auto other_gets_it = [&] {
     bool got = false;
     std::thread([&] {
@@ -135,7 +135,7 @@ TEST_F(RecursiveClockMutex, TheOwnerLocksAgain) {
 
 TEST_F(RecursiveClockMutex, ExcludesOnSteadyClock) {
   SteadyClock clock;
-  pychron::RecursiveClockMutex mutex(clock);
+  nobion::RecursiveClockMutex mutex(clock);
   int total = 0;  // plain: only the mutex keeps the increments apart
   std::vector<std::thread> threads;
   for (int t = 0; t < 4; ++t) {
@@ -155,7 +155,7 @@ TEST_F(RecursiveClockMutex, ExcludesOnSteadyClock) {
 // locked twice and gives one of the two back before it sleeps: the contender
 // waits for the other.
 TEST_F(RecursiveClockMutexVirtual, AContenderDoesNotHoldTime) {
-  pychron::RecursiveClockMutex mutex(clock);
+  nobion::RecursiveClockMutex mutex(clock);
   const auto real_start = std::chrono::steady_clock::now();
   TimePoint got{};
   Crew crew(clock);

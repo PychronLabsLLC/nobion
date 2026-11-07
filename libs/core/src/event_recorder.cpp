@@ -11,7 +11,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/core/log_summary.hpp"
 
-namespace pychron {
+namespace nobion {
 namespace {
 
 std::string_view valve_state_name(ValveState s) noexcept {
@@ -147,4 +147,4 @@ EventRecorder::EventRecorder(SignalBus& bus) {
 
 std::span<const EventClass> core_event_classes() noexcept { return kCoreClasses; }
 
-}  // namespace pychron
+}  // namespace nobion

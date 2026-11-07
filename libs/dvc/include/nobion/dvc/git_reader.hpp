@@ -40,7 +40,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/ingest/batch.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
 struct GitCommit {
   std::string sha;
@@ -185,4 +185,4 @@ class GitReader {
   std::size_t cached_bytes_ = 0;
 };
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

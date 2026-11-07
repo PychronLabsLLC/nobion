@@ -4,7 +4,7 @@
 #include "nobion/devices/extraction/capability.hpp"
 #include "nobion/scripting/script_host.hpp"
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 namespace {
 
 Error disabled() {
@@ -34,4 +34,4 @@ std::unique_ptr<IScriptHost> make_script_host() { return std::make_unique<StubSc
 bool scripting_enabled() noexcept { return false; }
 std::vector<std::string> bound_commands() { return {}; }
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

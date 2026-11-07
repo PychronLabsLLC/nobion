@@ -3,7 +3,7 @@
 #include "sql/statements.hpp"
 #include "store_impl.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 
 std::string json_string(std::string_view s) {
   std::string out = "\"";
@@ -195,4 +195,4 @@ Result<std::optional<ChangesetInfo>> changeset_of_revision(Db& db, Uuid revision
   return std::optional<ChangesetInfo>{c};
 }
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

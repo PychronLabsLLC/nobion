@@ -14,7 +14,7 @@ namespace elctl {
 // with the reason on `err`, when the registry disagrees with
 // setup::known_domains() (this program's own mistake) or holds no domain of
 // that id (the install file's, or --domain's).
-const pychron::processing::Domain* choose_domain(pychron::processing::DomainRegistry& registry, std::string_view id,
+const nobion::processing::Domain* choose_domain(nobion::processing::DomainRegistry& registry, std::string_view id,
                                                  std::ostream& err);
 
 }  // namespace elctl

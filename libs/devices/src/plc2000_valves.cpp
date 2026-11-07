@@ -8,7 +8,7 @@
 #include "nobion/codecs/modbus.hpp"
 #include "nobion/devices/modbus_ids.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace mb = codec::modbus;
 
@@ -132,6 +132,6 @@ std::vector<Result<ValveState>> Plc2000Valves::read_many(const std::vector<Valve
   return out;
 }
 
-}  // namespace pychron
+}  // namespace nobion
 
-REGISTER_DRIVER("plc2000_valves", pychron::Plc2000Valves);
+REGISTER_DRIVER("plc2000_valves", nobion::Plc2000Valves);

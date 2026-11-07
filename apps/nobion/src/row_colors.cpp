@@ -4,7 +4,7 @@
 
 #include <QRegularExpression>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -121,4 +121,4 @@ QColor row_color(ColorBy by, const processing::AnalysisSummary& row, const TypeC
   return theme.row_category[static_cast<std::size_t>(it - keys.begin()) % theme.row_category.size()];
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

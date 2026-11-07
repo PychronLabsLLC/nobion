@@ -20,7 +20,7 @@
 #include "nobion/vision/opencv_source.hpp"
 #include "nobion/vision/source.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 struct CameraRequest {
   std::string backend;  // "opencv", "pylon", or one registered
@@ -63,4 +63,4 @@ void unregister_camera_backend(std::string_view name);
 // `clock` is steady_clock.
 Result<std::unique_ptr<IFrameSource>> open_camera(const CameraRequest& request, ClockFn clock = {});
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

@@ -7,7 +7,7 @@
 #include "nobion/experiment/model/positions.hpp"
 #include "nobion/experiment/model/rules.hpp"
 
-using namespace pychron::experiment;
+using namespace nobion::experiment;
 using namespace std::chrono_literals;
 
 namespace {

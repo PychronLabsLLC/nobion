@@ -28,8 +28,8 @@
 #include "nobion/transport/sim_transport.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::systems;
+using namespace nobion;
+using namespace nobion::systems;
 using namespace std::chrono_literals;
 
 namespace {
@@ -301,7 +301,7 @@ TEST(SwitchManager, WaitsSettleTimeBeforeReadBack) {
 
 namespace {
 
-struct SwitchManagerVirtual : pychron::testing::VirtualTimeTest {};
+struct SwitchManagerVirtual : nobion::testing::VirtualTimeTest {};
 
 }  // namespace
 
@@ -351,12 +351,12 @@ TEST_F(SwitchManagerVirtual, ARefreshWaitsForAnActuationWithoutStallingTime) {
 
   TimePoint actuated{}, refreshed{};
   bool actuate_ok = false, refresh_ok = false;
-  pychron::testing::Crew crew(clock);
+  nobion::testing::Crew crew(clock);
   crew.start("actuate", [&] {
     actuate_ok = (*mgr)->actuate("A", SwitchOp::Open, "op").has_value();
     actuated = clock.now();
   });
-  ASSERT_TRUE(pychron::testing::await_waiters(clock, 1));  // the actuation, settling
+  ASSERT_TRUE(nobion::testing::await_waiters(clock, 1));  // the actuation, settling
   ASSERT_EQ(act.commands(), 1u);
   crew.start("refresh", [&] {
     refresh_ok = (*mgr)->refresh().has_value();
@@ -378,7 +378,7 @@ TEST_F(SwitchManagerVirtual, ARefreshWaitsForAnActuationWithoutStallingTime) {
 // it was last actuated, since when it has been in its state) are the clock's
 // calendar time, to the second: under a simulated clock, simulated time.
 TEST(SwitchManager, LockTimeIsTheClocksWallTime) {
-  const pychron::WallTime epoch = pychron::WallTime{} + 1'700'000'000s + 250ms;
+  const nobion::WallTime epoch = nobion::WallTime{} + 1'700'000'000s + 250ms;
   ManualClock clock{TimePoint{}, epoch};
   SignalBus bus;
   FakeActuator act{&clock};

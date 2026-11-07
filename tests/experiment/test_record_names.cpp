@@ -9,7 +9,7 @@
 
 #include "nobion/experiment/record/names.hpp"
 
-using namespace pychron::experiment::record;
+using namespace nobion::experiment::record;
 
 namespace {
 

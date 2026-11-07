@@ -10,7 +10,7 @@
 #include "nobion/experiment/model/queue_toml.hpp"
 #include "model/toml_text.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 std::string fmt(const std::string& s) { return detail::toml_string(s); }
@@ -193,4 +193,4 @@ Result<void> save_queue_file(const std::string& path, const QueueSpec& q) {
   return {};
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

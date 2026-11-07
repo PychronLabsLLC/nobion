@@ -15,7 +15,7 @@
 #include "nobion/devices/device.hpp"
 #include "nobion/devices/driver_registry.hpp"
 
-namespace pychron {
+namespace nobion {
 
 class SimValves final : public Device, public IValveActuator {
  public:
@@ -33,4 +33,4 @@ class SimValves final : public Device, public IValveActuator {
   std::map<std::string, bool> open_;  // by address
 };
 
-}  // namespace pychron
+}  // namespace nobion

@@ -8,7 +8,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/transport/bytes.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // One line of a trace file. Text format, one record per line:
 //
@@ -36,4 +36,4 @@ std::string format_trace_record(const TraceRecord& record);
 Result<std::vector<TraceRecord>> parse_trace(std::istream& in);
 Result<std::vector<TraceRecord>> load_trace(const std::string& path);
 
-}  // namespace pychron
+}  // namespace nobion

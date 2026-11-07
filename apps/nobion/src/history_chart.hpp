@@ -22,7 +22,7 @@ class QCustomPlot;
 class QLabel;
 class QStackedWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class HistoryChart : public QWidget {
  public:
@@ -70,4 +70,4 @@ class HistoryChart : public QWidget {
   bool compact_ = false;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -16,7 +16,7 @@
 
 #include "nobion/codecs/codec.hpp"
 
-namespace pychron::codec::modbus_adc {
+namespace nobion::codec::modbus_adc {
 
 inline constexpr std::uint8_t kReadInputRegisters = 0x04;
 inline constexpr std::uint8_t kExceptionFlag = 0x80;
@@ -63,4 +63,4 @@ Result<Request> decode_request(const Bytes& tx);
 Bytes encode_registers(std::uint16_t tid, std::uint8_t unit, const std::vector<std::uint16_t>& registers);
 Bytes encode_exception(std::uint16_t tid, std::uint8_t unit, std::uint8_t function, std::uint8_t code);
 
-}  // namespace pychron::codec::modbus_adc
+}  // namespace nobion::codec::modbus_adc

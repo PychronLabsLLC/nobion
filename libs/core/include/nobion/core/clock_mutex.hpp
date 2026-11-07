@@ -6,7 +6,7 @@
 
 #include "nobion/core/clock.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // A mutex for state that is held across a wait in clock time (a command in
 // flight, a connect). A contended lock() waits through the clock, so a
@@ -54,4 +54,4 @@ class RecursiveClockMutex {
   unsigned depth_ = 0;               // locks the owner has not yet given back
 };
 
-}  // namespace pychron
+}  // namespace nobion

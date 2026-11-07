@@ -27,8 +27,8 @@
 #include "valve_conformance.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace std::chrono_literals;
 
 namespace {
@@ -82,14 +82,14 @@ class FlakyTransport final : public Transport {
   std::shared_ptr<NgxSimModel> model_;
 };
 
-using pychron::testing::Crew;
+using nobion::testing::Crew;
 
 std::string uniq(const char* base) {
   static std::atomic<int> n{0};
   return std::string(base) + std::to_string(++n);
 }
 
-struct Ngx : pychron::testing::VirtualTimeTest {
+struct Ngx : nobion::testing::VirtualTimeTest {
   VirtualClock clock;
   // The test's thread takes part: time moves only while it waits in the clock
   // (clock.sleep_for, a command, next()), and stands still otherwise.
@@ -378,14 +378,14 @@ TEST_F(Ngx, ValvesPassTheValveConformanceSuite) {
   const toml::table none;
   auto v = NgxValves::create(DriverArgs{"valves", borrowed, none, &clock});
   ASSERT_TRUE(v) << v.error().what;
-  struct Rig final : pychron::test::ValveRig {
+  struct Rig final : nobion::test::ValveRig {
     IValveActuator* valves = nullptr;
     IValveActuator& actuator() override { return *valves; }
     ValveAddress first() override { return {"3"}; }
     ValveAddress second() override { return {"7"}; }
   } rig;
   rig.valves = v->get();
-  pychron::test::expect_valve_conformance(rig);
+  nobion::test::expect_valve_conformance(rig);
 }
 
 TEST_F(Ngx, AValveActuationDuringAnIntegrationLeavesItAlone) {
@@ -569,12 +569,12 @@ TEST_F(Ngx, ConcurrentAcquisitionValvesAndMovesStayConsistent) {
 
 namespace {
 
-using pychron::testing::await_waiters;
+using nobion::testing::await_waiters;
 
 // The link over a peer that never says anything: no banner, no reply, no
 // event. A read of it does not wait (it has no event source), so the only
 // clock time that passes is what the link itself waits for.
-struct NgxLinkVirtual : pychron::testing::VirtualTimeTest {
+struct NgxLinkVirtual : nobion::testing::VirtualTimeTest {
   VirtualClock clock;
   Clock::Participant main{clock, "test"};
   std::unique_ptr<SimTransport> silent = [this] {
@@ -654,7 +654,7 @@ namespace {
 
 // The hardware configuration: a SteadyClock. The timeouts are real and short;
 // what is checked is that they are kept and that nothing hangs.
-struct NgxLinkSteady : pychron::testing::VirtualTimeTest {
+struct NgxLinkSteady : nobion::testing::VirtualTimeTest {
   SteadyClock clock;
   std::shared_ptr<NgxSimModel> model = [this] {
     auto m = std::make_shared<NgxSimModel>();

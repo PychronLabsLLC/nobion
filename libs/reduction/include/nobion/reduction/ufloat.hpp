@@ -25,7 +25,7 @@
 #include <utility>
 #include <vector>
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 using VariableId = std::uint64_t;  // process-unique, never 0, never reused
 using TagId = std::uint32_t;       // 0 = untagged
@@ -365,4 +365,4 @@ inline double variance_percent(const UFloat& x, TagId tag) noexcept {
   return 100.0 * v / total;
 }
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

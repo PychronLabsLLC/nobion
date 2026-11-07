@@ -6,8 +6,8 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-using namespace pychron::codec;
+using namespace nobion;
+using namespace nobion::codec;
 
 TEST(ProxrCodec, AddressSplitsIntoBankAndRelay) {
   auto a0 = proxr::relay_address(0);

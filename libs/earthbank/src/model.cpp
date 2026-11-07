@@ -10,7 +10,7 @@
 
 #include "nobion/core/sha256.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 template <typename T>
@@ -72,4 +72,4 @@ std::string content_hash(const Submission& submission) {
   return to_hex(std::span<const std::uint8_t>(digest));
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

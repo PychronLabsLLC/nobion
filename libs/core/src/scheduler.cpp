@@ -7,7 +7,7 @@
 #include "nobion/core/log_context.hpp"
 #include "nobion/core/signal_bus.hpp"
 
-namespace pychron {
+namespace nobion {
 
 struct Scheduler::Job {
   JobId id = 0;
@@ -393,4 +393,4 @@ std::size_t Scheduler::job_count() const {
   return jobs_.size();
 }
 
-}  // namespace pychron
+}  // namespace nobion

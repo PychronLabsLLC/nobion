@@ -14,12 +14,12 @@
 #include "nobion/processing/units.hpp"
 #include "schema_builder.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
 using namespace detail;
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 
 SchemaPtr build_schema() {
   auto s = std::make_shared<Schema>();
@@ -292,4 +292,4 @@ class IsochronUnit final : public Unit {
 
 std::unique_ptr<Unit> make_isochron_unit() { return std::make_unique<IsochronUnit>(); }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

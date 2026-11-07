@@ -5,7 +5,7 @@
 #include "nobion/core/events.hpp"
 #include "nobion/core/process_log.hpp"
 
-namespace pychron {
+namespace nobion {
 namespace {
 
 void write(const Logger& logger, LogLevel level, const Error& error, std::string_view attempted) {
@@ -41,4 +41,4 @@ void log_and_publish(const Logger& logger, SignalBus* bus, std::string_view sour
   if (bus != nullptr) bus->publish(Log{level, std::string(source), std::move(message), ts});
 }
 
-}  // namespace pychron
+}  // namespace nobion

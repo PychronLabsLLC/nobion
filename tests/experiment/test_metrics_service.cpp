@@ -17,7 +17,7 @@
 #include "nobion/core/signal_bus.hpp"
 #include "nobion/metrics/server.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 using experiment::metrics::MetricsService;
 using metrics_text::has;
@@ -101,11 +101,11 @@ TEST_F(MetricsServiceTest, SaysWhereItListens) {
 }
 
 TEST_F(MetricsServiceTest, APortInUseLeavesTheApplicationRunning) {
-  pychron::metrics::Registry other;
-  pychron::metrics::MetricsServer::Options o;
+  nobion::metrics::Registry other;
+  nobion::metrics::MetricsServer::Options o;
   o.bind = "127.0.0.1";
   o.port = 0;
-  auto holder = pychron::metrics::MetricsServer::start(other, o);
+  auto holder = nobion::metrics::MetricsServer::start(other, o);
   ASSERT_TRUE(holder.has_value());
 
   config::MetricsConfig c = enabled();
@@ -142,7 +142,7 @@ TEST_F(MetricsServiceTest, ABindThatIsNotThisMachinesIsAnAlarmNotACrash) {
 TEST_F(MetricsServiceTest, AFullFamilyIsLoggedOnce) {
   auto service = start(enabled());
   ASSERT_NE(service, nullptr);
-  for (std::size_t i = 0; i < pychron::metrics::Registry::kMaxSeriesPerFamily + 3; ++i) {
+  for (std::size_t i = 0; i < nobion::metrics::Registry::kMaxSeriesPerFamily + 3; ++i) {
     bus.publish(PressureSample{"IG" + std::to_string(i), 1e-9, "torr", {}});
   }
   std::lock_guard lock(m);

@@ -11,13 +11,13 @@
 #include "queue_table_model.hpp"
 #include "queue_views.hpp"
 
-using pychron::experiment::QueueSpec;
-using pychron::experiment::run::RunState;
-using pychron::ui::ExecutedProxy;
-using pychron::ui::QueueProxy;
-using pychron::ui::QueueTableModel;
-namespace exec = pychron::experiment::executor;
-namespace lab = pychron::experiment::lab;
+using nobion::experiment::QueueSpec;
+using nobion::experiment::run::RunState;
+using nobion::ui::ExecutedProxy;
+using nobion::ui::QueueProxy;
+using nobion::ui::QueueTableModel;
+namespace exec = nobion::experiment::executor;
+namespace lab = nobion::experiment::lab;
 
 class TestQueueViews : public QObject {
   Q_OBJECT
@@ -27,17 +27,17 @@ class TestQueueViews : public QObject {
 
   std::unique_ptr<QueueTableModel> model() {
     auto m = std::make_unique<QueueTableModel>(lab_->ids, [this](const QueueSpec& q) { return lab::check_lab_queue(*lab_, q); });
-    m->set_queue(pychron::ui::test::example_queue(dir_, lab_->ids));
+    m->set_queue(nobion::ui::test::example_queue(dir_, lab_->ids));
     return m;
   }
   static void go_live(QueueTableModel& m) {
-    m.set_live(0, [](std::uint64_t base, const QueueSpec&) -> pychron::Result<std::uint64_t> { return base + 1; });
+    m.set_live(0, [](std::uint64_t base, const QueueSpec&) -> nobion::Result<std::uint64_t> { return base + 1; });
   }
 
  private slots:
   void initTestCase() {
-    dir_ = pychron::ui::test::scratch_lab();
-    lab_ = std::make_unique<lab::Lab>(lab::load_lab(pychron::ui::test::lab_paths(dir_)));
+    dir_ = nobion::ui::test::scratch_lab();
+    lab_ = std::make_unique<lab::Lab>(lab::load_lab(nobion::ui::test::lab_paths(dir_)));
     QVERIFY(lab_->problems.empty());
   }
   void cleanupTestCase() {
@@ -69,7 +69,7 @@ class TestQueueViews : public QObject {
 
     // A new queue has nothing executed.
     m->end_live();
-    m->set_queue(pychron::ui::test::example_queue(dir_, lab_->ids));
+    m->set_queue(nobion::ui::test::example_queue(dir_, lab_->ids));
     QCOMPARE(executed.rowCount(), 0);
     QCOMPARE(queue.rowCount(), 3);
   }

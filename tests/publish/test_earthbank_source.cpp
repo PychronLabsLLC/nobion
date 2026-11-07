@@ -12,11 +12,11 @@
 #include "nobion/publish/release.hpp"
 #include "release_fixture.hpp"
 
-namespace ps = pychron::persistence;
-namespace pp = pychron::processing;
-using namespace pychron;
-using namespace pychron::publish;
-using pychron::publish::testing::ReleaseFixture;
+namespace ps = nobion::persistence;
+namespace pp = nobion::processing;
+using namespace nobion;
+using namespace nobion::publish;
+using nobion::publish::testing::ReleaseFixture;
 
 namespace {
 
@@ -25,7 +25,7 @@ class ReleaseDatasetTest : public ReleaseFixture {
   void SetUp() override {
     ReleaseFixture::SetUp();
     auto source =
-        pp::StoreSource::open(ps::StoreConfig{db_->url(), false}, pychron::publish::testing::source_options());
+        pp::StoreSource::open(ps::StoreConfig{db_->url(), false}, nobion::publish::testing::source_options());
     ASSERT_TRUE(source) << to_string(source.error());
     source_ = std::move(*source);
   }

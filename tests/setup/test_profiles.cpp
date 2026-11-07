@@ -30,8 +30,8 @@
 #include "nobion/systems/spectrometer/data_dir.hpp"
 #include "temp_path.hpp"
 
-using namespace pychron;
-using namespace pychron::setup;
+using namespace nobion;
+using namespace nobion::setup;
 namespace fs = std::filesystem;
 
 namespace {
@@ -40,7 +40,7 @@ const fs::path kProfiles(PYCHRON_PROFILES_DIR);
 const fs::path kExamples(PYCHRON_EXAMPLE_CONFIGS_DIR);
 
 fs::path scratch(const std::string& tag) {
-  const fs::path dir = pychron::testing::unique_temp_path("pychron-setup-" + tag + "-");
+  const fs::path dir = nobion::testing::unique_temp_path("pychron-setup-" + tag + "-");
   fs::remove_all(dir);
   return dir;
 }

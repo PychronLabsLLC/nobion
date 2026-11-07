@@ -11,7 +11,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/core/logger.hpp"
 
-namespace pychron::config {
+namespace nobion::config {
 
 // Applies the top-level keys of a logging.toml text over `into`. Diagnostics
 // name `name`; an unknown key is an error, as in [logging]. On an error `into`
@@ -42,4 +42,4 @@ Result<LoggingSources> load_logging_config(const std::optional<std::filesystem::
 std::filesystem::path logging_file(const std::filesystem::path& install_root);        // <root>/logging.toml
 std::filesystem::path logging_local_file(const std::filesystem::path& install_root);  // <root>/logging.local.toml
 
-}  // namespace pychron::config
+}  // namespace nobion::config

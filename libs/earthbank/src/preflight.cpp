@@ -15,7 +15,7 @@
 #include "nobion/earthbank/vocab.hpp"
 #include "text_detail.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using namespace std::string_view_literals;
@@ -213,4 +213,4 @@ PreflightReport preflight(const std::vector<Submission>& submissions, LookupReso
   return report;
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

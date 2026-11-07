@@ -8,7 +8,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 enum class AnalysisType {
   Unknown, BlankUnknown, BlankAir, BlankCocktail, BlankExtractionLine, Background,
@@ -44,4 +44,4 @@ class IdentifierRules {
   std::regex step_re_;
 };
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

@@ -12,11 +12,11 @@
 
 #include <filesystem>
 
-namespace pychron {
+namespace nobion {
 
 // Clears the quarantine attribute of `path`. True when the file carries none
 // afterwards (including when it never did, or on other platforms); false when
 // the attribute could not be removed or the file does not exist.
 bool mark_as_user_file(const std::filesystem::path& path) noexcept;
 
-}  // namespace pychron
+}  // namespace nobion

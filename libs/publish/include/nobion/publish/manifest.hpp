@@ -18,7 +18,7 @@
 #include "nobion/persistence/ids.hpp"
 #include "nobion/publish/release.hpp"
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 inline constexpr std::string_view kManifestFormat = "pychron-release/1";
 inline constexpr std::string_view kManifestFile = "manifest.json";
@@ -123,4 +123,4 @@ Result<VerifyReport> verify_files(const std::filesystem::path& dir);
 // rows_sha256 and every non-Parquet file's hash, by path.
 Result<VerifyReport> verify_rebuild(const std::filesystem::path& dir, const Manifest& rebuilt);
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

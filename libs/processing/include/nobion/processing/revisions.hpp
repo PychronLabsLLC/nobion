@@ -17,7 +17,7 @@
 #include "nobion/processing/isotope_evolution_fit.hpp"
 #include "nobion/processing/reference_fit.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 enum class RevisionKind { Intercepts, Baselines, Blanks, IcFactors, Tags, Annotation, Signals };
 
@@ -112,4 +112,4 @@ class IRevisionSource {
                                                const std::string& message) = 0;
 };
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

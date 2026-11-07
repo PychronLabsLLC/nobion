@@ -13,7 +13,7 @@
 #include "nobion/experiment/factory/step_heat_template.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 namespace {
 
 namespace fs = std::filesystem;
@@ -21,8 +21,8 @@ namespace fs = std::filesystem;
 class LabTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    dir_ = pychron::testing::unique_temp_path("pychron-lab-");
-    pychron::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_);
+    dir_ = nobion::testing::unique_temp_path("pychron-lab-");
+    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_);
   }
   void TearDown() override { fs::remove_all(dir_); }
 
@@ -145,7 +145,7 @@ TEST(LabForQueueTest, AQueuesDirectoryBelongsToItsParent) {
 class FindQueueTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    t_ = pychron::testing::unique_temp_path("pychron-find-queue-");
+    t_ = nobion::testing::unique_temp_path("pychron-find-queue-");
     fs::create_directories(t_ / "queues");
   }
   void TearDown() override { fs::remove_all(t_); }
@@ -272,4 +272,4 @@ TEST_F(LabTest, TheExampleTemplateIsCanonical) {
     EXPECT_DOUBLE_EQ(t->steps[i].value, 0.5 * static_cast<double>(i + 1)) << i;
   }
 }
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

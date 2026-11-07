@@ -21,7 +21,7 @@
 #include "nobion/core/clock.hpp"
 #include "nobion/transport/sim_transport.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 struct NgxSimModel {
   std::mutex mutex;  // the hook and the event source lock it; tests may too
@@ -87,4 +87,4 @@ struct NgxSimModel {
 SimTransport::Hook ngx_sim_hook(std::shared_ptr<NgxSimModel> model);
 SimTransport::Unsolicited ngx_sim_events(std::shared_ptr<NgxSimModel> model);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

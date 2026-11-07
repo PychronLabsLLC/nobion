@@ -4,7 +4,7 @@
 
 #include "nobion/entry/csv.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 namespace {
 
@@ -43,4 +43,4 @@ std::string export_package_csv(const std::vector<persistence::LevelSheet>& sheet
   return write_csv(position_columns(), rows);
 }
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

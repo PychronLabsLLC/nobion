@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace pychron {
+namespace nobion {
 
 // This computer's name, as the system has it (POSIX gethostname; on Windows
 // the COMPUTERNAME variable, which the system sets for every process). Never
@@ -11,4 +11,4 @@ namespace pychron {
 // asked for it was "localhost" on every machine.
 std::string host_name();
 
-}  // namespace pychron
+}  // namespace nobion

@@ -17,7 +17,7 @@
 
 #include "nobion/core/sha256.hpp"
 
-namespace pychron::persistence {
+namespace nobion::persistence {
 
 class Uuid {
  public:
@@ -82,11 +82,11 @@ struct UtcTime {
   friend auto operator<=>(const UtcTime&, const UtcTime&) = default;
 };
 
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence
 
 template <>
-struct std::hash<pychron::persistence::Uuid> {
-  std::size_t operator()(const pychron::persistence::Uuid& u) const noexcept {
+struct std::hash<nobion::persistence::Uuid> {
+  std::size_t operator()(const nobion::persistence::Uuid& u) const noexcept {
     std::size_t h = 0;
     for (auto b : u.bytes()) h = h * 131 + b;
     return h;

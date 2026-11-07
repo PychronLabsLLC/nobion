@@ -9,7 +9,7 @@
 #include "nobion/experiment/model/queue_toml.hpp"
 #include "nobion/experiment/model/rules.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 Result<Block> parse_block(std::string_view text, const IdentifierRules& ids, std::string_view name) {
   auto parsed = toml::parse(text, name);
@@ -83,4 +83,4 @@ std::vector<RunSpec> repeat_block(const std::vector<RunSpec>& runs, int times) {
   return out;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

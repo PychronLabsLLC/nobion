@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <utility>
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
@@ -125,4 +125,4 @@ std::size_t Scene::point_count() const {
   return n;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

@@ -14,7 +14,7 @@
 #include "nobion/transport/health.hpp"
 #include "nobion/transport/read_spec.hpp"
 
-namespace pychron {
+namespace nobion {
 
 class SignalBus;
 
@@ -153,4 +153,4 @@ class QueuedTransport : public Transport {
   Result<T> settle(Result<T> r);
 };
 
-}  // namespace pychron
+}  // namespace nobion

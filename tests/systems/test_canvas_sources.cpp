@@ -12,8 +12,8 @@
 #include "nobion/systems/canvas/canvas.hpp"
 #include "nobion/systems/canvas/loader.hpp"
 
-using namespace pychron;
-using namespace pychron::canvas;
+using namespace nobion;
+using namespace nobion::canvas;
 
 namespace {
 

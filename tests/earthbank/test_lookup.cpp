@@ -19,7 +19,7 @@
 #include "nobion/earthbank/vocab.hpp"
 #include "session_support.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using nlohmann::json;
@@ -602,4 +602,4 @@ TEST(Lookup, ValuesAreEncoded) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

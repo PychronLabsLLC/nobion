@@ -6,7 +6,7 @@
 //
 //   struct MyLaserHarness {
 //     MyLaserHarness();                                  // builds the device
-//     pychron::extraction::IExtractionDevice& device();
+//     nobion::extraction::IExtractionDevice& device();
 //     // optional: void advance();                        // let simulated time pass
 //   };
 //   INSTANTIATE_TYPED_TEST_SUITE_P(MyLaser, ExtractionDeviceConformance,
@@ -27,7 +27,7 @@
 
 #include "nobion/devices/extraction/interfaces.hpp"
 
-namespace pychron::extraction::conformance {
+namespace nobion::extraction::conformance {
 
 template <class H>
 void advance(H& h) {
@@ -63,7 +63,7 @@ inline ExtractUnits supported_units(const IExtractionDevice& d) {
   return ExtractUnits::Percent;
 }
 
-}  // namespace pychron::extraction::conformance
+}  // namespace nobion::extraction::conformance
 
 // --- IExtractionDevice ------------------------------------------------------
 
@@ -71,12 +71,12 @@ template <class H>
 class ExtractionDeviceConformance : public ::testing::Test {
  protected:
   H harness;
-  pychron::extraction::IExtractionDevice& device() { return harness.device(); }
+  nobion::extraction::IExtractionDevice& device() { return harness.device(); }
 };
 TYPED_TEST_SUITE_P(ExtractionDeviceConformance);
 
 TYPED_TEST_P(ExtractionDeviceConformance, HasANameAndSupportsSomeUnits) {
-  using namespace pychron::extraction;
+  using namespace nobion::extraction;
   EXPECT_FALSE(this->device().device_name().empty());
   conformance::supported_units(this->device());
 }
@@ -88,13 +88,13 @@ TYPED_TEST_P(ExtractionDeviceConformance, PrepareSucceeds) {
 TYPED_TEST_P(ExtractionDeviceConformance, EnableAndDisableAreReflected) {
   auto& d = this->device();
   ASSERT_TRUE(d.enable());
-  EXPECT_EQ(pychron::extraction::conformance::val(d.is_enabled()), true);
+  EXPECT_EQ(nobion::extraction::conformance::val(d.is_enabled()), true);
   ASSERT_TRUE(d.disable());
-  EXPECT_EQ(pychron::extraction::conformance::val(d.is_enabled()), false);
+  EXPECT_EQ(nobion::extraction::conformance::val(d.is_enabled()), false);
 }
 
 TYPED_TEST_P(ExtractionDeviceConformance, ExtractSetsOutput) {
-  using namespace pychron::extraction;
+  using namespace nobion::extraction;
   auto& d = this->device();
   auto units = conformance::supported_units(d);
   ASSERT_TRUE(d.enable());
@@ -106,29 +106,29 @@ TYPED_TEST_P(ExtractionDeviceConformance, ExtractSetsOutput) {
 }
 
 TYPED_TEST_P(ExtractionDeviceConformance, ExtractWhileDisabledIsInterlockAndChangesNothing) {
-  using namespace pychron::extraction;
+  using namespace nobion::extraction;
   auto& d = this->device();
   auto units = conformance::supported_units(d);
   ASSERT_TRUE(d.disable());
   auto r = d.extract(5.0, units);
   ASSERT_FALSE(r);
-  EXPECT_EQ(r.error().kind, pychron::ErrorKind::Interlock);
-  EXPECT_EQ(pychron::extraction::conformance::val(d.output()), 0.0);
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Interlock);
+  EXPECT_EQ(nobion::extraction::conformance::val(d.output()), 0.0);
 }
 
 TYPED_TEST_P(ExtractionDeviceConformance, NegativeOutputIsConfig) {
-  using namespace pychron::extraction;
+  using namespace nobion::extraction;
   auto& d = this->device();
   ASSERT_TRUE(d.enable());
   auto r = d.extract(-1.0, conformance::supported_units(d));
   ASSERT_FALSE(r);
-  EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
-  EXPECT_EQ(pychron::extraction::conformance::val(d.output()), 0.0);
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
+  EXPECT_EQ(nobion::extraction::conformance::val(d.output()), 0.0);
   EXPECT_TRUE(d.disable());
 }
 
 TYPED_TEST_P(ExtractionDeviceConformance, UnsupportedUnitsAreNotSupported) {
-  using namespace pychron::extraction;
+  using namespace nobion::extraction;
   auto& d = this->device();
   ASSERT_TRUE(d.enable());
   for (auto u : {ExtractUnits::Percent, ExtractUnits::Watts, ExtractUnits::Celsius}) {
@@ -137,33 +137,33 @@ TYPED_TEST_P(ExtractionDeviceConformance, UnsupportedUnitsAreNotSupported) {
     ASSERT_FALSE(r) << to_string(u);
     EXPECT_TRUE(is_not_supported(r.error())) << to_string(r.error());
   }
-  EXPECT_EQ(pychron::extraction::conformance::val(d.output()), 0.0);
+  EXPECT_EQ(nobion::extraction::conformance::val(d.output()), 0.0);
   EXPECT_TRUE(d.disable());
 }
 
 TYPED_TEST_P(ExtractionDeviceConformance, EndExtractZeroesOutputAndIsIdempotent) {
-  using namespace pychron::extraction;
+  using namespace nobion::extraction;
   auto& d = this->device();
   ASSERT_TRUE(d.enable());
   ASSERT_TRUE(d.extract(3.0, conformance::supported_units(d)));
   ASSERT_TRUE(d.end_extract());
-  EXPECT_EQ(pychron::extraction::conformance::val(d.output()), 0.0);
+  EXPECT_EQ(nobion::extraction::conformance::val(d.output()), 0.0);
   EXPECT_TRUE(d.end_extract());
-  EXPECT_EQ(pychron::extraction::conformance::val(d.output()), 0.0);
+  EXPECT_EQ(nobion::extraction::conformance::val(d.output()), 0.0);
   EXPECT_TRUE(d.disable());
 }
 
 TYPED_TEST_P(ExtractionDeviceConformance, DisableEndsExtraction) {
-  using namespace pychron::extraction;
+  using namespace nobion::extraction;
   auto& d = this->device();
   ASSERT_TRUE(d.enable());
   ASSERT_TRUE(d.extract(3.0, conformance::supported_units(d)));
   ASSERT_TRUE(d.disable());
-  EXPECT_EQ(pychron::extraction::conformance::val(d.output()), 0.0);
+  EXPECT_EQ(nobion::extraction::conformance::val(d.output()), 0.0);
 }
 
 TYPED_TEST_P(ExtractionDeviceConformance, FeaturesAreStable) {
-  using namespace pychron::extraction;
+  using namespace nobion::extraction;
   auto& d = this->device();
   auto first = capabilities(d);
   EXPECT_EQ(capabilities(d), first);
@@ -187,8 +187,8 @@ template <class H>
 class LaserConformance : public ::testing::Test {
  protected:
   H harness;
-  pychron::extraction::IExtractionDevice& device() { return harness.device(); }
-  pychron::extraction::ILaserDevice& laser() {
+  nobion::extraction::IExtractionDevice& device() { return harness.device(); }
+  nobion::extraction::ILaserDevice& laser() {
     auto* l = harness.device().laser();
     if (!l) throw std::logic_error("LaserConformance needs a device with laser()");
     return *l;
@@ -200,16 +200,16 @@ TYPED_TEST_P(LaserConformance, FireWhileDisabledIsInterlock) {
   ASSERT_TRUE(this->device().disable());
   auto r = this->laser().fire_laser();
   ASSERT_FALSE(r);
-  EXPECT_EQ(r.error().kind, pychron::ErrorKind::Interlock);
-  EXPECT_EQ(pychron::extraction::conformance::val(this->laser().is_firing()), false);
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Interlock);
+  EXPECT_EQ(nobion::extraction::conformance::val(this->laser().is_firing()), false);
 }
 
 TYPED_TEST_P(LaserConformance, FireAndStopAreReflected) {
   ASSERT_TRUE(this->device().enable());
   ASSERT_TRUE(this->laser().fire_laser());
-  EXPECT_EQ(pychron::extraction::conformance::val(this->laser().is_firing()), true);
+  EXPECT_EQ(nobion::extraction::conformance::val(this->laser().is_firing()), true);
   ASSERT_TRUE(this->laser().stop_laser());
-  EXPECT_EQ(pychron::extraction::conformance::val(this->laser().is_firing()), false);
+  EXPECT_EQ(nobion::extraction::conformance::val(this->laser().is_firing()), false);
   EXPECT_TRUE(this->device().disable());
 }
 
@@ -217,10 +217,10 @@ TYPED_TEST_P(LaserConformance, EndExtractAndDisableStopFiring) {
   ASSERT_TRUE(this->device().enable());
   ASSERT_TRUE(this->laser().fire_laser());
   ASSERT_TRUE(this->device().end_extract());
-  EXPECT_EQ(pychron::extraction::conformance::val(this->laser().is_firing()), false);
+  EXPECT_EQ(nobion::extraction::conformance::val(this->laser().is_firing()), false);
   ASSERT_TRUE(this->laser().fire_laser());
   ASSERT_TRUE(this->device().disable());
-  EXPECT_EQ(pychron::extraction::conformance::val(this->laser().is_firing()), false);
+  EXPECT_EQ(nobion::extraction::conformance::val(this->laser().is_firing()), false);
 }
 
 TYPED_TEST_P(LaserConformance, WarmupSucceeds) { EXPECT_TRUE(this->laser().warmup()); }
@@ -235,7 +235,7 @@ template <class H>
 class StageConformance : public ::testing::Test {
  protected:
   H harness;
-  pychron::extraction::IStage& stage() {
+  nobion::extraction::IStage& stage() {
     auto* s = harness.device().stage();
     if (!s) throw std::logic_error("StageConformance needs a device with stage()");
     return *s;
@@ -248,11 +248,11 @@ TYPED_TEST_P(StageConformance, HasPositions) { EXPECT_FALSE(this->stage().positi
 TYPED_TEST_P(StageConformance, UnknownPositionIsConfig) {
   auto r = this->stage().move_to_position("no-such-hole-xyz", false);
   ASSERT_FALSE(r);
-  EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
 }
 
 TYPED_TEST_P(StageConformance, MoveToEveryPositionSettles) {
-  using namespace pychron::extraction;
+  using namespace nobion::extraction;
   auto& s = this->stage();
   for (const auto& p : s.positions()) {
     ASSERT_TRUE(s.move_to_position(p, false)) << p;
@@ -261,7 +261,7 @@ TYPED_TEST_P(StageConformance, MoveToEveryPositionSettles) {
 }
 
 TYPED_TEST_P(StageConformance, AxisMovesAreReadBack) {
-  using namespace pychron::extraction;
+  using namespace nobion::extraction;
   auto& s = this->stage();
   ASSERT_TRUE(s.set_xy(1.5, -2.0));
   ASSERT_TRUE(conformance::settles(this->harness, [&] { return s.moving(); }));
@@ -276,7 +276,7 @@ TYPED_TEST_P(StageConformance, AxisMovesAreReadBack) {
 
 // A stage that cannot set a speed moves at its own; either way it arrives.
 TYPED_TEST_P(StageConformance, AMoveAtASpeedSettles) {
-  using namespace pychron::extraction;
+  using namespace nobion::extraction;
   auto& s = this->stage();
   ASSERT_TRUE(s.set_xy(1.0, 1.0, 0.5));
   ASSERT_TRUE(conformance::settles(this->harness, [&] { return s.moving(); }));
@@ -288,7 +288,7 @@ TYPED_TEST_P(StageConformance, AMoveAtASpeedSettles) {
 
 // stop() either stops the stage or says it cannot; after it nothing moves.
 TYPED_TEST_P(StageConformance, StopStopsOrIsNotSupported) {
-  using namespace pychron::extraction;
+  using namespace nobion::extraction;
   auto& s = this->stage();
   ASSERT_TRUE(s.set_xy(2.0, 2.0, 0.5));
   auto stopped = s.stop();
@@ -311,7 +311,7 @@ template <class H>
 class PatternConformance : public ::testing::Test {
  protected:
   H harness;
-  pychron::extraction::IPatternRunner& runner() {
+  nobion::extraction::IPatternRunner& runner() {
     auto* r = harness.device().pattern_runner();
     if (!r) throw std::logic_error("PatternConformance needs a device with pattern_runner()");
     return *r;
@@ -322,8 +322,8 @@ TYPED_TEST_SUITE_P(PatternConformance);
 TYPED_TEST_P(PatternConformance, UnknownPatternIsConfig) {
   auto r = this->runner().execute_pattern("no-such-pattern-xyz");
   ASSERT_FALSE(r);
-  EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
-  EXPECT_EQ(pychron::extraction::conformance::val(this->runner().running()), false);
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
+  EXPECT_EQ(nobion::extraction::conformance::val(this->runner().running()), false);
 }
 
 TYPED_TEST_P(PatternConformance, StopEndsARunningPattern) {
@@ -331,7 +331,7 @@ TYPED_TEST_P(PatternConformance, StopEndsARunningPattern) {
   ASSERT_FALSE(r.patterns().empty());
   ASSERT_TRUE(r.execute_pattern(r.patterns().front()));
   ASSERT_TRUE(r.stop_pattern());
-  EXPECT_EQ(pychron::extraction::conformance::val(r.running()), false);
+  EXPECT_EQ(nobion::extraction::conformance::val(r.running()), false);
 }
 
 REGISTER_TYPED_TEST_SUITE_P(PatternConformance, UnknownPatternIsConfig,
@@ -343,7 +343,7 @@ template <class H>
 class FurnaceConformance : public ::testing::Test {
  protected:
   H harness;
-  pychron::extraction::IFurnaceDevice& furnace() {
+  nobion::extraction::IFurnaceDevice& furnace() {
     auto* f = harness.device().furnace();
     if (!f) throw std::logic_error("FurnaceConformance needs a device with furnace()");
     return *f;

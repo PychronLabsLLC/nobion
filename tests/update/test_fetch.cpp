@@ -7,7 +7,7 @@
 
 #include "fake_http.hpp"
 
-namespace pychron::update {
+namespace nobion::update {
 namespace {
 
 using testing::FakeHttp;
@@ -93,4 +93,4 @@ TEST(UpdateFetch, PassesClientErrorsThrough) {
 }
 
 }  // namespace
-}  // namespace pychron::update
+}  // namespace nobion::update

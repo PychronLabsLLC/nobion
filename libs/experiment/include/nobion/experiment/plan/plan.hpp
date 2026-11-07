@@ -17,7 +17,7 @@
 
 #include "nobion/reduction/fits.hpp"
 
-namespace pychron::experiment::plan {
+namespace nobion::experiment::plan {
 
 struct PlanInfo {
   std::string name;
@@ -321,4 +321,4 @@ reduction::FitSpec fit_for(const MeasurementPlan& plan, const Gas& gas, const Se
 reduction::FitSpec signal_fit(const Fits& fits, const std::string& isotope);
 reduction::FitSpec baseline_fit(const Fits& fits, const std::string& detector);
 
-}  // namespace pychron::experiment::plan
+}  // namespace nobion::experiment::plan

@@ -3,9 +3,9 @@
 #include <algorithm>
 #include <cstdint>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 std::vector<std::string> analysis_types(ReferenceKind kind) {
   if (kind == ReferenceKind::Airs) return {"air"};
@@ -37,4 +37,4 @@ pp::Pipeline reference_pipeline(const pp::UnitRegistry& reg, const ReferenceQuer
   return pipeline;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

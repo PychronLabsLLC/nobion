@@ -16,7 +16,7 @@ class QAction;
 class QLineEdit;
 class QTreeWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 enum class Shortcut {
   // Everywhere (the unified menu bar).
@@ -109,4 +109,4 @@ class ShortcutsDialog : public QDialog {
 // unified bar); the dialog is built on first use as its child.
 QAction* make_shortcuts_action(QWidget* window);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

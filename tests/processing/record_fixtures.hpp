@@ -12,9 +12,9 @@
 #include "nobion/experiment/persist/persister.hpp"
 #include "nobion/experiment/record/types.hpp"
 
-namespace pychron::processing::test {
+namespace nobion::processing::test {
 
-namespace rec = pychron::experiment::record;
+namespace rec = nobion::experiment::record;
 namespace fs = std::filesystem;
 
 struct TempDir {
@@ -65,9 +65,9 @@ inline rec::AnalysisRecord record(const std::string& uuid, const std::string& id
 }
 
 inline void write(const fs::path& root, const rec::AnalysisRecord& r) {
-  pychron::experiment::persist::FilePersister p(root);
+  nobion::experiment::persist::FilePersister p(root);
   ASSERT_TRUE(p.save_analysis(r));
   ASSERT_TRUE(p.save_extraction(r));  // extraction files are ignored by the source
 }
 
-}  // namespace pychron::processing::test
+}  // namespace nobion::processing::test

@@ -14,8 +14,8 @@
 #include "theme.hpp"
 #include "tray_view.hpp"
 
-using namespace pychron;
-using namespace pychron::ui;
+using namespace nobion;
+using namespace nobion::ui;
 
 namespace {
 
@@ -51,15 +51,15 @@ laser::CameraView seen(bool with_target) {
 namespace {
 
 // A followed step: a grain at (3,4), a blob seen, `with_grain` off for a real laser.
-pychron::laser::FollowSample follow_sample(double t, bool with_grain = true) {
-  pychron::laser::FollowSample s;
+nobion::laser::FollowSample follow_sample(double t, bool with_grain = true) {
+  nobion::laser::FollowSample s;
   s.step.stage_mm = {1 + t, 2};
   s.step.elapsed_s = t;
   s.step.saturation = 0.5;
-  s.step.reason = pychron::vision::DragonflyStep::Reason::Track;
-  s.step.seen = pychron::vision::DragonflySeen{{0.3, 0.4}, 3.0};
+  s.step.reason = nobion::vision::DragonflyStep::Reason::Track;
+  s.step.seen = nobion::vision::DragonflySeen{{0.3, 0.4}, 3.0};
   if (with_grain) {
-    pychron::laser::GrainView g;
+    nobion::laser::GrainView g;
     g.grain_mm = {3, 4};
     g.beam_mm = {0, 0};
     g.truth.brightness = 0.7;
@@ -69,7 +69,7 @@ pychron::laser::FollowSample follow_sample(double t, bool with_grain = true) {
   return s;
 }
 
-int legend_entries(const pychron::ui::FollowPlotView& view, int strip) {
+int legend_entries(const nobion::ui::FollowPlotView& view, int strip) {
   auto* legend = qobject_cast<QCPLegend*>(view.plot()->axisRect(strip)->insetLayout()->elementAt(0));
   return legend != nullptr ? legend->itemCount() : -1;
 }
@@ -279,8 +279,8 @@ class LaserViewsTest : public QObject {
   }
 
   void follow_plot_has_three_strips() {
-    pychron::ui::FollowPlotModel model;
-    pychron::ui::FollowPlotView view(model);
+    nobion::ui::FollowPlotModel model;
+    nobion::ui::FollowPlotView view(model);
     QCOMPARE(view.strip_count(), 3);
     QCOMPARE(view.plot()->axisRectCount(), 3);
     const QStringList titles = {QStringLiteral("Beam deviation (mm)"), QStringLiteral("Luminosity"),
@@ -291,13 +291,13 @@ class LaserViewsTest : public QObject {
   }
 
   void follow_plot_draws_the_model() {
-    pychron::ui::FollowPlotModel model;
-    pychron::ui::FollowPlotView view(model);
+    nobion::ui::FollowPlotModel model;
+    nobion::ui::FollowPlotView view(model);
     for (int i = 0; i < 3; ++i) model.append(follow_sample(i * 0.5));
     view.refresh();
-    QCOMPARE(view.point_count(pychron::ui::FollowLine::StageX), 3);
-    QCOMPARE(view.point_count(pychron::ui::FollowLine::GrainX), 3);
-    QVERIFY(view.line_visible(pychron::ui::FollowLine::SizeTrue));
+    QCOMPARE(view.point_count(nobion::ui::FollowLine::StageX), 3);
+    QCOMPARE(view.point_count(nobion::ui::FollowLine::GrainX), 3);
+    QVERIFY(view.line_visible(nobion::ui::FollowLine::SizeTrue));
     QCOMPARE(legend_entries(view, 0), 2);
     QCOMPARE(legend_entries(view, 2), 2);
     view.grab();
@@ -314,8 +314,8 @@ class LaserViewsTest : public QObject {
   }
 
   void follow_plane_shows_the_tracks_on_one_scale() {
-    pychron::ui::FollowPlotModel model;
-    pychron::ui::FollowPlotView view(model);
+    nobion::ui::FollowPlotModel model;
+    nobion::ui::FollowPlotView view(model);
     view.resize(900, 500);
     view.show();
     QVERIFY(QTest::qWaitForWindowExposed(&view));
@@ -327,7 +327,7 @@ class LaserViewsTest : public QObject {
     }
     view.refresh();
     view.xy_plot()->replot();
-    QCOMPARE(view.fence_point_count(), pychron::ui::FollowPlotView::kFencePoints);
+    QCOMPARE(view.fence_point_count(), nobion::ui::FollowPlotView::kFencePoints);
     QCOMPARE(view.xy_plot()->legend->itemCount(), 3);
     const auto* rect = view.xy_plot()->axisRect();
     const double x_scale = rect->width() / view.xy_plot()->xAxis->range().size();
@@ -341,31 +341,31 @@ class LaserViewsTest : public QObject {
     model.clear();
     view.refresh();
     QCOMPARE(view.fence_point_count(), 0);
-    QCOMPARE(view.point_count(pychron::ui::FollowLine::StageX), 0);
+    QCOMPARE(view.point_count(nobion::ui::FollowLine::StageX), 0);
     view.grab();
   }
 
   void follow_plane_joins_across_a_missing_row() {
-    pychron::ui::FollowPlotModel model;
-    pychron::ui::FollowPlotView view(model);
+    nobion::ui::FollowPlotModel model;
+    nobion::ui::FollowPlotView view(model);
     model.append(follow_sample(0));
     model.append(follow_sample(1, false));  // no grain in this row
     model.append(follow_sample(2));
     view.refresh();
-    QCOMPARE(view.point_count(pychron::ui::FollowLine::StageX), 3);
-    QCOMPARE(view.point_count(pychron::ui::FollowLine::GrainX), 2);
+    QCOMPARE(view.point_count(nobion::ui::FollowLine::StageX), 3);
+    QCOMPARE(view.point_count(nobion::ui::FollowLine::GrainX), 2);
     view.grab();
   }
 
   void follow_plot_hides_lines_with_no_values() {
-    pychron::ui::FollowPlotModel model;
-    pychron::ui::FollowPlotView view(model);
+    nobion::ui::FollowPlotModel model;
+    nobion::ui::FollowPlotView view(model);
     for (int i = 0; i < 3; ++i) model.append(follow_sample(i * 0.5, false));
     view.refresh();
-    QVERIFY(view.line_visible(pychron::ui::FollowLine::StageX));
-    QVERIFY(view.line_visible(pychron::ui::FollowLine::DeviationSeen));
-    QVERIFY(!view.line_visible(pychron::ui::FollowLine::GrainX));
-    QVERIFY(!view.line_visible(pychron::ui::FollowLine::SizeTrue));
+    QVERIFY(view.line_visible(nobion::ui::FollowLine::StageX));
+    QVERIFY(view.line_visible(nobion::ui::FollowLine::DeviationSeen));
+    QVERIFY(!view.line_visible(nobion::ui::FollowLine::GrainX));
+    QVERIFY(!view.line_visible(nobion::ui::FollowLine::SizeTrue));
     QCOMPARE(legend_entries(view, 0), 1);
     QCOMPARE(legend_entries(view, 2), 1);
     QCOMPARE(view.xy_plot()->legend->itemCount(), 1);  // the stage alone
@@ -373,8 +373,8 @@ class LaserViewsTest : public QObject {
   }
 
   void follow_plot_strips_share_time() {
-    pychron::ui::FollowPlotModel model;
-    pychron::ui::FollowPlotView view(model);
+    nobion::ui::FollowPlotModel model;
+    nobion::ui::FollowPlotView view(model);
     for (int i = 0; i < 20; ++i) model.append(follow_sample(i));
     view.refresh();
     view.plot()->axisRect(0)->axis(QCPAxis::atBottom)->setRange(4, 9);
@@ -388,26 +388,26 @@ class LaserViewsTest : public QObject {
   }
 
   void follow_plot_follows_the_palette() {
-    pychron::ui::FollowPlotModel model;
-    pychron::ui::FollowPlotView view(model);
+    nobion::ui::FollowPlotModel model;
+    nobion::ui::FollowPlotView view(model);
     model.append(follow_sample(0));
     view.refresh();
-    using pychron::ui::plot_series_color;
+    using nobion::ui::plot_series_color;
     QCOMPARE(view.plot()->graph(0)->pen().color(), plot_series_color(0));
     QCOMPARE(view.plot()->graph(1)->pen().color(), plot_series_color(1));
     QCOMPARE(view.plot()->graph(4)->pen().color(), plot_series_color(0));
     QCOMPARE(view.plot()->graph(5)->pen().color(), plot_series_color(1));
 
-    const pychron::ui::PlotStyle before = pychron::ui::plot_style();  // NOLINT(performance-unnecessary-copy-initialization): a copy; set_plot_style replaces the original
-    pychron::ui::PlotStyle changed = before;
+    const nobion::ui::PlotStyle before = nobion::ui::plot_style();  // NOLINT(performance-unnecessary-copy-initialization): a copy; set_plot_style replaces the original
+    nobion::ui::PlotStyle changed = before;
     changed.series[0] = QColor(QStringLiteral("#123456"));
     changed.series[1] = QColor(QStringLiteral("#654321"));
     changed.plot_background = QColor(QStringLiteral("#eeeeee"));
-    pychron::ui::set_plot_style(changed);
+    nobion::ui::set_plot_style(changed);
     QCOMPARE(view.plot()->graph(0)->pen().color(), QColor(QStringLiteral("#123456")));
     QCOMPARE(view.plot()->graph(3)->pen().color(), QColor(QStringLiteral("#654321")));
     QCOMPARE(view.plot()->axisRect(2)->backgroundBrush().color(), QColor(QStringLiteral("#eeeeee")));
-    pychron::ui::set_plot_style(before);
+    nobion::ui::set_plot_style(before);
   }
 };
 

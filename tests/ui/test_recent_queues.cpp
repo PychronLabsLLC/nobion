@@ -13,7 +13,7 @@
 
 #include "recent_queues.hpp"
 
-using pychron::ui::RecentQueues;
+using nobion::ui::RecentQueues;
 namespace fs = std::filesystem;
 
 class TestRecentQueues : public QObject {

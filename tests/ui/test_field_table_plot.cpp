@@ -7,11 +7,11 @@
 #include "field_table_plot.hpp"
 #include "plot_style.hpp"
 
-using pychron::spectrometer::ControlPoint;
-using pychron::spectrometer::FieldTable;
-using pychron::spectrometer::FitKind;
-using pychron::spectrometer::TableAxis;
-using pychron::ui::FieldTablePlot;
+using nobion::spectrometer::ControlPoint;
+using nobion::spectrometer::FieldTable;
+using nobion::spectrometer::FitKind;
+using nobion::spectrometer::TableAxis;
+using nobion::ui::FieldTablePlot;
 
 namespace {
 
@@ -28,7 +28,7 @@ class TestFieldTablePlot : public QObject {
   Q_OBJECT
 
  private slots:
-  void cleanup() { pychron::ui::set_plot_style(pychron::ui::default_plot_style()); }
+  void cleanup() { nobion::ui::set_plot_style(nobion::ui::default_plot_style()); }
 
   void pointsAndCurveCoverTheMarginedRange() {
     FieldTablePlot plot;
@@ -79,10 +79,10 @@ class TestFieldTablePlot : public QObject {
   void restylesOnPlotStyleChange() {
     FieldTablePlot plot;
     plot.show_detector(table(FitKind::Linear), "H1");
-    QCOMPARE(plot.point_color(), pychron::ui::plot_series_color(0));
-    auto style = pychron::ui::default_plot_style();
+    QCOMPARE(plot.point_color(), nobion::ui::plot_series_color(0));
+    auto style = nobion::ui::default_plot_style();
     style.series.front() = QColor(QStringLiteral("#123456"));
-    pychron::ui::set_plot_style(style);
+    nobion::ui::set_plot_style(style);
     QCOMPARE(plot.point_color(), QColor(QStringLiteral("#123456")));
     QCOMPARE(plot.curve_color(), QColor(QStringLiteral("#123456")));
   }

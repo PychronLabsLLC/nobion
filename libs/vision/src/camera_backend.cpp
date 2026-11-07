@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <mutex>
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 namespace {
 
@@ -78,4 +78,4 @@ Result<std::unique_ptr<IFrameSource>> open_camera(const CameraRequest& request, 
   return fail(ErrorKind::Config, "unknown camera backend '" + request.backend + "' (there is: " + known + ")");
 }
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

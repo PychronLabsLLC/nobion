@@ -7,7 +7,7 @@
 
 #include "nobion/vision/kernel.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 namespace {
 
@@ -247,4 +247,4 @@ Result<DragonflyStep> Dragonfly::step(std::span<const FrameView> frames, TimePoi
   return out;
 }
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

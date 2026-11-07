@@ -40,7 +40,7 @@
 #include "nobion/core/clock.hpp"
 #include "nobion/devices/extraction/interfaces.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 
 struct SimExtractionSettings {
   std::string name = "sim_extraction";
@@ -156,4 +156,4 @@ class SimExtractionDevice final : public extraction::IExtractionDevice,
   std::optional<TimePoint> pattern_end_;
 };
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

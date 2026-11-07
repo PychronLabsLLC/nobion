@@ -30,7 +30,7 @@ class QToolButton;
 class QTreeView;
 class QWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 struct Theme {
   // Status fills: valves, health chips, diagnostic marks.
@@ -174,4 +174,4 @@ QFont mono_font();
 
 }  // namespace style
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

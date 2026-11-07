@@ -2,7 +2,7 @@
 
 #include "members.hpp"
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 namespace ps = persistence;
 namespace pp = processing;
@@ -24,4 +24,4 @@ Result<std::vector<pp::AnalysisPtr>> release_dataset(ps::IStore& store, pp::Stor
   return loaded;
 }
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

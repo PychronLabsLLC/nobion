@@ -9,7 +9,7 @@
 
 namespace elctl {
 
-inline std::string derive_counts(const pychron::processing::DeriveStats& s) {
+inline std::string derive_counts(const nobion::processing::DeriveStats& s) {
   return std::to_string(s.seen) + " seen, " + std::to_string(s.written) + " written (" + std::to_string(s.no_age) +
          " without an age), " + std::to_string(s.current) + " current, " + std::to_string(s.failed) + " failed";
 }

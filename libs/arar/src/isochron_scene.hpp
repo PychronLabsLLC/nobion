@@ -11,7 +11,7 @@
 #include "nobion/processing/options.hpp"
 #include "nobion/processing/scene.hpp"
 
-namespace pychron::processing::detail {
+namespace nobion::processing::detail {
 
 // The inverse isochron (arar_figures.hpp). With `plateau_steps` (analysis
 // uuids), "exclude_non_plateau" leaves out every step not among them, in
@@ -19,4 +19,4 @@ namespace pychron::processing::detail {
 Result<Scene> build_isochron_scene(const Dataset& dataset, const Options& options,
                                    const std::set<std::string>* plateau_steps);
 
-}  // namespace pychron::processing::detail
+}  // namespace nobion::processing::detail

@@ -39,7 +39,7 @@
 #include "nobion/devices/spectrometer/thermo_qtegra_sim.hpp"
 #include "nobion/devices/types.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 
 namespace {
 
@@ -805,4 +805,4 @@ Plc2000HeaterSim* SimSystem::heater(std::string_view driver) const {
   return it == heaters_.end() ? nullptr : it->second.get();
 }
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

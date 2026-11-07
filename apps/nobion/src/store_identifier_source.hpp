@@ -7,7 +7,7 @@
 
 #include "identifier_source.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class EntryActions;
 class EntryBridge;
@@ -30,4 +30,4 @@ class StoreIdentifierSource : public IdentifierSource {
   EntryActions& entry_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

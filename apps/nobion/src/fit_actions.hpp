@@ -34,11 +34,11 @@
 class QAction;
 class QWidget;
 
-namespace pychron::processing {
+namespace nobion::processing {
 class StoreSource;
 }
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class EntryActions;
 class FluxWindow;
@@ -79,4 +79,4 @@ class FitActions : public QObject {
   QAction* flux_action_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

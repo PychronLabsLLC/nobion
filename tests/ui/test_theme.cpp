@@ -26,9 +26,9 @@
 #include "health_bar.hpp"
 #include "theme.hpp"
 
-using pychron::ui::HealthBar;
-using pychron::ui::theme;
-namespace style = pychron::ui::style;
+using nobion::ui::HealthBar;
+using nobion::ui::theme;
+namespace style = nobion::ui::style;
 
 namespace {
 
@@ -234,7 +234,7 @@ class TestTheme : public QObject {
 
     HealthBar bar;
     bar.seed({"laser"});
-    pychron::TransportHealth health;
+    nobion::TransportHealth health;
     health.transport = "laser";
     health.connected = false;
     bar.update_health(health);

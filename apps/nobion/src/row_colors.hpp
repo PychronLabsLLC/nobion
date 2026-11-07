@@ -15,7 +15,7 @@
 #include "nobion/processing/source.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 enum class ColorBy { AnalysisType, Tag, Spectrometer, IrradiationLevel, None };
 
@@ -60,4 +60,4 @@ std::string color_key(ColorBy by, const processing::AnalysisSummary& row);
 QColor row_color(ColorBy by, const processing::AnalysisSummary& row, const TypeColors& types,
                  const std::vector<std::string>& keys, const Theme& theme);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

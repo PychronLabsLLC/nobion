@@ -6,7 +6,7 @@
 
 #include "nobion/devices/device.hpp"
 
-using namespace pychron;
+using namespace nobion;
 
 namespace {
 

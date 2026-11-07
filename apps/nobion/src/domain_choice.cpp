@@ -6,7 +6,7 @@
 #include "nobion/arar/domain.hpp"
 #include "nobion/setup/site.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -21,7 +21,7 @@ std::string join(const std::vector<std::string>& ids) {
 const processing::Domain* choose_domain(processing::DomainRegistry& registry, std::string_view id,
                                         std::string& error) {
   registry.add(processing::make_noble_gas_domain());
-  registry.add(pychron::arar::make_domain());
+  registry.add(nobion::arar::make_domain());
   auto known = setup::known_domains();
   const auto registered = registry.ids();  // sorted
   std::sort(known.begin(), known.end());
@@ -34,4 +34,4 @@ const processing::Domain* choose_domain(processing::DomainRegistry& registry, st
   return nullptr;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

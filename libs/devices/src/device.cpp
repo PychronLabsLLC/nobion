@@ -6,7 +6,7 @@
 #include "nobion/core/log_context.hpp"
 #include "nobion/core/process_log.hpp"
 
-namespace pychron {
+namespace nobion {
 namespace {
 
 // The level of a record that says an operation went through.
@@ -102,4 +102,4 @@ void Device::record_failure(ErrorKind kind) {
   failures_.fetch_add(1);
 }
 
-}  // namespace pychron
+}  // namespace nobion

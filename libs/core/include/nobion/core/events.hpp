@@ -12,7 +12,7 @@
 #include "nobion/core/clock.hpp"
 #include "nobion/core/error.hpp"
 
-namespace pychron {
+namespace nobion {
 
 enum class ValveState { Unknown, Open, Closed };
 
@@ -90,7 +90,7 @@ struct Log {
   std::string message;
   TimePoint ts{};
   // Thread tag of the writer (`executor`, or `t<n>` for an untagged thread)
-  // and its run id (empty outside a run scope): pychron::LogContext.
+  // and its run id (empty outside a run scope): nobion::LogContext.
   std::string thread{};
   std::string run{};
 };
@@ -115,4 +115,4 @@ struct ActuationFailed {
   TimePoint ts{};
 };
 
-}  // namespace pychron
+}  // namespace nobion

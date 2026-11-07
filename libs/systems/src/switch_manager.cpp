@@ -10,7 +10,7 @@
 #include "nobion/devices/types.hpp"
 #include "nobion/systems/switch_rules.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 std::string_view to_string(SwitchOp op) noexcept { return op == SwitchOp::Open ? "open" : "close"; }
 
@@ -345,7 +345,7 @@ Result<void> SwitchManager::drive(Entry& e, SwitchOp op) {
   if (*read != target) {
     if (changed && bus_) bus_->publish(ValveChanged{e.spec.name, *read, clock_->now()});
     return failed(e, Error{ErrorKind::Protocol,
-                           "'" + e.spec.name + "' read back " + std::string(pychron::to_string(*read)) +
+                           "'" + e.spec.name + "' read back " + std::string(nobion::to_string(*read)) +
                                " after " + std::string(to_string(op)),
                            e.spec.name});
   }
@@ -433,7 +433,7 @@ Result<void> SwitchManager::refresh() {
   }
   if (errors.empty()) return {};
   std::vector<std::string> lines;
-  for (const auto& err : errors) lines.push_back(pychron::to_string(err));
+  for (const auto& err : errors) lines.push_back(nobion::to_string(err));
   return fail(errors.front().kind, join(lines), errors.front().device);
 }
 
@@ -508,4 +508,4 @@ std::map<std::string, ValveState> SwitchManager::states() const {
 
 bool SwitchManager::contains(std::string_view name) const { return find(name) != nullptr; }
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

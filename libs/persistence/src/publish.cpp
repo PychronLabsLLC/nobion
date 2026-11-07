@@ -10,7 +10,7 @@
 #include "sql/publish.hpp"
 #include "store_impl.hpp"
 
-namespace pychron::persistence {
+namespace nobion::persistence {
 
 std::string_view to_string(ReleaseState state) noexcept {
   switch (state) {
@@ -490,4 +490,4 @@ Result<std::vector<ExternalIdRow>> external_ids(Db& db, std::string_view entity_
 }
 
 }  // namespace detail
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence

@@ -13,11 +13,11 @@
 
 class QWidget;
 
-namespace pychron::publish {
+namespace nobion::publish {
 struct ReleaseSpec;
 }
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // Shows the dialog; nullopt when cancelled. The spec has everything the
 // dialog asks for; its analyses, options and versions are the caller's to
@@ -25,4 +25,4 @@ namespace pychron::ui {
 std::optional<publish::ReleaseSpec> ask_release(QWidget* parent, std::size_t analyses, std::size_t embargoed,
                                                 const QStringList& releases);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

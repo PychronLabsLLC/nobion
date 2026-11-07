@@ -15,7 +15,7 @@
 
 #include "nobion/ingest/adapter.hpp"
 
-namespace pychron::ingest::testing {
+namespace nobion::ingest::testing {
 
 class FakeAdapter final : public ISourceAdapter {
  public:
@@ -105,4 +105,4 @@ class FakeAdapter final : public ISourceAdapter {
   int plans_ = 0;
 };
 
-}  // namespace pychron::ingest::testing
+}  // namespace nobion::ingest::testing

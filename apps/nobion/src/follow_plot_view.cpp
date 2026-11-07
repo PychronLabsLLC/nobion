@@ -10,7 +10,7 @@
 
 #include "plot_style.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -336,4 +336,4 @@ bool FollowPlotView::line_visible(FollowLine line) const {
 
 int FollowPlotView::fence_point_count() const { return fence_->dataCount(); }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

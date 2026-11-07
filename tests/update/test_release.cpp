@@ -6,7 +6,7 @@
 
 #include <nobion/update/update.hpp>
 
-namespace pychron::update {
+namespace nobion::update {
 namespace {
 
 std::string fixture() {
@@ -92,4 +92,4 @@ TEST(UpdateRelease, MissingBodyIsEmptyNotes) {
 }
 
 }  // namespace
-}  // namespace pychron::update
+}  // namespace nobion::update

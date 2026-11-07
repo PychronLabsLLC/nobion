@@ -2,7 +2,7 @@
 
 #include <cassert>
 
-namespace pychron {
+namespace nobion {
 
 ClockMutex::ClockMutex(const Clock& clock) : clock_(clock) {}
 
@@ -65,4 +65,4 @@ void RecursiveClockMutex::unlock() {
   clock_.notify_one(released_);
 }
 
-}  // namespace pychron
+}  // namespace nobion

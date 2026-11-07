@@ -45,7 +45,7 @@
 #include "xlsx_detail.hpp"
 #include "zip_support.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 namespace fs = std::filesystem;
@@ -1864,4 +1864,4 @@ TEST_F(Xlsx, TemplatesThatAreNowhereAreSaidWithEveryPlaceLooked) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

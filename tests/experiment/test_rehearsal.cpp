@@ -24,14 +24,14 @@
 #include "nobion/experiment/rehearsal/runner.hpp"
 #include "nobion/scripting/script_host.hpp"
 
-namespace rh = pychron::experiment::rehearsal;
-using pychron::ErrorKind;
-using pychron::Result;
-using pychron::ValveState;
-using pychron::scripting::CancelMode;
-using pychron::scripting::CancelToken;
-using pychron::scripting::StepCall;
-using pychron::scripting::Value;
+namespace rh = nobion::experiment::rehearsal;
+using nobion::ErrorKind;
+using nobion::Result;
+using nobion::ValveState;
+using nobion::scripting::CancelMode;
+using nobion::scripting::CancelToken;
+using nobion::scripting::StepCall;
+using nobion::scripting::Value;
 
 namespace {
 
@@ -40,7 +40,7 @@ constexpr auto kLimit = std::chrono::seconds(5);
 rh::LineSnapshot line() {
   rh::LineSnapshot s;
   for (const char* name : {"A", "B", "C", "P1", "P2"}) {
-    s.switches[name] = pychron::systems::SwitchView{name, ValveState::Closed, false, {}};
+    s.switches[name] = nobion::systems::SwitchView{name, ValveState::Closed, false, {}};
     s.interlocks[name] = {};
   }
   return s;
@@ -104,7 +104,7 @@ class Records {
 Result<Value> finish(std::future<Result<Value>>& f) {
   if (f.wait_for(kLimit) != std::future_status::ready) {
     ADD_FAILURE() << "step did not return within 5 s";
-    return pychron::fail(ErrorKind::Timeout, "stalled");
+    return nobion::fail(ErrorKind::Timeout, "stalled");
   }
   return f.get();
 }
@@ -155,30 +155,30 @@ class Rehearsal : public ::testing::Test {
 
 // As editor_environment sets it: every capability, the line's valve names,
 // no live service.
-pychron::scripting::ScriptEnvironment rehearse_environment() {
-  pychron::scripting::ScriptEnvironment env;
-  pychron::extraction::CapabilitySet all;
-  for (std::size_t i = 0; i < pychron::extraction::kCapabilityCount; ++i)
-    all.add(static_cast<pychron::extraction::Capability>(i));
+nobion::scripting::ScriptEnvironment rehearse_environment() {
+  nobion::scripting::ScriptEnvironment env;
+  nobion::extraction::CapabilitySet all;
+  for (std::size_t i = 0; i < nobion::extraction::kCapabilityCount; ++i)
+    all.add(static_cast<nobion::extraction::Capability>(i));
   env.capabilities = all;
   env.valve_names = std::vector<std::string>{"A", "B", "C", "P1", "P2"};
-  env.context = pychron::scripting::make_context({{"analysis_type", std::string("unknown")}, {"duration", 5.0}});
+  env.context = nobion::scripting::make_context({{"analysis_type", std::string("unknown")}, {"duration", 5.0}});
   env.log = [](std::string_view) {};
   return env;
 }
 
-pychron::scripting::Script example(const std::string& rel, pychron::scripting::ScriptKind kind) {
+nobion::scripting::Script example(const std::string& rel, nobion::scripting::ScriptKind kind) {
   std::ifstream in(std::string(PYCHRON_EXAMPLE_CONFIGS_DIR) + "/scripts/" + rel);
   std::ostringstream text;
   text << in.rdbuf();
-  return pychron::scripting::Script{rel, text.str(), kind};
+  return nobion::scripting::Script{rel, text.str(), kind};
 }
 
 // What a runner's on_finished was called with, and how often.
 class Finished {
  public:
-  std::function<void(const Result<pychron::scripting::ScriptResult>&)> sink() {
-    return [this](const Result<pychron::scripting::ScriptResult>& r) {
+  std::function<void(const Result<nobion::scripting::ScriptResult>&)> sink() {
+    return [this](const Result<nobion::scripting::ScriptResult>& r) {
       {
         std::lock_guard lock(mutex_);
         ++calls_;
@@ -425,16 +425,16 @@ TEST_F(Rehearsal, RunToEndFallsBackToStepAfterLimit) {
 }
 
 TEST_F(Rehearsal, DestroyWhileWaitingForValueJoins) {
-  if (!pychron::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
-  auto host = pychron::scripting::make_script_host();
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  auto host = nobion::scripting::make_script_host();
   Records steps;
   Finished finished;
-  const pychron::scripting::Script script{"post_measurement/inline.py",
+  const nobion::scripting::Script script{"post_measurement/inline.py",
                                            "def main():\n"
                                            "    signal_pump_time_start()\n"
                                            "    x = get_intensity('Ar40')\n"
                                            "    open('C')\n",
-                                           pychron::scripting::ScriptKind::PostMeasurement};
+                                           nobion::scripting::ScriptKind::PostMeasurement};
   auto runner = std::make_unique<rh::RehearsalRunner>(*host, script, rehearse_environment(), line(), steps.sink(),
                                                       finished.sink());
   runner->rehearsal().advance(rh::Advance::RunToEnd);
@@ -449,13 +449,13 @@ TEST_F(Rehearsal, DestroyWhileWaitingForValueJoins) {
 }
 
 TEST_F(Rehearsal, RunnerRehearsesSimExtract) {
-  if (!pychron::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
-  auto host = pychron::scripting::make_script_host();
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  auto host = nobion::scripting::make_script_host();
   Records steps;
   Finished finished;
   auto s = pipette_line();
   s.switches["C"].state = ValveState::Open;
-  rh::RehearsalRunner runner(*host, example("extraction/sim_extract.py", pychron::scripting::ScriptKind::Extraction),
+  rh::RehearsalRunner runner(*host, example("extraction/sim_extract.py", nobion::scripting::ScriptKind::Extraction),
                              rehearse_environment(), std::move(s), steps.sink(), finished.sink());
   runner.rehearsal().advance(rh::Advance::RunToEnd);
   ASSERT_TRUE(finished.await());

@@ -27,16 +27,16 @@
 #include "nobion/experiment/measurement/results.hpp"
 #include "nobion/experiment/plan/plan_loader.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment;
-using namespace pychron::experiment::measurement;
+using namespace nobion;
+using namespace nobion::experiment;
+using namespace nobion::experiment::measurement;
 using namespace std::chrono_literals;
 using collect::SeriesKey;
 using collect::merged_series;
 
 namespace {
 
-double secs(pychron::Duration d) { return std::chrono::duration<double>(d).count(); }
+double secs(nobion::Duration d) { return std::chrono::duration<double>(d).count(); }
 
 SeriesKey skey(std::string label, std::string detector, std::string_view kind, int segment = 0, int position = 0) {
   SeriesKey k;
@@ -109,7 +109,7 @@ class FakeSpectrometer final : public ISpectrometerPort {
     if (on) protected_.insert(det); else protected_.erase(det);
     return {};
   }
-  Result<void> start_acquisition(pychron::Duration integration) override {
+  Result<void> start_acquisition(nobion::Duration integration) override {
     if (lose_starts > 0) {  // as NGX's StartAcq whose reply was lost (link.hpp)
       --lose_starts;
       log.emplace_back("start lost");
@@ -120,7 +120,7 @@ class FakeSpectrometer final : public ISpectrometerPort {
     acquiring = true;
     return {};
   }
-  Result<std::optional<spectrometer::Reading>> next_reading(pychron::Duration timeout) override {
+  Result<std::optional<spectrometer::Reading>> next_reading(nobion::Duration timeout) override {
     if (!acquiring) return fail(ErrorKind::Config, "not acquiring");
     // Silent from silent_from until silent_until: the call waits its timeout
     // (or until the silence ends, when a reading comes at once), or fails at
@@ -177,9 +177,9 @@ class FakeSpectrometer final : public ISpectrometerPort {
   ErrorKind fail_kind = ErrorKind::Timeout;
   std::optional<TimePoint> silent_from, silent_until;
   bool silence_is_link_down = false;
-  pychron::Duration link_down_costs{};
+  nobion::Duration link_down_costs{};
   bool silence_ends_in_error = false;
-  pychron::Duration ts_lag{};  // a reading's own time is this much behind the clock
+  nobion::Duration ts_lag{};  // a reading's own time is this much behind the clock
   int silent_calls = 0;
   int lose_starts = 0;
   std::function<Result<void>(const std::string&, bool)> protect_fault;
@@ -207,7 +207,7 @@ class FakeSpectrometer final : public ISpectrometerPort {
 
   ManualClock& clock_;
   std::optional<plan::At> at_;
-  pychron::Duration integration_ = 1s;
+  nobion::Duration integration_ = 1s;
 };
 
 class FakeValves final : public IValvePort {
@@ -496,7 +496,7 @@ class EngineTest : public ::testing::Test {
 
   MeasurementResult run(plan::MeasurementPlan p, ConditionalSet conditionals = {}, EngineOptions options = {}) {
     MeasurementInputs in = inputs(std::move(p), std::move(conditionals));
-    if (!options.sleep) options.sleep = [this](pychron::Duration d) { clock_.advance(d); };
+    if (!options.sleep) options.sleep = [this](nobion::Duration d) { clock_.advance(d); };
     engine_ = std::make_unique<MeasurementEngine>(context(), std::move(in), std::move(options));
     return engine_->run(token_);
   }
@@ -928,7 +928,7 @@ counts = 3
   EXPECT_EQ(alone.data.series.at(skey("", "H1", collect::kBaseline, 0, 0)).v.size(), 2u);
 
   EngineOptions options;
-  options.sleep = [this](pychron::Duration d) { clock_.advance(d); };
+  options.sleep = [this](nobion::Duration d) { clock_.advance(d); };
   MeasurementEngine e(context(), inputs(plan, {}), options);
   ASSERT_TRUE(e.run_phase(plan::When::DuringExtraction, token_));
   auto after = e.run(token_);
@@ -1377,7 +1377,7 @@ TEST_F(StagedRelease, PumpOutStoppedMidWaitClosesTheValve) {
     return {};
   };
   EngineOptions options;
-  options.sleep = [this, &opened](pychron::Duration d) {
+  options.sleep = [this, &opened](nobion::Duration d) {
     clock_.advance(d);
     if (opened > 0) token_.cancel();  // stopped while it pumps
   };
@@ -1475,7 +1475,7 @@ TEST_F(EngineTest, LiveEditCountsChangeOnlyTheRunningPosition) {
 }
 
 TEST_F(EngineTest, EngineLogPeakCenterStartAndResult) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   auto p = multicollect(12);
   p.sniff.enabled = false;
@@ -1493,7 +1493,7 @@ TEST_F(EngineTest, EngineLogPeakCenterStartAndResult) {
 }
 
 TEST_F(EngineTest, EngineLogTruncateIsInfoWithRatio) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   auto p = multicollect(40, 3);
   p.sniff.enabled = false;
@@ -1620,7 +1620,7 @@ TEST_F(EngineTest, AnalysisTypeFiltersConditionals) {
   MeasurementInputs in = inputs(p, set);
   in.analysis_type = "unknown";
   EngineOptions options;
-  options.sleep = [this](pychron::Duration d) { clock_.advance(d); };
+  options.sleep = [this](nobion::Duration d) { clock_.advance(d); };
   MeasurementEngine e(context(), in, options);
   auto r = e.run(token_);
   EXPECT_EQ(r.outcome, MeasurementOutcome::Completed);
@@ -1777,7 +1777,7 @@ TEST_F(EngineTest, PositionFailureFails) {
 
 // What the dock shows from the engine is in the file too, once.
 TEST_F(EngineTest, EngineLogPeakCenterFailureReachesTheFileOnce) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   auto p = multicollect(3);
   p.sniff.enabled = false;
@@ -2384,7 +2384,7 @@ class MeasurementGaps : public EngineTest {
   }
 
   // Silent after the n-th main reading, for `d` (for good when not given).
-  void silence(int n, std::optional<pychron::Duration> d) {
+  void silence(int n, std::optional<nobion::Duration> d) {
     silence_after_ = n;
     silence_for_ = d;
   }
@@ -2392,7 +2392,7 @@ class MeasurementGaps : public EngineTest {
   TimePoint main_began() const { return *first_main_ - 1s; }
 
   std::optional<int> silence_after_;
-  std::optional<pychron::Duration> silence_for_;
+  std::optional<nobion::Duration> silence_for_;
   std::optional<TimePoint> first_main_, last_main_;
   std::size_t valves_at_silence_ = 0, valves_at_resume_ = 0, spec_log_at_silence_ = 0, spec_log_at_resume_ = 0;
   std::vector<measurement::MeasurementGap> published_;

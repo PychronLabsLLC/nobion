@@ -7,7 +7,7 @@
 
 #include "nobion/core/config/diagnostic.hpp"
 
-namespace pychron::test {
+namespace nobion::test {
 
 // The example from spec section 5.1, verbatim.
 inline constexpr std::string_view kExampleConfig = R"toml(
@@ -105,4 +105,4 @@ inline bool has(const std::vector<config::Diagnostic>& ds, std::string_view line
   return std::find(f.begin(), f.end(), line) != f.end();
 }
 
-}  // namespace pychron::test
+}  // namespace nobion::test

@@ -6,9 +6,9 @@
 #include "config_fixtures.hpp"
 #include "nobion/core/config/loader.hpp"
 
-using namespace pychron;
-using namespace pychron::config;
-using pychron::test::has;
+using namespace nobion;
+using namespace nobion::config;
+using nobion::test::has;
 
 namespace {
 

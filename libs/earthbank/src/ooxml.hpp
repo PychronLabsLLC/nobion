@@ -2,7 +2,7 @@
 
 // A vendor workbook template (.xlsx) as the EarthBank exporter needs it: open
 // the file, read a row (the field names), write data rows into a sheet, and
-// save a copy. Internal to pychron::earthbank; neither library it is built on
+// save a copy. Internal to nobion::earthbank; neither library it is built on
 // (miniz for the zip, pugixml for the XML) shows in this header.
 //
 // This is not a spreadsheet library. It knows nothing of formulas, number
@@ -65,7 +65,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::earthbank::ooxml {
+namespace nobion::earthbank::ooxml {
 
 // ---- The zip --------------------------------------------------------------
 
@@ -195,4 +195,4 @@ class Workbook {
   std::map<std::size_t, std::string> rewritten_;   // entry index -> new XML
 };
 
-}  // namespace pychron::earthbank::ooxml
+}  // namespace nobion::earthbank::ooxml

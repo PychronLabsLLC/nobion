@@ -7,7 +7,7 @@
 
 #include "nobion/processing/options.hpp"
 
-namespace pychron::processing::detail {
+namespace nobion::processing::detail {
 
 inline FieldSpec boolean(std::string key, std::string label, std::string section, bool def, std::string help = {}) {
   FieldSpec f;
@@ -149,4 +149,4 @@ inline SchemaPtr make_schema(std::string kind, std::string title, std::vector<Fi
   return s;
 }
 
-}  // namespace pychron::processing::detail
+}  // namespace nobion::processing::detail

@@ -18,7 +18,7 @@
 #include "nobion/processing/scene.hpp"
 #include "nobion/processing/scene_layout.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 struct Pt {
   double x = 0, y = 0;
@@ -78,4 +78,4 @@ std::string format_coord(double v);
 // empty for Solid.
 std::vector<double> dash_pattern(LineDash dash);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

@@ -2,8 +2,8 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-namespace pc = pychron::codec::pulse_counter;
+using namespace nobion;
+namespace pc = nobion::codec::pulse_counter;
 
 TEST(PulseCounterCodec, ReadCountsCommand) {
   EXPECT_EQ(pc::read_counts(), codec::Command::ascii("R\r", ReadSpec::until("\r")));

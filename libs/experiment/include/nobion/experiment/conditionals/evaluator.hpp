@@ -9,7 +9,7 @@
 
 #include "nobion/experiment/conditionals/expr.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 // Typed source of metric values. Backed by the Collector series, the
 // spectrometer snapshot, the extraction line and reduction computations.
@@ -64,4 +64,4 @@ class MapContext final : public MetricContext {
   std::optional<double> elapsed() const override { return elapsed_s; }
 };
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

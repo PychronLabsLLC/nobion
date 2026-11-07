@@ -6,7 +6,7 @@
 #include "nobion/core/config/system_config.hpp"
 #include "nobion/core/error.hpp"
 
-namespace pychron::config {
+namespace nobion::config {
 
 // One problem found while loading a config file.
 struct Diagnostic {
@@ -21,4 +21,4 @@ std::string to_string(const Diagnostic& d);
 // Folds diagnostics into one ErrorKind::Config error, one line per diagnostic.
 Error to_error(const std::vector<Diagnostic>& diagnostics);
 
-}  // namespace pychron::config
+}  // namespace nobion::config

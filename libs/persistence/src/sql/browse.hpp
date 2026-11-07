@@ -7,7 +7,7 @@
 
 #include "sql/statements.hpp"
 
-namespace pychron::persistence::detail::sql {
+namespace nobion::persistence::detail::sql {
 
 // Every browse column an analysis row needs. %1: the timestamp expression.
 // Reads `dv`: follow kBrowseFrom with kBrowseAgeJoin or kBrowseAgeRangeJoin.
@@ -156,4 +156,4 @@ inline const QString kLatestChangeSeq = QStringLiteral("SELECT COALESCE(MAX(chan
 inline const QString kBlobByShaFull =
     QStringLiteral("SELECT codec, n_points, bytes FROM signal_blob WHERE sha256 = ?");
 
-}  // namespace pychron::persistence::detail::sql
+}  // namespace nobion::persistence::detail::sql

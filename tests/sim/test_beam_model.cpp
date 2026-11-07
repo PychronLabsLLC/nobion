@@ -10,8 +10,8 @@
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::sim;
+using namespace nobion;
+using namespace nobion::sim;
 using namespace std::chrono_literals;
 using spectrometer::ParamId;
 using spectrometer::SourceParam;

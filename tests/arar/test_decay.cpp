@@ -8,8 +8,8 @@
 #include "golden.hpp"
 #include "nobion/arar/arar_reduction.hpp"
 
-using namespace pychron::reduction;
-namespace g = pychron::reduction::golden;
+using namespace nobion::reduction;
+namespace g = nobion::reduction::golden;
 
 namespace {
 std::string fmt(const char* what, double v) {
@@ -46,7 +46,7 @@ TEST(Decay, KnownSingleSegment) {
 TEST(Decay, UnitGuardErrors) {
   auto bad = decay_factors(0.02, 7e-6, std::vector<DecaySegment>{{1.0, 86400.0, 31536000.0}});
   ASSERT_FALSE(bad);
-  EXPECT_EQ(bad.error().kind, pychron::ErrorKind::Config);
+  EXPECT_EQ(bad.error().kind, nobion::ErrorKind::Config);
   EXPECT_NE(bad.error().what.find("reduction: "), std::string::npos);
   EXPECT_NE(bad.error().what.find("same unit"), std::string::npos);
   EXPECT_TRUE(decay_factors(1.0, 1.0, std::vector<DecaySegment>{{1.0, 50.0, 1.0}}));
@@ -62,7 +62,7 @@ TEST(Decay, ZeroLambdaWithSegmentsErrors) {
       ADD_FAILURE() << field << ": expected an error";
       continue;
     }
-    EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
+    EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
     EXPECT_TRUE(r.error().what.starts_with("reduction: ")) << r.error().what;
     EXPECT_NE(r.error().what.find(field), std::string::npos) << r.error().what;
   }

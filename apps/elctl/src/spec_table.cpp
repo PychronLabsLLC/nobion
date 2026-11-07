@@ -29,8 +29,8 @@ namespace elctl {
 namespace {
 
 namespace fs = std::filesystem;
-namespace spec = pychron::spectrometer;
-namespace cfg = pychron::spectrometer::cfg;
+namespace spec = nobion::spectrometer;
+namespace cfg = nobion::spectrometer::cfg;
 
 constexpr const char* kSpecUsage =
     "usage: elctl spec table <command> [--spectrometer <spectrometer.toml>]\n"
@@ -80,14 +80,14 @@ struct SpecData {
   fs::path tables() const { return root / "tables"; }
 };
 
-pychron::Result<SpecData> load_data(const fs::path& file) {
+nobion::Result<SpecData> load_data(const fs::path& file) {
   // The schema only, not the assembler rules: those read the tables, and a
   // broken table is what `check` is for.
   auto parsed = cfg::parse_config(file);
   if (!parsed.config) {
     std::string what = "cannot read " + file.string();
     for (const auto& d : parsed.diagnostics) what += "\n  " + d.message;
-    return pychron::fail(pychron::ErrorKind::Config, std::move(what));
+    return nobion::fail(nobion::ErrorKind::Config, std::move(what));
   }
   SpecData out{file.parent_path(), std::move(*parsed.config), {}};
   cfg::MolecularWeights weights = cfg::default_molecular_weights();
@@ -95,14 +95,14 @@ pychron::Result<SpecData> load_data(const fs::path& file) {
   std::error_code ec;
   if (fs::exists(weights_file, ec)) {
     std::ifstream in(weights_file, std::ios::binary);
-    if (!in.is_open()) return pychron::fail(pychron::ErrorKind::Io, "cannot read " + weights_file.string());
+    if (!in.is_open()) return nobion::fail(nobion::ErrorKind::Io, "cannot read " + weights_file.string());
     std::ostringstream text;
     text << in.rdbuf();
     auto w = cfg::load_molecular_weights_from_string(text.str(), weights_file.generic_string());
     if (!w.weights) {
       std::string what = "cannot read " + weights_file.string();
       for (const auto& d : w.diagnostics) what += "\n  " + d.message;
-      return pychron::fail(pychron::ErrorKind::Config, std::move(what));
+      return nobion::fail(nobion::ErrorKind::Config, std::move(what));
     }
     weights = std::move(*w.weights);
   }
@@ -141,7 +141,7 @@ class SpecTable {
   int show(const std::string& name, const std::optional<std::string>& version) {
     auto store = open(name);
     if (!store) return kFailed;
-    auto v = version ? pychron::Result<std::string>(*version) : store->current_version();
+    auto v = version ? nobion::Result<std::string>(*version) : store->current_version();
     if (!v) return failed(v.error().what);
     auto table = store->load(*v);
     if (!table) return failed(name + " " + *v + ": " + table.error().what);
@@ -191,7 +191,7 @@ class SpecTable {
   int diff(const std::string& name, const std::string& v1, const std::optional<std::string>& v2) {
     auto store = open(name);
     if (!store) return kFailed;
-    auto to = v2 ? pychron::Result<std::string>(*v2) : store->current_version();
+    auto to = v2 ? nobion::Result<std::string>(*v2) : store->current_version();
     if (!to) return failed(to.error().what);
     auto a = store->load(v1);
     if (!a) return failed(name + " " + v1 + ": " + a.error().what);
@@ -284,7 +284,7 @@ class SpecTable {
   // elctl opens no device and runs no simulation here.
   int save(spec::FieldTableStore& store, const spec::FieldTable& table) {
     if (!report(store.name(), table)) return failed(store.name() + ": the table has an error; nothing written");
-    auto version = store.save(table, pychron::SteadyClock{}.wall_now());
+    auto version = store.save(table, nobion::SteadyClock{}.wall_now());
     if (!version) return failed(version.error().what);
     return wrote(store.name(), *version);
   }

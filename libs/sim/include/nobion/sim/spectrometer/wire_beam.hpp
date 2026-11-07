@@ -18,7 +18,7 @@
 #include "nobion/devices/spectrometer/thermo_qtegra_sim.hpp"
 #include "nobion/sim/spectrometer/beam_model.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 
 // SetMagnetDAC, SetHV, SetDeflection, SetGain, ProtectDetector, BlankBeam and
 // SetParameter (a hardware name, through codec::qtegra::canonical_name and
@@ -34,4 +34,4 @@ void feed_qtegra_from_beam(spectrometer::QtegraSimModel& model, const std::share
 void feed_ngx_from_beam(spectrometer::NgxSimModel& model, const std::shared_ptr<BeamModel>& beam,
                         std::vector<std::string> channels);
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

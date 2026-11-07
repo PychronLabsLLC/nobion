@@ -7,7 +7,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/systems/canvas/canvas.hpp"
 
-namespace pychron::canvas {
+namespace nobion::canvas {
 
 struct CrossReport {
   std::vector<config::Diagnostic> errors;    // located in the canvas file
@@ -28,4 +28,4 @@ CrossReport cross_validate(const Canvas& canvas, const config::SystemConfig& sys
 // Result form: warnings on success, a Config error listing every error otherwise.
 Result<std::vector<config::Diagnostic>> check_canvas(const Canvas& canvas, const config::SystemConfig& system);
 
-}  // namespace pychron::canvas
+}  // namespace nobion::canvas

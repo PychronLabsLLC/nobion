@@ -20,7 +20,7 @@
 
 namespace fs = std::filesystem;
 
-namespace pychron::setup {
+namespace nobion::setup {
 namespace {
 
 constexpr std::string_view kSqlitePrefix = "sqlite:";
@@ -468,4 +468,4 @@ std::vector<std::string> seed_data_source(const DataSourceChange& change, const 
   return {"database " + database_url(to, install.root) + ": " + *done};
 }
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

@@ -9,7 +9,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/systems/spectrometer/config.hpp"
 
-namespace pychron::spectrometer::cfg {
+namespace nobion::spectrometer::cfg {
 
 // Outcome of parsing `spectrometer.toml`: `config` is set only when
 // `diagnostics` is empty.
@@ -32,4 +32,4 @@ ConfigLoadReport parse_config_from_string(std::string_view main_toml, std::strin
 // Reads `path` and, if present, its sibling `*.local.toml`.
 ConfigLoadReport parse_config(const std::filesystem::path& path);
 
-}  // namespace pychron::spectrometer::cfg
+}  // namespace nobion::spectrometer::cfg

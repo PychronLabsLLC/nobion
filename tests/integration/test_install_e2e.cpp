@@ -53,11 +53,11 @@
 #include "virtual_time.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 namespace fs = std::filesystem;
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 using namespace std::chrono_literals;
 
 // How the data window opens the store: under the Ar-Ar domain's reduction
@@ -150,7 +150,7 @@ struct Ran {
   std::size_t pending = 0;
 };
 
-class InstallE2E : public pychron::testing::VirtualTimeTest, public ::testing::WithParamInterface<std::string> {
+class InstallE2E : public nobion::testing::VirtualTimeTest, public ::testing::WithParamInterface<std::string> {
  protected:
   // The queue run twice is 24 to 27 s under AddressSanitizer on a four-core
   // CI runner, and past 30 with every core busy; ctest gives a test 120.
@@ -158,7 +158,7 @@ class InstallE2E : public pychron::testing::VirtualTimeTest, public ::testing::W
 
   void SetUp() override {
     if (!scripting::scripting_enabled()) GTEST_SKIP() << "the shipped queue's scripts need PYCHRON_SCRIPTING";
-    dir_ = pychron::testing::unique_temp_path("pychron-e2e-");
+    dir_ = nobion::testing::unique_temp_path("pychron-e2e-");
     fs::create_directories(dir_);
     site_config_.emplace("NOBION_SITE_CONFIG", (dir_ / "site.toml").string());
     install();
@@ -678,4 +678,4 @@ TEST_P(InstallE2E, EveryShippedPlanIsStoredAndReadsAsItsRecord) {
 INSTANTIATE_TEST_SUITE_P(Engines, InstallE2E, ::testing::ValuesIn(ps::testing::engines()));
 
 }  // namespace
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

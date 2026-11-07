@@ -23,7 +23,7 @@
 #include "nobion/sim/sim_system.hpp"
 #include "nobion/systems/canvas/canvas.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 // Something the builder has to say: logged by the line, printed by sim serve.
 struct LineSimNote {
@@ -64,4 +64,4 @@ struct SimFileBeside {
 };
 SimFileBeside sim_file_beside(const std::filesystem::path& system_file, bool has_canvas);
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

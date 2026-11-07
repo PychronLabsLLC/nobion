@@ -21,11 +21,11 @@
 #include "nobion/core/signal_bus.hpp"
 #include "nobion/metrics/registry.hpp"
 
-namespace pychron {
+namespace nobion {
 class Link;
 }
 
-namespace pychron::experiment::metrics {
+namespace nobion::experiment::metrics {
 
 class MetricsService {
  public:
@@ -48,7 +48,7 @@ class MetricsService {
   std::uint16_t port() const noexcept;  // 0 when not listening
   // Why it is not listening; empty when it is.
   const std::string& error() const noexcept;
-  pychron::metrics::Registry& registry() noexcept;
+  nobion::metrics::Registry& registry() noexcept;
 
   // The links whose reconnects and repeats each scrape reads
   // (pychron_link_reconnects_total, pychron_link_repeats_total), by their
@@ -63,4 +63,4 @@ class MetricsService {
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace pychron::experiment::metrics
+}  // namespace nobion::experiment::metrics

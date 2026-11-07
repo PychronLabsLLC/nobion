@@ -30,7 +30,7 @@ class QCPGraph;
 class QCPLegend;
 class QCustomPlot;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class FollowPlotView : public QWidget {
   Q_OBJECT
@@ -90,4 +90,4 @@ class FollowPlotView : public QWidget {
   QTimer deferred_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

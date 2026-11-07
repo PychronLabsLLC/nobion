@@ -14,7 +14,7 @@
 #include "nobion/sim/sim_system.hpp"
 #include "nobion/systems/spectrometer/assembler.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 sim::BeamSettings beam_settings_from_config(const cfg::SpectrometerData& data) {
   sim::BeamSettings settings;
@@ -128,4 +128,4 @@ Result<std::unique_ptr<Spectrometer>> load_spectrometer_for_app(cfg::Spectromete
   return spec;
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

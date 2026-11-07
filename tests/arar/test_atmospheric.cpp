@@ -13,8 +13,8 @@
 #include "golden.hpp"
 #include "nobion/arar/arar_reduction.hpp"
 
-using namespace pychron::reduction;
-namespace g = pychron::reduction::golden;
+using namespace nobion::reduction;
+namespace g = nobion::reduction::golden;
 
 namespace {
 
@@ -231,7 +231,7 @@ TEST(Atmospheric, SingularDenominatorErrors) {
   const UFloat zero = 0.0;
   const auto r = atmospheric_components(a38, a36, zero, zero, zero, dd, UFloat(cl), c);
   ASSERT_FALSE(r);
-  EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
   EXPECT_TRUE(r.error().what.starts_with("reduction: ")) << r.error().what;
   EXPECT_NE(r.error().what.find("zero divisor"), std::string::npos) << r.error().what;
 
@@ -249,7 +249,7 @@ TEST(Atmospheric, InvalidConstantsError) {
   const auto r = atmospheric_components(UFloat(0.5), UFloat(0.1), UFloat(0.0), UFloat(0.0),
                                         UFloat(0.0), 365.0, UFloat(0.0), c);
   ASSERT_FALSE(r);
-  EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
   EXPECT_NE(r.error().what.find("atm4038"), std::string::npos) << r.error().what;
 }
 
@@ -308,7 +308,7 @@ TEST(Cosmogenic, PureSolarPureCosmoMixed) {
   // Spec Q16: c36 == 0 and rc == rs are errors (legacy ZeroDivisionError).
   const auto zero36 = cosmogenic_components(UFloat::variable(0.0, 0.01), UFloat(0.3), ratios);
   ASSERT_FALSE(zero36);
-  EXPECT_EQ(zero36.error().kind, pychron::ErrorKind::Config);
+  EXPECT_EQ(zero36.error().kind, nobion::ErrorKind::Config);
   EXPECT_NE(zero36.error().what.find("zero divisor"), std::string::npos) << zero36.error().what;
   EXPECT_TRUE(zero36.error().what.starts_with("reduction: "));
   const auto same = cosmogenic_components(UFloat(1.0), UFloat(0.3),

@@ -43,7 +43,7 @@ extern char** environ;
 #include <vector>
 #endif
 
-namespace pychron {
+namespace nobion {
 
 namespace {
 
@@ -413,4 +413,4 @@ std::filesystem::path executable_dir() {
 #endif
 }
 
-}  // namespace pychron
+}  // namespace nobion

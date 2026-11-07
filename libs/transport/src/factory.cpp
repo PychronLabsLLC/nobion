@@ -10,7 +10,7 @@
 #include "nobion/transport/trace_recorder.hpp"
 #include "nobion/transport/udp_transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace {
 
@@ -111,4 +111,4 @@ Result<std::unique_ptr<Transport>> make_transport(const config::TransportConfig&
   return transport;
 }
 
-}  // namespace pychron
+}  // namespace nobion

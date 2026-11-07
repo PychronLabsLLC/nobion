@@ -25,11 +25,11 @@
 #include "shortcuts.hpp"
 #include "ui_fixture.hpp"
 
-using pychron::ui::MenuHub;
-using pychron::ui::Shortcut;
-using pychron::ui::ShortcutContext;
-using pychron::ui::ShortcutsDialog;
-using pychron::ui::shortcut_catalog;
+using nobion::ui::MenuHub;
+using nobion::ui::Shortcut;
+using nobion::ui::ShortcutContext;
+using nobion::ui::ShortcutsDialog;
+using nobion::ui::shortcut_catalog;
 
 namespace {
 
@@ -67,8 +67,8 @@ class TestShortcuts : public QObject {
       QVERIFY2(ids.insert(e.id).second, qPrintable(e.command));
       QVERIFY(!e.command.isEmpty());
     }
-    QCOMPARE(pychron::ui::key(Shortcut::FileSave), QKeySequence(QKeySequence::Save));
-    QCOMPARE(pychron::ui::key(Shortcut::StartQueue), QKeySequence(Qt::Key_F5));
+    QCOMPARE(nobion::ui::key(Shortcut::FileSave), QKeySequence(QKeySequence::Save));
+    QCOMPARE(nobion::ui::key(Shortcut::StartQueue), QKeySequence(Qt::Key_F5));
   }
 
   // Window keys may repeat between windows (Recall Next in the data browser
@@ -80,7 +80,7 @@ class TestShortcuts : public QObject {
     for (std::size_t i = 0; i < c.size(); ++i) {
       for (std::size_t j = i + 1; j < c.size(); ++j) {
         if (c[i].key.isEmpty() || c[i].key != c[j].key) continue;
-        QVERIFY2(!pychron::ui::overlap(c[i].context, c[j].context), qPrintable(QStringLiteral("%1 and %2 share %3")
+        QVERIFY2(!nobion::ui::overlap(c[i].context, c[j].context), qPrintable(QStringLiteral("%1 and %2 share %3")
                                           .arg(c[i].command, c[j].command, c[i].key.toString())));
       }
     }
@@ -88,7 +88,7 @@ class TestShortcuts : public QObject {
 
   void the_file_keys_are_live_where_a_window_answers_them() {
     using C = ShortcutContext;
-    using pychron::ui::overlap;
+    using nobion::ui::overlap;
     for (const C c : {C::Everywhere, C::FileMenu, C::ExperimentWindow, C::ScriptEditor}) {
       QVERIFY(overlap(C::FileMenu, c));
       QVERIFY(overlap(c, C::FileMenu));
@@ -121,12 +121,12 @@ class TestShortcuts : public QObject {
   // Every key in the menus is in the catalog, and every catalog key that
   // belongs to a menu is in one.
   void the_menus_use_the_catalog() {
-    pychron::ui::test::SimLab sim;
-    pychron::ui::ExperimentBridge bridge(*sim.session, sim.line->bus());
-    pychron::ui::MainWindow main(*sim.line);
-    pychron::ui::ExperimentWindow experiment(
+    nobion::ui::test::SimLab sim;
+    nobion::ui::ExperimentBridge bridge(*sim.session, sim.line->bus());
+    nobion::ui::MainWindow main(*sim.line);
+    nobion::ui::ExperimentWindow experiment(
         bridge, true, std::make_unique<QSettings>(tmp_.filePath(QStringLiteral("s.ini")), QSettings::IniFormat));
-    pychron::ui::ScriptEditorWindow* editor = experiment.open_script_editor();
+    nobion::ui::ScriptEditorWindow* editor = experiment.open_script_editor();
     main.show();
     experiment.show();
 
@@ -174,8 +174,8 @@ class TestShortcuts : public QObject {
   }
 
   void help_opens_the_reference_from_any_window() {
-    auto line = pychron::ui::test::make_example_line();
-    pychron::ui::MainWindow main(*line);
+    auto line = nobion::ui::test::make_example_line();
+    nobion::ui::MainWindow main(*line);
     QMainWindow figure;
     figure.show();
     QList<QAction*> help;
@@ -185,7 +185,7 @@ class TestShortcuts : public QObject {
     QCOMPARE(help.at(2), main.legend_action());
     QCOMPARE(help.at(1)->text(), QStringLiteral("Keyboard Shortcuts"));
     QCOMPARE(help.last(), main.about_action());
-    QCOMPARE(help.at(1)->shortcut(), pychron::ui::key(Shortcut::KeyboardShortcuts));
+    QCOMPARE(help.at(1)->shortcut(), nobion::ui::key(Shortcut::KeyboardShortcuts));
 
     help.at(1)->trigger();
     auto* dialog = main.findChild<ShortcutsDialog*>();

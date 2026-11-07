@@ -12,11 +12,11 @@
 #include "run_fakes.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment;
-using namespace pychron::experiment::run;
-using namespace pychron::experiment::fakes;
-using AutomatedRun = pychron::experiment::run::Run;
+using namespace nobion;
+using namespace nobion::experiment;
+using namespace nobion::experiment::run;
+using namespace nobion::experiment::fakes;
+using AutomatedRun = nobion::experiment::run::Run;
 
 namespace {
 
@@ -89,7 +89,7 @@ class RunTest : public ::testing::Test {
     s.spectrometer = &spec_;
     s.valves = &valves_;
     s.spectrometer_info = [] { return SpectrometerInfo{"hash123", "argon-2026", 1.0}; };
-    s.engine.sleep = [this](pychron::Duration d) { clock_.advance(d); };
+    s.engine.sleep = [this](nobion::Duration d) { clock_.advance(d); };
     s.plans = &plans_;
     s.aliquots = &lab_.aliquots;
     s.persister = &lab_.files;
@@ -220,7 +220,7 @@ TEST_F(RunTest, FullRunSucceedsAndSaves) {
 
 // The run's view of its scripts: which kind began and ended, one line each.
 TEST_F(RunTest, RunLogScriptStartEndAroundExtraction) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   auto r = go(unknown_run("12345"));
   ASSERT_EQ(r.state, RunState::Success);
@@ -234,7 +234,7 @@ TEST_F(RunTest, RunLogScriptStartEndAroundExtraction) {
 
 // An abort says why, at warn (the state change itself is on trace.RunStateChanged).
 TEST_F(RunTest, RunLogAbortReasonIsAWarning) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   control_.abort();
   auto r = go(unknown_run("12345"));
@@ -1092,7 +1092,7 @@ VirtualClock::Options safe_clock() {
 
 }  // namespace
 
-class SafeState : public pychron::testing::VirtualTimeTest {
+class SafeState : public nobion::testing::VirtualTimeTest {
  protected:
   SafeState() {
     device_.journal = &journal_;
@@ -1118,7 +1118,7 @@ class SafeState : public pychron::testing::VirtualTimeTest {
     s.spectrometer = &spec_;
     s.valves = &valves_;
     s.spectrometer_info = [] { return SpectrometerInfo{"hash123", "argon-2026", 1.0}; };
-    s.engine.sleep = [this](pychron::Duration d) { clock_.sleep_for(d); };
+    s.engine.sleep = [this](nobion::Duration d) { clock_.sleep_for(d); };
     s.plans = &plans_;
     s.aliquots = &lab_.aliquots;
     s.persister = &lab_.files;

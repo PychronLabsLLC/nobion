@@ -3,7 +3,7 @@
 #include "nobion/core/log_hub.hpp"
 #include "nobion/core/logger.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // Sends Qt's own messages (qDebug .. qFatal) to logger `qt` on `hub`
 // (debug, info, warn, error, error), then to the handler that was installed
@@ -19,4 +19,4 @@ class QtLogHandler {
   QtLogHandler& operator=(const QtLogHandler&) = delete;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

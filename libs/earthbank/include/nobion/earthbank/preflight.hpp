@@ -31,7 +31,7 @@
 #include "nobion/earthbank/lookup.hpp"
 #include "nobion/earthbank/model.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 // How one name field with an id beside it is treated.
 enum class TermKind {
@@ -117,4 +117,4 @@ struct PreflightReport {
 // is not checked.
 PreflightReport preflight(const std::vector<Submission>& submissions, LookupResolver& resolver);
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

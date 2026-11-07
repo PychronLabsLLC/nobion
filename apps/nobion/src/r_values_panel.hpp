@@ -17,7 +17,7 @@ class QLabel;
 class QTableWidget;
 class QVBoxLayout;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class RValuesPanel : public QWidget {
   Q_OBJECT
@@ -46,4 +46,4 @@ class RValuesPanel : public QWidget {
   QLabel* note_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

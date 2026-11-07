@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
+using namespace nobion;
 
 TEST(ProxrBoardSim, StartsDeEnergized) {
   ProxrBoardSim board;

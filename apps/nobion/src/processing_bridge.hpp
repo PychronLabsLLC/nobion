@@ -23,7 +23,7 @@
 #include "nobion/processing/domain.hpp"
 #include "nobion/processing/units.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 struct PipelineResult {
   // One entry per requested target, in order.
@@ -100,4 +100,4 @@ class ProcessingBridge : public QObject {
   std::thread worker_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

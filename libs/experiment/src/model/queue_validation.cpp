@@ -4,7 +4,7 @@
 #include <map>
 #include <tuple>
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 class Collector {
@@ -106,4 +106,4 @@ QueueReport check_queue(const QueueSpec& q, const IdentifierRules& ids, const Qu
   return report;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

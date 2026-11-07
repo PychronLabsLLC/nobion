@@ -14,7 +14,7 @@
 
 #include "nobion/experiment/conditionals/evaluator.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 enum class ConditionalKind { Truncation, Termination, Cancelation, Action, Modification, Equilibration, PreRun, PostRun };
 
@@ -232,4 +232,4 @@ std::string to_toml(const ConditionalSet& set);
 // [whiff] sniff = N ; [[whiff.checks]] check = "...", action = "pump"
 Result<Whiff> parse_whiff(std::string_view toml_text, std::string_view file = "whiff.toml");
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

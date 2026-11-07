@@ -4,7 +4,7 @@
 
 #include "nobion/experiment/model/experiment_queue.hpp"
 
-using namespace pychron::experiment;
+using namespace nobion::experiment;
 
 namespace {
 const IdentifierRules kIds = IdentifierRules::defaults();

@@ -19,7 +19,7 @@
 #include "nobion/systems/spectrometer/bringup.hpp"
 #include "nobion/systems/spectrometer/scan_service.hpp"
 
-namespace pychron::ui::test {
+namespace nobion::ui::test {
 
 // Destroy any bridge or window built on this before the fixture itself.
 struct SimSpectrometer {
@@ -72,4 +72,4 @@ inline std::unique_ptr<SimSpectrometer> make_sim_spectrometer(
   return sim;
 }
 
-}  // namespace pychron::ui::test
+}  // namespace nobion::ui::test

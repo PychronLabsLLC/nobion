@@ -19,8 +19,8 @@
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::sim;
+using namespace nobion;
+using namespace nobion::sim;
 
 double sum(const std::vector<double>& n) {
   double s = 0.0;

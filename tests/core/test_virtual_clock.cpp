@@ -16,19 +16,19 @@
 #include "nobion/core/virtual_clock.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {
 
 using Real = std::chrono::steady_clock;
-using pychron::testing::await_participants;
-using pychron::testing::await_waiters;
+using nobion::testing::await_participants;
+using nobion::testing::await_waiters;
 
 // A clock that loses a wake-up leaves a thread asleep for good. A test cannot
 // unwind past such a thread, so each one runs under a real-time bound: when it
 // is exceeded the process says so and aborts, well inside the ctest timeout.
-class VirtualClockTest : public pychron::testing::VirtualTimeTest {
+class VirtualClockTest : public nobion::testing::VirtualTimeTest {
  protected:
   VirtualClockTest() : VirtualTimeTest(45s) {}
 };

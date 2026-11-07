@@ -50,9 +50,9 @@
 #include "nobion/systems/spectrometer/config_loader.hpp"
 #include "temp_path.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment;
-using namespace pychron::experiment::measurement;
+using namespace nobion;
+using namespace nobion::experiment;
+using namespace nobion::experiment::measurement;
 using namespace std::chrono_literals;
 using collect::merged_series;
 
@@ -140,7 +140,7 @@ baseline = { default = "average" }
 expose = ["main.cycles"]
 )";
 
-class MeasurementSim : public pychron::testing::VirtualTimeTest {
+class MeasurementSim : public nobion::testing::VirtualTimeTest {
  protected:
   explicit MeasurementSim(std::chrono::seconds dead_man = std::chrono::seconds(30)) : VirtualTimeTest(dead_man) {}
 
@@ -206,7 +206,7 @@ class MeasurementSim : public pychron::testing::VirtualTimeTest {
 
   plan::PlanResolvers resolvers() const { return plan::PlanResolvers{aliases_.get(), catalog_.get()}; }
 
-  std::filesystem::path data_root_ = pychron::testing::unique_temp_path("measurement_sim_data_");
+  std::filesystem::path data_root_ = nobion::testing::unique_temp_path("measurement_sim_data_");
   // The ARGUS-like integrated simulator of configs/examples; a suite on
   // another spectrometer names its own.
   virtual std::filesystem::path spectrometer_config() const { return kDir / "spectrometer.sim-integrated.toml"; }
@@ -408,7 +408,7 @@ TEST_F(MeasurementSim, ExecutorRunsAQueueOnTheSimLab) {
   plans.add(*tmpl);
   DirectoryConditionalSource source(kDir / "conditionals");
   ConditionalLibrary library(source);
-  const auto scratch = pychron::testing::unique_temp_path("executor_sim_");
+  const auto scratch = nobion::testing::unique_temp_path("executor_sim_");
   persist::FilePersister files(scratch / "records");
   persist::Spool spool(scratch / "spool");
   persist::SavePipeline save(spool, files);
@@ -619,7 +619,7 @@ class SpectrometerPeakCenterSim : public MeasurementSim {
   Result<PeakCenterReport> cancel_part_way(SpectrometerPeakCenter& peak_center, scripting::CancelToken& token) {
     std::atomic<bool> gave_up{false};
     const auto started = clock_.now();
-    pychron::testing::Crew crew(clock_);
+    nobion::testing::Crew crew(clock_);
     crew.start("canceller", [&] {
       while (!spec_->acquisition().running() && clock_.now() - started < 60s) clock_.sleep_for(100ms);
       gave_up = !spec_->acquisition().running();
@@ -754,7 +754,7 @@ TEST_F(SpectrometerPeakCenterSim, ARunAlreadyCancelledDoesNotRunTheJob) {
 // The same spectrometer with nothing but the scheduler's dispatcher (no
 // workers): it runs the acquisition polls and the test's thread, a
 // participant, runs the job. A stall is reported to the test.
-class SpectrometerPeakCenterVirtual : public pychron::testing::VirtualTimeTest {
+class SpectrometerPeakCenterVirtual : public nobion::testing::VirtualTimeTest {
  protected:
   static VirtualClock::Options options(SpectrometerPeakCenterVirtual* self) {
     VirtualClock::Options o;
@@ -805,7 +805,7 @@ class SpectrometerPeakCenterVirtual : public pychron::testing::VirtualTimeTest {
 
   std::mutex mutex_;
   std::vector<std::string> stalls_;
-  std::filesystem::path data_root_ = pychron::testing::unique_temp_path("measurement_sim_data_");
+  std::filesystem::path data_root_ = nobion::testing::unique_temp_path("measurement_sim_data_");
   VirtualClock clock_{options(this)};  // before everything that is given a reference to it
   Clock::Participant test_{clock_, "test"};
   SignalBus bus_;

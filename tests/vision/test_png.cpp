@@ -13,8 +13,8 @@
 
 #include "nobion/vision/png.hpp"
 
-using namespace pychron;
-using namespace pychron::vision;
+using namespace nobion;
+using namespace nobion::vision;
 
 namespace {
 

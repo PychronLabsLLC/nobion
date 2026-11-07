@@ -31,7 +31,7 @@ class QCustomPlot;
 class QLabel;
 class QMouseEvent;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class PeakCenterView : public QWidget {
   Q_OBJECT
@@ -120,4 +120,4 @@ class PeakCenterView : public QWidget {
   std::deque<jobs::PeakCenterResult> kept_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

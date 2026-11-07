@@ -6,7 +6,7 @@
 #include "nobion/systems/spectrometer/field_table.hpp"
 #include "nobion/systems/spectrometer/molecular_weights.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 // Reads pychron's mftable.csv / ic_mftable.csv for the one-shot importer.
 //
@@ -25,4 +25,4 @@ namespace pychron::spectrometer {
 Result<FieldTable> read_mftable_csv(std::string_view csv_text, const MolecularWeights& weights,
                                     TableAxis axis = TableAxis::Dac);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

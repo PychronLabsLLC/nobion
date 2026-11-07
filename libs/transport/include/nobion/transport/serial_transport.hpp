@@ -6,7 +6,7 @@
 
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 struct SerialSettings {
   enum class Parity { None, Even, Odd };
@@ -38,4 +38,4 @@ class SerialTransport final : public QueuedTransport {
   std::unique_ptr<Io> io_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

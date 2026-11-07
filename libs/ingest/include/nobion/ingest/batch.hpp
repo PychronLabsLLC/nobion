@@ -17,7 +17,7 @@
 #include "nobion/persistence/model.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::ingest {
+namespace nobion::ingest {
 
 // Where a row came from. `blob_sha` is the git blob sha of the file at
 // `commit`, as text; for a non-git source any stable content key.
@@ -312,4 +312,4 @@ struct ImportBatch {
   std::string head;  // the source head this batch was read at; empty: as described
 };
 
-}  // namespace pychron::ingest
+}  // namespace nobion::ingest

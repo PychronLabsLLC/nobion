@@ -22,7 +22,7 @@
 #include "nobion/processing/options.hpp"
 #include "nobion/processing/source.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class DataWorkspace : public QObject {
   Q_OBJECT
@@ -89,4 +89,4 @@ class DataWorkspace : public QObject {
   std::function<void(const QStringList&)> publish_handler_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

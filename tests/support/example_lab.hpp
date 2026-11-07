@@ -7,7 +7,7 @@
 #include <filesystem>
 #include <string>
 
-namespace pychron::testing {
+namespace nobion::testing {
 
 // True for what a session writes beside a lab or a site keeps for itself:
 // <lab>/data, <lab>/notifications.toml, any stage_corrections, snapshots or
@@ -41,4 +41,4 @@ inline void copy_lab(const std::filesystem::path& from, const std::filesystem::p
   }
 }
 
-}  // namespace pychron::testing
+}  // namespace nobion::testing

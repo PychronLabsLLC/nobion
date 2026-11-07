@@ -9,7 +9,7 @@
 #include "nobion/experiment/factory/defaults.hpp"
 #include "nobion/experiment/model/run_spec.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 // A reusable run sequence (block template) stored as TOML:
 //   [block]  name = "blank_air_blank"  description = "..."
@@ -36,4 +36,4 @@ std::vector<RunSpec> insert_runs(const std::vector<RunSpec>& runs, std::size_t i
 // `runs` repeated `times` times in order.
 std::vector<RunSpec> repeat_block(const std::vector<RunSpec>& runs, int times);
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

@@ -16,10 +16,10 @@
 
 #include "nobion/arar/analysis_data.hpp"
 
-namespace pychron::arar {
+namespace nobion::arar {
 
 namespace fs = std::filesystem;
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 namespace {
 
@@ -141,4 +141,4 @@ pp::RecordExtensionLoader record_extension_loader(const fs::path& references_tom
   return loader;
 }
 
-}  // namespace pychron::arar
+}  // namespace nobion::arar

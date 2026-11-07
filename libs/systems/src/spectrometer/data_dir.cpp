@@ -8,7 +8,7 @@
 #include "nobion/systems/spectrometer/config_validate.hpp"
 #include "toml_reader.hpp"
 
-namespace pychron::spectrometer::cfg {
+namespace nobion::spectrometer::cfg {
 
 namespace fs = std::filesystem;
 using detail::Obj;
@@ -252,4 +252,4 @@ Result<SpectrometerData> load_spectrometer(const fs::path& config_file, const fs
   return std::move(*report.data);
 }
 
-}  // namespace pychron::spectrometer::cfg
+}  // namespace nobion::spectrometer::cfg

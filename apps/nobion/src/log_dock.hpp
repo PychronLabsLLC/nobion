@@ -28,12 +28,12 @@ class QTableView;
 class QTimer;
 class QToolButton;
 
-namespace pychron {
+namespace nobion {
 class LogHub;
 class SignalBus;
 }
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class LogDock : public QDockWidget {
   Q_OBJECT
@@ -143,4 +143,4 @@ class LogDock : public QDockWidget {
 // so what was asked for reaches the panel. Does nothing once the hub is gone.
 LogDock::LevelCallback hub_level_callback(std::weak_ptr<LogHub> hub);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

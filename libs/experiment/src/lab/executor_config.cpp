@@ -10,12 +10,12 @@
 
 #include <toml++/toml.hpp>
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 namespace {
 
-pychron::Duration seconds(double s) {
-  return std::chrono::duration_cast<pychron::Duration>(std::chrono::duration<double>(s));
+nobion::Duration seconds(double s) {
+  return std::chrono::duration_cast<nobion::Duration>(std::chrono::duration<double>(s));
 }
 
 std::string shown(double v) {
@@ -94,8 +94,8 @@ LinkPolicy ExecutorConfig::link_defaults() const {
   return p;
 }
 
-pychron::Duration ExecutorConfig::critical_window() const { return seconds(links.critical_window_s); }
-pychron::Duration ExecutorConfig::max_gap() const { return seconds(measurement.max_gap_s); }
+nobion::Duration ExecutorConfig::critical_window() const { return seconds(links.critical_window_s); }
+nobion::Duration ExecutorConfig::max_gap() const { return seconds(measurement.max_gap_s); }
 
 Result<ExecutorConfig> ExecutorConfig::from_toml(std::string_view text, const std::string& source) {
   auto parsed = toml::parse(text, source);
@@ -161,4 +161,4 @@ Result<ExecutorConfig> ExecutorConfig::load(const std::filesystem::path& path) {
   return from_toml(ss.str(), path.string());
 }
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

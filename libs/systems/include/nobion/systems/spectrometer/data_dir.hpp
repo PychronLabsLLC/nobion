@@ -23,7 +23,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/systems/spectrometer/config.hpp"
 
-namespace pychron::spectrometer::cfg {
+namespace nobion::spectrometer::cfg {
 
 // ---- layout ---------------------------------------------------------------
 
@@ -120,4 +120,4 @@ DataLoadReport load_spectrometer_data(const std::filesystem::path& config_file,
 Result<SpectrometerData> load_spectrometer(const std::filesystem::path& config_file,
                                            const std::filesystem::path& table_root = {});
 
-}  // namespace pychron::spectrometer::cfg
+}  // namespace nobion::spectrometer::cfg

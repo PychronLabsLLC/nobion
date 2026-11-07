@@ -5,7 +5,7 @@
 
 #include "nobion/reduction/detail/arar_kernels.hpp"
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 Measured resolve(const StoredValue& row) noexcept {
   Measured m{row.value, row.error};
@@ -87,4 +87,4 @@ Result<UFloat> deadtime_corrected_intercept(const IsotopeSignal& s, double fa_to
   return deadtime_correct(s.intercept, *s.deadtime_tau_s, fa_to_cps);
 }
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

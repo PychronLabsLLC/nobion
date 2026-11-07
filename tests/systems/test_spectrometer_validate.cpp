@@ -6,7 +6,7 @@
 #include "nobion/systems/spectrometer/config_loader.hpp"
 #include "nobion/systems/spectrometer/config_validate.hpp"
 
-namespace pychron::spectrometer::cfg {
+namespace nobion::spectrometer::cfg {
 namespace {
 
 // A valid legacy-split config (spec section 7.2 shape) with one detector that
@@ -298,4 +298,4 @@ TEST(SpectrometerValidate, ValidateCollectsEveryRule) {
 }
 
 }  // namespace
-}  // namespace pychron::spectrometer::cfg
+}  // namespace nobion::spectrometer::cfg

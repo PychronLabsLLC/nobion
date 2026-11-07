@@ -15,7 +15,7 @@
 #include "nobion/processing/domain.hpp"
 #include "nobion/processing/units.hpp"
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 namespace {
 
@@ -53,7 +53,7 @@ std::size_t count_naming(const std::vector<std::string>& warnings, const std::st
 }  // namespace
 
 TEST(Pipeline, ReducePresetKeysMigrateToArArReduce) {
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   std::vector<std::string> warnings;
   auto p = pp::pipeline_from_toml(domain->units(), kPreSplit, &warnings);
   ASSERT_TRUE(p) << p.error().what;
@@ -86,7 +86,7 @@ TEST(Pipeline, ReducePresetKeysMigrateToArArReduce) {
 
   // And it runs with them.
   pp::MemorySource source;
-  source.add(pychron::arar::test::make_unknown(1));
+  source.add(nobion::arar::test::make_unknown(1));
   pp::Runner runner(domain->units(), &source, domain.get());
   auto ran = runner.run(*p, "arar_reduce");
   ASSERT_TRUE(ran) << ran.error().what;
@@ -96,7 +96,7 @@ TEST(Pipeline, ReducePresetKeysMigrateToArArReduce) {
 // A value the new node's schema refuses is not moved: the default stands and
 // the warning says why.
 TEST(Pipeline, AMigratedKeyIsValidatedByItsNewNode) {
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   std::string text = kPreSplit;
   text.replace(text.find("\"legacy\""), 8, "\"bogus\"");
   std::vector<std::string> warnings;
@@ -111,7 +111,7 @@ TEST(Pipeline, AMigratedKeyIsValidatedByItsNewNode) {
 // With no arar_reduce node after reduce, nothing moves: the key stays where
 // it was read, kept unread and written back unchanged, as any unknown key.
 TEST(Pipeline, ReduceKeysStayWithoutAnArArReduceNode) {
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   std::string text = kPreSplit;
   text.erase(text.find("[[units]]\nid = \"arar_reduce\""));
   std::vector<std::string> warnings;
@@ -124,7 +124,7 @@ TEST(Pipeline, ReduceKeysStayWithoutAnArArReduceNode) {
 // A value the new node sets itself wins over the stale copy, which is still
 // taken off the old node.
 TEST(Pipeline, AnArArReduceValueWinsOverAMigratedOne) {
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   const std::string text = std::string(kPreSplit) + "\n[units.options]\nconstants = \"legacy_preferences\"\n";
   std::vector<std::string> warnings;
   auto p = pp::pipeline_from_toml(domain->units(), text, &warnings);

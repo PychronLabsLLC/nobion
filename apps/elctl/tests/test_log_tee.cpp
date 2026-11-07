@@ -23,7 +23,7 @@
 namespace elctl::testing {
 namespace {
 
-std::vector<std::string> tee_lines(const pychron::testing::LogCapture& capture) {
+std::vector<std::string> tee_lines(const nobion::testing::LogCapture& capture) {
   std::vector<std::string> out;
   for (auto& line : capture.lines()) {
     if (line.find("] elctl: ") != std::string::npos) out.push_back(std::move(line));
@@ -32,11 +32,11 @@ std::vector<std::string> tee_lines(const pychron::testing::LogCapture& capture) 
 }
 
 TEST(LogTee, ErrorLineIsErrorRecord) {
-  const pychron::testing::LogCapture capture;
+  const nobion::testing::LogCapture capture;
   ASSERT_TRUE(capture.ok());
   std::ostringstream inner;
   {
-    LogTeeBuf tee(inner.rdbuf(), pychron::process_logger("elctl"));
+    LogTeeBuf tee(inner.rdbuf(), nobion::process_logger("elctl"));
     std::ostream err(&tee);
     err << "error: no extraction line config at /x\n";
     err << "elctl: error: cannot open queue\n";
@@ -52,11 +52,11 @@ TEST(LogTee, ErrorLineIsErrorRecord) {
 }
 
 TEST(LogTee, PartialLineWaitsForNewline) {
-  const pychron::testing::LogCapture capture;
+  const nobion::testing::LogCapture capture;
   ASSERT_TRUE(capture.ok());
   std::ostringstream inner;
   {
-    LogTeeBuf tee(inner.rdbuf(), pychron::process_logger("elctl"));
+    LogTeeBuf tee(inner.rdbuf(), nobion::process_logger("elctl"));
     std::ostream err(&tee);
     err << "error: half";
     err.flush();
@@ -70,10 +70,10 @@ TEST(LogTee, PartialLineWaitsForNewline) {
 }
 
 TEST(LogTee, PassesBytesThrough) {
-  const pychron::testing::LogCapture capture;
+  const nobion::testing::LogCapture capture;
   ASSERT_TRUE(capture.ok());
   std::ostringstream inner;
-  LogTeeBuf tee(inner.rdbuf(), pychron::process_logger("elctl"));
+  LogTeeBuf tee(inner.rdbuf(), nobion::process_logger("elctl"));
   std::ostream err(&tee);
   err << "error: a";
   // Unbuffered: the bytes are in the inner stream before any newline or flush.
@@ -89,21 +89,21 @@ TEST(LogTee, PassesBytesThrough) {
 // with `echo_stderr = true`): each record is in the file once, not again as an
 // `elctl` line, and the echo does not wait on itself.
 TEST(LogTee, EchoedRecordIsNotLoggedAgain) {
-  const auto dir = pychron::testing::unique_temp_path("elctl_log_tee_echo_");
+  const auto dir = nobion::testing::unique_temp_path("elctl_log_tee_echo_");
   std::filesystem::create_directories(dir);
   std::string text;
   {
-    const pychron::SteadyClock clock;
-    pychron::config::LoggingConfig cfg;
+    const nobion::SteadyClock clock;
+    nobion::config::LoggingConfig cfg;
     cfg.dir = dir;
     cfg.echo_stderr = true;
-    auto hub = pychron::LogHub::create(cfg, clock);
+    auto hub = nobion::LogHub::create(cfg, clock);
     ASSERT_TRUE(hub);
-    const pychron::ProcessLogScope scope(*hub);
+    const nobion::ProcessLogScope scope(*hub);
     ::testing::internal::CaptureStderr();
     {
-      const StreamTee tee(std::cerr, pychron::process_logger("elctl"));
-      pychron::process_logger("core").warn("careful");
+      const StreamTee tee(std::cerr, nobion::process_logger("elctl"));
+      nobion::process_logger("core").warn("careful");
       std::cerr << "error: said once\n";
     }
     const std::string echoed = ::testing::internal::GetCapturedStderr();

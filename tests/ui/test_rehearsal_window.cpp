@@ -34,10 +34,10 @@
 #include "theme.hpp"
 #include "ui_fixture.hpp"
 
-using pychron::scripting::ScriptKind;
-using pychron::ui::RehearsalWindow;
+using nobion::scripting::ScriptKind;
+using nobion::ui::RehearsalWindow;
 namespace fs = std::filesystem;
-namespace lab = pychron::experiment::lab;
+namespace lab = nobion::experiment::lab;
 
 namespace {
 
@@ -74,13 +74,13 @@ class TestRehearsalWindow : public QObject {
   Q_OBJECT
 
   QTemporaryDir tmp_;
-  pychron::ui::test::ApplicationSettingsGuard app_settings_;
+  nobion::ui::test::ApplicationSettingsGuard app_settings_;
   fs::path dir_;
   std::unique_ptr<lab::Lab> lab_;
-  std::unique_ptr<pychron::scripting::IScriptHost> host_;
+  std::unique_ptr<nobion::scripting::IScriptHost> host_;
   // The bridge after the line, which it reads.
-  std::unique_ptr<pychron::systems::ExtractionLine> line_;
-  std::unique_ptr<pychron::ui::CoreBridge> bridge_;
+  std::unique_ptr<nobion::systems::ExtractionLine> line_;
+  std::unique_ptr<nobion::ui::CoreBridge> bridge_;
   QString sim_extract_;
 
   std::unique_ptr<QSettings> settings() const {
@@ -92,13 +92,13 @@ class TestRehearsalWindow : public QObject {
 
  private slots:
   void initTestCase() {
-    host_ = pychron::scripting::make_script_host();
+    host_ = nobion::scripting::make_script_host();
     if (!host_->available()) QSKIP("built without embedded Python");
-    dir_ = pychron::ui::test::scratch_lab();
-    lab_ = std::make_unique<lab::Lab>(lab::load_lab(pychron::ui::test::lab_paths(dir_)));
+    dir_ = nobion::ui::test::scratch_lab();
+    lab_ = std::make_unique<lab::Lab>(lab::load_lab(nobion::ui::test::lab_paths(dir_)));
     sim_extract_ = QString::fromStdString(read(dir_ / "scripts" / "extraction" / "sim_extract.py"));
-    line_ = pychron::ui::test::make_example_line();
-    bridge_ = std::make_unique<pychron::ui::CoreBridge>(*line_);
+    line_ = nobion::ui::test::make_example_line();
+    bridge_ = std::make_unique<nobion::ui::CoreBridge>(*line_);
     QVERIFY(line_->start());
     QTRY_VERIFY_WITH_TIMEOUT(bridge_->state().started, 5000);
   }
@@ -129,7 +129,7 @@ class TestRehearsalWindow : public QObject {
     QTRY_VERIFY_WITH_TIMEOUT(waits_at(*w->log(), 2), 5000);
     QCOMPARE(outcome(*w->log(), 1), QStringLiteral("would open"));
     QCOMPARE(w->log()->item(1, 1)->text(), QStringLiteral("sim_extract.py:14"));
-    QCOMPARE(w->canvas()->valve("P2")->state(), pychron::ValveState::Open);
+    QCOMPARE(w->canvas()->valve("P2")->state(), nobion::ValveState::Open);
     QVERIFY(w->canvas()->valve("P2")->marked());  // changed by the last step
     QCOMPARE(bridge_->state().valves, before);    // the live line did not move
     // The script stands at the sleep after the open: that line is current.
@@ -166,7 +166,7 @@ class TestRehearsalWindow : public QObject {
     QVERIFY(!w->running());
     QVERIFY(!w->step_enabled());
     // The canvas keeps the final rehearsal state: sim_extract closes P1 last.
-    QCOMPARE(w->canvas()->valve("P1")->state(), pychron::ValveState::Closed);
+    QCOMPARE(w->canvas()->valve("P1")->state(), nobion::ValveState::Closed);
   }
 
   void RehearsesUnsavedText() {
@@ -186,7 +186,7 @@ class TestRehearsalWindow : public QObject {
     w->start();
     QTRY_VERIFY_WITH_TIMEOUT(w->log()->rowCount() == 1, 5000);
     QVERIFY2(row_text(*w->log(), 0).contains(QLatin1Char('Z')), qPrintable(row_text(*w->log(), 0)));
-    QCOMPARE(w->log()->item(0, 3)->foreground().color(), pychron::ui::theme().error_text);
+    QCOMPARE(w->log()->item(0, 3)->foreground().color(), nobion::ui::theme().error_text);
     QVERIFY(!w->running());
     QElapsedTimer t;
     t.start();
@@ -255,7 +255,7 @@ class TestRehearsalWindow : public QObject {
 
   void FieldsReachTheScript() {
     auto w = make_window();
-    pychron::scripting::ValueMap defaults{{"analysis_type", std::string("blank_unknown")}};
+    nobion::scripting::ValueMap defaults{{"analysis_type", std::string("blank_unknown")}};
     w->set_script(ScriptKind::Extraction, QStringLiteral("sim_extract.py"), sim_extract_, defaults);
     QVERIFY(w->fields()->rowCount() >= 5);
     auto* type = w->findChild<QLineEdit*>(QStringLiteral("field_analysis_type"));
@@ -313,22 +313,22 @@ class TestRehearsalWindow : public QObject {
   }
 
   void ShortcutCatalogHasNoClash() {
-    using pychron::ui::Shortcut;
-    using pychron::ui::ShortcutContext;
-    QCOMPARE(pychron::ui::key(Shortcut::RehearseStep), QKeySequence(Qt::Key_F10));
-    QCOMPARE(pychron::ui::key(Shortcut::RehearseRunToEnd), QKeySequence(Qt::SHIFT | Qt::Key_F10));
-    const auto& c = pychron::ui::shortcut_catalog();
+    using nobion::ui::Shortcut;
+    using nobion::ui::ShortcutContext;
+    QCOMPARE(nobion::ui::key(Shortcut::RehearseStep), QKeySequence(Qt::Key_F10));
+    QCOMPARE(nobion::ui::key(Shortcut::RehearseRunToEnd), QKeySequence(Qt::SHIFT | Qt::Key_F10));
+    const auto& c = nobion::ui::shortcut_catalog();
     for (std::size_t i = 0; i < c.size(); ++i)
       for (std::size_t j = i + 1; j < c.size(); ++j)
         if (!c[i].key.isEmpty() && c[i].key == c[j].key)
-          QVERIFY2(!pychron::ui::overlap(c[i].context, c[j].context), qPrintable(c[i].command + QStringLiteral(" / ") + c[j].command));
-    QVERIFY(pychron::ui::overlap(ShortcutContext::RehearsalWindow, ShortcutContext::Everywhere));
-    QVERIFY(!pychron::ui::overlap(ShortcutContext::RehearsalWindow, ShortcutContext::FileMenu));
-    QVERIFY(!pychron::ui::overlap(ShortcutContext::RehearsalWindow, ShortcutContext::ScriptEditor));
+          QVERIFY2(!nobion::ui::overlap(c[i].context, c[j].context), qPrintable(c[i].command + QStringLiteral(" / ") + c[j].command));
+    QVERIFY(nobion::ui::overlap(ShortcutContext::RehearsalWindow, ShortcutContext::Everywhere));
+    QVERIFY(!nobion::ui::overlap(ShortcutContext::RehearsalWindow, ShortcutContext::FileMenu));
+    QVERIFY(!nobion::ui::overlap(ShortcutContext::RehearsalWindow, ShortcutContext::ScriptEditor));
     // The window's toolbar carries them.
     auto w = make_window();
-    QCOMPARE(w->step_action()->shortcut(), pychron::ui::key(Shortcut::RehearseStep));
-    QCOMPARE(w->run_to_end_action()->shortcut(), pychron::ui::key(Shortcut::RehearseRunToEnd));
+    QCOMPARE(w->step_action()->shortcut(), nobion::ui::key(Shortcut::RehearseStep));
+    QCOMPARE(w->run_to_end_action()->shortcut(), nobion::ui::key(Shortcut::RehearseRunToEnd));
   }
 
   // Spec 7: a rehearsal actuates nothing. Three of the example line's scripts
@@ -339,10 +339,10 @@ class TestRehearsalWindow : public QObject {
     QVERIFY(!before.empty());
     std::atomic<int> changed{0};
     std::atomic<int> failed{0};
-    auto changed_sub = line_->bus().subscribe<pychron::ValveChanged>(
-        [&](const pychron::ValveChanged&) { ++changed; });
-    auto failed_sub = line_->bus().subscribe<pychron::ActuationFailed>(
-        [&](const pychron::ActuationFailed&) { ++failed; });
+    auto changed_sub = line_->bus().subscribe<nobion::ValveChanged>(
+        [&](const nobion::ValveChanged&) { ++changed; });
+    auto failed_sub = line_->bus().subscribe<nobion::ActuationFailed>(
+        [&](const nobion::ActuationFailed&) { ++failed; });
 
     struct Case {
       ScriptKind kind;
@@ -401,9 +401,9 @@ class TestRehearsalWindow : public QObject {
   // The main window owns one rehearsal window, made on first use, over the
   // session's lab; a second rehearsal brings the same window forward.
   void MainWindowOwnsOne() {
-    pychron::ui::test::SimLab sim;
-    pychron::ui::ExperimentBridge bridge(*sim.session, sim.line->bus());
-    pychron::ui::MainWindow main(*sim.line);
+    nobion::ui::test::SimLab sim;
+    nobion::ui::ExperimentBridge bridge(*sim.session, sim.line->bus());
+    nobion::ui::MainWindow main(*sim.line);
     QVERIFY(!main.rehearse_action()->isEnabled());  // no session yet (App scope: its own state)
     QVERIFY(main.rehearse(ScriptKind::Extraction, QStringLiteral("sim_extract"), sim_extract_) == nullptr);
     main.set_experiment(&bridge, true, {}, [this] { return settings(); });
@@ -421,7 +421,7 @@ class TestRehearsalWindow : public QObject {
     // The editor's Rehearse… reaches it through the experiment window.
     main.experiment_action()->trigger();
     QVERIFY(main.experiment_window() != nullptr);
-    pychron::ui::ScriptEditorWindow* editor = main.experiment_window()->open_script_editor();
+    nobion::ui::ScriptEditorWindow* editor = main.experiment_window()->open_script_editor();
     QVERIFY(editor->open(ScriptKind::Extraction, QStringLiteral("sim_extract")));
     QVERIFY(editor->rehearse_current());
     QCOMPARE(w->windowTitle(), QStringLiteral("Rehearse sim_extract"));

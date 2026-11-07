@@ -16,7 +16,7 @@
 #include "nobion/devices/extraction/capability.hpp"
 #include "nobion/devices/extraction/interfaces.hpp"
 
-namespace pychron::extraction {
+namespace nobion::extraction {
 
 struct IValveService {
   virtual ~IValveService() = default;
@@ -56,4 +56,4 @@ struct ExtractionServices {
 // Device features plus Valves/Pressure for the non-null line services.
 CapabilitySet capabilities(const ExtractionServices& services);
 
-}  // namespace pychron::extraction
+}  // namespace nobion::extraction

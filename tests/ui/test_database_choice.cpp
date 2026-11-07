@@ -12,9 +12,9 @@
 #include "database_choice.hpp"
 #include "nobion/setup/site.hpp"
 
-using pychron::ui::choose_database;
-using pychron::ui::CommandLine;
-namespace setup = pychron::setup;
+using nobion::ui::choose_database;
+using nobion::ui::CommandLine;
+namespace setup = nobion::setup;
 
 class TestDatabaseChoice : public QObject {
   Q_OBJECT
@@ -90,7 +90,7 @@ class TestDatabaseChoice : public QObject {
   // own file here, or with --sim-save; otherwise it says, once, where its
   // runs go instead. A session that is not simulated always saves.
   void aSimulatedSessionSavesOnlyToItsInstallsLocalDatabaseUnlessAsked() {
-    using pychron::ui::choose_run_saving;
+    using nobion::ui::choose_run_saving;
     const std::filesystem::path data = "/lab/data";
     const std::string local = "sqlite:/lab/data/pychron.db";
     const std::string server = "postgresql://lab:s3cret@db:5432/pychron";

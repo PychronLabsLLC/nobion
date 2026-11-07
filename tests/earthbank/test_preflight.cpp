@@ -24,7 +24,7 @@
 #include "records_support.hpp"
 #include "session_support.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using nlohmann::json;
@@ -570,4 +570,4 @@ TEST(Preflight, ASampleIsNamedByItsDataPointWhenItHasNoName) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

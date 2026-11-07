@@ -4,7 +4,7 @@
 #include <cmath>
 #include <toml++/toml.hpp>
 
-namespace pychron::vision {
+namespace nobion::vision {
 namespace {
 
 bool finite(Vec2 v) { return std::isfinite(v.x) && std::isfinite(v.y); }
@@ -120,4 +120,4 @@ Result<CameraStageMap> CameraStageMap::from_toml(std::string_view text) {
   return map;
 }
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

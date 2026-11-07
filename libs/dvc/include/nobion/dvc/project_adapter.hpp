@@ -35,7 +35,7 @@
 #include "nobion/ingest/adapter.hpp"
 #include "nobion/persistence/ids.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
 inline constexpr int kDefaultCollectionWaitCommits = 20;
 
@@ -112,4 +112,4 @@ class ProjectRepoAdapter final : public ingest::ISourceAdapter {
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

@@ -11,7 +11,7 @@
 
 #include "nobion/processing/reduced.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 // legacy tab_id / graph_id / group_id / subgroup (pipeline/grouping.py).
 struct GroupPath {
@@ -75,4 +75,4 @@ using DatasetPtr = std::shared_ptr<const Dataset>;
 // Tags excluded by default (legacy EXCLUDE_TAGS without "skip").
 const std::set<std::string>& default_excluded_tags();
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

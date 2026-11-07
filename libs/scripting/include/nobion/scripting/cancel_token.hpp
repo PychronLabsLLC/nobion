@@ -39,7 +39,7 @@
 
 #include "nobion/core/clock.hpp"
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 
 enum class CancelMode { None, Cancel, Abort };
 
@@ -100,4 +100,4 @@ class CancelToken {
   std::condition_variable called_;  // remove_on_cancel(): a call has returned
 };
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

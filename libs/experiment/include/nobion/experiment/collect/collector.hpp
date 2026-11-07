@@ -35,7 +35,7 @@
 #include "nobion/reduction/fits.hpp"
 #include "nobion/systems/spectrometer/acquisition.hpp"
 
-namespace pychron::experiment::collect {
+namespace nobion::experiment::collect {
 
 // What a series holds. An open set: these four, "peak_center", and whatever
 // a later kind of collection adds.
@@ -278,4 +278,4 @@ class Collector {
   bool truncated_ = false;
 };
 
-}  // namespace pychron::experiment::collect
+}  // namespace nobion::experiment::collect

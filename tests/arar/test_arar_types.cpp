@@ -10,8 +10,8 @@
 
 #include "golden.hpp"
 
-namespace golden = pychron::reduction::golden;
-using namespace pychron::reduction;
+namespace golden = nobion::reduction::golden;
+using namespace nobion::reduction;
 
 namespace {
 
@@ -207,7 +207,7 @@ TEST(ArArTypes, ProductionFromRows) {
   rows["K4139"] = {1.0, 0.0};
   r = production_from_rows(rows);
   ASSERT_FALSE(r.has_value());
-  EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
   EXPECT_NE(r.error().what.find("K4139"), std::string::npos);
   EXPECT_EQ(r.error().what.rfind("reduction: ", 0), 0u);
 

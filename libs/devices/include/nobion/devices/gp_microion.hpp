@@ -18,7 +18,7 @@
 #include "nobion/transport/sim_transport.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // Channels: 1 = ion gauge (IG), 2 = Convectron A (CG1), 3 = Convectron B
 // (CG2). read_pressure() and sample() use the first configured channel.
@@ -72,4 +72,4 @@ struct MicroIonSimModel {
 // codec::microion::kGaugeOff.
 SimTransport::Hook microion_sim_hook(MicroIonSimModel model);
 
-}  // namespace pychron
+}  // namespace nobion

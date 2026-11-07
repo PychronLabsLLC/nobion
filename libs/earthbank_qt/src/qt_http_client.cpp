@@ -34,7 +34,7 @@
 // Here a request is one connection, one write and one read, and the code
 // knows whether a byte of it was written.
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 // The most of an answer that is kept. The largest the service gives is a page
@@ -434,4 +434,4 @@ Result<HttpResponse> QtHttpClient::send(const HttpRequest& request) {
 
 std::unique_ptr<IHttpClient> make_http_client() { return std::make_unique<QtHttpClient>(); }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

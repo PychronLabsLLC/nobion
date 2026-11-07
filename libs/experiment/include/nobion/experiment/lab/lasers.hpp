@@ -25,11 +25,11 @@
 #include "nobion/experiment/lab/lab.hpp"
 #include "nobion/laser/laser_system.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 class ExtractionLine;
 }
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 class Lasers {
  public:
@@ -100,4 +100,4 @@ class Lasers {
   int holders_ = 0;
 };
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

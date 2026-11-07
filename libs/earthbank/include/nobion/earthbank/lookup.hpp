@@ -55,7 +55,7 @@
 
 #include "nobion/earthbank/session.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 enum class LookupOutcome {
   Found,        // `id` is the term's
@@ -115,4 +115,4 @@ class LookupResolver {
   std::map<std::pair<std::string, std::string>, LookupResult> found_;  // by endpoint and value
 };
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

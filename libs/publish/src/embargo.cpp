@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cctype>
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 namespace ps = persistence;
 
@@ -188,4 +188,4 @@ Result<std::vector<EmbargoListing>> list_embargoes(ps::IStore& store, bool live_
   return out;
 }
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

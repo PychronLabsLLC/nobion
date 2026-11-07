@@ -62,18 +62,18 @@
 
 namespace elctl {
 
-int flux_command(const std::vector<std::string>& args, const pychron::processing::Domain& domain, Io io);
+int flux_command(const std::vector<std::string>& args, const nobion::processing::Domain& domain, Io io);
 
 #ifdef PYCHRON_ELCTL_HAS_STORE
 
 // The printed form of a fit: heading, model line, the Monitors and Unknowns
 // tables, the fit line and one `warning:` line per entry of `warnings`
 // (processing/flux_view.hpp `flux_warnings`, then any of the command's own).
-std::string format_flux_fit(const pychron::processing::LevelFit& fit, const std::vector<std::string>& warnings = {});
+std::string format_flux_fit(const nobion::processing::LevelFit& fit, const std::vector<std::string>& warnings = {});
 
 // What a save says; "not saved: ..." when it conflicted. `saved_by` is the
 // author of the head that moved (empty: unknown).
-std::string format_flux_save(const pychron::processing::FluxSaveOutcome& outcome, std::string_view saved_by);
+std::string format_flux_save(const nobion::processing::FluxSaveOutcome& outcome, std::string_view saved_by);
 
 // ---- Shared by flux.cpp and flux_admin.cpp ----------------------------------
 
@@ -88,18 +88,18 @@ struct FluxStoreArgs {
 };
 // Whether `args[i]` is --db or --user. If it is, its value goes into `into`
 // and `i` steps over it (flux_flag_value); an error when it has none.
-pychron::Result<bool> flux_store_flag(const std::vector<std::string>& args, std::size_t& i, FluxStoreArgs& into);
+nobion::Result<bool> flux_store_flag(const std::vector<std::string>& args, std::size_t& i, FluxStoreArgs& into);
 
 // The value of the flag at `args[i]`, which it steps over (`i` is then at the
 // value). An error when there is none, or when what follows is itself a
 // flag: "--csv --save" names no file.
-pychron::Result<std::string> flux_flag_value(const std::vector<std::string>& args, std::size_t& i);
+nobion::Result<std::string> flux_flag_value(const std::vector<std::string>& args, std::size_t& i);
 
 // The store behind `url` for a command that reads: a SQLite path that is not
 // a store is an error, not a new empty one.
-pychron::Result<std::unique_ptr<pychron::persistence::IStore>> open_flux_store(const std::string& url);
+nobion::Result<std::unique_ptr<nobion::persistence::IStore>> open_flux_store(const std::string& url);
 // The actor that writes: this machine as a client, `user_name` (else $USER) as the user.
-pychron::Result<pychron::persistence::Actor> flux_actor(pychron::persistence::IStore& store, const std::string& user_name);
+nobion::Result<nobion::persistence::Actor> flux_actor(nobion::persistence::IStore& store, const std::string& user_name);
 
 // Left aligned columns two spaces apart; the head row first; every line ends in a line break.
 std::string flux_table(const std::vector<std::string>& head, const std::vector<std::vector<std::string>>& rows);
@@ -107,9 +107,9 @@ std::string flux_table(const std::vector<std::string>& head, const std::vector<s
 // `monitors set` and `monitors default`: `sets` saved over `loaded`, the
 // document as the command read it; `done` is printed when it is saved.
 // kFailed, saving nothing, when someone saved the document since it was read.
-int flux_save_monitor_sets(pychron::persistence::IStore& store, const std::string& user,
-                           const pychron::processing::MonitorSets& sets,
-                           const pychron::processing::LoadedMonitorSets& loaded, const std::string& done, Io io);
+int flux_save_monitor_sets(nobion::persistence::IStore& store, const std::string& user,
+                           const nobion::processing::MonitorSets& sets,
+                           const nobion::processing::LoadedMonitorSets& loaded, const std::string& done, Io io);
 
 // show, history and monitors; `rest` is what follows the subcommand.
 int flux_admin_command(const std::string& subcommand, const std::vector<std::string>& rest, Io io);

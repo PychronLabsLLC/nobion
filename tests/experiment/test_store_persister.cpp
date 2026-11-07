@@ -20,11 +20,11 @@
 #include "store_fixture.hpp"
 #include "store_records.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment;
-using namespace pychron::experiment::testing;
-namespace ps = pychron::persistence;
-namespace pt = pychron::persistence::testing;
+using namespace nobion;
+using namespace nobion::experiment;
+using namespace nobion::experiment::testing;
+namespace ps = nobion::persistence;
+namespace pt = nobion::persistence::testing;
 namespace fs = std::filesystem;
 
 namespace {
@@ -122,7 +122,7 @@ class StorePersisterTest : public pt::StoreTest {
     return saved ? "" : saved.error().what;
   }
 
-  pychron::testing::LogCapture log;  // before the persister: it takes its logger when made
+  nobion::testing::LogCapture log;  // before the persister: it takes its logger when made
   fs::path data_;
   std::unique_ptr<FailingStore> failing_;
   std::unique_ptr<store::StorePersister> persister_;

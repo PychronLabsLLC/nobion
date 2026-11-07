@@ -10,7 +10,7 @@
 #include <QSettings>
 #include <QStringList>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class RecentQueues {
  public:
@@ -32,4 +32,4 @@ class RecentQueues {
   QSettings& settings_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

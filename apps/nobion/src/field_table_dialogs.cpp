@@ -17,9 +17,9 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace sp = pychron::spectrometer;
+namespace sp = nobion::spectrometer;
 
 namespace {
 
@@ -175,4 +175,4 @@ QString FieldTableAddRowDialog::isotope() const { return isotope_->currentText()
 
 void FieldTableAddRowDialog::set_isotope(const QString& isotope) { isotope_->setCurrentText(isotope); }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

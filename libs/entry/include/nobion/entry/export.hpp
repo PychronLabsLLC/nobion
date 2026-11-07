@@ -8,7 +8,7 @@
 
 #include "nobion/persistence/catalog.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 // level, position, identifier, sample, project, principal_investigator,
 // material, grainsize, weight, packet, note, j, j_err
@@ -17,4 +17,4 @@ const std::vector<std::string>& position_columns();
 std::string export_level_csv(const persistence::LevelSheet& sheet);
 std::string export_package_csv(const std::vector<persistence::LevelSheet>& sheets);
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

@@ -4,7 +4,7 @@
 #include <fstream>
 #include <istream>
 
-namespace pychron {
+namespace nobion {
 
 std::string format_trace_record(const TraceRecord& record) {
   std::string out = std::to_string(record.at.count());
@@ -78,4 +78,4 @@ Result<std::vector<TraceRecord>> load_trace(const std::string& path) {
   return parse_trace(in);
 }
 
-}  // namespace pychron
+}  // namespace nobion

@@ -9,9 +9,9 @@
 #include "nobion/devices/driver_registry.hpp"
 #include "nobion/transport/sim_transport.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
-namespace mg = pychron::codec::maxigauge;
+namespace mg = nobion::codec::maxigauge;
 
 namespace {
 

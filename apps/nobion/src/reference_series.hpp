@@ -14,7 +14,7 @@
 #include "nobion/processing/options.hpp"
 #include "nobion/processing/units.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 enum class ReferenceKind { Blanks, Airs };
 
@@ -38,4 +38,4 @@ inline constexpr const char* kReferenceFigure = "figure";
 [[nodiscard]] processing::Pipeline reference_pipeline(const processing::UnitRegistry& registry,
                                                       const ReferenceQuery& query, const processing::Options& figure);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

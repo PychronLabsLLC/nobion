@@ -5,7 +5,7 @@
 #include <numbers>
 #include <string>
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 Result<void> check_lat_lon(std::optional<double> lat, std::optional<double> lon) {
   if (lat.has_value() != lon.has_value()) return fail(ErrorKind::Config, "latitude and longitude go together");
@@ -64,4 +64,4 @@ Result<LatLon> utm_to_lat_lon(double easting, double northing, std::string_view 
   return out;
 }
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

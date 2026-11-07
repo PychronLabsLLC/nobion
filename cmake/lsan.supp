@@ -7,4 +7,4 @@
 leak:libpython
 # pybind11's records for the bindings registered when the interpreter starts;
 # they belong to the interpreter and go when it would.
-leak:pychron::scripting::python::ensure_interpreter
+leak:nobion::scripting::python::ensure_interpreter

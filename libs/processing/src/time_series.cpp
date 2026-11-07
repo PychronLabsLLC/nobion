@@ -14,12 +14,12 @@
 #include "figure_common.hpp"
 #include "schema_builder.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
 using namespace detail;
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 
 const std::vector<std::string> kMarkers{"circle", "square", "diamond", "triangle", "cross", "plus", "star"};
 const std::vector<std::string> kFits{"none", "average", "weighted_mean", "linear", "parabolic", "cubic", "exponential"};
@@ -475,4 +475,4 @@ class TimeSeriesUnit final : public Unit {
 
 std::unique_ptr<Unit> make_time_series_unit() { return std::make_unique<TimeSeriesUnit>(); }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

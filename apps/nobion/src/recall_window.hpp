@@ -42,7 +42,7 @@ class QTabWidget;
 class QVBoxLayout;
 class QTableWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class SceneView;
 
@@ -164,4 +164,4 @@ class RecallWindow : public QWidget {
   QPushButton* restore_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

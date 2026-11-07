@@ -6,7 +6,7 @@
 
 #include <string>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 std::optional<LineSettings> load_line_settings(const std::filesystem::path& main_file,
                                                const std::optional<std::filesystem::path>& install_root) {
@@ -60,4 +60,4 @@ QString save_line_settings(const std::filesystem::path& main_file, const LineSet
   return {};
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

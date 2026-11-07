@@ -15,7 +15,7 @@
 #include "nobion/core/clock.hpp"
 #include "nobion/systems/spectrometer/acquisition.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 struct RisePoint {
   double t = 0.0;  // seconds
@@ -64,4 +64,4 @@ class RiseRun {
   bool restarted_ = false;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

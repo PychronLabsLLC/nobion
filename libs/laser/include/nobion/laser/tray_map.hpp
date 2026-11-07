@@ -25,7 +25,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 struct Hole {
   std::string id;
@@ -82,4 +82,4 @@ class TrayLibrary {
   std::vector<std::string> problems_;
 };
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

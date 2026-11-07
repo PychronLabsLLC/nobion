@@ -9,7 +9,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 // The holder a legacy file describes ("<shape>,<radius>[,<has hole numbers>]"
 // then one hole per line). Hole ids must be unique.
@@ -23,4 +23,4 @@ Result<persistence::Uuid> save_holder(persistence::IStore& store, const persiste
 // The value at the head of a holder reference; nullopt when it has none.
 Result<std::optional<persistence::HolderValue>> load_holder(persistence::IStore& store, persistence::Uuid holder);
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

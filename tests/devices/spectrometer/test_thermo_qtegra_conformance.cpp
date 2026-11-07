@@ -9,8 +9,8 @@
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace legacy_test;
 
 // Shortest legal Qtegra integration period.

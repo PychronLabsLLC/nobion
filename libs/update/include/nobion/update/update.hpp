@@ -14,7 +14,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/core/http.hpp"
 
-namespace pychron::update {
+namespace nobion::update {
 
 // The repository releases are read from; never a preference.
 inline constexpr std::string_view kRepository = "PychronLabsLLC/nobion";
@@ -72,4 +72,4 @@ inline constexpr std::chrono::hours kCheckInterval{24};
 // manual check reports whatever it finds.
 [[nodiscard]] std::optional<Release> worth_showing(const Release& release, Version running, const CheckPolicy& policy);
 
-}  // namespace pychron::update
+}  // namespace nobion::update

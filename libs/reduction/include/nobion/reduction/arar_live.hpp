@@ -3,8 +3,8 @@
 // in libs/reduction so the live path depends on nothing in libs/arar.
 #pragma once
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 enum class K3739Mode { Normal, Fixed };
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

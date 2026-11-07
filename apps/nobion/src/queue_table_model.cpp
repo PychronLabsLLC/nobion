@@ -10,7 +10,7 @@
 
 #include "nobion/experiment/model/positions.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -577,4 +577,4 @@ QColor QueueTableModel::state_color(RunState state) {
   }
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

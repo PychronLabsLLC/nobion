@@ -12,7 +12,7 @@
 
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -184,4 +184,4 @@ QAction* make_shortcuts_action(QWidget* window) {
   return action;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

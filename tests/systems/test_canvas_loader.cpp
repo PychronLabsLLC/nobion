@@ -6,7 +6,7 @@
 
 #include "nobion/systems/canvas/loader.hpp"
 
-namespace pychron::canvas {
+namespace nobion::canvas {
 namespace {
 
 // Every element kind from spec section 6.
@@ -507,4 +507,4 @@ TEST(CanvasLoader, BadValveStyleIsDiagnosticWithLine) {
 }
 
 }  // namespace
-}  // namespace pychron::canvas
+}  // namespace nobion::canvas

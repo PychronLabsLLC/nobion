@@ -9,7 +9,7 @@
 #include "nobion/processing/quantity.hpp"
 #include "nobion/arar/report.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
@@ -126,4 +126,4 @@ Result<std::vector<RValueMatrix>> r_value_matrices(const Dataset& dataset, const
   return out;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

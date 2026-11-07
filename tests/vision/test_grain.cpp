@@ -9,11 +9,11 @@
 #include <vector>
 
 using namespace std::chrono_literals;
-using pychron::vision::GrainModel;
-using pychron::vision::GrainParams;
-using pychron::vision::GrainTruth;
-using pychron::vision::kGrainTick;
-using pychron::vision::Vec2;
+using nobion::vision::GrainModel;
+using nobion::vision::GrainParams;
+using nobion::vision::GrainTruth;
+using nobion::vision::kGrainTick;
+using nobion::vision::Vec2;
 
 namespace {
 

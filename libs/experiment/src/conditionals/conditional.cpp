@@ -11,7 +11,7 @@
 #include "number.hpp"
 #include "nobion/experiment/record/sha256.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 struct KindName {
@@ -668,4 +668,4 @@ Result<Whiff> parse_whiff(std::string_view text, std::string_view file) {
   return out;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

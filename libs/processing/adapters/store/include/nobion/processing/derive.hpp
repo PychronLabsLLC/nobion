@@ -16,7 +16,7 @@
 #include "nobion/processing/source.hpp"
 #include "nobion/processing/store_source.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 class Domain;
 
@@ -60,4 +60,4 @@ Result<DeriveStats> derive_ages(IDeriveSource& source, const Domain& domain, con
 Result<DeriveStats> derive_ages(StoreSource& source, const Domain& domain, const DeriveOptions& options,
                                 const std::function<bool(const DeriveStats&)>& keep_going);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

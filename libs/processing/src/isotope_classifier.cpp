@@ -7,7 +7,7 @@
 
 #include <toml++/toml.hpp>
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 std::optional<double> isotope_mass(std::string_view isotope) {
   static const std::map<std::string, double, std::less<>> kMasses = {
@@ -165,4 +165,4 @@ Result<void> IsotopeClassifier::save(const std::filesystem::path& path) const {
   return {};
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

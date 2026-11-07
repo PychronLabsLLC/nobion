@@ -10,17 +10,17 @@
 
 #include "timeline.hpp"
 
-using pychron::TimePoint;
-using pychron::experiment::run::RunState;
-using pychron::experiment::run::RunStateChanged;
-using pychron::ui::TimelineModel;
-using pychron::ui::TimelineSegment;
-using pychron::ui::TimelineView;
+using nobion::TimePoint;
+using nobion::experiment::run::RunState;
+using nobion::experiment::run::RunStateChanged;
+using nobion::ui::TimelineModel;
+using nobion::ui::TimelineSegment;
+using nobion::ui::TimelineView;
 
 namespace {
 
 const TimePoint kT0 = TimePoint{} + std::chrono::hours(1);
-TimePoint at(double s) { return kT0 + std::chrono::duration_cast<pychron::Duration>(std::chrono::duration<double>(s)); }
+TimePoint at(double s) { return kT0 + std::chrono::duration_cast<nobion::Duration>(std::chrono::duration<double>(s)); }
 
 RunStateChanged state(const char* id, RunState from, RunState to, double t) { return {id, from, to, {}, at(t)}; }
 

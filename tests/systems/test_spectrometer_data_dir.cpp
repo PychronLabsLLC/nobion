@@ -8,7 +8,7 @@
 #include "nobion/systems/spectrometer/config_validate.hpp"
 #include "nobion/systems/spectrometer/data_dir.hpp"
 
-namespace pychron::spectrometer::cfg {
+namespace nobion::spectrometer::cfg {
 namespace {
 
 namespace fs = std::filesystem;
@@ -227,4 +227,4 @@ TEST_F(SpectrometerDataDirFs, LocalOverrideIsMerged) {
 }
 
 }  // namespace
-}  // namespace pychron::spectrometer::cfg
+}  // namespace nobion::spectrometer::cfg

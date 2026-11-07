@@ -21,9 +21,9 @@
 #endif
 
 namespace fs = std::filesystem;
-using namespace pychron;
-using namespace pychron::publish;
-using pychron::publish::testing::inputs;
+using namespace nobion;
+using namespace nobion::publish;
+using nobion::publish::testing::inputs;
 
 namespace {
 

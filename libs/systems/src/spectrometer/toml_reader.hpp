@@ -16,7 +16,7 @@
 #include "nobion/core/config/diagnostic.hpp"
 #include "nobion/core/config/system_config.hpp"
 
-namespace pychron::spectrometer::cfg::detail {
+namespace nobion::spectrometer::cfg::detail {
 
 using config::Diagnostic;
 using config::Located;
@@ -98,4 +98,4 @@ class Reader {
 std::optional<toml::table> parse_toml(std::string_view text, std::string_view name, std::vector<Diagnostic>& out);
 std::optional<std::string> read_file(const std::filesystem::path& path);
 
-}  // namespace pychron::spectrometer::cfg::detail
+}  // namespace nobion::spectrometer::cfg::detail

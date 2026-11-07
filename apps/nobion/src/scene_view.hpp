@@ -32,7 +32,7 @@ class QCPAxisRect;
 class QCPItemRect;
 class QRubberBand;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class SceneView : public QWidget {
   Q_OBJECT
@@ -79,7 +79,7 @@ class SceneView : public QWidget {
   void points_toggled(const QStringList& uuids);
   void recall_requested(const QString& uuid);
   // "Use these limits" was chosen over a graph.
-  void use_limits_requested(const pychron::ui::SceneView::ViewLimits& limits);
+  void use_limits_requested(const nobion::ui::SceneView::ViewLimits& limits);
 
  protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -121,4 +121,4 @@ class SceneView : public QWidget {
   std::vector<RectInfo> rects_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

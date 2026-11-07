@@ -4,7 +4,7 @@
 
 #include "nobion/systems/gauge_scanner.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {

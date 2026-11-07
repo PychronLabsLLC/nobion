@@ -16,9 +16,9 @@ namespace elctl {
 
 namespace {
 
-std::unique_ptr<pychron::http::IHttpClient> default_client() {
+std::unique_ptr<nobion::http::IHttpClient> default_client() {
 #ifdef PYCHRON_ELCTL_HAS_STORE
-  return pychron::earthbank::make_http_client();
+  return nobion::earthbank::make_http_client();
 #else
   return nullptr;
 #endif
@@ -41,23 +41,23 @@ int version_command(const std::vector<std::string>& args, Io io, const VersionDe
       return kUsage;
     }
   }
-  const std::string running_text(pychron::setup::version());
+  const std::string running_text(nobion::setup::version());
   io.out << "elctl " << running_text << '\n';
   if (!check) return kOk;
 
   auto client = deps.make_client ? deps.make_client() : default_client();
   if (!client) return failed(io, "this build has no network client");
-  const auto running = pychron::update::parse_version(running_text);
+  const auto running = nobion::update::parse_version(running_text);
   if (!running) return failed(io, "the running version is not readable: " + running.error().what);
 
-  const auto fetched = pychron::update::fetch_latest(*client);
+  const auto fetched = nobion::update::fetch_latest(*client);
   if (!fetched) return failed(io, fetched.error().what);
-  if (fetched->outcome == pychron::update::FetchOutcome::NoRelease || !fetched->release) {
+  if (fetched->outcome == nobion::update::FetchOutcome::NoRelease || !fetched->release) {
     io.out << "latest: none published\n";
     return kOk;
   }
-  const pychron::update::Release& latest = *fetched->release;
-  const std::string latest_text = pychron::update::to_string(latest.version);
+  const nobion::update::Release& latest = *fetched->release;
+  const std::string latest_text = nobion::update::to_string(latest.version);
   if (latest.version > *running) {
     io.out << "latest: " << latest_text << "\ndownload: " << latest.html_url << '\n';
     return kUpdateAvailable;

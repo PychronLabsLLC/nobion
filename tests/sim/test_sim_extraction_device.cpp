@@ -8,7 +8,7 @@
 // Shared with tests/devices: the suites every extraction device must pass.
 #include "../devices/extraction/conformance.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 namespace {
 
 using namespace std::chrono_literals;
@@ -210,11 +210,11 @@ struct SimFurnaceHarness {
 };
 
 }  // namespace
-}  // namespace pychron::sim
+}  // namespace nobion::sim
 
-using SimHarnesses = ::testing::Types<pychron::sim::SimLaserHarness, pychron::sim::SimFurnaceHarness>;
+using SimHarnesses = ::testing::Types<nobion::sim::SimLaserHarness, nobion::sim::SimFurnaceHarness>;
 INSTANTIATE_TYPED_TEST_SUITE_P(Sim, ExtractionDeviceConformance, SimHarnesses);
-INSTANTIATE_TYPED_TEST_SUITE_P(Sim, LaserConformance, ::testing::Types<pychron::sim::SimLaserHarness>);
-INSTANTIATE_TYPED_TEST_SUITE_P(Sim, StageConformance, ::testing::Types<pychron::sim::SimLaserHarness>);
-INSTANTIATE_TYPED_TEST_SUITE_P(Sim, PatternConformance, ::testing::Types<pychron::sim::SimLaserHarness>);
-INSTANTIATE_TYPED_TEST_SUITE_P(Sim, FurnaceConformance, ::testing::Types<pychron::sim::SimFurnaceHarness>);
+INSTANTIATE_TYPED_TEST_SUITE_P(Sim, LaserConformance, ::testing::Types<nobion::sim::SimLaserHarness>);
+INSTANTIATE_TYPED_TEST_SUITE_P(Sim, StageConformance, ::testing::Types<nobion::sim::SimLaserHarness>);
+INSTANTIATE_TYPED_TEST_SUITE_P(Sim, PatternConformance, ::testing::Types<nobion::sim::SimLaserHarness>);
+INSTANTIATE_TYPED_TEST_SUITE_P(Sim, FurnaceConformance, ::testing::Types<nobion::sim::SimFurnaceHarness>);

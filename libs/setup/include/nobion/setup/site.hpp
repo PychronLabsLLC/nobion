@@ -28,7 +28,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 struct SiteInstall {
   std::string name, kind, profile;
@@ -65,4 +65,4 @@ std::filesystem::path default_site_path();
 Result<SiteConfig> load_site(const std::filesystem::path& path);
 Result<void> save_site(const SiteConfig& site, const std::filesystem::path& path);
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

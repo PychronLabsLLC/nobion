@@ -8,7 +8,7 @@
 #include "nobion/core/logger.hpp"
 #include "nobion/core/signal_bus.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 TEST(Logger, PublishesLogEventsAtOrAboveLevel) {

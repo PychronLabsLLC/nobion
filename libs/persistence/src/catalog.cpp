@@ -16,7 +16,7 @@
 #include "sql/geometry.hpp"
 #include "sql/statements.hpp"
 
-namespace pychron::persistence {
+namespace nobion::persistence {
 
 std::string_view pi_kind_name(PiKind kind) noexcept {
   return kind == PiKind::Organisation ? "organisation" : "person";
@@ -1264,4 +1264,4 @@ Result<AllocationOutcome> allocate_identifiers(Db& db, Dialect dialect, Uuid cli
 }
 
 }  // namespace detail
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence

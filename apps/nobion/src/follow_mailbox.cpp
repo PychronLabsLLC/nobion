@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 bool FollowMailbox::add(const laser::FollowSample& sample) {
   const std::lock_guard lock(mutex_);
@@ -19,4 +19,4 @@ std::vector<laser::FollowSample> FollowMailbox::take() {
   return std::exchange(pending_, {});
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

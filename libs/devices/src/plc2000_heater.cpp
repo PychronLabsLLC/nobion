@@ -7,7 +7,7 @@
 #include "nobion/devices/modbus_device_sim.hpp"
 #include "nobion/devices/modbus_ids.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace mb = codec::modbus;
 
@@ -260,6 +260,6 @@ void Plc2000HeaterSim::set_setpoint_error(double error) {
   setpoint_error_ = error;
 }
 
-}  // namespace pychron
+}  // namespace nobion
 
-REGISTER_DRIVER("plc2000_heater", pychron::Plc2000Heater);
+REGISTER_DRIVER("plc2000_heater", nobion::Plc2000Heater);

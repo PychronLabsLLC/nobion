@@ -8,7 +8,7 @@
 
 #include "nobion/vision/spiral.hpp"
 
-using namespace pychron::vision;
+using namespace nobion::vision;
 
 namespace {
 double len(Vec2 p) { return std::hypot(p.x, p.y); }

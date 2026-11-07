@@ -80,7 +80,7 @@
 #include "nobion/devices/types.hpp"
 #include "nobion/systems/switch_rules.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 enum class SwitchOp { Open, Close };
 enum class SwitchKind { Valve, ManualValve, Switch };
@@ -238,4 +238,4 @@ class SwitchManager {
   mutable std::mutex state_;  // guards recorded state, locks and owners; never held across a wait
 };
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

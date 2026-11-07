@@ -13,7 +13,7 @@
 #include "nobion/systems/spectrometer/config.hpp"
 #include "nobion/systems/spectrometer/data_dir.hpp"
 
-namespace pychron::spectrometer::cfg {
+namespace nobion::spectrometer::cfg {
 
 using Diagnostics = std::vector<config::Diagnostic>;
 using Tables = std::map<std::string, TableFile>;
@@ -49,4 +49,4 @@ Diagnostics check_hv_correction(const SpectrometerConfig& c);
 // All of the above.
 Diagnostics validate(const SpectrometerConfig& c, const Tables& tables);
 
-}  // namespace pychron::spectrometer::cfg
+}  // namespace nobion::spectrometer::cfg

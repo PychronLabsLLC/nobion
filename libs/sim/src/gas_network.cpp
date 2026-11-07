@@ -15,7 +15,7 @@
 #include "nobion/sim/gas.hpp"
 #include "nobion/sim/linear_flow.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 namespace {
 
 bool amount(double value) { return std::isfinite(value) && value >= 0.0; }
@@ -412,4 +412,4 @@ Result<void> GasNetwork::add_volume(GasVolume volume, const std::vector<GasPump>
   return {};
 }
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

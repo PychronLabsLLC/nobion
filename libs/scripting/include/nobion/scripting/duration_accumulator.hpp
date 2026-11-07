@@ -9,7 +9,7 @@
 
 #include "nobion/core/clock.hpp"
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 
 struct DurationEntry {
   std::string script;  // the script (or gosub) that spent it
@@ -38,4 +38,4 @@ class DurationAccumulator {
   std::vector<std::string> unbounded_;
 };
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

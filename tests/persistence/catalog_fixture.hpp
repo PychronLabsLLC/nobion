@@ -11,7 +11,7 @@
 
 #include "store_fixture.hpp"
 
-namespace pychron::persistence::testing {
+namespace nobion::persistence::testing {
 
 struct EntryCatalog {
   Uuid ross, smith;
@@ -86,4 +86,4 @@ inline std::string describe(const CatalogOutcome& o) {
   return "ref conflict";
 }
 
-}  // namespace pychron::persistence::testing
+}  // namespace nobion::persistence::testing

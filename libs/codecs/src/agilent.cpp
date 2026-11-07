@@ -4,7 +4,7 @@
 #include <cctype>
 #include <vector>
 
-namespace pychron::codec::agilent {
+namespace nobion::codec::agilent {
 
 namespace {
 
@@ -150,4 +150,4 @@ Bytes encode_error(int code, std::string_view message) {
   return encode_line(std::to_string(code) + ",\"" + std::string(message) + "\"");
 }
 
-}  // namespace pychron::codec::agilent
+}  // namespace nobion::codec::agilent

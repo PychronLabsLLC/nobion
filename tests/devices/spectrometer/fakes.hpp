@@ -12,7 +12,7 @@
 #include "nobion/core/clock.hpp"
 #include "nobion/devices/spectrometer/roles.hpp"
 
-namespace pychron::spectrometer::fakes {
+namespace nobion::spectrometer::fakes {
 
 // Write-only DAC: read() returns the cached setpoint.
 class FakeDac final : public IMassPositioner {
@@ -186,4 +186,4 @@ class FakeDetectorControl final : public IDetectorControl {
   std::map<ChannelId, double> deflection_;
 };
 
-}  // namespace pychron::spectrometer::fakes
+}  // namespace nobion::spectrometer::fakes

@@ -4,7 +4,7 @@ Part of the agent guide: root `AGENTS.md` applies in full, this adds what is
 only this component's. Kept compressed, as that file is.
 
 - Finished runs reach the store through `libs/experiment/adapters/store`
-  (`pychron::experiment_store`, namespace `pychron::experiment::store`),
+  (`pychron::experiment_store`, namespace `nobion::experiment::store`),
   built only with persistence, like `libs/ingest`; `libs/experiment` itself
   never links `libs/persistence` and sees only `IAnalysisPersister`. Tests:
   `tests/experiment/` (`pychron_experiment_store_tests`). Spec:

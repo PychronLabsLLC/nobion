@@ -9,7 +9,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/experiment/model/run_spec.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 // Frequency runs (e.g. a blank every N unknowns) are expanded into explicit
 // runs at edit time; the executor never generates runs.
@@ -66,4 +66,4 @@ class ExperimentQueue {
   QueueSpec spec_;
 };
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

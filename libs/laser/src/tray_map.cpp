@@ -8,7 +8,7 @@
 #include "nobion/codecs/codec.hpp"
 #include "nobion/core/sha256.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 namespace {
 
@@ -42,7 +42,7 @@ struct Line {
 Result<TrayMap> TrayMap::parse(std::string_view text, std::string name) {
   TrayMap map;
   map.name_ = std::move(name);
-  map.sha256_ = to_hex(pychron::sha256(text));
+  map.sha256_ = to_hex(nobion::sha256(text));
 
   const auto bad = [&map](int line, const std::string& what) {
     return fail(ErrorKind::Config, map.name_ + ":" + std::to_string(line) + ": " + what);
@@ -196,4 +196,4 @@ std::vector<std::string> TrayLibrary::names() const {
   return out;
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

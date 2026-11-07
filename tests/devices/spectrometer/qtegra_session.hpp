@@ -21,7 +21,7 @@ inline constexpr std::string_view kDescribe =
     "{\"id\":\"CUP 1\",\"name\":\"L2\"},{\"id\":\"CDD 0\",\"name\":\"CDD\"}]}\n";
 
 // KeepAlive and Describe answered, then the owner's GetIntegrationTime.
-inline std::vector<pychron::SimStep> session_steps(std::string_view terminator = "\r",
+inline std::vector<nobion::SimStep> session_steps(std::string_view terminator = "\r",
                                                    std::string_view integration = "1.048576\n") {
   const auto tx = [&](std::string_view verb) { return std::string(verb) + std::string(terminator); };
   return {legacy_test::step(tx("KeepAlive"), "OK\n"), legacy_test::step(tx("Describe"), kDescribe),
@@ -29,7 +29,7 @@ inline std::vector<pychron::SimStep> session_steps(std::string_view terminator =
 }
 
 // A scripted wire that starts with a session.
-inline std::unique_ptr<pychron::SimTransport> open_session(std::vector<pychron::SimStep> steps,
+inline std::unique_ptr<nobion::SimTransport> open_session(std::vector<nobion::SimStep> steps,
                                                            std::string_view terminator = "\r") {
   auto all = session_steps(terminator);
   all.insert(all.end(), std::make_move_iterator(steps.begin()), std::make_move_iterator(steps.end()));

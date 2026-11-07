@@ -5,7 +5,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/experiment/model/run_spec.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 // Canonical experiment.toml text for `q`: [queue] (with schema_version) then one
 // [[runs]] per run in a fixed key order, default-valued fields omitted, so
@@ -19,4 +19,4 @@ Result<QueueSpec> load_queue_file(const std::string& path, const IdentifierRules
 // Writes dump_queue(q) to `path` via a temporary file and rename.
 Result<void> save_queue_file(const std::string& path, const QueueSpec& q);
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

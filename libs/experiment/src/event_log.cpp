@@ -14,7 +14,7 @@
 #include "nobion/experiment/run/run.hpp"
 #include "nobion/experiment/run/state.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 constexpr LogLevel kDebug = LogLevel::Debug;
@@ -186,4 +186,4 @@ ExperimentEventRecorder::ExperimentEventRecorder(SignalBus& bus) {
 
 std::span<const EventClass> experiment_event_classes() noexcept { return kExperimentClasses; }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

@@ -34,10 +34,10 @@
 #include "theme.hpp"
 #include "ui_fixture.hpp"
 
-using namespace pychron;
-using pychron::systems::SwitchOp;
-using pychron::ui::CanvasView;
-using pychron::ui::CoreBridge;
+using namespace nobion;
+using nobion::systems::SwitchOp;
+using nobion::ui::CanvasView;
+using nobion::ui::CoreBridge;
 
 namespace {
 

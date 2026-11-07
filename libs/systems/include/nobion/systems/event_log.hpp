@@ -2,7 +2,7 @@
 
 // Bus tap for the events libs/systems publishes (jobs, peak center,
 // acquisition, spectrometer, scan service): each one record on logger
-// "trace.<EventName>", as pychron::EventRecorder does for the core events
+// "trace.<EventName>", as nobion::EventRecorder does for the core events
 // (nobion/core/event_recorder.hpp, which says how).
 
 #include <span>
@@ -11,7 +11,7 @@
 #include "nobion/core/event_recorder.hpp"
 #include "nobion/core/signal_bus.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 class SystemsEventRecorder {
  public:
@@ -23,4 +23,4 @@ class SystemsEventRecorder {
 
 [[nodiscard]] std::span<const EventClass> systems_event_classes() noexcept;
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

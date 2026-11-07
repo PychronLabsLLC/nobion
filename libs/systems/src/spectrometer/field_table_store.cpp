@@ -7,7 +7,7 @@
 #include <string_view>
 #include <utility>
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace fs = std::filesystem;
 
@@ -163,4 +163,4 @@ Result<void> FieldTableStore::set_current(const std::string& version) {
   return write_atomic(directory() / "current", version + ".toml\n");
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

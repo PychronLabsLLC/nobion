@@ -2,7 +2,7 @@
 
 #include <cctype>
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 std::string sample_key(std::string_view name) {
   std::string out;
@@ -23,4 +23,4 @@ std::vector<persistence::SampleRow> near_duplicates(std::string_view name,
   return out;
 }
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

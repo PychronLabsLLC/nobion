@@ -26,7 +26,7 @@
 // include path): the schema is tested without the unbuilt-feature gate.
 #include "plan/plan_parse.hpp"
 
-namespace plan = pychron::experiment::plan;
+namespace plan = nobion::experiment::plan;
 
 namespace {
 
@@ -52,7 +52,7 @@ class Catalog final : public plan::ISpectrometerCatalog {
         {"Ar36H", 36.975}, {"Ar37H", 37.975}, {"Ar38H", 38.971}, {"Ar39H", 39.972}, {"Ar40H", 40.970},
         {"HCl", 35.977},   {"PHHCl", 36.46},  {"CO2", 43.990}};
     if (const auto it = lab.find(label); it != lab.end()) return it->second;
-    const auto& weights = pychron::spectrometer::cfg::default_molecular_weights();
+    const auto& weights = nobion::spectrometer::cfg::default_molecular_weights();
     if (const auto it = weights.find(label); it != weights.end()) return it->second;
     return std::nullopt;
   }
@@ -490,8 +490,8 @@ std::string read_text(const fs::path& p) {
 // The extraction-line aliases the worked plans name.
 class Line final : public plan::IAliasResolver {
  public:
-  std::optional<pychron::experiment::ParamValue> resolve_alias(std::string_view key) const override {
-    static const std::map<std::string, pychron::experiment::ParamValue, std::less<>> aliases{
+  std::optional<nobion::experiment::ParamValue> resolve_alias(std::string_view key) const override {
+    static const std::map<std::string, nobion::experiment::ParamValue, std::less<>> aliases{
         {"valves.inlet", std::string("V12")},     {"valves.outlet", std::string("V13")},
         {"valves.he_inlet", std::string("V20")},  {"valves.ne_inlet", std::string("V21")},
         {"valves.ar_inlet", std::string("V22")},  {"valves.ion_pump", std::string("V30")},
@@ -796,10 +796,10 @@ integration_s = 0.5
   EXPECT_EQ(s.cycles, 3);
   EXPECT_DOUBLE_EQ(s.integration_s, 2);
   ASSERT_EQ(s.fits.size(), 2u);
-  EXPECT_EQ(s.fits.at("Ar40@H1").fit, std::optional(pychron::reduction::FitKind::Parabolic));
+  EXPECT_EQ(s.fits.at("Ar40@H1").fit, std::optional(nobion::reduction::FitKind::Parabolic));
   EXPECT_FALSE(s.fits.at("Ar40@H1").error);
   const auto& d = s.fits.at("default");
-  EXPECT_EQ(d.error, std::optional(pychron::reduction::ErrorType::Sd));
+  EXPECT_EQ(d.error, std::optional(nobion::reduction::ErrorType::Sd));
   ASSERT_TRUE(d.outliers);
   EXPECT_TRUE(d.outliers->enabled);
   EXPECT_EQ(d.outliers->iterations, 2);
@@ -1053,11 +1053,11 @@ counts = 1
   ASSERT_EQ(r->gases.size(), 1u);
   ASSERT_TRUE(r->gases[0].fits);
   const auto& f = *r->gases[0].fits;
-  EXPECT_EQ(f.error, pychron::reduction::ErrorType::Sd);
-  EXPECT_EQ(f.signal.at("Ar40"), pychron::reduction::FitKind::Parabolic);
-  EXPECT_EQ(f.signal.at("Ar36"), pychron::reduction::FitKind::Average);
-  EXPECT_EQ(f.signal.at("default"), pychron::reduction::FitKind::Linear);
-  EXPECT_EQ(r->fits.error, pychron::reduction::ErrorType::Sem);  // the plan's own stays
+  EXPECT_EQ(f.error, nobion::reduction::ErrorType::Sd);
+  EXPECT_EQ(f.signal.at("Ar40"), nobion::reduction::FitKind::Parabolic);
+  EXPECT_EQ(f.signal.at("Ar36"), nobion::reduction::FitKind::Average);
+  EXPECT_EQ(f.signal.at("default"), nobion::reduction::FitKind::Linear);
+  EXPECT_EQ(r->fits.error, nobion::reduction::ErrorType::Sem);  // the plan's own stays
 }
 
 // ---- v2 rules (spec 3.7) beyond the invalid fixtures --------------------------------
@@ -1643,7 +1643,7 @@ counts = 1
 )");
   ASSERT_EQ(p.gases.size(), 1u);
   const auto& gas = p.gases[0];
-  using pychron::reduction::FitKind;
+  using nobion::reduction::FitKind;
   EXPECT_EQ(plan::fit_for(p, gas, nullptr, "signal", "Ar40", "AX").kind, FitKind::Cubic);
   EXPECT_EQ(plan::fit_for(p, gas, nullptr, "signal", "Ar40", "H1").kind, FitKind::Parabolic);
   EXPECT_EQ(plan::fit_for(p, gas, nullptr, "signal", "Ar39", "AX").kind, FitKind::Linear);
@@ -1680,16 +1680,16 @@ collect = { Ar40 = "AX" }
 counts = 1
 )", &kCatalog, "");
   ASSERT_EQ(p.gases.size(), 2u);
-  using pychron::reduction::FitKind;
+  using nobion::reduction::FitKind;
   const auto& a = p.gases[0];
   const auto& b = p.gases[1];
   const auto first = plan::fit_for(p, a, &a.segments[0], "signal", "Ar40", "H1");
   EXPECT_EQ(first.kind, FitKind::Cubic);
-  EXPECT_EQ(first.error, pychron::reduction::ErrorType::Sd);
+  EXPECT_EQ(first.error, nobion::reduction::ErrorType::Sd);
   EXPECT_EQ(plan::fit_for(p, a, &a.segments[0], "signal", "Ar39", "AX").kind, FitKind::Average);  // its default
   const auto second = plan::fit_for(p, a, &a.segments[1], "signal", "Ar40", "H1");
   EXPECT_EQ(second.kind, FitKind::Parabolic);  // the plan's, through the gas
-  EXPECT_EQ(second.error, pychron::reduction::ErrorType::Sem);
+  EXPECT_EQ(second.error, nobion::reduction::ErrorType::Sem);
   EXPECT_EQ(plan::fit_for(p, b, &b.segments[0], "signal", "Ar40", "AX").kind, FitKind::Exponential);
   EXPECT_EQ(plan::fit_for(p, b, &b.segments[0], "signal", "Ar39", "AX").kind, FitKind::Linear);
 }
@@ -1723,7 +1723,7 @@ counts = 5
 )");
   ASSERT_EQ(p.gases.size(), 1u);
   const auto& gas = p.gases[0];
-  using pychron::reduction::FitKind;
+  using nobion::reduction::FitKind;
   for (std::size_t i = 0; i < gas.segments.size(); ++i) {
     const auto& seg = gas.segments[i];
     EXPECT_EQ(plan::fit_for(p, gas, &seg, "signal", "Ar40", "H1").kind, FitKind::Parabolic) << i;

@@ -8,7 +8,7 @@
 
 #include "nobion/core/clock.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 TEST(ManualClock, OnlyMovesWhenAdvanced) {

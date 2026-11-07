@@ -19,8 +19,8 @@
 namespace elctl {
 
 namespace fs = std::filesystem;
-using namespace pychron;
-using namespace pychron::setup;
+using namespace nobion;
+using namespace nobion::setup;
 
 namespace {
 

@@ -5,8 +5,8 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-using namespace pychron::setup;
+using namespace nobion;
+using namespace nobion::setup;
 
 namespace {
 

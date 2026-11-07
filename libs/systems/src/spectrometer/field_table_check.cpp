@@ -7,7 +7,7 @@
 #include <sstream>
 #include <utility>
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace {
 
@@ -276,4 +276,4 @@ TableDiff diff_field_tables(const FieldTable& a, const FieldTable& b) {
   return d;
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

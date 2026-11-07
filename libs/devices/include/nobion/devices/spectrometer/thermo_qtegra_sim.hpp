@@ -18,7 +18,7 @@
 #include "nobion/core/clock.hpp"
 #include "nobion/transport/sim_transport.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 // The hook locks `mutex` for every command; tests lock it to read or change
 // the model while a driver may be running.
@@ -72,4 +72,4 @@ struct QtegraSimModel {
 // cannot parse "Error: invalid number in <command>".
 SimTransport::Hook qtegra_sim_hook(std::shared_ptr<QtegraSimModel> model);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

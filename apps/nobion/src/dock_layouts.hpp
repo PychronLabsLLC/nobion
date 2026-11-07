@@ -23,7 +23,7 @@ class QMainWindow;
 class QSettings;
 class QWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // The names, inside a window's group, of the keys its last layout is kept
 // under.
@@ -92,4 +92,4 @@ class DockLayouts : public QObject {
   Keys keys_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

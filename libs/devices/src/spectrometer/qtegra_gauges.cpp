@@ -5,7 +5,7 @@
 
 #include "nobion/codecs/thermo_qtegra.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace q = codec::qtegra;
 
@@ -104,6 +104,6 @@ Result<Sample> QtegraGauges::sample() {
   return Sample{name(), clock_->now(), *p};
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer
 
-REGISTER_DRIVER("qtegra_gauges", pychron::spectrometer::QtegraGauges);
+REGISTER_DRIVER("qtegra_gauges", nobion::spectrometer::QtegraGauges);

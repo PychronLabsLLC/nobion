@@ -5,7 +5,7 @@
 
 namespace fs = std::filesystem;
 
-namespace pychron::setup::detail {
+namespace nobion::setup::detail {
 
 Result<void> write_file(const fs::path& p, const std::string& content, bool secret) {
   std::error_code ec;
@@ -23,4 +23,4 @@ Result<void> write_file(const fs::path& p, const std::string& content, bool secr
   return {};
 }
 
-}  // namespace pychron::setup::detail
+}  // namespace nobion::setup::detail

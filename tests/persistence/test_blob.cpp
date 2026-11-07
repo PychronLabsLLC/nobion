@@ -6,7 +6,7 @@
 #include <limits>
 #include <string>
 
-using namespace pychron::persistence;
+using namespace nobion::persistence;
 
 namespace {
 std::span<const std::uint8_t> as_bytes(std::string_view s) {
@@ -75,6 +75,6 @@ TEST(Blob, LegacyIsBigEndian) {
 TEST(Blob, HashIsCodecNulBytes) {
   const Bytes bytes = {1, 2, 3};
   std::string joined = std::string(kCodecTv) + '\0' + "\x01\x02\x03";
-  EXPECT_EQ(blob_sha256(kCodecTv, bytes), pychron::sha256(std::string_view{joined}));
+  EXPECT_EQ(blob_sha256(kCodecTv, bytes), nobion::sha256(std::string_view{joined}));
   EXPECT_NE(blob_sha256(kCodecTv, bytes), blob_sha256(kCodecTvs, bytes));
 }

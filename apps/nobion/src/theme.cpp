@@ -22,7 +22,7 @@
 #include <QVariant>
 #include <QWidget>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -616,4 +616,4 @@ QFont mono_font() {
 
 }  // namespace style
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

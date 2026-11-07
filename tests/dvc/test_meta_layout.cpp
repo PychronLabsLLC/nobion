@@ -10,10 +10,10 @@
 #include "fixture_files.hpp"
 #include "meta_layout.hpp"
 
-using namespace pychron;
-using namespace pychron::dvc;
-using namespace pychron::dvc::testing;
-namespace P = pychron::persistence;
+using namespace nobion;
+using namespace nobion::dvc;
+using namespace nobion::dvc::testing;
+namespace P = nobion::persistence;
 
 namespace {
 

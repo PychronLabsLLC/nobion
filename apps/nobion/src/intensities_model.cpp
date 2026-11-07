@@ -7,7 +7,7 @@
 
 #include <QBrush>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 QString dash() { return QStringLiteral("—"); }
@@ -131,4 +131,4 @@ QVariant IntensitiesModel::headerData(int section, Qt::Orientation orientation, 
   }
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -17,7 +17,7 @@
 #include "nobion/processing/model.hpp"
 #include "nobion/reduction/ufloat.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 // Keyset cursor: rows strictly older than (timestamp, uuid).
 struct BrowseCursor {
@@ -231,4 +231,4 @@ std::vector<FacetValue> facet_values(const std::vector<AnalysisSummary>& rows, F
 // `newest` is the newest timestamp in the source (for last_hours).
 std::vector<PositionRow> position_rows(const std::vector<AnalysisSummary>& rows, const BrowseQuery& q, double newest);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

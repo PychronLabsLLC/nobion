@@ -47,7 +47,7 @@
 #include "git_fixture.hpp"
 #include "nobion/dvc/legacy_layout.hpp"
 
-namespace pychron::dvc::testing {
+namespace nobion::dvc::testing {
 
 class LegacyRepoBuilder {
  public:
@@ -219,4 +219,4 @@ class LegacyRepoBuilder {
   GitFixture& repo_;
 };
 
-}  // namespace pychron::dvc::testing
+}  // namespace nobion::dvc::testing

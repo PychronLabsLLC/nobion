@@ -20,7 +20,7 @@
 
 #include "sql/errors.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 namespace {
 
 std::shared_ptr<Orm::DatabaseManager> manager() {
@@ -290,10 +290,10 @@ Sha256Digest to_digest(const QVariant& v) {
   return d;
 }
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail
 
-namespace pychron::persistence {
+namespace nobion::persistence {
 
 void ensure_host_application() { detail::ensure_qt_application(); }
 
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence

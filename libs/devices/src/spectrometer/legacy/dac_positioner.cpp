@@ -5,7 +5,7 @@
 #include "nobion/codecs/map215.hpp"
 #include "nobion/devices/spectrometer/legacy/polled_acquirer.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace {
 
@@ -72,4 +72,4 @@ Result<double> DacPositioner::read() { return cached_.load(); }
 
 REGISTER_DRIVER("dac_positioner", DacPositioner);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

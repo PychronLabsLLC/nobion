@@ -14,7 +14,7 @@
 #include "nobion/processing/units.hpp"
 #include "schema_builder.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
@@ -168,4 +168,4 @@ class SpectrumIsochronUnit final : public Unit {
 
 std::unique_ptr<Unit> make_spectrum_isochron_unit() { return std::make_unique<SpectrumIsochronUnit>(); }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

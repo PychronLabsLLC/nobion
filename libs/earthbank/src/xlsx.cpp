@@ -30,7 +30,7 @@
 #include "nobion/earthbank/model.hpp"
 #include "nobion/earthbank/vocab.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 namespace fs = std::filesystem;
 using nlohmann::json;
@@ -1203,4 +1203,4 @@ Result<XlsxResult> export_xlsx(const std::vector<Submission>& submissions, const
   return result;
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

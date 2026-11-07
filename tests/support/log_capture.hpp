@@ -18,7 +18,7 @@
 #include "nobion/core/process_log.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::testing {
+namespace nobion::testing {
 
 class LogCapture {
  public:
@@ -84,4 +84,4 @@ class LogCapture {
   std::optional<ProcessLogScope> scope_;
 };
 
-}  // namespace pychron::testing
+}  // namespace nobion::testing

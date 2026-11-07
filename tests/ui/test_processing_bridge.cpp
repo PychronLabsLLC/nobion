@@ -21,10 +21,10 @@
 #include "nobion/processing/source.hpp"
 #include "nobion/processing/units.hpp"
 
-namespace pp = pychron::processing;
-using pychron::ui::PipelineResult;
-using pychron::ui::ProcessingBridge;
-using pychron::ui::SubmitOptions;
+namespace pp = nobion::processing;
+using nobion::ui::PipelineResult;
+using nobion::ui::ProcessingBridge;
+using nobion::ui::SubmitOptions;
 
 namespace {
 
@@ -36,16 +36,16 @@ class LoggingSource : public pp::MemorySource {
     std::thread::id thread;
   };
 
-  pychron::Result<void> refresh() override {
+  nobion::Result<void> refresh() override {
     note("refresh");
-    if (fail_refresh) return pychron::fail(pychron::ErrorKind::Io, "the store is gone", "store");
+    if (fail_refresh) return nobion::fail(nobion::ErrorKind::Io, "the store is gone", "store");
     return {};
   }
-  pychron::Result<pp::BrowsePage> browse(const pp::BrowseQuery& query) override {
+  nobion::Result<pp::BrowsePage> browse(const pp::BrowseQuery& query) override {
     note("browse");
     return MemorySource::browse(query);
   }
-  pychron::Result<pp::AnalysisPtr> load(const std::string& uuid) override {
+  nobion::Result<pp::AnalysisPtr> load(const std::string& uuid) override {
     note("load");
     return MemorySource::load(uuid);
   }
@@ -72,8 +72,8 @@ class LoggingSource : public pp::MemorySource {
 };
 
 // The Ar-Ar domain, made once for every bridge of the file.
-const pychron::processing::Domain& arar_domain() {
-  static const std::unique_ptr<pychron::processing::Domain> domain = pychron::arar::make_domain();
+const nobion::processing::Domain& arar_domain() {
+  static const std::unique_ptr<nobion::processing::Domain> domain = nobion::arar::make_domain();
   return *domain;
 }
 
@@ -100,7 +100,7 @@ pp::Pipeline now_pipeline() {
 }
 
 void fill(LoggingSource& src) {
-  for (int i = 0; i < 6; ++i) src.add(pychron::arar::test::make_air(i, 295.0 + i));
+  for (int i = 0; i < 6; ++i) src.add(nobion::arar::test::make_air(i, 295.0 + i));
 }
 
 double first_x(const PipelineResult& r) {

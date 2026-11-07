@@ -37,8 +37,8 @@ namespace elctl {
 namespace {
 
 namespace fs = std::filesystem;
-using namespace pychron;
-namespace lab = pychron::experiment::lab;
+using namespace nobion;
+namespace lab = nobion::experiment::lab;
 
 constexpr const char* kLaserUsage =
     "usage: elctl [-c <extraction_line.toml>] [--sim] laser <command> [--lab <dir>]\n"

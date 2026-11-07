@@ -102,7 +102,7 @@
 #include "nobion/experiment/plan/plan.hpp"
 #include "nobion/scripting/cancel_token.hpp"
 
-namespace pychron::experiment::measurement {
+namespace nobion::experiment::measurement {
 
 // The v1 blocks, then Segment and Step for any other segment or step, and
 // the staged-release blocks of a gas (Prepare, PumpOut; not run yet).
@@ -236,22 +236,22 @@ struct EngineContext {
 struct EngineOptions {
   // Blocking wait. Default: CancelToken::wait_until on the context clock.
   // Tests inject one that advances a ManualClock.
-  std::function<void(pychron::Duration)> sleep;
+  std::function<void(nobion::Duration)> sleep;
   // Reading timeout = integration x timeout_factor + timeout_slack. A
   // reading that does not come within it starts a gap (spec 4.4): the
   // collection waits on the clock, doing nothing else, for up to max_gap from
   // the last reading, or to its planned end; then the acquisition is started
   // again once, and the collection ends if that gives nothing.
   double timeout_factor = 3.0;
-  pychron::Duration timeout_slack = std::chrono::seconds(5);
-  pychron::Duration max_gap = std::chrono::minutes(2);
+  nobion::Duration timeout_slack = std::chrono::seconds(5);
+  nobion::Duration max_gap = std::chrono::minutes(2);
   // After a gap in main: fewer signal counts than this share of the planned
   // ones (and never fewer than the fit needs) fail the measurement.
   double min_counts_fraction = 0.2;
   // The inlet close and a detector's unprotect keep trying this long (spec
   // 4.4, valve row), with an alarm at critical_alarm_after.
-  pychron::Duration critical_window = kCriticalWindow;
-  pychron::Duration critical_alarm_after = kCriticalAlarmAfter;
+  nobion::Duration critical_window = kCriticalWindow;
+  nobion::Duration critical_alarm_after = kCriticalAlarmAfter;
   // Called on the engine thread right after the inlet closes.
   std::function<void()> on_inlet_closed;
   // Called on the engine thread as a block begins, before its BlockStarted
@@ -408,10 +408,10 @@ class MeasurementEngine {
   // silence's start or `cap` (Cap: the gap stays open for the caller), and
   // past max_gap starts the acquisition again once (NotResumed when that
   // gives nothing). A definite error is returned.
-  Result<GapWait> wait_out_gap(Block block, pychron::Duration integration, pychron::Duration timeout, TimePoint cap);
+  Result<GapWait> wait_out_gap(Block block, nobion::Duration integration, nobion::Duration timeout, TimePoint cap);
   void close_gap(Block block, TimePoint to, bool resumed);
   // start_acquisition, started again once when its outcome is unknown.
-  Result<void> start_acquisition(pychron::Duration integration);
+  Result<void> start_acquisition(nobion::Duration integration);
   // A call that must get through (spec 4.4, valve row).
   Result<void> critical(const std::string& what, const std::function<Result<void>()>& op);
   Result<void> close_inlet();
@@ -460,7 +460,7 @@ class MeasurementEngine {
   // For the whole measurement, across segments and gases (DetectorTiming).
   std::set<std::string> large_beam_;                // detectors whose last gas reading was large
   std::map<std::string, std::string> modes_;        // collector -> the detector (mode) last used on it
-  std::optional<pychron::Duration> integration_;    // of the last acquisition started
+  std::optional<nobion::Duration> integration_;    // of the last acquisition started
   std::set<std::string> protected_;
   std::vector<collect::Channel> last_channels_;
   bool acquiring_ = false;
@@ -490,4 +490,4 @@ class MeasurementEngine {
   std::atomic<bool> collecting_{false};
 };
 
-}  // namespace pychron::experiment::measurement
+}  // namespace nobion::experiment::measurement

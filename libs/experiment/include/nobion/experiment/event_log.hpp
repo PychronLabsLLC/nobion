@@ -2,7 +2,7 @@
 
 // Bus tap for the events libs/experiment publishes (executor, run, session,
 // measurement engine, collector, persister, notifier): each one record on
-// logger "trace.<EventName>", as pychron::EventRecorder does for the core
+// logger "trace.<EventName>", as nobion::EventRecorder does for the core
 // events (nobion/core/event_recorder.hpp, which says how).
 
 #include <span>
@@ -11,7 +11,7 @@
 #include "nobion/core/event_recorder.hpp"
 #include "nobion/core/signal_bus.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 class ExperimentEventRecorder {
  public:
@@ -23,4 +23,4 @@ class ExperimentEventRecorder {
 
 [[nodiscard]] std::span<const EventClass> experiment_event_classes() noexcept;
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

@@ -20,7 +20,7 @@
 
 #include "nobion/codecs/codec.hpp"
 
-namespace pychron::codec::maxigauge {
+namespace nobion::codec::maxigauge {
 
 inline constexpr int kFirstChannel = 1;
 inline constexpr int kLastChannel = 6;
@@ -111,4 +111,4 @@ Bytes encode_reading(const Reading& reading);
 Bytes encode_all_readings(std::span<const Reading> readings);
 Bytes encode_units(Units units);
 
-}  // namespace pychron::codec::maxigauge
+}  // namespace nobion::codec::maxigauge

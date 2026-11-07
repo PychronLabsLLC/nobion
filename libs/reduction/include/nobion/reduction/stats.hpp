@@ -21,7 +21,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 // ---- Means ------------------------------------------------------------------
 
@@ -174,4 +174,4 @@ struct YorkFit {
 Result<YorkFit> york_fit(std::span<const XyPoint> points, YorkMethod method = YorkMethod::NewYork,
                          int max_iterations = 500, double tolerance = 1e-10);
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

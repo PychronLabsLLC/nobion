@@ -13,7 +13,7 @@
 #include <string>
 #include <string_view>
 
-namespace pychron {
+namespace nobion {
 
 // Never throws; "?" when the path cannot be converted.
 inline std::string utf8(const std::filesystem::path& path) noexcept {
@@ -34,4 +34,4 @@ inline std::filesystem::path path_from_utf8(std::string_view text) noexcept {
   }
 }
 
-}  // namespace pychron
+}  // namespace nobion

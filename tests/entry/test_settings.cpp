@@ -3,10 +3,10 @@
 #include "nobion/entry/settings.hpp"
 #include "store_fixture.hpp"
 
-using namespace pychron;
-using namespace pychron::entry;
-using namespace pychron::persistence;
-using namespace pychron::persistence::testing;
+using namespace nobion;
+using namespace nobion::entry;
+using namespace nobion::persistence;
+using namespace nobion::persistence::testing;
 
 TEST(Settings, DefaultsUnknownKeysAndTypes) {
   auto s = parse_settings("{}");

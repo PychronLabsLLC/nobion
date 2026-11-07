@@ -13,7 +13,7 @@
 
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -326,4 +326,4 @@ void AlarmStrip::mousePressEvent(QMouseEvent* event) {
   QFrame::mousePressEvent(event);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

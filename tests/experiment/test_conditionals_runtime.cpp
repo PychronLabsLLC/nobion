@@ -9,8 +9,8 @@
 #include "nobion/experiment/conditionals/validate.hpp"
 #include "nobion/experiment/measurement/results.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment;
+using namespace nobion;
+using namespace nobion::experiment;
 
 namespace {
 
@@ -242,7 +242,7 @@ TEST(RunChecks, PostRunAppliesQueueActionsAndCancel) {
   s.trace.t = {1, 2};
   s.trace.v = {50, 50};
   low.data.series.push_back(s);
-  low.results.intercepts["Ar40"] = {reduction::Intercept{50, 1, 2, {}, 0, pychron::reduction::FitKind::Linear, {}}, {}};
+  low.results.intercepts["Ar40"] = {reduction::Intercept{50, 1, 2, {}, 0, nobion::reduction::FitKind::Linear, {}}, {}};
   RecordMetrics metrics(low);
 
   auto out = checks.post_run(q.runs()[0], metrics, q, 0);

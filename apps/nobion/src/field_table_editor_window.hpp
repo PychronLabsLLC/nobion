@@ -49,7 +49,7 @@ class QToolBar;
 class QTreeWidget;
 class QVBoxLayout;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class FieldTableAddRowDialog;
 class FieldTableSetValueDialog;
@@ -223,4 +223,4 @@ class FieldTableEditorWindow : public QMainWindow {
   PickCsv pick_csv_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

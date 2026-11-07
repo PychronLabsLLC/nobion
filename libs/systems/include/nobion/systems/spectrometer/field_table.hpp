@@ -8,7 +8,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 // How a detector's control points are turned into a mass -> value curve.
 // Polynomial fits are least squares in mass (centered for conditioning).
@@ -103,4 +103,4 @@ class FieldTable {
 Result<FieldTable> parse_field_table(std::string_view toml_text);
 std::string to_toml(const FieldTable& table);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

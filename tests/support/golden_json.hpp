@@ -33,7 +33,7 @@
 #error "PYCHRON_REDUCTION_GOLDEN_DIR must be defined (the test target's CMakeLists.txt)"
 #endif
 
-namespace pychron::reduction::golden {
+namespace nobion::reduction::golden {
 
 struct Json {
   enum class Type : std::uint8_t { Null, Bool, Number, String, Array, Object };
@@ -341,7 +341,7 @@ class Parser {
       while (digit(peek())) ++pos_;
     }
     if (digit(peek())) return fail("leading zero");
-    const auto v = pychron::parse_double(std::string_view(text_).substr(start, pos_ - start));
+    const auto v = nobion::parse_double(std::string_view(text_).substr(start, pos_ - start));
     if (!v) return fail("bad or out-of-range number");
     out.type = Json::Type::Number;
     out.number = *v;
@@ -433,4 +433,4 @@ inline bool known_keys(const Json& obj, std::initializer_list<std::string_view> 
   return ok;
 }
 
-}  // namespace pychron::reduction::golden
+}  // namespace nobion::reduction::golden

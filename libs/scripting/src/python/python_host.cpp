@@ -8,7 +8,7 @@
 #include "nobion/core/process_log.hpp"
 #include "nobion/scripting/vocabulary.hpp"
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 namespace {
 
 using python::HostState;
@@ -269,4 +269,4 @@ std::vector<std::string> bound_commands() {
   return out;
 }
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

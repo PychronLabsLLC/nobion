@@ -5,7 +5,7 @@
 
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 using experiment::Conditional;
 using experiment::ConditionalKind;
@@ -226,4 +226,4 @@ bool ConditionalTableModel::has_errors() const {
   return std::any_of(errors_.begin(), errors_.end(), [](const QString& e) { return !e.isEmpty(); });
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

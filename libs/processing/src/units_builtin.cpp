@@ -14,7 +14,7 @@
 #include "nobion/processing/units.hpp"
 #include "schema_builder.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
@@ -439,4 +439,4 @@ UnitRegistry UnitRegistry::core(const std::string& default_quantity) {
   return r;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

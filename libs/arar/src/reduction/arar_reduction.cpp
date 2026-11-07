@@ -10,7 +10,7 @@
 
 #include "nobion/reduction/detail/arar_kernels.hpp"
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 namespace {
 
@@ -643,4 +643,4 @@ Result<ArArResult> reduce(const ReductionInput& in) {
   return out;
 }
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

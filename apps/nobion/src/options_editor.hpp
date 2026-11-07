@@ -33,11 +33,11 @@ class QAbstractButton;
 class QButtonGroup;
 class QStackedWidget;
 
-namespace pychron::processing {
+namespace nobion::processing {
 class Domain;
 }
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class OptionsEditor : public QWidget {
   Q_OBJECT
@@ -99,4 +99,4 @@ class OptionsEditor : public QWidget {
   bool building_ = false;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

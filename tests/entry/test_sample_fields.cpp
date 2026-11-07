@@ -2,7 +2,7 @@
 
 #include "nobion/entry/sample_fields.hpp"
 
-using namespace pychron::entry;
+using namespace nobion::entry;
 
 TEST(SampleFields, LatLon) {
   EXPECT_TRUE(check_lat_lon(std::nullopt, std::nullopt));

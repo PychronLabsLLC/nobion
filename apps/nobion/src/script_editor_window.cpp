@@ -30,7 +30,7 @@
 #include <QVBoxLayout>
 #include <utility>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -523,4 +523,4 @@ void ScriptEditorWindow::closeEvent(QCloseEvent* event) {
   QMainWindow::closeEvent(event);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

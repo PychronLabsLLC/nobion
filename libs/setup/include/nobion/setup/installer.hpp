@@ -12,7 +12,7 @@
 #include "nobion/setup/profile.hpp"
 #include "nobion/setup/site.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 // The shipped profiles and example configs. $NOBION_PROFILES_DIR and
 // $NOBION_EXAMPLES_DIR win; then an installed layout next to the program
@@ -28,7 +28,7 @@ Resources find_resources(const std::filesystem::path& executable_dir);
 // The folder a program keeps a lab's runtime state in (line state, autocenter
 // corrections, camera scales, snapshots, default data): `lab` itself, unless
 // `lab` is `examples` or a folder under it; then the same place under
-// `user_dir` (pychron::default_examples_state_dir), since the shipped
+// `user_dir` (nobion::default_examples_state_dir), since the shipped
 // examples are never written to. Folders are compared as files
 // (fs::equivalent, from `lab` up), so a relative or linked path, or other
 // letter case on a disk that ignores it, is still the examples. An empty
@@ -79,4 +79,4 @@ std::string percent_encode(std::string_view text);
 // the default when there is none yet.
 Result<void> register_install(const SiteInstall& install, const std::filesystem::path& site_path);
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

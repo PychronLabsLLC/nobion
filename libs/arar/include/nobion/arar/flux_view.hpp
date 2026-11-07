@@ -15,7 +15,7 @@
 #include "nobion/processing/options.hpp"
 #include "nobion/processing/scene.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 // `%.4e`; "-" for an absent or non-finite value.
 std::string flux_j_text(double v);
@@ -106,4 +106,4 @@ ScenePtr flux_scene(const LevelInputs& inputs, const LevelFit& fit, const FluxSc
 ScenePtr flux_scene(const LevelInputs& inputs, const FluxOptions& options, const Edits& edits,
                     const FluxSceneOptions& scene_options = {});
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

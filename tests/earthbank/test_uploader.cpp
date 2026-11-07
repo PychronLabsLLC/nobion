@@ -28,7 +28,7 @@
 #include "session_support.hpp"
 #include "upload_support.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 namespace fs = std::filesystem;
@@ -1144,4 +1144,4 @@ TEST(Uploader, TokenExpiryMidRunIsInvisible) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

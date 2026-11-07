@@ -1,6 +1,6 @@
 #include "nobion/systems/switch_valve_service.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 SwitchValveService::SwitchValveService(SwitchManager& manager, std::string actor)
     : manager_(manager), actor_(std::move(actor)) {}
@@ -37,4 +37,4 @@ std::vector<std::string> SwitchValveService::names() const {
   return out;
 }
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

@@ -12,7 +12,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/persistence/catalog.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 std::string trim(std::string_view text);
 
@@ -85,4 +85,4 @@ bool valid_packet(std::string_view packet);
 // "P7" -> "P8", "P09" -> "P10", "9" -> "10". Nullopt for an invalid packet.
 std::optional<std::string> next_packet(std::string_view packet);
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

@@ -6,7 +6,7 @@
 
 #include "nobion/experiment/model/run_spec.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 // Frequency runs (blanks or airs every N unknowns) are expanded at edit time into
 // explicit runs; the executor never generates runs.
@@ -23,4 +23,4 @@ struct Frequency {
 // Nothing is inserted if no run counts.
 std::vector<RunSpec> insert_frequency(const std::vector<RunSpec>& runs, const RunSpec& special, const Frequency& freq);
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

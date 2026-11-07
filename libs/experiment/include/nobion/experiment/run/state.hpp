@@ -20,7 +20,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/core/signal_bus.hpp"
 
-namespace pychron::experiment::run {
+namespace nobion::experiment::run {
 
 enum class RunState {
   Pending, Preparing, Extracting, Equilibrating, Measuring, Truncated, PostMeasuring, Saving,
@@ -78,4 +78,4 @@ class RunStateMachine {
   std::vector<RunStateChanged> history_;
 };
 
-}  // namespace pychron::experiment::run
+}  // namespace nobion::experiment::run

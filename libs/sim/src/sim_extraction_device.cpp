@@ -4,7 +4,7 @@
 #include <chrono>
 #include <cmath>
 
-namespace pychron::sim {
+namespace nobion::sim {
 
 using extraction::Capability;
 using extraction::ExtractUnits;
@@ -301,4 +301,4 @@ Result<void> SimExtractionDevice::stop_pattern() {
   });
 }
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

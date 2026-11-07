@@ -19,7 +19,7 @@
 #include "nobion/reduction/stats.hpp"
 #include "nobion/reduction/ufloat.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 using GroupItems = std::vector<const DatasetItem*>;
 
@@ -66,4 +66,4 @@ struct IsochronAge {
 Result<IsochronAge> isochron_age(const std::vector<IsochronPoint>& points, reduction::YorkMethod method, bool mse,
                                  bool include_j_error);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

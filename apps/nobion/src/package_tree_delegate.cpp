@@ -7,7 +7,7 @@
 
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -111,4 +111,4 @@ QSize PackageTreeDelegate::sizeHint(const QStyleOptionViewItem& option, const QM
   return {base.width() + kChevron + kIndent + 2 * kMargin, std::max(kRowHeight, option.fontMetrics.height() + 10)};
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -5,7 +5,7 @@
 
 #include "nobion/dvc/legacy_layout.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
 namespace {
 
@@ -126,4 +126,4 @@ std::string make_runid(std::string_view identifier, int aliquot, int increment) 
   return persistence::make_runid(std::string(identifier), aliquot, increment);
 }
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

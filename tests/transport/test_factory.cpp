@@ -18,7 +18,7 @@
 #include "nobion/transport/trace_recorder.hpp"
 #include "temp_path.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {
@@ -180,7 +180,7 @@ UntracedRun run_untraced(config::LoggingConfig lc) {
   if (!hub) return out;
 
   // Its own directory: two cases use this, and ctest runs them at once.
-  const auto dir = pychron::testing::unique_temp_path("pychron_factory_untraced_");
+  const auto dir = nobion::testing::unique_temp_path("pychron_factory_untraced_");
   std::filesystem::create_directories(dir);
   TransportContext ctx;
   ctx.clock = &clock;

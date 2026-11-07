@@ -24,7 +24,7 @@
 #include "nobion/earthbank/secret_store.hpp"
 #include "session_support.hpp"
 
-namespace pychron::ui::test {
+namespace nobion::ui::test {
 
 // Passes requests on. While held, a request (every one, or with hold_at only
 // those of one method and path) waits here, on the worker's thread, until the
@@ -137,4 +137,4 @@ struct EarthbankWorld {
   }
 };
 
-}  // namespace pychron::ui::test
+}  // namespace nobion::ui::test

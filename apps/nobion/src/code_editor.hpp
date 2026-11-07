@@ -16,7 +16,7 @@
 class QCompleter;
 class QStringListModel;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 struct EditorDiagnostic {
   int line = 0;  // 1-based
@@ -73,4 +73,4 @@ class CodeEditor : public QPlainTextEdit {
   int current_line_ = 0;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

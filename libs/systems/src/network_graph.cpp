@@ -5,7 +5,7 @@
 
 #include "nobion/systems/canvas/canvas.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 namespace {
 
 // Joins every pair of `names`: tees and crosses are valveless junctions.
@@ -125,4 +125,4 @@ const NetworkGraph::Region* NetworkGraph::region_of(std::string_view volume, con
   return nullptr;
 }
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

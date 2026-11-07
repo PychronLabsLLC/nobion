@@ -7,7 +7,7 @@
 #include <QIcon>
 #include <QString>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // `name`: a figure kind (time_series, ideogram, spectrum, inverse_isochron,
 // spectrum_isochron, isotope_evolution_fit, blank_fit, icfactor_fit), "recall", "export" or "publish". Any
@@ -15,4 +15,4 @@ namespace pychron::ui {
 // time_series glyph, the generic figure.
 QIcon data_icon(const QString& name);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

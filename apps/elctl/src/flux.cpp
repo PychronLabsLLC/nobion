@@ -34,13 +34,13 @@
 namespace elctl {
 
 namespace fs = std::filesystem;
-namespace pp = pychron::processing;
-namespace ps = pychron::persistence;
-namespace r = pychron::reduction;
-using pychron::Error;
-using pychron::ErrorKind;
-using pychron::fail;
-using pychron::Result;
+namespace pp = nobion::processing;
+namespace ps = nobion::persistence;
+namespace r = nobion::reduction;
+using nobion::Error;
+using nobion::ErrorKind;
+using nobion::fail;
+using nobion::Result;
 
 namespace {
 
@@ -445,10 +445,10 @@ Result<std::unique_ptr<ps::IStore>> open_flux_store(const std::string& db) {
 }
 
 Result<ps::Actor> flux_actor(ps::IStore& store, const std::string& user_name) {
-  const std::string host = pychron::host_name();
+  const std::string host = nobion::host_name();
   auto client = store.register_client({host, "reduction", std::nullopt, "elctl"});
   if (!client) return fail(client.error());
-  const std::string user = user_name.empty() ? pychron::env_var("USER").value_or("pychron") : user_name;
+  const std::string user = user_name.empty() ? nobion::env_var("USER").value_or("pychron") : user_name;
   auto u = store.ensure_user(*client, user);
   if (!u) return fail(u.error());
   return ps::Actor{*u, *client};
@@ -502,7 +502,7 @@ class CsvFile {
   }
 
  private:
-  pychron::Unexpected<Error> could_not_write() const { return fail(ErrorKind::Io, "could not write " + destination_.string()); }
+  nobion::Unexpected<Error> could_not_write() const { return fail(ErrorKind::Io, "could not write " + destination_.string()); }
   void discard() {
     if (temporary_.empty()) return;
     std::error_code code;
@@ -513,7 +513,7 @@ class CsvFile {
   fs::path destination_, temporary_;
 };
 
-int run(const Args& a, const pychron::processing::Domain& domain, Io io) {
+int run(const Args& a, const nobion::processing::Domain& domain, Io io) {
   auto store = open_flux_store(a.db);
   if (!store) return fatal(io, store.error().what);
   auto options = store_options(domain);
@@ -559,7 +559,7 @@ int run(const Args& a, const pychron::processing::Domain& domain, Io io) {
   // Only what was fitted is written: no level, no file (and an earlier one stays).
   if (!a.csv.empty() && s.any_fitted) {
     if (auto written = csv.commit(pp::flux_csv_header() + s.csv_rows); !written) return fatal(io, written.error().what);
-    pychron::mark_as_user_file(a.csv);
+    nobion::mark_as_user_file(a.csv);
     io.out << "wrote " << a.csv << '\n';
   }
   return s.code;
@@ -567,7 +567,7 @@ int run(const Args& a, const pychron::processing::Domain& domain, Io io) {
 
 }  // namespace
 
-int flux_command(const std::vector<std::string>& args, const pychron::processing::Domain& domain, Io io) {
+int flux_command(const std::vector<std::string>& args, const nobion::processing::Domain& domain, Io io) {
   if (args.empty() || args[0] == "help" || args[0] == "--help") {
     (args.empty() ? io.err : io.out) << kUsageText;
     return args.empty() ? kUsage : kOk;

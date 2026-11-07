@@ -18,8 +18,8 @@
 namespace elctl {
 
 struct VersionDeps {
-  // Empty: pychron::earthbank::make_http_client (null without Qt Network).
-  std::function<std::unique_ptr<pychron::http::IHttpClient>()> make_client;
+  // Empty: nobion::earthbank::make_http_client (null without Qt Network).
+  std::function<std::unique_ptr<nobion::http::IHttpClient>()> make_client;
 };
 
 int version_command(const std::vector<std::string>& args, Io io, const VersionDeps& deps = {});

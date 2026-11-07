@@ -7,7 +7,7 @@
 #include "nobion/core/log_context.hpp"
 #include "nobion/transport/link_transport.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace ngx = codec::ngx;
 
@@ -95,7 +95,7 @@ bool NgxLink::has_event_sink() const {
 Result<std::string> NgxLink::read_line(Duration timeout) {
   auto r = transport_.read(ReadSpec::until(ngx::kLineEnd), timeout);
   if (!r) return fail(std::move(r).error());
-  return ::pychron::to_string(*r);
+  return ::nobion::to_string(*r);
 }
 
 Result<void> NgxLink::send(std::string_view command) {
@@ -199,7 +199,7 @@ void NgxLink::reader(std::shared_ptr<Clock::Hold> started) {
     const TimePoint t0 = clock_.now();
     auto polled = transport_.poll(ReadSpec::until(ngx::kLineEnd), options_.read_timeout);
     if (polled && *polled) {
-      route(::pychron::to_string(**polled));
+      route(::nobion::to_string(**polled));
       continue;
     }
     if (polled) {
@@ -373,4 +373,4 @@ Result<NgxLinkHandle> make_ngx_link(Transport& transport, const std::string& nam
   });
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

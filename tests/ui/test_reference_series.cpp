@@ -49,26 +49,26 @@
 #include "reference_series_dock.hpp"
 #include "scene_view.hpp"
 
-namespace pp = pychron::processing;
-using pychron::ui::analysis_types;
-using pychron::ui::OptionsEditor;
-using pychron::ui::PresetBar;
-using pychron::ui::ProcessingBridge;
-using pychron::ui::ReferenceSeriesDock;
-using pychron::ui::SceneView;
-using pychron::ui::kReferenceFigure;
-using pychron::ui::reference_pipeline;
-using pychron::ui::ReferenceKind;
-using pychron::ui::ReferenceQuery;
-using pychron::ui::starting_preset;
+namespace pp = nobion::processing;
+using nobion::ui::analysis_types;
+using nobion::ui::OptionsEditor;
+using nobion::ui::PresetBar;
+using nobion::ui::ProcessingBridge;
+using nobion::ui::ReferenceSeriesDock;
+using nobion::ui::SceneView;
+using nobion::ui::kReferenceFigure;
+using nobion::ui::reference_pipeline;
+using nobion::ui::ReferenceKind;
+using nobion::ui::ReferenceQuery;
+using nobion::ui::starting_preset;
 
 namespace {
 
 constexpr double kT0 = 1'700'000'000.0;
 
 // The Ar-Ar domain, made once for every bridge of the file.
-const pychron::processing::Domain& arar_domain() {
-  static const std::unique_ptr<pychron::processing::Domain> domain = pychron::arar::make_domain();
+const nobion::processing::Domain& arar_domain() {
+  static const std::unique_ptr<nobion::processing::Domain> domain = nobion::arar::make_domain();
   return *domain;
 }
 
@@ -78,7 +78,7 @@ const pp::UnitRegistry& reg() { return arar_domain().units(); }
 // An analysis of `type` on `spectrometer` at `time`; its uuid is `uuid`.
 pp::AnalysisPtr analysis(const std::string& uuid, const std::string& type, double time,
                          const std::string& spectrometer = "jan") {
-  auto a = pychron::arar::test::make_air(0, 295.5, type, "R");
+  auto a = nobion::arar::test::make_air(0, 295.5, type, "R");
   a->uuid = uuid;
   a->timestamp = time;
   a->mass_spectrometer = spectrometer;
@@ -152,7 +152,7 @@ std::vector<std::string> strings(std::initializer_list<const char*> l) { return 
 // only some time after its RunFinished).
 class DockSource : public pp::MemorySource {
  public:
-  pychron::Result<void> refresh() override {
+  nobion::Result<void> refresh() override {
     note();
     pp::AnalysisPtr arriving;
     {
@@ -163,16 +163,16 @@ class DockSource : public pp::MemorySource {
     if (arriving) add(arriving);
     return {};
   }
-  pychron::Result<pp::BrowsePage> browse(const pp::BrowseQuery& query) override {
+  nobion::Result<pp::BrowsePage> browse(const pp::BrowseQuery& query) override {
     note();
     {
       const std::lock_guard lock(mutex_);
       if (query.analysis_types.size() > 1) ++blank_browses_;
     }
-    if (fail_browse) return pychron::fail(pychron::ErrorKind::Io, "the store is gone", "store");
+    if (fail_browse) return nobion::fail(nobion::ErrorKind::Io, "the store is gone", "store");
     return MemorySource::browse(query);
   }
-  pychron::Result<pp::AnalysisPtr> load(const std::string& uuid) override {
+  nobion::Result<pp::AnalysisPtr> load(const std::string& uuid) override {
     note();
     {
       std::unique_lock lock(mutex_);
@@ -766,16 +766,16 @@ class TestReferenceSeries : public QObject {
   // no call from the test, and a fifth run, a blank, adds a point the same way.
   void theQueueOfBlankAirUnknownBlank() {
     namespace fs = std::filesystem;
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     QTemporaryDir dir;
     // The folder the session writes its records to.
     pp::RecordDirectorySource records(sim.dir / "data" / "records");
     // As nobion wires it under arar: the airs and blanks reduce with the Ar-Ar references.
-    records.set_extension_loader(pychron::arar::record_extension_loader(records.root() / "references.toml"));
+    records.set_extension_loader(nobion::arar::record_extension_loader(records.root() / "references.toml"));
     pp::PresetStore presets((dir.path() + QStringLiteral("/presets")).toStdString());
     ProcessingBridge processing(records, arar_domain());
-    pychron::ui::ExperimentBridge bridge(*sim.session, sim.line->bus());
-    pychron::ui::ExperimentWindow window(
+    nobion::ui::ExperimentBridge bridge(*sim.session, sim.line->bus());
+    nobion::ui::ExperimentWindow window(
         bridge, true, std::make_unique<QSettings>(dir.path() + QStringLiteral("/ui.ini"), QSettings::IniFormat));
     window.set_references(&processing, &presets);
     ReferenceSeriesDock* dock = window.references();
@@ -784,19 +784,19 @@ class TestReferenceSeries : public QObject {
     // By hand: no example queue has this order. Without embedded Python the
     // scripts are dropped; the air run is still typed air by its identifier.
     auto queue = sim.queue();
-    queue.delays.before_analyses = pychron::experiment::Duration{0};
-    queue.delays.between_analyses = pychron::experiment::Duration{0};
-    queue.delays.after_blank = pychron::experiment::Duration{0};
+    queue.delays.before_analyses = nobion::experiment::Duration{0};
+    queue.delays.between_analyses = nobion::experiment::Duration{0};
+    queue.delays.after_blank = nobion::experiment::Duration{0};
     const auto blank = queue.runs.at(0);
     const auto unknown = queue.runs.at(1);
     QCOMPARE(QString::fromStdString(blank.id.identifier), QStringLiteral("bu"));
     QCOMPARE(QString::fromStdString(unknown.id.identifier), QStringLiteral("66001"));
     auto air = blank;
     air.id.identifier = "a";
-    air.id.type = pychron::experiment::AnalysisType::Air;
+    air.id.type = nobion::experiment::AnalysisType::Air;
     queue.runs = {blank, air, unknown, blank};
     const fs::path file = sim.dir / "references.toml";
-    QVERIFY(pychron::experiment::save_queue_file(file.string(), queue));
+    QVERIFY(nobion::experiment::save_queue_file(file.string(), queue));
     QString error;
     QVERIFY2(window.load_queue(file, &error), qPrintable(error));
     window.show();
@@ -805,7 +805,7 @@ class TestReferenceSeries : public QObject {
     pane->request_start();
     QVERIFY(pane->running());
     QTRY_VERIFY_WITH_TIMEOUT(!pane->running(), 120000);
-    using pychron::experiment::run::RunState;
+    using nobion::experiment::run::RunState;
     for (int row = 0; row < 4; ++row) QCOMPARE(window.model().status(row), std::optional<RunState>(RunState::Success));
     QTRY_COMPARE_WITH_TIMEOUT(points(blanks(*dock)), 2, 20000);
     QTRY_COMPARE_WITH_TIMEOUT(points(airs(*dock)), 1, 20000);
@@ -825,7 +825,7 @@ class TestReferenceSeries : public QObject {
     auto fifth = queue;
     fifth.runs = {blank};
     const fs::path again = sim.dir / "fifth.toml";
-    QVERIFY(pychron::experiment::save_queue_file(again.string(), fifth));
+    QVERIFY(nobion::experiment::save_queue_file(again.string(), fifth));
     QVERIFY2(window.load_queue(again, &error), qPrintable(error));
     pane->request_start();
     QVERIFY(pane->running());

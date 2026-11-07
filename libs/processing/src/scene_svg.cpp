@@ -2,7 +2,7 @@
 
 #include "nobion/processing/scene_svg.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
@@ -147,4 +147,4 @@ std::string draw_list_svg(const DrawList& list) {
 
 std::string scene_svg(const Scene& scene, const FigureSize& size) { return draw_list_svg(draw_scene(scene, size)); }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

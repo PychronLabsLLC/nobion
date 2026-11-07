@@ -14,7 +14,7 @@
 #include "nobion/experiment/conditionals/evaluator.hpp"
 #include "nobion/experiment/record/names.hpp"
 
-namespace pychron::experiment::measurement {
+namespace nobion::experiment::measurement {
 
 namespace {
 
@@ -540,4 +540,4 @@ record::Conditionals to_record_conditionals(const std::vector<Conditional>& inst
   return out;
 }
 
-}  // namespace pychron::experiment::measurement
+}  // namespace nobion::experiment::measurement

@@ -24,7 +24,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/processing/reduced.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 class Domain;  // domain.hpp
 
@@ -97,4 +97,4 @@ class Quantity {
 std::vector<std::string> available_quantities(const std::vector<ReducedPtr>& analyses,
                                               const std::vector<std::string>& domain_quantities);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

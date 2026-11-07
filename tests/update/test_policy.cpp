@@ -4,7 +4,7 @@
 
 #include <nobion/update/update.hpp>
 
-namespace pychron::update {
+namespace nobion::update {
 namespace {
 
 using namespace std::chrono_literals;
@@ -73,4 +73,4 @@ TEST(UpdateWorthShowing, DisabledStillAnswers) {
 }
 
 }  // namespace
-}  // namespace pychron::update
+}  // namespace nobion::update

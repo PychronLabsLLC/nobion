@@ -14,7 +14,7 @@
 #include "nobion/processing/scene.hpp"
 #include "nobion/reduction/stats.hpp"
 
-namespace pychron::processing::detail {
+namespace nobion::processing::detail {
 
 std::string format_sig(double v, int sig);
 std::string format_utc(double t);
@@ -71,4 +71,4 @@ std::string mean_text(const std::string& prefix, double value, double error, con
 Result<reduction::Mean> group_mean(std::span<const double> values, std::span<const double> errors,
                                    const Options& figure_options);
 
-}  // namespace pychron::processing::detail
+}  // namespace nobion::processing::detail

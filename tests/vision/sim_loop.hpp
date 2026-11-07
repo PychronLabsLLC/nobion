@@ -12,7 +12,7 @@
 #include "nobion/vision/synth.hpp"
 #include "nobion/vision/types.hpp"
 
-namespace pychron::vision::sim {
+namespace nobion::vision::sim {
 
 struct SimStage {
   Vec2 pos;
@@ -60,4 +60,4 @@ Frame blank_frame(const Scene& scene, std::uint64_t seq = 0) {
   return f;
 }
 
-}  // namespace pychron::vision::sim
+}  // namespace nobion::vision::sim

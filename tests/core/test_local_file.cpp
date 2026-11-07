@@ -12,8 +12,8 @@
 #include "nobion/core/config/loader.hpp"
 #include "nobion/core/config/logging_file.hpp"
 
-using namespace pychron;
-using namespace pychron::config;
+using namespace nobion;
+using namespace nobion::config;
 namespace fs = std::filesystem;
 
 namespace {

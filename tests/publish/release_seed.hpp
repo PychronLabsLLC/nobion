@@ -14,7 +14,7 @@
 #include "nobion/core/sha256.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::publish::testing {
+namespace nobion::publish::testing {
 
 namespace ps = persistence;
 
@@ -221,4 +221,4 @@ inline Result<ReleaseSeed> seed_release_store(ps::IStore& store) {
   return s;
 }
 
-}  // namespace pychron::publish::testing
+}  // namespace nobion::publish::testing

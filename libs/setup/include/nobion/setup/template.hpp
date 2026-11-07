@@ -26,7 +26,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 // One row of a table answer (e.g. a detector: name, kind, isotope).
 using Row = std::map<std::string, std::string>;
@@ -45,4 +45,4 @@ Result<std::string> render(std::string_view text, const Answers& answers, std::s
 // A condition as used in {% if %} and in profile `when` keys.
 Result<bool> evaluate(std::string_view condition, const Answers& answers);
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

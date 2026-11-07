@@ -18,7 +18,7 @@
 #include "nobion/devices/driver_registry.hpp"
 #include "nobion/devices/spectrometer/roles.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 class PolledAcquirer : public Device, public IIntensityAcquirer {
  public:
@@ -70,4 +70,4 @@ Result<double> parse_sample_hz(const DriverArgs& args, double fallback);
 
 }  // namespace legacy
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

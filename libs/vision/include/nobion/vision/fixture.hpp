@@ -14,7 +14,7 @@
 #include "nobion/vision/source.hpp"
 #include "nobion/vision/types.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 // What a case may be used for: Synthetic and ScreenRecording frames get loose
 // tolerances and never tune constants; Raw camera frames get tight ones.
@@ -72,4 +72,4 @@ class FrameRecorder {
   FixtureCase case_;
 };
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

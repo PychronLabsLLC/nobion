@@ -5,7 +5,7 @@
 #include <mutex>
 #include <string_view>
 
-namespace pychron {
+namespace nobion {
 
 using Duration = std::chrono::steady_clock::duration;
 using TimePoint = std::chrono::steady_clock::time_point;
@@ -126,4 +126,4 @@ class ManualClock final : public Clock {
   WallTime epoch_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

@@ -8,7 +8,7 @@
 #include "host_call_trace.hpp"
 #include "nobion/scripting/vocabulary.hpp"
 
-namespace pychron::scripting::python {
+namespace nobion::scripting::python {
 namespace {
 
 using extraction::Capability;
@@ -909,4 +909,4 @@ void HostState::signal_pump_time_start() {
   if (env_.on_pump_time_start) env_.on_pump_time_start();
 }
 
-}  // namespace pychron::scripting::python
+}  // namespace nobion::scripting::python

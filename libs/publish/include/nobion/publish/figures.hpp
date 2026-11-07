@@ -13,7 +13,7 @@
 #include "nobion/processing/options.hpp"
 #include "nobion/publish/build.hpp"
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 struct FigureFile {
   std::string path;  // relative to the release directory: figures/<sample>/<kind>.svg|.pdf
@@ -39,4 +39,4 @@ std::vector<FigureFile> sample_figures(const processing::Dataset& sample, const 
                                        const ReleaseOptions& options, std::int64_t created_unix,
                                        std::vector<std::string>& warnings);
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

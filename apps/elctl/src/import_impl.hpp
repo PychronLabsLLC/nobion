@@ -25,11 +25,11 @@
 namespace elctl::import_detail {
 
 namespace fs = std::filesystem;
-namespace P = pychron::persistence;
-using pychron::Error;
-using pychron::ErrorKind;
-using pychron::fail;
-using pychron::Result;
+namespace P = nobion::persistence;
+using nobion::Error;
+using nobion::ErrorKind;
+using nobion::fail;
+using nobion::Result;
 
 // ---------------------------------------------------------------- arguments
 
@@ -83,8 +83,8 @@ struct SourceSettings {
 
 // A path as UTF-8 text, for messages and for the settings file (TOML is
 // UTF-8), and back: nobion/core/path_text.hpp.
-using pychron::path_from_utf8;
-using pychron::utf8;
+using nobion::path_from_utf8;
+using nobion::utf8;
 
 fs::path settings_file(const fs::path& cache, P::Uuid uuid);
 Result<void> save_settings(const fs::path& cache, const SourceSettings& settings);
@@ -119,7 +119,7 @@ struct Context {
   fs::path cache;
   std::unique_ptr<P::IStore> store;
   std::string url;  // of `store`: run's derive pass opens its own source on it
-  const pychron::processing::Domain* domain;  // the install's: run's derive pass asks it what to derive
+  const nobion::processing::Domain* domain;  // the install's: run's derive pass asks it what to derive
 
   fs::path mirrors() const { return cache / "mirrors"; }
   fs::path scratch() const { return cache / "scratch"; }
@@ -145,10 +145,10 @@ Result<std::vector<Source>> select_sources(Context& ctx, const std::optional<std
 
 // The client every import command writes as: {hostname, "importer"}.
 Result<P::Uuid> importer_client(P::IStore& store);
-pychron::ingest::WriterConfig writer_config(const SourceSettings& settings);
+nobion::ingest::WriterConfig writer_config(const SourceSettings& settings);
 
 struct OpenedAdapter {
-  std::unique_ptr<pychron::ingest::ISourceAdapter> adapter;
+  std::unique_ptr<nobion::ingest::ISourceAdapter> adapter;
   std::vector<std::string> warnings;  // for the operator; the import goes on
 };
 
@@ -196,7 +196,7 @@ void report_unusable(Io io, const std::string& message);
 // (the source's own, which knows the walk order) outlive the function.
 // `constants`: the preset the reduction uses for decay constants and
 // atmospheric ratios; every age carries "constants=<preset>" as its basis.
-pychron::ingest::AgeFn make_age_fn(P::IStore& store, P::Uuid source, pychron::ingest::ISourceAdapter& adapter,
-                                   pychron::reduction::ConstantsPreset constants);
+nobion::ingest::AgeFn make_age_fn(P::IStore& store, P::Uuid source, nobion::ingest::ISourceAdapter& adapter,
+                                   nobion::reduction::ConstantsPreset constants);
 
 }  // namespace elctl::import_detail

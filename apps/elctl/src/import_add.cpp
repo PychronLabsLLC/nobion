@@ -15,8 +15,8 @@
 
 namespace elctl::import_detail {
 
-namespace dvc = pychron::dvc;
-namespace ingest = pychron::ingest;
+namespace dvc = nobion::dvc;
+namespace ingest = nobion::ingest;
 
 namespace {
 

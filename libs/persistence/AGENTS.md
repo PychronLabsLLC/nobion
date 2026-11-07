@@ -19,7 +19,7 @@ only this component's. Kept compressed, as that file is.
   column goes through `geom_read()` (`ST_AsEWKT` on PostgreSQL). Half a point
   is refused. PostgreSQL needs PostGIS; tests on it do too.
 - A program that registers a client with the store names its machine with
-  `pychron::host_name()` (`libs/core` `host_name.hpp`), never the `HOSTNAME`
+  `nobion::host_name()` (`libs/core` `host_name.hpp`), never the `HOSTNAME`
   variable.
 - ctest lists `pg` cases only when `NOBION_TEST_PG_URL` was set when the
   tests were built (`gtest_discover_tests` runs at build time): set it,

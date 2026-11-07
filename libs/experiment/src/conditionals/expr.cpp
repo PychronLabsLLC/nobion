@@ -8,7 +8,7 @@
 #include <tuple>
 #include <utility>
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 // Accepted isotope fields and the canonical name each maps to.
@@ -656,4 +656,4 @@ Result<ExprPtr> apply_mapper(const Expr& e, std::string_view mapper) {
   });
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

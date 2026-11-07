@@ -18,7 +18,7 @@
 #include "nobion/processing/store_source.hpp"
 #include "store_fixture.hpp"
 
-namespace pychron::processing::testing {
+namespace nobion::processing::testing {
 
 using persistence::testing::engines;
 
@@ -108,4 +108,4 @@ class FluxStoreTest : public ::testing::TestWithParam<std::string> {
   std::unique_ptr<StoreSource> source_;
 };
 
-}  // namespace pychron::processing::testing
+}  // namespace nobion::processing::testing

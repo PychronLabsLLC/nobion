@@ -16,8 +16,8 @@
 
 #include "nobion/codecs/thermo_qtegra.hpp"
 
-using namespace pychron;
-namespace q = pychron::codec::qtegra;
+using namespace nobion;
+namespace q = nobion::codec::qtegra;
 using nlohmann::json;
 
 namespace {

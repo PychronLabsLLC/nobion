@@ -7,7 +7,7 @@
 #include <string>
 #include <utility>
 
-namespace pychron::metrics {
+namespace nobion::metrics {
 
 namespace {
 
@@ -62,4 +62,4 @@ SchedulerMetrics::~SchedulerMetrics() {
   if (heartbeat_) scheduler_.cancel(*heartbeat_);
 }
 
-}  // namespace pychron::metrics
+}  // namespace nobion::metrics

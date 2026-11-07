@@ -27,7 +27,7 @@
 #include "nobion/devices/extraction/interfaces.hpp"
 #include "nobion/systems/extraction_line.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 class LineCryoService final : public extraction::ICryo {
  public:
@@ -50,4 +50,4 @@ class LineCryoService final : public extraction::ICryo {
   TimePoint set_at_{};
 };
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

@@ -4,7 +4,7 @@
 #include <span>
 #include <vector>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // y of `other` mapped onto the range of `reference`: (y - min_o) * R / r + min_ref,
 // legacy's formula. Empty when either range is zero or either input is
@@ -13,4 +13,4 @@ namespace pychron::ui {
 [[nodiscard]] std::optional<std::vector<double>> scale_to_reference(std::span<const double> reference,
                                                                     std::span<const double> other);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

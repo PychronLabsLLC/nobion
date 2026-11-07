@@ -9,7 +9,7 @@
 
 #include "nobion/core/config/located.hpp"
 
-namespace pychron::config {
+namespace nobion::config {
 
 struct MetricsConfig : Located {
   bool enabled = false;
@@ -17,4 +17,4 @@ struct MetricsConfig : Located {
   std::int64_t port = 9464;
 };
 
-}  // namespace pychron::config
+}  // namespace nobion::config

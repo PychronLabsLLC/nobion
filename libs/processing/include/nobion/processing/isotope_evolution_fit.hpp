@@ -51,7 +51,7 @@
 #include "nobion/processing/options.hpp"
 #include "nobion/processing/scene.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 // One failed goodness check of one refitted isotope.
 struct GoodnessFlag {
@@ -123,4 +123,4 @@ class Unit;
 // isotope_evolution_fit: (analyses) -> (figure, fits); reads the source's raw data.
 std::unique_ptr<Unit> make_isotope_evolution_fit_unit();
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

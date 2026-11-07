@@ -61,7 +61,7 @@ class QStackedWidget;
 class QTabBar;
 class QTableWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class PeakCenterView;
 
@@ -178,4 +178,4 @@ class EvolutionsView : public QWidget {
   bool dirty_ = false;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

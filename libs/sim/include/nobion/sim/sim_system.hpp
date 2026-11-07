@@ -76,7 +76,7 @@
 #include "nobion/sim/wire_sim.hpp"
 #include "nobion/transport/sim_transport.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 
 // What a volume is to the gas: from the canvas stage's kind; a gauge; or
 // `Pipe`, the pipe the line finds drawn straight from one valve to the next.
@@ -370,4 +370,4 @@ class SimSystem {
   std::map<std::string, std::unique_ptr<extraction::ChromiumSim>, std::less<>> lasers_;  // by driver name
 };
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

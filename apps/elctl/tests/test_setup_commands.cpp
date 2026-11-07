@@ -28,10 +28,10 @@ namespace fs = std::filesystem;
 
 class ElctlSetupTest : public ElctlTest {
  protected:
-  pychron::setup::SiteConfig site() const {
-    auto s = pychron::setup::load_site(path("site.toml"));
+  nobion::setup::SiteConfig site() const {
+    auto s = nobion::setup::load_site(path("site.toml"));
     EXPECT_TRUE(s);
-    return s ? *s : pychron::setup::SiteConfig{};
+    return s ? *s : nobion::setup::SiteConfig{};
   }
 };
 
@@ -314,7 +314,7 @@ TEST_F(ElctlSetupTest, DataSourceShowsTheDatabaseAndTheDataFolder) {
 // (test_exp_commands.cpp) makes one.
 void make_store_one_migration_behind(const fs::path& file) {
   {
-    auto store = pychron::persistence::open_store(pychron::persistence::StoreConfig{"sqlite:" + file.generic_string(), true});
+    auto store = nobion::persistence::open_store(nobion::persistence::StoreConfig{"sqlite:" + file.generic_string(), true});
     ASSERT_TRUE(store);
   }
   {
@@ -348,7 +348,7 @@ TEST_F(ElctlSetupTest, SetLocalRefusesAnOutdatedFile) {
   const auto old = path("old.db");
   make_store_one_migration_behind(old);
   const std::string url = "sqlite:" + old.generic_string();
-  ASSERT_FALSE(pychron::persistence::open_store(pychron::persistence::StoreConfig{url, false}))
+  ASSERT_FALSE(nobion::persistence::open_store(nobion::persistence::StoreConfig{url, false}))
       << "the file is meant to be behind";
   const std::string before = bytes_of(path("site.toml"));
 
@@ -356,7 +356,7 @@ TEST_F(ElctlSetupTest, SetLocalRefusesAnOutdatedFile) {
   EXPECT_EQ(o.code, 1) << o.out << o.err;
   EXPECT_TRUE(contains(o.err, "elctl db migrate --db")) << o.err;
   EXPECT_EQ(bytes_of(path("site.toml")), before);
-  EXPECT_FALSE(pychron::persistence::open_store(pychron::persistence::StoreConfig{url, false}))
+  EXPECT_FALSE(nobion::persistence::open_store(nobion::persistence::StoreConfig{url, false}))
       << "an existing file is never migrated from here";
 }
 #else
@@ -550,7 +550,7 @@ TEST_F(ElctlSetupTest, SetServerAgainstPostgres) {
   const auto pg = parse_pg(raw);
   if (!pg) GTEST_SKIP() << "NOBION_TEST_PG_URL is not postgresql://user[:password]@host[:port]/db";
   {
-    auto store = pychron::persistence::open_store(pychron::persistence::StoreConfig{raw, true});
+    auto store = nobion::persistence::open_store(nobion::persistence::StoreConfig{raw, true});
     ASSERT_TRUE(store) << store.error().what;
   }
   const auto root = path("dr-pg");

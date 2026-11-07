@@ -46,11 +46,11 @@ class QTreeWidgetItem;
 
 class FluxWindowTest;  // tests/ui/test_flux_window.cpp: plants an edit that no longer applies
 
-namespace pychron::processing {
+namespace nobion::processing {
 struct FluxSaveOutcome;
 }
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class FluxAnalysisModel;
 class FluxMonitorModel;
@@ -328,4 +328,4 @@ class FluxWindow : public QMainWindow {
   QStringList warnings_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

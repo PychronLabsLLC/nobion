@@ -4,7 +4,7 @@
 #include "nobion/core/http.hpp"
 #include "nobion/update/update.hpp"
 
-namespace pychron::update {
+namespace nobion::update {
 
 Result<Fetched> fetch_latest(http::IHttpClient& client, std::string_view repository) {
   http::HttpRequest request;
@@ -24,4 +24,4 @@ Result<Fetched> fetch_latest(http::IHttpClient& client, std::string_view reposit
   return Fetched{FetchOutcome::Found, std::move(*release)};
 }
 
-}  // namespace pychron::update
+}  // namespace nobion::update

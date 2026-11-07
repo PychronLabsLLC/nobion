@@ -32,7 +32,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/core/path_text.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 namespace fs = std::filesystem;
@@ -641,4 +641,4 @@ Result<Profiles> import_legacy_ini(const fs::path& ini) {
   return out;
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

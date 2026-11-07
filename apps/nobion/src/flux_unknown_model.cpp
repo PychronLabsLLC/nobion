@@ -2,11 +2,11 @@
 
 #include "nobion/arar/flux_view.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 }  // namespace
 
@@ -62,4 +62,4 @@ bool FluxUnknownModel::setData(const QModelIndex& index, const QVariant& value, 
   return true;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -7,7 +7,7 @@
 
 #include "nobion/core/keyed_noise.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 namespace {
 
@@ -293,4 +293,4 @@ std::optional<GlowBody> GrainModel::body() const {
   return out;
 }
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

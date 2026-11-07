@@ -5,7 +5,7 @@
 
 #include "nobion/core/error.hpp"
 
-using namespace pychron;
+using namespace nobion;
 
 // Every ErrorKind round-trips through fail()/Result and has a distinct name.
 TEST(Error, EveryKindHasDistinctNameAndPropagates) {

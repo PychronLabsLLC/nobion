@@ -8,7 +8,7 @@
 #include "nobion/processing/domain.hpp"
 #include "nobion/processing/units.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // Adds one node per unit kind of `domain.reduction_chain()` to `pipeline`: its
 // id is the kind and `suffix`, the first is fed by node `from` and each of the
@@ -18,4 +18,4 @@ std::string add_reduction_chain(processing::Pipeline& pipeline, const processing
                                 const processing::Domain& domain, const std::string& from,
                                 const std::string& suffix = "");
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

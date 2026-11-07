@@ -62,18 +62,18 @@
 #include "settings_guard.hpp"
 #include "ui_fixture.hpp"
 
-using namespace pychron;
-namespace pp = pychron::processing;
-using pychron::ui::DataBrowserWindow;
-using pychron::ui::Preferences;
-using pychron::ui::PreferencesDialog;
-using pychron::ui::SpectrometerWindow;
+using namespace nobion;
+namespace pp = nobion::processing;
+using nobion::ui::DataBrowserWindow;
+using nobion::ui::Preferences;
+using nobion::ui::PreferencesDialog;
+using nobion::ui::SpectrometerWindow;
 
 namespace {
 
 // The Ar-Ar domain: what a browser's toolbar is built from.
 const pp::Domain& arar_domain() {
-  static const std::unique_ptr<pp::Domain> domain = pychron::arar::make_domain();
+  static const std::unique_ptr<pp::Domain> domain = nobion::arar::make_domain();
   return *domain;
 }
 
@@ -95,7 +95,7 @@ std::unique_ptr<pp::MemorySource> make_source(int n) {
 void click(QDialogButtonBox* box, QDialogButtonBox::StandardButton which) { box->button(which)->click(); }
 
 namespace fs = std::filesystem;
-using pychron::ui::LineSettings;
+using nobion::ui::LineSettings;
 
 void write_file(const fs::path& p, const std::string& text) {
   std::ofstream out(p, std::ios::binary);
@@ -128,7 +128,7 @@ class TestPreferences : public QObject {
 
  private:
   QTemporaryDir dir_;
-  pychron::ui::test::ApplicationSettingsGuard app_settings_;
+  nobion::ui::test::ApplicationSettingsGuard app_settings_;
   int file_ = 0;
   QString path_;
   fs::path config_dir_, main_file_, local_file_;
@@ -432,7 +432,7 @@ class TestPreferences : public QObject {
 
   // A commit names the pages that changed on ui.action, never a value.
   void a_commit_logs_the_pages_that_changed() {
-    const pychron::testing::LogCapture capture;
+    const nobion::testing::LogCapture capture;
     QVERIFY(capture.ok());
     const auto actions = [&] {
       std::vector<std::string> out;
@@ -631,7 +631,7 @@ class TestPreferences : public QObject {
     pages->setCurrentRow(1);
     const QRect row = pages->visualItemRect(pages->item(1));
     const QImage image = pages->viewport()->grab().toImage();
-    const QColor accent = pychron::ui::theme().accent;
+    const QColor accent = nobion::ui::theme().accent;
     QCOMPARE(image.pixelColor(row.left() + 1, row.center().y()), accent);
     QCOMPARE(image.pixelColor(row.right() - 1, row.center().y()), accent);
     QCOMPARE(image.pixelColor(row.left() + 1, row.top() + 1), accent);  // the bar is the whole row

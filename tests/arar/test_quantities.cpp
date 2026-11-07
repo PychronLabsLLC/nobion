@@ -17,15 +17,15 @@
 #include "nobion/processing/domain.hpp"
 #include "nobion/processing/quantity.hpp"
 
-namespace pp = pychron::processing;
-using pychron::arar::test::make_air;
-using pychron::arar::test::make_unknown;
-using pychron::arar::reduce_with_arar;
+namespace pp = nobion::processing;
+using nobion::arar::test::make_air;
+using nobion::arar::test::make_unknown;
+using nobion::arar::reduce_with_arar;
 
 namespace {
 
 const pp::Domain& arar() {
-  static const auto domain = pychron::arar::make_domain();
+  static const auto domain = nobion::arar::make_domain();
   return *domain;
 }
 
@@ -48,7 +48,7 @@ void expect_value(const char* text, const pp::ReducedAnalysis& ra, double value,
 
 TEST(ArArQuantities, AgeAndRatiosEvaluateAsBefore) {
   const auto unk = reduce_with_arar(make_unknown(0));
-  ASSERT_TRUE(pychron::arar::reduced_of(*unk));
+  ASSERT_TRUE(nobion::arar::reduced_of(*unk));
   expect_value("age", *unk, 15.33748658835945, 0.056334020824722914);
   expect_value("age_w_j", *unk, 15.33748658835945, 0.058367545629637821);
   expect_value("age_w_position", *unk, 15.33748658835945, 0.056334020824722914);
@@ -74,7 +74,7 @@ TEST(ArArQuantities, AgeAndRatiosEvaluateAsBefore) {
 
   // An air has no J: no ages, the ratios stand.
   const auto air = reduce_with_arar(make_air(0));
-  ASSERT_TRUE(pychron::arar::reduced_of(*air));
+  ASSERT_TRUE(nobion::arar::reduced_of(*air));
   for (const char* none : {"age", "age_w_j", "age_w_position", "j", "age/j"}) EXPECT_FALSE(q(none).eval(*air)) << none;
   expect_value("F", *air, -30.909090909090818, 6.8217922823820727);
   expect_value("kca", *air, 2.0204081632653059, 0.046006940181365738);
@@ -167,11 +167,11 @@ TEST(ArArQuantities, AnUnknownNameIsRefusedUnderTheDomain) {
 
 TEST(ArArQuantities, ReducedValuesNeedAFlux) {
   auto air = reduce_with_arar(make_air(0));
-  EXPECT_TRUE(pychron::arar::reduced_of(*air));
+  EXPECT_TRUE(nobion::arar::reduced_of(*air));
   EXPECT_FALSE(q("age").eval(*air));  // no J
   EXPECT_TRUE(q("F").eval(*air));
   auto unk = reduce_with_arar(make_unknown(0));
-  ASSERT_TRUE(pychron::arar::reduced_of(*unk));
+  ASSERT_TRUE(nobion::arar::reduced_of(*unk));
   const auto age = q("age").eval(*unk);
   ASSERT_TRUE(age);
   EXPECT_GT(age->value, 0.0);

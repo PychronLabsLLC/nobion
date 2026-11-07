@@ -42,7 +42,7 @@
 #include "nobion/scripting/script.hpp"
 #include "nobion/scripting/services.hpp"
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 
 struct Diagnostic {
   enum class Severity { Error, Warning };
@@ -148,4 +148,4 @@ std::optional<std::string> rehearsal_refusal(const ScriptEnvironment& env);
 // capabilities(env.line) or the override.
 extraction::CapabilitySet effective_capabilities(const ScriptEnvironment& env);
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

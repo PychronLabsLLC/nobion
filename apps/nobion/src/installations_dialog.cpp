@@ -12,7 +12,7 @@
 
 #include "error_report.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 QString qs(const std::string& s) { return QString::fromStdString(s); }
@@ -145,4 +145,4 @@ void InstallationsDialog::remove_selected() {
   reload();
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -6,7 +6,7 @@
 
 #include "nobion/core/sha1.hpp"
 
-namespace pychron::persistence {
+namespace nobion::persistence {
 namespace {
 
 constexpr std::uint64_t kRandLoMask = (std::uint64_t{1} << 62) - 1;
@@ -170,4 +170,4 @@ std::string UtcTime::iso() const {
   return buf;
 }
 
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence

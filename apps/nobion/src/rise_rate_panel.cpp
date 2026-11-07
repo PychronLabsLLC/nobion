@@ -16,7 +16,7 @@
 
 #include "nobion/core/user_file.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -130,7 +130,7 @@ bool RiseRatePanel::append_to_file(const RiseRate& rate, const QString& time, co
   out.flush();
   if (!out) return false;
   out.close();
-  if (fresh) pychron::mark_as_user_file(file_);
+  if (fresh) nobion::mark_as_user_file(file_);
   return true;
 }
 
@@ -264,4 +264,4 @@ QString RiseRatePanel::copy_text() const {
   return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

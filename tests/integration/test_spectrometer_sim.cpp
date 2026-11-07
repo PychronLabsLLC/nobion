@@ -20,8 +20,8 @@
 #include "nobion/systems/spectrometer/bringup.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace std::chrono_literals;
 
 namespace {
@@ -42,7 +42,7 @@ double mean_on(const std::vector<Reading>& readings, const DetectorId& det) {
   return n > 0 ? sum / n : 0.0;
 }
 
-class SpectrometerSim : public pychron::testing::VirtualTimeTest, public ::testing::WithParamInterface<const char*> {
+class SpectrometerSim : public nobion::testing::VirtualTimeTest, public ::testing::WithParamInterface<const char*> {
  protected:
   void SetUp() override {
     auto data = cfg::load_spectrometer(kDir / GetParam());

@@ -14,11 +14,11 @@
 #include "nobion/core/error.hpp"
 #include "nobion/core/events.hpp"
 
-namespace pychron::canvas {
+namespace nobion::canvas {
 struct Canvas;
 }
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 // Same shape as Snapshot::valves.
 using ValveStates = std::map<std::string, ValveState>;
@@ -69,4 +69,4 @@ class NetworkGraph {
   std::map<std::string, Node, std::less<>> nodes_;
 };
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

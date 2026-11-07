@@ -24,7 +24,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/sim/gas.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 namespace {
 
 using config::Diagnostic;
@@ -479,4 +479,4 @@ Result<SimSettings> load_sim_settings(const std::filesystem::path& file, const S
   return Reader(name, topology, std::move(base)).read(parsed.table());
 }
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

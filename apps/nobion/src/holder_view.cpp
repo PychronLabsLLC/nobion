@@ -9,7 +9,7 @@
 #include "plot_style.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace ps = persistence;
 
@@ -158,4 +158,4 @@ void HolderView::mouseReleaseEvent(QMouseEvent* event) {
   Q_EMIT selection_changed(selected_);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

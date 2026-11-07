@@ -14,7 +14,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::extraction {
+namespace nobion::extraction {
 
 enum class Capability {
   Laser,     // ILaserDevice
@@ -62,4 +62,4 @@ Error not_supported(std::string_view what, std::string device = {});
 Error not_supported(Capability capability, std::string device = {});
 bool is_not_supported(const Error& error) noexcept;
 
-}  // namespace pychron::extraction
+}  // namespace nobion::extraction

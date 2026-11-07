@@ -21,8 +21,8 @@
 #include "nobion/metrics/registry.hpp"
 #include "nobion/systems/jobs/job.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment;
+using namespace nobion;
+using namespace nobion::experiment;
 using executor::ExecutorState;
 using executor::QueueEnd;
 using metrics_text::has;
@@ -35,7 +35,7 @@ TimePoint at(int seconds) { return TimePoint(std::chrono::seconds(seconds)); }
 
 // The registry and the bus come first: the object under test points at both.
 struct ExperimentMetricsTest : ::testing::Test {
-  pychron::metrics::Registry registry;
+  nobion::metrics::Registry registry;
   SignalBus bus;
   double now = 5000.0;  // seconds on a clock that only moves forward
   std::unique_ptr<experiment::metrics::ExperimentMetrics> metrics =
@@ -370,19 +370,19 @@ TEST_F(ExperimentMetricsTest, RunIdsAndIdentifiersAreNeverRendered) {
 
 TEST_F(ExperimentMetricsTest, SpectrometerJobsByKindAndHowTheyEnded) {
   EXPECT_DOUBLE_EQ(value(text(), "pychron_spectrometer_jobs_total{kind=\"peak_center\",state=\"failed\"}"), 0.0);
-  bus.publish(pychron::jobs::JobStarted{1, "peak_center", {}});
+  bus.publish(nobion::jobs::JobStarted{1, "peak_center", {}});
   EXPECT_DOUBLE_EQ(value(text(), "pychron_spectrometer_job_active"), 1.0);
-  bus.publish(pychron::jobs::JobProgress{1, "peak_center", pychron::jobs::ProgressUpdate{5, 20, "", std::nullopt}});
+  bus.publish(nobion::jobs::JobProgress{1, "peak_center", nobion::jobs::ProgressUpdate{5, 20, "", std::nullopt}});
   EXPECT_DOUBLE_EQ(value(text(), "pychron_spectrometer_job_progress_ratio"), 0.25);
 
-  pychron::jobs::Job job;
+  nobion::jobs::Job job;
   job.id = 1;
   job.kind = "peak_center";
-  job.state = pychron::jobs::JobState::Succeeded;
-  job.before = pychron::jobs::SpectrometerState{};
+  job.state = nobion::jobs::JobState::Succeeded;
+  job.before = nobion::jobs::SpectrometerState{};
   job.started = at(100);
   job.finished = at(140);
-  bus.publish(pychron::jobs::JobFinished{job});
+  bus.publish(nobion::jobs::JobFinished{job});
   const std::string t = text();
   EXPECT_DOUBLE_EQ(value(t, "pychron_spectrometer_jobs_total{kind=\"peak_center\",state=\"succeeded\"}"), 1.0);
   EXPECT_DOUBLE_EQ(value(t, "pychron_spectrometer_job_active"), 0.0);
@@ -393,11 +393,11 @@ TEST_F(ExperimentMetricsTest, SpectrometerJobsByKindAndHowTheyEnded) {
 
 // Cancelled while it waited: it ended, and took no time doing anything.
 TEST_F(ExperimentMetricsTest, AJobThatNeverRanIsCountedAndNotTimed) {
-  pychron::jobs::Job job;
+  nobion::jobs::Job job;
   job.kind = "sweep";
-  job.state = pychron::jobs::JobState::Cancelled;
+  job.state = nobion::jobs::JobState::Cancelled;
   job.finished = at(140);
-  bus.publish(pychron::jobs::JobFinished{job});
+  bus.publish(nobion::jobs::JobFinished{job});
   const std::string t = text();
   EXPECT_DOUBLE_EQ(value(t, "pychron_spectrometer_jobs_total{kind=\"sweep\",state=\"cancelled\"}"), 1.0);
   EXPECT_FALSE(has(t, "pychron_spectrometer_job_duration_seconds_count{kind=\"sweep\"}"));

@@ -16,7 +16,7 @@
 #include "nobion/processing/reduced.hpp"
 #include "nobion/processing/units.hpp"
 
-namespace pychron::arar {
+namespace nobion::arar {
 
 // The arar_reduce unit's options.
 struct ArArSettings {
@@ -84,4 +84,4 @@ struct ArArReduced final : processing::DomainReduced {
 // The arar_reduce unit: Dataset in, Dataset out, after core's reduce.
 [[nodiscard]] std::unique_ptr<processing::Unit> make_arar_reduce_unit();
 
-}  // namespace pychron::arar
+}  // namespace nobion::arar

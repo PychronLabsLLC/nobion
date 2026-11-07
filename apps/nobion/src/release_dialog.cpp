@@ -21,7 +21,7 @@
 #include "nobion/publish/release.hpp"
 #pragma pop_macro("signals")
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace pb = publish;
 
@@ -127,4 +127,4 @@ std::optional<pb::ReleaseSpec> ask_release(QWidget* parent, std::size_t analyses
   return spec;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

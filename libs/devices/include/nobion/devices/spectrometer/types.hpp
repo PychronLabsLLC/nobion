@@ -12,7 +12,7 @@
 
 #include "nobion/core/clock.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 // Acquirer channel as named by its driver ("H1", "counter:0"); config binds
 // detectors to channels.
@@ -102,4 +102,4 @@ std::string to_string(DetectorCap cap);
 // "deflection|protect"; "" when empty.
 std::string to_string(Caps caps);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

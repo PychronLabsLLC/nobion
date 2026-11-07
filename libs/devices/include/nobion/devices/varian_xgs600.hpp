@@ -22,7 +22,7 @@
 #include "nobion/transport/sim_transport.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // May each command be sent twice (Repeat, link.hpp)?
 //
@@ -61,4 +61,4 @@ struct Xgs600SimModel {
 };
 SimTransport::Hook xgs600_sim_hook(Xgs600SimModel model);
 
-}  // namespace pychron
+}  // namespace nobion

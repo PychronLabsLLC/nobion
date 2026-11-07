@@ -52,7 +52,7 @@
 
 #include "nobion/core/process.hpp"
 
-namespace pychron::dvc::testing {
+namespace nobion::dvc::testing {
 
 class GitFixture {
  public:
@@ -282,4 +282,4 @@ class GitFixture {
   std::filesystem::path root_;
 };
 
-}  // namespace pychron::dvc::testing
+}  // namespace nobion::dvc::testing

@@ -15,7 +15,7 @@
 #include "nobion/systems/spectrometer/field_table_check.hpp"
 #include "nobion/systems/spectrometer/field_table_store.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace {
 
@@ -946,4 +946,4 @@ SpectrometerState Spectrometer::snapshot() {
   return s;
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

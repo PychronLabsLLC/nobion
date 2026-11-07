@@ -8,7 +8,7 @@
 #include "plan_toml.hpp"
 #include "nobion/core/number.hpp"
 
-namespace pychron::experiment::plan {
+namespace nobion::experiment::plan {
 
 namespace {
 
@@ -268,4 +268,4 @@ std::optional<std::string> resolved_path(const MeasurementPlan& plan, std::strin
   return seg + ".positions[" + std::string(index) + "]" + std::string(field);
 }
 
-}  // namespace pychron::experiment::plan
+}  // namespace nobion::experiment::plan

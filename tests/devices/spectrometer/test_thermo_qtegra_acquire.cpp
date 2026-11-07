@@ -24,8 +24,8 @@
 #include "spectrometer/qtegra_session.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace legacy_test;
 using namespace qtegra_test;
 
@@ -450,7 +450,7 @@ struct QtegraOn {
   std::unique_ptr<QtegraSpectrometer> q;
 };
 
-struct QtegraAcquireVirtual : pychron::testing::VirtualTimeTest {
+struct QtegraAcquireVirtual : nobion::testing::VirtualTimeTest {
   VirtualClock clock;
   Clock::Participant main{clock, "test"};
   QtegraOn<VirtualClock> rig{clock};
@@ -458,7 +458,7 @@ struct QtegraAcquireVirtual : pychron::testing::VirtualTimeTest {
 };
 
 // On hardware the clock is a SteadyClock: the timeouts are real, and short.
-struct QtegraAcquireSteady : pychron::testing::VirtualTimeTest {
+struct QtegraAcquireSteady : nobion::testing::VirtualTimeTest {
   SteadyClock clock;
   QtegraOn<SteadyClock> rig{clock};
   QtegraSpectrometer& q = *rig.q;
@@ -517,7 +517,7 @@ TEST_F(QtegraAcquireVirtual, StopWakesANextWaitingForItsFrame) {
   const TimePoint began = clock.now();
   Result<std::optional<Frame>> got = std::optional<Frame>{Frame{}};
   TimePoint returned{};
-  pychron::testing::Crew crew(clock);
+  nobion::testing::Crew crew(clock);
   crew.start("next", [&] {
     got = q.next(2s);
     returned = clock.now();

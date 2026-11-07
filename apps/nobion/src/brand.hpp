@@ -23,7 +23,7 @@ class QPainter;
 class QPushButton;
 class QRectF;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // The release, from the CMake project version.
 QString app_version();
@@ -96,4 +96,4 @@ class AboutDialog : public QDialog {
   QPushButton* copy_ = nullptr;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

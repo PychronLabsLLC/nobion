@@ -8,7 +8,7 @@
 
 #include <QStyledItemDelegate>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace package_tree {
 
@@ -33,4 +33,4 @@ class PackageTreeDelegate : public QStyledItemDelegate {
   QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

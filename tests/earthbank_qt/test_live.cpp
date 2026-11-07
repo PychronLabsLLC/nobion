@@ -26,7 +26,7 @@
 #include "nobion/earthbank/profiles.hpp"
 #include "nobion/earthbank/qt_http_client.hpp"
 
-namespace pychron::earthbank::testing {
+namespace nobion::earthbank::testing {
 namespace {
 
 std::string env(const char* name) {
@@ -59,4 +59,4 @@ TEST(EarthbankLive, UploadsTheFixtureSamplesAndRemovesThem) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank::testing
+}  // namespace nobion::earthbank::testing

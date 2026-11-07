@@ -34,7 +34,7 @@ class QListWidgetItem;
 class QTableView;
 class QToolButton;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class ConditionalsEditorWindow : public QMainWindow {
   Q_OBJECT
@@ -132,4 +132,4 @@ class ConditionalsEditorWindow : public QMainWindow {
   PickFile pick_file_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

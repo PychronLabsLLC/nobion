@@ -6,8 +6,8 @@
 
 #include <cmath>
 
-using namespace pychron;
-namespace mb = pychron::codec::modbus;
+using namespace nobion;
+namespace mb = nobion::codec::modbus;
 using mb::Function;
 using mb::WordOrder;
 

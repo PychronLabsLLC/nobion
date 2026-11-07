@@ -21,7 +21,7 @@
 
 class QWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // A new editor for `q`, child of `parent` (may be null: the caller parents
 // it). `changed`, when given, is called whenever its value changes, by the
@@ -38,4 +38,4 @@ void set_question_value(QWidget* editor, const setup::Question& q, const setup::
 // returned as typed, not trimmed.
 Result<setup::Value> question_value(const QWidget* editor, const setup::Question& q);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

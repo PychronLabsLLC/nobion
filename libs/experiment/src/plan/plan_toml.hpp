@@ -15,7 +15,7 @@
 #include "nobion/experiment/model/types.hpp"
 #include "nobion/experiment/plan/plan.hpp"
 
-namespace pychron::experiment::plan::detail {
+namespace nobion::experiment::plan::detail {
 
 class Problems {
  public:
@@ -63,4 +63,4 @@ std::string join(std::string_view base, std::size_t index);
 
 bool is_alias(const toml::node& n);
 
-}  // namespace pychron::experiment::plan::detail
+}  // namespace nobion::experiment::plan::detail

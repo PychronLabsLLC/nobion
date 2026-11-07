@@ -6,7 +6,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron {
+namespace nobion {
 
 struct IConnectable {
   virtual ~IConnectable() = default;
@@ -16,4 +16,4 @@ struct IConnectable {
   virtual Result<void> connect() = 0;
 };
 
-}  // namespace pychron
+}  // namespace nobion

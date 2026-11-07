@@ -62,7 +62,7 @@
 #include "nobion/systems/spectrometer/spectrometer.hpp"
 #include "strip_chart_model.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // Letters, digits, '_' and '-' (a peak_center.toml table name written bare).
 bool valid_set_name(const QString& name);
@@ -178,30 +178,30 @@ class SpectrometerBridge : public QObject {
   void save_peak_center_set(std::filesystem::path file, const QString& name, jobs::PeakCenterConfig config);
 
  signals:
-  void readings(const std::vector<pychron::spectrometer::IntensityReading>& batch);
-  void magnetMoved(const pychron::spectrometer::MagnetMoved& event);
+  void readings(const std::vector<nobion::spectrometer::IntensityReading>& batch);
+  void magnetMoved(const nobion::spectrometer::MagnetMoved& event);
   void magnetRead(double native, std::optional<double> mass);  // mass on the reference detector
-  void detectorChanged(const pychron::spectrometer::DetectorState& event);
-  void scanStatus(const pychron::spectrometer::ScanStatus& status);
-  void commandFinished(const QString& what, const pychron::Result<void>& result);
+  void detectorChanged(const nobion::spectrometer::DetectorState& event);
+  void scanStatus(const nobion::spectrometer::ScanStatus& status);
+  void commandFinished(const QString& what, const nobion::Result<void>& result);
   // A table got a new current version; table_copy and isotopes_for already
   // reflect it.
   void fieldTableChanged(const QString& name, const QString& version);
-  void tableSaved(const QString& name, const pychron::Result<std::string>& result);  // the new version
-  void tableRestored(const QString& name, const QString& version, const pychron::Result<void>& result);
+  void tableSaved(const QString& name, const nobion::Result<std::string>& result);  // the new version
+  void tableRestored(const QString& name, const QString& version, const nobion::Result<void>& result);
   // peak_center() accepted a run (not a refused start): emitted from inside
   // that call, on the main thread, with peak_center_running() already true.
   void peakCenterStarted();
   // Relayed from the bus while the bridge's own run is going, in the order
   // published: a try's start before its points.
-  void peakCenterTryStarted(const pychron::jobs::PeakCenterTryStarted& event);
-  void peakCenterPoint(const pychron::jobs::PeakCenterPoint& point);
+  void peakCenterTryStarted(const nobion::jobs::PeakCenterTryStarted& event);
+  void peakCenterPoint(const nobion::jobs::PeakCenterPoint& point);
   // The run's result, after its last point; also a refused start.
-  void peakCenterFinished(const pychron::Result<pychron::jobs::PeakCenterResult>& result);
-  void peakCenterApplied(const pychron::Result<void>& result);
+  void peakCenterFinished(const nobion::Result<nobion::jobs::PeakCenterResult>& result);
+  void peakCenterApplied(const nobion::Result<void>& result);
   // What went wrong without failing the apply, e.g. "field table not saved: <why>".
   void peakCenterNote(const QString& note);
-  void peakCenterSetSaved(const QString& name, const pychron::Result<void>& result);
+  void peakCenterSetSaved(const QString& name, const nobion::Result<void>& result);
   // Internal: a job waits in the Gate for the executor, a call for the main
   // thread. Not for the window.
   void jobQueued();
@@ -273,4 +273,4 @@ class SpectrometerBridge : public QObject {
   int starts_in_flight_ = 0;            // start_scan not yet reported; main thread
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

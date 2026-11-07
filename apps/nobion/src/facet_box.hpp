@@ -16,7 +16,7 @@ class QLineEdit;
 class QListWidget;
 class QToolButton;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class FacetBox : public QWidget {
   Q_OBJECT
@@ -69,4 +69,4 @@ class FacetBox : public QWidget {
   bool updating_ = false;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

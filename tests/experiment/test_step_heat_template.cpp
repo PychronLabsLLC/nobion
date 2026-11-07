@@ -12,8 +12,8 @@
 #include "nobion/experiment/factory/step_heat_template.hpp"
 #include "temp_path.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment;
+using namespace nobion;
+using namespace nobion::experiment;
 
 namespace {
 
@@ -644,7 +644,7 @@ namespace fs = std::filesystem;
 
 class ScratchDir {
  public:
-  ScratchDir() : dir_(pychron::testing::unique_temp_path("pychron-step-heats-")) { fs::create_directories(dir_); }
+  ScratchDir() : dir_(nobion::testing::unique_temp_path("pychron-step-heats-")) { fs::create_directories(dir_); }
   ~ScratchDir() {
     std::error_code ec;
     fs::remove_all(dir_, ec);

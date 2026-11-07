@@ -6,7 +6,7 @@
 #include <limits>
 #include <utility>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -82,4 +82,4 @@ unsigned ReadingHistory::revision(const std::string& name) const {
 
 bool ReadingHistory::has(const std::string& name) const { return kept_.contains(name); }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

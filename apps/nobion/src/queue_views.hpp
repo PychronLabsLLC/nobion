@@ -7,7 +7,7 @@
 
 #include <QSortFilterProxyModel>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class QueueTableModel;
 
@@ -44,4 +44,4 @@ class QueueProxy : public QueueSplitProxy {
   explicit QueueProxy(QueueTableModel& source, QObject* parent = nullptr);
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

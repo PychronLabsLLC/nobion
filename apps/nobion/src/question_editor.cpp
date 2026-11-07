@@ -27,9 +27,9 @@
 
 #include "nobion/setup/template.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-using namespace pychron::setup;
+using namespace nobion::setup;
 
 namespace {
 
@@ -290,4 +290,4 @@ Result<Value> question_value(const QWidget* editor, const Question& q) {
   }
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

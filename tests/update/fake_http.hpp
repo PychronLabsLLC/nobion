@@ -20,7 +20,7 @@
 
 #include "nobion/core/http.hpp"
 
-namespace pychron::update::testing {
+namespace nobion::update::testing {
 
 // fixtures/latest.json with its tag_name replaced by `tag`.
 inline std::string release_json(std::string_view tag) {
@@ -41,7 +41,7 @@ class FakeHttp final : public http::IHttpClient {
     cv_.wait(lock, [this] { return !held_; });
     if (answers_.empty()) {
       ADD_FAILURE() << "FakeHttp: no answer queued for " << request.url;
-      return pychron::fail(ErrorKind::Io, "no answer queued");
+      return nobion::fail(ErrorKind::Io, "no answer queued");
     }
     auto next = std::move(answers_.front());
     answers_.pop_front();
@@ -60,7 +60,7 @@ class FakeHttp final : public http::IHttpClient {
 
   void fail(ErrorKind kind) {
     const std::lock_guard lock(mutex_);
-    answers_.emplace_back(pychron::fail(kind, "fake failure"));
+    answers_.emplace_back(nobion::fail(kind, "fake failure"));
   }
 
   // While held, send() records its request and blocks until release().
@@ -97,4 +97,4 @@ class FakeHttp final : public http::IHttpClient {
   bool held_ = false;
 };
 
-}  // namespace pychron::update::testing
+}  // namespace nobion::update::testing

@@ -10,7 +10,7 @@
 
 #include "nobion/core/events.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class LogFilterProxy : public QSortFilterProxyModel {
   Q_OBJECT
@@ -19,7 +19,7 @@ class LogFilterProxy : public QSortFilterProxyModel {
   explicit LogFilterProxy(QObject* parent = nullptr);
 
   void set_min_level(LogLevel level);
-  // Empty = all loggers. Otherwise pychron::log_name_matches (a bare name
+  // Empty = all loggers. Otherwise nobion::log_name_matches (a bare name
   // includes its dotted children; '*' makes it a glob).
   void set_logger_pattern(const QString& pattern);
   // Case-insensitive substring of the message.
@@ -34,4 +34,4 @@ class LogFilterProxy : public QSortFilterProxyModel {
   QString text_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

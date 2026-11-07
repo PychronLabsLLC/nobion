@@ -14,7 +14,7 @@
 #include "nobion/experiment/model/run_spec.hpp"
 #include "nobion/experiment/model/types.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 // A named heating schedule, `<lab>/queues/step_heats/<name>.toml`
 // (docs/superpowers/specs/2026-10-13-step-heat-template-design.md, 4.2):
@@ -153,4 +153,4 @@ class StepHeatFiles {
   std::filesystem::path dir_;
 };
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

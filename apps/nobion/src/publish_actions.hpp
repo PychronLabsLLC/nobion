@@ -29,11 +29,11 @@
 class QAction;
 class QWidget;
 
-namespace pychron::processing {
+namespace nobion::processing {
 class StoreSource;
 }
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class EntryBridge;
 class PublishDialog;
@@ -94,4 +94,4 @@ class PublishActions : public QObject {
   QAction* action_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

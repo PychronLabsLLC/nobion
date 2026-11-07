@@ -19,7 +19,7 @@
 #include "nobion/core/process.hpp"
 #include "nobion/core/sha256.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 namespace {
 
 constexpr char kFieldSeparator = '\x1f';
@@ -830,4 +830,4 @@ Result<std::string_view> GitReader::blob(const std::string& blob_sha) {
   return std::string_view(cached->second->bytes);
 }
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

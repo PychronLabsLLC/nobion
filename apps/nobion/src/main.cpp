@@ -147,11 +147,11 @@
 namespace {
 
 namespace fs = std::filesystem;
-namespace setup = pychron::setup;
+namespace setup = nobion::setup;
 
 int fatal(const std::string& what) {
   std::fprintf(stderr, "nobion: %s\n", what.c_str());
-  pychron::ui::show_error(nullptr, "startup", QStringLiteral("nobion"), QString::fromStdString(what));
+  nobion::ui::show_error(nullptr, "startup", QStringLiteral("nobion"), QString::fromStdString(what));
   return 1;
 }
 
@@ -159,10 +159,10 @@ int fatal(const std::string& what) {
 // Help > Check for Updates…, then the automatic check if one is due. `now`
 // is the window's wall clock; failed automatic checks go to `log`, if any.
 // Null when this program's version is not one (nothing is checked).
-std::unique_ptr<pychron::ui::UpdateChecker> start_update_check(QMainWindow& window, QSettings& settings,
-                                                               pychron::ui::UpdateChecker::Now now,
+std::unique_ptr<nobion::ui::UpdateChecker> start_update_check(QMainWindow& window, QSettings& settings,
+                                                               nobion::ui::UpdateChecker::Now now,
                                                                const std::function<void(const QString&)>& log) {
-  const auto running = pychron::update::parse_version(PYCHRON_VERSION);
+  const auto running = nobion::update::parse_version(PYCHRON_VERSION);
   if (!running) {
     const QString why = QStringLiteral("no update check: ") + QString::fromStdString(running.error().what);
     if (log) {
@@ -172,10 +172,10 @@ std::unique_ptr<pychron::ui::UpdateChecker> start_update_check(QMainWindow& wind
     }
     return nullptr;
   }
-  auto checker = std::make_unique<pychron::ui::UpdateChecker>(settings, *running, std::move(now),
-                                                              [] { return pychron::earthbank::make_http_client(); });
+  auto checker = std::make_unique<nobion::ui::UpdateChecker>(settings, *running, std::move(now),
+                                                              [] { return nobion::earthbank::make_http_client(); });
   checker->set_log(log);
-  pychron::ui::install_update_check(&window, *checker);
+  nobion::ui::install_update_check(&window, *checker);
   checker->check_on_startup();
   return checker;
 }
@@ -188,7 +188,7 @@ struct Choice {
   int rc = -1;
 };
 
-Choice choose_install(const pychron::ui::CommandLine& cli, const setup::Resources& resources) {
+Choice choose_install(const nobion::ui::CommandLine& cli, const setup::Resources& resources) {
   const fs::path site_path = setup::default_site_path();
   auto site = setup::load_site(site_path);
   if (!site) return {std::nullopt, fatal(site.error().what)};
@@ -203,13 +203,13 @@ Choice choose_install(const pychron::ui::CommandLine& cli, const setup::Resource
   auto library = setup::ProfileLibrary::load(resources.profiles, resources.examples);
   if (cli.setup || site->installs.empty()) {
     if (!library) return {std::nullopt, fatal(library.error().what)};
-    pychron::ui::SetupWizard wizard(*library,
-                                    {site_path, pychron::ui::database_opener(), {}, {}, pychron::ui::database_seeder()});
+    nobion::ui::SetupWizard wizard(*library,
+                                    {site_path, nobion::ui::database_opener(), {}, {}, nobion::ui::database_seeder()});
     if (wizard.exec() != QDialog::Accepted || !wizard.open_now()) return {std::nullopt, 0};
     return {wizard.installed(), 0};
   }
-  pychron::ui::InstallationsDialog dialog(site_path, library ? &*library : nullptr, pychron::ui::database_opener(), {});
-  dialog.set_seed_database(pychron::ui::database_seeder());
+  nobion::ui::InstallationsDialog dialog(site_path, library ? &*library : nullptr, nobion::ui::database_opener(), {});
+  dialog.set_seed_database(nobion::ui::database_seeder());
   if (dialog.exec() != QDialog::Accepted || !dialog.to_open()) return {std::nullopt, 0};
   auto again = setup::load_site(site_path);
   const auto* i = again ? again->find(*dialog.to_open()) : nullptr;
@@ -222,13 +222,13 @@ Choice choose_install(const pychron::ui::CommandLine& cli, const setup::Resource
 std::function<void()> installations_handler(QWidget* window, const setup::Resources& resources, std::string current) {
   return [window, resources, current] {
     auto library = setup::ProfileLibrary::load(resources.profiles, resources.examples);
-    pychron::ui::InstallationsDialog dialog(setup::default_site_path(), library ? &*library : nullptr,
-                                            pychron::ui::database_opener(), current, window);
-    dialog.set_seed_database(pychron::ui::database_seeder());
+    nobion::ui::InstallationsDialog dialog(setup::default_site_path(), library ? &*library : nullptr,
+                                            nobion::ui::database_opener(), current, window);
+    dialog.set_seed_database(nobion::ui::database_seeder());
     if (dialog.exec() != QDialog::Accepted || !dialog.to_open() || *dialog.to_open() == current) return;
     if (!window->close()) return;  // e.g. unsaved queue edits, and the user chose Cancel
-    if (!pychron::ui::start_install(*dialog.to_open())) {
-      pychron::ui::show_error(nullptr, "startup", QStringLiteral("nobion"), QStringLiteral("could not start nobion"));
+    if (!nobion::ui::start_install(*dialog.to_open())) {
+      nobion::ui::show_error(nullptr, "startup", QStringLiteral("nobion"), QStringLiteral("could not start nobion"));
     }
   };
 }
@@ -236,10 +236,10 @@ std::function<void()> installations_handler(QWidget* window, const setup::Resour
 // Preferences > Data source for install `name`: the install as the site file
 // has it when the dialog opens, the store-common questions, and this build's
 // openers. `session_database`: --db, which overrides the install for this run.
-pychron::ui::DataSourceDepsFactory data_source_deps(std::string name, const setup::Resources& resources,
+nobion::ui::DataSourceDepsFactory data_source_deps(std::string name, const setup::Resources& resources,
                                                     std::optional<std::string> session_database) {
   return [name = std::move(name), resources, session_database = std::move(session_database)]()
-             -> std::optional<pychron::ui::DataSourcePageDeps> {
+             -> std::optional<nobion::ui::DataSourcePageDeps> {
     const fs::path site_path = setup::default_site_path();
     auto site = setup::load_site(site_path);
     const auto* install = site ? site->find(name) : nullptr;
@@ -247,12 +247,12 @@ pychron::ui::DataSourceDepsFactory data_source_deps(std::string name, const setu
     auto library = setup::ProfileLibrary::load(resources.profiles, resources.examples);
     const auto* store = library ? library->find("store-common") : nullptr;
     if (store == nullptr) return std::nullopt;
-    pychron::ui::DataSourcePageDeps deps;
+    nobion::ui::DataSourcePageDeps deps;
     deps.install = *install;
     deps.site_path = site_path;
     deps.questions = store->questions;
-    deps.openers.open_database = pychron::ui::database_opener();
-    deps.openers.seed_database = pychron::ui::database_seeder();
+    deps.openers.open_database = nobion::ui::database_opener();
+    deps.openers.seed_database = nobion::ui::database_seeder();
     deps.session_database = session_database;
     return deps;
   };
@@ -265,8 +265,8 @@ std::function<void()> reopen_on(QWidget* window, std::string name) {
   return [window, name = std::move(name)] {
     QTimer::singleShot(0, window, [window, name] {
       if (!window->close()) return;
-      if (!pychron::ui::start_install(name)) {
-        pychron::ui::show_error(nullptr, "startup", QStringLiteral("nobion"), QStringLiteral("could not start nobion"));
+      if (!nobion::ui::start_install(name)) {
+        nobion::ui::show_error(nullptr, "startup", QStringLiteral("nobion"), QStringLiteral("could not start nobion"));
       }
     });
   };
@@ -274,40 +274,40 @@ std::function<void()> reopen_on(QWidget* window, std::string name) {
 
 // The records directory's analyses carry the domain's data: Ar-Ar's from the
 // references.toml beside the records. noble_gas adds none.
-void wire_extension(pychron::processing::RecordDirectorySource& records, const pychron::processing::Domain& domain) {
+void wire_extension(nobion::processing::RecordDirectorySource& records, const nobion::processing::Domain& domain) {
   if (domain.id() == "arar")
-    records.set_extension_loader(pychron::arar::record_extension_loader(records.root() / "references.toml"));
+    records.set_extension_loader(nobion::arar::record_extension_loader(records.root() / "references.toml"));
 }
 
 #ifdef PYCHRON_UI_HAS_STORE
 // How the data window's store source opens under `domain` (domain seam spec
 // 3.3): its reduction version, and its extension loader (Ar-Ar's; noble_gas
 // has none).
-pychron::processing::StoreSourceOptions store_options(const pychron::processing::Domain& domain) {
-  pychron::processing::StoreSourceOptions options;
+nobion::processing::StoreSourceOptions store_options(const nobion::processing::Domain& domain) {
+  nobion::processing::StoreSourceOptions options;
   options.reduction_version = std::string(domain.reduction_version());
-  if (domain.id() == "arar") options.extension_loader = pychron::arar::store_extension_loader();
+  if (domain.id() == "arar") options.extension_loader = nobion::arar::store_extension_loader();
   return options;
 }
 #endif
 
 // A data-reduction install: the data browser on its database, nothing else.
-int run_data_reduction(const setup::SiteInstall& install, const pychron::processing::Domain& domain,
-                       const pychron::ui::CommandLine& cli, const setup::Resources& resources) {
-  pychron::processing::RecordDirectorySource records(install.path(install.data.empty() ? "data" : install.data) /
+int run_data_reduction(const setup::SiteInstall& install, const nobion::processing::Domain& domain,
+                       const nobion::ui::CommandLine& cli, const setup::Resources& resources) {
+  nobion::processing::RecordDirectorySource records(install.path(install.data.empty() ? "data" : install.data) /
                                                      "records");
   wire_extension(records, domain);
-  std::unique_ptr<pychron::processing::IAnalysisSource> store_source;
-  const auto chosen = pychron::ui::choose_database(cli, &install);
+  std::unique_ptr<nobion::processing::IAnalysisSource> store_source;
+  const auto chosen = nobion::ui::choose_database(cli, &install);
   if (!chosen) return fatal(chosen.error().what);
   const std::string url = chosen->value_or(std::string{});
   if (!url.empty()) {
 #ifdef PYCHRON_UI_HAS_STORE
     auto opened =
-        pychron::processing::StoreSource::open(pychron::persistence::StoreConfig{url, false}, store_options(domain));
+        nobion::processing::StoreSource::open(nobion::persistence::StoreConfig{url, false}, store_options(domain));
     if (!opened) {
       return fatal("installation '" + install.name + "': database " + install.database + ": " +
-                   pychron::to_string(opened.error()) + "\n\nelctl doctor --install " + install.name +
+                   nobion::to_string(opened.error()) + "\n\nelctl doctor --install " + install.name +
                    " says more; nobion --setup can set it up again.");
     }
     store_source = std::move(*opened);
@@ -315,37 +315,37 @@ int run_data_reduction(const setup::SiteInstall& install, const pychron::process
     std::fprintf(stderr, "nobion: built without the DVC store; browsing the records folder instead\n");
 #endif
   }
-  pychron::processing::IAnalysisSource& source =
-      store_source ? *store_source : static_cast<pychron::processing::IAnalysisSource&>(records);
-  pychron::ui::MenuHub::instance().set_experiment_shown(false);  // this install runs no experiment
-  pychron::processing::PresetStore presets(
+  nobion::processing::IAnalysisSource& source =
+      store_source ? *store_source : static_cast<nobion::processing::IAnalysisSource&>(records);
+  nobion::ui::MenuHub::instance().set_experiment_shown(false);  // this install runs no experiment
+  nobion::processing::PresetStore presets(
       fs::path(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation).toStdString()) / "presets",
       install.root / "figures");
-  pychron::ui::DataMainWindow window(source, presets, domain, QString::fromStdString(install.name));
+  nobion::ui::DataMainWindow window(source, presets, domain, QString::fromStdString(install.name));
   window.set_installations_handler(installations_handler(&window, resources, install.name));
   window.set_data_source(data_source_deps(install.name, resources, cli.db), reopen_on(&window, install.name));
 #ifdef PYCHRON_UI_HAS_STORE
   // Entry: samples and packages in the install's database; Fit: the flux of a
   // level. Both parented to the window, Entry made first (fit_actions.hpp).
   if (!url.empty()) {
-    auto* entry = new pychron::ui::EntryActions(&window, url);
-    new pychron::ui::FitActions(&window, url, *entry, presets,
+    auto* entry = new nobion::ui::EntryActions(&window, url);
+    new nobion::ui::FitActions(&window, url, *entry, presets,
                                 [&window](const QString& uuid) { window.workspace()->open_recall(uuid); });
     // View > Publish…: releases of this database, made of the browser's selection.
-    auto* publish = new pychron::ui::PublishActions(&window, url, [&window] {
+    auto* publish = new nobion::ui::PublishActions(&window, url, [&window] {
       const auto* browser = window.workspace()->existing_browser();
       return browser != nullptr ? browser->selection_uuids() : QStringList();
     });
     window.workspace()->set_publish_handler([publish](const QStringList& ids) { publish->open_dialog_new(ids); });
   }
 #endif
-  window.apply_preferences(pychron::ui::load_preferences(QSettings()));
+  window.apply_preferences(nobion::ui::load_preferences(QSettings()));
   window.resize(1200, 800);
   window.show();
   // No line here, so no line clock: the computer's. Made after the window,
   // so the checker goes first; a failed automatic check is not shown.
   QSettings update_settings;
-  const pychron::SteadyClock wall;
+  const nobion::SteadyClock wall;
   const auto updates = start_update_check(window, update_settings, [&wall] { return wall.wall_now(); }, {});
   return QApplication::exec();
 }
@@ -353,13 +353,13 @@ int run_data_reduction(const setup::SiteInstall& install, const pychron::process
 // --laser: one extraction device's laser window and nothing else, for a
 // laser PC. The line is loaded as usual (its drivers are the laser's), with
 // no spectrometer and no experiment session: nothing here runs a queue.
-int run_laser(pychron::systems::ExtractionLine& line, const pychron::ui::CommandLine& cli, const fs::path& lab_dir,
-              const fs::path& lab_state, const fs::path& system_file, pychron::ui::SplashScreen& splash) {
-  namespace lab = pychron::experiment::lab;
+int run_laser(nobion::systems::ExtractionLine& line, const nobion::ui::CommandLine& cli, const fs::path& lab_dir,
+              const fs::path& lab_state, const fs::path& system_file, nobion::ui::SplashScreen& splash) {
+  namespace lab = nobion::experiment::lab;
   splash.status(QStringLiteral("Starting the extraction line"));
   if (const auto started = line.start(); !started) {
     splash.close();
-    return fatal("the extraction line did not start: " + pychron::to_string(started.error()));
+    return fatal("the extraction line did not start: " + nobion::to_string(started.error()));
   }
   splash.status(QStringLiteral("Loading the lab: %1").arg(QString::fromStdString(lab_dir.string())));
   lab::Lab the_lab = lab::load_lab({lab_dir, system_file, fs::path(), lab_state});
@@ -390,12 +390,12 @@ int run_laser(pychron::systems::ExtractionLine& line, const pychron::ui::Command
 
   int rc = 0;
   {
-    pychron::ui::LaserBridge bridge(pychron::ui::LaserBridgeDeps{lasers, the_lab, device, {}});
+    nobion::ui::LaserBridge bridge(nobion::ui::LaserBridgeDeps{lasers, the_lab, device, {}});
     const bool simulated = line.sim() != nullptr && line.sim()->chromium(device) != nullptr;
-    pychron::ui::LaserWindow window(bridge, simulated);
-    pychron::ui::PatternMakerWindow maker(the_lab.patterns, lab_dir / "patterns", &window);
+    nobion::ui::LaserWindow window(bridge, simulated);
+    nobion::ui::PatternMakerWindow maker(the_lab.patterns, lab_dir / "patterns", &window);
     maker.setWindowFlag(Qt::Window, true);
-    QObject::connect(&maker, &pychron::ui::PatternMakerWindow::saved, &window, [&window] { window.refresh_patterns(); });
+    QObject::connect(&maker, &nobion::ui::PatternMakerWindow::saved, &window, [&window] { window.refresh_patterns(); });
     window.set_pattern_maker([&maker] {
       maker.show();
       maker.raise();
@@ -412,8 +412,8 @@ int run_laser(pychron::systems::ExtractionLine& line, const pychron::ui::Command
 }  // namespace
 
 int main(int argc, char** argv) {
-  const pychron::LogContext::Thread log_thread("ui");
-  pychron::LogHub::install_crash_handlers();
+  const nobion::LogContext::Thread log_thread("ui");
+  nobion::LogHub::install_crash_handlers();
 #ifdef _WIN32
   // A GUI program has no console: --version and --self-test print to the one
   // they were started from.
@@ -437,17 +437,17 @@ int main(int argc, char** argv) {
   QApplication app(argc, argv);
   QCoreApplication::setOrganizationName(QStringLiteral("PychronLabs"));
   QApplication::setApplicationName(QStringLiteral("nobion"));
-  pychron::ui::migrate_legacy_application_settings();
-  pychron::ui::style::apply(app);
-  QApplication::setWindowIcon(pychron::ui::brand::app_icon());
+  nobion::ui::migrate_legacy_application_settings();
+  nobion::ui::style::apply(app);
+  QApplication::setWindowIcon(nobion::ui::brand::app_icon());
 
-  const auto cli = pychron::ui::parse_command_line(QApplication::arguments().mid(1));
+  const auto cli = nobion::ui::parse_command_line(QApplication::arguments().mid(1));
   if (!cli) {
     std::fprintf(stderr, "nobion: %s\n", cli.error().what.c_str());
     return 2;
   }
-  if (cli->self_test) return pychron::ui::self_test(std::cout);
-  if (cli->write_icons) return pychron::ui::write_icons(*cli->write_icons, std::cout);
+  if (cli->self_test) return nobion::ui::self_test(std::cout);
+  if (cli->write_icons) return nobion::ui::write_icons(*cli->write_icons, std::cout);
   const setup::Resources resources = setup::find_resources();
   const fs::path examples = resources.examples;
 
@@ -473,24 +473,24 @@ int main(int argc, char** argv) {
   // first record), else the computer's. Declared before the line and
   // everything else that is given the clock or the hub, so they are the last
   // to go; the guard clears the process hub first of all.
-  const pychron::SteadyClock steady_clock;
+  const nobion::SteadyClock steady_clock;
   // Simulated time: a VirtualClock paced to the speed asked for, starting at
   // the real time of day. The line's threads take part in it; this one (the
   // UI's) does not, so time never waits for the event loop.
-  std::unique_ptr<pychron::VirtualClock> sim_clock;
+  std::unique_ptr<nobion::VirtualClock> sim_clock;
   const bool reduction = install && install->kind == "data_reduction";
   if (cli->sim_speed > 0 && !reduction) {
-    pychron::VirtualClock::Options clock_options;
+    nobion::VirtualClock::Options clock_options;
     clock_options.speed = cli->sim_speed;
     clock_options.epoch = std::chrono::system_clock::now();
     // The hub is cleared before this clock goes, so a stall report is also in the log.
     clock_options.on_stall = [](const std::string& report) {
       std::fprintf(stderr, "nobion: %s\n", report.c_str());
-      pychron::process_logger("clock").warn(report);
+      nobion::process_logger("clock").warn(report);
     };
-    sim_clock = std::make_unique<pychron::VirtualClock>(std::move(clock_options));
+    sim_clock = std::make_unique<nobion::VirtualClock>(std::move(clock_options));
   }
-  const pychron::Clock& process_clock = sim_clock ? static_cast<const pychron::Clock&>(*sim_clock) : steady_clock;
+  const nobion::Clock& process_clock = sim_clock ? static_cast<const nobion::Clock&>(*sim_clock) : steady_clock;
   std::optional<fs::path> log_line_config;
   if (install) {
     if (!install->line.empty()) log_line_config = install->path(install->line);
@@ -505,24 +505,24 @@ int main(int argc, char** argv) {
     std::snprintf(speed.data(), speed.size(), "%g", cli->sim_speed);
     clock_name = std::string("virtual x") + speed.data();
   }
-  const pychron::ui::ProcessLog process_log = pychron::ui::open_process_log(
-      install, log_line_config, process_clock, sim, pychron::host_os(), pychron::process_env(), clock_name);
-  const std::shared_ptr<pychron::LogHub> hub = process_log.hub;
-  pychron::set_process_log_hub(hub);
+  const nobion::ui::ProcessLog process_log = nobion::ui::open_process_log(
+      install, log_line_config, process_clock, sim, nobion::host_os(), nobion::process_env(), clock_name);
+  const std::shared_ptr<nobion::LogHub> hub = process_log.hub;
+  nobion::set_process_log_hub(hub);
   struct ProcessHubGuard {
-    ~ProcessHubGuard() { pychron::set_process_log_hub(nullptr); }
+    ~ProcessHubGuard() { nobion::set_process_log_hub(nullptr); }
   } const hub_guard;
-  std::optional<pychron::ui::QtLogHandler> qt_log;
+  std::optional<nobion::ui::QtLogHandler> qt_log;
   if (hub) qt_log.emplace(*hub);
 
 
   // The domain every data window of this run reduces in; the registry outlives the windows.
-  pychron::processing::DomainRegistry domains;
+  nobion::processing::DomainRegistry domains;
   std::string domain_error;
-  const pychron::processing::Domain* chosen_domain =
-      pychron::ui::choose_domain(domains, install ? install->domain : std::string("arar"), domain_error);
+  const nobion::processing::Domain* chosen_domain =
+      nobion::ui::choose_domain(domains, install ? install->domain : std::string("arar"), domain_error);
   if (chosen_domain == nullptr) return fatal(domain_error);
-  const pychron::processing::Domain& domain = *chosen_domain;
+  const nobion::processing::Domain& domain = *chosen_domain;
   if (install && install->kind == "data_reduction") return run_data_reduction(*install, domain, *cli, resources);
 
   std::optional<fs::path> spectrometer_file = cli->spectrometer_file;
@@ -534,11 +534,11 @@ int main(int argc, char** argv) {
   // Shown from here until the main window is up (after any installation
   // choice, which it would cover); loading blocks the event loop, so each step
   // repaints it explicitly.
-  pychron::ui::SplashScreen splash(sim);
+  nobion::ui::SplashScreen splash(sim);
   splash.show();
   splash.status(QStringLiteral("Starting"));
 
-  pychron::systems::ExtractionLine::Options options;
+  nobion::systems::ExtractionLine::Options options;
   options.force_sim = sim;
   options.sim_endpoints = cli->sim_endpoints;
   options.sim_endpoints_any = cli->sim_endpoints_any;
@@ -562,29 +562,29 @@ int main(int argc, char** argv) {
   const fs::path lab_dir = cli->lab ? *cli->lab : install ? install->root : system_file.parent_path();
   // How the links recover (executor.toml [links]) is wanted before they are
   // made; the lab, which reports a file that does not load, comes later.
-  const auto executor_config = pychron::experiment::lab::ExecutorConfig::load(lab_dir / "executor.toml");
-  const pychron::LinkPolicy link_defaults =
-      executor_config ? executor_config->link_defaults() : pychron::LinkPolicy{};
+  const auto executor_config = nobion::experiment::lab::ExecutorConfig::load(lab_dir / "executor.toml");
+  const nobion::LinkPolicy link_defaults =
+      executor_config ? executor_config->link_defaults() : nobion::LinkPolicy{};
   options.link_defaults = link_defaults;
   // What running writes (the line's state, holes found, camera scales,
   // snapshots, the default data folder) is kept beside the lab, except for
   // the shipped examples, which are never written to (setup::lab_state_dir).
-  const fs::path user_examples = pychron::default_examples_state_dir(pychron::host_os(), pychron::process_env());
+  const fs::path user_examples = nobion::default_examples_state_dir(nobion::host_os(), nobion::process_env());
   const fs::path line_folder = system_file.parent_path().empty() ? fs::path(".") : system_file.parent_path();
   const fs::path line_state = setup::lab_state_dir(line_folder, examples, user_examples);
   const fs::path lab_folder = lab_dir.empty() ? fs::path(".") : lab_dir;
   const fs::path lab_state = setup::lab_state_dir(lab_folder, examples, user_examples);
   options.state_file = line_state / fs::path(system_file.filename()).replace_extension(".state.toml");
   if (lab_state != lab_folder) {
-    pychron::process_logger("pychron").info("examples: runtime state in " + lab_state.string());
+    nobion::process_logger("pychron").info("examples: runtime state in " + lab_state.string());
   } else if (line_state != line_folder) {
-    pychron::process_logger("pychron").info("examples: runtime state in " + line_state.string());
+    nobion::process_logger("pychron").info("examples: runtime state in " + line_state.string());
   }
 
   splash.status(QStringLiteral("Loading the extraction line: %1").arg(QString::fromStdString(system_file.filename().string())));
-  auto line = pychron::systems::ExtractionLine::load(system_file, canvas_file, options);
+  auto line = nobion::systems::ExtractionLine::load(system_file, canvas_file, options);
   if (!line) {
-    std::string what = pychron::to_string(line.error());
+    std::string what = nobion::to_string(line.error());
     if (install) what = "installation '" + install->name + "': " + what + "\n\nelctl doctor --install " + install->name + " says more.";
     splash.close();  // it would sit over the message box
     return fatal(what);
@@ -592,16 +592,16 @@ int main(int argc, char** argv) {
   // The line's bus carries the spectrometer's and the session's events too:
   // one recorder of each kind, declared after the line so they go before its
   // bus (the line is destroyed on return).
-  const pychron::EventRecorder core_events((*line)->bus());
-  const pychron::systems::SystemsEventRecorder systems_events((*line)->bus());
-  const pychron::experiment::ExperimentEventRecorder experiment_events((*line)->bus());
+  const nobion::EventRecorder core_events((*line)->bus());
+  const nobion::systems::SystemsEventRecorder systems_events((*line)->bus());
+  const nobion::experiment::ExperimentEventRecorder experiment_events((*line)->bus());
 
   // The spectrometer shares the line's clock, scheduler and bus. None of these
   // is left to declaration order: the teardown after the event loop resets
   // each one explicitly, and that order is the one that matters.
-  std::unique_ptr<pychron::spectrometer::Spectrometer> spectrometer;
-  std::unique_ptr<pychron::spectrometer::ScanService> scan;
-  std::unique_ptr<pychron::ui::SpectrometerBridge> spectrometer_bridge;
+  std::unique_ptr<nobion::spectrometer::Spectrometer> spectrometer;
+  std::unique_ptr<nobion::spectrometer::ScanService> scan;
+  std::unique_ptr<nobion::ui::SpectrometerBridge> spectrometer_bridge;
   std::optional<std::string> spectrometer_error;
   // What was actually loaded decides the window's "(Simulation)" title and the
   // table-following sim beam; --sim only demands it (require_sim).
@@ -617,31 +617,31 @@ int main(int argc, char** argv) {
       spectrometer_file ? *spectrometer_file : sim ? examples / "spectrometer.sim-integrated.toml" : fs::path();
   // Where its field tables are read and saved: beside it, except for the
   // shipped examples' (setup::field_table_root).
-  const pychron::Result<fs::path> table_root =
-      spectrometer_config.empty() ? pychron::Result<fs::path>(fs::path())
+  const nobion::Result<fs::path> table_root =
+      spectrometer_config.empty() ? nobion::Result<fs::path>(fs::path())
                                   : setup::field_table_root(spectrometer_config.parent_path(), examples, user_examples);
   const fs::path spectrometer_tables = table_root ? *table_root : fs::path();
   if (!spectrometer_config.empty()) {
     const fs::path& file = spectrometer_config;
     splash.status(QStringLiteral("Bringing up the spectrometer: %1").arg(QString::fromStdString(file.filename().string())));
     // Written only when a simulated beam was fed from a simulated line.
-    auto fed = pychron::spectrometer::BeamFeed::LineGas;
-    auto loaded = [&]() -> pychron::Result<std::unique_ptr<pychron::spectrometer::Spectrometer>> {
-      if (!table_root) return pychron::fail(table_root.error());
-      std::shared_ptr<const std::map<std::string, pychron::Endpoint>> served_endpoints;
+    auto fed = nobion::spectrometer::BeamFeed::LineGas;
+    auto loaded = [&]() -> nobion::Result<std::unique_ptr<nobion::spectrometer::Spectrometer>> {
+      if (!table_root) return nobion::fail(table_root.error());
+      std::shared_ptr<const std::map<std::string, nobion::Endpoint>> served_endpoints;
       if (cli->sim_endpoints) {
-        auto served = pychron::client_spectrometer_endpoints(*cli->sim_endpoints, file, cli->sim_endpoints_any);
-        if (!served) return pychron::fail(served.error());
-        served_endpoints = std::make_shared<const std::map<std::string, pychron::Endpoint>>(std::move(*served));
+        auto served = nobion::client_spectrometer_endpoints(*cli->sim_endpoints, file, cli->sim_endpoints_any);
+        if (!served) return nobion::fail(served.error());
+        served_endpoints = std::make_shared<const std::map<std::string, nobion::Endpoint>>(std::move(*served));
       }
-      auto data = pychron::spectrometer::cfg::load_spectrometer(file, spectrometer_tables);
-      if (!data) return pychron::fail(data.error());
-      simulation = pychron::spectrometer::is_simulated(*data);
-      return pychron::spectrometer::load_spectrometer_for_app(
+      auto data = nobion::spectrometer::cfg::load_spectrometer(file, spectrometer_tables);
+      if (!data) return nobion::fail(data.error());
+      simulation = nobion::spectrometer::is_simulated(*data);
+      return nobion::spectrometer::load_spectrometer_for_app(
           std::move(*data),
-          pychron::spectrometer::SpectrometerContext{(*line)->clock(), (*line)->scheduler(), (*line)->bus()},
+          nobion::spectrometer::SpectrometerContext{(*line)->clock(), (*line)->scheduler(), (*line)->bus()},
           // A simulated spectrometer measures the simulated line's gas.
-          pychron::spectrometer::SpectrometerBringup{
+          nobion::spectrometer::SpectrometerBringup{
               .sim_beam_from_table = simulation,
               .require_sim = sim,
               .line_sim = (*line)->sim(),
@@ -649,49 +649,49 @@ int main(int argc, char** argv) {
               .link_defaults = link_defaults,
               .sim_endpoints = served_endpoints});
     }();
-    if (loaded && fed == pychron::spectrometer::BeamFeed::FixedGas) {
+    if (loaded && fed == nobion::spectrometer::BeamFeed::FixedGas) {
       std::fprintf(stderr, "nobion: the simulated spectrometer is not joined to the line: %s\n",
                    (*line)->canvas() != nullptr ? "the canvas has no spectrometer stage"
                                                 : "the line was loaded without its canvas");
     }
     if (loaded) {
       spectrometer = std::move(*loaded);
-      scan = std::make_unique<pychron::spectrometer::ScanService>(*spectrometer, (*line)->bus(), (*line)->clock());
-      spectrometer_bridge = std::make_unique<pychron::ui::SpectrometerBridge>(*spectrometer, *scan, (*line)->bus());
+      scan = std::make_unique<nobion::spectrometer::ScanService>(*spectrometer, (*line)->bus(), (*line)->clock());
+      spectrometer_bridge = std::make_unique<nobion::ui::SpectrometerBridge>(*spectrometer, *scan, (*line)->bus());
     } else {
-      spectrometer_error = pychron::to_string(loaded.error());
+      spectrometer_error = nobion::to_string(loaded.error());
     }
   }
 
   // Whose runs are a simulator's: marked in their records, and kept out of
   // shared databases (one rule for every program).
-  const bool simulated_session = pychron::spectrometer::simulated_session(
+  const bool simulated_session = nobion::spectrometer::simulated_session(
       sim, spectrometer ? std::optional<bool>(simulation) : std::nullopt, (*line)->config());
 
-  std::unique_ptr<pychron::experiment::lab::Lab> lab;
+  std::unique_ptr<nobion::experiment::lab::Lab> lab;
   // The lab's lasers are shared by the session (queues) and the laser
   // windows (an operator): one drives at a time.
-  std::unique_ptr<pychron::experiment::lab::Lasers> lasers;
+  std::unique_ptr<nobion::experiment::lab::Lasers> lasers;
 #ifdef PYCHRON_UI_HAS_STORE
   // Where a queue's runs go when there is a database: the acquisition's own
   // store, or, when the database could not be opened, a persister that refuses
   // every queue with the reason. The session saves through one of them, so
   // they are declared before it and go after it: the teardown below resets
   // the session by hand (joining a running queue), these on return.
-  std::unique_ptr<pychron::experiment::store::Acquisition> acquisition;
-  std::unique_ptr<pychron::ui::NoDatabasePersister> no_database;
+  std::unique_ptr<nobion::experiment::store::Acquisition> acquisition;
+  std::unique_ptr<nobion::ui::NoDatabasePersister> no_database;
 #endif
-  std::unique_ptr<pychron::experiment::lab::LabSession> session;
-  std::unique_ptr<pychron::ui::ExperimentBridge> experiment_bridge;
-  std::vector<std::unique_ptr<pychron::ui::LaserBridge>> laser_bridges;
+  std::unique_ptr<nobion::experiment::lab::LabSession> session;
+  std::unique_ptr<nobion::ui::ExperimentBridge> experiment_bridge;
+  std::vector<std::unique_ptr<nobion::ui::LaserBridge>> laser_bridges;
 
   // Data browsing: the records the experiment writes, and figure presets.
   const fs::path data_dir = cli->data            ? *cli->data
                             : install && !install->data.empty() ? install->path(install->data)
                                                                 : lab_state / "data";
-  pychron::processing::RecordDirectorySource records(data_dir / "records");
+  nobion::processing::RecordDirectorySource records(data_dir / "records");
   wire_extension(records, domain);
-  std::unique_ptr<pychron::processing::IAnalysisSource> store_source;
+  std::unique_ptr<nobion::processing::IAnalysisSource> store_source;
 #ifdef PYCHRON_UI_HAS_STORE
   // One database for the data window, Entry, Fit, the run factory and the
   // runs a queue saves: --db, else the install's. `database` is its url once
@@ -700,17 +700,17 @@ int main(int argc, char** argv) {
   // error; an install's is not, since the line can still be worked.
   std::string database;
   std::optional<std::string> database_error;
-  if (const auto chosen = pychron::ui::choose_database(*cli, install ? &*install : nullptr); !chosen) {
+  if (const auto chosen = nobion::ui::choose_database(*cli, install ? &*install : nullptr); !chosen) {
     database_error = chosen.error().what;
   } else if (chosen->has_value()) {
     splash.status(QStringLiteral("Opening the DVC store"));
-    auto opened = pychron::processing::StoreSource::open(pychron::persistence::StoreConfig{**chosen, false},
+    auto opened = nobion::processing::StoreSource::open(nobion::persistence::StoreConfig{**chosen, false},
                                                          store_options(domain));
     if (opened) {
       store_source = std::move(*opened);
       database = **chosen;
     } else if (cli->db) {
-      std::fprintf(stderr, "nobion: --db: %s\n", pychron::to_string(opened.error()).c_str());
+      std::fprintf(stderr, "nobion: --db: %s\n", nobion::to_string(opened.error()).c_str());
       return 2;
     } else {
       database_error = opened.error().what;
@@ -724,16 +724,16 @@ int main(int argc, char** argv) {
   // save to the database (it goes on reading it) writes record files.
   std::string run_saving_note;
   if (!database.empty()) {
-    const auto saving = pychron::ui::choose_run_saving(*cli, database, simulated_session, data_dir);
+    const auto saving = nobion::ui::choose_run_saving(*cli, database, simulated_session, data_dir);
     if (!saving.to_database) {
       run_saving_note = saving.note;
-    } else if (auto opened = pychron::experiment::store::open_acquisition(database, data_dir, PYCHRON_VERSION)) {
+    } else if (auto opened = nobion::experiment::store::open_acquisition(database, data_dir, PYCHRON_VERSION)) {
       acquisition = std::move(*opened);
     } else {
-      no_database = std::make_unique<pychron::ui::NoDatabasePersister>(opened.error().what);
+      no_database = std::make_unique<nobion::ui::NoDatabasePersister>(opened.error().what);
     }
   } else if (database_error) {
-    no_database = std::make_unique<pychron::ui::NoDatabasePersister>(*database_error);
+    no_database = std::make_unique<nobion::ui::NoDatabasePersister>(*database_error);
   }
 #else
   if (cli->db) {
@@ -753,24 +753,24 @@ int main(int argc, char** argv) {
     std::fprintf(stderr, "nobion: warning: %s\n", no_store_warning.c_str());
   }
 #endif
-  pychron::processing::IAnalysisSource& data_source =
-      store_source ? *store_source : static_cast<pychron::processing::IAnalysisSource&>(records);
-  pychron::processing::PresetStore presets(
+  nobion::processing::IAnalysisSource& data_source =
+      store_source ? *store_source : static_cast<nobion::processing::IAnalysisSource&>(records);
+  nobion::processing::PresetStore presets(
       std::filesystem::path(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation).toStdString()) / "presets",
       lab_dir / "figures");
 
   // `[metrics]`: the endpoint the lab's Prometheus scrapes (docs/observability.md).
   // Built before the line starts, so the start-up Snapshot reaches it too.
 #ifdef PYCHRON_EXPERIMENT_HAS_METRICS
-  std::unique_ptr<pychron::experiment::metrics::MetricsService> metrics;
+  std::unique_ptr<nobion::experiment::metrics::MetricsService> metrics;
 #endif
 
   int rc = 0;
   {
     // The window (and its CoreBridge) subscribes before start() so the
     // start-up Snapshot paints the canvas before the first scan.
-    pychron::ui::MainWindow window(**line, std::make_unique<QSettings>());
-    window.apply_preferences(pychron::ui::load_preferences(QSettings()));
+    nobion::ui::MainWindow window(**line, std::make_unique<QSettings>());
+    window.apply_preferences(nobion::ui::load_preferences(QSettings()));
     window.set_line_mode({sim, sim_clock != nullptr ? cli->sim_speed : 0.0});
     // Preferences keeps the line's logging and metrics beside this file. Not
     // for the examples that come with the application: they are part of it
@@ -784,7 +784,7 @@ int main(int argc, char** argv) {
     // Runtime level changes go to the process hub; without one (creation
     // failed) the "Set logger level..." action stays hidden.
     if (hub) {
-      window.log_dock()->set_level_callback(pychron::ui::hub_level_callback(hub));
+      window.log_dock()->set_level_callback(nobion::ui::hub_level_callback(hub));
       hub->flush();  // records from load() are on disk before history is read
       if (const auto path = hub->file_path(); !path.empty()) {
         window.log_dock()->load_history(path, 1000, hub->dock_level());
@@ -793,7 +793,7 @@ int main(int argc, char** argv) {
     // What logging had to say before there was a window (a logging.toml that
     // does not load, no folder for the file): once, in the panel.
     for (const auto& [level, text] : process_log.notices) {
-      window.log_dock()->append_log(pychron::Log{level, "logging", text, {}});
+      window.log_dock()->append_log(nobion::Log{level, "logging", text, {}});
     }
     // The experiment window shows the recent references only when what the
     // data window reads is where the session saves its runs: the store, with
@@ -808,13 +808,13 @@ int main(int argc, char** argv) {
 #ifdef PYCHRON_UI_HAS_STORE
     // The Entry and Fit menus, parented to the window, Entry made first (fit_actions.hpp).
     if (!database.empty()) {
-      auto* entry = new pychron::ui::EntryActions(&window, database);
+      auto* entry = new nobion::ui::EntryActions(&window, database);
       // The run factory picks identifiers from the same store, through Entry's bridge.
-      window.set_identifier_source(new pychron::ui::StoreIdentifierSource(*entry));
-      new pychron::ui::FitActions(&window, database, *entry, presets,
+      window.set_identifier_source(new nobion::ui::StoreIdentifierSource(*entry));
+      new nobion::ui::FitActions(&window, database, *entry, presets,
                                   [&window](const QString& uuid) { window.open_recall(uuid); });
       // View > Publish…: releases of this database, made of the Data browser's selection.
-      auto* publish = new pychron::ui::PublishActions(&window, database, [&window] {
+      auto* publish = new nobion::ui::PublishActions(&window, database, [&window] {
         const auto* browser = window.data_window();
         return browser != nullptr ? browser->selection_uuids() : QStringList();
       });
@@ -855,15 +855,15 @@ int main(int argc, char** argv) {
         },
         [&window](const QString& text) { window.log_dock()->append_line(text); });
 #ifdef PYCHRON_EXPERIMENT_HAS_METRICS
-    metrics = pychron::experiment::metrics::MetricsService::start(
+    metrics = nobion::experiment::metrics::MetricsService::start(
         (*line)->config().metrics, (*line)->bus(), (*line)->scheduler(), (*line)->clock(), (*line)->log_hub(),
         PYCHRON_VERSION);
     if (metrics) {
       // Each transport's reconnects and repeats, read from its link at each
       // scrape: the line's, and the spectrometer's (both outlive `metrics`).
-      std::vector<pychron::Link*> links = (*line)->links();
+      std::vector<nobion::Link*> links = (*line)->links();
       if (spectrometer) {
-        const std::vector<pychron::Link*> more = spectrometer->links();
+        const std::vector<nobion::Link*> more = spectrometer->links();
         links.insert(links.end(), more.begin(), more.end());
       }
       metrics->watch_links(links);
@@ -892,7 +892,7 @@ int main(int argc, char** argv) {
     const auto started = (*line)->start();
     if (!started) {
       window.log_dock()->append_error("startup", QStringLiteral("start failed"),
-                                      QString::fromStdString(pychron::to_string(started.error())));
+                                      QString::fromStdString(nobion::to_string(started.error())));
     }
     // The spectrometer polls on the line's scheduler, which only runs once the
     // line has started. Without it a scan would report success and never
@@ -909,13 +909,13 @@ int main(int argc, char** argv) {
     }
     if (started) {
       splash.status(QStringLiteral("Loading the lab: %1").arg(QString::fromStdString(lab_dir.string())));
-      lab = std::make_unique<pychron::experiment::lab::Lab>(pychron::experiment::lab::load_lab(
+      lab = std::make_unique<nobion::experiment::lab::Lab>(nobion::experiment::lab::load_lab(
           {lab_dir, system_file, spectrometer ? spectrometer_config : fs::path(), lab_state, spectrometer_tables}));
       for (const auto& problem : lab->problems) {
         window.log_dock()->append_line(QStringLiteral("WARN [ui] lab: ") + QString::fromStdString(problem));
       }
-      lasers = std::make_unique<pychron::experiment::lab::Lasers>(*lab, **line);
-      pychron::experiment::lab::SessionOptions session_options{data_dir, {}, {}};
+      lasers = std::make_unique<nobion::experiment::lab::Lasers>(*lab, **line);
+      nobion::experiment::lab::SessionOptions session_options{data_dir, {}, {}};
 #ifdef PYCHRON_UI_HAS_STORE
       if (acquisition) {
         session_options.persister = &acquisition->persister();
@@ -924,9 +924,9 @@ int main(int argc, char** argv) {
       }
 #endif
       const bool saves_to_database = session_options.persister != nullptr;
-      session = std::make_unique<pychron::experiment::lab::LabSession>(
+      session = std::make_unique<nobion::experiment::lab::LabSession>(
           *lab,
-          pychron::experiment::lab::SessionHardware{**line, spectrometer.get(), scan.get(), {}, lasers.get(),
+          nobion::experiment::lab::SessionHardware{**line, spectrometer.get(), scan.get(), {}, lasers.get(),
                                                     simulated_session},
           std::move(session_options));
       for (const auto& note : lasers->notes()) {
@@ -935,14 +935,14 @@ int main(int argc, char** argv) {
       for (const auto& problem : session->problems()) {
         window.log_dock()->append_line(QStringLiteral("WARN [ui] experiment: ") + QString::fromStdString(problem));
       }
-      experiment_bridge = std::make_unique<pychron::ui::ExperimentBridge>(*session, (*line)->bus());
+      experiment_bridge = std::make_unique<nobion::ui::ExperimentBridge>(*session, (*line)->bus());
       experiment_bridge->set_saves_to_database(saves_to_database);
       window.set_experiment(experiment_bridge.get(), sim, cli->queue);
       // A laser window per extraction device; its emergency stop aborts the queue.
-      std::vector<pychron::ui::LaserBridge*> bridges;
+      std::vector<nobion::ui::LaserBridge*> bridges;
       bool lasers_simulated = !lasers->names().empty();
       for (const auto& name : lasers->names()) {
-        laser_bridges.push_back(std::make_unique<pychron::ui::LaserBridge>(pychron::ui::LaserBridgeDeps{
+        laser_bridges.push_back(std::make_unique<nobion::ui::LaserBridge>(nobion::ui::LaserBridgeDeps{
             *lasers, *lab, name, [raw = session.get()] { raw->abort(); }}));
         bridges.push_back(laser_bridges.back().get());
         lasers_simulated = lasers_simulated && (*line)->sim() != nullptr && (*line)->sim()->chromium(name) != nullptr;
@@ -990,6 +990,6 @@ int main(int argc, char** argv) {
   metrics.reset();  // its heartbeat is a job of the line's scheduler: before the line goes
 #endif
   spectrometer.reset();
-  pychron::sim::BeamModelRegistry::global().clear();
+  nobion::sim::BeamModelRegistry::global().clear();
   return rc;
 }

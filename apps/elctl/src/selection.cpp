@@ -22,12 +22,12 @@
 namespace elctl {
 
 namespace fs = std::filesystem;
-namespace pp = pychron::processing;
-namespace ps = pychron::persistence;
-namespace r = pychron::reduction;
-using pychron::ErrorKind;
-using pychron::fail;
-using pychron::Result;
+namespace pp = nobion::processing;
+namespace ps = nobion::persistence;
+namespace r = nobion::reduction;
+using nobion::ErrorKind;
+using nobion::fail;
+using nobion::Result;
 
 namespace {
 
@@ -65,8 +65,8 @@ std::optional<int> parse_int(std::string_view text) {
   return value;
 }
 
-pychron::arar::ArArSettings AgeFlags::reduction() const {
-  pychron::arar::ArArSettings s;
+nobion::arar::ArArSettings AgeFlags::reduction() const {
+  nobion::arar::ArArSettings s;
   for (const auto p : {r::ConstantsPreset::Default, r::ConstantsPreset::Legacy, r::ConstantsPreset::LegacyPreferences})
     if (r::to_string(p) == constants) s.preset = p;
   s.include_decay_error = decay_error;
@@ -135,7 +135,7 @@ Result<bool> take_age_flag(AgeFlags& a, const std::vector<std::string>& args, st
     if (!n || *n < 2) return fail(ErrorKind::Config, "--plateau-steps takes a whole number of 2 or more");
     a.plateau_steps = *n;
   } else {
-    const auto pct = pychron::parse_double(value);
+    const auto pct = nobion::parse_double(value);
     if (!pct || !(*pct >= 0 && *pct <= 100)) return fail(ErrorKind::Config, "--plateau-gas takes a percent, 0 to 100");
     a.plateau_gas = *pct;
   }
@@ -150,11 +150,11 @@ Result<void> check_selection(const Selection& s) {
 pp::StoreSourceOptions store_options(const pp::Domain& domain) {
   pp::StoreSourceOptions options;
   options.reduction_version = std::string(domain.reduction_version());
-  if (domain.id() == "arar") options.extension_loader = pychron::arar::store_extension_loader();
+  if (domain.id() == "arar") options.extension_loader = nobion::arar::store_extension_loader();
   return options;
 }
 
-pp::StoreSourceOptions arar_store_options() { return store_options(pychron::arar::shared_domain()); }
+pp::StoreSourceOptions arar_store_options() { return store_options(nobion::arar::shared_domain()); }
 
 Result<std::unique_ptr<pp::StoreSource>> open_source(const std::string& db_url, pp::StoreSourceOptions options) {
   // A mistyped SQLite path is an error, not a new empty store.
@@ -171,7 +171,7 @@ Result<std::unique_ptr<pp::StoreSource>> open_source(const std::string& db_url, 
 
 Result<void> add_select(pp::Pipeline& pipeline, const pp::UnitRegistry& registry, const Selection& s) {
   auto& select = pipeline.add(registry, "select", "select");
-  std::optional<pychron::Error> bad;
+  std::optional<nobion::Error> bad;
   auto set = [&](std::string_view key, pp::OptionValue value) {
     auto ok = select.options.set(key, std::move(value));
     if (!ok && !bad) bad = ok.error();

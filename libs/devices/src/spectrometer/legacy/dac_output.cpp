@@ -4,7 +4,7 @@
 
 #include "nobion/codecs/map215.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace map = codec::map215;
 
@@ -53,4 +53,4 @@ SimTransport::Hook map215_sim_hook(Map215SimModel model) {
   return [state](const Bytes& tx) { return state->respond(tx); };
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

@@ -21,7 +21,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/laser/tray_map.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 struct StageXY {
   double x = 0;
@@ -72,4 +72,4 @@ Result<Solution> solve(const TrayMap& map, std::span<const CalibrationPoint> poi
 std::vector<std::string> cautions(const TrayMap& map, std::span<const CalibrationPoint> points,
                                   const Solution& solution);
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

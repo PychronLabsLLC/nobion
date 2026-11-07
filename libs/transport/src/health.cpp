@@ -1,6 +1,6 @@
 #include "nobion/transport/health.hpp"
 
-namespace pychron {
+namespace nobion {
 
 std::string_view to_string(HealthState state) noexcept {
   switch (state) {
@@ -11,4 +11,4 @@ std::string_view to_string(HealthState state) noexcept {
   return "unknown";
 }
 
-}  // namespace pychron
+}  // namespace nobion

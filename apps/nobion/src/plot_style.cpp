@@ -7,7 +7,7 @@
 
 #include "preferences.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -44,9 +44,9 @@ QColor plot_series_color(std::size_t slot) {
   return series[slot % series.size()];
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 PlotStyle plot_style_from(const Preferences& preferences) {
   PlotStyle style = default_plot_style();
@@ -88,4 +88,4 @@ PlotStyleHub& PlotStyleHub::instance() {
   return *hub;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

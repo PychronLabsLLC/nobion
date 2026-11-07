@@ -29,7 +29,7 @@
 #include "nobion/systems/extraction_line.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::ui::test {
+namespace nobion::ui::test {
 
 // Destroy any bridge or window built on this before the fixture itself.
 struct SimLaserLab {
@@ -54,8 +54,8 @@ struct SimLaserLab {
   // what the lasers are told of the driver (empty: the line is asked).
   explicit SimLaserLab(double speed = 50, const std::function<void(const std::filesystem::path&)>& prepare = {},
                        const std::function<bool(std::string_view)>& simulated = {})
-      : dir(pychron::testing::unique_temp_path("nobion-laser-")), clock(clock_options(speed)) {
-    pychron::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir);
+      : dir(nobion::testing::unique_temp_path("nobion-laser-")), clock(clock_options(speed)) {
+    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir);
     if (prepare) prepare(dir);
     systems::ExtractionLine::Options options;
     options.clock = &clock;
@@ -127,4 +127,4 @@ inline void settle(LaserBridge& bridge) {
   QCoreApplication::processEvents();
 }
 
-}  // namespace pychron::ui::test
+}  // namespace nobion::ui::test

@@ -1,6 +1,6 @@
 #include "nobion/experiment/conditionals/queue_actions.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 namespace {
 
@@ -115,4 +115,4 @@ Result<QueueChange> apply_queue_action(ExperimentQueue& q, std::size_t current, 
   return change;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

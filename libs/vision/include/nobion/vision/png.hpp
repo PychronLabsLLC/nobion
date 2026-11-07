@@ -5,7 +5,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/vision/frame.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 // A grey PNG: 8 bits a pixel when pixel_depth <= 255, else 16 (scaled so that
 // pixel_depth is white). Not compressed (stored deflate blocks): a picture
@@ -13,4 +13,4 @@ namespace pychron::vision {
 // view; Io error, and no file, when it cannot be written.
 Result<void> write_png(const std::filesystem::path& file, const FrameView& view);
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

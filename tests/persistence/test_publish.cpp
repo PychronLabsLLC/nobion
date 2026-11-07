@@ -13,10 +13,10 @@
 #include "store_fixture.hpp"
 #include "store_impl.hpp"
 
-using namespace pychron;
-using namespace pychron::persistence;
-using namespace pychron::persistence::testing;
-namespace pd = pychron::persistence::detail;
+using namespace nobion;
+using namespace nobion::persistence;
+using namespace nobion::persistence::testing;
+namespace pd = nobion::persistence::detail;
 
 namespace {
 

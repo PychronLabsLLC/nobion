@@ -18,7 +18,7 @@
 #include "nobion/transport/sim_transport.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // read_pressure() and sample() use the first configured channel; multi-gauge
 // managers use IChannelPressureGauge::read_pressure(channel).
@@ -76,4 +76,4 @@ struct MaxiGaugeSimModel {
 // answers ENQ with data for the last acknowledged mnemonic (NAK if none).
 SimTransport::Hook maxigauge_sim_hook(MaxiGaugeSimModel model);
 
-}  // namespace pychron
+}  // namespace nobion

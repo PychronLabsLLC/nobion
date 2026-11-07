@@ -21,7 +21,7 @@
 #include "nobion/experiment/model/run_spec.hpp"
 #include "nobion/experiment/model/types.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class StepHeatTableModel : public QAbstractTableModel {
   Q_OBJECT
@@ -79,4 +79,4 @@ class StepHeatTableModel : public QAbstractTableModel {
   experiment::ExtractionSpec form_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

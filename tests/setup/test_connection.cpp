@@ -24,8 +24,8 @@
 #include "nobion/setup/profile.hpp"
 #include "temp_path.hpp"
 
-using namespace pychron;
-using namespace pychron::setup;
+using namespace nobion;
+using namespace nobion::setup;
 namespace fs = std::filesystem;
 
 namespace {
@@ -92,7 +92,7 @@ class NgxServer {
 };
 
 struct Tmp {
-  fs::path dir = pychron::testing::unique_temp_path("pychron-conn-");
+  fs::path dir = nobion::testing::unique_temp_path("pychron-conn-");
   Tmp() { fs::create_directories(dir); }
   ~Tmp() { fs::remove_all(dir); }
 };

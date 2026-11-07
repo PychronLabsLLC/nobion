@@ -81,7 +81,7 @@ class SpecTableCmd : public ElctlTest {
  protected:
   void SetUp() override {
     ElctlTest::SetUp();
-    pychron::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_ / "lab");
+    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_ / "lab");
   }
   fs::path lab(const std::string& f) const { return dir_ / "lab" / f; }
   fs::path table_dir(const std::string& name) const { return lab("tables") / name; }

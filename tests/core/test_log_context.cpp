@@ -5,7 +5,7 @@
 
 #include "nobion/core/log_context.hpp"
 
-using namespace pychron;
+using namespace nobion;
 
 TEST(LogContext, ThreadTagScoped) {
   // A fresh thread, so a tag left by another test cannot leak in.

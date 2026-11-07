@@ -14,7 +14,7 @@
 #include "live_round_trip.hpp"
 #include "nobion/earthbank/session.hpp"
 
-namespace pychron::earthbank::testing {
+namespace nobion::earthbank::testing {
 namespace {
 
 RoundTrip against(const FakeEarthBank& bank, std::ostream& out) {
@@ -95,4 +95,4 @@ TEST(LiveRoundTrip, ThePackageIsNamedForTheTimeInUtc) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank::testing
+}  // namespace nobion::earthbank::testing

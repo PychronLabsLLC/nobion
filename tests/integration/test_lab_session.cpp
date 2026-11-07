@@ -51,7 +51,7 @@
 #include "temp_path.hpp"
 #endif
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 namespace {
 
 namespace fs = std::filesystem;
@@ -125,7 +125,7 @@ class RecordingPersister final : public persist::IAnalysisPersister {
   std::vector<QueueSpec> checked_;
 };
 
-class LabSessionTest : public pychron::testing::VirtualTimeTest {
+class LabSessionTest : public nobion::testing::VirtualTimeTest {
  protected:
   // A dragonfly's twelve seconds are some four hundred pictures made and
   // searched: under the thread sanitizer that alone is nearly twenty seconds.
@@ -144,8 +144,8 @@ class LabSessionTest : public pychron::testing::VirtualTimeTest {
   }
 
   void SetUp() override {
-    dir_ = pychron::testing::unique_temp_path("pychron-session-");
-    pychron::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_);
+    dir_ = nobion::testing::unique_temp_path("pychron-session-");
+    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_);
     prepare_lab();
 
     systems::ExtractionLine::Options options;
@@ -1779,4 +1779,4 @@ TEST_F(LabSessionTest, DestroyingARunningSessionAbortsIt) {
 }
 
 }  // namespace
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

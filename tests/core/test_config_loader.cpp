@@ -8,10 +8,10 @@
 #include "nobion/core/config/loader.hpp"
 #include "nobion/core/env.hpp"
 
-using namespace pychron;
-using namespace pychron::config;
-using pychron::test::has;
-using pychron::test::line_of;
+using namespace nobion;
+using namespace nobion::config;
+using nobion::test::has;
+using nobion::test::line_of;
 
 namespace {
 
@@ -363,9 +363,9 @@ TEST(Logging, ExpandsHomeInDir) {
   auto r = load_system_config_from_string(text, "f.toml");
   ASSERT_TRUE(r) << r.error().what;
 #ifdef _WIN32
-  const auto home = pychron::env_var("USERPROFILE");
+  const auto home = nobion::env_var("USERPROFILE");
 #else
-  const auto home = pychron::env_var("HOME");
+  const auto home = nobion::env_var("HOME");
 #endif
   if (home && !home->empty()) {
     EXPECT_EQ(r->logging.dir, std::filesystem::path(*home) / "nobion-logs");

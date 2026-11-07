@@ -1,6 +1,6 @@
 #include "nobion/devices/spectrometer/types.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 std::optional<double> Frame::value(const ChannelId& channel) const {
   for (const auto& [id, v] : values) {
@@ -30,4 +30,4 @@ std::string to_string(Caps caps) {
   return out;
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

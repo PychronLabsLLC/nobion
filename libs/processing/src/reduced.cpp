@@ -3,9 +3,9 @@
 #include <limits>
 #include <utility>
 
-namespace pychron::processing {
+namespace nobion::processing {
 
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 
 namespace {
 
@@ -96,4 +96,4 @@ ReducedPtr reduce_analysis(AnalysisPtr analysis) {
   return out;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

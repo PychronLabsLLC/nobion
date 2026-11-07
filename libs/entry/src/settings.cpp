@@ -2,7 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 namespace ps = persistence;
 using Json = nlohmann::json;
@@ -107,4 +107,4 @@ Result<ps::CommitOutcome> save_settings(ps::IStore& store, const ps::Actor& acto
   return (*uow)->commit(ps::ChangesetKind::Reference, "entry settings");
 }
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

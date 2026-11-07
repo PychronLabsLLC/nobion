@@ -5,11 +5,11 @@
 
 namespace elctl {
 
-using pychron::Duration;
-using pychron::ErrorKind;
-using pychron::fail;
+using nobion::Duration;
+using nobion::ErrorKind;
+using nobion::fail;
 
-pychron::Result<Duration> parse_duration(std::string_view text) {
+nobion::Result<Duration> parse_duration(std::string_view text) {
   const auto bad = [&] { return fail(ErrorKind::Config, "invalid duration '" + std::string(text) + "'"); };
 
   std::size_t digits = 0;

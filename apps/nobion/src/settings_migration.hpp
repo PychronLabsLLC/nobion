@@ -13,7 +13,7 @@
 
 class QSettings;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // Copies every key of `from` into `to` when `to` has none; returns how many
 // were copied (0 when `to` already had a key or `from` was empty).
@@ -28,4 +28,4 @@ int migrate_settings(const QSettings& from, QSettings& to);
 // and before anything reads settings. A failure is logged, not fatal.
 void migrate_legacy_application_settings();
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

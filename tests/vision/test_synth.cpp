@@ -9,7 +9,7 @@
 #include "nobion/vision/source.hpp"
 #include "nobion/vision/synth.hpp"
 
-using namespace pychron::vision;
+using namespace nobion::vision;
 
 TEST(Synth, HoleAtCenterWhenStageOnHole) {
   HoleScene s;
@@ -121,7 +121,7 @@ TEST(Synth, CrosshairDrawnThroughCenter) {
 }
 
 TEST(SyntheticSource, GrabStampsFramesFromClockAndIncrementsSeq) {
-  pychron::TimePoint now{};
+  nobion::TimePoint now{};
   Vec2 stage{0, 0};
   HoleScene s;
   SyntheticSource src(s, [&] { return stage; }, [&] { return now; });
@@ -135,8 +135,8 @@ TEST(SyntheticSource, GrabStampsFramesFromClockAndIncrementsSeq) {
   auto b = src.grab();
   ASSERT_TRUE(b.has_value());
 
-  EXPECT_EQ(a->timestamp, pychron::TimePoint{} + std::chrono::milliseconds(5));
-  EXPECT_EQ(b->timestamp, pychron::TimePoint{} + std::chrono::milliseconds(38));
+  EXPECT_EQ(a->timestamp, nobion::TimePoint{} + std::chrono::milliseconds(5));
+  EXPECT_EQ(b->timestamp, nobion::TimePoint{} + std::chrono::milliseconds(38));
   EXPECT_EQ(b->seq, a->seq + 1);
   EXPECT_NEAR(src.last_truth().center_px.x - ta.center_px.x, -2.3, 1e-9);
   EXPECT_EQ(src.info().width, 200);
@@ -173,7 +173,7 @@ TEST(SyntheticSource, SuccessiveGrabsHaveIndependentNoiseButSourcesReplay) {
   HoleScene s;
   s.noise = 0.05;
   auto make = [&] {
-    return SyntheticSource(s, [] { return Vec2{}; }, [] { return pychron::TimePoint{}; });
+    return SyntheticSource(s, [] { return Vec2{}; }, [] { return nobion::TimePoint{}; });
   };
   auto a = make();
   auto b = make();

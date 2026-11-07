@@ -10,9 +10,9 @@
 #include <random>
 
 namespace fs = std::filesystem;
-namespace ps = pychron::persistence;
-using namespace pychron;
-using namespace pychron::publish;
+namespace ps = nobion::persistence;
+using namespace nobion;
+using namespace nobion::publish;
 
 namespace {
 

@@ -7,7 +7,7 @@
 #include "sql/statements.hpp"
 #include "store_impl.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 namespace {
 
 void put_manual(Row& r, const ManualOverride& m) {
@@ -674,4 +674,4 @@ Result<RevisionPayload> read_payload(Db& db, Uuid revision, Kind kind) {
   return fail(ErrorKind::Protocol, "unknown payload kind");
 }
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

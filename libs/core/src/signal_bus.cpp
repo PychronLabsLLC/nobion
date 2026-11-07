@@ -12,11 +12,11 @@
 #define PYCHRON_HAVE_CXXABI 1
 #endif
 
-namespace pychron {
+namespace nobion {
 
 namespace {
 
-// "pychron::ValveChanged" on every compiler.
+// "nobion::ValveChanged" on every compiler.
 std::string event_name(std::type_index type) {
   std::string name = type.name();
 #ifdef PYCHRON_HAVE_CXXABI
@@ -27,7 +27,7 @@ std::string event_name(std::type_index type) {
     std::free(readable);  // NOLINT(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
   }
 #endif
-  // MSVC says "struct pychron::ValveChanged".
+  // MSVC says "struct nobion::ValveChanged".
   for (const std::string_view prefix : {"struct ", "class "}) {
     if (name.starts_with(prefix)) name.erase(0, prefix.size());
   }
@@ -147,4 +147,4 @@ void SignalBus::Subscription::reset() {
   id_ = 0;
 }
 
-}  // namespace pychron
+}  // namespace nobion

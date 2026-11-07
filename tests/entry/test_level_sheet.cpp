@@ -3,10 +3,10 @@
 #include "catalog_fixture.hpp"
 #include "nobion/entry/level_sheet.hpp"
 
-using namespace pychron;
-using namespace pychron::entry;
-using namespace pychron::persistence;
-using namespace pychron::persistence::testing;
+using namespace nobion;
+using namespace nobion::entry;
+using namespace nobion::persistence;
+using namespace nobion::persistence::testing;
 
 namespace {
 

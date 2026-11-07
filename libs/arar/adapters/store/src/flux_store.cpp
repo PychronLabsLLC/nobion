@@ -18,7 +18,7 @@
 #include "nobion/arar/reduce.hpp"
 #include "nobion/processing/reduced.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace ps = persistence;
 
@@ -514,4 +514,4 @@ Result<FluxHeadInfo> flux_head_info(ps::IStore& store, std::string_view irradiat
   return bad("the saved flux of " + where + " is not in its history");
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

@@ -22,7 +22,7 @@
 
 namespace {
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 using systems::ExtractionLine;
@@ -60,9 +60,9 @@ address = "RS"
 class SimServeSteady : public ::testing::Test {
  protected:
   void SetUp() override {
-    dir_ = pychron::testing::unique_temp_path("pychron_sim_serve_");
+    dir_ = nobion::testing::unique_temp_path("pychron_sim_serve_");
     fs::create_directories(dir_);
-    std::ofstream(line_file()) << pychron::testing::hardware_style(read_text(kExamples / "extraction_line.toml"))
+    std::ofstream(line_file()) << nobion::testing::hardware_style(read_text(kExamples / "extraction_line.toml"))
                                << kRemoteValve;
     fs::copy_file(kExamples / "canvas.toml", dir_ / "canvas.toml");
     start_server();

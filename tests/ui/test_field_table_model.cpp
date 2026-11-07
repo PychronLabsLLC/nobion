@@ -12,12 +12,12 @@
 
 #include "field_table_model.hpp"
 
-using pychron::spectrometer::ControlPoint;
-using pychron::spectrometer::FieldTable;
-using pychron::spectrometer::FitKind;
-using pychron::spectrometer::MolecularWeights;
-using pychron::spectrometer::TableAxis;
-using pychron::ui::FieldTableModel;
+using nobion::spectrometer::ControlPoint;
+using nobion::spectrometer::FieldTable;
+using nobion::spectrometer::FitKind;
+using nobion::spectrometer::MolecularWeights;
+using nobion::spectrometer::TableAxis;
+using nobion::ui::FieldTableModel;
 
 namespace {
 

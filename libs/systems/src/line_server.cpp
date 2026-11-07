@@ -14,7 +14,7 @@
 #include "nobion/sim/spectrometer/wire_beam.hpp"
 #include "nobion/systems/spectrometer/bringup.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 namespace {
 
@@ -359,4 +359,4 @@ void LineServer::stop() {
   if (wire_) wire_->stop();
 }
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

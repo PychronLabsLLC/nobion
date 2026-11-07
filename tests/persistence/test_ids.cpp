@@ -4,7 +4,7 @@
 
 #include <set>
 
-using namespace pychron::persistence;
+using namespace nobion::persistence;
 
 TEST(Uuid, ParseFormatRoundTrip) {
   const std::string text = "0192f6a3-7b1c-7def-8123-456789abcdef";

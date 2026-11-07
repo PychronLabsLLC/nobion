@@ -9,7 +9,7 @@
 
 #include "nobion/vision/pgm.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 namespace {
 
 // Shortest text that parses back to the same double, always a TOML float.
@@ -177,4 +177,4 @@ Result<void> FrameRecorder::finish() {
   return save_case(case_);
 }
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

@@ -15,7 +15,7 @@
 
 #include "nobion/reduction/fits.hpp"
 
-namespace pychron::experiment::record {
+namespace nobion::experiment::record {
 
 // Bump when the serialized layout changes; parse rejects other versions.
 // v2: typed conditionals provenance (conditionals spec 6.3), whiff result string.
@@ -325,4 +325,4 @@ struct AnalysisRecord {
 // icfactor for `det`, 1.0 when none recorded.
 double icfactor(const Results& r, const std::string& det);
 
-}  // namespace pychron::experiment::record
+}  // namespace nobion::experiment::record

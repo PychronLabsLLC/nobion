@@ -28,7 +28,7 @@
 #include "nobion/transport/sim_transport.hpp"
 #include "nobion/vision/png.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 namespace fs = std::filesystem;
 using namespace std::chrono_literals;
@@ -681,4 +681,4 @@ std::string track_table(const std::vector<TrackCombo>& combos) {
   return out;
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

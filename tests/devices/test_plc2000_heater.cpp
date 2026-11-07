@@ -8,9 +8,9 @@
 #include "nobion/devices/capabilities.hpp"
 #include "nobion/devices/extraction/capability.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
-namespace mb = pychron::codec::modbus;
+namespace mb = nobion::codec::modbus;
 
 namespace {
 

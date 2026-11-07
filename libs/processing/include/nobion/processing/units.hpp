@@ -25,7 +25,7 @@
 #include "nobion/processing/scene.hpp"
 #include "nobion/processing/source.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 enum class PortType { Dataset, Scene, GroupResults, ReferenceFits, IsotopeFits };
 std::string_view to_string(PortType t) noexcept;
@@ -170,4 +170,4 @@ class Runner {
 // Helpers for building datasets inside units.
 DatasetPtr make_dataset(Dataset dataset);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

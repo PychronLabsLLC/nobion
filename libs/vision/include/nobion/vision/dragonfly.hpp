@@ -11,7 +11,7 @@
 #include "nobion/vision/spiral.hpp"
 #include "nobion/vision/types.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 struct DragonflyParams {
   Duration total_duration{};
@@ -79,4 +79,4 @@ class Dragonfly {
   Spiral spiral_;
 };
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

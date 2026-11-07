@@ -15,7 +15,7 @@
 #include "nobion/arar/flux_fit.hpp"
 #include "nobion/arar/flux_view.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 inline QString flux_cell(const std::string& formatted) {
   return formatted == "-" ? QString() : QString::fromStdString(formatted);
@@ -72,4 +72,4 @@ class FluxPositionModel : public QAbstractTableModel {
   std::vector<std::size_t> rows_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

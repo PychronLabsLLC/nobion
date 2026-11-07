@@ -23,7 +23,7 @@
 #include "nobion/core/env.hpp"
 #include "nobion/dvc/git_reader.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 namespace {
 
 using testing::GitFixture;
@@ -1329,4 +1329,4 @@ TEST(GitReader, MirrorAllowsOnlyOrdinaryTransports) {
 #endif
 
 }  // namespace
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

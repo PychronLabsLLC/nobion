@@ -8,11 +8,11 @@
 
 #include "follow_plot_model.hpp"
 
-using namespace pychron;
-using pychron::laser::FollowSample;
-using pychron::ui::FollowLine;
-using pychron::ui::FollowPlotModel;
-using pychron::vision::DragonflyStep;
+using namespace nobion;
+using nobion::laser::FollowSample;
+using nobion::ui::FollowLine;
+using nobion::ui::FollowPlotModel;
+using nobion::vision::DragonflyStep;
 
 namespace {
 

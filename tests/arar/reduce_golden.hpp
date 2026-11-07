@@ -18,7 +18,7 @@
 #include "golden.hpp"
 #include "nobion/arar/arar_reduction.hpp"
 
-namespace pychron::reduction::golden {
+namespace nobion::reduction::golden {
 
 inline std::vector<std::string> diagnostic_names(const std::vector<Diagnostic>& d) {
   std::vector<std::string> out;
@@ -37,7 +37,7 @@ inline void expect_config_error(const Result<ArArResult>& r, std::string_view ne
     ADD_FAILURE() << what << ": expected an error naming '" << needle << "'";
     return;
   }
-  EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config) << what;
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config) << what;
   EXPECT_TRUE(r.error().what.starts_with("reduction: ")) << what << ": " << r.error().what;
   EXPECT_NE(r.error().what.find(needle), std::string::npos)
       << what << ": '" << r.error().what << "' does not name '" << needle << "'";
@@ -350,4 +350,4 @@ inline void run_pipeline_case(const Json& c, PipelineCounts& n) {
   if (expected.contains("kcl") && expected.contains("clk")) ++n.kcl;
 }
 
-}  // namespace pychron::reduction::golden
+}  // namespace nobion::reduction::golden

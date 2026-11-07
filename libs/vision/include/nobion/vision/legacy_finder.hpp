@@ -4,7 +4,7 @@
 
 #include "nobion/vision/finder.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 // True when the library was built with OpenCV (PYCHRON_VISION_OPENCV).
 bool opencv_enabled();
@@ -20,4 +20,4 @@ bool opencv_enabled();
 // returns no target.
 std::unique_ptr<ITargetFinder> make_legacy_finder();
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

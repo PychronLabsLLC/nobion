@@ -1,6 +1,6 @@
 #include "nobion/experiment/run/state.hpp"
 
-namespace pychron::experiment::run {
+namespace nobion::experiment::run {
 
 std::string_view to_string(RunState s) noexcept {
   switch (s) {
@@ -97,4 +97,4 @@ std::vector<RunStateChanged> RunStateMachine::history() const {
   return history_;
 }
 
-}  // namespace pychron::experiment::run
+}  // namespace nobion::experiment::run

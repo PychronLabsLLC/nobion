@@ -34,12 +34,12 @@
 #include "settings_guard.hpp"
 #include "ui_fixture.hpp"
 
-using pychron::ui::MenuHub;
+using nobion::ui::MenuHub;
 using Menu = MenuHub::Menu;
 using Scope = MenuHub::Scope;
 using FileRole = MenuHub::FileRole;
 using FileList = MenuHub::FileList;
-using pychron::ui::Shortcut;
+using nobion::ui::Shortcut;
 
 namespace {
 
@@ -98,7 +98,7 @@ struct DockedWindow {
       }
     };
     factory();
-    layouts = new pychron::ui::DockLayouts(&w, factory, settings, QStringLiteral("win"));
+    layouts = new nobion::ui::DockLayouts(&w, factory, settings, QStringLiteral("win"));
     w.setWindowTitle(titles.join(QLatin1Char(' ')));
     w.resize(600, 400);
   }
@@ -107,7 +107,7 @@ struct DockedWindow {
 
   QMainWindow w;
   QList<QDockWidget*> docks;
-  pychron::ui::DockLayouts* layouts = nullptr;
+  nobion::ui::DockLayouts* layouts = nullptr;
 };
 
 QStringList texts_of(const QList<QAction*>& actions) {
@@ -133,7 +133,7 @@ class TestMenuHub : public QObject {
   Q_OBJECT
 
   QTemporaryDir tmp_;
-  pychron::ui::test::ApplicationSettingsGuard app_settings_;
+  nobion::ui::test::ApplicationSettingsGuard app_settings_;
 
  private slots:
   void init() { QCoreApplication::processEvents(); }  // the last test's windows leave the menus
@@ -144,8 +144,8 @@ class TestMenuHub : public QObject {
   }
 
   void every_window_shows_the_same_menus() {
-    auto line = pychron::ui::test::make_example_line();
-    pychron::ui::MainWindow main(*line);
+    auto line = nobion::ui::test::make_example_line();
+    nobion::ui::MainWindow main(*line);
     QMainWindow figure;  // a secondary window that contributes nothing
     PlainWindow recall;
     QDialog dialog;
@@ -277,8 +277,8 @@ class TestMenuHub : public QObject {
 
   void shared_one_bar_serves_every_window() {
     MenuHub& hub = MenuHub::reset(MenuHub::Bars::Shared);
-    auto line = pychron::ui::test::make_example_line();
-    pychron::ui::MainWindow main(*line);
+    auto line = nobion::ui::test::make_example_line();
+    nobion::ui::MainWindow main(*line);
     QMainWindow figure;
     PlainWindow recall;
     QDialog dialog;
@@ -316,8 +316,8 @@ class TestMenuHub : public QObject {
   void actions_that_stay_are_never_taken_out() {
     for (const auto bars : {MenuHub::Bars::PerWindow, MenuHub::Bars::Shared}) {
       MenuHub& hub = MenuHub::reset(bars);
-      auto line = pychron::ui::test::make_example_line();
-      pychron::ui::MainWindow main(*line);
+      auto line = nobion::ui::test::make_example_line();
+      nobion::ui::MainWindow main(*line);
       QMainWindow figure;
       main.show();
       figure.show();
@@ -390,7 +390,7 @@ class TestMenuHub : public QObject {
     hub.window_actions().first()->trigger();
     QTRY_VERIFY(!a.isMinimized());
 
-    QCOMPARE(hub.minimize_action()->shortcut(), pychron::ui::key(pychron::ui::Shortcut::MinimizeWindow));
+    QCOMPARE(hub.minimize_action()->shortcut(), nobion::ui::key(nobion::ui::Shortcut::MinimizeWindow));
   }
 
   // ---- Window > Panels, Arrangements, Reset Layout: the window in front's ------
@@ -826,7 +826,7 @@ class TestMenuHub : public QObject {
       QVERIFY(hub.file_list_action(list)->shortcut().isEmpty());
       QVERIFY(hub.file_entries(list).isEmpty());
     }
-    QCOMPARE(four.at(2)->shortcut(), pychron::ui::key(Shortcut::FileSave));
+    QCOMPARE(four.at(2)->shortcut(), nobion::ui::key(Shortcut::FileSave));
     QVERIFY(four.at(3)->shortcut().isEmpty());  // the platform's Save As key is View > Spectrometer's
   }
 
@@ -865,7 +865,7 @@ class TestMenuHub : public QObject {
     // The one Open, with its submenu, in every window's File.
     for (QMainWindow* w : {&queues, &scripts, &other}) QCOMPARE(menu_of(*w, Menu::File)->actions().at(1), open);
 
-    const QKeySequence open_key = pychron::ui::key(Shortcut::FileOpen);
+    const QKeySequence open_key = nobion::ui::key(Shortcut::FileOpen);
     if (!activate(other)) QSKIP("this platform does not activate windows");
     // From a window that is neither's: both work, neither has the key.
     QVERIFY(open_queue->isEnabled());
@@ -878,7 +878,7 @@ class TestMenuHub : public QObject {
     QVERIFY(activate(queues));
     QCOMPARE(open_queue->shortcut(), open_key);
     QVERIFY(open_script->shortcut().isEmpty());
-    QCOMPARE(new_queue->shortcut(), pychron::ui::key(Shortcut::FileNew));
+    QCOMPARE(new_queue->shortcut(), nobion::ui::key(Shortcut::FileNew));
     QVERIFY(open_script->isEnabled());  // and still to be had from here
     if (!shared) {  // a parentless bar's keys fire only as the platform's global bar
       QTest::keySequence(&queues, open_key);
@@ -956,7 +956,7 @@ class TestMenuHub : public QObject {
     QCOMPARE(saved_a, 1);
     QCOMPARE(saved_b, 1);
     if (!shared) {  // a parentless bar's keys fire only as the platform's global bar
-      QTest::keySequence(&b, pychron::ui::key(Shortcut::FileSave));
+      QTest::keySequence(&b, nobion::ui::key(Shortcut::FileSave));
       QCOMPARE(saved_b, 2);
       QCOMPARE(saved_a, 1);
     }
@@ -1026,7 +1026,7 @@ class TestMenuHub : public QObject {
     if (MenuHub::instance().bars() != MenuHub::Bars::PerWindow) QSKIP("keys are sent to a window's own bar");
     PlainWindow browser;
     int recalled = 0;
-    auto* next = new QShortcut(pychron::ui::key(Shortcut::FileNew), &browser);
+    auto* next = new QShortcut(nobion::ui::key(Shortcut::FileNew), &browser);
     connect(next, &QShortcut::activated, this, [&] { ++recalled; });
     QMainWindow owner;
     auto* new_queue = new QAction(QStringLiteral("New Queue"), &owner);
@@ -1038,15 +1038,15 @@ class TestMenuHub : public QObject {
     if (!activate(browser)) QSKIP("this platform does not activate windows");
     QVERIFY(new_queue->isEnabled());  // to be had from the menu
     QVERIFY(new_queue->shortcut().isEmpty());
-    QTest::keySequence(&browser, pychron::ui::key(Shortcut::FileNew));
+    QTest::keySequence(&browser, nobion::ui::key(Shortcut::FileNew));
     QCOMPARE(recalled, 1);
     QCOMPARE(started, 0);
   }
 
   void the_command_palette_has_the_file_commands() {
     MenuHub& hub = MenuHub::instance();
-    auto line = pychron::ui::test::make_example_line();
-    pychron::ui::MainWindow main(*line);  // contributes Preferences to File
+    auto line = nobion::ui::test::make_example_line();
+    nobion::ui::MainWindow main(*line);  // contributes Preferences to File
     QList<QAction*> of_file;
     for (const MenuHub::Command& c : hub.commands())
       if (c.menu == Menu::File) of_file.append(c.action);
@@ -1062,9 +1062,9 @@ class TestMenuHub : public QObject {
   }
 
   void the_experiment_window_fills_the_queue_rows_executor_and_scripts_menus() {
-    pychron::ui::test::SimLab sim;
-    pychron::ui::ExperimentBridge bridge(*sim.session, sim.line->bus());
-    pychron::ui::ExperimentWindow window(
+    nobion::ui::test::SimLab sim;
+    nobion::ui::ExperimentBridge bridge(*sim.session, sim.line->bus());
+    nobion::ui::ExperimentWindow window(
         bridge, true, std::make_unique<QSettings>(tmp_.filePath(QStringLiteral("s.ini")), QSettings::IniFormat));
     window.show();
     // Window is the hub's own and always there.

@@ -5,7 +5,7 @@
 
 #include <toml++/toml.hpp>
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 MolecularWeights::MolecularWeights(std::map<std::string, double, std::less<>> masses) : masses_(std::move(masses)) {}
 
@@ -65,4 +65,4 @@ std::string to_toml(const MolecularWeights& weights) {
   return out.str();
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

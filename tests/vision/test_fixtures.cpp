@@ -19,8 +19,8 @@
 #include "nobion/vision/pgm.hpp"
 #include "nobion/vision/synth.hpp"
 
-using namespace pychron;
-using namespace pychron::vision;
+using namespace nobion;
+using namespace nobion::vision;
 
 namespace {
 
@@ -235,7 +235,7 @@ TEST(Fixture, CommittedCasesWithinTolerance) {
 }
 
 TEST(Fixture, ExternalCasesWithinTolerance) {
-  const auto set = pychron::env_var("NOBION_VISION_FIXTURES");
+  const auto set = nobion::env_var("NOBION_VISION_FIXTURES");
   if (!set || set->empty()) GTEST_SKIP() << "NOBION_VISION_FIXTURES is not set";
   const std::string& env = *set;
   std::error_code ec;
@@ -249,7 +249,7 @@ namespace {
 // A deterministic counter clock: every call is 1 ms later than the last.
 RecordedSource::ClockFn counter_clock() {
   auto n = std::make_shared<int>(0);
-  return [n] { return pychron::TimePoint{} + std::chrono::milliseconds(++*n); };
+  return [n] { return nobion::TimePoint{} + std::chrono::milliseconds(++*n); };
 }
 
 // Records `n` frames of a scene at the origin into `dir` and loads the case back.
@@ -274,7 +274,7 @@ TEST(Fixture, RecordedSourceStampsFramesFromTheClock) {
   TempDir d;
   const FixtureCase c = record_case(d.path, HoleScene{}, FinderMode::Hole, 11.5, 3);
   RecordedSource src(c, counter_clock());
-  pychron::TimePoint prev{};
+  nobion::TimePoint prev{};
   for (int i = 0; i < 3; ++i) {
     auto f = src.grab();
     ASSERT_TRUE(f.has_value());

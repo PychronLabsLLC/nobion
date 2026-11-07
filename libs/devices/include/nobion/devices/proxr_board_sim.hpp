@@ -24,7 +24,7 @@
 #include "nobion/transport/bytes.hpp"
 #include "nobion/transport/sim_transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 class ProxrBoardSim {
  public:
@@ -54,4 +54,4 @@ class ProxrBoardSim {
   std::array<std::atomic<bool>, kRelays> relays_{};
 };
 
-}  // namespace pychron
+}  // namespace nobion

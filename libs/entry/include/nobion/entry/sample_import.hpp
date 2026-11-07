@@ -14,7 +14,7 @@
 #include "nobion/entry/names.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 enum class ImportField {
   Sample,
@@ -147,4 +147,4 @@ std::string template_csv();
 // The Error rows as CSV: line, messages, then the row's fields.
 std::string errors_csv(const SampleImportPlan& plan);
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

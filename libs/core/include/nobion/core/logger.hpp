@@ -12,7 +12,7 @@
 #include "nobion/core/events.hpp"
 #include "nobion/core/log_hub.hpp"
 
-namespace pychron {
+namespace nobion {
 
 class SignalBus;
 
@@ -78,4 +78,4 @@ class Logger {
   std::shared_ptr<LogHub::Impl> hub_;  // null for the legacy constructors
 };
 
-}  // namespace pychron
+}  // namespace nobion

@@ -14,7 +14,7 @@
 #include "nobion/core/logger.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 class SignalBus;
 
@@ -198,4 +198,4 @@ class Link {
   std::atomic<std::uint64_t> repeats_{0};
 };
 
-}  // namespace pychron
+}  // namespace nobion

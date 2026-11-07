@@ -10,8 +10,8 @@
 #include "nobion/core/scheduler.hpp"
 #include "nobion/metrics/registry.hpp"
 
-using namespace pychron;
-using namespace pychron::metrics;
+using namespace nobion;
+using namespace nobion::metrics;
 using namespace std::chrono_literals;
 using metrics_text::value;
 

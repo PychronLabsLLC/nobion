@@ -20,7 +20,7 @@
 #include "nobion/earthbank/vocab.hpp"
 #include "text_detail.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using nlohmann::json;
@@ -748,4 +748,4 @@ std::string Session::partial_sentence(std::string_view sample, std::span<const s
   return out;
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

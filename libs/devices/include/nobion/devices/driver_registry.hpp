@@ -19,7 +19,7 @@
 #include "nobion/devices/device.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // TableArray: an array of tables ([[drivers.<name>.ranges]]); the driver
 // checks the tables' keys.
@@ -134,7 +134,7 @@ bool register_driver(const char* kind) {
 }
 }  // namespace detail
 
-}  // namespace pychron
+}  // namespace nobion
 
 #define PYCHRON_DRIVER_CONCAT_(a, b) a##b
 #define PYCHRON_DRIVER_CONCAT(a, b) PYCHRON_DRIVER_CONCAT_(a, b)
@@ -145,4 +145,4 @@ bool register_driver(const char* kind) {
 // (see libs/devices/CMakeLists.txt) or the linker may drop it.
 #define REGISTER_DRIVER(kind, Type)                                                         \
   [[maybe_unused]] static const bool PYCHRON_DRIVER_CONCAT(pychron_driver_registered_, __LINE__) = \
-      ::pychron::detail::register_driver<Type>(kind)
+      ::nobion::detail::register_driver<Type>(kind)

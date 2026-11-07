@@ -32,7 +32,7 @@
 #include "nobion/transport/sim_transport.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 struct LakeshoreBand {
   int output = 1;
@@ -131,4 +131,4 @@ class LakeshoreSim {
   double setpoint_error_ = 0.0;
 };
 
-}  // namespace pychron
+}  // namespace nobion

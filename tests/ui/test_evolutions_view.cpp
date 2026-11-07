@@ -17,17 +17,17 @@
 #include "peak_center_view.hpp"
 #include "plot_style.hpp"
 
-using pychron::experiment::collect::FitsUpdated;
-using pychron::experiment::collect::SeriesFit;
-using pychron::experiment::collect::SeriesKey;
-using pychron::experiment::collect::kBaseline;
-using pychron::experiment::collect::kSignal;
-using pychron::experiment::collect::kSniff;
-using pychron::experiment::collect::SeriesUpdated;
-using pychron::ui::evolution_panels;
-using pychron::ui::EvolutionsView;
-namespace reduction = pychron::reduction;
-namespace jobs = pychron::jobs;
+using nobion::experiment::collect::FitsUpdated;
+using nobion::experiment::collect::SeriesFit;
+using nobion::experiment::collect::SeriesKey;
+using nobion::experiment::collect::kBaseline;
+using nobion::experiment::collect::kSignal;
+using nobion::experiment::collect::kSniff;
+using nobion::experiment::collect::SeriesUpdated;
+using nobion::ui::evolution_panels;
+using nobion::ui::EvolutionsView;
+namespace reduction = nobion::reduction;
+namespace jobs = nobion::jobs;
 
 // A series key at the plan's first place (gas "", segment 0, position 0).
 static SeriesKey skey(std::string label, std::string detector, std::string_view kind) {
@@ -174,10 +174,10 @@ class TestEvolutionsView : public QObject {
   static bool holds(std::pair<double, double> range, double v) { return range.first <= v && v <= range.second; }
 
   // ---------------------------------------------------------------- plot colours
-  void cleanup() { pychron::ui::set_plot_style(pychron::ui::default_plot_style()); }
+  void cleanup() { nobion::ui::set_plot_style(nobion::ui::default_plot_style()); }
 
-  static pychron::ui::PlotStyle changed_style() {
-    pychron::ui::PlotStyle style = pychron::ui::default_plot_style();
+  static nobion::ui::PlotStyle changed_style() {
+    nobion::ui::PlotStyle style = nobion::ui::default_plot_style();
     style.plot_background = QColor("#fafad2");
     for (std::size_t i = 0; i < style.series.size(); ++i) style.series[i] = QColor::fromHsv(static_cast<int>(i) * 25, 200, 150);
     return style;
@@ -189,8 +189,8 @@ class TestEvolutionsView : public QObject {
     EvolutionsView view({}, {{"AX", 2}});
     const SeriesKey ar39 = skey("Ar39", "AX", kSignal);
     view.on_series(readings(ar39, {{1, 5}, {2, 6}}));
-    QCOMPARE(view.series_color(ar39), pychron::ui::plot_series_color(2));
-    pychron::ui::set_plot_style(changed_style());
+    QCOMPARE(view.series_color(ar39), nobion::ui::plot_series_color(2));
+    nobion::ui::set_plot_style(changed_style());
     QCOMPARE(view.series_color(ar39).name(), QColor::fromHsv(50, 200, 150).name());
     QCOMPARE(panel_pen(view, 0).name(), QColor::fromHsv(50, 200, 150).name());
     QCOMPARE(view.plot()->axisRect(0)->backgroundBrush().color().name(), QStringLiteral("#fafad2"));
@@ -203,7 +203,7 @@ class TestEvolutionsView : public QObject {
     const SeriesKey ar39 = skey("Ar39", "AX", kSignal);
     view.on_series(readings(ar40, {{1, 10}}));
     view.on_series(readings(ar39, {{1, 5}}));
-    pychron::ui::set_plot_style(changed_style());
+    nobion::ui::set_plot_style(changed_style());
     QCOMPARE(view.series_color(ar40).name(), QStringLiteral("#123456"));
     QCOMPARE(panel_pen(view, 0).name(), QStringLiteral("#123456"));
     QCOMPARE(view.series_color(ar39).name(), QColor::fromHsv(50, 200, 150).name());
@@ -216,7 +216,7 @@ class TestEvolutionsView : public QObject {
     view.on_series(readings(ar40, {{1, 10}}));
     view.on_series(readings(ar36, {{2, 1}}));
     QVERIFY(view.series_color(ar40) != view.series_color(ar36));
-    pychron::ui::set_plot_style(changed_style());
+    nobion::ui::set_plot_style(changed_style());
     QVERIFY(view.series_color(ar40) != view.series_color(ar36));
     QCOMPARE(view.series_color(ar40).name(), QColor::fromHsv(0, 200, 150).name());
     QCOMPARE(panel_pen(view, 0), view.series_color(ar40));
@@ -377,7 +377,7 @@ class TestEvolutionsView : public QObject {
   }
 
   // ---------------------------------------------------------------- panels
-  static QStringList titles(const std::vector<pychron::ui::EvolutionPanel>& panels) {
+  static QStringList titles(const std::vector<nobion::ui::EvolutionPanel>& panels) {
     QStringList out;
     for (const auto& p : panels) out << p.title;
     return out;
@@ -551,7 +551,7 @@ class TestEvolutionsView : public QObject {
     const auto center = [](int i) { return 5.0 + 0.001 * i; };
     for (int i = 0; i < kDone; ++i) view.on_peak_center(done(center(i)));
     QCOMPARE(view.peak_centers().size(), kDone);
-    QCOMPARE(view.peak_center_view()->kept(), static_cast<int>(pychron::ui::PeakCenterView::kKept));
+    QCOMPARE(view.peak_center_view()->kept(), static_cast<int>(nobion::ui::PeakCenterView::kKept));
     const QString last = view.peak_center_view()->title();
     QVERIFY(last.contains(QString::number(center(kDone - 1), 'f', 6)));
     // The two oldest are no longer kept: clicking them changes nothing.

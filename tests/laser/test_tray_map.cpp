@@ -13,8 +13,8 @@
 
 #include "nobion/core/sha256.hpp"
 
-using namespace pychron;
-using namespace pychron::laser;
+using namespace nobion;
+using namespace nobion::laser;
 namespace fs = std::filesystem;
 
 namespace {
@@ -178,7 +178,7 @@ TEST(TrayMap, ShaIsOfTheBytes) {
   const std::string text = slurp(data("small.txt"));
   auto map = TrayMap::parse(text, "small");
   ASSERT_TRUE(map);
-  const auto digest = pychron::sha256(std::string_view(text));
+  const auto digest = nobion::sha256(std::string_view(text));
   EXPECT_EQ(map->sha256(), to_hex(digest));
 }
 

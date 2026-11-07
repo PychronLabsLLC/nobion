@@ -21,9 +21,9 @@
 #include "temp_path.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment;
-using namespace pychron::experiment::persist;
+using namespace nobion;
+using namespace nobion::experiment;
+using namespace nobion::experiment::persist;
 namespace fs = std::filesystem;
 
 namespace {
@@ -61,7 +61,7 @@ class FlakyPersister final : public IAnalysisPersister {
 class PersistTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    dir_ = pychron::testing::unique_temp_path("persist_");
+    dir_ = nobion::testing::unique_temp_path("persist_");
     fs::create_directories(dir_);
   }
   void TearDown() override {
@@ -505,9 +505,9 @@ class ClockedPersister final : public IAnalysisPersister {
     refused_ = std::move(uuids);
   }
   // When each flush came, as offsets from `t0`.
-  std::vector<pychron::Duration> flushes_since(TimePoint t0) const {
+  std::vector<nobion::Duration> flushes_since(TimePoint t0) const {
     const std::lock_guard lock(mutex_);
-    std::vector<pychron::Duration> out;
+    std::vector<nobion::Duration> out;
     out.reserve(flushes_.size());
     for (const auto t : flushes_) out.push_back(t - t0);
     return out;
@@ -521,10 +521,10 @@ class ClockedPersister final : public IAnalysisPersister {
   std::vector<TimePoint> flushes_;
 };
 
-class SpoolFlusherTest : public pychron::testing::VirtualTimeTest {
+class SpoolFlusherTest : public nobion::testing::VirtualTimeTest {
  protected:
   void SetUp() override {
-    dir_ = pychron::testing::unique_temp_path("spool_flush_");
+    dir_ = nobion::testing::unique_temp_path("spool_flush_");
     fs::create_directories(dir_);
   }
   void TearDown() override {
@@ -569,7 +569,7 @@ TEST_F(SpoolFlusherTest, AFlushRunsAfterEveryRunAndNothingIsLeftScheduledWhenNot
   w.clock.sleep_for(10min);
   w.flusher.flush_now();  // and another
   w.clock.sleep_for(1h);
-  EXPECT_EQ(w.db.flushes_since(t0), (std::vector<pychron::Duration>{0min, 10min}));
+  EXPECT_EQ(w.db.flushes_since(t0), (std::vector<nobion::Duration>{0min, 10min}));
   EXPECT_EQ(w.scheduler.job_count(), 0u);
   EXPECT_EQ(w.published(), std::vector<SpoolStatus>{});  // nothing pending, as it was
 }
@@ -581,10 +581,10 @@ TEST_F(SpoolFlusherTest, WhileARecordIsPendingItRetriesEveryFiveMinutesBackingOf
   const TimePoint t0 = w.clock.now();
   w.flusher.flush_now();
   w.clock.sleep_for(100min);
-  EXPECT_EQ(w.db.flushes_since(t0), (std::vector<pychron::Duration>{0min, 5min, 15min, 35min, 65min, 95min}));
+  EXPECT_EQ(w.db.flushes_since(t0), (std::vector<nobion::Duration>{0min, 5min, 15min, 35min, 65min, 95min}));
   w.db.set_down(false);
   w.clock.sleep_for(1h);  // the flush at 125 min sends it, and none follows
-  EXPECT_EQ(w.db.flushes_since(t0), (std::vector<pychron::Duration>{0min, 5min, 15min, 35min, 65min, 95min, 125min}));
+  EXPECT_EQ(w.db.flushes_since(t0), (std::vector<nobion::Duration>{0min, 5min, 15min, 35min, 65min, 95min, 125min}));
   EXPECT_EQ(w.pipe.pending(), 0u);
   EXPECT_EQ(w.scheduler.job_count(), 0u);
 }
@@ -600,7 +600,7 @@ TEST_F(SpoolFlusherTest, AFlushThatSendsSomethingBringsTheWaitBackToFiveMinutes)
   w.db.set_down(false);
   w.db.refuse({"u2"});  // u1 goes at 35 min; u2 still does not
   w.clock.sleep_for(40min);
-  EXPECT_EQ(w.db.flushes_since(t0), (std::vector<pychron::Duration>{0min, 5min, 15min, 35min, 40min, 45min, 55min}));
+  EXPECT_EQ(w.db.flushes_since(t0), (std::vector<nobion::Duration>{0min, 5min, 15min, 35min, 40min, 45min, 55min}));
   EXPECT_EQ(w.pipe.pending(), 1u);
 }
 
@@ -629,7 +629,7 @@ TEST_F(SpoolFlusherTest, AFlushAskedForWhileATimedOneWaitsReplacesIt) {
   w.flusher.flush_now();  // the run after: the timed flush at 5 min is not also kept
   // It failed too: the back-off goes on from it (5, then 10 min).
   w.clock.sleep_for(11min);
-  EXPECT_EQ(w.db.flushes_since(t0), (std::vector<pychron::Duration>{0min, 2min, 12min}));
+  EXPECT_EQ(w.db.flushes_since(t0), (std::vector<nobion::Duration>{0min, 2min, 12min}));
   EXPECT_EQ(w.scheduler.job_count(), 1u);
 }
 
@@ -638,7 +638,7 @@ TEST_F(SpoolFlusherTest, AFlushAskedForWhileATimedOneWaitsReplacesIt) {
 // ---- the log ----------------------------------------------------------------------
 
 TEST_F(PersistTest, SpoolLogSaysWhatIsSpooledAndHandedOver) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   Spool spool(dir_ / "spool");
   FlakyPersister db;
@@ -656,7 +656,7 @@ TEST_F(PersistTest, SpoolLogSaysWhatIsSpooledAndHandedOver) {
 
 // The log names the run as run= does; the file keeps its name.
 TEST_F(PersistTest, FilePersisterLogNamesTheRunAsTheRunFieldDoes) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   FilePersister p(dir_ / "records");
   ASSERT_TRUE(p.begin_run(RunIdentity{"12345", 5, "A"}, QueueSpec{}));
@@ -669,7 +669,7 @@ TEST_F(PersistTest, FilePersisterLogNamesTheRunAsTheRunFieldDoes) {
 }
 
 TEST_F(PersistTest, SpoolLogAHandOffThatFailsIsAWarning) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   Spool spool(dir_ / "spool");
   FlakyPersister db;
@@ -682,7 +682,7 @@ TEST_F(PersistTest, SpoolLogAHandOffThatFailsIsAWarning) {
 }
 
 TEST_F(SpoolFlusherTest, SpoolLogRetryResult) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   FlushWorld w(dir_);
   ASSERT_TRUE(w.spool.put(rec("u1")));

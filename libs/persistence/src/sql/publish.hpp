@@ -9,7 +9,7 @@
 
 #include "sql/statements.hpp"
 
-namespace pychron::persistence::detail::sql {
+namespace nobion::persistence::detail::sql {
 
 // Every column of `release`, times as text. `where` is appended as given.
 inline QString release_select(Dialect d, const QString& where) {
@@ -102,4 +102,4 @@ inline QString external_ids_select(Dialect d) {
       .arg(ts(d, QStringLiteral("x.registered_utc")));
 }
 
-}  // namespace pychron::persistence::detail::sql
+}  // namespace nobion::persistence::detail::sql

@@ -13,7 +13,7 @@
 #include "nobion/core/log_error.hpp"
 #include "nobion/core/log_context.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 namespace {
 
@@ -423,4 +423,4 @@ void Notifier::work() {
   }
 }
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

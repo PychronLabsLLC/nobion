@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <string>
 
-namespace pychron::codec::proxr {
+namespace nobion::codec::proxr {
 
 namespace {
 
@@ -63,4 +63,4 @@ Result<bool> decode_relay_state(const Bytes& reply) {
   return reply[0] == 1;
 }
 
-}  // namespace pychron::codec::proxr
+}  // namespace nobion::codec::proxr

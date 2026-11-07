@@ -50,7 +50,7 @@ class QPushButton;
 class QSpinBox;
 class QToolButton;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class RunFactoryPanel : public QWidget {
   Q_OBJECT
@@ -209,4 +209,4 @@ class RunFactoryPanel : public QWidget {
   QWidget* block_box_ = nullptr;  // stays disabled when the lab has no blocks
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

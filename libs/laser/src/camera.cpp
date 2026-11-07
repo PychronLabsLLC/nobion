@@ -9,7 +9,7 @@
 
 #include <toml++/toml.hpp>
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 namespace {
 
@@ -470,4 +470,4 @@ std::vector<std::string> CameraLibrary::problems_of(std::string_view device) con
   return it == by_device_.end() ? std::vector<std::string>{} : it->second;
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

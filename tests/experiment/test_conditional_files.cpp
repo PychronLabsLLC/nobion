@@ -16,7 +16,7 @@
 #include "nobion/experiment/lab/lab.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 namespace fs = std::filesystem;
@@ -24,7 +24,7 @@ namespace fs = std::filesystem;
 class ConditionalFilesTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    root_ = pychron::testing::unique_temp_path("pychron-condfiles-");
+    root_ = nobion::testing::unique_temp_path("pychron-condfiles-");
     fs::create_directories(root_);
     dir_ = root_ / "conditionals";
   }
@@ -140,4 +140,4 @@ TEST(ConditionalFilesLab, LabHasThem) {
 }
 
 }  // namespace
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

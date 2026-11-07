@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 void FluxPositionModel::rebuild() {
   rows_.clear();
@@ -69,4 +69,4 @@ int FluxPositionModel::rowCount(const QModelIndex& parent) const {
   return parent.isValid() ? 0 : static_cast<int>(rows_.size());
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

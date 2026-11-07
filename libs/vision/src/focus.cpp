@@ -4,7 +4,7 @@
 #include <cmath>
 #include <vector>
 
-namespace pychron::vision::focus {
+namespace nobion::vision::focus {
 
 namespace {
 // The 3x3 stencils need one pixel of margin on every side.
@@ -59,4 +59,4 @@ double sobel_sum(const FrameView& v) {
   return total / v.pixel_depth / interior;
 }
 
-}  // namespace pychron::vision::focus
+}  // namespace nobion::vision::focus

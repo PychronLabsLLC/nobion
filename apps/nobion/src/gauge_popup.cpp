@@ -14,7 +14,7 @@
 
 #include "history_chart.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -133,4 +133,4 @@ QString GaugePopup::message() const { return stack_->currentWidget() == message_
 
 HistoryChart* GaugePopup::chart() const { return chart_; }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

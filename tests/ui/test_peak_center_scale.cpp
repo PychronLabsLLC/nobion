@@ -8,7 +8,7 @@
 
 #include "peak_center_scale.hpp"
 
-using pychron::ui::scale_to_reference;
+using nobion::ui::scale_to_reference;
 
 namespace {
 

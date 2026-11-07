@@ -7,7 +7,7 @@
 
 #include "nobion/core/log_context.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 namespace {
 
@@ -244,4 +244,4 @@ LiveFeed::Latest LiveFeed::latest() const {
   return out;
 }
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

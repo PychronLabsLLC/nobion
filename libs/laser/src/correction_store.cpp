@@ -9,7 +9,7 @@
 
 #include "nobion/laser/calibration_store.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 namespace {
 
@@ -168,4 +168,4 @@ Result<void> CorrectionStore::clear_hole(const TrayMap& map, std::string_view de
   return write(map, device, calibration, *holes);
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

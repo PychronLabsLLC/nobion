@@ -33,11 +33,11 @@
 #include "nobion/reduction/stats.hpp"
 #include "nobion/reduction/ufloat.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
-namespace pp = pychron::processing;
-namespace r = pychron::reduction;
+namespace pp = nobion::processing;
+namespace r = nobion::reduction;
 using arar::edit_analysis_data;
 using testing::AnalysisList;
 using testing::both_samples;
@@ -109,9 +109,9 @@ std::string printed(double value, int digits) {
 }
 
 // The analyses reduced and put in a dataset, as the report takes them.
-pp::Dataset dataset_of(const AnalysisList& analyses, const pychron::arar::ArArSettings& settings = {}) {
+pp::Dataset dataset_of(const AnalysisList& analyses, const nobion::arar::ArArSettings& settings = {}) {
   pp::Dataset d;
-  for (const auto& a : analyses) d.mutable_items().push_back(pp::DatasetItem{pychron::arar::reduce_with_arar(a, settings), {}, {}});
+  for (const auto& a : analyses) d.mutable_items().push_back(pp::DatasetItem{nobion::arar::reduce_with_arar(a, settings), {}, {}});
   return d;
 }
 
@@ -363,8 +363,8 @@ TEST(Mapping, DataPoint) {
 
 // Every number of a measurement against the reduction of the same analysis.
 void expect_measurement(const Measurement& m, const pp::AnalysisPtr& analysis) {
-  const pp::ReducedPtr reduced = pychron::arar::reduce_with_arar(analysis);
-  const auto* ar = pychron::arar::reduced_of(*reduced);
+  const pp::ReducedPtr reduced = nobion::arar::reduce_with_arar(analysis);
+  const auto* ar = nobion::arar::reduced_of(*reduced);
   ASSERT_TRUE(ar && ar->arar.ages) << reduced->reduction_error;
   const r::ArArResult& arar = ar->arar;
   const auto stage = [&](const char* isotope, pp::Stage which) {
@@ -530,7 +530,7 @@ TEST(Mapping, MeasurementValues) {
   std::vector<double> k39;
   double total = 0.0;
   for (const auto& a : steps) {
-    k39.push_back(pychron::arar::reduced_of(*pychron::arar::reduce_with_arar(a))->arar.f.interference.k39.nominal());
+    k39.push_back(nobion::arar::reduced_of(*nobion::arar::reduce_with_arar(a))->arar.f.interference.k39.nominal());
     total += k39.back();
   }
   double sum = 0.0;
@@ -571,8 +571,8 @@ TEST(Mapping, Ar37ExcIntIsTheOtherFoursStageWithoutDecay) {
   });
   const Submission s = build_one(steps);
   const Measurement& m = s.measurements[3];
-  const pp::ReducedPtr reduced = pychron::arar::reduce_with_arar(steps[3]);
-  const r::ArArResult& arar = pychron::arar::reduced_of(*reduced)->arar;
+  const pp::ReducedPtr reduced = nobion::arar::reduce_with_arar(steps[3]);
+  const r::ArArResult& arar = nobion::arar::reduced_of(*reduced)->arar;
   ASSERT_GT(arar.decay.df37, 2.0);
   const r::UFloat exc37 = arar.corrected[r::index(r::ArgonIsotope::Ar37)] / arar.decay.df37;
   EXPECT_REL(m.ar37ExcInt, exc37.nominal());
@@ -599,8 +599,8 @@ TEST(Mapping, AgesAreInMa) {
   const Submission ka = build_one(steps);
   const Submission ma = build_one(step_sample());
 
-  const pp::ReducedPtr reduced = pychron::arar::reduce_with_arar(steps[4]);
-  const r::UFloat& age = pychron::arar::reduced_of(*reduced)->arar.ages->age;
+  const pp::ReducedPtr reduced = nobion::arar::reduce_with_arar(steps[4]);
+  const r::UFloat& age = nobion::arar::reduced_of(*reduced)->arar.ages->age;
   EXPECT_GT(age.nominal(), 20'000.0);  // thousands of years
   EXPECT_REL(ka.measurements[4].apparentAge, age.nominal() * 1e-3);
   EXPECT_REL(ka.measurements[4].apparentAgeUncertainty, age.std_dev() * 1e-3);
@@ -869,9 +869,9 @@ TEST(Mapping, PreferredAgeRule) {
 TEST(Mapping, ASingleAnalysisHasNoMswd) {
   const AnalysisList one = {fusion_analysis(0)};
   const Submission s = build_one(one);
-  const pp::ReducedPtr reduced = pychron::arar::reduce_with_arar(one[0]);
+  const pp::ReducedPtr reduced = nobion::arar::reduce_with_arar(one[0]);
   EXPECT_EQ(s.age_summary.ageCalcTypeName, "Weighted Mean Age");
-  EXPECT_REL(s.age_summary.age, pychron::arar::reduced_of(*reduced)->arar.ages->age.nominal());
+  EXPECT_REL(s.age_summary.age, nobion::arar::reduced_of(*reduced)->arar.ages->age.nominal());
   EXPECT_EQ(s.age_summary.nAnalysisGrouped, 1);
   EXPECT_FALSE(s.age_summary.mswd.has_value());
   EXPECT_FALSE(s.age_summary.agepvalue.has_value());
@@ -1242,8 +1242,8 @@ TEST(Mapping, AnalysesWithoutAgesAreLeftOutAndCounted) {
   // Step F has no J; step H has an intercept the store does not know.
   AnalysisList steps = with_edit(step_sample(), 5, [](pp::Analysis& a) { edit_analysis_data(a).flux.reset(); });
   steps = with_edit(steps, 7, [](pp::Analysis& a) { a.isotopes[1].intercept = {kNaN, 0.01}; });
-  ASSERT_FALSE(pychron::arar::reduced_of(*pychron::arar::reduce_with_arar(steps[5]))->arar.ages.has_value());
-  ASSERT_FALSE(pychron::arar::reduced_of(*pychron::arar::reduce_with_arar(steps[7])));
+  ASSERT_FALSE(nobion::arar::reduced_of(*nobion::arar::reduce_with_arar(steps[5]))->arar.ages.has_value());
+  ASSERT_FALSE(nobion::arar::reduced_of(*nobion::arar::reduce_with_arar(steps[7])));
 
   const Submission s = build_one(steps);
   ASSERT_EQ(s.measurements.size(), 8u);
@@ -1567,7 +1567,7 @@ TEST(Mapping, AMissingIsotopeIsAbsent) {
   // one that they are left out.
   for (const char* isotope : {"Ar38", "Ar37", "Ar36"}) {
     const AnalysisList one = with_edit(fusion_sample(), 2, dropping({isotope}));
-    ASSERT_TRUE(pychron::arar::reduced_of(*pychron::arar::reduce_with_arar(one[2]))->arar.ages.has_value()) << isotope;
+    ASSERT_TRUE(nobion::arar::reduced_of(*nobion::arar::reduce_with_arar(one[2]))->arar.ages.has_value()) << isotope;
   }
 
   // Two missing: both are named; and two analyses: both are counted.
@@ -1862,4 +1862,4 @@ TEST(Mapping, AnAgeOfOneJIsRefusedOverTwo) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

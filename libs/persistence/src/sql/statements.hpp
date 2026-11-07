@@ -10,7 +10,7 @@
 
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::persistence::detail::sql {
+namespace nobion::persistence::detail::sql {
 
 // A timestamptz column read back as "YYYY-MM-DDTHH:MM:SS.ffffffZ". QtSql
 // would hand PostgreSQL timestamps over as QDateTime, which drops microseconds.
@@ -316,4 +316,4 @@ inline const QString kImportConflicts = QStringLiteral(
     "SELECT uuid, path, entity_uuid, conflict_kind, db_head_revision_uuid, file_sha256, detail, resolution, "
     "%1 AS resolved FROM import_conflict");
 
-}  // namespace pychron::persistence::detail::sql
+}  // namespace nobion::persistence::detail::sql

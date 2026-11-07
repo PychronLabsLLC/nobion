@@ -24,7 +24,7 @@
 class QCPItemStraightLine;
 class QCustomPlot;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // A vertical rule across the chart at x (the model's seconds).
 struct ChartMark {
@@ -72,4 +72,4 @@ class StripChartView : public QWidget {
   QTimer deferred_;  // single shot: the repaint a too-early refresh() asked for
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

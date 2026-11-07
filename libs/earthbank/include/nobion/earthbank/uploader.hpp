@@ -58,7 +58,7 @@
 #include "nobion/earthbank/preflight.hpp"
 #include "nobion/earthbank/session.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 // One step of one sample, reported after it is done (and once before the
 // first, with `done` 0). `record` is the record's name as in Journal::in_doubt
@@ -132,4 +132,4 @@ struct UploadReport {
 Result<UploadReport> upload(const std::vector<Submission>& submissions, Session& session, LookupResolver& resolver,
                             const UploadOptions& options);
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

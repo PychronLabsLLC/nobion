@@ -9,7 +9,7 @@
 
 #include "plot_style.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -208,4 +208,4 @@ QLCDNumber* HeaterDock::readback(const std::string& heater) const {
 
 QString HeaterDock::status_text() const { return status_->text(); }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

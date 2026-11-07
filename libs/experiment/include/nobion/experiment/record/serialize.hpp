@@ -11,7 +11,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/experiment/record/types.hpp"
 
-namespace pychron::experiment::record {
+namespace nobion::experiment::record {
 
 std::string to_toml(const AnalysisRecord& rec);
 std::string to_json(const AnalysisRecord& rec);
@@ -37,4 +37,4 @@ std::optional<AnalysisRecord> as_v2(const AnalysisRecord& rec);
 std::string compute_sha(const AnalysisRecord& rec);
 bool verify_sha(const AnalysisRecord& rec);
 
-}  // namespace pychron::experiment::record
+}  // namespace nobion::experiment::record

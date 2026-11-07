@@ -12,7 +12,7 @@
 
 #include "nobion/persistence/ids.hpp"
 
-namespace pychron::persistence {
+namespace nobion::persistence {
 
 // Revision kinds (section 5.2). One head per (subject, kind).
 enum class Kind {
@@ -369,4 +369,4 @@ struct HeadInfo {
   friend bool operator==(const HeadInfo&, const HeadInfo&) = default;
 };
 
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence

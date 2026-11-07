@@ -44,7 +44,7 @@
 class QAction;
 class QToolButton;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 struct TimelineSegment {
   int lane = 0;  // 0: waits; 1..: run lanes
@@ -166,4 +166,4 @@ class TimelineView : public QWidget {
   double drag_t0_ = 0, drag_t1_ = 0;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

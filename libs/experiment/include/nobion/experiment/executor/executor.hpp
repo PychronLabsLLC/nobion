@@ -63,11 +63,11 @@
 #include "nobion/experiment/run/run.hpp"
 #include "nobion/scripting/cancel_token.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 class Spectrometer;
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer
 
-namespace pychron::experiment::executor {
+namespace nobion::experiment::executor {
 
 enum class ExecutorState { Idle, Preparing, Running, Holding, StoppingAtBoundary, Cancelling, Aborting, Finalizing };
 std::string_view to_string(ExecutorState s) noexcept;
@@ -231,9 +231,9 @@ struct ExecutorOptions {
   bool continue_on_failure = false;
   // How the queue holds (executor.toml [hold]).
   struct Hold {
-    pychron::Duration settle = std::chrono::seconds(30);          // up this long, a link is back
-    pychron::Duration probe_interval = std::chrono::seconds(15);  // each link down is asked this often
-    pychron::Duration limit = std::chrono::hours(2);              // a hold this long ends the queue
+    nobion::Duration settle = std::chrono::seconds(30);          // up this long, a link is back
+    nobion::Duration probe_interval = std::chrono::seconds(15);  // each link down is asked this often
+    nobion::Duration limit = std::chrono::hours(2);              // a hold this long ends the queue
     bool end_after_link_failure = false;                          // after_link_failure = "end"
   } hold;
 };
@@ -367,4 +367,4 @@ class Executor {
   std::uint64_t version_ = 0;
 };
 
-}  // namespace pychron::experiment::executor
+}  // namespace nobion::experiment::executor

@@ -27,7 +27,7 @@
 class QLabel;
 class QPushButton;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // What the faceplate shows of one valve.
 struct ValveFaceplate {
@@ -95,4 +95,4 @@ class ValvePopup : public QFrame {
   std::function<void(const std::string&, bool)> on_lock_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

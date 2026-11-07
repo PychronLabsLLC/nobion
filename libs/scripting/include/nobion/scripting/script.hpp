@@ -21,7 +21,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 
 // Which run step a script serves. Extraction, PostEquilibration,
 // PostMeasurement and SafeState scripts define main(); measurement hooks
@@ -82,4 +82,4 @@ ValueMap default_context();
 // default_context() overlaid with `overrides`.
 ScriptContext make_context(ValueMap overrides = {}, ValueMap options = {});
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

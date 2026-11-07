@@ -14,9 +14,9 @@
 #include "spectrometer_fakes.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
-using namespace pychron::spectrometer::testing;
+using namespace nobion;
+using namespace nobion::spectrometer;
+using namespace nobion::spectrometer::testing;
 using namespace std::chrono_literals;
 
 namespace {
@@ -559,7 +559,7 @@ TEST(Spectrometer, SnapshotIsContentHashed) {
 
 namespace {
 
-struct SpectrometerVirtual : pychron::testing::VirtualTimeTest {};
+struct SpectrometerVirtual : nobion::testing::VirtualTimeTest {};
 
 }  // namespace
 
@@ -596,7 +596,7 @@ TEST_F(SpectrometerVirtual, AScanPollAndAMoveContendWithoutStallingTime) {
   bool move_ok = false;
   std::optional<double> seen;       // the magnet, as the poll read it
   SpectrometerState snapshot;
-  pychron::testing::Crew crew(clock);
+  nobion::testing::Crew crew(clock);
   crew.start("move", [&] {
     PositionOptions options;
     options.settle = 5s;
@@ -604,7 +604,7 @@ TEST_F(SpectrometerVirtual, AScanPollAndAMoveContendWithoutStallingTime) {
     move_ok = spec.move_native(5.0, options).has_value();
     moved = clock.now();
   });
-  ASSERT_TRUE(pychron::testing::await_waiters(clock, 1));  // the move, settling with the spectrometer
+  ASSERT_TRUE(nobion::testing::await_waiters(clock, 1));  // the move, settling with the spectrometer
   crew.start("poll", [&] {
     if (auto native = spec.magnet_native()) seen = *native;
     snapshot = spec.snapshot();

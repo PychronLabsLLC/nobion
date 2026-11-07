@@ -33,7 +33,7 @@ class QListWidget;
 class QTableView;
 class QToolButton;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class StepHeatEditorWindow : public QMainWindow {
   Q_OBJECT
@@ -154,4 +154,4 @@ class StepHeatEditorWindow : public QMainWindow {
   std::function<std::optional<QString>()> ask_name_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

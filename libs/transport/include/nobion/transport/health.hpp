@@ -6,7 +6,7 @@
 
 #include "nobion/core/clock.hpp"
 
-namespace pychron {
+namespace nobion {
 
 enum class HealthState { Connected, Degraded, Down };
 
@@ -24,4 +24,4 @@ struct Health {
   friend bool operator==(const Health&, const Health&) = default;
 };
 
-}  // namespace pychron
+}  // namespace nobion

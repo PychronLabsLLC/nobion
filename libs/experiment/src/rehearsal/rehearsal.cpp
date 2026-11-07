@@ -8,7 +8,7 @@
 
 #include "nobion/experiment/lab/script_actor.hpp"
 
-namespace pychron::experiment::rehearsal {
+namespace nobion::experiment::rehearsal {
 
 namespace {
 
@@ -267,4 +267,4 @@ LineSnapshot Rehearsal::state() const {
   return state_;
 }
 
-}  // namespace pychron::experiment::rehearsal
+}  // namespace nobion::experiment::rehearsal

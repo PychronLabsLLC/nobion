@@ -13,7 +13,7 @@
 
 #include "nobion/core/sha256.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 namespace {
 
@@ -223,4 +223,4 @@ CalibrationStatus CalibrationStore::status(const TrayMap& map, std::string_view 
   return out;
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

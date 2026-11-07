@@ -9,7 +9,7 @@
 
 #include <toml++/toml.hpp>
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 namespace fs = std::filesystem;
 
@@ -469,4 +469,4 @@ Result<std::pair<std::string, std::string>> parse_assignment(std::string_view te
   return std::pair{trim(text.substr(0, eq)), trim(text.substr(eq + 1))};
 }
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

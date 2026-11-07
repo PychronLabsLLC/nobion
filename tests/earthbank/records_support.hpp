@@ -7,7 +7,7 @@
 
 #include "nobion/earthbank/model.hpp"
 
-namespace pychron::earthbank::testing {
+namespace nobion::earthbank::testing {
 
 inline void fill(std::optional<double>& field) { field = 1.5; }
 inline void fill(std::optional<std::string>& field) { field = "x"; }
@@ -39,4 +39,4 @@ nlohmann::json all_fields() {
   return to_json(all_set(Record{}));
 }
 
-}  // namespace pychron::earthbank::testing
+}  // namespace nobion::earthbank::testing

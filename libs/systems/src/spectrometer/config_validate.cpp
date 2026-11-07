@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <set>
 
-namespace pychron::spectrometer::cfg {
+namespace nobion::spectrometer::cfg {
 namespace {
 
 void add(Diagnostics& out, const SourceLoc& loc, std::string field, std::string message) {
@@ -209,4 +209,4 @@ Diagnostics validate(const SpectrometerConfig& c, const Tables& tables) {
   return out;
 }
 
-}  // namespace pychron::spectrometer::cfg
+}  // namespace nobion::spectrometer::cfg

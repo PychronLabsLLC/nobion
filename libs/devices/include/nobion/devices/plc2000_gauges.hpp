@@ -23,7 +23,7 @@
 #include "nobion/devices/driver_registry.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 struct Plc2000GaugesOptions {
   std::uint8_t unit = 1;
@@ -54,4 +54,4 @@ class Plc2000Gauges final : public Device, public IPressureGauge, public IChanne
   const Clock* clock_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

@@ -13,7 +13,7 @@
 
 #include "nobion/core/config/loader.hpp"
 
-namespace pychron::config {
+namespace nobion::config {
 
 namespace {
 
@@ -446,4 +446,4 @@ Result<SystemConfig> load_system_config_without_local(const fs::path& main_file)
   return load_system_config_from_string(text.str(), main_file.string());
 }
 
-}  // namespace pychron::config
+}  // namespace nobion::config

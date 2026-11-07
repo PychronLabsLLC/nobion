@@ -37,7 +37,7 @@ class QPushButton;
 class QTabBar;
 class QTableWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class OptionsEditor;
 class PresetBar;
@@ -126,4 +126,4 @@ class IsotopeEvolutionWindow : public QMainWindow {
   QTimer debounce_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -3,7 +3,7 @@
 #include <fstream>
 #include <sstream>
 
-namespace pychron::spectrometer::cfg::detail {
+namespace nobion::spectrometer::cfg::detail {
 
 std::string_view type_name(toml::node_type t) {
   switch (t) {
@@ -227,4 +227,4 @@ std::optional<std::string> read_file(const std::filesystem::path& path) {
   return ss.str();
 }
 
-}  // namespace pychron::spectrometer::cfg::detail
+}  // namespace nobion::spectrometer::cfg::detail

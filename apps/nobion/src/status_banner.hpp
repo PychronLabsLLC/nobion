@@ -24,7 +24,7 @@ class QLabel;
 class QToolButton;
 class QVBoxLayout;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // Whether the line is real hardware or simulated, and how fast a simulated
 // one runs.
@@ -126,4 +126,4 @@ class AlarmStrip : public QFrame {
   QStringList lines_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

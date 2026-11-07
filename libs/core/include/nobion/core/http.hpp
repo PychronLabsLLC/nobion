@@ -14,7 +14,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::http {
+namespace nobion::http {
 
 // One request: the method in capitals (`GET`, `POST`, `DELETE`), the whole
 // URL with its query already encoded, the headers as they go on the wire, and
@@ -66,4 +66,4 @@ class IHttpClient {
   virtual Result<HttpResponse> send(const HttpRequest& request) = 0;
 };
 
-}  // namespace pychron::http
+}  // namespace nobion::http

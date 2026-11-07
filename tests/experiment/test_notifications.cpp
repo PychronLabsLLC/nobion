@@ -16,9 +16,9 @@
 #include "nobion/experiment/lab/notifier.hpp"
 #include "temp_path.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment;
-using namespace pychron::experiment::lab;
+using namespace nobion;
+using namespace nobion::experiment;
+using namespace nobion::experiment::lab;
 
 namespace {
 
@@ -538,7 +538,7 @@ using namespace std::chrono_literals;
 
 // A directory of its own, removed at the end.
 struct OutboxDir {
-  std::filesystem::path dir = pychron::testing::unique_temp_path("pychron-outbox-");
+  std::filesystem::path dir = nobion::testing::unique_temp_path("pychron-outbox-");
   OutboxDir() = default;
   OutboxDir(const OutboxDir&) = delete;
   OutboxDir& operator=(const OutboxDir&) = delete;
@@ -893,7 +893,7 @@ TEST(NotifierOutbox, TheThreadSendsWhatWasLeftAtOnce) {
 }
 
 TEST(NotifierLog, AGivenUpNotificationIsInTheLogFileToo) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   OutboxDir out;
   SignalBus bus;

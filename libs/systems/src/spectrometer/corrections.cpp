@@ -3,7 +3,7 @@
 #include <cmath>
 #include <string>
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 double deflection_offset(const CorrectionInputs& in) noexcept {
   if (!in.deflection_enabled) return 0.0;
@@ -33,4 +33,4 @@ Result<double> uncorrect(double native_value, const CorrectionInputs& in) {
   return native_value / *factor - deflection_offset(in);
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

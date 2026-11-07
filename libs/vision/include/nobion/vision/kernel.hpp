@@ -6,7 +6,7 @@
 
 #include "nobion/vision/frame.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 // Every mask_radius_px / radius_px below describes a disk centered on the frame
 // center; a radius <= 0 means "no mask".
@@ -49,4 +49,4 @@ struct CircleFit {
 // infinite radius and rms rather than a crash.
 CircleFit fit_circle(std::span<const Vec2> points);
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

@@ -67,7 +67,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 struct Journal {
   std::string hash;
@@ -125,4 +125,4 @@ class JournalLock {
 // kJournalBusy. Makes the directory.
 Result<JournalLock> lock_journal(const std::filesystem::path& journal);
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

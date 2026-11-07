@@ -28,9 +28,9 @@
 #include "nobion/core/process_log.hpp"
 #include "nobion/core/virtual_clock.hpp"
 
-using namespace pychron;
-using namespace pychron::ui;
-using pychron::experiment::lab::Lasers;
+using namespace nobion;
+using namespace nobion::ui;
+using nobion::experiment::lab::Lasers;
 
 namespace {
 

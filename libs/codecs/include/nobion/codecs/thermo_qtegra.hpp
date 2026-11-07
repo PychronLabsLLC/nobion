@@ -49,7 +49,7 @@
 
 #include "nobion/codecs/codec.hpp"
 
-namespace pychron::codec::qtegra {
+namespace nobion::codec::qtegra {
 
 // Write terminator appended to every command. pychron's Communicator default
 // is "\r" (write_terminator = chr(13)).
@@ -256,4 +256,4 @@ Bytes encode_data(std::span<const std::pair<std::string, double>> pairs);
 // `text` as a reply line, unchanged: for replies no encoder here would produce.
 Bytes encode_line(std::string_view text);
 
-}  // namespace pychron::codec::qtegra
+}  // namespace nobion::codec::qtegra

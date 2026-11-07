@@ -10,7 +10,7 @@
 #include "nobion/core/config/system_config.hpp"
 #include "nobion/core/error.hpp"
 
-namespace pychron::config {
+namespace nobion::config {
 
 // Full outcome of a load: `config` is set only when `diagnostics` is empty.
 struct LoadReport {
@@ -51,4 +51,4 @@ Result<SystemConfig> load_system_config_from_string(std::string_view main_toml, 
 // keys and their checks are the same. Diagnostics name `name`.
 Result<void> parse_logging_text(std::string_view toml, std::string_view name, LoggingConfig& into);
 
-}  // namespace pychron::config
+}  // namespace nobion::config

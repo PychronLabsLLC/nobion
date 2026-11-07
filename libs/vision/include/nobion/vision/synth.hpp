@@ -9,7 +9,7 @@
 #include "nobion/vision/frame.hpp"
 #include "nobion/vision/types.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 // Ground truth for a rendered scene. center_px uses the library pixel
 // convention (pixel centers at integer coordinates), not a rounded pixel.
@@ -108,4 +108,4 @@ void render_machined(Frame& frame, const HoleScene& scene, const MachinedSurface
 void draw_grain(Frame& frame, const HoleScene& scene, std::span<const Vec2> outline_mm, Vec2 stage_mm,
                 double level = 0.5);
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

@@ -3,7 +3,7 @@
 
 #include "nobion/reduction/detail/arar_kernels.hpp"
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 // Every kernel's double instantiation (spec 8.1), including those the live path
 // does not call yet, so the double path always builds warning-free.
@@ -84,4 +84,4 @@ std::map<std::string, double> compute_arar(const ArArIntensities& in, const ArAr
   return out;
 }
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

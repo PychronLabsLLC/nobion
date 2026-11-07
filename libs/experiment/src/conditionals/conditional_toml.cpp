@@ -7,7 +7,7 @@
 #include "number.hpp"
 #include "nobion/experiment/conditionals/conditional.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 // A TOML basic string.
@@ -83,4 +83,4 @@ std::string to_toml(const ConditionalSet& set) {
   return out;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

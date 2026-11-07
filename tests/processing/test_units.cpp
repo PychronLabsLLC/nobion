@@ -12,7 +12,7 @@
 #include "fixtures.hpp"
 #include "nobion/processing/time_series.hpp"
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 using pp::test::make_air;
 using pp::test::make_unknown;
 
@@ -182,11 +182,11 @@ TEST(Runner, ALaterTimeRunsATimeDependentNodeAgain) {
 class CountingSource : public pp::MemorySource {
  public:
   using MemorySource::MemorySource;
-  pychron::Result<pp::AnalysisPtr> load(const std::string& uuid) override {
+  nobion::Result<pp::AnalysisPtr> load(const std::string& uuid) override {
     ++loads;
     return MemorySource::load(uuid);
   }
-  pychron::Result<pp::BrowsePage> browse(const pp::BrowseQuery& query) override {
+  nobion::Result<pp::BrowsePage> browse(const pp::BrowseQuery& query) override {
     queries.push_back(query);
     return MemorySource::browse(query);
   }
@@ -595,7 +595,7 @@ TEST(Units, CancelStops) {
   std::atomic<bool> cancel{true};
   auto out = runner.run(air_pipeline(), "figure", &cancel);
   ASSERT_FALSE(out);
-  EXPECT_EQ(out.error().kind, pychron::ErrorKind::Cancelled);
+  EXPECT_EQ(out.error().kind, nobion::ErrorKind::Cancelled);
 }
 
 TEST(Units, PipelineTomlRoundTrip) {

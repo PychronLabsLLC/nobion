@@ -30,7 +30,7 @@
 #include "nobion/experiment/lab/lab.hpp"
 #include "nobion/experiment/lab/scripts.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -934,4 +934,4 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   QMainWindow::closeEvent(event);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

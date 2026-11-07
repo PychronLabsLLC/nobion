@@ -2,8 +2,8 @@
 
 #include "nobion/core/log_match.hpp"
 
-using pychron::log_name_matches;
-using pychron::log_rule_specificity;
+using nobion::log_name_matches;
+using nobion::log_rule_specificity;
 
 TEST(LogMatch, BareNameMatchesSelfAndChildren) {
   EXPECT_TRUE(log_name_matches("scheduler", "scheduler"));

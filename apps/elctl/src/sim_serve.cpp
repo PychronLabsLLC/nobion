@@ -22,7 +22,7 @@ namespace {
 
 namespace fs = std::filesystem;
 using namespace std::chrono_literals;
-using namespace pychron;
+using namespace nobion;
 
 constexpr const char* kServeUsage =
     "usage: elctl sim serve [--config <extraction_line.toml>] [--canvas <canvas.toml>]\n"

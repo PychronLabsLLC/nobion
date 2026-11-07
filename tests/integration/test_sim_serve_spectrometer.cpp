@@ -26,7 +26,7 @@
 
 namespace {
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 using systems::ExtractionLine;
@@ -45,7 +45,7 @@ std::string read_text(const fs::path& p) {
 class SimServeSpectrometerSteady : public ::testing::Test {
  protected:
   void SetUp() override {
-    dir_ = pychron::testing::unique_temp_path("pychron_sim_serve_spec_");
+    dir_ = nobion::testing::unique_temp_path("pychron_sim_serve_spec_");
     fs::create_directories(dir_);
     fs::copy(kExamples / "tables", dir_ / "tables", fs::copy_options::recursive);
   }
@@ -137,7 +137,7 @@ class SimServeSpectrometerSteady : public ::testing::Test {
 }  // namespace
 
 TEST_F(SimServeSpectrometerSteady, QtegraAirShotReadsAboveBlank) {
-  serve(pychron::testing::hardware_style(read_text(kExamples / "extraction_line.toml")), true,
+  serve(nobion::testing::hardware_style(read_text(kExamples / "extraction_line.toml")), true,
         "spectrometer.qtegra.toml");
   ASSERT_TRUE(spectrometer_);
   fill_source(0.0);
@@ -148,7 +148,7 @@ TEST_F(SimServeSpectrometerSteady, QtegraAirShotReadsAboveBlank) {
 }
 
 TEST_F(SimServeSpectrometerSteady, NgxAirShotReadsAboveBlank) {
-  serve(pychron::testing::hardware_style(read_text(kExamples / "extraction_line.toml")), true,
+  serve(nobion::testing::hardware_style(read_text(kExamples / "extraction_line.toml")), true,
         "spectrometer.ngx.toml");
   ASSERT_TRUE(spectrometer_);
   fill_source(0.0);

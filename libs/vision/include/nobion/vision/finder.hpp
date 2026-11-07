@@ -6,7 +6,7 @@
 #include "nobion/vision/frame.hpp"
 #include "nobion/vision/types.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 struct Target {
   Point2 center_px;
@@ -50,4 +50,4 @@ class SimpleFinder final : public ITargetFinder {
 // Glow targets: the same value as Target::score, in [0, 1].
 double saturation(const Target&);
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

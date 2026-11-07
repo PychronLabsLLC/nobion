@@ -26,7 +26,7 @@
 #include "nobion/systems/canvas/loader.hpp"
 #include "nobion/transport/factory.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 namespace {
 
@@ -765,4 +765,4 @@ void ExtractionLine::log_to(const std::optional<Logger>& logger, std::string_vie
   bus_.publish(Log{level, std::string(name), std::move(message), clock_->now()});
 }
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

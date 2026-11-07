@@ -8,7 +8,7 @@
 #include <tuple>
 #include <utility>
 
-namespace pychron::experiment::record {
+namespace nobion::experiment::record {
 
 namespace {
 
@@ -180,4 +180,4 @@ std::optional<InterceptName> intercept_name(const Data& data, std::string_view r
   return InterceptName{std::string(result_key), std::string(result_key), *lowest};
 }
 
-}  // namespace pychron::experiment::record
+}  // namespace nobion::experiment::record

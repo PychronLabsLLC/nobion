@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <mutex>
 
-namespace pychron {
+namespace nobion {
 
 namespace mi = codec::microion;
 
@@ -155,4 +155,4 @@ SimTransport::Hook microion_sim_hook(MicroIonSimModel model) {
   return [state](const Bytes& tx) { return state->respond(tx); };
 }
 
-}  // namespace pychron
+}  // namespace nobion

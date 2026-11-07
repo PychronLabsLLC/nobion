@@ -5,7 +5,7 @@
 
 #include "nobion/experiment/model/run_spec.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 // Which extraction fields are legal for an analysis type (the pychron factory's
 // per-type stripping rules expressed as schema rules).
@@ -43,4 +43,4 @@ Duration queue_eta(const QueueSpec& q, F&& measurement) {
   return total;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

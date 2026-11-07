@@ -15,9 +15,9 @@
 #include "nobion/persistence/blob.hpp"
 #include "nobion/reduction/fits.hpp"
 
-namespace pychron::experiment::store {
+namespace nobion::experiment::store {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 using nlohmann::json;
 
 namespace {
@@ -414,4 +414,4 @@ Result<RunIngest> to_ingest(const record::AnalysisRecord& rec, ps::Uuid client) 
   return out;
 }
 
-}  // namespace pychron::experiment::store
+}  // namespace nobion::experiment::store

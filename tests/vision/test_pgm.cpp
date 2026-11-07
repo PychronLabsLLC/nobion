@@ -6,8 +6,8 @@
 
 #include "nobion/vision/pgm.hpp"
 
-using namespace pychron;
-using namespace pychron::vision;
+using namespace nobion;
+using namespace nobion::vision;
 
 namespace {
 

@@ -37,7 +37,7 @@ class QLineEdit;
 class QPushButton;
 class QScrollArea;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class MeasurementPanel : public QWidget {
   Q_OBJECT
@@ -116,4 +116,4 @@ class MeasurementPanel : public QWidget {
   std::vector<std::string> order_;         // editor paths in display order
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

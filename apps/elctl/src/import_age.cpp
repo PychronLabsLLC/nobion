@@ -71,9 +71,9 @@
 
 namespace elctl::import_detail {
 
-namespace ingest = pychron::ingest;
-namespace processing = pychron::processing;
-namespace arar = pychron::arar;
+namespace ingest = nobion::ingest;
+namespace processing = nobion::processing;
+namespace arar = nobion::arar;
 
 namespace {
 
@@ -88,7 +88,7 @@ constexpr P::Kind kReductionKinds[] = {P::Kind::Intercepts, P::Kind::Baselines, 
 class AgeAsOf {
  public:
   AgeAsOf(P::IStore& store, P::Uuid source, ingest::ISourceAdapter& adapter,
-          pychron::reduction::ConstantsPreset constants)
+          nobion::reduction::ConstantsPreset constants)
       : store_(store), source_(source), adapter_(adapter), constants_(constants) {}
 
   Result<ParityAge> operator()(P::Uuid analysis, const ingest::AsOf& as_of) const {
@@ -212,7 +212,7 @@ class AgeAsOf {
     computed.age = age.nominal();
     computed.age_err = age.std_dev();
     computed.age_err_w_j = with_j.std_dev();
-    computed.basis = "constants=" + std::string(pychron::reduction::to_string(constants_));
+    computed.basis = "constants=" + std::string(nobion::reduction::to_string(constants_));
     return ParityAge{std::move(computed)};
   }
 
@@ -294,13 +294,13 @@ class AgeAsOf {
   // reference object -> its revisions in chain order; shared like places_
   std::shared_ptr<std::map<P::Uuid, std::vector<P::RevisionInfo>>> chains_ =
       std::make_shared<std::map<P::Uuid, std::vector<P::RevisionInfo>>>();
-  pychron::reduction::ConstantsPreset constants_;
+  nobion::reduction::ConstantsPreset constants_;
 };
 
 }  // namespace
 
 ingest::AgeFn make_age_fn(P::IStore& store, P::Uuid source, ingest::ISourceAdapter& adapter,
-                          pychron::reduction::ConstantsPreset constants) {
+                          nobion::reduction::ConstantsPreset constants) {
   return ingest::AgeFn(AgeAsOf(store, source, adapter, constants));
 }
 

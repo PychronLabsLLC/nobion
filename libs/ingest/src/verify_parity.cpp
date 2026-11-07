@@ -31,9 +31,9 @@
 #include "nobion/ingest/ids.hpp"
 #include "verify_parts.hpp"
 
-namespace pychron::ingest::detail {
+namespace nobion::ingest::detail {
 
-namespace P = pychron::persistence;
+namespace P = nobion::persistence;
 using Json = nlohmann::json;
 using P::Uuid;
 
@@ -292,4 +292,4 @@ Result<void> check_parity(const VerifySource& source, Uuid client, const std::se
   return {};
 }
 
-}  // namespace pychron::ingest::detail
+}  // namespace nobion::ingest::detail

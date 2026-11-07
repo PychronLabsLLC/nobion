@@ -4,7 +4,7 @@
 
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -122,4 +122,4 @@ bool LevelGridModel::setData(const QModelIndex& index, const QVariant& value, in
   return true;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

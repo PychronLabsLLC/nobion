@@ -21,9 +21,9 @@
 #include "plan/plan_parse.hpp"
 
 namespace fs = std::filesystem;
-using namespace pychron;
-using namespace pychron::experiment;
-using namespace pychron::experiment::plan;
+using namespace nobion;
+using namespace nobion::experiment;
+using namespace nobion::experiment::plan;
 
 namespace {
 

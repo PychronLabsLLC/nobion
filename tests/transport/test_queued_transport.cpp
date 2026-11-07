@@ -19,7 +19,7 @@
 #include "nobion/transport/transport.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {
@@ -75,12 +75,12 @@ TransportOptions opts(int retries = 0, std::uint64_t down_after = 3) {
 
 const ReadSpec kCr = ReadSpec::until("\r");
 
-using pychron::testing::await_waiters;
+using nobion::testing::await_waiters;
 
 // A transport that waits past the clock leaves time standing and the test
 // asleep in it. Each test on a VirtualClock runs under a real-time bound: when
 // it is exceeded the process says so and aborts, well inside the ctest timeout.
-class QueuedTransportVirtual : public pychron::testing::VirtualTimeTest {};
+class QueuedTransportVirtual : public nobion::testing::VirtualTimeTest {};
 
 }  // namespace
 

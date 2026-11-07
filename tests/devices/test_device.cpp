@@ -7,7 +7,7 @@
 #include "log_capture.hpp"
 #include "nobion/core/log_context.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {
@@ -110,7 +110,7 @@ TEST(Device, StateNames) {
 // ---- the log ---------------------------------------------------------------
 
 TEST(DeviceLog, CallOkIsDebug) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   ManualClock clock;
   Plain d("ig1", DeviceOptions{&clock, 3});
@@ -127,7 +127,7 @@ TEST(DeviceLog, CallOkIsDebug) {
 }
 
 TEST(DeviceLog, FailureIsWarn) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   log.hub().set_levels(LogLevel::Warn, {});
   Plain d("ig1");
@@ -141,7 +141,7 @@ TEST(DeviceLog, FailureIsWarn) {
 }
 
 TEST(DeviceLog, PollingIsTrace) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   Plain d("ig1");
   const auto read = [&] {
@@ -170,7 +170,7 @@ Result<double> failing_read(Plain& d, ErrorKind kind) {
 }  // namespace
 
 TEST(DeviceLog, CancelledIsDebugNotWarn) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   Plain d("ig1");
   ASSERT_FALSE(failing_read(d, ErrorKind::Cancelled));
@@ -180,7 +180,7 @@ TEST(DeviceLog, CancelledIsDebugNotWarn) {
 }
 
 TEST(DeviceLog, WhilePollingOnlyTheFirstFailureOfAStreakWarns) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   log.hub().set_levels(LogLevel::Trace, {});
   Plain d("ig1");
@@ -199,7 +199,7 @@ TEST(DeviceLog, WhilePollingOnlyTheFirstFailureOfAStreakWarns) {
 }
 
 TEST(DeviceLog, OutsidePollingARepeatedFailureStillWarns) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   Plain d("ig1");
   ASSERT_FALSE(failing_read(d, ErrorKind::Timeout));
@@ -210,7 +210,7 @@ TEST(DeviceLog, OutsidePollingARepeatedFailureStillWarns) {
 }
 
 TEST(DeviceLog, RelayWritesATraceRecord) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   log.hub().set_levels(LogLevel::Trace, {});
   ManualClock clock;

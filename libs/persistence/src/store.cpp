@@ -16,7 +16,7 @@
 #include "sql/statements.hpp"
 #include "store_impl.hpp"
 
-namespace pychron::persistence {
+namespace nobion::persistence {
 
 std::string make_runid(const std::string& identifier, int aliquot, int increment) {
   char buf[16];
@@ -932,4 +932,4 @@ Result<std::unique_ptr<IStore>> open_store(const StoreConfig& config) {
   return std::unique_ptr<IStore>(std::make_unique<detail::TinyStore>(std::move(*db)));
 }
 
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence

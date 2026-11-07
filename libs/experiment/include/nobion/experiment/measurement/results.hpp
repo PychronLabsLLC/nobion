@@ -13,7 +13,7 @@
 #include "nobion/experiment/plan/plan.hpp"
 #include "nobion/experiment/record/types.hpp"
 
-namespace pychron::experiment::measurement {
+namespace nobion::experiment::measurement {
 
 // Where in the plan a collection was made, and the spectrometer's state for
 // it (deflections in force, integration, optics, table): what the record
@@ -75,4 +75,4 @@ record::TrippedConditional to_record(const Trip& t);
 record::Conditionals to_record_conditionals(const std::vector<Conditional>& installed, const std::vector<Trip>& trips,
                                             const std::vector<ConditionalError>& errors);
 
-}  // namespace pychron::experiment::measurement
+}  // namespace nobion::experiment::measurement

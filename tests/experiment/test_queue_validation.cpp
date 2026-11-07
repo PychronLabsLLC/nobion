@@ -4,7 +4,7 @@
 
 #include "nobion/experiment/model/queue_validation.hpp"
 
-using namespace pychron::experiment;
+using namespace nobion::experiment;
 
 namespace {
 const IdentifierRules kIds = IdentifierRules::defaults();

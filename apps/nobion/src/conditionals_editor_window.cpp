@@ -27,7 +27,7 @@
 #include "theme.hpp"
 #include "toml_comments.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 using experiment::ConditionalKind;
 using experiment::ConditionalSet;
@@ -549,4 +549,4 @@ void ConditionalsEditorWindow::closeEvent(QCloseEvent* event) {
   QMainWindow::closeEvent(event);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -37,7 +37,7 @@
 #include "strip_chart_model.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -1085,4 +1085,4 @@ void ExperimentWindow::closeEvent(QCloseEvent* event) {
   QMainWindow::closeEvent(event);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

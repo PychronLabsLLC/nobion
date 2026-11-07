@@ -8,7 +8,7 @@
 
 #include "nobion/core/sha256.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
@@ -315,7 +315,7 @@ Result<std::vector<PortValue>> Runner::run(const Pipeline& pipeline, std::string
     }
     if (u.reads_source() && source_) text += "source " + source_->name() + " " + std::to_string(source_->generation()) + "\n";
     if (now && u.uses_time(n.options)) text += "now " + std::to_string(*now) + "\n";
-    const std::string fp = pychron::to_hex(sha256(text));
+    const std::string fp = nobion::to_hex(sha256(text));
     fingerprints[id] = fp;
 
     if (upstream) {
@@ -355,4 +355,4 @@ Result<std::vector<PortValue>> Runner::run(const Pipeline& pipeline, std::string
   return cache_.at(std::string(target)).outputs;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

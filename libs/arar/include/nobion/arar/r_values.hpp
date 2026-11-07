@@ -15,7 +15,7 @@
 #include "nobion/processing/options.hpp"
 #include "nobion/reduction/stats.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 struct GroupF {
   int group = 0;
@@ -62,4 +62,4 @@ inline constexpr std::string_view kRValueNote =
     "Uncertainties treat groups as independent; correlated errors (shared irradiation "
     "corrections, blanks, ...) are not accounted for.";
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

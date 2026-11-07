@@ -5,7 +5,7 @@
 
 #include "nobion/dvc/legacy_layout.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 namespace {
 
 void expect_path(std::string_view path, FileKind kind, std::string_view key, bool uuid = false) {
@@ -143,4 +143,4 @@ TEST(Layout, MakeRunid) {
 }
 
 }  // namespace
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

@@ -30,7 +30,7 @@
 #include "nobion/ingest/adapter.hpp"
 #include "nobion/ingest/batch.hpp"
 
-namespace pychron::dvc::detail {
+namespace nobion::dvc::detail {
 
 // A file as one commit left it. `index` is the commit's place in the walk.
 struct FileRef {
@@ -363,4 +363,4 @@ class UnitAccount {
   std::unordered_map<std::string, Last> last_;
 };
 
-}  // namespace pychron::dvc::detail
+}  // namespace nobion::dvc::detail

@@ -7,7 +7,7 @@
 
 #include "nobion/core/config/loader.hpp"
 
-namespace pychron::config {
+namespace nobion::config {
 
 namespace {
 
@@ -85,4 +85,4 @@ Result<LoggingSources> load_logging_config(const std::optional<std::filesystem::
   return out;
 }
 
-}  // namespace pychron::config
+}  // namespace nobion::config

@@ -7,7 +7,7 @@
 #include <string>
 #include <string_view>
 
-namespace pychron {
+namespace nobion {
 
 using Sha256Digest = std::array<std::uint8_t, 32>;
 
@@ -36,4 +36,4 @@ Sha256Digest sha256(std::span<const std::uint8_t> bytes);
 // Lower-case hex of any byte string.
 std::string to_hex(std::span<const std::uint8_t> bytes);
 
-}  // namespace pychron
+}  // namespace nobion

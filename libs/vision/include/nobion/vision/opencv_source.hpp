@@ -10,7 +10,7 @@
 #include "nobion/vision/source.hpp"
 #include "nobion/vision/types.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 // Applied in this order: roi, channel, flip, rotate.
 struct SourceConfig {
@@ -40,4 +40,4 @@ Result<std::unique_ptr<IFrameSource>> open_opencv_camera(const CameraRequest& re
 // that opens is listed with its size and rate. Empty without OpenCV.
 std::vector<CameraFound> list_opencv_cameras();
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

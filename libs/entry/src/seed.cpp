@@ -14,8 +14,8 @@
 #include "nobion/entry/names.hpp"
 #include "nobion/entry/package_edit.hpp"
 
-namespace pychron::entry {
-namespace ps = pychron::persistence;
+namespace nobion::entry {
+namespace ps = nobion::persistence;
 namespace {
 
 // The analysis types a run of a reference sample has (the names of
@@ -342,4 +342,4 @@ std::string describe(const SeedReport& r) {
   return out;
 }
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

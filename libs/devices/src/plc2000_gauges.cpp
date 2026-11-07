@@ -5,7 +5,7 @@
 
 #include "nobion/devices/modbus_ids.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace mb = codec::modbus;
 
@@ -96,6 +96,6 @@ Result<Sample> Plc2000Gauges::sample() {
   return Sample{name(), clock_->now(), *p};
 }
 
-}  // namespace pychron
+}  // namespace nobion
 
-REGISTER_DRIVER("plc2000_gauges", pychron::Plc2000Gauges);
+REGISTER_DRIVER("plc2000_gauges", nobion::Plc2000Gauges);

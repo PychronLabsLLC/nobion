@@ -9,7 +9,7 @@
 #include "nobion/vision/frame.hpp"
 #include "nobion/vision/synth.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 struct FrameInfo {
   int width, height;
@@ -48,4 +48,4 @@ class SyntheticSource final : public IFrameSource {
   std::uint64_t seq_ = 0;
 };
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

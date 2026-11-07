@@ -2,7 +2,7 @@
 
 #include <fstream>
 
-namespace pychron {
+namespace nobion {
 
 namespace {
 
@@ -134,4 +134,4 @@ void TraceRecorder::record_error(const Error& error) {
     wire_log_->trace("err " + std::string(to_string(error.kind)) + " " + error.what);
 }
 
-}  // namespace pychron
+}  // namespace nobion

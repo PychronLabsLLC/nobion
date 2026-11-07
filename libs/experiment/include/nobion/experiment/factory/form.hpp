@@ -24,7 +24,7 @@
 #include "nobion/experiment/model/rules.hpp"
 #include "nobion/experiment/model/run_spec.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 struct FactoryForm {
   std::string identifier;  // a special identifier ("bu", "a") makes a special run
@@ -90,4 +90,4 @@ std::optional<FactoryForm> with_lab_defaults(const FactoryForm& form, const Iden
 Result<FactoryForm> next_form(const FactoryForm& form, const IncrementOptions& inc, const IdentifierRules& ids,
                               const StepHeatLibrary& step_heats = {});
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

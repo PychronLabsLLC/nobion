@@ -37,12 +37,12 @@
 #include "nobion/earthbank/secret_store.hpp"
 #include "settings_guard.hpp"
 
-using namespace pychron;
-namespace eb = pychron::earthbank;
-using pychron::ui::EarthbankPackageDialog;
-using pychron::ui::EarthbankPreferencesPage;
-using pychron::ui::EarthbankSetup;
-using Column = pychron::ui::EarthbankPreferencesPage::Column;
+using namespace nobion;
+namespace eb = nobion::earthbank;
+using nobion::ui::EarthbankPackageDialog;
+using nobion::ui::EarthbankPreferencesPage;
+using nobion::ui::EarthbankSetup;
+using Column = nobion::ui::EarthbankPreferencesPage::Column;
 
 namespace {
 

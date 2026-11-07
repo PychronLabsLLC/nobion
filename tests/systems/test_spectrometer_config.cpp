@@ -9,7 +9,7 @@
 
 #include "nobion/systems/spectrometer/config_loader.hpp"
 
-namespace pychron::spectrometer::cfg {
+namespace nobion::spectrometer::cfg {
 namespace {
 
 // Spec section 7.1 verbatim, plus one detector and the acquirer channel list.
@@ -512,4 +512,4 @@ TEST(DetectorColor, ExampleConfigsHaveDistinctColors) {
 }
 
 }  // namespace
-}  // namespace pychron::spectrometer::cfg
+}  // namespace nobion::spectrometer::cfg

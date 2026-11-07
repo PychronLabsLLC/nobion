@@ -10,11 +10,11 @@
 #include "nobion/arar/reduce.hpp"
 #include "nobion/processing/reduced.hpp"
 
-namespace pp = pychron::processing;
-namespace r = pychron::reduction;
-using pychron::arar::test::make_air;
-using pychron::arar::test::make_unknown;
-namespace ar = pychron::arar;
+namespace pp = nobion::processing;
+namespace r = nobion::reduction;
+using nobion::arar::test::make_air;
+using nobion::arar::test::make_unknown;
+namespace ar = nobion::arar;
 
 namespace {
 

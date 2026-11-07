@@ -13,10 +13,10 @@
 #include "store_fixture.hpp"
 #include "store_impl.hpp"
 
-using namespace pychron;
-using namespace pychron::persistence;
-using namespace pychron::persistence::testing;
-namespace pd = pychron::persistence::detail;
+using namespace nobion;
+using namespace nobion::persistence;
+using namespace nobion::persistence::testing;
+namespace pd = nobion::persistence::detail;
 
 namespace {
 
@@ -463,7 +463,7 @@ TEST_P(SchemaTest, ChecksumMismatchIsFatal) {
   auto db = raw(tdb.url());
   ASSERT_TRUE(db);
   ASSERT_TRUE(db->affecting("UPDATE schema_version SET checksum = ? WHERE version = 1",
-                            {pd::qv(pychron::sha256(std::string_view{"tampered"}))}));
+                            {pd::qv(nobion::sha256(std::string_view{"tampered"}))}));
   auto store = open_store(StoreConfig{tdb.url(), true});
   ASSERT_FALSE(store);
   EXPECT_EQ(store.error().kind, ErrorKind::Config);

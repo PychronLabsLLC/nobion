@@ -5,7 +5,7 @@
 
 #include "nobion/codecs/thermo_qtegra.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace q = codec::qtegra;
 
@@ -179,4 +179,4 @@ SimTransport::Hook qtegra_sim_hook(std::shared_ptr<QtegraSimModel> model) {
   };
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

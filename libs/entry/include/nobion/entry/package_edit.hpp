@@ -14,7 +14,7 @@
 #include "nobion/entry/settings.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 struct NewLevel {
   std::string name;
@@ -105,4 +105,4 @@ Result<PackageChronology> package_chronology(persistence::IStore& store, persist
 // The interference ratios, in the order the production editor shows them.
 const std::vector<std::string>& production_keys();
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

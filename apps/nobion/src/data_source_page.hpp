@@ -30,7 +30,7 @@ class QFormLayout;
 class QLabel;
 class QPushButton;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 struct DataSourcePageDeps {
   setup::SiteInstall install;
@@ -103,4 +103,4 @@ class DataSourcePage : public QWidget {
   std::string unreadable_;  // why the install's source could not be read
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

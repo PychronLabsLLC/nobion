@@ -13,13 +13,13 @@
 
 namespace elctl::import_detail {
 
-namespace ingest = pychron::ingest;
+namespace ingest = nobion::ingest;
 
 namespace {
 
 using Json = nlohmann::json;
 
-using pychron::reduction::ConstantsPreset;
+using nobion::reduction::ConstantsPreset;
 constexpr ConstantsPreset kConstantsPresets[] = {ConstantsPreset::Default, ConstantsPreset::Legacy,
                                                  ConstantsPreset::LegacyPreferences};
 // The preset that reproduces the ages legacy pychron stored: its preference
@@ -142,7 +142,7 @@ void print(std::ostream& out, const Source& source, const ingest::VerifyReport& 
 
   out << "  parity: " << r.parity_pass << " pass, " << r.parity_pass_age_only << " pass on age only, " << r.parity_fail
       << " fail, " << r.parity_not_comparable
-      << " not comparable (constants " << pychron::reduction::to_string(constants)
+      << " not comparable (constants " << nobion::reduction::to_string(constants)
       << "; members of each interpreted age's head revision, as of the commit that saved it)\n";
   for (const auto& [reason, members] : r.not_comparable_reasons)
     out << "    not comparable: " << reason << ' ' << members << '\n';
@@ -226,7 +226,7 @@ Json to_json(const Source& source, const ingest::VerifyReport& r, ConstantsPrese
       {"accounting", {{"units", r.units}, {"ignored", r.ignored}, {"unaccounted", std::move(unaccounted)}}},
       {"idempotence", {{"would_write", r.would_write}, {"replay_would_write", r.replay_would_write}}},
       {"parity",
-       {{"constants", std::string(pychron::reduction::to_string(constants))},
+       {{"constants", std::string(nobion::reduction::to_string(constants))},
         {"pass", r.parity_pass},
         {"pass_age_only", r.parity_pass_age_only},
         {"fail", r.parity_fail},
@@ -259,7 +259,7 @@ int import_verify(Context& ctx, const Flags& flags) {
   if (const auto text = flags.get("--constants")) {
     bool known = false;
     for (const auto preset : kConstantsPresets)
-      if (pychron::reduction::to_string(preset) == *text) {
+      if (nobion::reduction::to_string(preset) == *text) {
         constants = preset;
         known = true;
       }

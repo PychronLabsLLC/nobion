@@ -19,11 +19,11 @@
 #include "settings_guard.hpp"
 #include "update_checker.hpp"
 
-using pychron::ErrorKind;
-using pychron::ui::UpdateChecker;
-using pychron::update::testing::FakeHttp;
-using pychron::update::testing::release_json;
-namespace upd = pychron::update;
+using nobion::ErrorKind;
+using nobion::ui::UpdateChecker;
+using nobion::update::testing::FakeHttp;
+using nobion::update::testing::release_json;
+namespace upd = nobion::update;
 using std::chrono::system_clock;
 
 namespace {
@@ -40,7 +40,7 @@ class TestUpdateChecker : public QObject {
   Q_OBJECT
 
  private:
-  pychron::ui::test::ApplicationSettingsGuard app_settings_;
+  nobion::ui::test::ApplicationSettingsGuard app_settings_;
   QTemporaryDir dir_;
   std::unique_ptr<QSettings> settings_;
   std::unique_ptr<FakeHttp> fake_;
@@ -50,13 +50,13 @@ class TestUpdateChecker : public QObject {
     if (with_client) {
       factory = [this] { return fake_->borrow(); };
     } else {
-      factory = [] { return std::unique_ptr<pychron::http::IHttpClient>(); };
+      factory = [] { return std::unique_ptr<nobion::http::IHttpClient>(); };
     }
     return std::make_unique<UpdateChecker>(*settings_, kRunning, [] { return kNow; }, factory);
   }
 
-  void set_policy(const upd::CheckPolicy& policy) { pychron::ui::save_update_policy(*settings_, policy); }
-  upd::CheckPolicy policy() const { return pychron::ui::load_update_policy(*settings_); }
+  void set_policy(const upd::CheckPolicy& policy) { nobion::ui::save_update_policy(*settings_, policy); }
+  upd::CheckPolicy policy() const { return nobion::ui::load_update_policy(*settings_); }
 
  private slots:
   void init() {

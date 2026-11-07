@@ -3,7 +3,7 @@
 #include <cmath>
 #include <thread>
 
-namespace pychron::jobs {
+namespace nobion::jobs {
 
 Result<std::vector<double>> sweep_positions(const SweepSpec& spec) {
   if (!std::isfinite(spec.start) || !std::isfinite(spec.stop)) {
@@ -144,4 +144,4 @@ Result<std::vector<SweepPoint>> Sweep::run(Spectrometer& spec, const SweepSpec& 
   return points_;
 }
 
-}  // namespace pychron::jobs
+}  // namespace nobion::jobs

@@ -22,7 +22,7 @@
 #include "nobion/core/signal_bus.hpp"
 #include "nobion/systems/spectrometer/spectrometer.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 struct ScanStatus {
   std::string spectrometer;
@@ -78,4 +78,4 @@ class ScanService {
   SignalBus::Subscription alarms_;
 };
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

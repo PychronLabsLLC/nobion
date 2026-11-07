@@ -3,7 +3,7 @@
 #include "nobion/experiment/model/queue_toml.hpp"
 #include "nobion/experiment/model/rules.hpp"
 
-using namespace pychron::experiment;
+using namespace nobion::experiment;
 
 namespace {
 const IdentifierRules kIds = IdentifierRules::defaults();

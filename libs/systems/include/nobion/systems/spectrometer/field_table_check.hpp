@@ -10,7 +10,7 @@
 #include "nobion/systems/spectrometer/field_table.hpp"
 #include "nobion/systems/spectrometer/molecular_weights.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 // Checks of a field table before it is saved or made current
 // (docs/superpowers/specs/2026-10-18-field-table-editor-design.md, 3.2).
@@ -94,4 +94,4 @@ struct TableDiff {
 // `a` is the old version, `b` the new one. Pure.
 [[nodiscard]] TableDiff diff_field_tables(const FieldTable& a, const FieldTable& b);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

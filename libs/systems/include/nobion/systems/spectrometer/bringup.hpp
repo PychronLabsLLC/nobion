@@ -23,11 +23,11 @@
 #include "nobion/systems/spectrometer/spectrometer.hpp"
 #include "nobion/transport/endpoints.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 class SimSystem;
 }
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 // What a beam joined to a line reads (`feed_beam_from_line`).
 enum class BeamFeed {
@@ -113,4 +113,4 @@ Result<std::unique_ptr<Spectrometer>> load_spectrometer_for_app(const std::files
 Result<std::unique_ptr<Spectrometer>> load_spectrometer_for_app(cfg::SpectrometerData data, SpectrometerContext ctx,
                                                                 SpectrometerBringup options = {});
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

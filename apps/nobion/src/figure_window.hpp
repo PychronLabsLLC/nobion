@@ -31,7 +31,7 @@ class QDockWidget;
 class QLabel;
 class QTableWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class OptionsEditor;
 class PresetBar;
@@ -133,4 +133,4 @@ class FigureWindow : public QMainWindow {
   bool filling_ = false;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -15,9 +15,9 @@
 #include "nobion/ingest/ids.hpp"
 #include "verify_parts.hpp"
 
-namespace pychron::ingest {
+namespace nobion::ingest {
 
-namespace P = pychron::persistence;
+namespace P = nobion::persistence;
 using Json = nlohmann::json;
 
 namespace {
@@ -127,4 +127,4 @@ Result<VerifyReport> verify(P::IStore& store, P::Uuid client, ISourceAdapter& ad
   return report;
 }
 
-}  // namespace pychron::ingest
+}  // namespace nobion::ingest

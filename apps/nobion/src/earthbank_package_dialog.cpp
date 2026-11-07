@@ -15,9 +15,9 @@
 #include "error_report.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace eb = pychron::earthbank;
+namespace eb = nobion::earthbank;
 
 EarthbankPackageDialog::EarthbankPackageDialog(EarthbankWorker& worker, eb::Profile profile, QString password,
                                                QWidget* parent)
@@ -138,4 +138,4 @@ void EarthbankPackageDialog::say(const QString& what, bool wrong) {
   style::set_tone(status_, wrong ? style::Tone::Error : style::Tone::Muted);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

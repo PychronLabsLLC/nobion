@@ -10,8 +10,8 @@
 #include "nobion/vision/finder.hpp"
 #include "nobion/vision/synth.hpp"
 
-using namespace pychron::vision;
-using pychron::ErrorKind;
+using namespace nobion::vision;
+using nobion::ErrorKind;
 
 namespace {
 

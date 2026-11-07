@@ -11,7 +11,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/experiment/persist/persister.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class NoDatabasePersister final : public experiment::persist::IAnalysisPersister {
  public:
@@ -36,4 +36,4 @@ class NoDatabasePersister final : public experiment::persist::IAnalysisPersister
   std::string why_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

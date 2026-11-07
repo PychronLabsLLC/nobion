@@ -33,9 +33,9 @@
 #include "nobion/arar/report.hpp"
 #include "scene_view.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 namespace {
 
@@ -471,7 +471,7 @@ bool FigureWindow::export_report(const QString& path) {
   if (!dataset_) return false;
   pp::ReportOptions options;
   if (kind_ == "spectrum" || kind_ == "spectrum_isochron") {
-    namespace r = pychron::reduction;
+    namespace r = nobion::reduction;
     const pp::Options& o = pipeline_.find(kFigure)->options;
     // The pair keeps the spectrum's settings under "spectrum.".
     const std::string in = kind_ == "spectrum" ? "" : "spectrum.";
@@ -496,4 +496,4 @@ bool FigureWindow::export_report(const QString& path) {
   return true;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -10,7 +10,7 @@
 #include "nobion/core/log_hub.hpp"
 #include "nobion/core/logger.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // The hub main() made; null when there is none.
 std::shared_ptr<LogHub> process_log_hub();
@@ -34,4 +34,4 @@ class ProcessLogScope {
   std::shared_ptr<LogHub> previous_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

@@ -11,7 +11,7 @@
 
 #include "nobion/core/process_log.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace fs = std::filesystem;
 
@@ -55,4 +55,4 @@ void migrate_legacy_application_settings() {
     process_logger("nobion").info("settings: " + old_dir.string() + " carried over to " + new_dir.string());
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

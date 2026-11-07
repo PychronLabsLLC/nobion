@@ -1,7 +1,7 @@
 #pragma once
 
 // elctl earthbank: publishing 40Ar/39Ar results to EarthBank (AuScope's
-// AusGeochem data platform) from the DVC store. pychron::earthbank builds one
+// AusGeochem data platform) from the DVC store. nobion::earthbank builds one
 // submission per sample and fills the service's own import workbooks; the
 // user imports them by hand on the service's website. That command does not
 // talk to the service.
@@ -88,14 +88,14 @@
 
 #include "cli.hpp"
 
-namespace pychron::http {
+namespace nobion::http {
 class IHttpClient;
-}  // namespace pychron::http
+}  // namespace nobion::http
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 using http::IHttpClient;
 class ISecretStore;
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank
 
 namespace elctl {
 
@@ -103,8 +103,8 @@ namespace elctl {
 // HTTPS client of this build, the operating system's store). The tests give
 // an in-memory EarthBank and the memory store.
 struct EarthbankDeps {
-  pychron::earthbank::IHttpClient* http = nullptr;
-  pychron::earthbank::ISecretStore* secrets = nullptr;
+  nobion::earthbank::IHttpClient* http = nullptr;
+  nobion::earthbank::ISecretStore* secrets = nullptr;
 };
 
 int earthbank_command(const std::vector<std::string>& args, Io io, EarthbankDeps deps = {});

@@ -9,7 +9,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/persistence/ids.hpp"
 
-namespace pychron::ingest {
+namespace nobion::ingest {
 
 // True when `iana` names a zone in the platform's time zone database.
 bool known_zone(std::string_view iana);
@@ -28,4 +28,4 @@ struct LocalToUtc {
 // An unknown zone is an error, never an exception.
 Result<LocalToUtc> local_to_utc(std::string_view naive_local, std::string_view iana);
 
-}  // namespace pychron::ingest
+}  // namespace nobion::ingest

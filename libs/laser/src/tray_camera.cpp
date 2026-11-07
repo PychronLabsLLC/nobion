@@ -10,7 +10,7 @@
 #include "nobion/core/keyed_noise.hpp"
 #include "nobion/vision/fixture.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 SimTrayCamera::SimTrayCamera(const CameraConfig& config, TraySightFn sight, const Clock& clock)
     : config_(config), sight_(std::move(sight)), clock_(clock) {}
@@ -282,4 +282,4 @@ Result<std::unique_ptr<vision::IFrameSource>> make_frame_source(const CameraConf
   return std::unique_ptr<vision::IFrameSource>(std::make_unique<SimTrayCamera>(config, std::move(sight), clock));
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

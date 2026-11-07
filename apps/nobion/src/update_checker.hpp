@@ -28,7 +28,7 @@
 
 class QSettings;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // The check's policy in QSettings: `updates/check_on_startup` (bool, default
 // true), `updates/last_check` (ISO 8601 UTC, to the second) and
@@ -75,11 +75,11 @@ class UpdateChecker : public QObject {
  signals:
   // Automatic: only a release worth showing (newer, not skipped). Manual:
   // any release newer than the running one.
-  void available(const pychron::update::Release& release, bool manual);
+  void available(const nobion::update::Release& release, bool manual);
   // Manual only: nothing newer; `no_release` when the repository has none,
   // else `latest` is its latest release (older than the running build for a
   // developer's build).
-  void up_to_date(bool no_release, const std::optional<pychron::update::Version>& latest);
+  void up_to_date(bool no_release, const std::optional<nobion::update::Version>& latest);
   // `reason` is said to the operator: "Could not reach GitHub (...)" for the
   // network, "GitHub answered <status>", "Unexpected answer from GitHub (...)"
   // for an answer that does not read.
@@ -101,4 +101,4 @@ class UpdateChecker : public QObject {
   std::thread worker_;  // joined in the destructor's body, before anything else goes
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

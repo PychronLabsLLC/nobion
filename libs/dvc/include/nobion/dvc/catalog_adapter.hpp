@@ -98,7 +98,7 @@
 #include "nobion/ingest/adapter.hpp"
 #include "nobion/persistence/ids.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
 struct CatalogAdapterConfig {
   std::filesystem::path dir;  // what tools/legacy_dump_to_jsonl.py wrote
@@ -162,4 +162,4 @@ class CatalogAdapter final : public ingest::ISourceAdapter {
 Result<std::function<std::optional<std::string>(const persistence::Uuid&)>> load_tag_lookup(
     const std::filesystem::path& dir);
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

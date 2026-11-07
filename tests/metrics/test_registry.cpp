@@ -10,7 +10,7 @@
 #include "metrics_text.hpp"
 #include "nobion/metrics/registry.hpp"
 
-using namespace pychron::metrics;
+using namespace nobion::metrics;
 using metrics_text::has;
 using metrics_text::value;
 

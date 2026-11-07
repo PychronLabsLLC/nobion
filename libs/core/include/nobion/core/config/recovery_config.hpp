@@ -10,7 +10,7 @@
 
 #include "nobion/core/config/located.hpp"
 
-namespace pychron::config {
+namespace nobion::config {
 
 struct RecoveryConfig : Located {
   bool reconnect = true;       // false: a failed call is not retried, the link not reopened
@@ -22,4 +22,4 @@ struct RecoveryConfig : Located {
   static constexpr double kMaxCallWindowS = 3600.0;
 };
 
-}  // namespace pychron::config
+}  // namespace nobion::config

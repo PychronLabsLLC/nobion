@@ -6,8 +6,8 @@
 
 #include "fixtures.hpp"
 
-namespace pp = pychron::processing;
-namespace r = pychron::reduction;
+namespace pp = nobion::processing;
+namespace r = nobion::reduction;
 using pp::test::make_air;
 using pp::test::make_unknown;
 

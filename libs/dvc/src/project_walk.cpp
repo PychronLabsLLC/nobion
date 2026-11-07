@@ -6,7 +6,7 @@
 
 #include "project_import.hpp"
 
-namespace pychron::dvc::detail {
+namespace nobion::dvc::detail {
 
 namespace {
 
@@ -246,4 +246,4 @@ const FileRef* Walk::spectrometer(const std::string& sha1) const {
   return it == spectrometers_.end() ? nullptr : &it->second;
 }
 
-}  // namespace pychron::dvc::detail
+}  // namespace nobion::dvc::detail

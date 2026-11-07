@@ -6,7 +6,7 @@
 #include "nobion/experiment/model/queue_file.hpp"
 #include "nobion/experiment/model/queue_toml.hpp"
 
-using namespace pychron::experiment;
+using namespace nobion::experiment;
 
 namespace {
 const IdentifierRules kIds = IdentifierRules::defaults();
@@ -153,5 +153,5 @@ TEST(QueueFile, SaveAndLoadFile) {
 TEST(QueueFile, LoadMissingFileIsIoError) {
   auto r = load_queue_file("/nonexistent/dir/experiment.toml", kIds);
   ASSERT_FALSE(r);
-  EXPECT_EQ(r.error().kind, pychron::ErrorKind::Io);
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Io);
 }

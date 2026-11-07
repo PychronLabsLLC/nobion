@@ -85,7 +85,7 @@
 #include "nobion/vision/camera_backend.hpp"
 #include "nobion/vision/grain.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 enum class CameraSource { Sim, Recorded, OpenCv, Pylon };
 // "sim", "recorded", "opencv", "pylon".
@@ -201,4 +201,4 @@ class CameraLibrary {
   bool unreadable_ = false;  // the whole file: problems_ is everyone's
 };
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

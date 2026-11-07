@@ -11,7 +11,7 @@
 #include "nobion/processing/reduced.hpp"
 #include "nobion/processing/scene.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 struct RecallRow {
   std::string name;
@@ -59,4 +59,4 @@ RecallModel make_recall_model(const ReducedAnalysis& analysis);
 Scene make_evolution_scene(const Analysis& analysis, const RawData& raw, SeriesKind kind,
                            const std::vector<std::string>& keys = {});
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

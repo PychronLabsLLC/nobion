@@ -8,10 +8,10 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::setup::detail {
+namespace nobion::setup::detail {
 
 // Writes `content` to `p`, making its folder. A secret file is made empty and
 // owner-only (read and write) before the content goes in.
 Result<void> write_file(const std::filesystem::path& p, const std::string& content, bool secret);
 
-}  // namespace pychron::setup::detail
+}  // namespace nobion::setup::detail

@@ -13,7 +13,7 @@
 
 #include "entry_headers.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 struct PackageSheets {
   persistence::IrradiationRow package;
@@ -25,4 +25,4 @@ struct PackageSheets {
 // Pages written; an error when the file cannot be written.
 Result<int> write_package_pdf(const QString& path, const PackageSheets& sheets);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

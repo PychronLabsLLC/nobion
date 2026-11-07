@@ -9,7 +9,7 @@
 #include "nobion/core/process_log.hpp"
 #include "nobion/core/signal_bus.hpp"
 
-namespace pychron {
+namespace nobion {
 
 LinkPolicy link_policy(const config::RecoveryConfig& recovery, const LinkPolicy& defaults) {
   LinkPolicy policy = defaults;
@@ -99,4 +99,4 @@ Result<std::optional<Link::Back>> Link::reconnect_locked(std::uint64_t seen, Epi
   }
 }
 
-}  // namespace pychron
+}  // namespace nobion

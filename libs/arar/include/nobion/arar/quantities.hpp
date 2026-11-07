@@ -11,7 +11,7 @@
 
 #include "nobion/processing/domain.hpp"
 
-namespace pychron::arar {
+namespace nobion::arar {
 
 // A name ArArReduced::named() answers (or its alias "f", "rad40_percent"), or
 // one of its stages; nullopt otherwise.
@@ -27,4 +27,4 @@ namespace pychron::arar {
 // "F" for "f", "radiogenic_yield" for "rad40_percent"; any other name as given.
 [[nodiscard]] std::string_view canonical_name(std::string_view name) noexcept;
 
-}  // namespace pychron::arar
+}  // namespace nobion::arar

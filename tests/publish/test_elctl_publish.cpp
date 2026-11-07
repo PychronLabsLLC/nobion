@@ -13,9 +13,9 @@
 #include "release_fixture.hpp"
 
 namespace fs = std::filesystem;
-namespace ps = pychron::persistence;
-using namespace pychron;
-using pychron::publish::testing::ReleaseFixture;
+namespace ps = nobion::persistence;
+using namespace nobion;
+using nobion::publish::testing::ReleaseFixture;
 
 namespace {
 

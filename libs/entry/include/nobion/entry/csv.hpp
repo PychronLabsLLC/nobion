@@ -12,7 +12,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 struct CsvTable {
   char delimiter = ',';
@@ -34,4 +34,4 @@ Result<CsvTable> read_csv(std::string_view text, std::optional<char> delimiter =
 std::string write_csv(const std::vector<std::string>& header, const std::vector<std::vector<std::string>>& rows,
                       char delimiter = ',');
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

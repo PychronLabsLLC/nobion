@@ -2,7 +2,7 @@
 
 #include <set>
 
-namespace pychron::canvas {
+namespace nobion::canvas {
 
 int default_precedence(SourceKind kind) noexcept {
   switch (kind) {
@@ -107,4 +107,4 @@ const Source* dominant(const std::map<std::string, Source, std::less<>>& sources
   return best;
 }
 
-}  // namespace pychron::canvas
+}  // namespace nobion::canvas

@@ -13,7 +13,7 @@
 
 class QComboBox;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class PresetBar : public QWidget {
   Q_OBJECT
@@ -61,4 +61,4 @@ class PresetBar : public QWidget {
   QString pinned_;  // not empty: the combo's first item
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

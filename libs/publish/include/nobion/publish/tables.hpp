@@ -27,7 +27,7 @@
 #include "nobion/processing/dataset.hpp"
 #include "nobion/arar/report.hpp"
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 using persistence::Uuid;
 using persistence::UtcTime;
@@ -126,4 +126,4 @@ std::string wkb_point(double lon, double lat);
 // `name` with every character outside [A-Za-z0-9._-] replaced by '_'.
 std::string file_safe(std::string_view name);
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

@@ -8,7 +8,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::reduction::detail {
+namespace nobion::reduction::detail {
 
 using Matrix = std::vector<std::vector<double>>;  // row-major, rows = observations
 
@@ -95,4 +95,4 @@ inline Result<LeastSquares> least_squares(Matrix a, std::vector<double> y) {
   return out;
 }
 
-}  // namespace pychron::reduction::detail
+}  // namespace nobion::reduction::detail

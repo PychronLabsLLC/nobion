@@ -33,8 +33,8 @@
 #include "setup_support.hpp"
 #include "temp_path.hpp"
 
-using namespace pychron;
-using namespace pychron::ui;
+using namespace nobion;
+using namespace nobion::ui;
 namespace fs = std::filesystem;
 
 namespace {
@@ -76,7 +76,7 @@ QString text_of(QWidget* editor) {
 // A data-reduction install made as the wizard makes one, in a temp folder,
 // recorded in a site file of its own.
 struct Lab {
-  fs::path dir = pychron::testing::unique_temp_path("nobion-data-source-");
+  fs::path dir = nobion::testing::unique_temp_path("nobion-data-source-");
   fs::path root = dir / "lab";
   fs::path site_path = dir / "site" / "site.toml";
   setup::ProfileLibrary library = shipped();

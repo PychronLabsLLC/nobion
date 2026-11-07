@@ -8,7 +8,7 @@
 
 #include <toml++/toml.hpp>
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace {
 
@@ -359,4 +359,4 @@ std::string to_toml(const FieldTable& table) {
   return out.str();
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

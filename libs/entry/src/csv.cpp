@@ -2,7 +2,7 @@
 
 #include <array>
 
-namespace pychron::entry {
+namespace nobion::entry {
 namespace {
 
 std::string_view strip_bom(std::string_view text) {
@@ -139,4 +139,4 @@ std::string write_csv(const std::vector<std::string>& header, const std::vector<
   return out;
 }
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

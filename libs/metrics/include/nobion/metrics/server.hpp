@@ -20,7 +20,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/metrics/registry.hpp"
 
-namespace pychron::metrics {
+namespace nobion::metrics {
 
 class MetricsServer {
  public:
@@ -50,4 +50,4 @@ class MetricsServer {
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace pychron::metrics
+}  // namespace nobion::metrics

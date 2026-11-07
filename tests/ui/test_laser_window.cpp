@@ -22,9 +22,9 @@
 #include "pattern_maker_window.hpp"
 #include "tray_view.hpp"
 
-using namespace pychron;
-using namespace pychron::ui;
-using pychron::experiment::lab::Lasers;
+using namespace nobion;
+using namespace nobion::ui;
+using nobion::experiment::lab::Lasers;
 
 class LaserWindowTest : public QObject {
   Q_OBJECT

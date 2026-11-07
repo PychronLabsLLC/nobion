@@ -34,7 +34,7 @@ class QListWidget;
 class QPushButton;
 class QSpinBox;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class SpectrometerBridge;
 
@@ -80,7 +80,7 @@ class PeakCenterPanel : public QWidget {
 
  signals:
   // Emitted just before the bridge call of a Start, so a plot can clear.
-  void startRequested(pychron::jobs::PeakCenterConfig config);
+  void startRequested(nobion::jobs::PeakCenterConfig config);
 
  private:
   struct Field;
@@ -152,4 +152,4 @@ class PeakCenterPanel : public QWidget {
   QLabel* res_notes_ = nullptr;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -20,7 +20,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/earthbank/profiles.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 // One password per account, under the service name the store was made with.
 // A store may be used from several threads.
@@ -64,4 +64,4 @@ std::string_view built_in_secret_store();
 // not the scheme's own. `mylab@earthbank.test`, `dev@localhost:8080`.
 std::string secret_account(const Profile& profile);
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

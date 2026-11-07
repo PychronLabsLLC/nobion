@@ -30,7 +30,7 @@ inline constexpr const char* kNoNetwork = "this build has no network support (Qt
 // `elctl earthbank: <message>`, exit 2. The library says `earthbank: ...`;
 // under this command's name that is said once.
 int fatal(Io io, std::string_view message);
-inline int fatal(Io io, const pychron::Error& error) { return fatal(io, error.what); }
+inline int fatal(Io io, const nobion::Error& error) { return fatal(io, error.what); }
 
 // The flags that say which profile and server: --profiles <file>, --profile
 // <name>, --base-url <url>.
@@ -40,17 +40,17 @@ struct ConnectFlags {
 
 // `args[i]` as one of them. True: it was one, and `i` is on its value. False:
 // it is not one of these. A flag without its value is an error.
-pychron::Result<bool> take_connect_flag(ConnectFlags& flags, const std::vector<std::string>& args, std::size_t& i);
+nobion::Result<bool> take_connect_flag(ConnectFlags& flags, const std::vector<std::string>& args, std::size_t& i);
 
 // A session on the server of a profile, signed in when a password is to be had.
 struct Online {
-  std::unique_ptr<pychron::earthbank::IHttpClient> owned_http;
-  std::unique_ptr<pychron::earthbank::ISecretStore> owned_secrets;
-  std::unique_ptr<pychron::earthbank::Session> session;
+  std::unique_ptr<nobion::earthbank::IHttpClient> owned_http;
+  std::unique_ptr<nobion::earthbank::ISecretStore> owned_secrets;
+  std::unique_ptr<nobion::earthbank::Session> session;
   std::filesystem::path profiles_file;
-  pychron::earthbank::Profiles profiles;
+  nobion::earthbank::Profiles profiles;
   // The profile in use, if there is one (a pre-flight may go without).
-  std::optional<pychron::earthbank::Profile> profile;
+  std::optional<nobion::earthbank::Profile> profile;
   // Why the session is not signed in, when it is not, in a sentence.
   std::string not_signed_in;
   // It is not signed in because no password was to be had (none kept, none in

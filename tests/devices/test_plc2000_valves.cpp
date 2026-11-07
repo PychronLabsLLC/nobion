@@ -10,10 +10,10 @@
 #include "nobion/devices/modbus_device_sim.hpp"
 #include "valve_conformance.hpp"
 
-using namespace pychron;
-using namespace pychron::test;
+using namespace nobion;
+using namespace nobion::test;
 using namespace std::chrono_literals;
-namespace mb = pychron::codec::modbus;
+namespace mb = nobion::codec::modbus;
 
 namespace {
 

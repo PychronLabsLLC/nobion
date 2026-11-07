@@ -6,7 +6,7 @@
 #include "nobion/core/log_context.hpp"
 #include "nobion/core/signal_bus.hpp"
 
-namespace pychron {
+namespace nobion {
 
 std::string_view to_string(LogLevel level) noexcept {
   switch (level) {
@@ -114,4 +114,4 @@ Logger Logger::child(std::string_view suffix) const {
   return out;
 }
 
-}  // namespace pychron
+}  // namespace nobion

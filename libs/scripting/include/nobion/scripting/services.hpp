@@ -15,7 +15,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/scripting/script.hpp"
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 
 // Shared named resources (mutex-like flags with a value) coordinating
 // scripts across systems.
@@ -97,4 +97,4 @@ class MapScriptResolver final : public IScriptResolver {
 // "common:wait" -> "common/wait.py". Config error for unsafe names.
 Result<std::string> normalize_script_name(std::string_view name);
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

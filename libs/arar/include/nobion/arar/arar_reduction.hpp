@@ -18,7 +18,7 @@
 #include "nobion/arar/arar_types.hpp"
 #include "nobion/reduction/ufloat.hpp"
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 struct InterferenceComponents {
   UFloat k37, k38, k39, ca36, ca37, ca38, ca39;
@@ -226,4 +226,4 @@ Result<std::optional<AgeSet>> make_age_set(const UFloat& j, double position_jerr
 
 }  // namespace detail
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

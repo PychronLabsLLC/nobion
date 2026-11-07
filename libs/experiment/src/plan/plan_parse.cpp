@@ -20,7 +20,7 @@
 #include "plan_parse.hpp"
 #include "plan_toml.hpp"
 
-namespace pychron::experiment::plan {
+namespace nobion::experiment::plan {
 namespace {
 
 using detail::join;
@@ -1396,4 +1396,4 @@ Result<MeasurementPlan> resolve_plan(std::string_view effective_toml, const Plan
   return p.error();
 }
 
-}  // namespace pychron::experiment::plan
+}  // namespace nobion::experiment::plan

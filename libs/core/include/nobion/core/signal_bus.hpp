@@ -7,7 +7,7 @@
 #include <typeindex>
 #include <utility>
 
-namespace pychron {
+namespace nobion {
 
 // Thread-safe typed publish/subscribe.
 //
@@ -22,7 +22,7 @@ namespace pychron {
 // the event, after that event's other handlers have been called. A handler
 // of HandlerFailed that throws is counted and not reported again.
 struct HandlerFailed {
-  std::string event;        // the event's type, e.g. "pychron::ValveChanged"
+  std::string event;        // the event's type, e.g. "nobion::ValveChanged"
   std::string what;         // the exception's what(), or "unknown exception"
   std::uint64_t count = 0;  // failures of this event's handlers so far, this one included
 };
@@ -89,4 +89,4 @@ class SignalBus {
   std::shared_ptr<Impl> impl_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

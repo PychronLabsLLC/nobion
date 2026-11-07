@@ -10,7 +10,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron {
+namespace nobion {
 
 struct ITemperatureController {
   virtual ~ITemperatureController() = default;
@@ -26,4 +26,4 @@ struct ITemperatureController {
   virtual Result<double> setpoint(int output) = 0;
 };
 
-}  // namespace pychron
+}  // namespace nobion

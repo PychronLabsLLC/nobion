@@ -40,7 +40,7 @@
 #include "nobion/transport/sim_transport.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 enum class SetpointWriteFormat { Int32, Float32 };
 
@@ -131,4 +131,4 @@ class Plc2000HeaterSim {
   std::map<std::uint16_t, std::uint16_t> held_;  // holding registers as written
 };
 
-}  // namespace pychron
+}  // namespace nobion

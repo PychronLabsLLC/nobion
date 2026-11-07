@@ -4,7 +4,7 @@
 #include <map>
 #include <string>
 
-namespace pychron::config {
+namespace nobion::config {
 
 // Where a value came from, for `file:line:field` diagnostics.
 struct SourceLoc {
@@ -28,4 +28,4 @@ struct Located {
   }
 };
 
-}  // namespace pychron::config
+}  // namespace nobion::config

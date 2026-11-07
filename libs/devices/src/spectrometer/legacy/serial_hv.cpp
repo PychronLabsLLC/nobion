@@ -6,7 +6,7 @@
 #include "nobion/codecs/hv_supply.hpp"
 #include "nobion/devices/spectrometer/legacy/polled_acquirer.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace hv = codec::hv_supply;
 
@@ -127,4 +127,4 @@ SimTransport::Hook hv_sim_hook(HvSimModel model) {
 
 REGISTER_DRIVER("serial_hv", SerialHv);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

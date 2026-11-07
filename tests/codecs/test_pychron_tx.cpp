@@ -3,8 +3,8 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-namespace tx = pychron::codec::pychron_tx;
+using namespace nobion;
+namespace tx = nobion::codec::pychron_tx;
 
 TEST(PychronTxCodec, CommandsAndFraming) {
   EXPECT_EQ(*tx::open_valve("A"), (codec::Command{to_bytes("Open A\r"), ReadSpec::until_close()}));

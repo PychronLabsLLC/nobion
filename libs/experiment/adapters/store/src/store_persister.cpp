@@ -24,9 +24,9 @@
 #include "nobion/experiment/store/record_ingest.hpp"
 #include "nobion/persistence/catalog.hpp"
 
-namespace pychron::experiment::store {
+namespace nobion::experiment::store {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 
 namespace {
 
@@ -529,4 +529,4 @@ Result<std::unique_ptr<Acquisition>> open_acquisition(const std::string& url, st
   return std::unique_ptr<Acquisition>(new Acquisition(std::move(impl)));
 }
 
-}  // namespace pychron::experiment::store
+}  // namespace nobion::experiment::store

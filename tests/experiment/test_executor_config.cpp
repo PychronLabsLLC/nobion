@@ -13,8 +13,8 @@
 #include "nobion/experiment/lab/executor_config.hpp"
 #include "temp_path.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment::lab;
+using namespace nobion;
+using namespace nobion::experiment::lab;
 using namespace std::chrono_literals;
 
 namespace {
@@ -116,7 +116,7 @@ TEST(ExecutorConfig, AfterLinkFailureTakesOnlyItsTwoValues) {
 }
 
 TEST(ExecutorConfig, AMissingFileIsTheDefaults) {
-  const auto dir = pychron::testing::unique_temp_path("executor_config_");
+  const auto dir = nobion::testing::unique_temp_path("executor_config_");
   auto c = ExecutorConfig::load(dir / "executor.toml");
   ASSERT_TRUE(c) << c.error().what;
   EXPECT_EQ(c->link_defaults(), LinkPolicy{});

@@ -11,8 +11,8 @@
 #include "nobion/experiment/record/serialize.hpp"
 #include "record_fixtures.hpp"
 
-namespace pp = pychron::processing;
-namespace rec = pychron::experiment::record;
+namespace pp = nobion::processing;
+namespace rec = nobion::experiment::record;
 namespace fs = std::filesystem;
 
 namespace {

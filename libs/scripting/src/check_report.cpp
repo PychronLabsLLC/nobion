@@ -2,7 +2,7 @@
 
 #include "nobion/scripting/script_host.hpp"
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 
 bool CheckReport::ok() const noexcept {
   return std::none_of(diagnostics.begin(), diagnostics.end(),
@@ -32,4 +32,4 @@ extraction::CapabilitySet effective_capabilities(const ScriptEnvironment& env) {
   return env.capabilities ? *env.capabilities : extraction::capabilities(env.line);
 }
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

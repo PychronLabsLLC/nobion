@@ -10,7 +10,7 @@
 #include "nobion/core/config/validate.hpp"
 #include "nobion/core/env.hpp"
 
-namespace pychron::config {
+namespace nobion::config {
 namespace {
 
 using Keys = std::set<std::string, std::less<>>;
@@ -905,4 +905,4 @@ Result<SystemConfig> load_system_config_from_string(std::string_view main_toml, 
   return std::move(*report.config);
 }
 
-}  // namespace pychron::config
+}  // namespace nobion::config

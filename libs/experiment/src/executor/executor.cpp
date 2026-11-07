@@ -16,12 +16,12 @@
 #include "nobion/systems/spectrometer/spectrometer.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron::experiment::executor {
+namespace nobion::experiment::executor {
 
 namespace {
 
-pychron::Duration to_clock(Duration d) {
-  return std::chrono::duration_cast<pychron::Duration>(d > Duration::zero() ? d : Duration::zero());
+nobion::Duration to_clock(Duration d) {
+  return std::chrono::duration_cast<nobion::Duration>(d > Duration::zero() ? d : Duration::zero());
 }
 
 std::string json_string(const std::string& s) {
@@ -322,7 +322,7 @@ std::unique_ptr<Executor::Slot> Executor::launch(std::size_t row, RunSpec spec, 
       pump = pump_started_;
     }
     const auto min = to_clock(s->spec.overlap.min_delay);
-    if (pump && min > pychron::Duration::zero()) {
+    if (pump && min > nobion::Duration::zero()) {
       const auto ready = *pump + min;
       if (clock_.now() < ready) wait(std::chrono::duration<double>(ready - clock_.now()), "minimum pump time", s->run->id());
     }
@@ -991,4 +991,4 @@ QueueResult Executor::execute(ExperimentQueue& queue, std::size_t from_row) {
   return out;
 }
 
-}  // namespace pychron::experiment::executor
+}  // namespace nobion::experiment::executor

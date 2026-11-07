@@ -13,8 +13,8 @@
 #include "settings_migration.hpp"
 
 namespace fs = std::filesystem;
-using pychron::ui::migrate_config_dir;
-using pychron::ui::migrate_settings;
+using nobion::ui::migrate_config_dir;
+using nobion::ui::migrate_settings;
 
 namespace {
 

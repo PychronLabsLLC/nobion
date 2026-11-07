@@ -10,7 +10,7 @@
 
 #include "nobion/persistence/catalog.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 // `name` lowercased without spaces, '-' and '_': "FC 2", "fc-2" and "FC_2"
 // all give "fc2".
@@ -20,4 +20,4 @@ std::string sample_key(std::string_view name);
 std::vector<persistence::SampleRow> near_duplicates(std::string_view name,
                                                     const std::vector<persistence::SampleRow>& samples);
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

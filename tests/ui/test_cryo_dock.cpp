@@ -16,9 +16,9 @@
 #include "plot_style.hpp"
 #include "ui_fixture.hpp"
 
-using namespace pychron;
-using pychron::ui::CoreBridge;
-using pychron::ui::CryoDock;
+using namespace nobion;
+using nobion::ui::CoreBridge;
+using nobion::ui::CryoDock;
 
 class TestCryoDock : public QObject {
   Q_OBJECT

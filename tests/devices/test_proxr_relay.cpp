@@ -15,7 +15,7 @@
 #include "nobion/devices/proxr_board_sim.hpp"
 #include "nobion/transport/sim_transport.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {

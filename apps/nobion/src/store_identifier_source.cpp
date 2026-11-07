@@ -8,7 +8,7 @@
 #include "entry_actions.hpp"
 #include "entry_bridge.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -87,4 +87,4 @@ void StoreIdentifierSource::contents(QObject* receiver, const std::string& packa
       std::move(done));
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -8,7 +8,7 @@
 
 #include "nobion/entry/names.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 namespace ps = persistence;
 using Json = nlohmann::json;
@@ -312,4 +312,4 @@ Result<PackageChronology> package_chronology(ps::IStore& store, ps::Uuid package
   return out;
 }
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

@@ -11,7 +11,7 @@
 
 #include "nobion/core/config/logging_config.hpp"
 
-namespace pychron {
+namespace nobion {
 
 enum class HostOs { Mac, Linux, Windows };
 
@@ -49,4 +49,4 @@ using EnvLookup = std::function<std::optional<std::string>(std::string_view)>;
 void resolve_log_dir(config::LoggingConfig& config, const std::optional<std::filesystem::path>& install_root,
                      HostOs os, const EnvLookup& env);
 
-}  // namespace pychron
+}  // namespace nobion

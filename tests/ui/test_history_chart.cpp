@@ -15,9 +15,9 @@
 #include "reading_history.hpp"
 
 using namespace std::chrono_literals;
-using pychron::TimeSeriesRing;
-using pychron::ui::HistoryChart;
-using pychron::ui::ReadingHistory;
+using nobion::TimeSeriesRing;
+using nobion::ui::HistoryChart;
+using nobion::ui::ReadingHistory;
 
 namespace {
 
@@ -28,7 +28,7 @@ ReadingHistory::Series series_of(std::vector<TimeSeriesRing::Point> points) {
   ReadingHistory::Series s;
   s.points = std::move(points);
   s.units = "torr";
-  if (!s.points.empty()) s.newest = pychron::TimePoint{} + 1h;
+  if (!s.points.empty()) s.newest = nobion::TimePoint{} + 1h;
   return s;
 }
 
@@ -47,17 +47,17 @@ class TestHistoryChart : public QObject {
   Q_OBJECT
 
  private slots:
-  void cleanup() { pychron::ui::set_plot_style(pychron::ui::default_plot_style()); }
+  void cleanup() { nobion::ui::set_plot_style(nobion::ui::default_plot_style()); }
 
   void background_and_pen_follow_a_palette_change() {
     HistoryChart chart;
     chart.set_series(series_of({{-30, 1.0}, {0, 3.0}}), 600s, QDateTime());
     auto* plot = chart.findChild<QCustomPlot*>();
-    QCOMPARE(plot->axisRect()->backgroundBrush().color(), pychron::ui::plot_style().plot_background);
-    pychron::ui::PlotStyle style = pychron::ui::default_plot_style();
+    QCOMPARE(plot->axisRect()->backgroundBrush().color(), nobion::ui::plot_style().plot_background);
+    nobion::ui::PlotStyle style = nobion::ui::default_plot_style();
     style.plot_background = QColor("#fafad2");
     style.series[0] = QColor("#123456");
-    pychron::ui::set_plot_style(style);
+    nobion::ui::set_plot_style(style);
     QCOMPARE(plot->axisRect()->backgroundBrush().color().name(), QStringLiteral("#fafad2"));
     QCOMPARE(graph_of(chart)->pen().color().name(), QStringLiteral("#123456"));
     QCOMPARE(chart.point_count(), 2);  // the data stays

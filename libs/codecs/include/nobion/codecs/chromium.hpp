@@ -24,7 +24,7 @@
 
 #include "nobion/codecs/codec.hpp"
 
-namespace pychron::codec::chromium {
+namespace nobion::codec::chromium {
 
 inline constexpr std::string_view kCommandTerminator = "\n";
 ReadSpec reply_frame();  // until CR or LF
@@ -86,4 +86,4 @@ Result<LimitStatus> decode_limits(const Bytes& reply);
 // The program's name and version; Protocol unless it starts "CHROMIUM".
 Result<std::string> decode_id(const Bytes& reply);
 
-}  // namespace pychron::codec::chromium
+}  // namespace nobion::codec::chromium

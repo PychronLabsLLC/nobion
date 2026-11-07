@@ -22,7 +22,7 @@
 #include "nobion/systems/line_pressure_service.hpp"
 #include "nobion/systems/switch_valve_service.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 namespace fs = std::filesystem;
 
@@ -135,7 +135,7 @@ LabSession::LabSession(const Lab& lab, SessionHardware hardware, SessionOptions 
     // executor.toml [hold] (spec 4.10).
     const auto& h = lab_.executor.hold;
     const auto seconds = [](double s) {
-      return std::chrono::duration_cast<pychron::Duration>(std::chrono::duration<double>(s));
+      return std::chrono::duration_cast<nobion::Duration>(std::chrono::duration<double>(s));
     };
     options_.executor.hold.settle = seconds(h.settle_s);
     options_.executor.hold.probe_interval = seconds(h.probe_interval_s);
@@ -409,4 +409,4 @@ Result<std::size_t> LabSession::resume_row(const fs::path& data) {
   return executor::Executor::resume_row(data / "executor_state.json");
 }
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

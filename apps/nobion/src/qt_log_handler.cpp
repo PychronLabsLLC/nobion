@@ -9,7 +9,7 @@
 #include <QString>
 #include <QtGlobal>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -72,4 +72,4 @@ QtLogHandler::~QtLogHandler() {
   // `logger` goes here, outside the lock.
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -25,11 +25,11 @@
 #include "nobion/ingest/conflict_markers.hpp"
 #include "nobion/ingest/tz.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
 namespace {
 
-namespace P = pychron::persistence;
+namespace P = nobion::persistence;
 
 constexpr const char* kManifestFile = "MANIFEST.json";
 constexpr std::string_view kBinarySuffix = "__base64";  // tools/legacy_dump_to_jsonl.py, BINARY_SUFFIX
@@ -1305,4 +1305,4 @@ Result<std::function<std::optional<std::string>(const persistence::Uuid&)>> load
   }
 }
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

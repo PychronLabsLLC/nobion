@@ -14,9 +14,9 @@
 #include "nobion/reduction/arar.hpp"
 #include "reduce_golden.hpp"
 
-using namespace pychron::reduction;
-namespace g = pychron::reduction::golden;
-using pychron::Result;
+using namespace nobion::reduction;
+namespace g = nobion::reduction::golden;
+using nobion::Result;
 
 // Spec 8.2 parity: for complete, blank-free pipeline.json cases, the live path
 // on the corrected intensities (E1-E3, before E4/E8) with to_live_constants

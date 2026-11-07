@@ -65,8 +65,8 @@ TEST(ElctlEarthbank, TheNetworkCommandsWithoutPersistence) {
 namespace {
 
 namespace fs = std::filesystem;
-namespace ps = pychron::persistence;
-namespace ooxml = pychron::earthbank::ooxml;
+namespace ps = nobion::persistence;
+namespace ooxml = nobion::earthbank::ooxml;
 
 std::string slurp(const fs::path& path) {
   std::ifstream in(path, std::ios::binary);
@@ -92,9 +92,9 @@ std::vector<fs::path> named(const std::vector<fs::path>& files, const std::strin
 
 // A release of `analyses`, as `elctl publish create` leaves it: a private
 // draft; or, with `published`, published and public.
-pychron::Result<ps::Uuid> make_release(ps::IStore& store, const ps::Actor& actor, const std::vector<ps::Uuid>& analyses,
+nobion::Result<ps::Uuid> make_release(ps::IStore& store, const ps::Actor& actor, const std::vector<ps::Uuid>& analyses,
                                        bool published) {
-  namespace pb = pychron::publish;
+  namespace pb = nobion::publish;
   pb::ReleaseSpec spec;
   spec.name = "rel";
   spec.title = "Release rel";
@@ -104,10 +104,10 @@ pychron::Result<ps::Uuid> make_release(ps::IStore& store, const ps::Actor& actor
   spec.reduction_version = "arar-1";
   spec.software_version = "test";
   auto created = pb::create_release(store, actor, spec);
-  if (!created) return pychron::fail(created.error());
+  if (!created) return nobion::fail(created.error());
   if (published) {
-    auto done = pb::publish_release(store, actor, created->release, pychron::sha256(std::string_view{"manifest"}), true);
-    if (!done) return pychron::fail(done.error());
+    auto done = pb::publish_release(store, actor, created->release, nobion::sha256(std::string_view{"manifest"}), true);
+    if (!done) return nobion::fail(done.error());
   }
   return created->release;
 }
@@ -790,16 +790,16 @@ class ElctlEarthbankAccount : public ElctlEarthbank {
   }
 
   std::string kept_password(const std::string& name) {
-    const auto profiles = pychron::earthbank::load_profiles(profiles_);
+    const auto profiles = nobion::earthbank::load_profiles(profiles_);
     if (!profiles || profiles->find(name) == nullptr) return "(no profile)";
-    const auto kept = secrets_->get(pychron::earthbank::secret_account(*profiles->find(name)));
+    const auto kept = secrets_->get(nobion::earthbank::secret_account(*profiles->find(name)));
     return kept && *kept ? **kept : "(none)";
   }
 
   static constexpr const char* kPasswordVariable = "EARTHBANK_PASSWORD";
-  pychron::earthbank::testing::FakeEarthBank bank_;
-  pychron::earthbank::testing::Spy spy_{bank_};
-  std::unique_ptr<pychron::earthbank::ISecretStore> secrets_ = pychron::earthbank::make_memory_secret_store();
+  nobion::earthbank::testing::FakeEarthBank bank_;
+  nobion::earthbank::testing::Spy spy_{bank_};
+  std::unique_ptr<nobion::earthbank::ISecretStore> secrets_ = nobion::earthbank::make_memory_secret_store();
   fs::path profiles_;
   std::optional<std::string> password_was_;
   std::vector<std::string> outputs_;  // everything every command printed
@@ -812,7 +812,7 @@ TEST_F(ElctlEarthbankAccount, LoginStoresThePasswordAndTheProfile) {
   EXPECT_TRUE(contains(o.out, "profile 'mylab' saved")) << o.out;
   EXPECT_EQ(o.err, "");
 
-  const auto profiles = pychron::earthbank::load_profiles(profiles_);
+  const auto profiles = nobion::earthbank::load_profiles(profiles_);
   ASSERT_TRUE(profiles) << profiles.error().what;
   EXPECT_EQ(profiles->active, "mylab");
   ASSERT_EQ(profiles->profiles.size(), 1u);
@@ -833,7 +833,7 @@ TEST_F(ElctlEarthbankAccount, LoginStoresThePasswordAndTheProfile) {
   const Outcome again = with_profiles({"login", "--profile", "mylab"});
   set_variable(std::nullopt);
   ASSERT_EQ(again.code, elctl::kOk) << again.err;
-  const auto reread = pychron::earthbank::load_profiles(profiles_);
+  const auto reread = nobion::earthbank::load_profiles(profiles_);
   ASSERT_TRUE(reread);
   ASSERT_EQ(reread->profiles.size(), 1u);
   EXPECT_EQ(reread->profiles[0], p);
@@ -849,13 +849,13 @@ TEST_F(ElctlEarthbankAccount, LoginWithAWrongPasswordStoresNothing) {
   EXPECT_FALSE(o.err.empty());
   EXPECT_FALSE(contains(o.err, wrong)) << o.err;
   EXPECT_FALSE(fs::exists(profiles_)) << "a profile was saved";
-  const pychron::earthbank::Profile mine = [&] {
-    pychron::earthbank::Profile p;
+  const nobion::earthbank::Profile mine = [&] {
+    nobion::earthbank::Profile p;
     p.name = "mylab";
     p.base_url = bank_.base_url();
     return p;
   }();
-  const auto kept = secrets_->get(pychron::earthbank::secret_account(mine));
+  const auto kept = secrets_->get(nobion::earthbank::secret_account(mine));
   ASSERT_TRUE(kept);
   EXPECT_FALSE(kept->has_value());
 }
@@ -900,7 +900,7 @@ TEST_F(ElctlEarthbankAccount, AccountPrintsTheName) {
   EXPECT_TRUE(contains(o.out, "account: Robin Example (robin.example), id 4107")) << o.out;
   EXPECT_TRUE(contains(o.out, "profile: mylab (https://earthbank.test)")) << o.out;
   // Without a login there is nothing to ask as.
-  secrets_ = pychron::earthbank::make_memory_secret_store();
+  secrets_ = nobion::earthbank::make_memory_secret_store();
   const Outcome none = with_profiles({"account"});
   EXPECT_EQ(none.code, elctl::kUsage);
   EXPECT_TRUE(contains(none.err, "no password is kept")) << none.err;
@@ -917,15 +917,15 @@ TEST_F(ElctlEarthbankAccount, AccountPrintsTheName) {
 // A keyring that cannot be opened (locked, no session) does not stop a script
 // that gives the password in the variable.
 TEST_F(ElctlEarthbankAccount, AStoreThatFailsDoesNotBlockTheVariable) {
-  class Broken final : public pychron::earthbank::ISecretStore {
+  class Broken final : public nobion::earthbank::ISecretStore {
    public:
     std::string backend() const override { return "broken"; }
     bool persistent() const override { return true; }
-    pychron::Result<std::optional<std::string>> get(std::string_view) override {
-      return pychron::fail(pychron::ErrorKind::Io, "broken: the keyring is locked");
+    nobion::Result<std::optional<std::string>> get(std::string_view) override {
+      return nobion::fail(nobion::ErrorKind::Io, "broken: the keyring is locked");
     }
-    pychron::Result<void> set(std::string_view, std::string_view) override { return {}; }
-    pychron::Result<void> erase(std::string_view) override { return {}; }
+    nobion::Result<void> set(std::string_view, std::string_view) override { return {}; }
+    nobion::Result<void> erase(std::string_view) override { return {}; }
   } broken;
   ASSERT_EQ(log_in().code, elctl::kOk);
   const auto run = [&](std::vector<std::string> args) {
@@ -972,7 +972,7 @@ TEST_F(ElctlEarthbankAccount, PackagesListsAndCreates) {
   EXPECT_TRUE(contains(made.out, std::to_string(id))) << made.out;
 
   // The profile uploads to it from now on, and the list marks it.
-  const auto profiles = pychron::earthbank::load_profiles(profiles_);
+  const auto profiles = nobion::earthbank::load_profiles(profiles_);
   ASSERT_TRUE(profiles);
   EXPECT_EQ(profiles->find("mylab")->data_package_id, std::optional<std::int64_t>(id));
   EXPECT_EQ(profiles->find("mylab")->institution_id, std::optional<std::int64_t>(9301));
@@ -985,7 +985,7 @@ TEST_F(ElctlEarthbankAccount, PackagesListsAndCreates) {
   const Outcome misnamed = with_profiles({"packages", "--create", "Asked for"});
   EXPECT_EQ(misnamed.code, elctl::kFailed);
   EXPECT_TRUE(contains(misnamed.err, "Another name")) << misnamed.err;
-  EXPECT_EQ(pychron::earthbank::load_profiles(profiles_)->find("mylab")->data_package_id, std::optional<std::int64_t>(id));
+  EXPECT_EQ(nobion::earthbank::load_profiles(profiles_)->find("mylab")->data_package_id, std::optional<std::int64_t>(id));
   EXPECT_EQ(with_profiles({"packages", "--institution", "x"}).code, elctl::kUsage);
 }
 
@@ -1042,7 +1042,7 @@ TEST_F(ElctlEarthbankAccount, ImportProfiles) {
   ASSERT_EQ(o.code, elctl::kOk) << o.err;
   EXPECT_TRUE(contains(o.out, "imported 2 profiles")) << o.out;
   EXPECT_TRUE(contains(o.out, "passwords are not imported")) << o.out;
-  const auto profiles = pychron::earthbank::load_profiles(profiles_);
+  const auto profiles = nobion::earthbank::load_profiles(profiles_);
   ASSERT_TRUE(profiles) << profiles.error().what;
   ASSERT_EQ(profiles->profiles.size(), 2u);
   EXPECT_EQ(profiles->active, "other");
@@ -1394,9 +1394,9 @@ TEST_F(ElctlEarthbankUpload, AChangedSubmissionPrintsTheCommandThatSendsItAsNew)
 }
 
 TEST_F(ElctlEarthbankUpload, NoStoredPasswordAndNoTerminalExitsTwoHavingSentNothing) {
-  const auto profiles = pychron::earthbank::load_profiles(profiles_);
+  const auto profiles = nobion::earthbank::load_profiles(profiles_);
   ASSERT_TRUE(profiles);
-  ASSERT_TRUE(secrets_->erase(pychron::earthbank::secret_account(*profiles->find("mylab"))));
+  ASSERT_TRUE(secrets_->erase(nobion::earthbank::secret_account(*profiles->find("mylab"))));
   const std::size_t requests = bank_.requests().size();
   const Outcome o = upload({"--yes"});
   EXPECT_EQ(o.code, elctl::kUsage) << o.err << o.out;
@@ -1446,7 +1446,7 @@ class ElctlEarthbankUploadRelease : public ElctlEarthbankUpload {
 
 TEST_F(ElctlEarthbankUploadRelease, UploadRefusedOnPrivateRelease) {
   const ps::Uuid id = release(false);
-  const auto expected = pychron::publish::earthbank_upload_refusal(*store_, id, false, ps::UtcTime::now());
+  const auto expected = nobion::publish::earthbank_upload_refusal(*store_, id, false, ps::UtcTime::now());
   ASSERT_TRUE(expected && *expected) << "a draft release is refused";
   const std::size_t requests = bank_.requests().size();
   const Outcome o = upload({"--release", "rel", "--yes"});

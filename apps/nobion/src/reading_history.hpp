@@ -10,7 +10,7 @@
 #include "nobion/core/clock.hpp"
 #include "nobion/core/time_series_ring.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // A day of timed readings for each of a fixed set of names (a gauge, a
 // heater, an input). It knows nothing of what a name is. Filled and read on
@@ -51,4 +51,4 @@ class ReadingHistory {
   double gap_s_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

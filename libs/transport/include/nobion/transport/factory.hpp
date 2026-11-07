@@ -10,7 +10,7 @@
 #include "nobion/transport/sim_transport.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 struct TransportContext {
   const Clock* clock = nullptr;    // health timestamps and trace times; SteadyClock if null
@@ -34,4 +34,4 @@ struct TransportContext {
 Result<std::unique_ptr<Transport>> make_transport(const config::TransportConfig& config,
                                                   const TransportContext& context = {});
 
-}  // namespace pychron
+}  // namespace nobion

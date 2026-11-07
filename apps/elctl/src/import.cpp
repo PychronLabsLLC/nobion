@@ -141,7 +141,7 @@ int conflicts(Context& ctx, const Flags& flags) {
                         {"path", row.path},
                         {"entity", row.entity ? Json(row.entity->str()) : Json(nullptr)},
                         {"resolution", row.resolution},
-                        {"blocking", row.resolution == "pending" && !pychron::ingest::is_warning_conflict(row)},
+                        {"blocking", row.resolution == "pending" && !nobion::ingest::is_warning_conflict(row)},
                         {"detail", detail.is_discarded() ? Json(row.detail_json) : detail}});
       continue;
     }
@@ -209,7 +209,7 @@ int fatal(Io io, const Error& error) { return fatal(io, error.what); }
 
 }  // namespace import_detail
 
-int import_command(const std::vector<std::string>& args, const pychron::processing::Domain& domain, Io io) {
+int import_command(const std::vector<std::string>& args, const nobion::processing::Domain& domain, Io io) {
   using namespace import_detail;
   if (args.empty()) {
     io.err << kShortUsage;

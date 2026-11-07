@@ -32,7 +32,7 @@
 #include "theme.hpp"
 #include "tray_view.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -717,4 +717,4 @@ void LaserWindow::on_finished(const QString& what, const Result<void>& result) {
   }
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

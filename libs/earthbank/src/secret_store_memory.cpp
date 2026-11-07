@@ -16,7 +16,7 @@
 #include "nobion/earthbank/profiles.hpp"
 #include "secret_store_detail.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 // The passwords of one service, by account.
@@ -136,4 +136,4 @@ std::unique_ptr<ISecretStore> make_secret_store(std::string_view service) {
 
 std::string secret_account(const Profile& profile) { return profile.name + "@" + host_of(profile.base_url); }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

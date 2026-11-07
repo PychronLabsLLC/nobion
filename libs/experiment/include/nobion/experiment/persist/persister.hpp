@@ -36,7 +36,7 @@
 #include "nobion/experiment/model/run_spec.hpp"
 #include "nobion/experiment/record/types.hpp"
 
-namespace pychron::experiment::persist {
+namespace nobion::experiment::persist {
 
 // An identifier's last run as a persister knows it.
 struct LastRun {
@@ -194,8 +194,8 @@ struct SpoolStatus {
 class SpoolFlusher {
  public:
   struct Options {
-    pychron::Duration interval = std::chrono::minutes(5);
-    pychron::Duration max_interval = std::chrono::minutes(30);
+    nobion::Duration interval = std::chrono::minutes(5);
+    nobion::Duration max_interval = std::chrono::minutes(30);
   };
 
   SpoolFlusher(SavePipeline& pipeline, Scheduler& scheduler, const Clock& clock, SignalBus* bus)
@@ -215,7 +215,7 @@ class SpoolFlusher {
 
  private:
   void run(std::uint64_t seq);
-  void schedule_locked(pychron::Duration delay);  // caller holds mutex_
+  void schedule_locked(nobion::Duration delay);  // caller holds mutex_
 
   SavePipeline& pipeline_;
   Scheduler& scheduler_;
@@ -229,7 +229,7 @@ class SpoolFlusher {
   // Jobs scheduled whose run() has not yet taken mutex_, by sequence number.
   std::map<std::uint64_t, JobId> jobs_;
   std::uint64_t next_seq_ = 0;
-  pychron::Duration delay_;                // wait before the next timed flush
+  nobion::Duration delay_;                // wait before the next timed flush
   bool running_ = false;          // a flush is in progress
   bool again_ = false;            // flush_now() while one was running
   bool closing_ = false;
@@ -272,4 +272,4 @@ class AliquotAllocator {
   std::set<std::string> asked_;          // identifiers last_run() was asked about
 };
 
-}  // namespace pychron::experiment::persist
+}  // namespace nobion::experiment::persist

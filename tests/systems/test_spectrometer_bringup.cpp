@@ -23,8 +23,8 @@
 #include "nobion/systems/extraction_line.hpp"
 #include "nobion/systems/spectrometer/bringup.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace std::chrono_literals;
 
 namespace {

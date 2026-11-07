@@ -14,7 +14,7 @@
 #include "nobion/core/clock.hpp"
 #include "nobion/devices/spectrometer/types.hpp"
 
-namespace pychron::jobs {
+namespace nobion::jobs {
 
 using spectrometer::DetectorId;
 
@@ -56,4 +56,4 @@ class Progress {
   ProgressUpdate last_;
 };
 
-}  // namespace pychron::jobs
+}  // namespace nobion::jobs

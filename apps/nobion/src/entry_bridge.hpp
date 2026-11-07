@@ -25,7 +25,7 @@
 #include "entry_headers.hpp"
 #include "nobion/core/error.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class EntryBridge : public QObject {
   Q_OBJECT
@@ -107,4 +107,4 @@ class EntryBridge : public QObject {
   persistence::Actor actor_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

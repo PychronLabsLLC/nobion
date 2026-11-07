@@ -4,7 +4,7 @@
 
 #include "nobion/vision/types.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 enum class SpiralKind { Hexagon, Square };
 
@@ -34,4 +34,4 @@ class Spiral {
   double side_mm_;           // square: current lap's side
 };
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

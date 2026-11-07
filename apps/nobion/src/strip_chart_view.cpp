@@ -10,7 +10,7 @@
 
 #include <qcustomplot.h>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -160,4 +160,4 @@ AxisRange StripChartView::shown_x() const { return {plot_->xAxis->range().lower,
 
 AxisRange StripChartView::shown_y() const { return {plot_->yAxis->range().lower, plot_->yAxis->range().upper}; }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

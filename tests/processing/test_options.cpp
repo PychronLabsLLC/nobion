@@ -11,7 +11,7 @@
 #include "nobion/processing/time_series.hpp"
 #include "nobion/processing/units.hpp"
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 namespace fs = std::filesystem;
 
 namespace {

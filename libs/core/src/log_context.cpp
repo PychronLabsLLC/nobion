@@ -5,7 +5,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace pychron::LogContext {
+namespace nobion::LogContext {
 namespace {
 
 // Read and written only by the owning thread. Pointers to the innermost open
@@ -44,4 +44,4 @@ std::uint32_t thread_number() noexcept {
   return t_number;
 }
 
-}  // namespace pychron::LogContext
+}  // namespace nobion::LogContext

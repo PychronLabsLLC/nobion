@@ -23,7 +23,7 @@
 #include "plot_style.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -490,4 +490,4 @@ QColor EvolutionsView::series_color(const SeriesKey& key) const {
   return it == lines_.end() ? QColor() : it->second.color;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

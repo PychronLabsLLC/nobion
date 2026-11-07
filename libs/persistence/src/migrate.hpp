@@ -10,7 +10,7 @@
 #include "nobion/persistence/store.hpp"
 #include "tiny/db.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 
 // Generated at configure time from migrations/<dialect>/NNNN_<name>.sql.
 struct EmbeddedMigration {
@@ -35,4 +35,4 @@ std::vector<std::string> split_sql(std::string_view sql);
 // left it); unset, every migration this build carries.
 Result<std::vector<AppliedMigration>> migrate(Db& db, bool apply, std::optional<int> up_to = std::nullopt);
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

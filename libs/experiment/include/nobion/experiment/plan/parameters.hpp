@@ -20,7 +20,7 @@
 #include "nobion/experiment/plan/plan_library.hpp"
 #include "nobion/experiment/plan/plan_loader.hpp"
 
-namespace pychron::experiment::plan {
+namespace nobion::experiment::plan {
 
 enum class ParamKind {
   Bool,
@@ -78,4 +78,4 @@ std::optional<std::string> resolved_path(const MeasurementPlan& plan, std::strin
 
 ParamOverrides overrides_for(const PlanTemplate& tmpl, const ParamOverrides& overrides, bool advanced);
 
-}  // namespace pychron::experiment::plan
+}  // namespace nobion::experiment::plan

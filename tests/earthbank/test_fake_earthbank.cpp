@@ -22,7 +22,7 @@
 #include "nobion/earthbank/http.hpp"
 #include "nobion/earthbank/vocab.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using namespace std::string_view_literals;
@@ -1446,4 +1446,4 @@ TEST(FakeEarthBank, AMissingFixtureIsNamed) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

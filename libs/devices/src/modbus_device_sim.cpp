@@ -7,7 +7,7 @@
 
 #include "nobion/codecs/modbus.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace mb = codec::modbus;
 
@@ -127,4 +127,4 @@ SimTransport::Hook modbus_bus_hook(std::vector<ModbusDeviceSim> devices) {
   };
 }
 
-}  // namespace pychron
+}  // namespace nobion

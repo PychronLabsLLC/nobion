@@ -2,8 +2,8 @@
 
 #include "nobion/entry/names.hpp"
 
-using namespace pychron::entry;
-using pychron::persistence::PiKind;
+using namespace nobion::entry;
+using nobion::persistence::PiKind;
 
 // A family name is written as its owner writes it: particles, spaces and any
 // letters. What follows the comma is the given name, kept in full.

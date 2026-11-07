@@ -8,9 +8,9 @@
 #include "nobion/processing/fit_edit.hpp"
 #include "nobion/reduction/fits.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 
 namespace {
 
@@ -238,4 +238,4 @@ Scene make_evolution_scene(const Analysis& a, const RawData& raw, SeriesKind kin
   return scene;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

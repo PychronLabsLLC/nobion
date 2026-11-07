@@ -7,13 +7,13 @@
 
 namespace elctl {
 
-int laser_track(const std::vector<std::string>& words, const pychron::laser::TrackOptions& options, Io io) {
-  const auto scenario = pychron::laser::load_track_scenario(words.at(1));
+int laser_track(const std::vector<std::string>& words, const nobion::laser::TrackOptions& options, Io io) {
+  const auto scenario = nobion::laser::load_track_scenario(words.at(1));
   if (!scenario) {
     io.err << "elctl laser track: " << scenario.error().what << '\n';
     return kFailed;
   }
-  const auto combos = pychron::laser::run_track(*scenario, options);
+  const auto combos = nobion::laser::run_track(*scenario, options);
   if (!combos) {
     io.err << "elctl laser track: " << combos.error().what << '\n';
     return kFailed;
@@ -22,7 +22,7 @@ int laser_track(const std::vector<std::string>& words, const pychron::laser::Tra
     io.out << words.at(1) << ": ok\n";
     return kOk;
   }
-  io.out << pychron::laser::track_table(*combos);
+  io.out << nobion::laser::track_table(*combos);
   return kOk;
 }
 

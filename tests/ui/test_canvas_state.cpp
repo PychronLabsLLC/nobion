@@ -13,11 +13,11 @@
 #include "core_bridge.hpp"
 #include "ui_fixture.hpp"
 
-using namespace pychron;
-using pychron::ui::CanvasView;
-using pychron::ui::CoreBridge;
-using pychron::ui::CoreBridgeCanvasState;
-using pychron::ui::ICanvasState;
+using namespace nobion;
+using nobion::ui::CanvasView;
+using nobion::ui::CoreBridge;
+using nobion::ui::CoreBridgeCanvasState;
+using nobion::ui::ICanvasState;
 
 namespace {
 

@@ -13,7 +13,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace pychron::experiment::plan {
+namespace nobion::experiment::plan {
 namespace {
 
 using nlohmann::json;
@@ -229,4 +229,4 @@ std::string to_json(const MeasurementPlan& plan) {
   return out.dump(2) + "\n";
 }
 
-}  // namespace pychron::experiment::plan
+}  // namespace nobion::experiment::plan

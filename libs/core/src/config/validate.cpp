@@ -5,7 +5,7 @@
 #include <set>
 #include <variant>
 
-namespace pychron::config {
+namespace nobion::config {
 namespace {
 
 class Validator {
@@ -215,4 +215,4 @@ class Validator {
 
 std::vector<Diagnostic> validate(const SystemConfig& config) { return Validator(config).run(); }
 
-}  // namespace pychron::config
+}  // namespace nobion::config

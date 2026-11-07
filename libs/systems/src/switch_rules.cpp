@@ -1,6 +1,6 @@
 #include "nobion/systems/switch_rules.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 Result<void> check_switch_access(const SwitchView& self, std::string_view actor) {
   if (self.locked) return fail(ErrorKind::Interlock, "'" + self.name + "' is software locked", self.name);
@@ -18,7 +18,7 @@ Result<void> check_switch_interlocks(const SwitchView& self, const std::vector<c
     if (o->state != ValveState::Closed) {
       return fail(ErrorKind::Interlock,
                   "cannot open '" + self.name + "': interlocked with '" + o->name + "' which is " +
-                      std::string(pychron::to_string(o->state)),
+                      std::string(nobion::to_string(o->state)),
                   self.name);
     }
   }
@@ -26,11 +26,11 @@ Result<void> check_switch_interlocks(const SwitchView& self, const std::vector<c
     if (p->state != ValveState::Open) {
       return fail(ErrorKind::Interlock,
                   "cannot open '" + self.name + "': requires '" + p->name + "' open, it is " +
-                      std::string(pychron::to_string(p->state)),
+                      std::string(nobion::to_string(p->state)),
                   self.name);
     }
   }
   return {};
 }
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

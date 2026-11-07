@@ -16,7 +16,7 @@
 #include <QScrollArea>
 #include <QVBoxLayout>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -469,4 +469,4 @@ void MeasurementPanel::set_locked(bool locked) {
   update_marks();
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

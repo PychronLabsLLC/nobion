@@ -11,7 +11,7 @@
 #include "nobion/experiment/lab/scripts.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 namespace {
 
 namespace fs = std::filesystem;
@@ -20,8 +20,8 @@ using scripting::ScriptKind;
 class LabScriptsTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    dir_ = pychron::testing::unique_temp_path("pychron-scripts-");
-    pychron::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_);
+    dir_ = nobion::testing::unique_temp_path("pychron-scripts-");
+    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_);
     fs::create_directories(dir_ / "scripts" / "extraction" / "co2");
     std::ofstream(dir_ / "scripts" / "extraction" / "co2" / "degas.py") << "def main():\n    sleep(1)\n";
     fs::create_directories(dir_ / "scripts" / "lib");
@@ -148,4 +148,4 @@ TEST_F(LabScriptsTest, ChecksAndEstimatesWithoutHardware) {
 }
 
 }  // namespace
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

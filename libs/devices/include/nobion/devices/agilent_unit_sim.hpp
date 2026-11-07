@@ -21,7 +21,7 @@
 #include "nobion/codecs/agilent.hpp"
 #include "nobion/transport/sim_transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 class AgilentUnitSim {
  public:
@@ -54,4 +54,4 @@ class AgilentUnitSim {
   std::deque<codec::agilent::InstrumentError> errors_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

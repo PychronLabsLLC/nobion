@@ -42,15 +42,15 @@ namespace elctl {
 struct LineOptions {
   bool force_sim = false;  // treat every transport as kind = "sim"
   // A line served by `elctl sim serve`: transports connect where it answers
-  // (pychron::make_transport, TransportContext::endpoints). Null: as configured.
-  std::shared_ptr<const std::map<std::string, pychron::Endpoint>> sim_endpoints;
+  // (nobion::make_transport, TransportContext::endpoints). Null: as configured.
+  std::shared_ptr<const std::map<std::string, nobion::Endpoint>> sim_endpoints;
   TraceSettings trace;     // transports to record, on top of config `trace = true`
   std::filesystem::path trace_dir = "traces";
 };
 
 class Line {
  public:
-  static pychron::Result<std::unique_ptr<Line>> build(pychron::config::SystemConfig config, LineOptions options = {});
+  static nobion::Result<std::unique_ptr<Line>> build(nobion::config::SystemConfig config, LineOptions options = {});
 
   ~Line();
   Line(const Line&) = delete;
@@ -58,59 +58,59 @@ class Line {
 
   struct Opened {
     std::string transport;
-    pychron::Result<void> result;
+    nobion::Result<void> result;
   };
   // Opens every transport, in config order, and reports each outcome.
   std::vector<Opened> open_all();
   void close_all();
 
-  const pychron::config::SystemConfig& config() const noexcept { return config_; }
-  pychron::SignalBus& bus() noexcept { return bus_; }
-  const pychron::Clock& clock() const noexcept { return clock_; }
+  const nobion::config::SystemConfig& config() const noexcept { return config_; }
+  nobion::SignalBus& bus() noexcept { return bus_; }
+  const nobion::Clock& clock() const noexcept { return clock_; }
 
-  pychron::Transport* transport(const std::string& name) const;
-  pychron::Device* device(const std::string& name) const;
-  pychron::systems::SwitchManager& switches() noexcept { return *switches_; }
+  nobion::Transport* transport(const std::string& name) const;
+  nobion::Device* device(const std::string& name) const;
+  nobion::systems::SwitchManager& switches() noexcept { return *switches_; }
 
-  const pychron::config::GaugeConfig* gauge(const std::string& name) const;
+  const nobion::config::GaugeConfig* gauge(const std::string& name) const;
   // One reading, in the gauge's configured units.
-  pychron::Result<double> read_gauge(const std::string& name);
+  nobion::Result<double> read_gauge(const std::string& name);
 
-  const pychron::config::HeaterConfig* heater_config(const std::string& name) const;
+  const nobion::config::HeaterConfig* heater_config(const std::string& name) const;
   // Config error for an unknown heater or a driver that is not one.
-  pychron::Result<pychron::IHeater*> heater(const std::string& name) const;
+  nobion::Result<nobion::IHeater*> heater(const std::string& name) const;
 
   // Registers every gauge with the scanner at `interval` and starts the
   // scheduler; PressureSample/Alarm arrive on bus(). stop_scan() undoes it.
-  pychron::Result<void> start_scan(pychron::Duration interval);
+  nobion::Result<void> start_scan(nobion::Duration interval);
   void stop_scan();
 
  private:
   struct Sims;
-  Line(pychron::config::SystemConfig config);
+  Line(nobion::config::SystemConfig config);
 
-  pychron::config::SystemConfig config_;
+  nobion::config::SystemConfig config_;
   // Declaration order is teardown order in reverse: the scanner and
   // scheduler stop before the drivers they call, drivers go before their
   // transports, and transports before the sim models their hooks borrow.
-  pychron::SteadyClock clock_;
-  pychron::SignalBus bus_;
+  nobion::SteadyClock clock_;
+  nobion::SignalBus bus_;
   // After the bus and before the transports: destroyed after the transports
   // that log through it. No [logging].dir means no file sink.
-  std::shared_ptr<pychron::LogHub> log_hub_;
+  std::shared_ptr<nobion::LogHub> log_hub_;
   // The process hub's bus attachment: declared after bus_, so it goes first.
-  std::optional<pychron::LogHub::BusAttachment> bus_attachment_;
+  std::optional<nobion::LogHub::BusAttachment> bus_attachment_;
   // The bus's events to the process log (spec 2.1): made once the process hub
   // is known, declared after bus_ so they go before it.
-  std::optional<pychron::EventRecorder> core_events_;
-  std::optional<pychron::systems::SystemsEventRecorder> systems_events_;
-  std::optional<pychron::experiment::ExperimentEventRecorder> experiment_events_;
+  std::optional<nobion::EventRecorder> core_events_;
+  std::optional<nobion::systems::SystemsEventRecorder> systems_events_;
+  std::optional<nobion::experiment::ExperimentEventRecorder> experiment_events_;
   std::unique_ptr<Sims> sims_;
-  std::vector<std::pair<std::string, std::unique_ptr<pychron::Transport>>> transports_;
-  std::vector<std::pair<std::string, std::unique_ptr<pychron::Device>>> devices_;
-  std::unique_ptr<pychron::systems::SwitchManager> switches_;
-  std::unique_ptr<pychron::Scheduler> scheduler_;
-  std::unique_ptr<pychron::GaugeScanner> scanner_;
+  std::vector<std::pair<std::string, std::unique_ptr<nobion::Transport>>> transports_;
+  std::vector<std::pair<std::string, std::unique_ptr<nobion::Device>>> devices_;
+  std::unique_ptr<nobion::systems::SwitchManager> switches_;
+  std::unique_ptr<nobion::Scheduler> scheduler_;
+  std::unique_ptr<nobion::GaugeScanner> scanner_;
 };
 
 }  // namespace elctl

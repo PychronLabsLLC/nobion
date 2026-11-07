@@ -7,7 +7,7 @@
 
 namespace elctl {
 
-int import_command(const std::vector<std::string>&, const pychron::processing::Domain&, Io io) {
+int import_command(const std::vector<std::string>&, const nobion::processing::Domain&, Io io) {
   io.err << "elctl was built without persistence\n";
   return kUsage;
 }

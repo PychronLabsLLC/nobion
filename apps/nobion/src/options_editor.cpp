@@ -27,9 +27,9 @@
 #include <QVBoxLayout>
 #include <utility>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 namespace {
 
@@ -553,4 +553,4 @@ void OptionsEditor::refresh_enabled() {
   }
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

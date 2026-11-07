@@ -3,7 +3,7 @@
 #include "nobion/experiment/conditionals/expr.hpp"
 #include "nobion/experiment/conditionals/metrics.hpp"
 
-using namespace pychron::experiment;
+using namespace nobion::experiment;
 
 namespace {
 
@@ -31,11 +31,11 @@ record::AnalysisRecord finished_run() {
   series("Ar36", "CDD", "signal", {1, 1, 1});
   series("Ar36", "L2", "signal", {2, 2});
   series("", "H1", "baseline", {9, 11});
-  pychron::reduction::FitSpec lin;
-  r.results.intercepts["Ar40"] = {pychron::reduction::Intercept{1000, 2, 3, {}, 0, pychron::reduction::FitKind::Linear, {}}, lin};
-  r.results.intercepts["Ar39"] = {pychron::reduction::Intercept{100, 1, 3, {}, 0, pychron::reduction::FitKind::Linear, {}}, lin};
-  r.results.intercepts["Ar36:CDD"] = {pychron::reduction::Intercept{1, 0.1, 3, {}, 0, pychron::reduction::FitKind::Linear, {}}, lin};
-  r.results.intercepts["Ar36:L2"] = {pychron::reduction::Intercept{2, 0.1, 2, {}, 0, pychron::reduction::FitKind::Linear, {}}, lin};
+  nobion::reduction::FitSpec lin;
+  r.results.intercepts["Ar40"] = {nobion::reduction::Intercept{1000, 2, 3, {}, 0, nobion::reduction::FitKind::Linear, {}}, lin};
+  r.results.intercepts["Ar39"] = {nobion::reduction::Intercept{100, 1, 3, {}, 0, nobion::reduction::FitKind::Linear, {}}, lin};
+  r.results.intercepts["Ar36:CDD"] = {nobion::reduction::Intercept{1, 0.1, 3, {}, 0, nobion::reduction::FitKind::Linear, {}}, lin};
+  r.results.intercepts["Ar36:L2"] = {nobion::reduction::Intercept{2, 0.1, 2, {}, 0, nobion::reduction::FitKind::Linear, {}}, lin};
   r.results.baselines["H1"] = {10, 1, {}};
   r.results.icfactors["H1"] = 1.5;
   return r;
@@ -62,7 +62,7 @@ TEST(RecordMetrics, CorrectedValuesFieldsAndSeries) {
 
 TEST(RecordMetrics, ComputedAndConditionalChecks) {
   const auto rec = finished_run();
-  pychron::reduction::ArArConstants c;
+  nobion::reduction::ArArConstants c;
   RecordMetrics m(rec, c);
   const double ar40 = 1485, ar36 = 1;
   EXPECT_NEAR(*m.scalar(MetricRef{MetricRef::Kind::Computed, "radiogenic_yield", "", "", "", ""}),
@@ -114,9 +114,9 @@ TEST(ConditionalMetrics, DetectorQualifier) {
   record::AnalysisRecord r;
   r.data.series.push_back({"Ar40", "H1", "signal", {{1, 2}, {100, 110}, {}}});
   r.data.series.push_back({"Ar40", "H2", "signal", {{1, 2, 3}, {50, 55, 60}, {}}});
-  pychron::reduction::FitSpec lin;
-  r.results.intercepts["Ar40@H1"] = {pychron::reduction::Intercept{95, 1, 2, {}, 0, pychron::reduction::FitKind::Linear, {}}, lin};
-  r.results.intercepts["Ar40@H2"] = {pychron::reduction::Intercept{45, 1, 3, {}, 0, pychron::reduction::FitKind::Linear, {}}, lin};
+  nobion::reduction::FitSpec lin;
+  r.results.intercepts["Ar40@H1"] = {nobion::reduction::Intercept{95, 1, 2, {}, 0, nobion::reduction::FitKind::Linear, {}}, lin};
+  r.results.intercepts["Ar40@H2"] = {nobion::reduction::Intercept{45, 1, 3, {}, 0, nobion::reduction::FitKind::Linear, {}}, lin};
   RecordMetrics m(r);
   EXPECT_DOUBLE_EQ(*m.scalar(cur), 110);
   EXPECT_DOUBLE_EQ(*m.scalar(iso("Ar40", "cur")), 60);  // bare: the most-populated series, H2

@@ -22,13 +22,13 @@ namespace elctl::testing {
 namespace {
 
 namespace fs = std::filesystem;
-using pychron::laser::CalibrationPoint;
+using nobion::laser::CalibrationPoint;
 
 class LaserCmd : public ElctlTest {
  protected:
   void SetUp() override {
     ElctlTest::SetUp();
-    pychron::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_ / "lab");
+    nobion::testing::copy_lab(PYCHRON_EXAMPLE_CONFIGS_DIR, dir_ / "lab");
   }
   fs::path lab(const std::string& f) const { return dir_ / "lab" / f; }
   fs::path calibration() const { return lab("stage_calibrations") / "co2.example-9.toml"; }
@@ -45,7 +45,7 @@ class LaserCmd : public ElctlTest {
     return laser(std::move(args), sim);
   }
   std::vector<CalibrationPoint> points() const {
-    const pychron::laser::CalibrationStore store(lab("stage_calibrations"));
+    const nobion::laser::CalibrationStore store(lab("stage_calibrations"));
     const auto loaded = store.load("co2", "example-9");
     if (!loaded || !loaded->has_value()) return {};
     return (*loaded)->points;
@@ -455,11 +455,11 @@ TEST_F(LaserCameraCmd, AutocenterRefusesARecordedCamera) {
   const auto dir = lab("recordings") / "holes";
   fs::create_directories(dir);
   {
-    pychron::vision::FrameRecorder recorder(dir, pychron::vision::Provenance::Synthetic, pychron::vision::FinderMode::Hole, 23);
-    pychron::vision::HoleScene scene;
+    nobion::vision::FrameRecorder recorder(dir, nobion::vision::Provenance::Synthetic, nobion::vision::FinderMode::Hole, 23);
+    nobion::vision::HoleScene scene;
     scene.hole_radius_mm = 1.0;
     scene.hole_mm = {0.5, 0};
-    for (int i = 0; i < 12; ++i) ASSERT_TRUE(recorder.add(pychron::vision::render(scene, {0, 0}).first.view()));
+    for (int i = 0; i < 12; ++i) ASSERT_TRUE(recorder.add(nobion::vision::render(scene, {0, 0}).first.view()));
     ASSERT_TRUE(recorder.finish());
   }
   camera("[co2]\nsource = \"recorded\"\nframes = \"recordings/holes\"\n");
@@ -529,10 +529,10 @@ TEST_F(LaserCameraCmd, LookOnRecordedFrames) {
   const auto dir = lab("recordings") / "holes";
   fs::create_directories(dir);
   {
-    pychron::vision::FrameRecorder recorder(dir, pychron::vision::Provenance::Synthetic, pychron::vision::FinderMode::Hole, 11.5);
-    pychron::vision::HoleScene scene;
+    nobion::vision::FrameRecorder recorder(dir, nobion::vision::Provenance::Synthetic, nobion::vision::FinderMode::Hole, 11.5);
+    nobion::vision::HoleScene scene;
     scene.hole_mm = {0.5, 0.25};
-    for (int i = 0; i < 3; ++i) ASSERT_TRUE(recorder.add(pychron::vision::render(scene, {0, 0}).first.view()));
+    for (int i = 0; i < 3; ++i) ASSERT_TRUE(recorder.add(nobion::vision::render(scene, {0, 0}).first.view()));
     ASSERT_TRUE(recorder.finish());
   }
   camera("[co2]\nsource = \"recorded\"\nframes = \"recordings/holes\"\n");
@@ -568,16 +568,16 @@ TEST_F(LaserCmd, TheLabCanBeNamed) {
 
 TEST_F(LaserCameraCmd, CamerasListsEveryBackendAndWhatItFinds) {
   // in place of OpenCV's own search, which would open whatever cameras this machine has
-  pychron::vision::CameraBackend fake;
+  nobion::vision::CameraBackend fake;
   fake.name = "opencv";
   fake.available = true;
   fake.list = [] {
-    return std::vector<pychron::vision::CameraFound>{{"opencv", "0", "camera 0 (FAKE)", 1280, 720, 30},
+    return std::vector<nobion::vision::CameraFound>{{"opencv", "0", "camera 0 (FAKE)", 1280, 720, 30},
                                             {"opencv", "1", "camera 1 (FAKE)", 640, 480, 0}};
   };
-  pychron::vision::register_camera_backend(fake);
+  nobion::vision::register_camera_backend(fake);
   const auto o = laser({"cameras"});
-  pychron::vision::unregister_camera_backend("opencv");
+  nobion::vision::unregister_camera_backend("opencv");
   ASSERT_EQ(o.code, 0) << o.err;
   EXPECT_NE(o.out.find("opencv"), std::string::npos) << o.out;
   EXPECT_NE(o.out.find("device = 0"), std::string::npos) << o.out;

@@ -10,7 +10,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/setup/site.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // --db when given; else the install's database with its password (`install`
 // may be null: no install); else nullopt. An install whose password cannot be
@@ -34,4 +34,4 @@ RunSaving choose_run_saving(const CommandLine& cli, const std::string& database,
                             const std::filesystem::path& data);
 #endif
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

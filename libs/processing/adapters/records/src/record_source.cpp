@@ -11,10 +11,10 @@
 #include "nobion/experiment/record/names.hpp"
 #include "nobion/experiment/record/serialize.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace fs = std::filesystem;
-namespace rec = pychron::experiment::record;
+namespace rec = nobion::experiment::record;
 
 namespace {
 
@@ -338,4 +338,4 @@ Result<RawData> RecordDirectorySource::load_raw(const std::string& uuid) {
   return raw_from_record(*r);
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

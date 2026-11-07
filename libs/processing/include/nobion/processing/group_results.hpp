@@ -9,7 +9,7 @@
 
 #include "nobion/reduction/stats.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 struct GroupResult {
   int graph = 0, group = 0;
@@ -27,4 +27,4 @@ struct GroupResults {
 
 using GroupResultsPtr = std::shared_ptr<const GroupResults>;
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

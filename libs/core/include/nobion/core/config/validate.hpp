@@ -5,7 +5,7 @@
 #include "nobion/core/config/diagnostic.hpp"
 #include "nobion/core/config/system_config.hpp"
 
-namespace pychron::config {
+namespace nobion::config {
 
 // Semantic checks on an already-parsed config:
 //  - names unique (valves + manual valves share one namespace; gauges; pipettes)
@@ -20,4 +20,4 @@ namespace pychron::config {
 //  - gauge channel is one of its driver's declared `channels`, when declared
 std::vector<Diagnostic> validate(const SystemConfig& config);
 
-}  // namespace pychron::config
+}  // namespace nobion::config

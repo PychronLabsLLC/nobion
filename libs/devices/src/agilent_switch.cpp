@@ -1,6 +1,6 @@
 #include "nobion/devices/agilent_switch.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace ag = codec::agilent;
 
@@ -109,6 +109,6 @@ Result<Bytes> AgilentSwitch::ask(const codec::Command& command, Resend resend) {
   return transport_.exchange(command.tx, *command.reply, Transport::kDefaultTimeout, resend);
 }
 
-}  // namespace pychron
+}  // namespace nobion
 
-REGISTER_DRIVER("agilent_switch", pychron::AgilentSwitch);
+REGISTER_DRIVER("agilent_switch", nobion::AgilentSwitch);

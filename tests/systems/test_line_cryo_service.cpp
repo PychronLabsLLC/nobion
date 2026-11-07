@@ -15,8 +15,8 @@
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::systems;
+using namespace nobion;
+using namespace nobion::systems;
 using namespace std::chrono_literals;
 
 constexpr const char* kSystem = R"(
@@ -106,7 +106,7 @@ TEST(LineCryo, TheLineScansEveryInputAndPublishesIt) {
 // The scan is a poll (spec 2.2): its reads are trace records, so the file at
 // debug does not get one per input per second.
 TEST(LineCryo, TheScanIsLoggedAsAPoll) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   Line l;  // after the capture: devices take their logger when they are built
   ASSERT_TRUE(l.line->start());

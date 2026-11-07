@@ -10,7 +10,7 @@
 #include "nobion/persistence/ids.hpp"
 #include "nobion/persistence/import.hpp"
 
-namespace pychron::ingest {
+namespace nobion::ingest {
 
 inline constexpr std::string_view kImportNamespace = "6f0e4c1a-9d7b-5c2e-8a41-70796368726e";
 
@@ -43,4 +43,4 @@ persistence::Uuid bookmark_group_id(std::string_view url, std::string_view tag);
 // An interpreted age, named by the path of its file in the source.
 persistence::Uuid interpreted_age_id(std::string_view url, std::string_view path);
 
-}  // namespace pychron::ingest
+}  // namespace nobion::ingest

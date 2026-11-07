@@ -5,9 +5,9 @@
 #include "nobion/arar/arar_reduction.hpp"
 #include "nobion/arar/reduce.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 
 namespace {
 
@@ -119,4 +119,4 @@ Result<IsochronAge> isochron_age(const std::vector<IsochronPoint>& points, r::Yo
   return out;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

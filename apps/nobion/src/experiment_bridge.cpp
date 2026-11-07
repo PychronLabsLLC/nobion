@@ -7,7 +7,7 @@
 
 #include "error_report.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace exec = experiment::executor;
 namespace meas = experiment::measurement;
@@ -132,4 +132,4 @@ void ExperimentBridge::flush_series() {
   if (!fits.empty()) emit fitsUpdated(fits);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

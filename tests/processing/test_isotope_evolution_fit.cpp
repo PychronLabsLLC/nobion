@@ -11,10 +11,10 @@
 #include "nobion/processing/isotope_evolution_fit.hpp"
 #include "nobion/processing/units.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 namespace {
 
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 
 // Signals of every isotope: v = 2 x intercept - 0.5 t (rising when
 // `rising`), a small wiggle, and a wild point at index 7.
@@ -436,4 +436,4 @@ TEST(IsotopeEvolutionFits, APresetSavedBeforeTheStyleFieldsStillLoads) {
 }
 
 }  // namespace
-}  // namespace pychron::processing
+}  // namespace nobion::processing

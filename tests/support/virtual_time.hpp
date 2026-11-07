@@ -26,7 +26,7 @@
 
 #include "nobion/core/virtual_clock.hpp"
 
-namespace pychron::testing {
+namespace nobion::testing {
 
 // Alive for longer than `limit` of real time, it says `what` did not finish
 // and aborts the process, well inside the ctest timeout.
@@ -153,4 +153,4 @@ class Crew {
   std::vector<std::thread> threads_;
 };
 
-}  // namespace pychron::testing
+}  // namespace nobion::testing

@@ -30,7 +30,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron {
+namespace nobion {
 
 enum class WireProtocol { Tcp, Udp };
 
@@ -78,4 +78,4 @@ Result<std::map<std::string, Endpoint>> client_spectrometer_endpoints(const std:
 // sim-endpoints.toml beside the line's file.
 std::filesystem::path default_sim_endpoints_path(const std::filesystem::path& line_file);
 
-}  // namespace pychron
+}  // namespace nobion

@@ -14,8 +14,8 @@
 #include "valve_conformance.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace std::chrono_literals;
 
 namespace {
@@ -36,7 +36,7 @@ Result<std::unique_ptr<Device>> make(Transport& t, std::string_view toml, std::s
 
 // The valves owning a Qtegra connection of their own, on `clock` (real time
 // when null).
-struct Rig final : pychron::test::ValveRig {
+struct Rig final : nobion::test::ValveRig {
   explicit Rig(const std::string& link, const Clock* on = nullptr) : clock(on) {
     EXPECT_TRUE(bus->open());
     auto made = make(*bus, "link = \"" + link + "\"", "switch_controller", clock);
@@ -46,7 +46,7 @@ struct Rig final : pychron::test::ValveRig {
 
   const Clock* clock;
   std::shared_ptr<QtegraSimModel> model = std::make_shared<QtegraSimModel>();
-  pychron::test::WireTap wire{qtegra_sim_hook(model), to_bytes("ERROR: no such valve\r\n")};
+  nobion::test::WireTap wire{qtegra_sim_hook(model), to_bytes("ERROR: no such valve\r\n")};
   std::unique_ptr<SimTransport> bus = SimTransport::hooked(wire.hook(), fast(clock));
   std::unique_ptr<Device> device;
 
@@ -54,21 +54,21 @@ struct Rig final : pychron::test::ValveRig {
   ValveAddress first() override { return {"Valve 1_9 Set"}; }
   ValveAddress second() override { return {"Pipet Ref. Out Set"}; }
   std::optional<ValveAddress> bad() override { return ValveAddress{"A,B"}; }
-  pychron::test::WireTap* tap() override { return &wire; }
+  nobion::test::WireTap* tap() override { return &wire; }
 };
 
 }  // namespace
 
 // On a virtual clock: every Qtegra command is Safe, so the link tries a
 // silent instrument for its call window, which then costs no real time.
-struct QtegraValvesVirtual : pychron::testing::VirtualTimeTest {
+struct QtegraValvesVirtual : nobion::testing::VirtualTimeTest {
   VirtualClock clock;
   Clock::Participant main{clock, "test"};
 };
 
 TEST_F(QtegraValvesVirtual, PassTheValveConformanceSuite) {
   Rig rig("qv_conformance", &clock);
-  pychron::test::expect_valve_conformance(rig);
+  nobion::test::expect_valve_conformance(rig);
 }
 
 TEST(QtegraValves, SpeakLegacyQtegraValveCommands) {
@@ -85,7 +85,7 @@ TEST(QtegraValves, SpeakLegacyQtegraValveCommands) {
 
 TEST(QtegraValves, AnErrorReplyIsNeverAState) {
   Rig rig("qv_error");
-  rig.wire.set(pychron::test::WireTap::Mode::Garbage);  // every reply: ERROR: no such valve
+  rig.wire.set(nobion::test::WireTap::Mode::Garbage);  // every reply: ERROR: no such valve
   auto opened = rig.actuator().open(ValveAddress{"Nope"});
   ASSERT_FALSE(opened);
   EXPECT_EQ(opened.error().kind, ErrorKind::Protocol);

@@ -26,7 +26,7 @@
 
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 QPointF to_qpoint(const canvas::Point& p);
 // A valve's box for its state in a style when it takes no section colour
@@ -359,4 +359,4 @@ class GaugeLabelItem : public QGraphicsSimpleTextItem {
   bool wired_ = true;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

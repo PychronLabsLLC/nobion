@@ -22,7 +22,7 @@
 #include "nobion/devices/driver_registry.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 struct Plc2000ValvesOptions {
   std::uint8_t unit = 1;
@@ -62,4 +62,4 @@ class Plc2000Valves final : public Device, public IValveActuator {
   Plc2000ValvesOptions options_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

@@ -1,6 +1,6 @@
 #pragma once
 
-// pychron::Expected / pychron::Unexpected.
+// nobion::Expected / nobion::Unexpected.
 //
 // The spec calls for std::expected, which is a C++23 library feature. The
 // project builds as C++20, where libc++ and MSVC do not ship it, so when
@@ -15,12 +15,12 @@
 #if defined(__cpp_lib_expected) && __cpp_lib_expected >= 202202L
 #include <expected>
 
-namespace pychron {
+namespace nobion {
 template <class T, class E>
 using Expected = std::expected<T, E>;
 template <class E>
 using Unexpected = std::unexpected<E>;
-}  // namespace pychron
+}  // namespace nobion
 
 #else
 
@@ -30,7 +30,7 @@ using Unexpected = std::unexpected<E>;
 #include <utility>
 #include <variant>
 
-namespace pychron {
+namespace nobion {
 
 template <class E>
 class Unexpected {
@@ -51,7 +51,7 @@ Unexpected(E) -> Unexpected<E>;
 
 namespace detail {
 [[noreturn]] inline void bad_expected_access(const char* what) {
-  std::fprintf(stderr, "pychron::Expected: %s\n", what);
+  std::fprintf(stderr, "nobion::Expected: %s\n", what);
   std::abort();
 }
 }  // namespace detail
@@ -164,6 +164,6 @@ class Expected<void, E> {
   bool has_error_ = false;
 };
 
-}  // namespace pychron
+}  // namespace nobion
 
 #endif

@@ -14,7 +14,7 @@
 #include "nobion/transport/sim_transport.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 // May each command be sent twice (Repeat, link.hpp)?
 //
@@ -53,4 +53,4 @@ struct HvSimModel {
 
 SimTransport::Hook hv_sim_hook(HvSimModel model);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

@@ -12,9 +12,9 @@
 #include "nobion/ingest/conflict_markers.hpp"
 #include "nobion/ingest/ids.hpp"
 
-namespace pychron::dvc::detail {
+namespace nobion::dvc::detail {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 using ingest::ImportBatch;
 using ps::ConflictKind;
 using ps::Uuid;
@@ -1217,4 +1217,4 @@ Result<void> Mapper::rewritten(const Change& item, std::string_view text, Output
   return {};
 }
 
-}  // namespace pychron::dvc::detail
+}  // namespace nobion::dvc::detail

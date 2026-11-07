@@ -17,7 +17,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/core/events.hpp"
 
-namespace pychron {
+namespace nobion {
 
 class Logger;
 class SignalBus;
@@ -25,7 +25,7 @@ class SignalBus;
 // What a process says about itself in its `session start` record.
 struct SessionInfo {
   std::string app;                                    // "nobion", "elctl"
-  std::string version;                                // pychron::setup::version()
+  std::string version;                                // nobion::setup::version()
   std::optional<std::filesystem::path> install_root;
   std::string profiles;                               // "" when none
   bool simulated = false;
@@ -176,4 +176,4 @@ class LogHub {
   std::shared_ptr<Impl> impl_;  // shared with hub loggers, which may outlive the hub
 };
 
-}  // namespace pychron
+}  // namespace nobion

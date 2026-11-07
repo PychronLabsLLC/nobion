@@ -8,9 +8,9 @@
 #include "laser_harness.hpp"
 #include "nobion/vision/pgm.hpp"
 
-using namespace pychron;
-using namespace pychron::laser;
-using namespace pychron::laser::harness;
+using namespace nobion;
+using namespace nobion::laser;
+using namespace nobion::laser::harness;
 
 namespace {
 

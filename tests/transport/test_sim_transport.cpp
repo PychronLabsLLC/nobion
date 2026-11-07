@@ -13,7 +13,7 @@
 #include "nobion/core/virtual_clock.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {
@@ -37,7 +37,7 @@ std::unique_ptr<SimTransport> open_scripted(std::vector<SimStep> steps, int retr
 // A read that waits past the clock leaves time standing and the test asleep
 // in it. Each test on a VirtualClock runs under a real-time bound: when it is
 // exceeded the process says so and aborts, well inside the ctest timeout.
-class SimTransportVirtual : public pychron::testing::VirtualTimeTest {};
+class SimTransportVirtual : public nobion::testing::VirtualTimeTest {};
 
 }  // namespace
 

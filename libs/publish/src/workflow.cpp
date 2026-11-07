@@ -12,7 +12,7 @@
 #include "nobion/publish/build.hpp"
 #include "nobion/publish/release.hpp"
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 namespace fs = std::filesystem;
 namespace ps = persistence;
@@ -88,4 +88,4 @@ Result<StoreVerify> verify_against_store(ps::IStore& store, processing::StoreSou
   return out;
 }
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

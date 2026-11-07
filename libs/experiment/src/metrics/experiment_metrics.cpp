@@ -14,14 +14,14 @@
 #include "nobion/experiment/persist/persister.hpp"
 #include "nobion/systems/jobs/job.hpp"
 
-namespace pychron::experiment::metrics {
+namespace nobion::experiment::metrics {
 
 namespace {
 
 using executor::ExecutorState;
 using executor::QueueEnd;
-using pychron::metrics::Labels;
-using pychron::metrics::MetricType;
+using nobion::metrics::Labels;
+using nobion::metrics::MetricType;
 using run::RunState;
 
 constexpr const char* kExecutorState = "pychron_executor_state";
@@ -121,8 +121,8 @@ constexpr std::array kHoldReasons{executor::HoldReason::Link, executor::HoldReas
 
 }  // namespace
 
-ExperimentMetrics::ExperimentMetrics(pychron::metrics::Registry& registry, SignalBus& bus,
-                                     pychron::metrics::RealClock now)
+ExperimentMetrics::ExperimentMetrics(nobion::metrics::Registry& registry, SignalBus& bus,
+                                     nobion::metrics::RealClock now)
     : registry_(registry), now_(std::move(now)) {
   registry.declare(MetricType::Histogram, kStateDuration, kStateDurationHelp, duration_buckets());
   registry.declare(MetricType::Gauge, kLastFinished, kLastFinishedHelp);
@@ -310,7 +310,7 @@ ExperimentMetrics::ExperimentMetrics(pychron::metrics::Registry& registry, Signa
   }));
 
   // At each scrape: how long ago, by this computer's clock.
-  collector_ = registry.add_collector([this](pychron::metrics::Registry& r) {
+  collector_ = registry.add_collector([this](nobion::metrics::Registry& r) {
     std::optional<double> at;
     {
       const std::lock_guard lock(mutex_);
@@ -345,4 +345,4 @@ void ExperimentMetrics::set_active(bool active) {
   registry_.gauge(kQueueActive, kQueueActiveHelp).set(active ? 1.0 : 0.0);
 }
 
-}  // namespace pychron::experiment::metrics
+}  // namespace nobion::experiment::metrics

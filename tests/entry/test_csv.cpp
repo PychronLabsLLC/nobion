@@ -2,7 +2,7 @@
 
 #include "nobion/entry/csv.hpp"
 
-using namespace pychron::entry;
+using namespace nobion::entry;
 
 TEST(Csv, QuotesDelimitersAndNewlines) {
   auto t = read_csv("a,b,c\n\"x, y\",\"say \"\"hi\"\"\",\"two\nlines\"\nplain,,end\n");

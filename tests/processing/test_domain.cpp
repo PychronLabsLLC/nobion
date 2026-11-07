@@ -9,7 +9,7 @@
 #include "fixtures.hpp"
 #include "nobion/processing/time_series.hpp"
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 using pp::test::make_unknown;
 
 namespace {

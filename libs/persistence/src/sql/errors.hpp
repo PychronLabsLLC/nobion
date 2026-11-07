@@ -6,7 +6,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 
 // Maps a driver error to the core ErrorKind (DVC schema spec, section 12.2):
 //   NotConnected  server unreachable or connection lost        (retryable)
@@ -26,4 +26,4 @@ bool is_constraint_violation(Dialect dialect, const std::string& native_code);
 
 Error sql_error(Dialect dialect, const std::string& native_code, bool connection_error, const std::string& what);
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

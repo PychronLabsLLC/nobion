@@ -15,7 +15,7 @@
 #include "nobion/experiment/plan/plan.hpp"
 #include "nobion/experiment/plan/plan_loader.hpp"
 
-namespace pychron::experiment::plan::detail {
+namespace nobion::experiment::plan::detail {
 
 struct V1Sniff {
   bool enabled = false;
@@ -87,4 +87,4 @@ struct V1Tables {
 Result<std::vector<Gas>> desugar_v1(const MeasurementPlan& plan, const V1Tables& v1,
                                     const ISpectrometerCatalog* catalog);
 
-}  // namespace pychron::experiment::plan::detail
+}  // namespace nobion::experiment::plan::detail

@@ -32,7 +32,7 @@ class QLineEdit;
 class QPushButton;
 class QTableWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class OptionsEditor;
 class PresetBar;
@@ -113,4 +113,4 @@ class ReferenceFitWindow : public QMainWindow {
   QTimer debounce_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

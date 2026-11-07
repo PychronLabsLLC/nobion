@@ -9,7 +9,7 @@
 
 #include "nobion/vision/dragonfly.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 struct TrackScore {
   double on_pct = 0, rms_mm = 0, max_mm = 0, lock_s = 0;
@@ -65,4 +65,4 @@ struct TrackSummary {
 // heat_pct, the highest of every other field. No runs: zeros.
 [[nodiscard]] TrackSummary summarize(std::span<const TrackScore> runs);
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

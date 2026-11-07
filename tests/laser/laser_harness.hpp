@@ -28,9 +28,9 @@
 #include "nobion/laser/tray_camera.hpp"
 #include "nobion/transport/sim_transport.hpp"
 
-namespace pychron::laser::harness {
+namespace nobion::laser::harness {
 
-using namespace pychron::extraction;
+using namespace nobion::extraction;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
@@ -165,4 +165,4 @@ struct CameraHarness : LaserHarness {
   IExtractionDevice& device() { return system; }
 };
 
-}  // namespace pychron::laser::harness
+}  // namespace nobion::laser::harness

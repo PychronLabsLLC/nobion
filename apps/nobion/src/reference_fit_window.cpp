@@ -25,9 +25,9 @@
 #include "nobion/processing/revisions.hpp"
 #include "scene_view.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 namespace {
 
@@ -349,4 +349,4 @@ bool ReferenceFitWindow::save() {
   return true;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

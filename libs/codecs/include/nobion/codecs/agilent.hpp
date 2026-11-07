@@ -27,7 +27,7 @@
 
 #include "nobion/codecs/codec.hpp"
 
-namespace pychron::codec::agilent {
+namespace nobion::codec::agilent {
 
 inline constexpr std::string_view kTerminator = "\n";
 const ReadSpec& reply_spec() noexcept;
@@ -94,4 +94,4 @@ std::optional<std::string> single_channel(std::string_view argument);
 Bytes encode_line(std::string_view text);  // text + "\n"
 Bytes encode_error(int code, std::string_view message);  // "-113,\"Undefined header\"\n"; code 0 is "+0,\"No error\""
 
-}  // namespace pychron::codec::agilent
+}  // namespace nobion::codec::agilent

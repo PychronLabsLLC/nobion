@@ -10,7 +10,7 @@
 
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -196,4 +196,4 @@ void TrayView::contextMenuEvent(QContextMenuEvent* event) {
   if (const QString id = hole_at(event->pos()); !id.isEmpty()) emit holeMenu(id, event->globalPos());
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 CoreBridgeCanvasState::CoreBridgeCanvasState(CoreBridge& bridge, QObject* parent)
     : ICanvasState(parent), bridge_(bridge) {
@@ -21,4 +21,4 @@ systems::InterlockSet CoreBridgeCanvasState::interlocks(const std::string& name)
   return bridge_.interlocks(name);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

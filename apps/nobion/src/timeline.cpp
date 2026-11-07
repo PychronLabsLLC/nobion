@@ -19,7 +19,7 @@
 #include "queue_table_model.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -431,4 +431,4 @@ bool TimelineView::event(QEvent* event) {
   return QWidget::event(event);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

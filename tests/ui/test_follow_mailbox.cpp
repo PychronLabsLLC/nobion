@@ -5,8 +5,8 @@
 
 #include "follow_mailbox.hpp"
 
-using namespace pychron;
-using namespace pychron::ui;
+using namespace nobion;
+using namespace nobion::ui;
 
 class FollowMailboxTest : public QObject {
   Q_OBJECT

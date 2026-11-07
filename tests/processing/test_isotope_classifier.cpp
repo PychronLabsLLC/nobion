@@ -11,10 +11,10 @@
 #include "nobion/processing/isotope_classifier.hpp"
 #include "nobion/processing/isotope_evolution_fit.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 namespace {
 
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 namespace fs = std::filesystem;
 
 RawData with_sniff(const std::string& key, std::vector<double> t, std::vector<double> v) {
@@ -231,4 +231,4 @@ TEST(IsotopeEvolutionFits, ClassifierFlagsBadSniffs) {
 }
 
 }  // namespace
-}  // namespace pychron::processing
+}  // namespace nobion::processing

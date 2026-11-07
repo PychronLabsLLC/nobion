@@ -18,7 +18,7 @@
 #include <opencv2/videoio.hpp>
 #endif
 
-using namespace pychron::vision;
+using namespace nobion::vision;
 
 #ifdef PYCHRON_VISION_OPENCV_ENABLED
 
@@ -104,7 +104,7 @@ class OpenCvSourceVideo : public ::testing::Test {
     }
     auto end = (*s)->grab();
     ASSERT_FALSE(end.has_value());
-    EXPECT_EQ(end.error().kind, pychron::ErrorKind::Io);
+    EXPECT_EQ(end.error().kind, nobion::ErrorKind::Io);
     EXPECT_EQ(end.error().what, "end of stream");
   }
 
@@ -162,13 +162,13 @@ TEST_F(OpenCvSourceVideo, RotationsAreClockwise) {
 TEST_F(OpenCvSourceVideo, FramesCarryStrictlyIncreasingTimestampsFromTheClock) {
   auto n = std::make_shared<int>(0);
   auto s = open_opencv_source(file.string(), SourceConfig{},
-                              [n] { return pychron::TimePoint{} + std::chrono::milliseconds(100 * ++*n); });
+                              [n] { return nobion::TimePoint{} + std::chrono::milliseconds(100 * ++*n); });
   ASSERT_TRUE(s.has_value()) << s.error().what;
-  pychron::TimePoint prev{};
+  nobion::TimePoint prev{};
   for (int i = 0; i < kFrames; ++i) {
     auto f = (*s)->grab();
     ASSERT_TRUE(f.has_value()) << f.error().what;
-    EXPECT_EQ(f->timestamp, pychron::TimePoint{} + std::chrono::milliseconds(100 * (i + 1)));
+    EXPECT_EQ(f->timestamp, nobion::TimePoint{} + std::chrono::milliseconds(100 * (i + 1)));
     EXPECT_GT(f->timestamp, prev);
     prev = f->timestamp;
   }
@@ -179,7 +179,7 @@ TEST_F(OpenCvSourceVideo, InvalidRotationIsConfigError) {
   c.rotate = 45;
   const auto s = open_opencv_source(file.string(), c);
   ASSERT_FALSE(s.has_value());
-  EXPECT_EQ(s.error().kind, pychron::ErrorKind::Config);
+  EXPECT_EQ(s.error().kind, nobion::ErrorKind::Config);
 }
 
 #else

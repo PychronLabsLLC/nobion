@@ -15,7 +15,7 @@
 
 #include "nobion/experiment/lab/scripts.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -268,4 +268,4 @@ bool CodeEditor::event(QEvent* event) {
   return QPlainTextEdit::event(event);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

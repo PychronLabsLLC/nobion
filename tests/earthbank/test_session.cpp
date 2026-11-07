@@ -17,7 +17,7 @@
 #include "nobion/earthbank/session.hpp"
 #include "session_support.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using nlohmann::json;
@@ -1327,4 +1327,4 @@ TEST(Session, ARecordIsNamedByItsPath) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

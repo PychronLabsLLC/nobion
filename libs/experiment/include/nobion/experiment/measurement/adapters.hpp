@@ -34,7 +34,7 @@
 #include "nobion/systems/spectrometer/data_dir.hpp"
 #include "nobion/systems/spectrometer/spectrometer.hpp"
 
-namespace pychron::experiment::measurement {
+namespace nobion::experiment::measurement {
 
 // position() puts a label or a mass on a detector (Spectrometer::position),
 // a raw value through the move protocol (move_native) or an HV value through
@@ -60,8 +60,8 @@ class SpectrometerPort final : public ISpectrometerPort {
   Result<void> blank_beam(bool on) override;
   Result<void> apply_optics(const std::string& name) override;
   Result<void> set_source_output(bool on) override;
-  Result<void> start_acquisition(pychron::Duration integration) override;
-  Result<std::optional<spectrometer::Reading>> next_reading(pychron::Duration timeout) override;
+  Result<void> start_acquisition(nobion::Duration integration) override;
+  Result<std::optional<spectrometer::Reading>> next_reading(nobion::Duration timeout) override;
   void stop_acquisition() override;
 
  private:
@@ -204,4 +204,4 @@ class InstrumentMetrics final : public MetricContext {
   DeviceReader devices_;
 };
 
-}  // namespace pychron::experiment::measurement
+}  // namespace nobion::experiment::measurement

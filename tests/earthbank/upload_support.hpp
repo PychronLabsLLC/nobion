@@ -12,13 +12,13 @@
 #include "nobion/earthbank/vocab.hpp"
 #include "support/temp_path.hpp"
 
-namespace pychron::earthbank::testing {
+namespace nobion::earthbank::testing {
 
 // A directory of its own, removed with it. No other test has its name
 // (support/temp_path.hpp), so two build trees running at once do not meet.
 class TempDir {
  public:
-  TempDir() : path_(pychron::testing::unique_temp_path("pychron_upload_")) {
+  TempDir() : path_(nobion::testing::unique_temp_path("pychron_upload_")) {
     std::filesystem::create_directories(path_);
   }
   ~TempDir() {
@@ -83,4 +83,4 @@ inline Submission good_submission(const std::string& sample, int measurements = 
   return s;
 }
 
-}  // namespace pychron::earthbank::testing
+}  // namespace nobion::earthbank::testing

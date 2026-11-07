@@ -27,8 +27,8 @@
 #include "nobion/setup/template.hpp"
 #include "temp_path.hpp"
 
-using namespace pychron;
-using namespace pychron::setup;
+using namespace nobion;
+using namespace nobion::setup;
 namespace fs = std::filesystem;
 
 namespace {
@@ -56,7 +56,7 @@ std::map<std::string, std::string> hash_tree(const fs::path& dir) {
 
 // A temp directory holding an install root and a site file beside it.
 struct DataSourceFixture : ::testing::Test {
-  fs::path dir = pychron::testing::unique_temp_path("pychron-data-source-");
+  fs::path dir = nobion::testing::unique_temp_path("pychron-data-source-");
   fs::path root = dir / "lab";
   fs::path site_path = dir / "site" / "site.toml";
 

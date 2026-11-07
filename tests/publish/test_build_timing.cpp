@@ -24,14 +24,14 @@
 #include "release_fixture.hpp"
 
 namespace fs = std::filesystem;
-namespace ps = pychron::persistence;
-namespace pp = pychron::processing;
-using namespace pychron;
-using namespace pychron::publish;
+namespace ps = nobion::persistence;
+namespace pp = nobion::processing;
+using namespace nobion;
+using namespace nobion::publish;
 
 namespace {
 
-class BuildTiming : public pychron::publish::testing::ReleaseFixture {};
+class BuildTiming : public nobion::publish::testing::ReleaseFixture {};
 
 double seconds_since(std::chrono::steady_clock::time_point t0) {
   return std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
@@ -71,7 +71,7 @@ TEST_P(BuildTiming, CreateAndBuildScaleWithTheCount) {
 
   auto source =
 
-      pp::StoreSource::open(ps::StoreConfig{db_->url(), false}, pychron::publish::testing::source_options("bench", "bench"));
+      pp::StoreSource::open(ps::StoreConfig{db_->url(), false}, nobion::publish::testing::source_options("bench", "bench"));
   ASSERT_TRUE(source);
   const fs::path out = fs::temp_directory_path() / ("pychron_bench_" + std::to_string(std::random_device{}()));
   fs::create_directories(out);

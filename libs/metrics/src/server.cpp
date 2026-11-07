@@ -9,7 +9,7 @@
 
 #include "nobion/core/log_context.hpp"
 
-namespace pychron::metrics {
+namespace nobion::metrics {
 
 namespace {
 
@@ -232,4 +232,4 @@ MetricsServer::~MetricsServer() {
 
 std::uint16_t MetricsServer::port() const noexcept { return impl_->port; }
 
-}  // namespace pychron::metrics
+}  // namespace nobion::metrics

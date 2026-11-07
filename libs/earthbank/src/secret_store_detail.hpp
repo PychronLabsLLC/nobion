@@ -10,7 +10,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/earthbank/secret_store.hpp"
 
-namespace pychron::earthbank::detail {
+namespace nobion::earthbank::detail {
 
 // An account that is not empty, and for `set` a password that is not empty
 // and has no NUL in it; a `Config` error naming `backend` otherwise. The
@@ -28,4 +28,4 @@ std::unique_ptr<ISecretStore> process_memory_secret_store(std::string_view servi
 // service on the bus.
 std::unique_ptr<ISecretStore> make_system_secret_store(std::string_view service);
 
-}  // namespace pychron::earthbank::detail
+}  // namespace nobion::earthbank::detail

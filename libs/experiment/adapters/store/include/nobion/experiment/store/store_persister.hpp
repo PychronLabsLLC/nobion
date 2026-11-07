@@ -23,7 +23,7 @@
 #include "nobion/experiment/persist/persister.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::experiment::store {
+namespace nobion::experiment::store {
 
 // `store` must outlive the persister. Used from one thread at a time (the
 // queue's); the lock inside guards the two maps and is never held across a
@@ -137,4 +137,4 @@ std::string without_password(const std::string& url);
 // would be found in ordinary words).
 std::string without_password_in(std::string text, const std::string& url);
 
-}  // namespace pychron::experiment::store
+}  // namespace nobion::experiment::store

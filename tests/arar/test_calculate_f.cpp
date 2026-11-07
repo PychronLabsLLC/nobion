@@ -15,8 +15,8 @@
 #include "golden.hpp"
 #include "nobion/arar/arar_reduction.hpp"
 
-using namespace pychron::reduction;
-namespace g = pychron::reduction::golden;
+using namespace nobion::reduction;
+namespace g = nobion::reduction::golden;
 
 namespace {
 
@@ -349,7 +349,7 @@ TEST(CalculateF, InvalidInputsError) {
   c.atm4036.error = -1.0;
   const auto r = calculate_f(legacy_isotopes(), 365.0, p, c);
   ASSERT_FALSE(r);
-  EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
   EXPECT_TRUE(r.error().what.starts_with("reduction: ")) << r.error().what;
 
   std::array<UFloat, 5> n = legacy_isotopes();

@@ -10,7 +10,7 @@
 #include "nobion/codecs/thermo_qtegra.hpp"
 #include "nobion/devices/spectrometer/params.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 
 namespace {
 
@@ -102,4 +102,4 @@ void feed_ngx_from_beam(spectrometer::NgxSimModel& model, const std::shared_ptr<
   };
 }
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

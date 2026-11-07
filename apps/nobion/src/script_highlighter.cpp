@@ -4,7 +4,7 @@
 #include "nobion/experiment/lab/scripts.hpp"
 #include "nobion/scripting/vocabulary.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -109,4 +109,4 @@ void ScriptHighlighter::highlightBlock(const QString& text) {
   }
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

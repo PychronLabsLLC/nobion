@@ -20,7 +20,7 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -487,4 +487,4 @@ QStringList ExecutorPane::conditionals() const {
   return out;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

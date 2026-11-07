@@ -7,8 +7,8 @@
 #include "row_colors.hpp"
 #include "theme.hpp"
 
-using namespace pychron;
-namespace pp = pychron::processing;
+using namespace nobion;
+namespace pp = nobion::processing;
 using ui::ColorBy;
 
 namespace {

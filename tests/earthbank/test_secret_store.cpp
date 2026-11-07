@@ -27,7 +27,7 @@
 #include "nobion/earthbank/secret_store.hpp"
 #include "secret_store_detail.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 constexpr std::string_view kAccount = "fixture@earthbank.test";
@@ -250,4 +250,4 @@ TEST(SecretStore, PlatformRoundTrip) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

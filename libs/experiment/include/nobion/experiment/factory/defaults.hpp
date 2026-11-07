@@ -9,7 +9,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/experiment/model/run_spec.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 // One defaults.toml entry: what a new run of (analysis_type, extract_device) starts with.
 struct RunDefaults {
@@ -62,4 +62,4 @@ Result<RunSpec> make_run(std::string_view identifier, const IdentifierRules& ids
 Result<RunSpec> make_special_run(AnalysisType type, const IdentifierRules& ids, std::string_view extract_device,
                                  const DefaultsTable& defaults);
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

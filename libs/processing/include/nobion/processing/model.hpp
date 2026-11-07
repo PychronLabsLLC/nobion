@@ -14,7 +14,7 @@
 
 #include "nobion/reduction/fits.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 // A value with a 1-sigma error. A number the source does not have (a NULL in
 // the store, which is how a legacy NaN is kept) is NaN here, never 0: nothing
@@ -161,4 +161,4 @@ struct RawData {
 std::string make_runid(const std::string& identifier, int aliquot, int increment);
 std::string step_letters(int increment);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

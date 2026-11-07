@@ -10,7 +10,7 @@
 #include <set>
 #include <sstream>
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 namespace fs = std::filesystem;
 using Json = nlohmann::ordered_json;
@@ -389,4 +389,4 @@ Result<VerifyReport> verify_rebuild(const fs::path& dir, const Manifest& rebuilt
   return report;
 }
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

@@ -19,12 +19,12 @@
 #include "theme.hpp"
 #include "ui_fixture.hpp"
 
-using namespace pychron;
-using pychron::ui::CanvasLegend;
-using pychron::ui::CanvasView;
-using pychron::ui::CoreBridge;
-using pychron::ui::LegendEntry;
-using pychron::ui::LegendInputs;
+using namespace nobion;
+using nobion::ui::CanvasLegend;
+using nobion::ui::CanvasView;
+using nobion::ui::CoreBridge;
+using nobion::ui::LegendEntry;
+using nobion::ui::LegendInputs;
 
 namespace {
 

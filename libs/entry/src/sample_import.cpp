@@ -12,7 +12,7 @@
 #include "nobion/entry/sample_fields.hpp"
 #include "nobion/core/number.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 namespace ps = persistence;
 
@@ -640,4 +640,4 @@ std::string errors_csv(const SampleImportPlan& plan) {
   return write_csv(header, rows);
 }
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

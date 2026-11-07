@@ -25,10 +25,10 @@
 #include "question_editor.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace fs = std::filesystem;
-using namespace pychron::setup;
+using namespace nobion::setup;
 
 namespace {
 
@@ -325,4 +325,4 @@ void DataSourcePage::refresh_read_only() {
   note_->setVisible(!notes.isEmpty());
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

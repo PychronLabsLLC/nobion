@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
+using namespace nobion;
 
 TEST(ReadSpec, TerminatorFindsFirstOccurrence) {
   const auto spec = ReadSpec::until("\r\n");

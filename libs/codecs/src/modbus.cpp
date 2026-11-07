@@ -4,7 +4,7 @@
 #include <bit>
 #include <cctype>
 
-namespace pychron::codec::modbus {
+namespace nobion::codec::modbus {
 
 namespace {
 
@@ -328,4 +328,4 @@ Bytes encode_exception(std::uint16_t tid, std::uint8_t unit, std::uint8_t functi
   return frame(tid, unit, Bytes{static_cast<std::uint8_t>(function | kExceptionFlag), c});
 }
 
-}  // namespace pychron::codec::modbus
+}  // namespace nobion::codec::modbus

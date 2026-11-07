@@ -6,7 +6,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 // Isotope (or molecule) name -> mass in amu. Loaded from
 // molecular_weights.toml as flat `Ar40 = 39.9623831` entries; a default
@@ -33,4 +33,4 @@ class MolecularWeights {
 Result<MolecularWeights> parse_molecular_weights(std::string_view toml_text);
 std::string to_toml(const MolecularWeights& weights);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

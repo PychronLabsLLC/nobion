@@ -12,7 +12,7 @@
 #include "nobion/core/events.hpp"
 #include "nobion/core/signal_bus.hpp"
 
-namespace pychron {
+namespace nobion {
 namespace {
 
 using testing::LogCapture;
@@ -114,7 +114,7 @@ TEST(CoreEventLog, NeverLoggedEventsWriteNothing) {
   bus.publish(HeaterSample{"h", 1.0, 2.0, true, false, {}});
   bus.publish(Snapshot{});
   bus.publish(Log{LogLevel::Error, "x", "m", {}, {}, {}});
-  bus.publish(HandlerFailed{"pychron::ValveChanged", "boom", 1});
+  bus.publish(HandlerFailed{"nobion::ValveChanged", "boom", 1});
   EXPECT_EQ(log.lines(), before);
 }
 
@@ -154,4 +154,4 @@ TEST(EventLine, Formats) {
 }
 
 }  // namespace
-}  // namespace pychron
+}  // namespace nobion

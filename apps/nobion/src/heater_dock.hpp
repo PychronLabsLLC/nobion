@@ -25,7 +25,7 @@
 #include "strip_chart_model.hpp"
 #include "strip_chart_view.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class HeaterDock : public QDockWidget {
   Q_OBJECT
@@ -75,4 +75,4 @@ class HeaterDock : public QDockWidget {
   QLabel* status_ = nullptr;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

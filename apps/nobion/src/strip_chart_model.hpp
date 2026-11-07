@@ -23,7 +23,7 @@
 #include "nobion/core/time_series_ring.hpp"
 #include "nobion/systems/spectrometer/acquisition.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 struct DetectorSeries {
   std::string name;
@@ -104,4 +104,4 @@ class StripChartModel {
   double latest_x_ = 0.0;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -5,7 +5,7 @@
 
 #include "members.hpp"
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 namespace ps = persistence;
 
@@ -156,4 +156,4 @@ Result<std::vector<PlanRefusal>> check_plan(ps::IStore& store, const Publication
   return out;
 }
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

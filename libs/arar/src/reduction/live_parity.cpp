@@ -1,7 +1,7 @@
 // Live constants from reduce()'s inputs (spec 8.2).
 #include "nobion/arar/live_parity.hpp"
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 namespace {
 
@@ -46,4 +46,4 @@ ArArConstants to_live_constants(const ReductionConstants& c, const ProductionRat
   return out;
 }
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

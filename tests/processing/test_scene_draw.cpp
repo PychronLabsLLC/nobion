@@ -8,7 +8,7 @@
 
 #include "nobion/processing/scene_draw.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 namespace {
 
 constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
@@ -333,4 +333,4 @@ TEST(SceneDraw, ALogStepBelowZeroIsClippedNotDropped) {
 }
 
 }  // namespace
-}  // namespace pychron::processing
+}  // namespace nobion::processing

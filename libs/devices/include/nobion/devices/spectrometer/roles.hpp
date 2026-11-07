@@ -18,7 +18,7 @@
 #include "nobion/devices/spectrometer/params.hpp"
 #include "nobion/devices/spectrometer/types.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 struct IMassPositioner {
   // What the hardware natively accepts.
@@ -109,4 +109,4 @@ Result<IMassPositioner::Axis> parse_axis(std::string_view text);
 // Config error "<op> not supported" for a missing detector capability.
 Error unsupported(DetectorCap cap);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

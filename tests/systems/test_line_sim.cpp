@@ -14,8 +14,8 @@
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::systems;
+using namespace nobion;
+using namespace nobion::systems;
 namespace fs = std::filesystem;
 
 const fs::path kExamples = PYCHRON_EXAMPLE_CONFIGS_DIR;

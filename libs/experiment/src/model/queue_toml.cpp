@@ -7,7 +7,7 @@
 
 #include "nobion/experiment/model/positions.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 // Flat / aliased run keys -> "section.key" (empty section = top level).
@@ -335,4 +335,4 @@ Result<QueueSpec> parse_queue(std::string_view text, const IdentifierRules& ids,
   return q;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

@@ -55,7 +55,7 @@
 #include "nobion/processing/options.hpp"
 #include "nobion/processing/source.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -334,4 +334,4 @@ class MainWindow : public QMainWindow {
   std::weak_ptr<LogHub> log_hub_;  // the line's, for levels that change at once
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

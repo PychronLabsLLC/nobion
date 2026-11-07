@@ -14,7 +14,7 @@
 #include "nobion/setup/install.hpp"
 #include "nobion/setup/site.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 struct Check {
   enum class Status { Ok, Warn, Fail };
@@ -46,4 +46,4 @@ Result<std::string> database_url(const SiteInstall& install);
 // file or the key is missing, Config when the file does not parse.
 Result<std::optional<std::string>> read_kept_password(const std::filesystem::path& root);
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

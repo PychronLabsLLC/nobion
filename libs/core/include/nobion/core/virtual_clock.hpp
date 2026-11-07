@@ -17,7 +17,7 @@
 
 #include "nobion/core/clock.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // Simulated time for a program of several threads: it stands still while any
 // thread has work to do and jumps to the next deadline when none has.
@@ -176,4 +176,4 @@ class VirtualClock final : public Clock {
   std::thread watchdog_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

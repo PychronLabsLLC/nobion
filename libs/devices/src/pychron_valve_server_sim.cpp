@@ -2,7 +2,7 @@
 
 #include "nobion/codecs/pychron_tx.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace tx = codec::pychron_tx;
 
@@ -48,4 +48,4 @@ SimTransport::Hook PychronValveServerSim::hook() {
   return [this](const Bytes& tx) { return respond(tx); };
 }
 
-}  // namespace pychron
+}  // namespace nobion

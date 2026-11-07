@@ -3,7 +3,7 @@
 #include <cmath>
 #include <numbers>
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 Spiral::Spiral(SpiralKind kind, double base_mm, double square_growth)
     : kind_(kind), base_mm_(base_mm), growth_(square_growth), side_mm_(base_mm) {}
@@ -43,4 +43,4 @@ Vec2 Spiral::next() {
   return p;
 }
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

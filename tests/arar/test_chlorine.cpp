@@ -16,9 +16,9 @@
 #include "nobion/arar/arar_reduction.hpp"
 #include "reduce_golden.hpp"
 
-using namespace pychron::reduction;
-using pychron::Result;
-namespace g = pychron::reduction::golden;
+using namespace nobion::reduction;
+using nobion::Result;
+namespace g = nobion::reduction::golden;
 
 namespace {
 

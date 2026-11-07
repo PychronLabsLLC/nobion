@@ -5,7 +5,7 @@
 #include "nobion/experiment/model/types.hpp"
 #include "nobion/experiment/plan/plan.hpp"
 
-namespace pychron::experiment::plan {
+namespace nobion::experiment::plan {
 
 struct DurationOptions {
   Duration peak_center{0};  // per peak-center block; the plan cannot know it
@@ -25,4 +25,4 @@ Duration main_duration(const MeasurementPlan& plan);
 // across segments and gases, so settles are skipped the same way.
 Duration estimate_duration(const MeasurementPlan& plan, const DurationOptions& options = {});
 
-}  // namespace pychron::experiment::plan
+}  // namespace nobion::experiment::plan

@@ -28,7 +28,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/dvc/git_reader.hpp"
 
-namespace pychron::dvc::detail {
+namespace nobion::dvc::detail {
 
 // The token of a walk that has done commits [0, index] of `order`. `end`: it
 // reached the head.
@@ -80,4 +80,4 @@ auto contained(std::string_view adapter, Fn&& fn) -> decltype(fn()) {
   }
 }
 
-}  // namespace pychron::dvc::detail
+}  // namespace nobion::dvc::detail

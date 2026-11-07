@@ -26,19 +26,19 @@
 #include "nobion/core/virtual_clock.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {
 // threads = 0: jobs run inline inside run_pending(), fully deterministic.
 Scheduler::Options inline_pool() { return Scheduler::Options{0}; }
 
-using pychron::testing::await_waiters;
+using nobion::testing::await_waiters;
 
 // A scheduler that waits past the clock leaves time standing and the test
 // asleep in it. Each test on a VirtualClock runs under a real-time bound: when
 // it is exceeded the process says so and aborts, well inside the ctest timeout.
-class SchedulerVirtual : public pychron::testing::VirtualTimeTest {
+class SchedulerVirtual : public nobion::testing::VirtualTimeTest {
  protected:
   // Appended to by jobs on worker threads.
   void record(TimePoint t) {
@@ -534,7 +534,7 @@ TEST_F(SchedulerVirtual, PeriodicJobRunsAtExactTimes) {
 
 // A job writes to the log with its thread named: the scheduler's.
 TEST_F(SchedulerVirtual, JobsRunTaggedScheduler) {
-  pychron::testing::LogCapture log;  // before the scheduler: its threads end first
+  nobion::testing::LogCapture log;  // before the scheduler: its threads end first
   ASSERT_TRUE(log.ok());
   VirtualClock clock;
   Clock::Participant main(clock, "test");

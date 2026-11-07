@@ -39,10 +39,10 @@ namespace elctl {
 
 namespace {
 
-namespace ps = pychron::persistence;
-namespace en = pychron::entry;
-using pychron::Error;
-using pychron::Result;
+namespace ps = nobion::persistence;
+namespace en = nobion::entry;
+using nobion::Error;
+using nobion::Result;
 
 constexpr const char* kShortUsage =
     "usage: elctl entry <samples|package|positions|identifiers|holders|settings|seed> <action> [args] --db <url>\n"
@@ -128,7 +128,7 @@ int usage(Io io, const std::string& message) {
 }
 
 int fatal(Io io, const Error& e) {
-  io.err << "elctl entry: " << pychron::to_string(e) << '\n';
+  io.err << "elctl entry: " << nobion::to_string(e) << '\n';
   return kUsage;
 }
 
@@ -139,7 +139,7 @@ int fatal(Io io, const std::string& what) {
 
 Result<std::string> read_file(const std::string& path) {
   std::ifstream in(path, std::ios::binary);
-  if (!in) return pychron::fail(pychron::ErrorKind::Io, "cannot read " + path);
+  if (!in) return nobion::fail(nobion::ErrorKind::Io, "cannot read " + path);
   std::ostringstream s;
   s << in.rdbuf();
   return s.str();
@@ -147,11 +147,11 @@ Result<std::string> read_file(const std::string& path) {
 
 Result<void> write_file(const std::string& path, const std::string& text) {
   std::ofstream out(path, std::ios::binary);
-  if (!out) return pychron::fail(pychron::ErrorKind::Io, "cannot write " + path);
+  if (!out) return nobion::fail(nobion::ErrorKind::Io, "cannot write " + path);
   out << text;
   out.close();
-  if (!out) return pychron::fail(pychron::ErrorKind::Io, "cannot write " + path);
-  pychron::mark_as_user_file(path);  // the user's own file: no quarantine on macOS
+  if (!out) return nobion::fail(nobion::ErrorKind::Io, "cannot write " + path);
+  nobion::mark_as_user_file(path);  // the user's own file: no quarantine on macOS
   return {};
 }
 
@@ -181,18 +181,18 @@ struct Context {
 
 Result<Context> open(Io io, const Args& a, bool writes) {
   const auto db = a.get("--db");
-  if (!db) return pychron::fail(pychron::ErrorKind::Config, "--db <url> is required");
+  if (!db) return nobion::fail(nobion::ErrorKind::Config, "--db <url> is required");
   // Never migrate from here: entry needs a store `elctl import` or an install made.
   auto store = ps::open_store(ps::StoreConfig{*db, false});
-  if (!store) return pychron::fail(store.error());
+  if (!store) return nobion::fail(store.error());
   Context ctx{io, std::move(*store), {}, a.has("--dry-run")};
   if (writes && !ctx.dry_run) {
-    const std::string host = pychron::host_name();
+    const std::string host = nobion::host_name();
     auto client = ctx.store->register_client({host, "reduction", std::nullopt, "elctl"});
-    if (!client) return pychron::fail(client.error());
-    const std::string user = a.get("--user").value_or(pychron::env_var("USER").value_or("pychron"));
+    if (!client) return nobion::fail(client.error());
+    const std::string user = a.get("--user").value_or(nobion::env_var("USER").value_or("pychron"));
     auto u = ctx.store->ensure_user(*client, user);
-    if (!u) return pychron::fail(u.error());
+    if (!u) return nobion::fail(u.error());
     ctx.actor = ps::Actor{*u, *client};
   }
   return ctx;
@@ -242,7 +242,7 @@ void print_edits(Io io, const ps::CatalogEditBatch& batch) {
 
 Result<std::optional<ps::IrradiationRow>> find_package(ps::IStore& store, const std::string& name) {
   auto rows = store.irradiations();
-  if (!rows) return pychron::fail(rows.error());
+  if (!rows) return nobion::fail(rows.error());
   for (const auto& r : *rows)
     if (r.name == name) return std::optional<ps::IrradiationRow>{r};
   return std::optional<ps::IrradiationRow>{};
@@ -335,7 +335,7 @@ Result<std::vector<std::string>> level_names(const std::string& spec) {
   std::string part;
   while (std::getline(s, part, ','))
     if (!en::trim(part).empty()) out.push_back(en::trim(part));
-  if (out.empty()) return pychron::fail(pychron::ErrorKind::Config, "--levels: write A-C or A,B,D");
+  if (out.empty()) return nobion::fail(nobion::ErrorKind::Config, "--levels: write A-C or A,B,D");
   return out;
 }
 
@@ -353,7 +353,7 @@ int package_add(Context& ctx, const Args& a) {
   }
   std::optional<double> z;
   if (const auto zt = a.get("--z")) {
-    z = pychron::parse_double(*zt);
+    z = nobion::parse_double(*zt);
     if (!z) return usage(ctx.io, "--z: not a number");
   }
   if (const auto levels = a.get("--levels")) {
@@ -367,7 +367,7 @@ int package_add(Context& ctx, const Args& a) {
       if (!tz) return usage(ctx.io, "--chronology needs --tz <IANA zone>");
       auto text = read_file(*file);
       if (!text) return fatal(ctx.io, text.error());
-      auto chronology = pychron::dvc::parse_chronology_text(*text, *tz);
+      auto chronology = nobion::dvc::parse_chronology_text(*text, *tz);
       if (!chronology) return fatal(ctx.io, chronology.error());
       p.doses = chronology->doses;
     }
@@ -448,13 +448,13 @@ int package_set_kind(Context& ctx, const Args& a) {
 
 Result<std::map<std::string, en::LevelSheetEdit>> package_edits(ps::IStore& store, ps::Uuid package) {
   auto sheets = en::package_sheets(store, package);
-  if (!sheets) return pychron::fail(sheets.error());
+  if (!sheets) return nobion::fail(sheets.error());
   std::map<std::string, en::LevelSheetEdit> out;
   for (auto& s : *sheets) {
     std::optional<ps::HolderValue> holder;
     if (s.level.holder) {
       auto h = en::load_holder(store, *s.level.holder);
-      if (!h) return pychron::fail(h.error());
+      if (!h) return nobion::fail(h.error());
       holder = *h;
     }
     const std::string name = s.level.name;
@@ -600,23 +600,23 @@ Result<std::string> seed_database(const std::string& url, const std::filesystem:
   if (!store) {
     Error e = store.error();
     e.what = "the database could not be opened: " + e.what;
-    return pychron::fail(std::move(e));
+    return nobion::fail(std::move(e));
   }
   auto text = read_file(seed_file.string());
-  if (!text) return pychron::fail(text.error());
+  if (!text) return nobion::fail(text.error());
   auto seed = en::parse_seed(*text, seed_file.string());
-  if (!seed) return pychron::fail(seed.error());
+  if (!seed) return nobion::fail(seed.error());
   ps::Actor actor;
   if (!dry_run) {
-    const std::string host = pychron::host_name();
+    const std::string host = nobion::host_name();
     auto client = (*store)->register_client({host, "reduction", std::nullopt, "elctl"});
-    if (!client) return pychron::fail(client.error());
-    auto u = (*store)->ensure_user(*client, user.empty() ? pychron::env_var("USER").value_or("pychron") : user);
-    if (!u) return pychron::fail(u.error());
+    if (!client) return nobion::fail(client.error());
+    auto u = (*store)->ensure_user(*client, user.empty() ? nobion::env_var("USER").value_or("pychron") : user);
+    if (!u) return nobion::fail(u.error());
     actor = ps::Actor{*u, *client};
   }
   auto report = en::apply_seed(**store, *seed, actor, dry_run);
-  if (!report) return pychron::fail(report.error());
+  if (!report) return nobion::fail(report.error());
   return (dry_run && report->changed() ? "would be " : "") + en::describe(*report);
 }
 

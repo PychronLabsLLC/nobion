@@ -22,9 +22,9 @@
 #include "nobion/core/error.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace eb = pychron::earthbank;
+namespace eb = nobion::earthbank;
 
 namespace {
 
@@ -332,4 +332,4 @@ void EarthbankPreferencesPage::update_buttons() {
   password_->setEnabled(row);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

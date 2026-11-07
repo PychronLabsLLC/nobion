@@ -5,8 +5,8 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron::persistence;
-using namespace pychron::persistence::detail;
+using namespace nobion::persistence;
+using namespace nobion::persistence::detail;
 
 TEST(Geometry, WritesEwktLongitudeFirst) {
   EXPECT_EQ(ewkt_point(34.0722, -106.905), "SRID=4326;POINT(-106.905 34.0722)");

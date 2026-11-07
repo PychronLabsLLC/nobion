@@ -39,9 +39,9 @@
 #include "shortcuts.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 namespace {
 
@@ -894,4 +894,4 @@ void DataBrowserWindow::request_export(const QString& exporter_id, const QString
   emit export_requested(exporter_id, path, ids);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

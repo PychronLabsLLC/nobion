@@ -32,7 +32,7 @@
 #include "nobion/processing/dataset.hpp"
 #include "nobion/reduction/stats.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 struct ReportOptions {
   int nsigma = 2;                  // level of every "±" column
@@ -89,4 +89,4 @@ std::string report_json(const Report& report);
 // the file cannot be written.
 Result<void> save_report(const Report& report, const std::filesystem::path& path);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

@@ -20,7 +20,7 @@
 #include "nobion/arar/store_loader.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::publish::testing {
+namespace nobion::publish::testing {
 
 namespace ps = persistence;
 
@@ -99,4 +99,4 @@ class ReleaseFixture : public ::testing::TestWithParam<std::string> {
       analysis1_, analysis2_, analysis3_;
 };
 
-}  // namespace pychron::publish::testing
+}  // namespace nobion::publish::testing

@@ -14,8 +14,8 @@
 #include "nobion/scripting/vocabulary.hpp"
 #include "temp_path.hpp"
 
-using namespace pychron;
-using namespace pychron::scripting;
+using namespace nobion;
+using namespace nobion::scripting;
 
 TEST(ScriptHeader, ParsesPychronHeaderLines) {
   auto h = parse_header("#! pychron: eqtime=20, duration=5\n\ndef main():\n    pass\n"
@@ -106,7 +106,7 @@ TEST(ScriptResolver, NotFoundHasItsCode) {
 // (executor hardening, spec 4.7), not a directory of names.
 TEST(ScriptResolver, TheSafeStateScriptIsOneFile) {
   EXPECT_EQ(to_string(ScriptKind::SafeState), "safe_state");
-  const auto root = pychron::testing::unique_temp_path("safe_state_");
+  const auto root = nobion::testing::unique_temp_path("safe_state_");
   std::filesystem::create_directories(root / "safe_state");
   std::filesystem::create_directories(root / "lib");
   { std::ofstream(root / "lib" / "safe_state.py") << "def main():\n    info('lib')\n"; }
@@ -137,7 +137,7 @@ TEST(ScriptResolver, TheSafeStateScriptIsOneFile) {
 
 // There but not readable is not "the lab has none": it is said.
 TEST(ScriptResolver, ASafeStateScriptThatCannotBeReadIsNotMissing) {
-  const auto root = pychron::testing::unique_temp_path("safe_state_dir_");
+  const auto root = nobion::testing::unique_temp_path("safe_state_dir_");
   std::filesystem::create_directories(root / "safe_state.py");  // a directory where the file goes
   DirectoryScriptResolver r(root);
   auto s = r.resolve("safe_state", ScriptKind::SafeState);

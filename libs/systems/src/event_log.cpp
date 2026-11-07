@@ -10,7 +10,7 @@
 #include "nobion/systems/spectrometer/scan_service.hpp"
 #include "nobion/systems/spectrometer/spectrometer.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 namespace {
 
 constexpr std::array<EventClass, 11> kSystemsClasses{{
@@ -103,4 +103,4 @@ SystemsEventRecorder::SystemsEventRecorder(SignalBus& bus) {
 
 std::span<const EventClass> systems_event_classes() noexcept { return kSystemsClasses; }
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

@@ -8,7 +8,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 // Latitude in [-90, 90] and longitude in [-180, 180], both or neither.
 Result<void> check_lat_lon(std::optional<double> lat, std::optional<double> lon);
@@ -22,4 +22,4 @@ struct LatLon {
 // southern hemisphere (legacy importer.py:393-451).
 Result<LatLon> utm_to_lat_lon(double easting, double northing, std::string_view zone);
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

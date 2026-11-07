@@ -14,7 +14,7 @@
 #include <QColor>
 #include <QObject>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 struct PlotStyle {               // live plots only
   std::vector<QColor> series;    // never empty; default: default_palette()
@@ -57,4 +57,4 @@ class PlotStyleHub : public QObject {
   PlotStyleHub() = default;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

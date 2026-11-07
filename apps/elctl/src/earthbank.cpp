@@ -1,5 +1,5 @@
 // elctl earthbank export-xlsx and preflight: select analyses from the store as
-// `export` does, build one submission per sample (pychron::earthbank
+// `export` does, build one submission per sample (nobion::earthbank
 // mapping.hpp) and write them into the service's import workbooks (xlsx.hpp),
 // ask the service whether it knows every term they hold (preflight.hpp), or
 // send them to it (uploader.hpp). The account subcommands are in
@@ -45,13 +45,13 @@
 namespace elctl {
 
 namespace fs = std::filesystem;
-namespace eb = pychron::earthbank;
-namespace pp = pychron::processing;
-namespace ps = pychron::persistence;
-namespace pb = pychron::publish;
-using pychron::ErrorKind;
-using pychron::fail;
-using pychron::Result;
+namespace eb = nobion::earthbank;
+namespace pp = nobion::processing;
+namespace ps = nobion::persistence;
+namespace pb = nobion::publish;
+using nobion::ErrorKind;
+using nobion::fail;
+using nobion::Result;
 using earthbank_cli::fatal;
 
 namespace {
@@ -915,7 +915,7 @@ int earthbank_command(const std::vector<std::string>& args, Io io, EarthbankDeps
   const std::vector<std::string> rest(args.begin() + 1, args.end());
   // What needs the network says so before it looks at a flag or opens a file.
   const bool online = sub == "login" || sub == "account" || sub == "packages" || sub == "preflight" || sub == "upload";
-  if (online && deps.http == nullptr && pychron::earthbank::make_http_client() == nullptr) {
+  if (online && deps.http == nullptr && nobion::earthbank::make_http_client() == nullptr) {
     io.err << earthbank_cli::kNoNetwork << '\n';
     return kUsage;
   }

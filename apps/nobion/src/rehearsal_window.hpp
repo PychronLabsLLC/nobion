@@ -43,7 +43,7 @@ class QLineEdit;
 class QTableWidget;
 class QWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class CanvasView;
 class CodeEditor;
@@ -183,4 +183,4 @@ class RehearsalWindow : public QMainWindow {
   std::unique_ptr<experiment::rehearsal::RehearsalRunner> runner_;  // last: goes first
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -5,7 +5,7 @@
 #include <ranges>
 #include <tuple>
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 Unexpected<Error> bad(std::string what) { return fail(ErrorKind::Config, std::move(what)); }
@@ -177,4 +177,4 @@ Result<std::size_t> ExperimentQueue::add_frequency_runs(const FrequencySpec& f) 
   return slots.size();
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

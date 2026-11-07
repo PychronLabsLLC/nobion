@@ -24,7 +24,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/core/http.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 using http::HttpRequest;
 using http::HttpResponse;
@@ -75,4 +75,4 @@ std::optional<std::string_view> find_header(const HttpRequest& request, std::str
 // password): what a log line says of a request is this and the status.
 std::string request_line(const HttpRequest& request);
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

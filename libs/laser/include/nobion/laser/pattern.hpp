@@ -32,7 +32,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/laser/calibration.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 enum class PatternKind {
   Polygon,
@@ -193,4 +193,4 @@ class PatternLibrary {
   std::vector<std::string> problems_;
 };
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

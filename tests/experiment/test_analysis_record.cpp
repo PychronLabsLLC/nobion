@@ -9,7 +9,7 @@
 #include "nobion/experiment/record/serialize.hpp"
 #include "nobion/experiment/record/sha256.hpp"
 
-using namespace pychron::experiment::record;
+using namespace nobion::experiment::record;
 
 namespace {
 
@@ -49,7 +49,7 @@ RecordBuilder full_builder() {
   ir.intercept.error = 0.01;
   ir.intercept.n_used = 3;
   ir.intercept.filtered_idx = {1};
-  ir.fit.kind = pychron::reduction::FitKind::Parabolic;
+  ir.fit.kind = nobion::reduction::FitKind::Parabolic;
   b.set_intercept("Ar40", ir);
   BaselineResult br;
   br.value = 0.1;
@@ -393,7 +393,7 @@ TEST(AnalysisRecord, AnUnknownStatusIsRejected) {
   text.replace(at, std::string("'truncated'").size(), "'half'");
   auto r = from_toml(text);
   ASSERT_FALSE(r.has_value());
-  EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
   EXPECT_NE(r.error().what.find("status"), std::string::npos) << r.error().what;
 }
 
@@ -550,7 +550,7 @@ TEST(AnalysisRecord, AV3RecordWithIndexesToNothingIsRefused) {
   const auto refused = [](const AnalysisRecord& r, const std::string& what) {
     auto back = from_toml(to_toml(r));
     ASSERT_FALSE(back) << what;
-    EXPECT_EQ(back.error().kind, pychron::ErrorKind::Config);
+    EXPECT_EQ(back.error().kind, nobion::ErrorKind::Config);
     EXPECT_NE(back.error().what.find(what), std::string::npos) << back.error().what;
   };
   auto bad_state = good;

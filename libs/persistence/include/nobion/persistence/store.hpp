@@ -26,7 +26,7 @@
 #include "nobion/persistence/model.hpp"
 #include "nobion/persistence/publish.hpp"
 
-namespace pychron::persistence {
+namespace nobion::persistence {
 
 enum class Dialect { PostgreSql, Sqlite };
 
@@ -870,4 +870,4 @@ bool is_refused_catalog_fill(const Error& error) noexcept;
 // legacy make_runid.
 std::string make_runid(const std::string& identifier, int aliquot, int increment);
 
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence

@@ -21,7 +21,7 @@
 #include "nobion/publish/manifest.hpp"
 #include "nobion/publish/tables.hpp"
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 // The reduction and report options a release is built with (`release.options`),
 // the ones of `elctl export`. Stored as JSON with these keys.
@@ -69,4 +69,4 @@ Result<BuildResult> build_release(persistence::IStore& store, processing::StoreS
 // The directory a build of `release` makes under `out`: <out>/<name>-v<version>.
 std::filesystem::path release_dir(const std::filesystem::path& out, const persistence::ReleaseRow& release);
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

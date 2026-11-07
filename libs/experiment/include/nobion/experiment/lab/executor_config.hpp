@@ -13,7 +13,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/devices/link.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 enum class AfterLinkFailure { HoldThenContinue, End };
 
@@ -44,8 +44,8 @@ struct ExecutorConfig {
 
   // A link's policy where its transport does not say otherwise.
   [[nodiscard]] LinkPolicy link_defaults() const;
-  [[nodiscard]] pychron::Duration critical_window() const;
-  [[nodiscard]] pychron::Duration max_gap() const;
+  [[nodiscard]] nobion::Duration critical_window() const;
+  [[nodiscard]] nobion::Duration max_gap() const;
 
   // Config error naming the key, its value and the range it must be in, or
   // the unknown key or table; every problem of the file at once.
@@ -54,4 +54,4 @@ struct ExecutorConfig {
   static Result<ExecutorConfig> load(const std::filesystem::path& path);
 };
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

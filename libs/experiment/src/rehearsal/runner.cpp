@@ -4,7 +4,7 @@
 
 #include "nobion/core/log_context.hpp"
 
-namespace pychron::experiment::rehearsal {
+namespace nobion::experiment::rehearsal {
 
 RehearsalRunner::RehearsalRunner(scripting::IScriptHost& host, scripting::Script script,
                                  scripting::ScriptEnvironment env, LineSnapshot snapshot,
@@ -28,4 +28,4 @@ RehearsalRunner::~RehearsalRunner() {
   if (thread_.joinable()) thread_.join();
 }
 
-}  // namespace pychron::experiment::rehearsal
+}  // namespace nobion::experiment::rehearsal

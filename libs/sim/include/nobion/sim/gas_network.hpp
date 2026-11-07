@@ -62,7 +62,7 @@
 #include "nobion/sim/gas.hpp"
 #include "nobion/sim/linear_flow.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 
 using SpeciesRates = Composition;  // 1/s per species
 
@@ -177,4 +177,4 @@ class GasNetwork {
   std::vector<LinearFlow> flows_;  // one per species
 };
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

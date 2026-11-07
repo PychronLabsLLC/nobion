@@ -59,39 +59,39 @@
 #include "nobion/transport/sim_transport.hpp"
 #include "nobion/transport/trace_recorder.hpp"
 
-using pychron::experiment::run::RunState;
-using pychron::ui::ExperimentBridge;
-using pychron::ui::ExperimentWindow;
-using pychron::ui::QueueTableModel;
+using nobion::experiment::run::RunState;
+using nobion::ui::ExperimentBridge;
+using nobion::ui::ExperimentWindow;
+using nobion::ui::QueueTableModel;
 namespace fs = std::filesystem;
 
 
 // An identifier source that answers at once, with one package.
-struct OnePackageSource : pychron::ui::IdentifierSource {
-  void packages(QObject*, std::function<void(pychron::Result<std::vector<pychron::ui::PackageChoice>>)> done) override {
-    done(std::vector<pychron::ui::PackageChoice>{{"p1", "NM-293"}});
+struct OnePackageSource : nobion::ui::IdentifierSource {
+  void packages(QObject*, std::function<void(nobion::Result<std::vector<nobion::ui::PackageChoice>>)> done) override {
+    done(std::vector<nobion::ui::PackageChoice>{{"p1", "NM-293"}});
   }
   void contents(QObject*, const std::string&,
-                std::function<void(pychron::Result<pychron::ui::PackageContents>)> done) override {
-    done(pychron::ui::PackageContents{});
+                std::function<void(nobion::Result<nobion::ui::PackageContents>)> done) override {
+    done(nobion::ui::PackageContents{});
   }
 };
 
 // A database that will not take the queue: check_queue says why, in two lines.
-struct RefusingPersister : pychron::experiment::persist::IAnalysisPersister {
-  pychron::Result<int> next_aliquot(const std::string&) override { return 1; }
-  pychron::Result<void> begin_run(const pychron::experiment::RunIdentity&,
-                                  const pychron::experiment::QueueSpec&) override {
+struct RefusingPersister : nobion::experiment::persist::IAnalysisPersister {
+  nobion::Result<int> next_aliquot(const std::string&) override { return 1; }
+  nobion::Result<void> begin_run(const nobion::experiment::RunIdentity&,
+                                  const nobion::experiment::QueueSpec&) override {
     return {};
   }
-  pychron::Result<void> save_extraction(const pychron::experiment::record::AnalysisRecord&) override { return {}; }
-  pychron::Result<void> save_analysis(const pychron::experiment::record::AnalysisRecord&) override { return {}; }
-  pychron::Result<void> save_artifact(const std::string&, const std::string&,
+  nobion::Result<void> save_extraction(const nobion::experiment::record::AnalysisRecord&) override { return {}; }
+  nobion::Result<void> save_analysis(const nobion::experiment::record::AnalysisRecord&) override { return {}; }
+  nobion::Result<void> save_artifact(const std::string&, const std::string&,
                                       const std::vector<std::uint8_t>&) override {
     return {};
   }
-  pychron::Result<void> flush() override { return {}; }
-  pychron::Result<std::vector<std::string>> check_queue(const pychron::experiment::QueueSpec&) override {
+  nobion::Result<void> flush() override { return {}; }
+  nobion::Result<std::vector<std::string>> check_queue(const nobion::experiment::QueueSpec&) override {
     return std::vector<std::string>{"the database cannot be reached: no such file",
                                     "Run: elctl db migrate --db sqlite:/lab/data/pychron.db"};
   }
@@ -100,17 +100,17 @@ struct RefusingPersister : pychron::experiment::persist::IAnalysisPersister {
 // What the References dock reads: counts the refreshes the dock asks the
 // bridge for (one a tab a read), and can hold one until released.
 // A series key at the plan's first place (gas "", segment 0, position 0).
-static pychron::experiment::collect::SeriesKey skey(std::string label, std::string detector, std::string_view kind) {
-  pychron::experiment::collect::SeriesKey k;
+static nobion::experiment::collect::SeriesKey skey(std::string label, std::string detector, std::string_view kind) {
+  nobion::experiment::collect::SeriesKey k;
   k.label = std::move(label);
   k.detector = std::move(detector);
   k.kind = std::string(kind);
   return k;
 }
 
-class RefreshCountingSource : public pychron::processing::MemorySource {
+class RefreshCountingSource : public nobion::processing::MemorySource {
  public:
-  pychron::Result<void> refresh() override {
+  nobion::Result<void> refresh() override {
     std::unique_lock lock(mutex_);
     ++refreshes_;
     if (closed_) {
@@ -149,8 +149,8 @@ class RefreshCountingSource : public pychron::processing::MemorySource {
 };
 
 // The Ar-Ar domain, made once for every bridge of the file.
-const pychron::processing::Domain& arar_domain() {
-  static const std::unique_ptr<pychron::processing::Domain> domain = pychron::arar::make_domain();
+const nobion::processing::Domain& arar_domain() {
+  static const std::unique_ptr<nobion::processing::Domain> domain = nobion::arar::make_domain();
   return *domain;
 }
 
@@ -158,12 +158,12 @@ const pychron::processing::Domain& arar_domain() {
 struct References {
   QTemporaryDir dir;
   RefreshCountingSource source;
-  std::unique_ptr<pychron::ui::ProcessingBridge> bridge = std::make_unique<pychron::ui::ProcessingBridge>(source, arar_domain());
-  pychron::processing::PresetStore presets{(dir.path() + QStringLiteral("/presets")).toStdString()};
+  std::unique_ptr<nobion::ui::ProcessingBridge> bridge = std::make_unique<nobion::ui::ProcessingBridge>(source, arar_domain());
+  nobion::processing::PresetStore presets{(dir.path() + QStringLiteral("/presets")).toStdString()};
 };
 
-pychron::experiment::executor::RunFinished finished_run(bool save_error) {
-  pychron::experiment::executor::RunFinished e;
+nobion::experiment::executor::RunFinished finished_run(bool save_error) {
+  nobion::experiment::executor::RunFinished e;
   e.summary.save_error = save_error;
   return e;
 }
@@ -172,15 +172,15 @@ class TestExperimentWindow : public QObject {
   Q_OBJECT
 
   QTemporaryDir tmp_;
-  pychron::ui::test::ApplicationSettingsGuard app_settings_;
+  nobion::ui::test::ApplicationSettingsGuard app_settings_;
 
   std::unique_ptr<QSettings> settings() const {
     return std::make_unique<QSettings>(tmp_.filePath(QStringLiteral("settings.ini")), QSettings::IniFormat);
   }
   // The example queue as the fixture runs it (scripts dropped without Python).
-  fs::path queue_file(const pychron::ui::test::SimLab& sim, const char* name = "queue.toml") const {
+  fs::path queue_file(const nobion::ui::test::SimLab& sim, const char* name = "queue.toml") const {
     const fs::path p = sim.dir / name;
-    if (!pychron::experiment::save_queue_file(p.string(), sim.queue())) qFatal("cannot write the queue");
+    if (!nobion::experiment::save_queue_file(p.string(), sim.queue())) qFatal("cannot write the queue");
     return p;
   }
   // Settings of their own, for a test that needs a list nothing else wrote to.
@@ -210,7 +210,7 @@ class TestExperimentWindow : public QObject {
     return {};
   }
   // The executor's state file as a crash or a Stop left it, in the session's data dir.
-  static fs::path write_state(const pychron::ui::test::SimLab& sim, const std::string& text) {
+  static fs::path write_state(const nobion::ui::test::SimLab& sim, const std::string& text) {
     const fs::path p = sim.dir / "data" / "executor_state.json";
     fs::create_directories(p.parent_path());
     std::ofstream(p) << text;
@@ -218,7 +218,7 @@ class TestExperimentWindow : public QObject {
   }
   // A state file for the example queue: stopped at `next_row`, row 0 finished `row0_state`
   // under `row0_identifier` (the queue's own when empty).
-  static fs::path write_example_state(const pychron::ui::test::SimLab& sim, std::size_t next_row,
+  static fs::path write_example_state(const nobion::ui::test::SimLab& sim, std::size_t next_row,
                                       std::string row0_identifier = {}, const std::string& state = "running") {
     const auto q = sim.queue();
     if (row0_identifier.empty()) row0_identifier = q.runs[0].id.identifier;
@@ -239,8 +239,8 @@ class TestExperimentWindow : public QObject {
   // so a link that is back does not end the hold of itself while the test
   // looks, and the spectrometer's first link closed and kept down, so the
   // first run is held for. Returns that link's simulated transport.
-  static pychron::SimTransport* hold_the_first_run(pychron::ui::test::SimLab& sim) {
-    namespace lab = pychron::experiment::lab;
+  static nobion::SimTransport* hold_the_first_run(nobion::ui::test::SimLab& sim) {
+    namespace lab = nobion::experiment::lab;
     sim.session.reset();
     sim.lab.executor.hold.settle_s = 3600;
     sim.lab.executor.hold.limit_s = 30.0 * 24 * 3600;  // at 400x the default 2 h is 18 s: a slow runner could reach it
@@ -249,9 +249,9 @@ class TestExperimentWindow : public QObject {
         lab::SessionOptions{sim.dir / "data", {}, {}, nullptr});
     const auto links = sim.spec->links();
     if (links.empty()) return nullptr;
-    pychron::Transport* t = &links.front()->transport();
-    if (auto* recorder = dynamic_cast<pychron::TraceRecorder*>(t)) t = &recorder->inner();
-    auto* down = dynamic_cast<pychron::SimTransport*>(t);
+    nobion::Transport* t = &links.front()->transport();
+    if (auto* recorder = dynamic_cast<nobion::TraceRecorder*>(t)) t = &recorder->inner();
+    auto* down = dynamic_cast<nobion::SimTransport*>(t);
     if (down == nullptr) return nullptr;
     down->set_down(true);
     links.front()->transport().close();
@@ -262,7 +262,7 @@ class TestExperimentWindow : public QObject {
   // ---- the panel layout -------------------------------------------------------
 
   void resetPutsTheDocksBack() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     window.show();
@@ -294,8 +294,8 @@ class TestExperimentWindow : public QObject {
   // (File > Open > Open Queue..., File > Save Queue, Experiment > Queue >
   // Revalidate). fileNewAndOpenBringUpTheWindowTheyActIn holds Open and Save.
   void noToolbarItsCommandsAreInTheMenuBar() {
-    using pychron::ui::MenuHub;
-    pychron::ui::test::SimLab sim;
+    using nobion::ui::MenuHub;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     window.show();
@@ -312,11 +312,11 @@ class TestExperimentWindow : public QObject {
 
   // A staged release's prepare and pump-out (spec 11.4) are named with their gas.
   void aPrepareAndAPumpOutAreNamedWithTheirGas() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     auto* pane = window.executor();
-    namespace meas = pychron::experiment::measurement;
+    namespace meas = nobion::experiment::measurement;
     sim.line->bus().publish(meas::BlockStarted{"r1", meas::Block::Prepare, "He", -1});
     QTRY_VERIFY2(pane->run_text().contains(QStringLiteral("prepare He")), qPrintable(pane->run_text()));
     sim.line->bus().publish(meas::BlockStarted{"r1", meas::Block::PumpOut, "He", -1});
@@ -326,7 +326,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void panelsLeaveOutTheExecutor() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     const ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.dock_layouts() != nullptr);
@@ -336,7 +336,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void theLayoutIsStillKeptUnderItsOldKeys() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     QTemporaryDir dir;
     const QString file = dir.filePath(QStringLiteral("s.ini"));
@@ -367,7 +367,7 @@ class TestExperimentWindow : public QObject {
   // ---- the References dock -------------------------------------------------------
 
   void aWindowGivenReferencesHasTheDock() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     References refs;
     ExperimentWindow window(bridge, true, settings());
@@ -398,7 +398,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void aWindowNotGivenThemHasNone() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     References refs;
     ExperimentWindow window(bridge, true, settings());
@@ -413,7 +413,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void aSavedRunIsFollowedByARead() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     References refs;
     ExperimentWindow window(bridge, true, settings());
@@ -426,7 +426,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void aRunThatWasNotSavedIsNot() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     References refs;
     ExperimentWindow window(bridge, true, settings());
@@ -441,7 +441,7 @@ class TestExperimentWindow : public QObject {
 
   // The dock draws the queue's spectrometer: a queue of another is read for.
   void aQueueOfAnotherSpectrometerIsReadFor() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     References refs;
     ExperimentWindow window(bridge, true, settings());
@@ -461,7 +461,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void aLayoutSavedWithTheDockPlacesItAgain() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     References refs;
     QTemporaryDir dir;
@@ -487,7 +487,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void aLayoutSavedBeforeTheDockStillPlacesIt() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     References refs;
     QTemporaryDir dir;
@@ -515,7 +515,7 @@ class TestExperimentWindow : public QObject {
 
   // A named arrangement kept before the window had the dock leaves it shown.
   void anArrangementSavedWithoutTheDockLeavesItShown() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     References refs;
     QTemporaryDir dir;
@@ -542,7 +542,7 @@ class TestExperimentWindow : public QObject {
 
   // A layout kept with the evolutions closed, and no dock.
   void aLayoutWithTheEvolutionsClosedStillShowsTheDock() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     References refs;
     QTemporaryDir dir;
@@ -568,7 +568,7 @@ class TestExperimentWindow : public QObject {
 
   // As MainWindow::set_data does before the data workspace's bridge goes.
   void closingTheDataFirstTakesTheDockAway() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     References refs;
     ExperimentWindow window(bridge, true, settings());
@@ -589,7 +589,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void runsTheExampleQueue() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QString error;
@@ -652,7 +652,7 @@ class TestExperimentWindow : public QObject {
     QCOMPARE(pane->counts_maximum(), 1);  // the last block (the peak center) has no counts
     // The last run's evolutions and peak center.
     auto* evo = window.evolutions();
-    QVERIFY(evo->point_count(pychron::experiment::collect::kSignal) > 0);
+    QVERIFY(evo->point_count(nobion::experiment::collect::kSignal) > 0);
     QVERIFY(evo->graph_count() > 0);
     // A panel a signal series, Ar40 on H1 among them.
     QCOMPARE(evo->panel_titles().size(), evo->graph_count());
@@ -661,7 +661,7 @@ class TestExperimentWindow : public QObject {
     // The live fits: a curve per signal series and its intercept listed.
     QVERIFY(evo->fit_curve_count() > 0);
     QVERIFY(!evo->intercept_rows().isEmpty());
-    const auto ar40 = evo->fit_of(skey("Ar40", "H1", pychron::experiment::collect::kSignal));
+    const auto ar40 = evo->fit_of(skey("Ar40", "H1", nobion::experiment::collect::kSignal));
     QVERIFY(ar40.has_value());
     // The run measured one pipette of the tank's air, and nothing left of
     // the run before it: within 2 % of a shot worked out from the lab's
@@ -677,7 +677,7 @@ class TestExperimentWindow : public QObject {
     QVERIFY(lab.compositions.contains("air_tank"));
     const double tank = lab.default_volume_cc, prep = lab.default_volume_cc, source = lab.default_volume_cc;
     const double pipette = lab.pipette_cc;
-    const double filled = lab.compositions.at("air_tank")[pychron::sim::index(pychron::sim::Species::Ar40)] *
+    const double filled = lab.compositions.at("air_tank")[nobion::sim::index(nobion::sim::Species::Ar40)] *
                           tank / (tank + pipette);
     const double shot = filled * pipette / (pipette + prep) * prep / (prep + source) * lab.source.sensitivity;
     const double second = shot * tank / (tank + pipette);
@@ -695,8 +695,8 @@ class TestExperimentWindow : public QObject {
     QVERIFY(!drawn.front().x.isEmpty());
     QCOMPARE(evo->peak_center_view()->marker_x().size(), 4);
     QVERIFY(evo->peak_center_view()->kept() >= 1);
-    evo->set_kind(pychron::experiment::collect::kBaseline);
-    QVERIFY(evo->point_count(pychron::experiment::collect::kBaseline) > 0);
+    evo->set_kind(nobion::experiment::collect::kBaseline);
+    QVERIFY(evo->point_count(nobion::experiment::collect::kBaseline) > 0);
     QVERIFY(evo->graph_count() > 0);
     QVERIFY(fs::exists(sim.dir / "data" / "records" / "66001" / "66001-2.json"));
     // The timeline: a state segment per phase of each run, all closed.
@@ -705,7 +705,7 @@ class TestExperimentWindow : public QObject {
     int measuring = 0, waits = 0;
     for (const auto& seg : tl.segments()) {
       QVERIFY(seg.end.has_value());
-      measuring += seg.state == pychron::experiment::run::RunState::Measuring ? 1 : 0;
+      measuring += seg.state == nobion::experiment::run::RunState::Measuring ? 1 : 0;
       waits += seg.state ? 0 : 1;
     }
     QCOMPARE(measuring, 3);
@@ -718,18 +718,18 @@ class TestExperimentWindow : public QObject {
     QVERIFY(window.model().reset_executed());
     QVERIFY(pane->start_enabled());
     // A second queue in the same window starts with no peak center kept.
-    emit bridge.queueStarted(pychron::experiment::lab::QueueStarted{3, 0});
+    emit bridge.queueStarted(nobion::experiment::lab::QueueStarted{3, 0});
     QCOMPARE(evo->peak_center_view()->kept(), 0);
     QVERIFY(evo->peak_center_view()->series().empty());
   }
 
   void notificationsShowInTheExecutorPane() {
-    pychron::experiment::lab::NotificationConfig config;
-    config.commands.push_back({"log", {"notify-lab"}, {pychron::experiment::lab::NotifyEvent::QueueEnded}});
+    nobion::experiment::lab::NotificationConfig config;
+    config.commands.push_back({"log", {"notify-lab"}, {nobion::experiment::lab::NotifyEvent::QueueEnded}});
     std::atomic<int> calls{0};
-    pychron::ui::test::SimLab sim(config, [&](const pychron::ProcessSpec&) -> pychron::Result<pychron::ProcessResult> {
+    nobion::ui::test::SimLab sim(config, [&](const nobion::ProcessSpec&) -> nobion::Result<nobion::ProcessResult> {
       ++calls;
-      return pychron::ProcessResult{};
+      return nobion::ProcessResult{};
     });
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
@@ -748,8 +748,8 @@ class TestExperimentWindow : public QObject {
   // pane's events, under the run that said it.
   // Wherever the timeline was left, a queue's start puts it back on now.
   void theTimelineFollowsWhenAQueueStarts() {
-    using pychron::ui::TimelineView;
-    pychron::ui::test::SimLab sim;
+    using nobion::ui::TimelineView;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QString error;
@@ -768,8 +768,8 @@ class TestExperimentWindow : public QObject {
   }
 
   void theRunsFollowedAreRemembered() {
-    using pychron::ui::TimelineView;
-    pychron::ui::test::SimLab sim;
+    using nobion::ui::TimelineView;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     {
       ExperimentWindow window(bridge, true, settings());
@@ -784,13 +784,13 @@ class TestExperimentWindow : public QObject {
 
   // A long queue says more than the list should hold: the oldest lines go.
   void theEventsListKeepsItsNewestLines() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QString error;
     QVERIFY2(window.load_queue(queue_file(sim), &error), qPrintable(error));
     auto* pane = window.executor();
-    QCOMPARE(pychron::ui::ExecutorPane::kEventLimit, 5000);
+    QCOMPARE(nobion::ui::ExecutorPane::kEventLimit, 5000);
     pane->set_event_limit(4);
     pane->request_start();
     QVERIFY(pane->running());
@@ -804,8 +804,8 @@ class TestExperimentWindow : public QObject {
   }
 
   void aRunsLogShowsInTheExecutorPane() {
-    if (!pychron::scripting::make_script_host()->available()) QSKIP("needs embedded Python to run laser_extract.py");
-    pychron::ui::test::SimLab sim;
+    if (!nobion::scripting::make_script_host()->available()) QSKIP("needs embedded Python to run laser_extract.py");
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QString error;
@@ -832,7 +832,7 @@ class TestExperimentWindow : public QObject {
   // A camera the session cannot use is on show before any queue is started.
   void whatTheSessionCannotDoShowsInTheExecutorPane() {
     // the example's simulated camera over a laser that is real
-    pychron::ui::test::SimLab sim({}, {}, [](std::string_view) { return false; });
+    nobion::ui::test::SimLab sim({}, {}, [](std::string_view) { return false; });
     QCOMPARE(sim.session->problems().size(), std::size_t{1});
     const QString problem = QString::fromStdString(sim.session->problems().front());
     ExperimentBridge bridge(*sim.session, sim.line->bus());
@@ -844,7 +844,7 @@ class TestExperimentWindow : public QObject {
   // A queue the database will not take does not start, and every line of the
   // reason is on show.
   void experimentStartRefusedWhilePeakCenterRuns() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QString error;
@@ -858,7 +858,7 @@ class TestExperimentWindow : public QObject {
 
   void aQueueThatCannotBeSavedSaysWhyInFull() {
     RefusingPersister persister;
-    pychron::ui::test::SimLab sim({}, {}, {}, &persister);
+    nobion::ui::test::SimLab sim({}, {}, {}, &persister);
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QString error;
@@ -872,7 +872,7 @@ class TestExperimentWindow : public QObject {
 
   // What is still to be saved is named for where it goes.
   void pendingSavesAreNamedForWhereTheyGo() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QCOMPARE(window.executor()->pending_text(2), QStringLiteral("2 record(s) in the spool"));
@@ -887,7 +887,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void withoutNotificationsATestSaysSo() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.executor()->notify_text().startsWith(QStringLiteral("off")));
@@ -896,7 +896,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void editsTheQueueWhileItRuns() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -905,7 +905,7 @@ class TestExperimentWindow : public QObject {
     connect(&model, &QueueTableModel::editRefused, this, [&](const QString& why) { refused.append(why); });
     bool skipped = false, moved = true;
     // As the first run starts (it runs for a while yet), the rows after it are open.
-    connect(&bridge, &ExperimentBridge::runStarted, this, [&](const pychron::experiment::executor::RunStarted& e) {
+    connect(&bridge, &ExperimentBridge::runStarted, this, [&](const nobion::experiment::executor::RunStarted& e) {
       if (e.row != 0) return;
       model.set_frozen(1);  // the frontier event may not have arrived yet
       QVERIFY(!(model.flags(model.index(0, QueueTableModel::Identifier)) & Qt::ItemIsEditable));
@@ -929,14 +929,14 @@ class TestExperimentWindow : public QObject {
   }
 
   void anOverlappedRunTakesASecondLane() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     auto queue = sim.queue();
     // The first unknown lets the next run start 30 s before it ends.
     queue.runs[1].overlap.duration = std::chrono::duration<double>(30);
     const fs::path file = sim.dir / "overlap.toml";
-    QVERIFY(pychron::experiment::save_queue_file(file.string(), queue));
+    QVERIFY(nobion::experiment::save_queue_file(file.string(), queue));
     QVERIFY(window.load_queue(file));
     window.executor()->request_start();
     QTRY_VERIFY_WITH_TIMEOUT(!window.executor()->running(), 60000);
@@ -955,7 +955,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void cancelAsksFirstAndStartsAtTheFirstNotExecutedRow() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, false, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -989,7 +989,7 @@ class TestExperimentWindow : public QObject {
   // ---- the Executed and Queue tables (queue-tables design 3) -------------------
 
   void theExecutedSectionShowsOnlyWithExecutedRows() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1008,7 +1008,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void theTablesKeepTheirFoldAndSplitAcrossAReopen() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     QTemporaryDir dir;
     const QString file = dir.filePath(QStringLiteral("s.ini"));
@@ -1035,7 +1035,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void bothTablesShareTheirColumnWidths() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1045,7 +1045,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void rowActionsUseTheQueueSelection() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1076,7 +1076,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void startBeginsAtTheFirstNotExecutedRow() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1095,7 +1095,7 @@ class TestExperimentWindow : public QObject {
   // ---- Queue > Reset, Clear Executed, Repeat Last Run (queue-tables design 4) ----
 
   void resetAndClearExecutedAreRefusedWhileRunning() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1118,7 +1118,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void clearExecutedAsksRemovesAndMarksModified() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1152,7 +1152,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void resetPutsTheRunsBackWithoutModifying() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1166,7 +1166,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void repeatInsertsAtTheFrontOfTheQueue() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1211,7 +1211,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void repeatWithNothingExecutedSaysSo() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1224,7 +1224,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void theExecutedTablesMenuRepeatsAndOpensScripts() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1259,13 +1259,13 @@ class TestExperimentWindow : public QObject {
   // ---- resume after a crash or a Stop (queue-tables design 5) ----------------
 
   void resumeStartsAtTheFilesNextRowWithEarlierStatuses() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
     write_example_state(sim, 1);
     int asked = 0;
-    window.set_ask_resume([&](const pychron::ui::ResumeOffer& offer) {
+    window.set_ask_resume([&](const nobion::ui::ResumeOffer& offer) {
       ++asked;
       return offer.resumable();
     });
@@ -1283,13 +1283,13 @@ class TestExperimentWindow : public QObject {
   }
 
   void notNowChangesNothing() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
     write_example_state(sim, 1);
     int asked = 0;
-    window.set_ask_resume([&](const pychron::ui::ResumeOffer&) {
+    window.set_ask_resume([&](const nobion::ui::ResumeOffer&) {
       ++asked;
       return false;
     });
@@ -1303,12 +1303,12 @@ class TestExperimentWindow : public QObject {
   }
 
   void noOfferWithoutAGoodFile() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
     int asked = 0;
-    window.set_ask_resume([&](const pychron::ui::ResumeOffer&) {
+    window.set_ask_resume([&](const nobion::ui::ResumeOffer&) {
       ++asked;
       return true;
     });
@@ -1327,13 +1327,13 @@ class TestExperimentWindow : public QObject {
   }
 
   void noOfferInTheWindowThatJustStopped() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     const fs::path queue = queue_file(sim);
     QVERIFY(window.load_queue(queue));
     int asked = 0;
-    window.set_ask_resume([&](const pychron::ui::ResumeOffer&) {
+    window.set_ask_resume([&](const nobion::ui::ResumeOffer&) {
       ++asked;
       return false;
     });
@@ -1354,13 +1354,13 @@ class TestExperimentWindow : public QObject {
   }
 
   void anOfferWithAnotherIdentifierCannotResume() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
     write_example_state(sim, 1, "zzz");
     bool resumable = true;
-    window.set_ask_resume([&](const pychron::ui::ResumeOffer& offer) {
+    window.set_ask_resume([&](const nobion::ui::ResumeOffer& offer) {
       resumable = offer.resumable();
       return true;
     });
@@ -1371,13 +1371,13 @@ class TestExperimentWindow : public QObject {
   }
 
   void resumeIsRefusedWhileRunningAndSaysSo() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
     const fs::path file = write_example_state(sim, 1);
     int asked = 0;
-    window.set_ask_resume([&](const pychron::ui::ResumeOffer&) {
+    window.set_ask_resume([&](const nobion::ui::ResumeOffer&) {
       ++asked;
       return false;
     });
@@ -1409,7 +1409,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void aQueueWithErrorsCannotStart() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1423,7 +1423,7 @@ class TestExperimentWindow : public QObject {
 
     // A queue-level problem is shown above the table.
     QVERIFY(window.queue_diagnostics_text().isEmpty());
-    pychron::experiment::QueueSpec bad = window.model().queue();
+    nobion::experiment::QueueSpec bad = window.model().queue();
     bad.queue_conditionals = "no_such_set";
     window.model().set_queue(bad);
     QVERIFY(window.queue_diagnostics_text().contains(QStringLiteral("queue.queue_conditionals: unknown queue conditionals")));
@@ -1433,8 +1433,8 @@ class TestExperimentWindow : public QObject {
   // once the set is saved to peak_center.toml (the spectrometer window's Save
   // to set), a revalidation makes the queue startable without a restart.
   void aSetSavedAfterLoadMakesTheQueueRunnable() {
-    namespace lab = pychron::experiment::lab;
-    pychron::ui::test::SimLab sim;
+    namespace lab = nobion::experiment::lab;
+    nobion::ui::test::SimLab sim;
     sim.session.reset();
     {
       const fs::path plan = sim.dir / "plans" / "sim_multicollect.toml";
@@ -1447,7 +1447,7 @@ class TestExperimentWindow : public QObject {
       s.replace(at, std::string_view("config = \"default\"").size(), "config = \"tuned\"");
       std::ofstream(plan, std::ios::trunc) << s;
     }
-    sim.lab = lab::load_lab(pychron::ui::test::lab_paths(sim.dir));
+    sim.lab = lab::load_lab(nobion::ui::test::lab_paths(sim.dir));
     sim.session = std::make_unique<lab::LabSession>(
         sim.lab, lab::SessionHardware{*sim.line, sim.spec.get(), sim.scan.get(), {}},
         lab::SessionOptions{sim.dir / "data", {}, {}, nullptr});
@@ -1466,7 +1466,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void savingRoundTripsAndUnsavedEditsAsk() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     auto window = std::make_unique<ExperimentWindow>(bridge, true, settings());
     QVERIFY(window->load_queue(queue_file(sim)));
@@ -1479,7 +1479,7 @@ class TestExperimentWindow : public QObject {
     const fs::path out = sim.dir / "saved.toml";
     QVERIFY2(window->save_as(out, &error), qPrintable(error));
     QVERIFY(!window->modified());
-    auto back = pychron::experiment::load_queue_file(out.string(), sim.lab.ids);
+    auto back = nobion::experiment::load_queue_file(out.string(), sim.lab.ids);
     QVERIFY(back.has_value());
     QVERIFY(*back == window->model().queue());
     QCOMPARE(back->runs.size(), std::size_t{4});
@@ -1507,7 +1507,7 @@ class TestExperimentWindow : public QObject {
   // ---- File > Open Recent -------------------------------------------------------
 
   void openRecentListsOpenedAndSavedQueues() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     const QTemporaryDir own;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings_in(own));
@@ -1531,7 +1531,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void openRecentIsDisabledWhenEmpty() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     const QTemporaryDir own;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings_in(own));
@@ -1545,7 +1545,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void choosingAnEntryOpensIt() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     const QTemporaryDir own;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings_in(own));
@@ -1560,7 +1560,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void clearMenuEmptiesIt() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     const QTemporaryDir own;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     auto settings = settings_in(own);
@@ -1576,7 +1576,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void anEntryAsksAboutUnsavedEdits() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     const QTemporaryDir own;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings_in(own));
@@ -1600,8 +1600,8 @@ class TestExperimentWindow : public QObject {
 
   // File > New: an empty queue with no file, after the usual question.
   void aNewQueueIsEmptyAndHasNoFile() {
-    using pychron::ui::MenuHub;
-    pychron::ui::test::SimLab sim;
+    using nobion::ui::MenuHub;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1637,7 +1637,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void aQueueCannotBeReplacedByANewOneWhileItRuns() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1654,9 +1654,9 @@ class TestExperimentWindow : public QObject {
 
   // The identifier source reaches the run factory whichever of the two comes first.
   void theMainWindowHandsTheSourceToTheFactory() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
-    pychron::ui::MainWindow main(*sim.line);
+    nobion::ui::MainWindow main(*sim.line);
     OnePackageSource source;
     main.set_identifier_source(&source);
     main.set_experiment(&bridge, true, queue_file(sim), [this] { return settings(); });
@@ -1667,9 +1667,9 @@ class TestExperimentWindow : public QObject {
   }
 
   void aSourceSetLaterReachesAnOpenWindow() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
-    pychron::ui::MainWindow main(*sim.line);
+    nobion::ui::MainWindow main(*sim.line);
     main.set_experiment(&bridge, true, queue_file(sim), [this] { return settings(); });
     main.experiment_action()->trigger();
     QVERIFY(main.experiment_window() != nullptr);
@@ -1683,11 +1683,11 @@ class TestExperimentWindow : public QObject {
   // File > New and File > Open are the main window's, from any window: each
   // brings up the window it acts in, and has the key while that one is in front.
   void fileNewAndOpenBringUpTheWindowTheyActIn() {
-    using pychron::ui::MenuHub;
-    using pychron::ui::Shortcut;
-    pychron::ui::test::SimLab sim;
+    using nobion::ui::MenuHub;
+    using nobion::ui::Shortcut;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
-    pychron::ui::MainWindow main(*sim.line);
+    nobion::ui::MainWindow main(*sim.line);
     main.show();
     const QList<QAction*>& entries = main.file_entries();
     QStringList texts;
@@ -1740,19 +1740,19 @@ class TestExperimentWindow : public QObject {
     // The keys follow the window in front.
     experiment->activateWindow();
     if (!QTest::qWaitForWindowActive(experiment)) QSKIP("this platform does not activate windows");
-    QCOMPARE(entries.at(0)->shortcut(), pychron::ui::key(Shortcut::FileNew));
-    QCOMPARE(entries.at(3)->shortcut(), pychron::ui::key(Shortcut::FileOpen));
+    QCOMPARE(entries.at(0)->shortcut(), nobion::ui::key(Shortcut::FileNew));
+    QCOMPARE(entries.at(3)->shortcut(), nobion::ui::key(Shortcut::FileOpen));
     QVERIFY(entries.at(4)->shortcut().isEmpty());
     QCOMPARE(hub.file_action(MenuHub::FileRole::Save)->text(), QStringLiteral("&Save Queue"));
     scripts->activateWindow();
     QTRY_COMPARE(QApplication::activeWindow(), static_cast<QWidget*>(scripts));
-    QCOMPARE(entries.at(1)->shortcut(), pychron::ui::key(Shortcut::FileNew));
-    QCOMPARE(entries.at(4)->shortcut(), pychron::ui::key(Shortcut::FileOpen));
+    QCOMPARE(entries.at(1)->shortcut(), nobion::ui::key(Shortcut::FileNew));
+    QCOMPARE(entries.at(4)->shortcut(), nobion::ui::key(Shortcut::FileOpen));
     QVERIFY(entries.at(3)->shortcut().isEmpty());
     conditionals->activateWindow();
     QTRY_COMPARE(QApplication::activeWindow(), static_cast<QWidget*>(conditionals));
-    QCOMPARE(entries.at(2)->shortcut(), pychron::ui::key(Shortcut::FileNew));
-    QCOMPARE(entries.at(5)->shortcut(), pychron::ui::key(Shortcut::FileOpen));
+    QCOMPARE(entries.at(2)->shortcut(), nobion::ui::key(Shortcut::FileNew));
+    QCOMPARE(entries.at(5)->shortcut(), nobion::ui::key(Shortcut::FileOpen));
     main.activateWindow();
     QTRY_COMPARE(QApplication::activeWindow(), static_cast<QWidget*>(&main));
     for (const QAction* a : entries) QVERIFY2(a->shortcut().isEmpty(), qPrintable(a->text()));
@@ -1762,19 +1762,19 @@ class TestExperimentWindow : public QObject {
   }
 
   void rowsOpenTheirScriptsInTheEditor() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
     QVERIFY(window.script_editor() == nullptr);
-    QVERIFY(!window.edit_row_script(pychron::scripting::ScriptKind::Extraction));  // nothing selected
+    QVERIFY(!window.edit_row_script(nobion::scripting::ScriptKind::Extraction));  // nothing selected
     window.select_row(1);
     const bool has_script = !window.model().queue().runs[1].extraction.script.empty();
-    QCOMPARE(window.edit_row_script(pychron::scripting::ScriptKind::Extraction), has_script);
+    QCOMPARE(window.edit_row_script(nobion::scripting::ScriptKind::Extraction), has_script);
     if (has_script) {
       QVERIFY(window.script_editor() != nullptr);
       QCOMPARE(window.script_editor()->current_name(), QStringLiteral("extraction/sim_extract"));
-      QVERIFY(window.edit_row_script(pychron::scripting::ScriptKind::PostMeasurement));
+      QVERIFY(window.edit_row_script(nobion::scripting::ScriptKind::PostMeasurement));
       QCOMPARE(window.script_editor()->current_name(), QStringLiteral("post_measurement/sim_pump"));
       QCOMPARE(window.script_editor()->document_count(), 2);
     }
@@ -1784,14 +1784,14 @@ class TestExperimentWindow : public QObject {
     QVERIFY(window.model().replace_run(1, run));
     QVERIFY(window.model().row_has_error(1));
     QString error;
-    QVERIFY2(window.open_script_editor()->new_script(pychron::scripting::ScriptKind::Extraction,
+    QVERIFY2(window.open_script_editor()->new_script(nobion::scripting::ScriptKind::Extraction,
                                                     QStringLiteral("brand_new"), &error),
              qPrintable(error));
     QVERIFY(!window.model().row_has_error(1));
   }
 
   void queueConditionalsAreChosenFromTheLabsFiles() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1818,7 +1818,7 @@ class TestExperimentWindow : public QObject {
     QCOMPARE(combo->currentText(), QStringLiteral("default_unknown"));
 
     // A queue naming a file the lab does not have: shown, not dropped.
-    pychron::experiment::QueueSpec bad = window.model().queue();
+    nobion::experiment::QueueSpec bad = window.model().queue();
     bad.queue_conditionals = "gone";
     window.model().set_queue(bad);
     QCOMPARE(combo->currentText(), QStringLiteral("gone"));
@@ -1827,7 +1827,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void rowsTakeConditionalsFromADialog() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1868,7 +1868,7 @@ class TestExperimentWindow : public QObject {
     // system for both; default_unknown left as each row had it; gone removed.
     answer = States{Qt::Checked, Qt::PartiallyChecked, Qt::Unchecked};
     QVERIFY(window.edit_selected_conditionals());
-    using Ref = pychron::experiment::ConditionalRef;
+    using Ref = nobion::experiment::ConditionalRef;
     QCOMPARE(window.model().queue().runs[0].conditionals,
              (std::vector<Ref>{{"default_unknown", "truncate"}, {"system", "action"}}));
     QCOMPARE(window.model().queue().runs[1].conditionals, (std::vector<Ref>{{"system", "action"}}));
@@ -1879,7 +1879,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void theConditionalsEditorOpensAndItsSavesRevalidate() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1914,7 +1914,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void stepHeatEditorOpensFromMenuAndRefreshesFactory() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.step_heat_editor() == nullptr);
@@ -1933,7 +1933,7 @@ class TestExperimentWindow : public QObject {
     QVERIFY(!window.factory()->step_heat_choices().contains(QStringLiteral("zz")));
 
     // Saved in the editor: the factory can pick it at once.
-    const auto t = pychron::experiment::template_from_values({5, 10}, window.factory()->form());
+    const auto t = nobion::experiment::template_from_values({5, 10}, window.factory()->form());
     QString error;
     QVERIFY2(editor->new_from(t, QStringLiteral("zz"), &error), qPrintable(error));
     QVERIFY2(editor->save(&error), qPrintable(error));
@@ -1941,7 +1941,7 @@ class TestExperimentWindow : public QObject {
 
     // The factory's Save as template...: the editor holds the text, under the name asked.
     editor->set_ask_name([] { return std::optional<QString>(QStringLiteral("from_text")); });
-    pychron::experiment::FactoryForm f = window.factory()->form();
+    nobion::experiment::FactoryForm f = window.factory()->form();
     f.identifier = "20010";
     f.position = "7";
     f.step_heat = "3, 6, 9";
@@ -1952,7 +1952,7 @@ class TestExperimentWindow : public QObject {
     QCOMPARE(editor->model().rowCount(), 3);
 
     // Its File menu's "from Run Factory Text" asks the factory too.
-    editor->set_ask_unsaved([](const QString&) { return pychron::ui::StepHeatEditorWindow::Unsaved::Discard; });
+    editor->set_ask_unsaved([](const QString&) { return nobion::ui::StepHeatEditorWindow::Unsaved::Discard; });
     editor->set_ask_name([] { return std::optional<QString>(QStringLiteral("again")); });
     QVERIFY2(editor->new_from_factory(&error), qPrintable(error));
     QCOMPARE(editor->model().rowCount(), 3);
@@ -1965,7 +1965,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void setConditionalsIsOneEditAndGivesUpIfTheQueueChanged() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
@@ -1997,7 +1997,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void closingAsksAboutUnsavedConditionals() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     auto window = std::make_unique<ExperimentWindow>(bridge, true, settings());
     QVERIFY(window->load_queue(queue_file(sim)));
@@ -2005,7 +2005,7 @@ class TestExperimentWindow : public QObject {
     editor->add_disable(QStringLiteral("anything"));
     QVERIFY(editor->modified());
     int asked = 0;
-    auto answer = pychron::ui::ConditionalsEditorWindow::Unsaved::Cancel;
+    auto answer = nobion::ui::ConditionalsEditorWindow::Unsaved::Cancel;
     editor->set_ask_unsaved([&](const QString&) {
       ++asked;
       return answer;
@@ -2014,20 +2014,20 @@ class TestExperimentWindow : public QObject {
     QVERIFY(!window->close());
     QCOMPARE(asked, 1);
     QVERIFY(editor->modified());
-    answer = pychron::ui::ConditionalsEditorWindow::Unsaved::Discard;
+    answer = nobion::ui::ConditionalsEditorWindow::Unsaved::Discard;
     QVERIFY(window->close());
     QCOMPARE(asked, 2);
     window.reset();
   }
 
   void theQueueConditionalsAreFixedWhileRunning() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
     QVERIFY(window.load_queue(queue_file(sim)));
     QVERIFY(window.queue_conditionals_combo()->isEnabled());
     bool combo_enabled = true, queue_set = true, row_set = false;
-    connect(&bridge, &ExperimentBridge::runStarted, this, [&](const pychron::experiment::executor::RunStarted& e) {
+    connect(&bridge, &ExperimentBridge::runStarted, this, [&](const nobion::experiment::executor::RunStarted& e) {
       if (e.row != 0) return;
       window.model().set_frozen(1);
       combo_enabled = window.queue_conditionals_combo()->isEnabled();
@@ -2049,11 +2049,11 @@ class TestExperimentWindow : public QObject {
   // Resume and Skip Held Run are enabled only while the queue holds; the
   // health bar says why and counts down; Resume ends the hold.
   void aHeldQueueIsShownAndResumeEndsTheHold() {
-    pychron::ui::test::SimLab sim;
-    pychron::SimTransport* down = hold_the_first_run(sim);
+    nobion::ui::test::SimLab sim;
+    nobion::SimTransport* down = hold_the_first_run(sim);
     QVERIFY(down != nullptr);
     ExperimentBridge bridge(*sim.session, sim.line->bus());
-    pychron::ui::MainWindow main(*sim.line);
+    nobion::ui::MainWindow main(*sim.line);
     main.set_experiment(&bridge, true, queue_file(sim), [this] { return settings(); });
     main.experiment_action()->trigger();
     ExperimentWindow* window = main.experiment_window();
@@ -2080,7 +2080,7 @@ class TestExperimentWindow : public QObject {
 
     // Back, and settling for an hour: Resume starts the held run now.
     down->set_down(false);
-    QTRY_VERIFY_WITH_TIMEOUT(sim.spec->links().front()->transport().health().state != pychron::HealthState::Down, 30000);
+    QTRY_VERIFY_WITH_TIMEOUT(sim.spec->links().front()->transport().health().state != nobion::HealthState::Down, 30000);
     QVERIFY(pane->holding());
     window->resume_held_action()->trigger();
     QTRY_VERIFY_WITH_TIMEOUT(!pane->holding(), 30000);
@@ -2100,7 +2100,7 @@ class TestExperimentWindow : public QObject {
   // Skip Held Run drops the row held for; with the link still down, the
   // queue holds again for the next one. Resume while down holds again too.
   void skipDropsTheHeldRowAndTheQueueHoldsForTheNext() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     QVERIFY(hold_the_first_run(sim) != nullptr);
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     ExperimentWindow window(bridge, true, settings());
@@ -2138,9 +2138,9 @@ class TestExperimentWindow : public QObject {
   // line's: CoreBridge::now), at two instants and past the limit.
   void theHoldCountsDownOnTheLinesClock() {
     using namespace std::chrono_literals;
-    pychron::VirtualClock clock;
-    const pychron::Clock::Participant self(clock, "test");
-    pychron::ui::HealthBar bar(nullptr, [&clock] { return clock.now(); });
+    nobion::VirtualClock clock;
+    const nobion::Clock::Participant self(clock, "test");
+    nobion::ui::HealthBar bar(nullptr, [&clock] { return clock.now(); });
     QVERIFY(!bar.holding());
     QVERIFY(bar.hold_text().isEmpty());
     bar.show_hold(QStringLiteral("link down: spectrometer"), clock.now() + 2h);
@@ -2158,9 +2158,9 @@ class TestExperimentWindow : public QObject {
   }
 
   void mainWindowOffersTheExperimentWindow() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
-    pychron::ui::MainWindow main(*sim.line);
+    nobion::ui::MainWindow main(*sim.line);
     QVERIFY(!main.experiment_action()->isEnabled());
     const fs::path queue = queue_file(sim);
     main.set_experiment(&bridge, true, queue, [this] { return settings(); });
@@ -2179,17 +2179,17 @@ class TestExperimentWindow : public QObject {
   // The one File > Preferences… is in every window's bar, and opens over the
   // window in front.
   void experimentAndScriptEditorOfferPreferences() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
-    pychron::ui::MainWindow main(*sim.line);
+    nobion::ui::MainWindow main(*sim.line);
     main.set_preferences_settings([this] { return settings(); });
     main.set_experiment(&bridge, true, std::nullopt, [this] { return settings(); });
     main.experiment_action()->trigger();
     ExperimentWindow* window = main.experiment_window();
-    pychron::ui::ScriptEditorWindow* editor = window->open_script_editor();
+    nobion::ui::ScriptEditorWindow* editor = window->open_script_editor();
     const auto file_menu = [](QMainWindow* w) {
-      QMenuBar* bar = pychron::ui::MenuHub::instance().bar_for(w);
-      return pychron::ui::MenuHub::instance().menus(bar).at(static_cast<int>(pychron::ui::MenuHub::Menu::File));
+      QMenuBar* bar = nobion::ui::MenuHub::instance().bar_for(w);
+      return nobion::ui::MenuHub::instance().menus(bar).at(static_cast<int>(nobion::ui::MenuHub::Menu::File));
     };
     QAction* action = main.preferences_action();
     QVERIFY(file_menu(window)->actions().contains(action));
@@ -2200,28 +2200,28 @@ class TestExperimentWindow : public QObject {
     window->activateWindow();
     if (!QTest::qWaitForWindowActive(window)) QSKIP("this platform does not activate windows");
     action->trigger();  // over the experiment window
-    auto dialogs = window->findChildren<pychron::ui::PreferencesDialog*>();
+    auto dialogs = window->findChildren<nobion::ui::PreferencesDialog*>();
     QCOMPARE(dialogs.size(), 1);
     QVERIFY(dialogs.front()->isVisible());
     // From the script editor: the same dialog, raised, not doubled.
     editor->activateWindow();
     QVERIFY(QTest::qWaitForWindowActive(editor));
     action->trigger();
-    QCOMPARE(main.findChildren<pychron::ui::PreferencesDialog*>().size(), 1);
+    QCOMPARE(main.findChildren<nobion::ui::PreferencesDialog*>().size(), 1);
     dialogs.front()->reject();
-    QTRY_COMPARE(main.findChildren<pychron::ui::PreferencesDialog*>().size(), 0);  // deleted on close
+    QTRY_COMPARE(main.findChildren<nobion::ui::PreferencesDialog*>().size(), 0);  // deleted on close
 
     editor->activateWindow();
     QVERIFY(QTest::qWaitForWindowActive(editor));
     action->trigger();  // now over the editor
-    QCOMPARE(editor->findChildren<pychron::ui::PreferencesDialog*>().size(), 1);
+    QCOMPARE(editor->findChildren<nobion::ui::PreferencesDialog*>().size(), 1);
     main.set_experiment(nullptr, false);
   }
 
   // ---- where the queue dialogs start (queue-directory design, section 3) ------
 
   void openStartsInTheLabsQueuesWithNoLastQueue() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     QTemporaryDir dir;
     ExperimentWindow window(bridge, true,
@@ -2236,14 +2236,14 @@ class TestExperimentWindow : public QObject {
   }
 
   void openStartsWhereTheLastQueueWas() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     QTemporaryDir dir;
     ExperimentWindow window(bridge, true,
                             std::make_unique<QSettings>(dir.filePath(QStringLiteral("s.ini")), QSettings::IniFormat));
     fs::create_directories(sim.dir / "elsewhere");
     const fs::path q = sim.dir / "elsewhere" / "q.toml";
-    QVERIFY(pychron::experiment::save_queue_file(q.string(), sim.queue()));
+    QVERIFY(nobion::experiment::save_queue_file(q.string(), sim.queue()));
     QString error;
     QVERIFY2(window.load_queue(q, &error), qPrintable(error));
     QString start;
@@ -2256,14 +2256,14 @@ class TestExperimentWindow : public QObject {
   }
 
   void openFallsBackWhenTheLastQueuesDirectoryIsGone() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     QTemporaryDir dir;
     ExperimentWindow window(bridge, true,
                             std::make_unique<QSettings>(dir.filePath(QStringLiteral("s.ini")), QSettings::IniFormat));
     fs::create_directories(sim.dir / "elsewhere");
     const fs::path q = sim.dir / "elsewhere" / "q.toml";
-    QVERIFY(pychron::experiment::save_queue_file(q.string(), sim.queue()));
+    QVERIFY(nobion::experiment::save_queue_file(q.string(), sim.queue()));
     QString error;
     QVERIFY2(window.load_queue(q, &error), qPrintable(error));
     fs::remove_all(sim.dir / "elsewhere");
@@ -2277,7 +2277,7 @@ class TestExperimentWindow : public QObject {
   }
 
   void savingANewQueueMakesQueues() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     QTemporaryDir dir;
     ExperimentWindow window(bridge, true,
@@ -2302,11 +2302,11 @@ class TestExperimentWindow : public QObject {
   }
 
   void aQueueNamedAtStartIsFoundInTheLab() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     const fs::path in_lab = sim.dir / "queues" / "t041-start.toml";
-    QVERIFY(pychron::experiment::save_queue_file(in_lab.string(), sim.queue()));
-    pychron::ui::MainWindow main(*sim.line);
+    QVERIFY(nobion::experiment::save_queue_file(in_lab.string(), sim.queue()));
+    nobion::ui::MainWindow main(*sim.line);
     main.set_experiment(&bridge, true, fs::path("t041-start.toml"), [this] { return settings(); });
     main.experiment_action()->trigger();
     QVERIFY(main.experiment_window() != nullptr);

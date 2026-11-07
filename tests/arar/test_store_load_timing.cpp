@@ -32,7 +32,7 @@
 #include "nobion/processing/store_source.hpp"
 #include "nobion/processing/units.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 static double now_s() { return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
 
@@ -201,4 +201,4 @@ TEST(StoreLoadTiming, ReferenceSeries) {
   std::printf("both tabs            %8.3f s\n", both);
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

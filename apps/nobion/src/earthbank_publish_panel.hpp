@@ -62,7 +62,7 @@ class QPushButton;
 class QTableWidget;
 class QWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class EarthbankPackageDialog;
 
@@ -240,4 +240,4 @@ class EarthbankPublishPanel : public QWidget {
   QPointer<EarthbankPackageDialog> package_dialog_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

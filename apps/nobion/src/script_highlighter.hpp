@@ -11,7 +11,7 @@
 
 #include "nobion/scripting/script.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class ScriptHighlighter : public QSyntaxHighlighter {
   Q_OBJECT
@@ -34,4 +34,4 @@ class ScriptHighlighter : public QSyntaxHighlighter {
   QRegularExpression word_, number_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

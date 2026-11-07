@@ -12,7 +12,7 @@
 #include "nobion/core/env.hpp"
 #include "nobion/processing/scene.hpp"
 
-namespace pychron::processing::testing {
+namespace nobion::processing::testing {
 
 inline Scene fixture_scene() {
   Scene s;
@@ -160,4 +160,4 @@ inline std::string compare_with_fixture(const std::string& name, const std::stri
          std::to_string(want.size()) + " bytes, written " + std::to_string(bytes.size()) + ")";
 }
 
-}  // namespace pychron::processing::testing
+}  // namespace nobion::processing::testing

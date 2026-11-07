@@ -10,7 +10,7 @@
 #include "nobion/transport/trace.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // One scripted wire interaction: when `expect` is written, `reply` becomes
 // readable after `delay`. An empty reply models a write-only command.
@@ -89,4 +89,4 @@ class SimTransport final : public QueuedTransport {
   std::shared_ptr<State> state_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

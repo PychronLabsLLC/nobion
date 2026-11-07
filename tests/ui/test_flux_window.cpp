@@ -78,18 +78,18 @@ class FluxWindowTest : public QObject {
 #include "nobion/processing/store_source.hpp"
 #pragma pop_macro("signals")
 
-using namespace pychron;
-namespace ps = pychron::persistence;
-namespace pp = pychron::processing;
-namespace pt = pychron::processing::testing;
-using pychron::ui::EntryActions;
-using pychron::ui::EntryBridge;
-using pychron::ui::FitActions;
-using pychron::ui::MenuHub;
-using pychron::ui::PackagesWindow;
-using pychron::ui::FluxAnalysisModel;
-using pychron::ui::FluxMonitorModel;
-using pychron::ui::FluxWindow;
+using namespace nobion;
+namespace ps = nobion::persistence;
+namespace pp = nobion::processing;
+namespace pt = nobion::processing::testing;
+using nobion::ui::EntryActions;
+using nobion::ui::EntryBridge;
+using nobion::ui::FitActions;
+using nobion::ui::MenuHub;
+using nobion::ui::PackagesWindow;
+using nobion::ui::FluxAnalysisModel;
+using nobion::ui::FluxMonitorModel;
+using nobion::ui::FluxWindow;
 
 namespace {
 
@@ -476,9 +476,9 @@ class FluxWindowTest : public QObject {
     QVERIFY(w.warnings().isEmpty());
     QCOMPARE(w.monitors()->rowCount(), 0);
     QCOMPARE(w.unknowns()->rowCount(), 1);
-    QCOMPARE(w.unknowns()->index(0, pychron::ui::FluxUnknownModel::Identifier).data().toString(),
+    QCOMPARE(w.unknowns()->index(0, nobion::ui::FluxUnknownModel::Identifier).data().toString(),
              QStringLiteral("66201"));
-    QVERIFY(w.unknowns()->index(0, pychron::ui::FluxUnknownModel::PredJ).data().toString().isEmpty());
+    QVERIFY(w.unknowns()->index(0, nobion::ui::FluxUnknownModel::PredJ).data().toString().isEmpty());
     QCOMPARE(w.windowTitle(), QStringLiteral("Flux — NM-300 B"));
 
     // A level that is not there cannot be read at all: nothing is left on show.
@@ -529,7 +529,7 @@ class FluxWindowTest : public QObject {
     for (int row = 0; row < 8; ++row)
       QCOMPARE(w.monitors()->index(row, FluxMonitorModel::Identifier).data().toString(),
                QString::number(67001 + row));
-    QCOMPARE(w.unknowns()->index(0, pychron::ui::FluxUnknownModel::Identifier).data().toString(),
+    QCOMPARE(w.unknowns()->index(0, nobion::ui::FluxUnknownModel::Identifier).data().toString(),
              QStringLiteral("67101"));
     QCOMPARE(points_labelled(*w.view()->scene(), "Analyses")->x.size(), std::size_t{24});
     QCOMPARE(w.tree()->currentItem(), level_item(w, QStringLiteral("NM-300"), QStringLiteral("C")));
@@ -600,12 +600,12 @@ class FluxWindowTest : public QObject {
     QVERIFY(w.edited());
     QVERIFY(!w.busy());
     QVERIFY2(w.status().endsWith(QStringLiteral(" · edited (not saved)")), qPrintable(w.status()));
-    QVERIFY(w.unknowns()->setData(w.unknowns()->index(0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked,
+    QVERIFY(w.unknowns()->setData(w.unknowns()->index(0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked,
                                   Qt::CheckStateRole));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
     QVERIFY(w.monitors()->setData(w.monitors()->index(row, FluxMonitorModel::Save), Qt::Checked, Qt::CheckStateRole));
     QVERIFY(w.edited());  // the unknown's is still unticked
-    QVERIFY(w.unknowns()->setData(w.unknowns()->index(0, pychron::ui::FluxUnknownModel::Save), Qt::Checked,
+    QVERIFY(w.unknowns()->setData(w.unknowns()->index(0, nobion::ui::FluxUnknownModel::Save), Qt::Checked,
                                   Qt::CheckStateRole));
     QVERIFY(!w.edited());
 
@@ -1199,7 +1199,7 @@ class FluxWindowTest : public QObject {
       QVERIFY(w.monitors()->index(row, FluxMonitorModel::PredJ).data().toString().isEmpty());
       QVERIFY(w.monitors()->index(row, FluxMonitorModel::Dev).data().toString().isEmpty());
     }
-    QVERIFY(w.unknowns()->index(0, pychron::ui::FluxUnknownModel::PredJ).data().toString().isEmpty());
+    QVERIFY(w.unknowns()->index(0, nobion::ui::FluxUnknownModel::PredJ).data().toString().isEmpty());
     // An analysis omitted meanwhile shows in its monitor's N.
     w.toggle_analyses({QString::fromStdString(seeded_.analyses.at("66007-01").str())});
     QVERIFY(settle(w));
@@ -1991,7 +1991,7 @@ class FluxWindowTest : public QObject {
 
     w.set_in_fit(3, false);  // another J everywhere
     w.set_save(9, false);
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
     QVERIFY(settle(w));
     w.save();
     QVERIFY(settle(w));
@@ -2006,8 +2006,8 @@ class FluxWindowTest : public QObject {
 
     // R11: read again after that save, the box is still unticked, and that is
     // no edit: nothing differs from what was saved but the choice.
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
-    QCOMPARE(check(w.unknowns(), 1, pychron::ui::FluxUnknownModel::Save), Qt::Checked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 1, nobion::ui::FluxUnknownModel::Save), Qt::Checked);
     QVERIFY(!w.edited());
     // So a second save leaves hole 9's head alone again.
     w.set_in_fit(3, true);
@@ -2018,7 +2018,7 @@ class FluxWindowTest : public QObject {
     QCOMPARE(heads().at(9), before.at(9));
     QVERIFY(heads().at(10) != after.at(10));
     QCOMPARE(saved_excluded(3), std::optional<bool>(false));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
     QVERIFY(!w.edited());
     // Ticked back, it is an edit until saved.
     w.set_save(9, true);
@@ -2029,15 +2029,15 @@ class FluxWindowTest : public QObject {
     // A manual Reload keeps the box as it is (R19, R20): unticked, and still no edit.
     w.reload();
     QVERIFY(settle(w));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
     QVERIFY(!w.edited());
     // One unticked since the save is an edit before the Reload and after it.
     w.set_save(10, false);
     QVERIFY(w.edited());
     w.reload();
     QVERIFY(settle(w));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
-    QCOMPARE(check(w.unknowns(), 1, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 1, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
     QVERIFY(w.edited());
     w.set_save(10, true);
     QVERIFY(!w.edited());
@@ -2045,9 +2045,9 @@ class FluxWindowTest : public QObject {
     w.set_in_fit(3, false);
     w.save();
     QVERIFY(settle(w));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
     w.revert();
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Checked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Checked);
     QVERIFY(!w.edited());
   }
 
@@ -2633,8 +2633,8 @@ class FluxWindowTest : public QObject {
     QVERIFY(w.edits().include.empty());
     QVERIFY(w.options().fit.weighted);
     QVERIFY(w.options_editor()->options().get_bool("model.weighted"));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
-    QCOMPARE(check(w.unknowns(), 1, pychron::ui::FluxUnknownModel::Save), Qt::Checked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 1, nobion::ui::FluxUnknownModel::Save), Qt::Checked);
     QCOMPARE(check(w.monitors(), w.monitors()->row_of(3), FluxMonitorModel::Fit), Qt::Unchecked);
     QVERIFY2(w.fit(), qPrintable(w.status()));
     QVERIFY(w.fit()->options.fit.weighted);
@@ -2775,8 +2775,8 @@ class FluxWindowTest : public QObject {
     drain(*r.bridge);
     QVERIFY(settle(w));
     QVERIFY2(w.fit(), qPrintable(w.status()));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
-    QCOMPARE(check(w.unknowns(), 1, pychron::ui::FluxUnknownModel::Save), Qt::Checked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 1, nobion::ui::FluxUnknownModel::Save), Qt::Checked);
     QVERIFY(!w.edited());
     // And over a change that comes later, with nothing edited.
     save_fit(1, pp::FluxOptions{}, false, 2.0e-3);
@@ -2784,7 +2784,7 @@ class FluxWindowTest : public QObject {
     QVERIFY(settle(w));
     QCOMPARE(w.monitors()->index(w.monitors()->row_of(1), FluxMonitorModel::SavedJ).data().toString(),
              QStringLiteral("2.0000e-03"));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
     QVERIFY(!w.edited());
     // Another level and back: every box is ticked.
     auto second = pt::seed_second_flux_level(*store_, actor_, seeded_, "C");
@@ -2793,7 +2793,7 @@ class FluxWindowTest : public QObject {
     QVERIFY(settle(w));
     w.open_level(QStringLiteral("NM-300"), QStringLiteral("A"));
     QVERIFY(settle(w));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Checked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Checked);
     QVERIFY(!w.edited());
   }
 
@@ -3154,7 +3154,7 @@ class FluxWindowTest : public QObject {
     QCOMPARE(o.fit->flux_action()->text(), QStringLiteral("Flux…"));
     QStringList commands;
     for (const MenuHub::Command& c : MenuHub::instance().commands())
-      commands << pychron::ui::CommandPalette::label(c.action, MenuHub::title(c.menu));
+      commands << nobion::ui::CommandPalette::label(c.action, MenuHub::title(c.menu));
     QVERIFY2(commands.contains(QStringLiteral("Fit › Flux")), qPrintable(commands.join(QStringLiteral(", "))));
     // The bar shows Fit, after Entry.
     QStringList titles;
@@ -3264,7 +3264,7 @@ class FluxWindowTest : public QObject {
     QVERIFY(p != nullptr);
     p->show_level(QStringLiteral("NM-300"), QStringLiteral("A"));
     QTRY_VERIFY_WITH_TIMEOUT(!p->busy() && p->grid()->has_edit(), kWaitMs);
-    using Grid = pychron::ui::LevelGridModel;
+    using Grid = nobion::ui::LevelGridModel;
     const auto j_of = [p](int hole) -> std::optional<QString> {
       for (int row = 0; row < p->grid()->rowCount(); ++row)
         if (p->grid()->index(row, Grid::Position).data().toInt() == hole)
@@ -3297,7 +3297,7 @@ class FluxWindowTest : public QObject {
       PackagesWindow p(*r.bridge);
       p.show_level(QStringLiteral("NM-300"), QStringLiteral("A"));
       QTRY_VERIFY_WITH_TIMEOUT(!p.busy() && p.grid()->has_edit(), kWaitMs);
-      using Grid = pychron::ui::LevelGridModel;
+      using Grid = nobion::ui::LevelGridModel;
       const auto j_of = [&p](int hole) { return p.grid()->index(p.grid()->row_of(hole), Grid::J).data().toString(); };
       QVERIFY(p.grid()->row_of(9) >= 0);
       QCOMPARE(j_of(9), QString());
@@ -3319,7 +3319,7 @@ class FluxWindowTest : public QObject {
       PackagesWindow p(*r.bridge);
       p.show_level(QStringLiteral("NM-300"), QStringLiteral("A"));
       QTRY_VERIFY_WITH_TIMEOUT(!p.busy() && p.grid()->has_edit(), kWaitMs);
-      using Grid = pychron::ui::LevelGridModel;
+      using Grid = nobion::ui::LevelGridModel;
       const auto j_of = [&p](int hole) { return p.grid()->index(p.grid()->row_of(hole), Grid::J).data().toString(); };
       auto* doses = p.findChild<QTableWidget*>(QStringLiteral("packages_doses"));
       auto* z = p.findChild<QLineEdit*>(QStringLiteral("packages_z"));

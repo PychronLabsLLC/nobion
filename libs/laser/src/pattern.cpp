@@ -14,7 +14,7 @@
 
 #include <toml++/toml.hpp>
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 namespace {
 
@@ -602,4 +602,4 @@ void PatternLibrary::put(Pattern pattern) {
   patterns_.insert_or_assign(std::move(name), std::move(made));
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

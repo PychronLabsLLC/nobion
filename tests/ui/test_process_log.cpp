@@ -35,14 +35,14 @@ class TestProcessLog : public QObject {
   void qtWarningReachesFile() {
     QTemporaryDir tmp;
     const fs::path root = tmp.path().toStdString();
-    pychron::SteadyClock clock;
-    pychron::config::LoggingConfig cfg;
+    nobion::SteadyClock clock;
+    nobion::config::LoggingConfig cfg;
     cfg.dir = root / "logs";
-    auto created = pychron::LogHub::create(cfg, clock);
+    auto created = nobion::LogHub::create(cfg, clock);
     QVERIFY(created.has_value());
     const auto hub = std::move(*created);
     {
-      pychron::ui::QtLogHandler handler(*hub);
+      nobion::ui::QtLogHandler handler(*hub);
       qWarning("boom");
     }
     hub->flush();
@@ -56,12 +56,12 @@ class TestProcessLog : public QObject {
     seen = 0;
     const auto previous = qInstallMessageHandler([](QtMsgType, const QMessageLogContext&, const QString&) { ++seen; });
     QTemporaryDir tmp;
-    pychron::SteadyClock clock;
-    pychron::config::LoggingConfig cfg;
+    nobion::SteadyClock clock;
+    nobion::config::LoggingConfig cfg;
     cfg.dir = fs::path(tmp.path().toStdString()) / "logs";
-    const auto hub = *pychron::LogHub::create(cfg, clock);
+    const auto hub = *nobion::LogHub::create(cfg, clock);
     {
-      pychron::ui::QtLogHandler handler(*hub);
+      nobion::ui::QtLogHandler handler(*hub);
       qInfo("chained");
       QCOMPARE(seen, 1);
     }
@@ -72,16 +72,16 @@ class TestProcessLog : public QObject {
 
   void dataReductionInstallLogs() {
     QTemporaryDir tmp;
-    pychron::setup::SiteInstall install;
+    nobion::setup::SiteInstall install;
     install.name = "dr";
     install.kind = "data_reduction";
     install.root = fs::path(tmp.path().toStdString());
-    const pychron::EnvLookup env = [&](std::string_view name) -> std::optional<std::string> {
+    const nobion::EnvLookup env = [&](std::string_view name) -> std::optional<std::string> {
       if (name == "HOME") return tmp.path().toStdString();
       return std::nullopt;
     };
-    pychron::SteadyClock clock;
-    const auto hub = pychron::ui::open_process_log(install, std::nullopt, clock, false, pychron::HostOs::Mac, env).hub;
+    nobion::SteadyClock clock;
+    const auto hub = nobion::ui::open_process_log(install, std::nullopt, clock, false, nobion::HostOs::Mac, env).hub;
     QVERIFY(hub != nullptr);
     hub->flush();
     QVERIFY(fs::exists(install.root / "logs" / "pychron.log"));
@@ -90,12 +90,12 @@ class TestProcessLog : public QObject {
 
   void noInstallUsesTheOsFolderUnderTheInjectedHome() {
     QTemporaryDir tmp;
-    const pychron::EnvLookup env = [&](std::string_view name) -> std::optional<std::string> {
+    const nobion::EnvLookup env = [&](std::string_view name) -> std::optional<std::string> {
       if (name == "HOME") return tmp.path().toStdString();
       return std::nullopt;
     };
-    pychron::SteadyClock clock;
-    const auto opened = pychron::ui::open_process_log(std::nullopt, std::nullopt, clock, true, pychron::HostOs::Mac,
+    nobion::SteadyClock clock;
+    const auto opened = nobion::ui::open_process_log(std::nullopt, std::nullopt, clock, true, nobion::HostOs::Mac,
                                                       env, "virtual x10");
     QVERIFY(opened.notices.empty());
     const auto& hub = opened.hub;
@@ -111,7 +111,7 @@ class TestProcessLog : public QObject {
   // notice for the Log dock.
   void badLoggingTomlFallsBackToDefaults() {
     QTemporaryDir tmp;
-    pychron::setup::SiteInstall install;
+    nobion::setup::SiteInstall install;
     install.name = "lab";
     install.kind = "instrument";
     install.root = fs::path(tmp.path().toStdString());
@@ -119,13 +119,13 @@ class TestProcessLog : public QObject {
       std::ofstream out(install.root / "logging.toml");
       out << "colour = 1\n";
     }
-    const pychron::EnvLookup env = [](std::string_view) -> std::optional<std::string> { return std::nullopt; };
-    pychron::SteadyClock clock;
-    const auto opened = pychron::ui::open_process_log(install, std::nullopt, clock, false, pychron::HostOs::Mac, env);
+    const nobion::EnvLookup env = [](std::string_view) -> std::optional<std::string> { return std::nullopt; };
+    nobion::SteadyClock clock;
+    const auto opened = nobion::ui::open_process_log(install, std::nullopt, clock, false, nobion::HostOs::Mac, env);
     QVERIFY(opened.hub != nullptr);
     QCOMPARE(opened.hub->file_path(), install.root / "logs" / "pychron.log");
     QCOMPARE(opened.notices.size(), std::size_t{1});
-    QCOMPARE(opened.notices[0].first, pychron::LogLevel::Error);
+    QCOMPARE(opened.notices[0].first, nobion::LogLevel::Error);
     QVERIFY2(opened.notices[0].second.find("colour") != std::string::npos, opened.notices[0].second.c_str());
     opened.hub->flush();
     const std::string text = slurp(opened.hub->file_path());
@@ -139,14 +139,14 @@ class TestProcessLog : public QObject {
 
   // No HOME and no install: no folder for the file, said once.
   void noHomeIsANoticeAndNoFile() {
-    const pychron::EnvLookup env = [](std::string_view) -> std::optional<std::string> { return std::nullopt; };
-    pychron::SteadyClock clock;
+    const nobion::EnvLookup env = [](std::string_view) -> std::optional<std::string> { return std::nullopt; };
+    nobion::SteadyClock clock;
     const auto opened =
-        pychron::ui::open_process_log(std::nullopt, std::nullopt, clock, false, pychron::HostOs::Linux, env);
+        nobion::ui::open_process_log(std::nullopt, std::nullopt, clock, false, nobion::HostOs::Linux, env);
     QVERIFY(opened.hub != nullptr);
     QVERIFY(opened.hub->file_path().empty());
     QCOMPARE(opened.notices.size(), std::size_t{1});
-    QCOMPARE(opened.notices[0].first, pychron::LogLevel::Warn);
+    QCOMPARE(opened.notices[0].first, nobion::LogLevel::Warn);
     QCOMPARE(opened.notices[0].second, std::string("no log folder: HOME is not set"));
   }
 };

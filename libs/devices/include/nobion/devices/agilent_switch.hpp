@@ -26,7 +26,7 @@
 #include "nobion/devices/driver_registry.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // May each command be sent twice (Repeat, link.hpp)?
 //
@@ -63,4 +63,4 @@ class AgilentSwitch final : public Device, public IConnectable, public IValveAct
   bool invert_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

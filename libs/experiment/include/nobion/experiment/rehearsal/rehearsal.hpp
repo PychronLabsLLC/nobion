@@ -28,7 +28,7 @@
 #include "nobion/scripting/rehearsal.hpp"
 #include "nobion/systems/switch_rules.hpp"
 
-namespace pychron::experiment::rehearsal {
+namespace nobion::experiment::rehearsal {
 
 // Taken once from the live line when a rehearsal starts; never read again.
 struct LineSnapshot {
@@ -113,4 +113,4 @@ class Rehearsal final : public scripting::IRehearsal {
   std::size_t steps_ = 0;
 };
 
-}  // namespace pychron::experiment::rehearsal
+}  // namespace nobion::experiment::rehearsal

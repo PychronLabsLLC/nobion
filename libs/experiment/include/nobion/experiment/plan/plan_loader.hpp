@@ -21,7 +21,7 @@
 #include "nobion/experiment/model/types.hpp"
 #include "nobion/experiment/plan/plan.hpp"
 
-namespace pychron::experiment::plan {
+namespace nobion::experiment::plan {
 
 // extraction_line.toml [aliases]: "valves.inlet" -> "V12", "extraction.eqtime" -> 20.
 class IAliasResolver {
@@ -110,4 +110,4 @@ Result<MeasurementPlan> resolve_plan(std::string_view effective_toml, const Plan
 Result<LoadedPlan> load_plan(const PlanTemplate& tmpl, const ParamOverrides& overrides,
                              const PlanResolvers& resolvers, const LoadOptions& options = {});
 
-}  // namespace pychron::experiment::plan
+}  // namespace nobion::experiment::plan

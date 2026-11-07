@@ -14,7 +14,7 @@
 #include "nobion/publish/manifest.hpp"
 #include "nobion/publish/release.hpp"
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 // Draft -> published from a built directory: reads <dir>/manifest.json and
 // refuses (Config, one sentence each) a private build made public, a
@@ -41,4 +41,4 @@ Result<StoreVerify> verify_against_store(persistence::IStore& store, processing:
                                          const std::filesystem::path& dir, const std::string& store_url,
                                          std::optional<Uuid> expected = std::nullopt);
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

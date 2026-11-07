@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 namespace {
 constexpr double kSpan = 1.0;  // seconds unbroken to lock or to lose
@@ -138,4 +138,4 @@ TrackSummary summarize(std::span<const TrackScore> runs) {
   return out;
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

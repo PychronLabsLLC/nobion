@@ -16,12 +16,12 @@
 #include "nobion/experiment/conditionals/library.hpp"
 #include "nobion/reduction/fits.hpp"
 
-namespace pychron::experiment::measurement {
+namespace nobion::experiment::measurement {
 
 namespace {
 
-pychron::Duration seconds_to(double s) {
-  return std::chrono::duration_cast<pychron::Duration>(std::chrono::duration<double>(std::max(s, 0.0)));
+nobion::Duration seconds_to(double s) {
+  return std::chrono::duration_cast<nobion::Duration>(std::chrono::duration<double>(std::max(s, 0.0)));
 }
 
 // A number as a person writes it: 500, 0.05, 1.2e-05.
@@ -798,7 +798,7 @@ Result<void> MeasurementEngine::equilibrate() {
   int sniffed = 0;
   const int sniff_counts = sniff != nullptr ? sniff->positions.front().counts : 0;
   const auto sniff_integration = seconds_to(sniff != nullptr ? sniff->integration_s : 1);
-  const auto timeout = std::chrono::duration_cast<pychron::Duration>(sniff_integration * options_.timeout_factor) +
+  const auto timeout = std::chrono::duration_cast<nobion::Duration>(sniff_integration * options_.timeout_factor) +
                        options_.timeout_slack;
   auto stop_sniff = [&] {
     if (!sniffing) return;
@@ -1212,7 +1212,7 @@ Result<collect::CollectStatus> MeasurementEngine::collect(Block block, collect::
   if (spec.counts <= 0) return collect::CollectStatus::Complete;
   const auto integration = seconds_to(integration_s);
   const auto timeout =
-      std::chrono::duration_cast<pychron::Duration>(integration * options_.timeout_factor) + options_.timeout_slack;
+      std::chrono::duration_cast<nobion::Duration>(integration * options_.timeout_factor) + options_.timeout_slack;
   if (auto r = start_acquisition(integration); !r) {
     if (!is_transient(r.error().kind)) return fail(r.error());
     // Not started, and not again (spec 4.4): the collection ends without data.
@@ -1309,8 +1309,8 @@ std::string describe(const MeasurementGap& gap) {
   return text.data();
 }
 
-Result<MeasurementEngine::GapWait> MeasurementEngine::wait_out_gap(Block block, pychron::Duration integration,
-                                                                 pychron::Duration timeout, TimePoint cap) {
+Result<MeasurementEngine::GapWait> MeasurementEngine::wait_out_gap(Block block, nobion::Duration integration,
+                                                                 nobion::Duration timeout, TimePoint cap) {
   const auto& clock = ctx_.clock;
   if (!gap_from_) {
     gap_from_ = last_reading_;
@@ -1323,7 +1323,7 @@ Result<MeasurementEngine::GapWait> MeasurementEngine::wait_out_gap(Block block, 
   while (!stopping()) {
     const TimePoint now = clock.now();
     if (now >= deadline) break;
-    const auto left = std::chrono::duration_cast<pychron::Duration>(deadline - now);
+    const auto left = std::chrono::duration_cast<nobion::Duration>(deadline - now);
     auto r = ctx_.spectrometer.next_reading(std::min(timeout, left));
     if (r && *r) {
       close_gap(block, (*r)->ts, true);
@@ -1338,9 +1338,9 @@ Result<MeasurementEngine::GapWait> MeasurementEngine::wait_out_gap(Block block, 
     }
     // A port that answered sooner than an integration (its link is down) is
     // asked again after one, so the wait is on the clock, not a spin.
-    const pychron::Duration step = integration > pychron::Duration::zero() ? integration : std::chrono::seconds(1);
+    const nobion::Duration step = integration > nobion::Duration::zero() ? integration : std::chrono::seconds(1);
     const auto pause = std::min(step, left) - (clock.now() - now);
-    if (pause > pychron::Duration::zero() && !wait(std::chrono::duration<double>(pause).count())) break;
+    if (pause > nobion::Duration::zero() && !wait(std::chrono::duration<double>(pause).count())) break;
   }
   if (stopping() || clock.now() < max_end) return GapWait{GapEnd::Cap, std::nullopt};
   // max_gap has passed: the acquisition is started again once, if the link is back.
@@ -1350,8 +1350,8 @@ Result<MeasurementEngine::GapWait> MeasurementEngine::wait_out_gap(Block block, 
   ctx_.spectrometer.stop_acquisition();
   if (auto s = start_acquisition(integration); s) {
     // No further than the cap: the planned end, or the inlet's next move.
-    const auto left = std::chrono::duration_cast<pychron::Duration>(cap - clock.now());
-    if (left > pychron::Duration::zero()) {
+    const auto left = std::chrono::duration_cast<nobion::Duration>(cap - clock.now());
+    if (left > nobion::Duration::zero()) {
       auto r = ctx_.spectrometer.next_reading(std::min(timeout, left));
       if (r && *r) {
         close_gap(block, (*r)->ts, true);
@@ -1377,7 +1377,7 @@ void MeasurementEngine::close_gap(Block block, TimePoint to, bool resumed) {
   if (ctx_.bus != nullptr) ctx_.bus->publish(gap);
 }
 
-Result<void> MeasurementEngine::start_acquisition(pychron::Duration integration) {
+Result<void> MeasurementEngine::start_acquisition(nobion::Duration integration) {
   auto r = ctx_.spectrometer.start_acquisition(integration);
   if (!r && r.error().code == kOutcomeUnknown) {
     // It may or may not have started (spec 4.4): stopped and started again, once.
@@ -1394,7 +1394,7 @@ Result<void> MeasurementEngine::critical(const std::string& what, const std::fun
   const KeepTrying how{ctx_.clock,
                        ctx_.bus,
                        "measurement",
-                       [this](pychron::Duration d) { return wait(std::chrono::duration<double>(d).count()); },
+                       [this](nobion::Duration d) { return wait(std::chrono::duration<double>(d).count()); },
                        [this](const std::string& message) { publish_log(LogLevel::Warn, message); },
                        options_.critical_window,
                        options_.critical_alarm_after};
@@ -1625,4 +1625,4 @@ void MeasurementEngine::cleanup(bool abnormal) {
   }
 }
 
-}  // namespace pychron::experiment::measurement
+}  // namespace nobion::experiment::measurement

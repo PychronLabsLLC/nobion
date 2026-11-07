@@ -12,8 +12,8 @@
 
 namespace {
 
-using pychron::update::testing::FakeHttp;
-using pychron::update::testing::release_json;
+using nobion::update::testing::FakeHttp;
+using nobion::update::testing::release_json;
 
 struct Outcome {
   int code = 0;
@@ -44,7 +44,7 @@ TEST(VersionCmd, PlainPrintsVersionAndSendsNothing) {
 
 TEST(VersionCmd, UpToDate) {
   FakeHttp fake;
-  fake.answer(200, release_json("v" + std::string(pychron::setup::version())));
+  fake.answer(200, release_json("v" + std::string(nobion::setup::version())));
   const Outcome o = run({"--check"}, fake);
   EXPECT_EQ(o.code, elctl::kOk) << o.err;
   EXPECT_TRUE(contains(o.out, "(up to date)")) << o.out;
@@ -77,7 +77,7 @@ TEST(VersionCmd, BuildIsNewer) {
 
 TEST(VersionCmd, Failure) {
   FakeHttp fake;
-  fake.fail(pychron::ErrorKind::Io);
+  fake.fail(nobion::ErrorKind::Io);
   const Outcome o = run({"--check"}, fake);
   EXPECT_EQ(o.code, elctl::kUsage);
   EXPECT_TRUE(contains(o.err, "could not check for updates")) << o.err;
@@ -94,7 +94,7 @@ TEST(VersionCmd, NoClient) {
   std::istringstream in;
   std::ostringstream out, err;
   const int code = elctl::version_command({"--check"}, elctl::Io{in, out, err},
-                                          elctl::VersionDeps{[] { return std::unique_ptr<pychron::http::IHttpClient>{}; }});
+                                          elctl::VersionDeps{[] { return std::unique_ptr<nobion::http::IHttpClient>{}; }});
   EXPECT_EQ(code, elctl::kUsage);
   EXPECT_TRUE(contains(err.str(), "this build has no network client")) << err.str();
 }

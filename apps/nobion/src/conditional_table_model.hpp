@@ -15,7 +15,7 @@
 
 #include "nobion/experiment/conditionals/conditional.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class ConditionalTableModel : public QAbstractTableModel {
   Q_OBJECT
@@ -68,4 +68,4 @@ class ConditionalTableModel : public QAbstractTableModel {
 // The fields a person writes (not level, location or the compiled check).
 bool same_authored(const experiment::Conditional& a, const experiment::Conditional& b);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

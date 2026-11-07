@@ -25,7 +25,7 @@
 #include "nobion/experiment/model/run_spec.hpp"
 #include "nobion/experiment/plan/plan.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 // Text of a named conditionals file; nullopt when it does not exist.
 class IConditionalSource {
@@ -131,4 +131,4 @@ class RunChecks {
   ConditionalEngine engine_;
 };
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

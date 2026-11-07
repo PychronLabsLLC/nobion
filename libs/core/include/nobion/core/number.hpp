@@ -12,7 +12,7 @@
 #include <string>
 #include <string_view>
 
-namespace pychron {
+namespace nobion {
 
 // The double the whole of `text` spells, in the C locale: an optional sign,
 // digits, a decimal point, an exponent. Nothing else around it, not "inf" or
@@ -54,4 +54,4 @@ inline std::optional<std::pair<double, std::size_t>> parse_double_prefix(std::st
   return std::nullopt;
 }
 
-}  // namespace pychron
+}  // namespace nobion

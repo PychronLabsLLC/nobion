@@ -7,7 +7,7 @@
 #include <QBrush>
 #include <QColor>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 QString log_level_name(LogLevel level) {
   switch (level) {
@@ -136,4 +136,4 @@ QVariant LogModel::headerData(int section, Qt::Orientation orientation, int role
   }
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -13,7 +13,7 @@
 #include "nobion/devices/spectrometer/legacy/dac_output.hpp"
 #include "nobion/devices/spectrometer/roles.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 class DacPositioner final : public Device, public IMassPositioner {
  public:
@@ -35,4 +35,4 @@ class DacPositioner final : public Device, public IMassPositioner {
   std::atomic<double> cached_;
 };
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

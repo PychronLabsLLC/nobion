@@ -18,7 +18,7 @@
 #include "nobion/scripting/cancel_token.hpp"
 #include "nobion/scripting/script_host.hpp"
 
-namespace pychron::experiment::rehearsal {
+namespace nobion::experiment::rehearsal {
 
 class RehearsalRunner {
  public:
@@ -45,4 +45,4 @@ class RehearsalRunner {
   std::thread thread_;
 };
 
-}  // namespace pychron::experiment::rehearsal
+}  // namespace nobion::experiment::rehearsal

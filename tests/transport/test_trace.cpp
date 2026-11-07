@@ -4,7 +4,7 @@
 
 #include <sstream>
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 TEST(Trace, FormatsRecords) {

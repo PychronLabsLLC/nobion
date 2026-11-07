@@ -9,7 +9,7 @@
 
 #include "flux_golden.hpp"
 
-namespace pr = pychron::reduction;
+namespace pr = nobion::reduction;
 
 namespace {
 

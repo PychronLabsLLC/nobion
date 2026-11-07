@@ -14,7 +14,7 @@
 
 class QWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // Logs at error on `ui.<area>` ("<title>: <text>"), then shows the box as before.
 // Returns what QMessageBox returned.
@@ -34,4 +34,4 @@ void log_shown(std::string_view area, const QString& title, const Error& error);
 // identifies it ("stop queue", "open valve A", "save queue <path>").
 void log_action(const QString& what);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -13,7 +13,7 @@
 #include "nobion/core/log_hub.hpp"
 #include "nobion/setup/site.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // The process log hub of nobion, as elctl's: loads the logging config
 // (install root, `line_config` as the legacy table), file_name "pychron.log",
@@ -36,4 +36,4 @@ ProcessLog open_process_log(const std::optional<setup::SiteInstall>& install,
                                          const Clock& clock, bool simulated, HostOs os, const EnvLookup& env,
                                          std::string_view clock_name = "steady");
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

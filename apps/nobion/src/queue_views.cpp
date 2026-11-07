@@ -2,7 +2,7 @@
 
 #include "queue_table_model.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 QueueSplitProxy::QueueSplitProxy(QueueTableModel& source, bool executed, QObject* parent)
     : QSortFilterProxyModel(parent), source_(&source), executed_(executed) {
@@ -36,4 +36,4 @@ Qt::ItemFlags ExecutedProxy::flags(const QModelIndex& index) const {
 
 QueueProxy::QueueProxy(QueueTableModel& source, QObject* parent) : QueueSplitProxy(source, false, parent) {}
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

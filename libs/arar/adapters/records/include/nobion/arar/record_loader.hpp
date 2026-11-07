@@ -22,7 +22,7 @@
 
 #include "nobion/processing/record_source.hpp"
 
-namespace pychron::arar {
+namespace nobion::arar {
 
 // A loader over `references_toml` for one RecordDirectorySource. Its refresh
 // reads the file again when its modification time changed (a file that is
@@ -34,4 +34,4 @@ namespace pychron::arar {
 // the file has one.
 [[nodiscard]] processing::RecordExtensionLoader record_extension_loader(const std::filesystem::path& references_toml);
 
-}  // namespace pychron::arar
+}  // namespace nobion::arar

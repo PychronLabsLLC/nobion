@@ -8,7 +8,7 @@
 #include "nobion/core/env.hpp"
 #include "nobion/devices/spectrometer/legacy/polled_acquirer.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace ngx = codec::ngx;
 
@@ -17,7 +17,7 @@ namespace {
 // The command text without a terminator: the link appends its own.
 Result<std::string> body(Result<codec::Command> cmd) {
   if (!cmd) return fail(std::move(cmd).error());
-  return ::pychron::to_string(cmd->tx);
+  return ::nobion::to_string(cmd->tx);
 }
 
 std::string format_range(const Range& r) { return std::to_string(r.min) + ".." + std::to_string(r.max); }
@@ -593,4 +593,4 @@ Result<ValveState> NgxValves::read(const ValveAddress& address) {
 REGISTER_DRIVER("isotopx_ngx", NgxSpectrometer);
 REGISTER_DRIVER("ngx_valves", NgxValves);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

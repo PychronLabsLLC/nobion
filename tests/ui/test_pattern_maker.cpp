@@ -18,8 +18,8 @@
 #include "pattern_maker_window.hpp"
 #include "nobion/laser/pattern.hpp"
 
-using namespace pychron;
-using namespace pychron::ui;
+using namespace nobion;
+using namespace nobion::ui;
 namespace fs = std::filesystem;
 
 class PatternMakerTest : public QObject {

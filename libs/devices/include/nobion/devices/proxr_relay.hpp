@@ -16,7 +16,7 @@
 #include "nobion/devices/driver_registry.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // May each command be sent twice (Repeat, link.hpp)? Each operation is one
 // transaction (bank select, then the relay command), repeated whole.
@@ -46,4 +46,4 @@ class ProxrRelay final : public Device, public IValveActuator {
   Transport& transport_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

@@ -9,7 +9,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron {
+namespace nobion {
 
 struct IChannelPressureGauge {
   virtual ~IChannelPressureGauge() = default;
@@ -20,4 +20,4 @@ struct IChannelPressureGauge {
   virtual Result<double> read_pressure(int channel) = 0;
 };
 
-}  // namespace pychron
+}  // namespace nobion

@@ -16,7 +16,7 @@
 
 #include "nobion/codecs/codec.hpp"
 
-namespace pychron::codec::hv_supply {
+namespace nobion::codec::hv_supply {
 
 inline constexpr std::string_view kTerminator = "\r";
 
@@ -46,4 +46,4 @@ Bytes encode_ok();
 Bytes encode_voltage(double volts);
 Bytes encode_error(std::string_view message);
 
-}  // namespace pychron::codec::hv_supply
+}  // namespace nobion::codec::hv_supply

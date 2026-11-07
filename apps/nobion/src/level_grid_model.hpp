@@ -11,7 +11,7 @@
 
 #include "entry_headers.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class LevelGridModel : public QAbstractTableModel {
   Q_OBJECT
@@ -52,4 +52,4 @@ class LevelGridModel : public QAbstractTableModel {
   std::optional<entry::LevelSheetEdit> edit_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

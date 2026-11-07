@@ -10,7 +10,7 @@
 
 #include "error_report.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -306,4 +306,4 @@ void CoreBridge::set_switches(const std::vector<systems::SwitchInfo>& switches) 
   }
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

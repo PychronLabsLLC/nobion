@@ -48,7 +48,7 @@
 #include "nobion/vision/finder.hpp"
 #include "nobion/vision/source.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 // The means to see, for a pattern that follows the glow: the device's camera.
 // What it points at must outlive the runner.
@@ -130,4 +130,4 @@ class PatternRunner final : public extraction::IPatternRunner {
   std::unique_ptr<Follow> follow_;  // the caller's thread only
 };
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

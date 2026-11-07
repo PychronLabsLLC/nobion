@@ -29,7 +29,7 @@
 #include "nobion/core/error.hpp"
 #include "cli.hpp"
 
-namespace pychron {
+namespace nobion {
 struct LinkReconnected;
 namespace experiment::executor {
 struct ExecutorHolding;
@@ -37,7 +37,7 @@ struct ExecutorHolding;
 namespace experiment::measurement {
 struct MeasurementGap;
 }
-}  // namespace pychron
+}  // namespace nobion
 
 namespace elctl {
 
@@ -65,7 +65,7 @@ struct ExpGlobals {
 std::filesystem::path state_dir_for(const std::filesystem::path& folder);
 // Where the field tables of the spectrometer file `spectrometer` are read
 // (setup::field_table_root of its folder).
-pychron::Result<std::filesystem::path> spectrometer_table_root(const std::filesystem::path& spectrometer);
+nobion::Result<std::filesystem::path> spectrometer_table_root(const std::filesystem::path& spectrometer);
 // The line's state file for `config`: <stem>.state.toml in
 // state_dir_for(its folder).
 std::filesystem::path line_state_file(const std::filesystem::path& config);
@@ -91,10 +91,10 @@ struct QueueRequests {
 //   reconnected <transport> after <n> s          a link came back
 // (`resumed` is printed as the queue leaves a hold.) `until` is the
 // hold's end as wall time, on the line's clock.
-std::string holding_line(const pychron::experiment::executor::ExecutorHolding& hold,
+std::string holding_line(const nobion::experiment::executor::ExecutorHolding& hold,
                          std::chrono::system_clock::time_point until);
-std::string gap_line(const pychron::experiment::measurement::MeasurementGap& gap);
-std::string reconnected_line(const pychron::LinkReconnected& link);
+std::string gap_line(const nobion::experiment::measurement::MeasurementGap& gap);
+std::string reconnected_line(const nobion::LinkReconnected& link);
 
 void answer_interrupts(int& handled, int count, const std::function<void(const std::string&)>& say,
                        const QueueRequests& queue);

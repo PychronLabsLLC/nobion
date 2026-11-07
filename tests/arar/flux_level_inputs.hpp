@@ -10,9 +10,9 @@
 #include "flux_golden.hpp"
 #include "nobion/arar/flux_fit.hpp"
 
-namespace pychron::processing::flux_test {
+namespace nobion::processing::flux_test {
 
-namespace pr = pychron::reduction;
+namespace pr = nobion::reduction;
 
 inline MonitorSet fc2() {
   MonitorSet s;
@@ -79,4 +79,4 @@ inline LevelInputs level(const flux_golden::MonitorRow* ring = flux_golden::kRin
   return in;
 }
 
-}  // namespace pychron::processing::flux_test
+}  // namespace nobion::processing::flux_test

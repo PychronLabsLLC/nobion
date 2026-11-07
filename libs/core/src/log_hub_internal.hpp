@@ -8,7 +8,7 @@
 
 #include "nobion/core/log_hub.hpp"
 
-namespace pychron::detail {
+namespace nobion::detail {
 
 // Current rule epoch (>= 1); changes on every LogHub::set_level.
 std::uint64_t hub_rule_epoch(const LogHub::Impl& hub) noexcept;
@@ -29,4 +29,4 @@ std::string thread_label();
 void hub_write(LogHub::Impl& hub, LogLevel level, std::string_view logger,
                std::string_view message) noexcept;
 
-}  // namespace pychron::detail
+}  // namespace nobion::detail

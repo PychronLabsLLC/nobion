@@ -9,7 +9,7 @@
 #include "nobion/systems/spectrometer/config_validate.hpp"
 #include "nobion/transport/factory.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace {
 
@@ -259,4 +259,4 @@ Result<std::unique_ptr<Spectrometer>> SpectrometerAssembler::assemble(cfg::Spect
   return spectrometer;
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

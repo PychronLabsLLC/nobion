@@ -17,7 +17,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron {
+namespace nobion {
 
 struct ProcessSpec {
   std::vector<std::string> argv;
@@ -46,4 +46,4 @@ std::filesystem::path executable_dir();
 // coalesced, by tens of milliseconds). Elsewhere it does nothing.
 void mark_thread_interactive() noexcept;
 
-}  // namespace pychron
+}  // namespace nobion

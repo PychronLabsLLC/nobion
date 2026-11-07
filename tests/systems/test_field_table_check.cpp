@@ -13,8 +13,8 @@
 #include "nobion/systems/spectrometer/field_table.hpp"
 #include "nobion/systems/spectrometer/molecular_weights.hpp"
 
-namespace ps = pychron::spectrometer;
-namespace cfg = pychron::spectrometer::cfg;
+namespace ps = nobion::spectrometer;
+namespace cfg = nobion::spectrometer::cfg;
 
 namespace {
 

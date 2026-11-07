@@ -23,7 +23,7 @@
 class QCustomPlot;
 class QMouseEvent;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class FieldTablePlot : public QWidget {
   Q_OBJECT
@@ -59,4 +59,4 @@ class FieldTablePlot : public QWidget {
   std::pair<double, double> curve_range_{0, 0};
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -11,7 +11,7 @@
 #include "gauge_popup.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -169,4 +169,4 @@ void ValvePopup::keyPressEvent(QKeyEvent* event) {
   QFrame::keyPressEvent(event);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

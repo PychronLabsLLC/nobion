@@ -4,7 +4,7 @@
 #include <cmath>
 #include <numeric>
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 Unexpected<Error> eval_fail(const std::string& what) { return fail(ErrorKind::Config, what); }
@@ -200,4 +200,4 @@ std::optional<double> MapContext::scalar(const MetricRef& m) const {
   return it->second.back();
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

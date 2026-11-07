@@ -19,7 +19,7 @@
 #include "nobion/reduction/signal.hpp"
 #include "nobion/reduction/ufloat.hpp"
 
-namespace pychron::reduction::kernels {
+namespace nobion::reduction::kernels {
 
 inline double nominal(double x) noexcept { return x; }
 inline double nominal(const UFloat& x) noexcept { return x.nominal(); }
@@ -263,4 +263,4 @@ KRatio<T> k_ratio(const T& x, const T& y, const T* factor) {
   return out;
 }
 
-}  // namespace pychron::reduction::kernels
+}  // namespace nobion::reduction::kernels

@@ -22,9 +22,9 @@
 #include "nobion/systems/jobs/peak_center.hpp"
 #include "nobion/systems/spectrometer/field_table_store.hpp"
 
-using namespace pychron;
-using namespace pychron::jobs;
-using namespace pychron::spectrometer::testing;
+using namespace nobion;
+using namespace nobion::jobs;
+using namespace nobion::spectrometer::testing;
 using namespace std::chrono_literals;
 
 namespace {
@@ -210,7 +210,7 @@ class PeakCenterRun : public ::testing::Test {
     return c;
   }
 
-  std::filesystem::path root_ = pychron::testing::unique_temp_path("pychron_peak_center_");
+  std::filesystem::path root_ = nobion::testing::unique_temp_path("pychron_peak_center_");
   JobRig rig_{root_};
   JobRig other_{root_ / "other"};  // a second, identical spectrometer
   Progress progress_;

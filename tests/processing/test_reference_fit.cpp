@@ -11,7 +11,7 @@
 #include "nobion/processing/units.hpp"
 #include "nobion/reduction/stats.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 namespace {
 
 std::vector<ReferencePoint> points() {
@@ -550,4 +550,4 @@ TEST(ReferenceFit, SameRunIcFactorKeepsOptics) {
 }
 
 }  // namespace
-}  // namespace pychron::processing
+}  // namespace nobion::processing

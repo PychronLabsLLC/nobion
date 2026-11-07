@@ -12,11 +12,11 @@
 #include "nobion/arar/reduce.hpp"
 #include "nobion/processing/quantity.hpp"
 
-namespace pp = pychron::processing;
-namespace r = pychron::reduction;
-using pychron::arar::test::make_air;
-using pychron::arar::test::make_step;
-using pychron::arar::test::make_unknown;
+namespace pp = nobion::processing;
+namespace r = nobion::reduction;
+using nobion::arar::test::make_air;
+using nobion::arar::test::make_step;
+using nobion::arar::test::make_unknown;
 
 namespace {
 
@@ -46,8 +46,8 @@ pp::Dataset steps(int n = 8, std::map<int, double> f_of_step = {}) {
     a->monitor.name = "FC-2";
     a->monitor.material = "sanidine";
     a->monitor.age = pp::Value{28.201, 0.023};
-    pychron::arar::edit_analysis_data(*a).reactor = "Triga";
-    item.analysis = pychron::arar::reduce_with_arar(a);
+    nobion::arar::edit_analysis_data(*a).reactor = "Triga";
+    item.analysis = nobion::arar::reduce_with_arar(a);
     d.mutable_items().push_back(item);
   }
   d.group_names = {"S1-1"};
@@ -239,7 +239,7 @@ TEST(Report, IrradiationRowPerIdentifierWithSampleMonitorAndProduction) {
   auto d = steps();
   // A second identifier, without any of the metadata.
   pp::DatasetItem other;
-  other.analysis = pychron::arar::reduce_with_arar(make_unknown(0));
+  other.analysis = nobion::arar::reduce_with_arar(make_unknown(0));
   d.mutable_items().push_back(other);
   d.group_names = {"S1-1", "U1-1"};
   d.mutable_items().back().path.group = 1;
@@ -280,9 +280,9 @@ TEST(Report, IrradiationRowPerIdentifierWithSampleMonitorAndProduction) {
 TEST(Report, AnalysesWithoutAnAgeKeepTheirRowAndANote) {
   pp::Dataset d;
   pp::DatasetItem air;
-  air.analysis = pychron::arar::reduce_with_arar(make_air(0));
+  air.analysis = nobion::arar::reduce_with_arar(make_air(0));
   pp::DatasetItem unknown;  // no flux: no age
-  unknown.analysis = pychron::arar::reduce_with_arar(make_air(1, 295.5, "unknown", "U9"));
+  unknown.analysis = nobion::arar::reduce_with_arar(make_air(1, 295.5, "unknown", "U9"));
   d.mutable_items() = {air, unknown};
   const auto rep = pp::make_report(d);
   ASSERT_EQ(rep.analyses.rows.size(), 2u);
@@ -332,7 +332,7 @@ TEST(Report, CsvIsWellFormedAndQuotesSpecialText) {
   for (auto& it : d.mutable_items()) {
     auto a = std::make_shared<pp::Analysis>(*it.analysis->analysis);
     a->sample = "FC-2, \"split\" B";
-    it.analysis = pychron::arar::reduce_with_arar(a);
+    it.analysis = nobion::arar::reduce_with_arar(a);
   }
   const auto rep = pp::make_report(d);
   const std::string csv = pp::report_csv(rep);
@@ -386,7 +386,7 @@ TEST(Report, JsonCarriesEveryTableAndEscapes) {
     auto a = std::make_shared<pp::Analysis>(*d.items()[0].analysis->analysis);
     a->comment = "line\nbreak \"quoted\"";
     a->sample = "tab\there";
-    d.mutable_items()[0].analysis = pychron::arar::reduce_with_arar(a);
+    d.mutable_items()[0].analysis = nobion::arar::reduce_with_arar(a);
   }
   const auto rep = pp::make_report(d);
   const std::string json = pp::report_json(rep);

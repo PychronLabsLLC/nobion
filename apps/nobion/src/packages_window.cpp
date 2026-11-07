@@ -36,7 +36,7 @@
 #include "package_tree_delegate.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace ps = persistence;
 
@@ -855,7 +855,7 @@ Result<int> PackagesWindow::save_pdf(const QString& path) {
   if (!sheets) return fail(sheets.error());
   auto pages = write_package_pdf(path, *sheets);
   if (pages) {
-    pychron::mark_as_user_file(std::filesystem::path(path.toStdString()));
+    nobion::mark_as_user_file(std::filesystem::path(path.toStdString()));
     show_message(tr("Wrote %1 pages").arg(*pages));
   }
   return pages;
@@ -941,4 +941,4 @@ void PackagesWindow::closeEvent(QCloseEvent* event) {
   event->accept();
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

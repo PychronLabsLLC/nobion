@@ -25,8 +25,8 @@
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::systems;
+using namespace nobion;
+using namespace nobion::systems;
 using namespace std::chrono_literals;
 
 // A fresh name under the temp folder: two checkouts running ctest at once

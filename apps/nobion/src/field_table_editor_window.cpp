@@ -35,9 +35,9 @@
 #include "nobion/systems/spectrometer/mftable_csv.hpp"
 #include "spectrometer_bridge.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace sp = pychron::spectrometer;
+namespace sp = nobion::spectrometer;
 namespace fs = std::filesystem;
 
 namespace {
@@ -875,4 +875,4 @@ void FieldTableEditorWindow::changeEvent(QEvent* event) {
   QMainWindow::changeEvent(event);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -14,7 +14,7 @@
 #include "nobion/core/clock.hpp"
 #include "nobion/core/events.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // "TRACE" .. "ERROR".
 QString log_level_name(LogLevel level);
@@ -59,4 +59,4 @@ class LogModel : public QAbstractTableModel {
   std::vector<LogRecord> records_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

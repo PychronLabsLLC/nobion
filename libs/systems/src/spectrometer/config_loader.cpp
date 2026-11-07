@@ -10,7 +10,7 @@
 #include "nobion/core/config/loader.hpp"
 #include "toml_reader.hpp"
 
-namespace pychron::spectrometer::cfg {
+namespace nobion::spectrometer::cfg {
 namespace {
 
 using detail::Obj;
@@ -535,4 +535,4 @@ ConfigLoadReport parse_config(const std::filesystem::path& path) {
   return parse_config_from_string(*text, main_name, *local_text, local_path.generic_string());
 }
 
-}  // namespace pychron::spectrometer::cfg
+}  // namespace nobion::spectrometer::cfg

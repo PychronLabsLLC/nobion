@@ -2,7 +2,7 @@
 
 #include <cctype>
 
-namespace pychron::experiment::plan::detail {
+namespace nobion::experiment::plan::detail {
 
 std::optional<std::vector<PathSegment>> parse_path(std::string_view path) {
   std::vector<PathSegment> out;
@@ -151,4 +151,4 @@ bool is_alias(const toml::node& n) {
   return s && !s->get().empty() && s->get().front() == '@';
 }
 
-}  // namespace pychron::experiment::plan::detail
+}  // namespace nobion::experiment::plan::detail

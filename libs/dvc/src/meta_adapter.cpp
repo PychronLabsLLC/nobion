@@ -56,9 +56,9 @@
 #include "nobion/dvc/legacy_layout.hpp"
 #include "nobion/ingest/tz.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 using ps::RefType;
 
 namespace {
@@ -836,4 +836,4 @@ Result<std::optional<std::int64_t>> MetaRepoAdapter::order_of(std::string_view c
   });
 }
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

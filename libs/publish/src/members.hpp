@@ -14,7 +14,7 @@
 #include "nobion/processing/model.hpp"
 #include "nobion/publish/build.hpp"
 
-namespace pychron::publish::detail {
+namespace nobion::publish::detail {
 
 // The analyses the release's bookmark pins (reference values and interpreted
 // ages are pinned too and are not members), in uuid order.
@@ -28,4 +28,4 @@ Result<processing::DatasetPtr> reduce_loaded(const std::vector<processing::Analy
                                              const ReleaseOptions& options, bool group = false,
                                              std::vector<std::string>* diagnostics = nullptr);
 
-}  // namespace pychron::publish::detail
+}  // namespace nobion::publish::detail

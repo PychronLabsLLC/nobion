@@ -5,8 +5,8 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-using namespace pychron::codec;
+using namespace nobion;
+using namespace nobion::codec;
 
 TEST(CodecConventions, CommandCarriesBytesAndReplyFraming) {
   Command c = Command::ascii("PR1\r\n", ReadSpec::until("\r\n"));

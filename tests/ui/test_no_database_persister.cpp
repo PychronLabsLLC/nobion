@@ -11,8 +11,8 @@
 #include "experiment_fixture.hpp"
 #include "no_database_persister.hpp"
 
-using pychron::ErrorKind;
-using pychron::ui::NoDatabasePersister;
+using nobion::ErrorKind;
+using nobion::ui::NoDatabasePersister;
 
 class TestNoDatabasePersister : public QObject {
   Q_OBJECT
@@ -31,7 +31,7 @@ class TestNoDatabasePersister : public QObject {
 
   void nothingIsSavedThroughIt() {
     NoDatabasePersister persister("unable to open database file");
-    const auto refused = [](const pychron::Error& error) {
+    const auto refused = [](const nobion::Error& error) {
       return error.kind == ErrorKind::Io &&
              error.what == "the database cannot be reached: unable to open database file";
     };
@@ -52,8 +52,8 @@ class TestNoDatabasePersister : public QObject {
   // one the operator reads.
   void aSessionOnItStartsNoQueue() {
     NoDatabasePersister persister("unable to open database file");
-    pychron::ui::test::SimLab sim({}, {}, {}, &persister);
-    pychron::ui::ExperimentBridge bridge(*sim.session, sim.line->bus());
+    nobion::ui::test::SimLab sim({}, {}, {}, &persister);
+    nobion::ui::ExperimentBridge bridge(*sim.session, sim.line->bus());
     const auto started = bridge.start(sim.queue(), 0);
     QVERIFY(!started.has_value());
     QCOMPARE(started.error().kind, ErrorKind::Config);

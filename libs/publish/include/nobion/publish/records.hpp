@@ -11,7 +11,7 @@
 #include "nobion/publish/manifest.hpp"
 #include "nobion/publish/tables.hpp"
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 // The path of a sample's directory under tables/ and figures/, by its row
 // in the samples table: file_safe(name), with "-<first 8 of uuid>" when
@@ -23,4 +23,4 @@ std::string catalog_json(const Manifest& manifest, const ReleaseTables& tables);
 Result<std::string> sample_record_json(const Manifest& manifest, const ReleaseTables& tables, const Uuid& sample);
 std::string release_record_json(const Manifest& manifest, const ReleaseTables& tables);
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

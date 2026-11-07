@@ -17,7 +17,7 @@
 
 #include "text_detail.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using namespace std::string_view_literals;
@@ -668,4 +668,4 @@ std::string_view age_type_name(AgeKind kind) {
   return "";
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

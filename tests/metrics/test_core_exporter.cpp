@@ -16,8 +16,8 @@
 #include "nobion/core/signal_bus.hpp"
 #include "nobion/metrics/registry.hpp"
 
-using namespace pychron;
-using namespace pychron::metrics;
+using namespace nobion;
+using namespace nobion::metrics;
 using metrics_text::has;
 using metrics_text::value;
 
@@ -279,7 +279,7 @@ TEST_F(CoreExporterTest, AHandlerThatThrowsIsCountedByItsEvent) {
   bus.publish(ValveChanged{"A", ValveState::Open, {}});
   bus.publish(ValveChanged{"A", ValveState::Closed, {}});
   const std::string t = text();
-  EXPECT_DOUBLE_EQ(value(t, "pychron_bus_handler_failures_total{event=\"pychron::ValveChanged\"}"), 2.0);
+  EXPECT_DOUBLE_EQ(value(t, "pychron_bus_handler_failures_total{event=\"nobion::ValveChanged\"}"), 2.0);
   EXPECT_EQ(t.find("bad"), std::string::npos);  // what it said is in the log, never a label
 }
 

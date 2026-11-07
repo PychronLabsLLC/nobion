@@ -56,7 +56,7 @@
 #include "nobion/scripting/script_host.hpp"
 #include "nobion/scripting/services.hpp"
 
-namespace pychron::experiment::run {
+namespace nobion::experiment::run {
 
 struct SpectrometerInfo {
   std::string state_hash;   // SpectrometerState::hash_hex()
@@ -96,7 +96,7 @@ struct RunServices {
   std::vector<std::pair<std::string, std::string>> interferences;
   // How long a step of the safe state keeps trying (executor.toml
   // [links] critical_window_s; the spec's 10 min by default).
-  pychron::Duration critical_window = measurement::kCriticalWindow;
+  nobion::Duration critical_window = measurement::kCriticalWindow;
 
   const plan::PlanLibrary* plans = nullptr;
   // Where a plan's files are (a baseline modifier's model CSV, spec 3.5).
@@ -169,8 +169,8 @@ struct SafeStateResult {
 
 // How long a step of the safe state keeps trying before it alarms, and how
 // long in all (the critical window, spec 4.4; from executor.toml later).
-inline constexpr pychron::Duration kSafeStateAlarmAfter = measurement::kCriticalAlarmAfter;
-inline constexpr pychron::Duration kSafeStateWindow = measurement::kCriticalWindow;
+inline constexpr nobion::Duration kSafeStateAlarmAfter = measurement::kCriticalAlarmAfter;
+inline constexpr nobion::Duration kSafeStateWindow = measurement::kCriticalWindow;
 
 struct RunResult {
   RunState state = RunState::Pending;
@@ -318,4 +318,4 @@ class Run {
   PrepareScripts prepare_scripts_{*this};
 };
 
-}  // namespace pychron::experiment::run
+}  // namespace nobion::experiment::run

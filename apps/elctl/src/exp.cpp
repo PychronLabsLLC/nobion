@@ -44,8 +44,8 @@
 namespace elctl {
 
 namespace fs = std::filesystem;
-using namespace pychron;
-using namespace pychron::experiment;
+using namespace nobion;
+using namespace nobion::experiment;
 
 std::atomic<int>& interrupt_count() {
   static std::atomic<int> n{0};
@@ -88,7 +88,7 @@ std::string gap_line(const experiment::measurement::MeasurementGap& gap) {
          seconds_text(gap.to - gap.from) + " s";
 }
 
-std::string reconnected_line(const pychron::LinkReconnected& link) {
+std::string reconnected_line(const nobion::LinkReconnected& link) {
   return "reconnected " + link.transport + " after " +
          seconds_text(std::chrono::duration<double>(link.down_for).count()) + " s";
 }
@@ -284,7 +284,7 @@ class Exp {
       io_.err << "error: no notifications are configured (" << (a_.lab / "notifications.toml").string() << ")\n";
       return kFailed;
     }
-    const auto sent = lab::deliver(lab_.notifications, lab::test_notification(a_.lab.string()), pychron::run_process);
+    const auto sent = lab::deliver(lab_.notifications, lab::test_notification(a_.lab.string()), nobion::run_process);
     bool ok = true;
     for (const auto& d : sent) {
       ok = ok && d.ok;
@@ -599,21 +599,21 @@ struct ExampleDirs {
   fs::path examples, user;
 };
 ExampleDirs example_dirs() {
-  return {pychron::setup::find_resources().examples,
-          pychron::default_examples_state_dir(pychron::host_os(), pychron::process_env())};
+  return {nobion::setup::find_resources().examples,
+          nobion::default_examples_state_dir(nobion::host_os(), nobion::process_env())};
 }
 
 }  // namespace
 
-pychron::Result<fs::path> spectrometer_table_root(const fs::path& spectrometer) {
+nobion::Result<fs::path> spectrometer_table_root(const fs::path& spectrometer) {
   const ExampleDirs dirs = example_dirs();
-  return pychron::setup::field_table_root(spectrometer.parent_path(), dirs.examples, dirs.user);
+  return nobion::setup::field_table_root(spectrometer.parent_path(), dirs.examples, dirs.user);
 }
 
 fs::path state_dir_for(const fs::path& folder) {
   const fs::path where = folder.empty() ? fs::path(".") : folder;
   const ExampleDirs dirs = example_dirs();
-  fs::path state = pychron::setup::lab_state_dir(where, dirs.examples, dirs.user);
+  fs::path state = nobion::setup::lab_state_dir(where, dirs.examples, dirs.user);
   if (state != where) {
     static std::once_flag said;
     std::call_once(said, [&state] {

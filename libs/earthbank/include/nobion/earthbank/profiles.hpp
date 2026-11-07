@@ -31,7 +31,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 // The service. This is the one place in the code that names it: everything
 // else is given a profile's `base_url`, and the tests use other hosts.
@@ -111,4 +111,4 @@ std::filesystem::path default_profiles_file();
 // section or its profiles are not the JSON legacy wrote.
 Result<Profiles> import_legacy_ini(const std::filesystem::path& ini);
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

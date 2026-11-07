@@ -25,7 +25,7 @@ class QLabel;
 class QPushButton;
 class QTableWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class RiseRatePanel : public QWidget {
   Q_OBJECT
@@ -70,8 +70,8 @@ class RiseRatePanel : public QWidget {
   [[nodiscard]] QString copy_text() const;
 
  signals:
-  void started(pychron::TimePoint at);  // the run's first reading
-  void stopped(pychron::TimePoint at);  // its last; only when it gave a result
+  void started(nobion::TimePoint at);  // the run's first reading
+  void stopped(nobion::TimePoint at);  // its last; only when it gave a result
   void cleared();                       // a run began, or ended with no result: its marks go
 
  private:
@@ -101,4 +101,4 @@ class RiseRatePanel : public QWidget {
   QPushButton* clear_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

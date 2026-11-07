@@ -7,7 +7,7 @@
 
 #include "nobion/processing/domain.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // Registers the domains this build links and gives the one named `id` (an
 // install's `domain`; "arar" without an install). Null, with the reason on
@@ -16,4 +16,4 @@ namespace pychron::ui {
 const processing::Domain* choose_domain(processing::DomainRegistry& registry, std::string_view id,
                                         std::string& error);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

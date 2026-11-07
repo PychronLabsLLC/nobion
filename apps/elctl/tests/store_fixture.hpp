@@ -21,7 +21,7 @@
 
 namespace elctl::testing {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 
 class StoreTest : public ElctlTest {
  protected:
@@ -169,7 +169,7 @@ class StoreTest : public ElctlTest {
     blank.fit = "preceding";
     r.blanks_rows = {blank};
     const ps::Uuid id = a.analysis;
-    auto ok = store_->ingest(ps::IngestItem{id, pychron::sha256(std::string_view{"payload-" + id.str()}), acq_, std::move(a)});
+    auto ok = store_->ingest(ps::IngestItem{id, nobion::sha256(std::string_view{"payload-" + id.str()}), acq_, std::move(a)});
     ASSERT_TRUE(ok) << (ok ? "" : to_string(ok.error()));
     if (type == "unknown") unknowns_.push_back(id);
   }

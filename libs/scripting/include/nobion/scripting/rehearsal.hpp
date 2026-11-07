@@ -10,7 +10,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/scripting/script.hpp"
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 
 struct StepCall {
   std::string command;              // vocabulary name: "open", "sleep", "extract", ...
@@ -29,4 +29,4 @@ struct IRehearsal {
   virtual Result<Value> step(const StepCall& call) = 0;
 };
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

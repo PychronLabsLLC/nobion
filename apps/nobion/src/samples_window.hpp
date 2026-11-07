@@ -19,7 +19,7 @@ class QLabel;
 class QLineEdit;
 class QTableView;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class SampleImportDialog;
 
@@ -85,4 +85,4 @@ class SamplesWindow : public QMainWindow {
   PiAsk ask_pi_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

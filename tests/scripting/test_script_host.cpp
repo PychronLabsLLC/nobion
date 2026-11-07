@@ -13,9 +13,9 @@
 #include "nobion/scripting/script_host.hpp"
 #include "nobion/scripting/vocabulary.hpp"
 
-using namespace pychron;
-using namespace pychron::scripting;
-using namespace pychron::scripting::testing;
+using namespace nobion;
+using namespace nobion::scripting;
+using namespace nobion::scripting::testing;
 using namespace std::chrono_literals;
 
 namespace {
@@ -103,7 +103,7 @@ TEST_F(ScriptHostTest, ExtractionScriptCannotMakeMeasurementCalls) {
                                      ScriptKind::Extraction),
                        rig.env, token);
     ASSERT_FALSE(r);
-    EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
+    EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
     const std::string name = std::string(call).substr(0, std::string(call).find_first_of(".("));
     EXPECT_NE(to_string(r.error()).find(name), std::string::npos) << to_string(r.error());
     EXPECT_TRUE(rig.log.snapshot().empty()) << ::testing::PrintToString(rig.log.snapshot());

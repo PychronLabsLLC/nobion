@@ -13,9 +13,9 @@
 #include "nobion/sim/sim_system.hpp"
 #include "ui_fixture.hpp"
 
-using namespace pychron;
-using pychron::systems::SwitchOp;
-using pychron::ui::CoreBridge;
+using namespace nobion;
+using nobion::systems::SwitchOp;
+using nobion::ui::CoreBridge;
 
 class TestCoreBridge : public QObject {
   Q_OBJECT
@@ -93,7 +93,7 @@ class TestCoreBridge : public QObject {
 
   // The operator's valve command is on ui.action at info: verb, kind, name.
   void actuateIsLoggedAsAction() {
-    const pychron::testing::LogCapture capture;
+    const nobion::testing::LogCapture capture;
     QVERIFY(capture.ok());
     QVERIFY(line_->start().has_value());
     QTRY_VERIFY(bridge_->state().switches.contains("B"));  // the snapshot says what B is

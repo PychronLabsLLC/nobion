@@ -6,7 +6,7 @@
 #include <string_view>
 #include <vector>
 
-namespace pychron {
+namespace nobion {
 
 // Raw wire bytes. Transports move these; only codecs know what they mean.
 using Bytes = std::vector<std::uint8_t>;
@@ -26,4 +26,4 @@ std::optional<Bytes> from_hex(std::string_view hex);
 // Printable rendering for logs/errors: ASCII kept, others as \xNN, \r \n escaped.
 std::string escape(const Bytes& b);
 
-}  // namespace pychron
+}  // namespace nobion

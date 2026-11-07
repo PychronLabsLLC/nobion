@@ -58,7 +58,7 @@ prompt = """
 CI's AddressSanitizer job on Linux reports a stack-use-after-return in \
 SpectrometerPeakCenterSim.CancellingTheRunLeavesAnotherJobOnTheRunnerAlone \
 (tests/integration/test_measurement_sim.cpp): a scheduler thread is in \
-pychron::jobs::JobRunner::finish, called from execute, reading the runner \
+nobion::jobs::JobRunner::finish, called from execute, reading the runner \
 after the test's JobRunner local has been destroyed. The test had called \
 runner.wait_idle() and returned.
 

@@ -28,7 +28,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -629,4 +629,4 @@ void SpectrometerWindow::on_command_finished(const QString& what, const Result<v
   update_banner();
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

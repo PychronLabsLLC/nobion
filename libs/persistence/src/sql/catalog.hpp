@@ -7,7 +7,7 @@
 
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::persistence::detail::sql {
+namespace nobion::persistence::detail::sql {
 
 // Sorted by name, not by how it is shown (PI spec 5.1). A lab has tens to
 // hundreds of PIs: read whole.
@@ -163,4 +163,4 @@ inline const QString kSeedCounter = QStringLiteral(
 inline const QString kSetCounter = QStringLiteral("UPDATE identifier_counter SET last_value = ? WHERE scope = ?");
 inline const QString kIdentifierByTextAny = QStringLiteral("SELECT uuid FROM identifier WHERE identifier = ?");
 
-}  // namespace pychron::persistence::detail::sql
+}  // namespace nobion::persistence::detail::sql

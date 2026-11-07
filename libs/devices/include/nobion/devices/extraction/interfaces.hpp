@@ -32,7 +32,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/devices/extraction/capability.hpp"
 
-namespace pychron::extraction {
+namespace nobion::extraction {
 
 // `extract(value, units)`: pychron's 'percent', 'watts' and 'temp'.
 enum class ExtractUnits { Percent, Watts, Celsius };
@@ -209,4 +209,4 @@ struct IExtractionDevice {
 // Features `device` exposes through its accessors.
 CapabilitySet capabilities(IExtractionDevice& device);
 
-}  // namespace pychron::extraction
+}  // namespace nobion::extraction

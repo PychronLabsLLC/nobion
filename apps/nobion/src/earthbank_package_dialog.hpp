@@ -26,7 +26,7 @@ class QLineEdit;
 class QPushButton;
 class QTableWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class EarthbankWorker;
 
@@ -68,4 +68,4 @@ class EarthbankPackageDialog : public QDialog {
   QDialogButtonBox* buttons_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

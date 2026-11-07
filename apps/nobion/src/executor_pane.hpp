@@ -46,7 +46,7 @@ class QProgressBar;
 class QPushButton;
 class QTableWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class ExecutorPane : public QWidget {
   Q_OBJECT
@@ -156,4 +156,4 @@ class ExecutorPane : public QWidget {
   QTimer timeline_clock_;  // grows open segments with the line's clock while running
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

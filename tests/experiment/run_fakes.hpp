@@ -26,11 +26,11 @@
 #include "nobion/scripting/script_host.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::experiment::fakes {
+namespace nobion::experiment::fakes {
 
 using namespace std::chrono_literals;
 
-inline double secs(pychron::Duration d) { return std::chrono::duration<double>(d).count(); }
+inline double secs(nobion::Duration d) { return std::chrono::duration<double>(d).count(); }
 
 // What several fakes were told, in the order it happened across them.
 class Journal {
@@ -84,14 +84,14 @@ class FakeSpectrometer final : public measurement::ISpectrometerPort {
     if (journal != nullptr) journal->add((on ? "protect " : "unprotect ") + detector);
     return {};
   }
-  Result<void> start_acquisition(pychron::Duration integration) override {
+  Result<void> start_acquisition(nobion::Duration integration) override {
     std::lock_guard lock(mutex_);
     if (acquiring) ++overlapping;  // two runs measuring at once
     integration_ = integration;
     acquiring = true;
     return {};
   }
-  Result<std::optional<spectrometer::Reading>> next_reading(pychron::Duration) override {
+  Result<std::optional<spectrometer::Reading>> next_reading(nobion::Duration) override {
     int n = 0;
     {
       std::lock_guard lock(mutex_);
@@ -125,7 +125,7 @@ class FakeSpectrometer final : public measurement::ISpectrometerPort {
   std::mutex mutex_;
   std::optional<plan::At> at_;
   std::map<std::string, double> deflections_;
-  pychron::Duration integration_ = 1s;
+  nobion::Duration integration_ = 1s;
 };
 
 class FakeValves final : public measurement::IValvePort {
@@ -464,7 +464,7 @@ inline RunSpec unknown_run(const std::string& identifier, const std::string& pla
 class Lab {
  public:
   Lab()
-      : dir_(pychron::testing::unique_temp_path("lab_")),
+      : dir_(nobion::testing::unique_temp_path("lab_")),
         files(dir_ / "records"),
         spool(dir_ / "spool"),
         save(spool, files),
@@ -488,4 +488,4 @@ class Lab {
   persist::AliquotAllocator aliquots;
 };
 
-}  // namespace pychron::experiment::fakes
+}  // namespace nobion::experiment::fakes

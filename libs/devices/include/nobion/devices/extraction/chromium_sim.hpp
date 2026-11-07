@@ -25,7 +25,7 @@
 #include "nobion/transport/bytes.hpp"
 #include "nobion/transport/sim_transport.hpp"
 
-namespace pychron::extraction {
+namespace nobion::extraction {
 
 class ChromiumSim {
  public:
@@ -94,4 +94,4 @@ class ChromiumSim {
   std::vector<std::string> log_;
 };
 
-}  // namespace pychron::extraction
+}  // namespace nobion::extraction

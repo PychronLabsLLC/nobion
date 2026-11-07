@@ -20,7 +20,7 @@
 #include "nobion/devices/driver_registry.hpp"
 #include "nobion/devices/spectrometer/qtegra_link.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 // May each command be sent twice (Repeat, link.hpp)? Through the
 // QtegraLink's Link.
@@ -46,4 +46,4 @@ class QtegraGauges final : public Device, public IPressureGauge, public IChannel
   const Clock* clock_;
 };
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

@@ -5,8 +5,8 @@
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 
 TEST(Range, ContainsAndClamp) {
   Limits l{-1.0, 2.0};

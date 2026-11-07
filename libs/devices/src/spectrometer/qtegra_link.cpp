@@ -4,7 +4,7 @@
 
 #include "nobion/transport/udp_transport.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace q = codec::qtegra;
 
@@ -108,4 +108,4 @@ Result<QtegraLinkHandle> make_qtegra_link(Transport& transport, const std::strin
   });
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

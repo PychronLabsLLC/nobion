@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <set>
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace {
 
@@ -120,4 +120,4 @@ Result<double> parse_sample_hz(const DriverArgs& args, double fallback) {
 
 }  // namespace legacy
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

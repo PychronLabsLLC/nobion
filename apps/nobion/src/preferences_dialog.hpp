@@ -48,7 +48,7 @@ class QPushButton;
 class QSpinBox;
 class QStackedWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class EarthbankPreferencesPage;
 class LoggingPage;
@@ -197,4 +197,4 @@ class PreferencesDialog : public QDialog {
   QDialogButtonBox* buttons_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

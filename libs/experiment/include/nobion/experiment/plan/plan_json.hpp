@@ -13,8 +13,8 @@
 
 #include "nobion/experiment/plan/plan.hpp"
 
-namespace pychron::experiment::plan {
+namespace nobion::experiment::plan {
 
 [[nodiscard]] std::string to_json(const MeasurementPlan& plan);
 
-}  // namespace pychron::experiment::plan
+}  // namespace nobion::experiment::plan

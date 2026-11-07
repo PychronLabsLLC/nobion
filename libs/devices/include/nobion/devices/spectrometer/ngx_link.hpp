@@ -44,7 +44,7 @@
 #include "nobion/devices/link_registry.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 struct NgxLinkOptions {
   std::string send_terminator{codec::ngx::kDefaultSendTerminator};
@@ -203,4 +203,4 @@ using NgxLinkHandle = LinkHandle<NgxLink>;
 Result<NgxLinkHandle> make_ngx_link(Transport& transport, const std::string& name, NgxLinkOptions options,
                                     const Clock& clock);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

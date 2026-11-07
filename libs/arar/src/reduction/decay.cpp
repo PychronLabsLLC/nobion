@@ -6,7 +6,7 @@
 
 #include "nobion/arar/arar_reduction.hpp"
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 namespace {
 constexpr double kSecondsPerDay = 86400.0;
@@ -65,4 +65,4 @@ Result<DecayFactors> decay_factors(double lambda37_per_day, double lambda39_per_
   return out;
 }
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

@@ -18,7 +18,7 @@
 #include "nobion/transport/link_transport.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // Process-wide links of one kind, by name.
 template <class Link>
@@ -119,4 +119,4 @@ class LinkHandle {
   std::shared_ptr<Link> owned_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

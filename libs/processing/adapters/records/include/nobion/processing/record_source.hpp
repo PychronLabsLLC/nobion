@@ -21,7 +21,7 @@
 #include "nobion/experiment/record/types.hpp"
 #include "nobion/processing/source.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 // "2026-10-02T12:34:56Z" (fractional seconds allowed) -> UTC epoch seconds.
 std::optional<double> parse_utc(std::string_view text);
@@ -91,4 +91,4 @@ class RecordDirectorySource final : public IAnalysisSource {
   bool loader_changed_ = false;  // set_extension_loader since the last refresh
 };
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

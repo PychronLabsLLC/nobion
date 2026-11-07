@@ -15,7 +15,7 @@
 #include "nobion/entry/settings.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 struct SheetRow {
   int position = 0;                         // where the row is now (1-based hole)
@@ -93,4 +93,4 @@ class LevelSheetEdit {
   persistence::Uuid geometry_object_, production_object_;  // existing, or the uuid a new one gets
 };
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

@@ -35,7 +35,7 @@
 #include "nobion/core/error.hpp"
 #include "zip_support.hpp"
 
-namespace pychron::earthbank::ooxml {
+namespace nobion::earthbank::ooxml {
 namespace {
 
 namespace fs = std::filesystem;
@@ -1439,4 +1439,4 @@ TEST_F(Ooxml, AFillIsASolidOneAndItsColourAsWritten) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank::ooxml
+}  // namespace nobion::earthbank::ooxml

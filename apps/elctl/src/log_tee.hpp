@@ -21,7 +21,7 @@ namespace elctl {
 // again.
 class LogTeeBuf : public std::streambuf {
  public:
-  LogTeeBuf(std::streambuf* inner, const pychron::Logger& logger);
+  LogTeeBuf(std::streambuf* inner, const nobion::Logger& logger);
   ~LogTeeBuf() override;
   LogTeeBuf(const LogTeeBuf&) = delete;
   LogTeeBuf& operator=(const LogTeeBuf&) = delete;
@@ -39,7 +39,7 @@ class LogTeeBuf : public std::streambuf {
   void log_line(std::string_view line) const noexcept;
 
   std::streambuf* inner_;
-  pychron::Logger logger_;
+  nobion::Logger logger_;
   std::mutex mutex_;  // partial_, and the order bytes reach inner_
   std::string partial_;
 };
@@ -49,7 +49,7 @@ class LogTeeBuf : public std::streambuf {
 // destroyed before it is unset.
 class StreamTee {
  public:
-  StreamTee(std::ostream& stream, const pychron::Logger& logger);
+  StreamTee(std::ostream& stream, const nobion::Logger& logger);
   ~StreamTee();
   StreamTee(const StreamTee&) = delete;
   StreamTee& operator=(const StreamTee&) = delete;

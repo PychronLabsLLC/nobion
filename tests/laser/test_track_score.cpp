@@ -5,11 +5,11 @@
 
 #include "nobion/laser/track_score.hpp"
 
-using pychron::laser::summarize;
-using pychron::laser::TrackScore;
-using pychron::laser::TrackScorer;
-using pychron::laser::TrackSummary;
-using Reason = pychron::vision::DragonflyStep::Reason;
+using nobion::laser::summarize;
+using nobion::laser::TrackScore;
+using nobion::laser::TrackScorer;
+using nobion::laser::TrackSummary;
+using Reason = nobion::vision::DragonflyStep::Reason;
 
 namespace {
 constexpr double kRadius = 1.0;

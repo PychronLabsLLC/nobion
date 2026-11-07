@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 std::string add_reduction_chain(processing::Pipeline& pipeline, const processing::UnitRegistry& registry,
                                 const processing::Domain& domain, const std::string& from, const std::string& suffix) {
@@ -15,4 +15,4 @@ std::string add_reduction_chain(processing::Pipeline& pipeline, const processing
   return last;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

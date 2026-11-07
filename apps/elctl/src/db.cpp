@@ -21,7 +21,7 @@ namespace elctl {
 namespace {
 
 namespace fs = std::filesystem;
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 
 constexpr const char* kShortUsage =
     "usage: elctl [--install NAME] db status [--db <url>]     is the store's schema up to date? (exit 1 when not)\n"
@@ -81,12 +81,12 @@ void print_pis_without_given_name(ps::IStore& store, Io io) {
   }
 }
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 // elctl db derive: the backfill of the cache of ages (age cache spec 4.5).
 int derive(const std::string& url, const pp::Domain& domain, bool all, std::optional<int> limit, bool quiet, Io io) {
   // As it is: a store behind its migrations is refused, never migrated here.
-  auto source = pp::StoreSource::open(pychron::persistence::StoreConfig{url, false}, store_options(domain));
+  auto source = pp::StoreSource::open(nobion::persistence::StoreConfig{url, false}, store_options(domain));
   if (!source) return fatal(io, source.error().what);
   pp::DeriveOptions options;
   options.all = all;
@@ -104,22 +104,22 @@ int derive(const std::string& url, const pp::Domain& domain, bool all, std::opti
 // The database of the install `name` names (or the default one), with its
 // kept password. Without --install, no install to use is not an error here:
 // `why_none` says why there is none, and the URL is empty.
-pychron::Result<std::string> install_url(const std::optional<std::string>& name, std::string& why_none) {
+nobion::Result<std::string> install_url(const std::optional<std::string>& name, std::string& why_none) {
   auto install = resolve_install(name);
   if (!install) {
-    if (name) return pychron::fail(std::move(install).error());
+    if (name) return nobion::fail(std::move(install).error());
     why_none = install.error().what;
     return std::string();
   }
   if (install->database.empty())
-    return pychron::fail(pychron::ErrorKind::Config, "install '" + install->name + "' names no database");
-  return pychron::setup::database_url(*install);
+    return nobion::fail(nobion::ErrorKind::Config, "install '" + install->name + "' names no database");
+  return nobion::setup::database_url(*install);
 }
 
 }  // namespace
 
 int db_command(const std::vector<std::string>& args, const std::optional<std::string>& install,
-               const pychron::processing::Domain& domain, Io io) {
+               const nobion::processing::Domain& domain, Io io) {
   if (args.empty() || args[0] == "help" || args[0] == "--help") {
     io.out << kShortUsage;
     return args.empty() ? kUsage : kOk;

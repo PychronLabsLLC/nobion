@@ -5,7 +5,7 @@
 
 #include "nobion/devices/link.hpp"
 
-namespace pychron::experiment::measurement {
+namespace nobion::experiment::measurement {
 
 namespace {
 
@@ -18,7 +18,7 @@ void alarm(const KeepTrying& how, AlarmSeverity severity, std::string message) {
 
 Result<void> keep_trying(const KeepTrying& how, const std::string& what, const std::function<Result<void>()>& op) {
   const auto start = how.clock.now();
-  pychron::Duration backoff = std::chrono::seconds(1);
+  nobion::Duration backoff = std::chrono::seconds(1);
   bool warned = false;
   for (;;) {
     auto r = op();
@@ -33,11 +33,11 @@ Result<void> keep_trying(const KeepTrying& how, const std::string& what, const s
       alarm(how, AlarmSeverity::Warning, how.source + ": " + what + " still failing: " + r.error().what);
     }
     // Wake for the warning and for the window's end, whichever backoff misses.
-    pychron::Duration wait = std::min<pychron::Duration>(backoff, how.window - elapsed);
-    if (!warned) wait = std::min<pychron::Duration>(wait, how.alarm_after - elapsed);
+    nobion::Duration wait = std::min<nobion::Duration>(backoff, how.window - elapsed);
+    if (!warned) wait = std::min<nobion::Duration>(wait, how.alarm_after - elapsed);
     if (!how.sleep(wait)) return r;  // cancelled: the run is ending anyway
-    backoff = std::min<pychron::Duration>(backoff * 2, std::chrono::seconds(30));
+    backoff = std::min<nobion::Duration>(backoff * 2, std::chrono::seconds(30));
   }
 }
 
-}  // namespace pychron::experiment::measurement
+}  // namespace nobion::experiment::measurement

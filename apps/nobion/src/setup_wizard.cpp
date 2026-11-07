@@ -24,10 +24,10 @@
 #include "question_editor.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace fs = std::filesystem;
-using namespace pychron::setup;
+using namespace nobion::setup;
 
 namespace {
 
@@ -700,4 +700,4 @@ QString SetupWizard::error_for(const QString& id) const {
   return fields_[it->second].error->text();
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

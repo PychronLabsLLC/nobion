@@ -19,7 +19,7 @@
 #include "nobion/processing/time_breaks.hpp"
 #include "row_colors.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class AnalysisTableModel : public QAbstractTableModel {
   Q_OBJECT
@@ -93,4 +93,4 @@ class AnalysisTableModel : public QAbstractTableModel {
   double gap_seconds_ = 0.0;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

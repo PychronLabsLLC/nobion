@@ -15,10 +15,10 @@
 #include "nobion/processing/store_source.hpp"
 #include "store_source_fixture.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 namespace {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 namespace fs = std::filesystem;
 
 using StoreSourceTest = test::StoreSourceFixture;
@@ -1087,4 +1087,4 @@ TEST(StoreSourceMapping, QueryAndCursorRoundTrip) {
 }
 
 }  // namespace
-}  // namespace pychron::processing
+}  // namespace nobion::processing

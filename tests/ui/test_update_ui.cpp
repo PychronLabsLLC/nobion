@@ -23,14 +23,14 @@
 #include "update_checker.hpp"
 #include "update_ui.hpp"
 
-using pychron::ErrorKind;
-using pychron::ui::MenuHub;
-using pychron::ui::UpdateChecker;
-using pychron::ui::UpdateDialog;
-using pychron::ui::UpdateIndicator;
-using pychron::update::testing::FakeHttp;
-using pychron::update::testing::release_json;
-namespace upd = pychron::update;
+using nobion::ErrorKind;
+using nobion::ui::MenuHub;
+using nobion::ui::UpdateChecker;
+using nobion::ui::UpdateDialog;
+using nobion::ui::UpdateIndicator;
+using nobion::update::testing::FakeHttp;
+using nobion::update::testing::release_json;
+namespace upd = nobion::update;
 using std::chrono::system_clock;
 
 namespace {
@@ -65,7 +65,7 @@ class TestUpdateUi : public QObject {
   Q_OBJECT
 
  private:
-  pychron::ui::test::ApplicationSettingsGuard app_settings_;
+  nobion::ui::test::ApplicationSettingsGuard app_settings_;
   QTemporaryDir dir_;
   std::unique_ptr<QSettings> settings_;
   std::unique_ptr<FakeHttp> fake_;
@@ -97,7 +97,7 @@ class TestUpdateUi : public QObject {
     window_ = std::make_unique<QMainWindow>();
     checker_ = std::make_unique<UpdateChecker>(*settings_, kRunning, [] { return kNow; },
                                                [this] { return fake_->borrow(); });
-    pychron::ui::install_update_check(window_.get(), *checker_);
+    nobion::ui::install_update_check(window_.get(), *checker_);
     window_->show();
   }
 

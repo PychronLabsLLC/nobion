@@ -26,7 +26,7 @@
 #include "nobion/experiment/model/experiment_queue.hpp"
 #include "nobion/experiment/model/identifiers.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 struct QueueChange {
   std::string description;
@@ -51,4 +51,4 @@ BlankFactory default_blank_factory(IdentifierRules rules);
 Result<QueueChange> apply_queue_action(ExperimentQueue& queue, std::size_t current, const ActionSpec& action,
                                        const BlankFactory& blank = default_blank_factory(IdentifierRules::defaults()));
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

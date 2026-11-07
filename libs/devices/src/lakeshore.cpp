@@ -4,7 +4,7 @@
 #include <cmath>
 #include <set>
 
-namespace pychron {
+namespace nobion {
 
 namespace ls = codec::lakeshore;
 
@@ -337,6 +337,6 @@ void LakeshoreSim::set_setpoint_error(double kelvin) {
   setpoint_error_ = kelvin;
 }
 
-}  // namespace pychron
+}  // namespace nobion
 
-REGISTER_DRIVER("lakeshore", pychron::Lakeshore);
+REGISTER_DRIVER("lakeshore", nobion::Lakeshore);

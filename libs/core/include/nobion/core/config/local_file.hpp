@@ -14,7 +14,7 @@
 #include "nobion/core/config/system_config.hpp"
 #include "nobion/core/error.hpp"
 
-namespace pychron::config {
+namespace nobion::config {
 
 // The TOML that, in the local file, turns `main` (what the shared file says)
 // into `wanted`: only the keys that differ, and nothing at all ("") when none
@@ -60,4 +60,4 @@ Result<void> set_local_table(const std::filesystem::path& file, std::string_view
 // is what a preference is compared with and what Restore Defaults goes back to.
 Result<SystemConfig> load_system_config_without_local(const std::filesystem::path& main_file);
 
-}  // namespace pychron::config
+}  // namespace nobion::config

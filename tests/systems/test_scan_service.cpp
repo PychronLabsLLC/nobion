@@ -16,9 +16,9 @@
 #include "spectrometer_fakes.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
-using namespace pychron::spectrometer::testing;
+using namespace nobion;
+using namespace nobion::spectrometer;
+using namespace nobion::spectrometer::testing;
 using namespace std::chrono_literals;
 
 namespace {
@@ -336,7 +336,7 @@ TEST(ScanService, DestroyWhileReadingsFlowOnThreadedScheduler) {
 
 namespace {
 
-struct ScanServiceVirtual : pychron::testing::VirtualTimeTest {};
+struct ScanServiceVirtual : nobion::testing::VirtualTimeTest {};
 
 }  // namespace
 
@@ -370,12 +370,12 @@ TEST_F(ScanServiceVirtual, AStopWaitsForAStartWithoutStallingTime) {
 
   TimePoint started{}, stopped{};
   bool start_ok = false;
-  pychron::testing::Crew crew(clock);
+  nobion::testing::Crew crew(clock);
   crew.start("start", [&] {
     start_ok = service.start(1s).has_value();
     started = clock.now();
   });
-  ASSERT_TRUE(pychron::testing::await_waiters(clock, 1));  // the start, inside configure()
+  ASSERT_TRUE(nobion::testing::await_waiters(clock, 1));  // the start, inside configure()
   ASSERT_EQ(acquirer.configures.load(), 1);
   crew.start("stop", [&] {
     service.stop();

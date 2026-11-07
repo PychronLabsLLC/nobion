@@ -37,8 +37,8 @@
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::systems;
+using namespace nobion;
+using namespace nobion::systems;
 using namespace std::chrono_literals;
 
 const std::filesystem::path kDir = PYCHRON_EXAMPLE_CONFIGS_DIR;
@@ -263,7 +263,7 @@ TEST_F(ExampleLineSim, DAndANeverOpenTogether) {
 // The scheduler's own threads and the example files exactly as committed
 // (including A's 500 ms settle), in simulated time: the test's thread takes
 // part in a VirtualClock, and time moves only while it waits there.
-using ExampleLineSimThreaded = pychron::testing::VirtualTimeTest;
+using ExampleLineSimThreaded = nobion::testing::VirtualTimeTest;
 
 TEST_F(ExampleLineSimThreaded, ScansAndActuatesOnSchedulerThreads) {
   VirtualClock clock;
@@ -330,14 +330,14 @@ TEST_F(ExampleLineSimThreaded, AskingWhetherItRunsDuringAStopDoesNotStallTime) {
   ASSERT_EQ(slow_runs.load(), 1) << "the job is under way, asleep until start + 11 s";
 
   TimePoint stopped{};
-  pychron::testing::Crew crew(clock);
+  nobion::testing::Crew crew(clock);
   crew.start("stopper", [&] {
     line.stop();
     stopped = clock.now();
   });
   // stop() has the mutex by the time it has stopped the dispatcher, and keeps
   // it while it waits for the job. This thread is runnable, so time stands.
-  ASSERT_TRUE(pychron::testing::eventually_real([&] { return !line.scheduler().started(); }));
+  ASSERT_TRUE(nobion::testing::eventually_real([&] { return !line.scheduler().started(); }));
   EXPECT_FALSE(line.running());
   EXPECT_EQ(clock.now(), start + 11s) << "the asker waited, in the clock, for the stop to finish";
   crew.join();
@@ -367,7 +367,7 @@ TEST(ExampleLineSteady, ActuatesAndScansInRealTime) {
 
   // The gauges are scanned once a second, on a worker.
   const auto scanned = events.samples_of("IG1");
-  EXPECT_TRUE(pychron::testing::eventually_real([&] { return events.samples_of("IG1") > scanned; }, 10s))
+  EXPECT_TRUE(nobion::testing::eventually_real([&] { return events.samples_of("IG1") > scanned; }, 10s))
       << "IG1 was not scanned in 10 s";
   const auto pressure = line.read_gauge("IG1");
   ASSERT_TRUE(pressure) << pressure.error().what;

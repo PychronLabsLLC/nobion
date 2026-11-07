@@ -9,7 +9,7 @@
 #include <QMainWindow>
 #include <QSettings>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -169,4 +169,4 @@ void DockLayouts::remove(const QString& name) {
   if (!saved_as.isEmpty()) settings_->remove(key(kArrangements) + QLatin1Char('/') + saved_as);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

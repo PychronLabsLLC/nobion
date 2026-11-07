@@ -4,7 +4,7 @@
 
 #include <cstddef>
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 TEST(Palette, DefaultHasTwelveInOrder) {
   const auto p = pp::default_palette();

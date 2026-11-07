@@ -10,7 +10,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/experiment/record/types.hpp"
 
-namespace pychron::experiment::record {
+namespace nobion::experiment::record {
 
 enum class Phase { Identity, Extraction, Measurement, Data, Results };
 
@@ -59,4 +59,4 @@ class RecordBuilder {
   AnalysisRecord rec_;
 };
 
-}  // namespace pychron::experiment::record
+}  // namespace nobion::experiment::record

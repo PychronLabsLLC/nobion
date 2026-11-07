@@ -38,7 +38,7 @@ class QSpinBox;
 class QTabWidget;
 class QToolButton;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class SceneView;
 
@@ -137,4 +137,4 @@ class ReferenceSeriesDock : public QWidget {
   unsigned saved_serial_ = 0;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

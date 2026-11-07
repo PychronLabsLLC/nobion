@@ -7,7 +7,7 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -139,4 +139,4 @@ QTreeWidgetItem* AlarmDock::row_for(const QString& source) const {
   return nullptr;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

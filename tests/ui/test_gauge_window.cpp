@@ -24,10 +24,10 @@
 #include "reading_history.hpp"
 
 using namespace std::chrono_literals;
-using pychron::TimePoint;
-using pychron::ui::GaugePopup;
-using pychron::ui::GaugeWindow;
-using pychron::ui::ReadingHistory;
+using nobion::TimePoint;
+using nobion::ui::GaugePopup;
+using nobion::ui::GaugeWindow;
+using nobion::ui::ReadingHistory;
 
 namespace {
 

@@ -27,7 +27,7 @@
 #include "nobion/systems/spectrometer/field_table.hpp"
 #include "nobion/systems/spectrometer/molecular_weights.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class FieldTableModel : public QAbstractTableModel {
   Q_OBJECT
@@ -109,4 +109,4 @@ class FieldTableModel : public QAbstractTableModel {
 // Points sorted by mass, lightest first; equal masses keep their order.
 void sort_by_mass(spectrometer::FieldTable& table);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -11,7 +11,7 @@
 
 #include "nobion/processing/source.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 struct TimeBreak {
   std::size_t above = 0;         // index in the rows: the separator is drawn above this row
@@ -33,4 +33,4 @@ struct TimeBreak {
 // "45 min", "14 h 20 min", "3 d 4 h": the two largest units, to the minute.
 [[nodiscard]] std::string gap_text(double seconds);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

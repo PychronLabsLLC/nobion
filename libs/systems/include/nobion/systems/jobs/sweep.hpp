@@ -16,7 +16,7 @@
 #include "nobion/systems/jobs/progress.hpp"
 #include "nobion/systems/spectrometer/spectrometer.hpp"
 
-namespace pychron::jobs {
+namespace nobion::jobs {
 
 using spectrometer::ParamId;
 using spectrometer::Spectrometer;
@@ -85,4 +85,4 @@ class Sweep {
   std::vector<SweepPoint> points_;
 };
 
-}  // namespace pychron::jobs
+}  // namespace nobion::jobs

@@ -13,7 +13,7 @@
 #include "nobion/transport/sim_transport.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 struct IDacOutput {
   virtual ~IDacOutput() = default;
@@ -58,4 +58,4 @@ struct Map215SimModel {
 
 SimTransport::Hook map215_sim_hook(Map215SimModel model);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

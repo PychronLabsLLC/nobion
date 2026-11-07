@@ -65,7 +65,7 @@ class QMenu;
 class QMenuBar;
 class QWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class DockLayouts;
 
@@ -282,4 +282,4 @@ class MenuHub : public QObject {
   bool rebuild_pending_ = false;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

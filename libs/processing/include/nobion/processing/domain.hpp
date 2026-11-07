@@ -21,7 +21,7 @@
 #include "nobion/processing/source.hpp"
 #include "nobion/processing/units.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 struct FigureEntry {
   std::string kind;   // a unit kind in units()
@@ -111,4 +111,4 @@ std::unique_ptr<Domain> make_noble_gas_domain();  // core only
 // unit gives, or the first unit's error.
 [[nodiscard]] Result<DatasetPtr> run_reduction_chain(const Domain& domain, DatasetPtr dataset, RunContext& context);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

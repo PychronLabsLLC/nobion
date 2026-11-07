@@ -6,7 +6,7 @@
 
 #include "nobion/codecs/isotopx_ngx.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace ngx = codec::ngx;
 
@@ -142,7 +142,7 @@ std::string NgxSimModel::due_locked() {
 
 SimTransport::Hook ngx_sim_hook(std::shared_ptr<NgxSimModel> model) {
   return [model](const Bytes& tx) -> Bytes {
-    const std::string cmd = strip(::pychron::to_string(tx));
+    const std::string cmd = strip(::nobion::to_string(tx));
     Bytes out;
     {
       std::lock_guard lock(model->mutex);
@@ -173,4 +173,4 @@ SimTransport::Unsolicited ngx_sim_events(std::shared_ptr<NgxSimModel> model) {
   };
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

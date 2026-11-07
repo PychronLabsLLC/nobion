@@ -14,7 +14,7 @@
 
 #include "nobion/core/config/system_config.hpp"
 
-namespace pychron::canvas {
+namespace nobion::canvas {
 
 using config::Located;
 
@@ -216,4 +216,4 @@ bool outranks(const Source& a, const Source& b) noexcept;
 const Source* dominant(const std::map<std::string, Source, std::less<>>& sources,
                        const std::set<std::string>& volumes);
 
-}  // namespace pychron::canvas
+}  // namespace nobion::canvas

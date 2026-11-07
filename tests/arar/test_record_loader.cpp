@@ -19,7 +19,7 @@
 
 namespace {
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 namespace fs = std::filesystem;
 using pp::test::record;
 using pp::test::TempDir;
@@ -46,11 +46,11 @@ TEST(RecordLoader, AppliesReferencesByIdentifierAndIrradiation) {
   write(dir.path, record("u2", "66002", 1, "", "unknown", "2026-09-30T11:00:00Z", 1000.0, 0.5));
   std::ofstream(dir.path / "references.toml") << kReferences;
   pp::RecordDirectorySource src(dir.path);
-  src.set_extension_loader(pychron::arar::record_extension_loader(dir.path / "references.toml"));
+  src.set_extension_loader(nobion::arar::record_extension_loader(dir.path / "references.toml"));
 
   auto a = src.load("u1");
   ASSERT_TRUE(a) << a.error().what;
-  const auto* data = pychron::arar::analysis_data_of(**a);
+  const auto* data = nobion::arar::analysis_data_of(**a);
   ASSERT_NE(data, nullptr);
   ASSERT_TRUE(data->flux);
   EXPECT_DOUBLE_EQ(data->flux->j.value, 0.001);
@@ -58,7 +58,7 @@ TEST(RecordLoader, AppliesReferencesByIdentifierAndIrradiation) {
   ASSERT_TRUE(data->production);
   EXPECT_DOUBLE_EQ(data->production->k4039.value, 0.0002);
   EXPECT_EQ(data->chronology.size(), 1u);
-  auto ra = pychron::arar::reduce_with_arar(*a);
+  auto ra = nobion::arar::reduce_with_arar(*a);
   auto age = pp::Quantity::parse("age")->eval(*ra);
   ASSERT_TRUE(age) << ra->reduction_error;
   EXPECT_GT(age->value, 0.0);
@@ -67,12 +67,12 @@ TEST(RecordLoader, AppliesReferencesByIdentifierAndIrradiation) {
   // chronology, no flux, so no age.
   auto b = src.load("u2");
   ASSERT_TRUE(b) << b.error().what;
-  const auto* other = pychron::arar::analysis_data_of(**b);
+  const auto* other = nobion::arar::analysis_data_of(**b);
   ASSERT_NE(other, nullptr);
   EXPECT_FALSE(other->flux);
   EXPECT_TRUE(other->production);
   EXPECT_EQ(other->chronology.size(), 1u);
-  EXPECT_FALSE(pp::Quantity::parse("age")->eval(*pychron::arar::reduce_with_arar(*b)));
+  EXPECT_FALSE(pp::Quantity::parse("age")->eval(*nobion::arar::reduce_with_arar(*b)));
 }
 
 // A changed references.toml is read on the next refresh, which maps every
@@ -83,7 +83,7 @@ TEST(RecordLoader, AChangedReferencesFileIsReadOnRefresh) {
   const fs::path file = dir.path / "references.toml";
   std::ofstream(file) << kReferences;
   pp::RecordDirectorySource src(dir.path);
-  src.set_extension_loader(pychron::arar::record_extension_loader(file));
+  src.set_extension_loader(nobion::arar::record_extension_loader(file));
   ASSERT_TRUE(src.refresh());
   const auto g0 = src.generation();
   ASSERT_TRUE(src.refresh());
@@ -98,7 +98,7 @@ TEST(RecordLoader, AChangedReferencesFileIsReadOnRefresh) {
   EXPECT_GT(src.generation(), g0);
   auto a = src.load("u1");
   ASSERT_TRUE(a) << a.error().what;
-  const auto* data = pychron::arar::analysis_data_of(**a);
+  const auto* data = nobion::arar::analysis_data_of(**a);
   ASSERT_NE(data, nullptr);
   ASSERT_TRUE(data->flux);
   EXPECT_DOUBLE_EQ(data->flux->j.value, 0.002);
@@ -110,8 +110,8 @@ TEST(RecordLoader, AChangedReferencesFileIsReadOnRefresh) {
   EXPECT_GT(src.generation(), g1);
   a = src.load("u1");
   ASSERT_TRUE(a);
-  ASSERT_NE(pychron::arar::analysis_data_of(**a), nullptr);
-  EXPECT_FALSE(pychron::arar::analysis_data_of(**a)->flux);
+  ASSERT_NE(nobion::arar::analysis_data_of(**a), nullptr);
+  EXPECT_FALSE(nobion::arar::analysis_data_of(**a)->flux);
 
   // A file that does not parse fails the refresh.
   std::ofstream(file) << "[flux.\"66001\"\nj = ";

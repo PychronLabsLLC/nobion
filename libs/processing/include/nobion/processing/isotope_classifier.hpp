@@ -23,7 +23,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/processing/model.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 inline constexpr int kClassifierBins = 1200 * 10;
 inline constexpr double kClassifierPlaceholder = -9999.0;
@@ -74,4 +74,4 @@ class IsotopeClassifier {
 
 double sample_distance(const IsotopeSample& a, const IsotopeSample& b);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

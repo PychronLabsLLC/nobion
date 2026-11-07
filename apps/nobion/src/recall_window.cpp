@@ -31,10 +31,10 @@
 #include "scene_view.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace pp = pychron::processing;
-namespace r = pychron::reduction;
+namespace pp = nobion::processing;
+namespace r = nobion::reduction;
 
 namespace {
 
@@ -801,4 +801,4 @@ bool RecallWindow::restore_selected(bool confirm) {
   return true;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

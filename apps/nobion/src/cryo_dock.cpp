@@ -7,7 +7,7 @@
 
 #include "plot_style.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -157,4 +157,4 @@ QPushButton* CryoDock::set_button(int output) const {
 
 QString CryoDock::status_text() const { return status_->text(); }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

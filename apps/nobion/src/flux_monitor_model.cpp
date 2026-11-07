@@ -7,11 +7,11 @@
 #include "nobion/arar/flux_view.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 bool has_note(const pp::FittedPosition& p, pp::PositionNote note) {
   return std::find(p.notes.begin(), p.notes.end(), note) != p.notes.end();
@@ -103,4 +103,4 @@ bool FluxMonitorModel::setData(const QModelIndex& index, const QVariant& value, 
   return true;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

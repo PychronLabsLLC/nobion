@@ -17,11 +17,11 @@
 #include "release_fixture.hpp"
 
 namespace fs = std::filesystem;
-namespace ps = pychron::persistence;
-namespace pp = pychron::processing;
-using namespace pychron;
-using namespace pychron::publish;
-using pychron::publish::testing::ReleaseFixture;
+namespace ps = nobion::persistence;
+namespace pp = nobion::processing;
+using namespace nobion;
+using namespace nobion::publish;
+using nobion::publish::testing::ReleaseFixture;
 
 namespace {
 
@@ -39,7 +39,7 @@ class Workflow : public ReleaseFixture {
     out_ = fs::temp_directory_path() / ("pychron_workflow_" + std::to_string(std::random_device{}()));
     fs::create_directories(out_);
     auto source =
-        pp::StoreSource::open(ps::StoreConfig{db_->url(), false}, pychron::publish::testing::source_options());
+        pp::StoreSource::open(ps::StoreConfig{db_->url(), false}, nobion::publish::testing::source_options());
     ASSERT_TRUE(source) << to_string(source.error());
     source_ = std::move(*source);
   }

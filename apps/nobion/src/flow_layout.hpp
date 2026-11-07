@@ -7,7 +7,7 @@
 #include <QLayout>
 #include <QList>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class FlowLayout : public QLayout {
  public:
@@ -34,4 +34,4 @@ class FlowLayout : public QLayout {
   int v_spacing_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

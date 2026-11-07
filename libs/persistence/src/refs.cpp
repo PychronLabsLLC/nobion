@@ -7,7 +7,7 @@
 #include "sql/statements.hpp"
 #include "store_impl.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 namespace {
 
 ResolvedRef candidate(const Row& r) {
@@ -186,9 +186,9 @@ Result<int> prune_derived(Db& db, Uuid analysis) {
   return removed;
 }
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail
 
-namespace pychron::persistence {
+namespace nobion::persistence {
 
 // The text is input_fingerprint's (detail, above).
 Sha256Digest fingerprint_of(const std::vector<HeadInfo>& heads, const std::vector<ResolvedRef>& refs,
@@ -202,4 +202,4 @@ Sha256Digest fingerprint_of(const std::vector<HeadInfo>& heads, const std::vecto
   return sha256(std::string_view{text});
 }
 
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence

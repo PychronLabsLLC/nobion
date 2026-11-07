@@ -7,7 +7,7 @@
 #include <variant>
 #include <vector>
 
-namespace pychron::experiment::plan {
+namespace nobion::experiment::plan {
 namespace {
 
 // Where a position puts the magnet. A position without `at` whose reference
@@ -147,4 +147,4 @@ Duration estimate_duration(const MeasurementPlan& plan, const DurationOptions& o
   return Duration(tally.seconds());
 }
 
-}  // namespace pychron::experiment::plan
+}  // namespace nobion::experiment::plan

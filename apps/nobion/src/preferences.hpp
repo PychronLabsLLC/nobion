@@ -16,7 +16,7 @@
 
 class QSettings;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 struct Preferences {
   static constexpr int kMinFontPt = 6;
@@ -58,4 +58,4 @@ void save_preferences(QSettings& settings, const Preferences& preferences);
 // DataMainWindow::apply_preferences).
 void apply_application_preferences(const Preferences& preferences);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

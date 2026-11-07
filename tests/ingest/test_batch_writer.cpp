@@ -17,11 +17,11 @@
 #include "nobion/ingest/writer.hpp"
 #include "store_fixture.hpp"
 
-using namespace pychron;
-using namespace pychron::ingest;
-using namespace pychron::ingest::testing;
-namespace P = pychron::persistence;
-namespace pd = pychron::persistence::detail;
+using namespace nobion;
+using namespace nobion::ingest;
+using namespace nobion::ingest::testing;
+namespace P = nobion::persistence;
+namespace pd = nobion::persistence::detail;
 using P::Kind;
 using P::Uuid;
 using P::UtcTime;

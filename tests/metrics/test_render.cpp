@@ -8,7 +8,7 @@
 #include "metrics_text.hpp"
 #include "nobion/metrics/registry.hpp"
 
-using namespace pychron::metrics;
+using namespace nobion::metrics;
 using metrics_text::raw;
 using metrics_text::without_own;
 

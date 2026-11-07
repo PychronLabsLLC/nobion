@@ -8,7 +8,7 @@
 
 #include "nobion/core/log_context.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -151,4 +151,4 @@ void UpdateChecker::finish(bool manual, const Result<update::Fetched>& result) {
   if (const auto shown = update::worth_showing(release, running_, policy)) emit available(*shown, false);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

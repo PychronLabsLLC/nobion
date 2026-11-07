@@ -12,7 +12,7 @@
 #include "nobion/experiment/plan/plan.hpp"
 #include "nobion/experiment/plan/plan_loader.hpp"
 
-namespace pychron::experiment::plan::detail {
+namespace nobion::experiment::plan::detail {
 
 // resolve_plan without the gate: every schema rule, nothing refused for
 // being not yet run. For the tests of the schema while the gate stands.
@@ -25,4 +25,4 @@ Result<MeasurementPlan> resolve_plan_ungated(std::string_view effective_toml, co
 // build yet". Each phase of the v2 plan deletes the entries it builds.
 std::vector<std::string> unbuilt_features(const MeasurementPlan& plan);
 
-}  // namespace pychron::experiment::plan::detail
+}  // namespace nobion::experiment::plan::detail

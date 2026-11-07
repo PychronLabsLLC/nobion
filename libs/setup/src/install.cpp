@@ -17,7 +17,7 @@
 
 #include "file_io.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 namespace fs = std::filesystem;
 using detail::write_file;
@@ -356,4 +356,4 @@ Result<void> write_install_record(const fs::path& root, const InstallRecord& rec
   return write_file(record_path(root), out.str(), false);
 }
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

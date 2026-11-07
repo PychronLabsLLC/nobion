@@ -8,7 +8,7 @@
 #include "nobion/devices/driver_registry.hpp"
 #include "nobion/transport/sim_transport.hpp"
 
-using namespace pychron;
+using namespace nobion;
 
 namespace {
 

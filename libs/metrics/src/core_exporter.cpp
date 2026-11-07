@@ -3,7 +3,7 @@
 #include <optional>
 #include <utility>
 
-namespace pychron::metrics {
+namespace nobion::metrics {
 
 namespace {
 
@@ -290,4 +290,4 @@ void CoreExporter::collect(Registry& registry) {
   }
 }
 
-}  // namespace pychron::metrics
+}  // namespace nobion::metrics

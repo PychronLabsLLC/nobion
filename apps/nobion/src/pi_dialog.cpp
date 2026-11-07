@@ -14,7 +14,7 @@
 
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace ps = persistence;
 
@@ -240,4 +240,4 @@ std::optional<entry::PiAnswer> ask_pi_modal(QWidget* parent, const entry::PiQues
   return d.answer();
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

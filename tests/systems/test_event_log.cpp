@@ -16,10 +16,10 @@
 #include "nobion/systems/spectrometer/scan_service.hpp"
 #include "nobion/systems/spectrometer/spectrometer.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 namespace {
 
-using pychron::testing::LogCapture;
+using nobion::testing::LogCapture;
 using Lines = std::vector<std::string>;
 
 // Every struct libs/systems publishes on a SignalBus (jobs/job.hpp,
@@ -148,4 +148,4 @@ TEST(SystemsEventLog, NeverLoggedEventsWriteNothing) {
 }
 
 }  // namespace
-}  // namespace pychron::systems
+}  // namespace nobion::systems

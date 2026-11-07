@@ -7,7 +7,7 @@
 
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 struct TcpSettings {
   std::string host;
@@ -49,4 +49,4 @@ class TcpTransport final : public QueuedTransport {
   std::unique_ptr<Io> io_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

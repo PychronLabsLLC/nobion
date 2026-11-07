@@ -17,12 +17,12 @@
 #include "spectrometer/legacy/sim_util.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace legacy_test;
 using namespace std::chrono_literals;
 
-namespace mb = pychron::codec::modbus_adc;
+namespace mb = nobion::codec::modbus_adc;
 
 // --- AdcBank ----------------------------------------------------------------
 
@@ -86,7 +86,7 @@ TEST(AdcBank, ATimeoutWaitsForTheClockNotForRealTime) {
 
 namespace {
 
-struct AdcBankVirtual : pychron::testing::VirtualTimeTest {
+struct AdcBankVirtual : nobion::testing::VirtualTimeTest {
   VirtualClock clock;
   Clock::Participant main{clock, "test"};
   std::unique_ptr<SimTransport> sim = open_hooked(adc_sim_hook({1, 0, [](std::size_t) { return 0.1; }}));
@@ -117,7 +117,7 @@ TEST_F(AdcBankVirtual, StopWakesANextWaitingForItsSample) {
   ASSERT_TRUE(*adc.next(1s));
   Result<std::optional<Frame>> got = std::optional<Frame>{Frame{}};
   TimePoint returned{};
-  pychron::testing::Crew crew(clock);
+  nobion::testing::Crew crew(clock);
   crew.start("next", [&] {
     got = adc.next(1s);  // the sample is due in 10 ms
     returned = clock.now();
@@ -140,7 +140,7 @@ TEST_F(AdcBankVirtual, AStartWakesANextWaitingForItsSample) {
   ASSERT_TRUE(*adc.next(1s));
   Result<std::optional<Frame>> got = std::optional<Frame>{};
   TimePoint returned{};
-  pychron::testing::Crew crew(clock);
+  nobion::testing::Crew crew(clock);
   crew.start("next", [&] {
     got = adc.next(1s);  // the sample is due in 10 ms
     returned = clock.now();

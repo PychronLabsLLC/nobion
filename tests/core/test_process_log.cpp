@@ -4,7 +4,7 @@
 
 #include "nobion/core/process_log.hpp"
 
-namespace pychron {
+namespace nobion {
 
 TEST(ProcessLog, ProcessLoggerWithoutHubWritesNothing) {
   const ProcessLogScope none(nullptr);
@@ -32,4 +32,4 @@ TEST(ProcessLog, ScopeRestoresPrevious) {
   EXPECT_EQ(process_log_hub(), *a);
 }
 
-}  // namespace pychron
+}  // namespace nobion

@@ -21,7 +21,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 struct LegacyLine {
   std::string line_toml;    // extraction_line.toml
@@ -35,4 +35,4 @@ struct LegacyLine {
 // converted files do not load.
 Result<LegacyLine> import_legacy_line(const std::filesystem::path& folder);
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

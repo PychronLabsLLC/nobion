@@ -52,7 +52,7 @@
 #include "nobion/core/logger.hpp"
 #include "nobion/core/signal_bus.hpp"
 
-namespace pychron {
+namespace nobion {
 namespace {
 
 constexpr std::size_t kQueueSize = 8192;
@@ -1115,4 +1115,4 @@ void hub_write(LogHub::Impl& hub, LogLevel level, std::string_view logger,
 
 }  // namespace detail
 
-}  // namespace pychron
+}  // namespace nobion

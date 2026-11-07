@@ -1,6 +1,6 @@
 #include "nobion/core/clock.hpp"
 
-namespace pychron {
+namespace nobion {
 
 void Clock::sleep_for(Duration d) const {
   if (d <= Duration::zero()) return;
@@ -82,4 +82,4 @@ void ManualClock::set(TimePoint t) {
   now_ = t;
 }
 
-}  // namespace pychron
+}  // namespace nobion

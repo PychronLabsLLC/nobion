@@ -13,7 +13,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/ingest/batch.hpp"
 
-namespace pychron::ingest {
+namespace nobion::ingest {
 
 // How an analysis that is in the store got there, as far as one source can tell.
 struct AnalysisOrigin {
@@ -159,4 +159,4 @@ class ISourceAdapter {
   virtual Result<std::optional<std::int64_t>> order_of(std::string_view commit) = 0;
 };
 
-}  // namespace pychron::ingest
+}  // namespace nobion::ingest

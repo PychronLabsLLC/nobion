@@ -25,7 +25,7 @@ TEST(EntryCmd, StubWithoutPersistence) {
 
 #include "nobion/persistence/store.hpp"
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 
 namespace {
 
@@ -35,7 +35,7 @@ class EntryCmd : public elctl::testing::ElctlTest {
     ElctlTest::SetUp();
     db_ = "sqlite:" + path("store.db").string();
     auto store = ps::open_store(ps::StoreConfig{db_, true});  // elctl entry never migrates
-    ASSERT_TRUE(store) << pychron::to_string(store.error());
+    ASSERT_TRUE(store) << nobion::to_string(store.error());
   }
 
   Outcome entry(std::vector<std::string> args) const {

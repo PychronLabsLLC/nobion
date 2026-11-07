@@ -18,7 +18,7 @@
 #include "nobion/experiment/lab/lab.hpp"
 #include "nobion/scripting/script_host.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 struct ScriptFile {
   scripting::ScriptKind kind = scripting::ScriptKind::Extraction;
@@ -77,4 +77,4 @@ std::vector<GosubRef> find_gosubs(std::string_view text);
 // <kind>/<name>.py, then lib/<name>.py. nullopt when neither exists.
 std::optional<ScriptFile> resolve_gosub(const Lab& lab, scripting::ScriptKind from, std::string_view name);
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

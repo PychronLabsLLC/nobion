@@ -2,8 +2,8 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-namespace map = pychron::codec::map215;
+using namespace nobion;
+namespace map = nobion::codec::map215;
 
 TEST(Map215Codec, SelectRangeIsWriteOnly) {
   auto c = map::select_range(3);

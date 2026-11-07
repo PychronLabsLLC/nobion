@@ -38,7 +38,7 @@
 #include "nobion/devices/link_registry.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 class QtegraLink {
  public:
@@ -113,4 +113,4 @@ Result<QtegraLinkHandle> make_qtegra_link(Transport& transport, const std::strin
                                           codec::qtegra::Terminator terminator, const Clock& clock,
                                           LinkPolicy policy = {});
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

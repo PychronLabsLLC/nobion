@@ -5,7 +5,7 @@
 #include <optional>
 #include <regex>
 
-namespace pychron::entry {
+namespace nobion::entry {
 namespace {
 
 bool is_space(char c) { return std::isspace(static_cast<unsigned char>(c)) != 0; }
@@ -250,4 +250,4 @@ std::optional<std::string> next_packet(std::string_view packet) {
   return std::string(packet.substr(0, i)) + increment_digits(std::string(packet.substr(i)));
 }
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

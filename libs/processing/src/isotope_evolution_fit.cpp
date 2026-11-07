@@ -13,9 +13,9 @@
 #include "nobion/processing/units.hpp"
 #include "schema_builder.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 using namespace detail;
 
 namespace {
@@ -502,4 +502,4 @@ class IsotopeEvolutionFitUnit final : public Unit {
 
 std::unique_ptr<Unit> make_isotope_evolution_fit_unit() { return std::make_unique<IsotopeEvolutionFitUnit>(); }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

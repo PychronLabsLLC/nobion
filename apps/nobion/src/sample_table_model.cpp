@@ -7,7 +7,7 @@
 
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace ps = persistence;
 
@@ -326,4 +326,4 @@ Result<ps::CatalogEditBatch> SampleTableModel::to_batch(const entry::CatalogSnap
   return batch;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -10,10 +10,10 @@
 
 #include "release_fixture.hpp"
 
-namespace ps = pychron::persistence;
-using namespace pychron;
-using namespace pychron::publish;
-using pychron::publish::testing::ReleaseFixture;
+namespace ps = nobion::persistence;
+using namespace nobion;
+using namespace nobion::publish;
+using nobion::publish::testing::ReleaseFixture;
 
 namespace {
 

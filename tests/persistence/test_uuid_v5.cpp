@@ -2,7 +2,7 @@
 
 #include "nobion/persistence/ids.hpp"
 
-using pychron::persistence::Uuid;
+using nobion::persistence::Uuid;
 
 TEST(UuidV5, DnsVector) {
   const auto dns = Uuid::parse("6ba7b810-9dad-11d1-80b4-00c04fd430c8");

@@ -20,10 +20,10 @@ class FluxModelsTest : public QObject {
 #include "flux_unknown_model.hpp"
 #include "theme.hpp"
 
-namespace pp = pychron::processing;
-using pychron::ui::FluxAnalysisModel;
-using pychron::ui::FluxMonitorModel;
-using pychron::ui::FluxUnknownModel;
+namespace pp = nobion::processing;
+using nobion::ui::FluxAnalysisModel;
+using nobion::ui::FluxMonitorModel;
+using nobion::ui::FluxUnknownModel;
 
 namespace {
 
@@ -174,12 +174,12 @@ class FluxModelsTest : public QObject {
     m.set_fit(&fit);
     // outside its limits: the warning row tint, text as usual
     for (int c = 0; c < FluxMonitorModel::ColumnCount; ++c) {
-      QCOMPARE(m.data(m.index(0, c), Qt::BackgroundRole).value<QBrush>().color(), pychron::ui::theme().warning_bg);
+      QCOMPARE(m.data(m.index(0, c), Qt::BackgroundRole).value<QBrush>().color(), nobion::ui::theme().warning_bg);
       QVERIFY(!m.data(m.index(0, c), Qt::ForegroundRole).isValid());
     }
     // not in the fit: muted text across the row, no background
     for (int c = 0; c < FluxMonitorModel::ColumnCount; ++c) {
-      QCOMPARE(m.data(m.index(1, c), Qt::ForegroundRole).value<QBrush>().color(), pychron::ui::theme().muted_text);
+      QCOMPARE(m.data(m.index(1, c), Qt::ForegroundRole).value<QBrush>().color(), nobion::ui::theme().muted_text);
       QVERIFY(!m.data(m.index(1, c), Qt::BackgroundRole).isValid());
     }
   }

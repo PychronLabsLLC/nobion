@@ -6,9 +6,9 @@
 
 #include <QUndoCommand>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace sp = pychron::spectrometer;
+namespace sp = nobion::spectrometer;
 
 namespace {
 
@@ -275,4 +275,4 @@ QVariant FieldTableModel::headerData(int section, Qt::Orientation orientation, i
   return {};
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

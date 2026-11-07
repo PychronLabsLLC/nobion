@@ -11,8 +11,8 @@
 #include "flux_level_inputs.hpp"
 #include "nobion/arar/flux_view.hpp"
 
-namespace pp = pychron::processing;
-namespace r = pychron::reduction;
+namespace pp = nobion::processing;
+namespace r = nobion::reduction;
 
 namespace {
 
@@ -384,7 +384,7 @@ TEST(FluxSchema, APresetSavedBeforeTheStyleFieldsStillLoads) {
 
 namespace {
 
-using pychron::processing::flux_test::level;
+using nobion::processing::flux_test::level;
 
 const pp::PointLayer* points_labelled(const pp::Scene& scene, const std::string& label) {
   for (const auto& layer : scene.graphs.at(0).panels.at(0).layers)

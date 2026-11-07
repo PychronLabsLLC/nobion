@@ -31,7 +31,7 @@
 #include "nobion/devices/spectrometer/roles.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 struct QtegraOptions {
   // Detector names as Qtegra reports them in GetData.
@@ -188,4 +188,4 @@ class QtegraSpectrometer final : public Device,
   std::uint64_t seq_ = 0;  // never reset
 };
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

@@ -35,7 +35,7 @@ class QComboBox;
 class QLabel;
 class QSettings;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class HistoryChart;
 
@@ -97,4 +97,4 @@ class GaugeWindow : public QWidget {
   bool stale_ = false;  // a reading came while hidden
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

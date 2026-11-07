@@ -19,18 +19,18 @@
 #include "nobion/scripting/cancel_token.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
-using pychron::testing::await_waiters;
-using pychron::testing::Crew;
-using pychron::testing::eventually_real;
+using nobion::testing::await_waiters;
+using nobion::testing::Crew;
+using nobion::testing::eventually_real;
 using scripting::CancelMode;
 using scripting::CancelToken;
 using scripting::WaitResult;
 
 namespace {
 
-class CancelTokenVirtual : public pychron::testing::VirtualTimeTest {
+class CancelTokenVirtual : public nobion::testing::VirtualTimeTest {
  protected:
   // One participant asleep in the token until `deadline`. With `held`, time
   // does not jump meanwhile: the test, which is not a participant, has

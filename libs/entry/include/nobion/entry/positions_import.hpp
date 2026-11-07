@@ -13,7 +13,7 @@
 #include "nobion/entry/level_sheet.hpp"
 #include "nobion/entry/sample_import.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 struct PositionImportResult {
   int applied = 0;
@@ -26,4 +26,4 @@ struct PositionImportResult {
 PositionImportResult apply_position_import(const CsvTable& table, const CatalogSnapshot& catalog,
                                            std::map<std::string, LevelSheetEdit>& levels);
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

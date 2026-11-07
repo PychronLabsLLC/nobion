@@ -28,9 +28,9 @@ class CerrRedirect {
 
 }  // namespace
 
-std::shared_ptr<pychron::LogHub> open_process_log(const std::vector<std::string>& args,
-                                                  const pychron::Clock& clock, pychron::HostOs os,
-                                                  const pychron::EnvLookup& env, std::ostream& err) {
+std::shared_ptr<nobion::LogHub> open_process_log(const std::vector<std::string>& args,
+                                                  const nobion::Clock& clock, nobion::HostOs os,
+                                                  const nobion::EnvLookup& env, std::ostream& err) {
   // The global options, as run() reads them; whatever it would refuse is its to report.
   std::optional<std::string> install_name;
   std::optional<std::filesystem::path> config;
@@ -51,7 +51,7 @@ std::shared_ptr<pychron::LogHub> open_process_log(const std::vector<std::string>
   }
 
   // No install is fine: the OS folder.
-  std::optional<pychron::setup::SiteInstall> install;
+  std::optional<nobion::setup::SiteInstall> install;
   if (install_name || !config) {
     if (auto found = resolve_install(install_name)) install = std::move(*found);
   }
@@ -65,27 +65,27 @@ std::shared_ptr<pychron::LogHub> open_process_log(const std::vector<std::string>
 
   // A config that does not load leaves the built-in defaults (and the default
   // folder) in force: the log is where it is looked for, and says why.
-  auto sources = pychron::config::load_logging_config(root, line_config);
+  auto sources = nobion::config::load_logging_config(root, line_config);
   std::string config_error;
   if (!sources) {
     config_error = sources.error().what + "; logging runs on the built-in defaults";
     err << "elctl: " << config_error << '\n';
-    sources = pychron::config::LoggingSources{};
+    sources = nobion::config::LoggingSources{};
   }
-  pychron::config::LoggingConfig cfg = std::move(sources->config);
+  nobion::config::LoggingConfig cfg = std::move(sources->config);
   cfg.file_name = "elctl.log";
   const bool dir_unset = !cfg.dir.has_value();
-  pychron::resolve_log_dir(cfg, root, os, env);
+  nobion::resolve_log_dir(cfg, root, os, env);
   std::string no_folder;
   if (dir_unset && cfg.dir->empty()) {
-    no_folder = std::string("no log folder: ") + pychron::log_dir_env_name(os) + " is not set";
+    no_folder = std::string("no log folder: ") + nobion::log_dir_env_name(os) + " is not set";
     if (!cfg.echo_stderr) err << "elctl: " << no_folder << '\n';
   }
 
-  std::shared_ptr<pychron::LogHub> hub;
+  std::shared_ptr<nobion::LogHub> hub;
   {
     const CerrRedirect redirect(err);
-    auto created = pychron::LogHub::create(cfg, clock);
+    auto created = nobion::LogHub::create(cfg, clock);
     if (!created) {
       err << "elctl: logging disabled: " << created.error().what << '\n';
       return nullptr;
@@ -98,9 +98,9 @@ std::shared_ptr<pychron::LogHub> open_process_log(const std::vector<std::string>
   if (!no_folder.empty()) notes.warn(no_folder);
   for (const auto& [level, text] : sources->notes) notes.log(level, text);
 
-  pychron::SessionInfo info;
+  nobion::SessionInfo info;
   info.app = "elctl";
-  info.version = std::string(pychron::setup::version());
+  info.version = std::string(nobion::setup::version());
   info.install_root = std::move(root);
   if (install) info.profiles = install->profile;
   info.simulated = sim;

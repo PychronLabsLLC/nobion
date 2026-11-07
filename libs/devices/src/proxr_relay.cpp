@@ -1,6 +1,6 @@
 #include "nobion/devices/proxr_relay.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace proxr = codec::proxr;
 
@@ -86,6 +86,6 @@ Result<Bytes> ProxrRelay::send(const codec::Command& command, Resend resend) {
   return transport_.exchange(command.tx, *command.reply, Transport::kDefaultTimeout, resend);
 }
 
-}  // namespace pychron
+}  // namespace nobion
 
-REGISTER_DRIVER("proxr_relay", pychron::ProxrRelay);
+REGISTER_DRIVER("proxr_relay", nobion::ProxrRelay);

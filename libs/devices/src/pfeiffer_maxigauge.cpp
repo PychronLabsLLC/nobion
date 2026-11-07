@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-namespace pychron {
+namespace nobion {
 
 namespace mg = codec::maxigauge;
 
@@ -160,4 +160,4 @@ SimTransport::Hook maxigauge_sim_hook(MaxiGaugeSimModel model) {
   return [state](const Bytes& tx) { return state->respond(tx); };
 }
 
-}  // namespace pychron
+}  // namespace nobion

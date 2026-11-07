@@ -13,7 +13,7 @@
 #include "nobion/experiment/record/names.hpp"
 #include "nobion/experiment/record/sha256.hpp"
 
-namespace pychron::experiment::record {
+namespace nobion::experiment::record {
 
 double icfactor(const Results& r, const std::string& det) {
   const auto it = r.icfactors.find(det);
@@ -1094,4 +1094,4 @@ std::string compute_sha(const AnalysisRecord& rec) {
 
 bool verify_sha(const AnalysisRecord& rec) { return !rec.provenance.sha.empty() && rec.provenance.sha == compute_sha(rec); }
 
-}  // namespace pychron::experiment::record
+}  // namespace nobion::experiment::record

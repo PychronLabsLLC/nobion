@@ -11,8 +11,8 @@
 #include <string>
 
 namespace fs = std::filesystem;
-namespace ps = pychron::spectrometer;
-using pychron::ErrorKind;
+namespace ps = nobion::spectrometer;
+using nobion::ErrorKind;
 using namespace std::chrono_literals;
 
 namespace {
@@ -70,7 +70,7 @@ TEST_F(FieldTableStoreTest, EmptyStoreHasNoCurrent) {
 TEST_F(FieldTableStoreTest, SaveWritesVersionAndCurrentPointer) {
   ps::FieldTableStore store(root_, "argon");
   auto v = store.save(table(5.0), t0());
-  ASSERT_TRUE(v.has_value()) << pychron::to_string(v.error());
+  ASSERT_TRUE(v.has_value()) << nobion::to_string(v.error());
   EXPECT_EQ(*v, "20260930T120000Z");
   EXPECT_TRUE(fs::exists(root_ / "argon" / "20260930T120000Z.toml"));
   EXPECT_TRUE(fs::exists(root_ / "argon" / "current"));
@@ -144,10 +144,10 @@ TEST_F(FieldTableStoreTest, NamedTablesAreIndependent) {
 TEST_F(FieldTableStoreTest, SavedPointerIsAFileNameResolveFinds) {
   ps::FieldTableStore store(root_ / "tables", "argon");
   auto v = store.save(table(5.0), t0());
-  ASSERT_TRUE(v.has_value()) << pychron::to_string(v.error());
+  ASSERT_TRUE(v.has_value()) << nobion::to_string(v.error());
   EXPECT_EQ(read_text(root_ / "tables" / "argon" / "current"), *v + ".toml\n");
   auto file = ps::cfg::resolve_current_table(root_, "argon");
-  ASSERT_TRUE(file.has_value()) << pychron::to_string(file.error());
+  ASSERT_TRUE(file.has_value()) << nobion::to_string(file.error());
   EXPECT_EQ(file->stem().string(), *v);
 }
 
@@ -156,10 +156,10 @@ TEST_F(FieldTableStoreTest, ReadsAShippedStylePointer) {
   write_text(root_ / "argon" / "2026-09-30T000000.toml", ps::to_toml(table(5.0)));
   write_text(root_ / "argon" / "current", "2026-09-30T000000.toml\n");
   auto v = store.current_version();
-  ASSERT_TRUE(v.has_value()) << pychron::to_string(v.error());
+  ASSERT_TRUE(v.has_value()) << nobion::to_string(v.error());
   EXPECT_EQ(*v, "2026-09-30T000000");
   auto loaded = store.load();
-  ASSERT_TRUE(loaded.has_value()) << pychron::to_string(loaded.error());
+  ASSERT_TRUE(loaded.has_value()) << nobion::to_string(loaded.error());
   EXPECT_EQ(*loaded, table(5.0));
 }
 
@@ -167,7 +167,7 @@ TEST_F(FieldTableStoreTest, ReadsABareStemPointer) {
   ps::FieldTableStore store(root_, "argon");
   write_text(root_ / "argon" / "current", "20260930T120000Z\n");
   auto v = store.current_version();
-  ASSERT_TRUE(v.has_value()) << pychron::to_string(v.error());
+  ASSERT_TRUE(v.has_value()) << nobion::to_string(v.error());
   EXPECT_EQ(*v, "20260930T120000Z");
 }
 
@@ -175,7 +175,7 @@ TEST_F(FieldTableStoreTest, ReadsAPointerWithTomlSuffixAndCrlf) {
   ps::FieldTableStore store(root_, "argon");
   write_text(root_ / "argon" / "current", "2026-09-30T000000.toml\r\n");
   auto v = store.current_version();
-  ASSERT_TRUE(v.has_value()) << pychron::to_string(v.error());
+  ASSERT_TRUE(v.has_value()) << nobion::to_string(v.error());
   EXPECT_EQ(*v, "2026-09-30T000000");
 }
 

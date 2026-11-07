@@ -5,7 +5,7 @@
 #include "nobion/devices/extraction/interfaces.hpp"
 #include "nobion/devices/extraction/services.hpp"
 
-namespace pychron::extraction {
+namespace nobion::extraction {
 namespace {
 
 constexpr std::array<std::string_view, kCapabilityCount> kNames{
@@ -83,4 +83,4 @@ CapabilitySet capabilities(const ExtractionServices& services) {
   return set;
 }
 
-}  // namespace pychron::extraction
+}  // namespace nobion::extraction

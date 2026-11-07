@@ -12,9 +12,9 @@
 #include "nobion/ingest/tz.hpp"
 #include "nobion/persistence/blob.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 
 namespace {
 
@@ -415,4 +415,4 @@ Result<persistence::SpectrometerSnapshot> parse_spectrometer(std::string_view js
   return fail(unexpected_content(e));
 }
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

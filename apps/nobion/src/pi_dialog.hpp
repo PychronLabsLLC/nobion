@@ -19,7 +19,7 @@ class QLineEdit;
 class QPushButton;
 class QTableWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // A PI as the form holds it: every field checked (PiDialog::fields).
 struct PiFields {
@@ -114,4 +114,4 @@ using PiAsk = std::function<std::optional<entry::PiAnswer>(const entry::PiQuesti
 std::optional<entry::PiAnswer> ask_pi_modal(QWidget* parent, const entry::PiQuestion& question,
                                             const std::vector<persistence::ProjectRow>& projects);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

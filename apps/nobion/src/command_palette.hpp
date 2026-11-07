@@ -16,7 +16,7 @@ class QAction;
 class QLineEdit;
 class QTreeWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // How well `query` matches `text` as a subsequence, case-insensitively;
 // negative for no match. Matches at word starts and runs of consecutive
@@ -63,4 +63,4 @@ class CommandPalette : public QFrame {
 // unified bar); the palette is built on first use as its child.
 QAction* make_command_palette_action(QWidget* window);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

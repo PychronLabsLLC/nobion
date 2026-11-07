@@ -8,7 +8,7 @@
 #include <sstream>
 #include <utility>
 
-namespace pychron::canvas {
+namespace nobion::canvas {
 namespace {
 
 using config::Diagnostic;
@@ -586,4 +586,4 @@ Result<Canvas> load_canvas(const std::filesystem::path& path) {
   return std::move(*report.canvas);
 }
 
-}  // namespace pychron::canvas
+}  // namespace nobion::canvas

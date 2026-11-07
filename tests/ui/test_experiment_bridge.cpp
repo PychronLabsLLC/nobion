@@ -15,15 +15,15 @@
 #include "experiment_fixture.hpp"
 #include "log_capture.hpp"
 
-using pychron::ui::ExperimentBridge;
-namespace exec = pychron::experiment::executor;
+using nobion::ui::ExperimentBridge;
+namespace exec = nobion::experiment::executor;
 
 class TestExperimentBridge : public QObject {
   Q_OBJECT
 
  private slots:
   void runsTheExampleQueueAndRelaysEverything() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     auto bridge = std::make_unique<ExperimentBridge>(*sim.session, sim.line->bus());
 
     bool off_thread = false;
@@ -46,7 +46,7 @@ class TestExperimentBridge : public QObject {
     connect(bridge.get(), &ExperimentBridge::executorStateChanged, this, [&] { on_gui(); ++states; });
     connect(bridge.get(), &ExperimentBridge::blockStarted, this, [&] { on_gui(); ++blocks; });
     connect(bridge.get(), &ExperimentBridge::countsProgress, this, [&] { on_gui(); ++counts; });
-    connect(bridge.get(), &ExperimentBridge::peakCenterDone, this, [&](const pychron::jobs::PeakCenterDone& e) {
+    connect(bridge.get(), &ExperimentBridge::peakCenterDone, this, [&](const nobion::jobs::PeakCenterDone& e) {
       on_gui();
       peak_centers += e.result.ok ? 1 : 0;
     });
@@ -54,18 +54,18 @@ class TestExperimentBridge : public QObject {
     int pc_points = 0;
     int last_try_started = -1, last_try_of_point = -1;
     connect(bridge.get(), &ExperimentBridge::peakCenterTryStarted, this,
-            [&](const pychron::jobs::PeakCenterTryStarted& e) {
+            [&](const nobion::jobs::PeakCenterTryStarted& e) {
               on_gui();
               ++pc_tries;
               last_try_started = e.try_index;
             });
-    connect(bridge.get(), &ExperimentBridge::peakCenterPoint, this, [&](const pychron::jobs::PeakCenterPoint& e) {
+    connect(bridge.get(), &ExperimentBridge::peakCenterPoint, this, [&](const nobion::jobs::PeakCenterPoint& e) {
       on_gui();
       ++pc_points;
       last_try_of_point = e.try_index;
     });
     connect(bridge.get(), &ExperimentBridge::seriesUpdated, this,
-            [&](const std::vector<pychron::experiment::collect::SeriesUpdated>& batch) {
+            [&](const std::vector<nobion::experiment::collect::SeriesUpdated>& batch) {
               on_gui();
               ++batches;
               multi += batch.size() > 1 ? 1 : 0;
@@ -74,15 +74,15 @@ class TestExperimentBridge : public QObject {
     std::set<double> ar40_values;  // distinct live Ar40 intercepts seen
     int fit_batches = 0;
     connect(bridge.get(), &ExperimentBridge::fitsUpdated, this,
-            [&](const std::vector<pychron::experiment::collect::FitsUpdated>& batch) {
+            [&](const std::vector<nobion::experiment::collect::FitsUpdated>& batch) {
               on_gui();
               ++fit_batches;
               for (const auto& f : batch)
                 for (const auto& sf : f.fits)
-                  if (sf.key.label == "Ar40" && sf.key.kind == pychron::experiment::collect::kSignal)
+                  if (sf.key.label == "Ar40" && sf.key.kind == nobion::experiment::collect::kSignal)
                     ar40_values.insert(sf.fit.value);
             });
-    connect(bridge.get(), &ExperimentBridge::queueEnded, this, [&](const pychron::experiment::lab::QueueEnded& e) {
+    connect(bridge.get(), &ExperimentBridge::queueEnded, this, [&](const nobion::experiment::lab::QueueEnded& e) {
       on_gui();
       ended = e.result;
       log.emplace_back("ended");
@@ -117,7 +117,7 @@ class TestExperimentBridge : public QObject {
   }
 
   void aQueueWithErrorsIsRefused() {
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     auto queue = sim.queue();
     queue.runs[0].measurement.plan = "nope";
@@ -130,9 +130,9 @@ class TestExperimentBridge : public QObject {
 
   // ExperimentBridgeLog: the operator's commands are on ui.action at info.
   void stopIsLoggedAsAction() {
-    const pychron::testing::LogCapture capture;
+    const nobion::testing::LogCapture capture;
     QVERIFY(capture.ok());
-    pychron::ui::test::SimLab sim;
+    nobion::ui::test::SimLab sim;
     ExperimentBridge bridge(*sim.session, sim.line->bus());
     bridge.stop();
     bridge.truncate(true);

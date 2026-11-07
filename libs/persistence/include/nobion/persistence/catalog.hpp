@@ -19,7 +19,7 @@
 #include "nobion/persistence/ids.hpp"
 #include "nobion/persistence/model.hpp"
 
-namespace pychron::persistence {
+namespace nobion::persistence {
 
 // The catalog tables that have a natural key, for IStore::find_catalog_row,
 // and the tables a catalog edit may name. The key of each, in the order its
@@ -295,4 +295,4 @@ using AllocationOutcome = std::variant<CatalogApplied, AllocationStale, std::vec
 // The identifier_counter scope entry uses.
 inline constexpr std::string_view kIdentifierScope = "identifier";
 
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence

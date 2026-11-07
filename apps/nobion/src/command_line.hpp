@@ -18,7 +18,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 struct CommandLine {
   bool sim = false;
@@ -55,4 +55,4 @@ struct CommandLine {
 // up for simulation, by main().
 Result<CommandLine> parse_command_line(const QStringList& args);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

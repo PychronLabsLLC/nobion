@@ -41,7 +41,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/earthbank/http.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 // Who is signed in: the service's id for the user, the login, and the name
 // as the service has it (given name and family name; the login when it has
@@ -263,4 +263,4 @@ class Session {
   bool renewal_failed_ = false, renewal_unanswered_ = false;
 };
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

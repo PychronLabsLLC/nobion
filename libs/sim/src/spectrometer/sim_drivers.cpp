@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace pychron::sim {
+namespace nobion::sim {
 
 using namespace spectrometer;
 
@@ -489,4 +489,4 @@ Result<std::unique_ptr<SimHvSupply>> SimHvSupply::create(const DriverArgs& args)
 
 REGISTER_DRIVER("sim_hv_supply", SimHvSupply);
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

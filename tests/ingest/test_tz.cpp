@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-namespace pychron::ingest {
+namespace nobion::ingest {
 namespace {
 
 std::string iso(const Result<LocalToUtc>& r) { return r->utc.iso(); }
@@ -54,4 +54,4 @@ TEST(Tz, Garbage) {
 }
 
 }  // namespace
-}  // namespace pychron::ingest
+}  // namespace nobion::ingest

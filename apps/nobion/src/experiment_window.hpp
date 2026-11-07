@@ -58,11 +58,11 @@ class QTableView;
 class QToolButton;
 class QWidget;
 
-namespace pychron::processing {
+namespace nobion::processing {
 class PresetStore;
 }
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class ProcessingBridge;
 class ReferenceSeriesDock;
@@ -214,7 +214,7 @@ class ExperimentWindow : public QMainWindow {
  signals:
   // The script editor's Rehearse… (ScriptEditorWindow::rehearseRequested),
   // passed on: the main window owns the rehearsal window.
-  void rehearseRequested(pychron::scripting::ScriptKind kind, const QString& name, const QString& text);
+  void rehearseRequested(nobion::scripting::ScriptKind kind, const QString& name, const QString& text);
 
  protected:
   void closeEvent(QCloseEvent* event) override;
@@ -310,4 +310,4 @@ class ExperimentWindow : public QMainWindow {
   std::vector<QAction*> row_actions_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

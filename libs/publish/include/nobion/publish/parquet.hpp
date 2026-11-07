@@ -12,7 +12,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/publish/tables.hpp"
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 class IParquetWriter {
  public:
@@ -27,4 +27,4 @@ std::unique_ptr<IParquetWriter> make_parquet_writer();
 // What the build was compiled with: "arrow <version>" or "" without Arrow.
 std::string_view parquet_writer_name();
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

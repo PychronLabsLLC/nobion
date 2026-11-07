@@ -22,7 +22,7 @@
 // out are counted up from fixed numbers, a range per kind of record: the same
 // calls give the same ids, and an id of one kind is never one of another.
 //
-// Linked into tests only (target `pychron::earthbank_fake`). One lock guards
+// Linked into tests only (target `nobion::earthbank_fake`). One lock guards
 // it, so a worker thread and the test's may both use it.
 #pragma once
 
@@ -44,7 +44,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/earthbank/http.hpp"
 
-namespace pychron::earthbank::testing {
+namespace nobion::earthbank::testing {
 
 // One request the fake was sent, as it is kept: with every secret already
 // taken out. The value of an `Authorization` header (and of any other that
@@ -271,4 +271,4 @@ class FakeEarthBank final : public IHttpClient {
   std::int64_t next_age_summary_ = 780001;
 };
 
-}  // namespace pychron::earthbank::testing
+}  // namespace nobion::earthbank::testing

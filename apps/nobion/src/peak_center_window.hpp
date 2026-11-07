@@ -24,7 +24,7 @@
 
 class QSplitter;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class PeakCenterPanel;
 class PeakCenterView;
@@ -71,4 +71,4 @@ class PeakCenterWindow : public QMainWindow {
   bool closing_after_run_ = false;  // closeEvent's yes; close when the run has finished
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

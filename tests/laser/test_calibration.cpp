@@ -12,8 +12,8 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-using namespace pychron::laser;
+using namespace nobion;
+using namespace nobion::laser;
 
 namespace {
 

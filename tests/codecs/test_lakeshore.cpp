@@ -5,8 +5,8 @@
 #include <cmath>
 #include <locale>
 
-using namespace pychron;
-namespace ls = pychron::codec::lakeshore;
+using namespace nobion;
+namespace ls = nobion::codec::lakeshore;
 
 namespace {
 

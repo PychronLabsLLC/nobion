@@ -4,7 +4,7 @@
 
 #include "nobion/core/http.hpp"
 
-namespace pychron::http {
+namespace nobion::http {
 namespace {
 
 TEST(Http, RequestDefaultsToThirtySeconds) {
@@ -14,4 +14,4 @@ TEST(Http, RequestDefaultsToThirtySeconds) {
 TEST(Http, NotSentCode) { EXPECT_EQ(kHttpNotSent, "http_not_sent"); }
 
 }  // namespace
-}  // namespace pychron::http
+}  // namespace nobion::http

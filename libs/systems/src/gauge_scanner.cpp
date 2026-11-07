@@ -4,7 +4,7 @@
 
 #include "nobion/core/log_context.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace {
 const char* unit_name(config::PressureUnits u) {
@@ -102,4 +102,4 @@ std::size_t GaugeScanner::gauge_count() const {
   return states_.size();
 }
 
-}  // namespace pychron
+}  // namespace nobion

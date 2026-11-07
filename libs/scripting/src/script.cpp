@@ -4,7 +4,7 @@
 #include <charconv>
 #include <string>
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 namespace {
 
 constexpr std::string_view kHeaderPrefix = "#! pychron:";
@@ -124,4 +124,4 @@ ScriptContext make_context(ValueMap overrides, ValueMap options) {
   return ctx;
 }
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

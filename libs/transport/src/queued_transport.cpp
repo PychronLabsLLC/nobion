@@ -14,7 +14,7 @@
 #include "nobion/core/signal_bus.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace {
 
@@ -336,4 +336,4 @@ Result<std::optional<Bytes>> QueuedTransport::poll(ReadSpec rs, Duration timeout
   });
 }
 
-}  // namespace pychron
+}  // namespace nobion

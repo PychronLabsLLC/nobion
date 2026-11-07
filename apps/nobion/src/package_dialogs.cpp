@@ -25,7 +25,7 @@
 #include "holder_view.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace ps = persistence;
 
@@ -617,4 +617,4 @@ void EntrySettingsDialog::accept() {
   QDialog::accept();
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

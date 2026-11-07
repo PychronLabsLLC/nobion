@@ -25,7 +25,7 @@
 #include "nobion/processing/options.hpp"
 #include "nobion/processing/scene.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 class Unit;
 
@@ -45,4 +45,4 @@ const SchemaPtr& spectrum_isochron_schema();  // "figure.spectrum_isochron"
 Result<Scene> build_spectrum_isochron(const Dataset& dataset, const Options& options);
 std::unique_ptr<Unit> make_spectrum_isochron_unit();
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

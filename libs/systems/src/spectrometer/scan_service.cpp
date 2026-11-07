@@ -1,6 +1,6 @@
 #include "nobion/systems/spectrometer/scan_service.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 // Shared with the bus handlers (which may outlive the service while an event
 // is in flight), so it holds everything they touch and never the service.
@@ -206,4 +206,4 @@ Result<void> ScanService::resume() {
   return r;
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

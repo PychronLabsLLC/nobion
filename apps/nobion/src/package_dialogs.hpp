@@ -21,7 +21,7 @@ class QPlainTextEdit;
 class QSpinBox;
 class QTableWidget;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class HolderView;
 
@@ -171,4 +171,4 @@ class EntrySettingsDialog : public QDialog {
   QLabel* message_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

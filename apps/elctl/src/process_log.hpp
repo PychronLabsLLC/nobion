@@ -20,8 +20,8 @@ namespace elctl {
 // as a warn record. Null hub, with one line on `err`, only when the back end
 // itself cannot start.
 // A usage error in the options is not reported here: run() reports it.
-std::shared_ptr<pychron::LogHub> open_process_log(const std::vector<std::string>& args,
-                                                  const pychron::Clock& clock, pychron::HostOs os,
-                                                  const pychron::EnvLookup& env, std::ostream& err);
+std::shared_ptr<nobion::LogHub> open_process_log(const std::vector<std::string>& args,
+                                                  const nobion::Clock& clock, nobion::HostOs os,
+                                                  const nobion::EnvLookup& env, std::ostream& err);
 
 }  // namespace elctl

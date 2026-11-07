@@ -9,7 +9,7 @@
 
 #include "setup_wizard.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // Opens a DVC store URL (create: migrating it) and describes its schema;
 // empty when built without the store.
@@ -34,4 +34,4 @@ int self_test(std::ostream& out);
 // into .icns and .ico). 0 when every file was written.
 int write_icons(const std::filesystem::path& dir, std::ostream& out);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

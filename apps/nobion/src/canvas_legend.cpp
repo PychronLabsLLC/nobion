@@ -16,7 +16,7 @@
 #include "canvas_items.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -274,4 +274,4 @@ void CanvasLegend::keyPressEvent(QKeyEvent* event) {
   QWidget::keyPressEvent(event);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

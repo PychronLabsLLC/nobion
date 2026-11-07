@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 Result<CommandLine> parse_command_line(const QStringList& args) {
   CommandLine cli;
@@ -98,4 +98,4 @@ Result<CommandLine> parse_command_line(const QStringList& args) {
   return cli;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

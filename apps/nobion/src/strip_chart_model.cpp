@@ -7,7 +7,7 @@
 #include <cmath>
 #include <limits>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -156,4 +156,4 @@ AxisRange StripChartModel::y_range(TimePoint now) {
   return auto_;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -24,7 +24,7 @@
 #include "error_report.hpp"
 #include "spectrometer_bridge.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -580,4 +580,4 @@ void PeakCenterPanel::refresh() {
   revert_->setEnabled(edited());
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

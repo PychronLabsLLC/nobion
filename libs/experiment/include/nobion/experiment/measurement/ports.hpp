@@ -18,7 +18,7 @@
 #include "nobion/scripting/services.hpp"
 #include "nobion/systems/spectrometer/acquisition.hpp"
 
-namespace pychron::experiment::measurement {
+namespace nobion::experiment::measurement {
 
 class ISpectrometerPort {
  public:
@@ -54,9 +54,9 @@ class ISpectrometerPort {
   // Integration has no setter: it is an argument of start_acquisition, and a
   // change of integration is the engine restarting acquisition.
   // Readings flow from start until stop; start discards anything queued.
-  virtual Result<void> start_acquisition(pychron::Duration integration) = 0;
+  virtual Result<void> start_acquisition(nobion::Duration integration) = 0;
   // nullopt when nothing arrived within `timeout`.
-  virtual Result<std::optional<spectrometer::Reading>> next_reading(pychron::Duration timeout) = 0;
+  virtual Result<std::optional<spectrometer::Reading>> next_reading(nobion::Duration timeout) = 0;
   virtual void stop_acquisition() = 0;
 };
 
@@ -130,4 +130,4 @@ class IMeasurementHook {
                             const scripting::ValueMap& args = {}) = 0;
 };
 
-}  // namespace pychron::experiment::measurement
+}  // namespace nobion::experiment::measurement

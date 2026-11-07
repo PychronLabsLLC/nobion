@@ -14,7 +14,7 @@ thread_local bool t_logging = false;  // NOLINT(cppcoreguidelines-avoid-non-cons
 
 }  // namespace
 
-LogTeeBuf::LogTeeBuf(std::streambuf* inner, const pychron::Logger& logger) : inner_(inner), logger_(logger) {}
+LogTeeBuf::LogTeeBuf(std::streambuf* inner, const nobion::Logger& logger) : inner_(inner), logger_(logger) {}
 
 LogTeeBuf::~LogTeeBuf() {
   // Nothing else writes to a tee that is going.
@@ -59,13 +59,13 @@ void LogTeeBuf::log_line(std::string_view line) const noexcept {
   const bool error = line.starts_with("error") || line.starts_with("elctl: error");
   t_logging = true;
   try {
-    logger_.log(error ? pychron::LogLevel::Error : pychron::LogLevel::Warn, line);
+    logger_.log(error ? nobion::LogLevel::Error : nobion::LogLevel::Warn, line);
   } catch (...) {  // NOLINT(bugprone-empty-catch): the line is on stderr already; the log is best effort
   }
   t_logging = false;
 }
 
-StreamTee::StreamTee(std::ostream& stream, const pychron::Logger& logger)
+StreamTee::StreamTee(std::ostream& stream, const nobion::Logger& logger)
     : stream_(stream), previous_(stream.rdbuf()), buf_(previous_, logger) {
   stream_.rdbuf(&buf_);
 }

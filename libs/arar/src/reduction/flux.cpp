@@ -7,7 +7,7 @@
 
 #include "nobion/reduction/detail/least_squares.hpp"
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 namespace {
 
@@ -369,4 +369,4 @@ Result<FluxFit> fit_flux(std::span<const Monitor> monitors, std::span<const Poin
   return fail(ErrorKind::Config, "flux: model not implemented");
 }
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

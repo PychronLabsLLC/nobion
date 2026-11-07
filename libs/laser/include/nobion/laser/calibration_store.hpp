@@ -33,7 +33,7 @@
 #include "nobion/laser/calibration.hpp"
 #include "nobion/laser/tray_map.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 struct StoredCalibration {
   std::string device;
@@ -85,4 +85,4 @@ class CalibrationStore {
   std::filesystem::path dir_;
 };
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

@@ -10,7 +10,7 @@
 #include <limits>
 #include <optional>
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
@@ -562,4 +562,4 @@ double map_y(const PanelLayout& p, double y) {
   return p.plot.y + p.plot.h - (v - lo) / span * p.plot.h;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

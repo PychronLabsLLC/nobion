@@ -25,7 +25,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 // A reference to a measurable quantity. Bare isotopes and ratios resolve to the
 // live corrected value; series functions (min, slope, ...) read raw series.
@@ -104,4 +104,4 @@ ExprPtr apply_window(const Expr& e, int window);
 // replaced by mapper[x := M]. `mapper` is an arithmetic expression in `x`.
 Result<ExprPtr> apply_mapper(const Expr& e, std::string_view mapper);
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

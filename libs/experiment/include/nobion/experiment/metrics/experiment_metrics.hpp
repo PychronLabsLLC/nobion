@@ -31,13 +31,13 @@
 #include "nobion/experiment/run/state.hpp"
 #include "nobion/metrics/registry.hpp"
 
-namespace pychron::experiment::metrics {
+namespace nobion::experiment::metrics {
 
 class ExperimentMetrics {
  public:
   // `registry` and `bus` must outlive this object.
-  ExperimentMetrics(pychron::metrics::Registry& registry, SignalBus& bus,
-                    pychron::metrics::RealClock now = pychron::metrics::steady_real_clock());
+  ExperimentMetrics(nobion::metrics::Registry& registry, SignalBus& bus,
+                    nobion::metrics::RealClock now = nobion::metrics::steady_real_clock());
   ~ExperimentMetrics();  // unsubscribes
   ExperimentMetrics(const ExperimentMetrics&) = delete;
   ExperimentMetrics& operator=(const ExperimentMetrics&) = delete;
@@ -54,16 +54,16 @@ class ExperimentMetrics {
   void set_queue(std::size_t total);
   void set_active(bool active);
 
-  pychron::metrics::Registry& registry_;
-  pychron::metrics::RealClock now_;
+  nobion::metrics::Registry& registry_;
+  nobion::metrics::RealClock now_;
   mutable std::mutex mutex_;
   std::map<std::string, Tracked> runs_;  // by run id; a run leaves when it ends
   std::size_t from_row_ = 0;             // of the queue now running
   std::size_t done_ = 0;                 // runs it has finished
   std::optional<double> last_finished_;  // real time; none until a run finishes
   std::set<std::string> channels_;       // notification channels whose counters exist
-  pychron::metrics::CollectorHandle collector_;
+  nobion::metrics::CollectorHandle collector_;
   std::vector<SignalBus::Subscription> subscriptions_;
 };
 
-}  // namespace pychron::experiment::metrics
+}  // namespace nobion::experiment::metrics

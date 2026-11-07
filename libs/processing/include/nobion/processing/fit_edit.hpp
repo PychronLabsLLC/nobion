@@ -16,7 +16,7 @@
 #include "nobion/processing/model.hpp"
 #include "nobion/reduction/fits.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 // One fit of a raw series with points left out. `outliers` are the points the
 // filter removed, as indices into the full series (not the reduced one).
@@ -81,4 +81,4 @@ std::optional<std::pair<std::string, std::size_t>> parse_evolution_ref(const std
 // revision message.
 std::string describe_fit_edits(const Analysis& before, const std::vector<EditedFit>& edits);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

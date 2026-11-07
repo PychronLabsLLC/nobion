@@ -5,7 +5,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/experiment/model/run_spec.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 // Parses experiment.toml text: a [queue] table plus [[runs]]. Pychron aliases
 // (e_value/extract_value, t_o, s_opt, truncate, flat extraction keys) are
@@ -15,4 +15,4 @@ namespace pychron::experiment {
 Result<QueueSpec> parse_queue(std::string_view text, const IdentifierRules& ids,
                               std::string_view name = "experiment.toml");
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

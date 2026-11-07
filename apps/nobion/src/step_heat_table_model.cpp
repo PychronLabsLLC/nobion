@@ -12,7 +12,7 @@
 #include "nobion/experiment/factory/form.hpp"
 #include "nobion/experiment/factory/increments.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 using experiment::StepHeatStep;
 using experiment::Unit;
@@ -273,4 +273,4 @@ Result<void> StepHeatTableModel::fill_values(const std::vector<int>& rows, const
   return {};
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

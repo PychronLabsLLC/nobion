@@ -2,7 +2,7 @@
 
 #include <set>
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 std::string_view to_string(DetectorKind kind) noexcept {
   switch (kind) {
@@ -148,4 +148,4 @@ Result<void> DetectorSet::record_cdd_voltage(std::string_view name, double volts
   return update(name, [&](DetectorState& s) { s.cdd_voltage = volts; });
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

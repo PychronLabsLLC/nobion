@@ -32,7 +32,7 @@
 #include "nobion/core/process_log.hpp"
 #include "nobion/core/signal_bus.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // One event type: its name (the struct's, unqualified) and the level it is
 // logged at; nullopt: never logged. An event whose level depends on what it
@@ -104,4 +104,4 @@ class EventRecorder {
 
 [[nodiscard]] std::span<const EventClass> core_event_classes() noexcept;
 
-}  // namespace pychron
+}  // namespace nobion

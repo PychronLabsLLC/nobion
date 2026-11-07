@@ -23,10 +23,10 @@
 #include "nobion/processing/domain.hpp"
 #include "nobion/processing/units.hpp"
 
-namespace pp = pychron::processing;
-using pychron::arar::test::make_air;
-using pychron::arar::test::make_step;
-using pychron::arar::test::make_unknown;
+namespace pp = nobion::processing;
+using nobion::arar::test::make_air;
+using nobion::arar::test::make_step;
+using nobion::arar::test::make_unknown;
 
 namespace {
 
@@ -104,7 +104,7 @@ std::string exported(const pp::Exporter& exporter, const std::vector<pp::Reduced
 }  // namespace
 
 TEST(ArArDomain, HoldsTheFigureUnitsAndCoreDoesNot) {
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   EXPECT_NE(domain->units().find("ideogram"), nullptr);
   EXPECT_EQ(pp::UnitRegistry::core("age").find("ideogram"), nullptr);
 }
@@ -112,7 +112,7 @@ TEST(ArArDomain, HoldsTheFigureUnitsAndCoreDoesNot) {
 TEST(Domain, RegistryFindsByIdAndListsIdsSorted) {
   pp::DomainRegistry registry;
   registry.add(pp::make_noble_gas_domain());
-  registry.add(pychron::arar::make_domain());
+  registry.add(nobion::arar::make_domain());
   ASSERT_NE(registry.find("arar"), nullptr);
   EXPECT_EQ(registry.find("arar")->id(), "arar");
   EXPECT_EQ(registry.find("noble_gas")->id(), "noble_gas");
@@ -120,14 +120,14 @@ TEST(Domain, RegistryFindsByIdAndListsIdsSorted) {
   EXPECT_EQ(registry.ids(), (std::vector<std::string>{"arar", "noble_gas"}));
 
   const pp::Domain* before = registry.find("arar");
-  registry.add(pychron::arar::make_domain());  // the same id: replaced
+  registry.add(nobion::arar::make_domain());  // the same id: replaced
   EXPECT_EQ(registry.ids().size(), 2u);
   EXPECT_NE(registry.find("arar"), nullptr);
   (void)before;
 }
 
 TEST(Domain, ArArFiguresAreTodaysToolbarInOrder) {
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   const auto figures = domain->figures();
   EXPECT_EQ(kinds_of(figures),
             (std::vector<std::string>{"time_series", "ideogram", "spectrum", "inverse_isochron", "spectrum_isochron",
@@ -151,7 +151,7 @@ TEST(Domain, ArArFiguresAreTodaysToolbarInOrder) {
 }
 
 TEST(Domain, ArArAnswersWhatTheApplicationHardCodesToday) {
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   EXPECT_EQ(domain->reduction_chain(), (std::vector<std::string>{"reduce", "arar_reduce"}));
   EXPECT_EQ(domain->default_quantity(), "age");
   EXPECT_EQ(domain->reduction_version(), "arar-1");
@@ -171,7 +171,7 @@ TEST(Domain, ArArAnswersWhatTheApplicationHardCodesToday) {
 
   // The recall window's Summary sections after the neutral ones, and the budget.
   auto a = make_unknown(0);
-  const auto reduced = pychron::arar::reduce_with_arar(a);
+  const auto reduced = nobion::arar::reduce_with_arar(a);
   const auto sections = domain->recall_sections(*reduced);
   ASSERT_EQ(sections.size(), 2u);
   EXPECT_EQ(sections[0].title, "Computed");
@@ -182,10 +182,10 @@ TEST(Domain, ArArAnswersWhatTheApplicationHardCodesToday) {
 }
 
 TEST(Domain, ArArDerivesTheSameRowsAsDerivedAge) {
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   auto a = make_unknown(0);
   a->input_fingerprint = kFingerprint;
-  const auto reduced = pychron::arar::reduce_with_arar(a);
+  const auto reduced = nobion::arar::reduce_with_arar(a);
   const auto derived = domain->derive(*reduced);
   const auto expected = pp::derived_age(*reduced);
   ASSERT_TRUE(derived && expected);
@@ -197,18 +197,18 @@ TEST(Domain, ArArDerivesTheSameRowsAsDerivedAge) {
   EXPECT_EQ(derived->values[2].units, "");
   ASSERT_TRUE(derived->values[0].value && expected->values[0].value);
   EXPECT_DOUBLE_EQ(derived->values[0].value->nominal(), expected->values[0].value->nominal());
-  EXPECT_DOUBLE_EQ(derived->values[0].value->nominal(), pychron::arar::reduced_of(*reduced)->arar.ages->age.nominal());
+  EXPECT_DOUBLE_EQ(derived->values[0].value->nominal(), nobion::arar::reduced_of(*reduced)->arar.ages->age.nominal());
 
   // Nothing to cache without a fingerprint.
   auto bare = make_unknown(1);
-  EXPECT_FALSE(domain->derive(*pychron::arar::reduce_with_arar(bare)).has_value());
+  EXPECT_FALSE(domain->derive(*nobion::arar::reduce_with_arar(bare)).has_value());
 }
 
 TEST(Domain, ArArMarkerRowIsValuelessWithoutAnAge) {
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   auto air = make_air(0);
   air->input_fingerprint = kFingerprint;
-  const auto derived = domain->derive(*pychron::arar::reduce_with_arar(air));
+  const auto derived = domain->derive(*nobion::arar::reduce_with_arar(air));
   ASSERT_TRUE(derived);
   ASSERT_EQ(derived->values.size(), 1u);
   EXPECT_EQ(derived->values[0].name, "age");
@@ -217,7 +217,7 @@ TEST(Domain, ArArMarkerRowIsValuelessWithoutAnAge) {
 }
 
 TEST(Domain, EveryFigureKindIsInTheDomainsRegistry) {
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   for (const auto& entry : domain->figures())
     EXPECT_NE(domain->units().find(entry.kind), nullptr) << domain->id() << ": " << entry.kind;
 }
@@ -228,7 +228,7 @@ TEST(Domain, ArArReduceWritesThroughTheRunnersDomain) {
   a->input_fingerprint = kFingerprint;
   source.add(a);
 
-  const auto arar = pychron::arar::make_domain();
+  const auto arar = nobion::arar::make_domain();
   pp::Runner with_domain(arar->units(), &source, arar.get());
   const auto pipeline = reduce_pipeline(*arar);
   ASSERT_TRUE(with_domain.run(pipeline, "arar_reduce"));
@@ -250,7 +250,7 @@ TEST(Domain, ArArReduceWritesThroughTheRunnersDomain) {
 }
 
 TEST(Domain, ArArExporterWritesTheReportOfTheGroupingThatFits) {
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   const auto exporters = domain->exporters();
   ASSERT_EQ(exporters.size(), 1u);
   EXPECT_EQ(exporters[0].id, "schaen");
@@ -275,7 +275,7 @@ TEST(Domain, ArArExporterWritesTheReportOfTheGroupingThatFits) {
   const std::string expected = pp::report_csv(pp::make_report(*dataset, pp::ReportOptions{}));
 
   std::vector<pp::ReducedPtr> steps;
-  for (const auto& item : dataset->items()) steps.push_back(pychron::arar::reduce_with_arar(item.analysis->analysis));
+  for (const auto& item : dataset->items()) steps.push_back(nobion::arar::reduce_with_arar(item.analysis->analysis));
   const std::string text = exported(exporters[0], steps);
   EXPECT_EQ(without_generated(text), without_generated(expected));
   EXPECT_NE(text.find("arar-1/default/d0e0"), std::string::npos);
@@ -285,7 +285,7 @@ TEST(Domain, ArArExporterWritesTheReportOfTheGroupingThatFits) {
 // select unit would have kept out of the statistics (its `omit_tags` default)
 // are kept out here too: the exporter rebuilds that from the reduced analyses.
 TEST(Domain, ArArExporterGroupsByIdentifierAndOmitsTheTagsSelectWould) {
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   const auto exporters = domain->exporters();
   ASSERT_EQ(exporters.size(), 1u);
 
@@ -318,7 +318,7 @@ TEST(Domain, ArArExporterGroupsByIdentifierAndOmitsTheTagsSelectWould) {
 
   std::vector<pp::ReducedPtr> analyses;
   for (const auto& item : dataset->items())
-    analyses.push_back(pychron::arar::reduce_with_arar(item.analysis->analysis));
+    analyses.push_back(nobion::arar::reduce_with_arar(item.analysis->analysis));
   const std::string text = exported(exporters[0], analyses);
   EXPECT_EQ(without_generated(text), without_generated(expected));
   EXPECT_NE(text.find("U1"), std::string::npos);

@@ -2,7 +2,7 @@
 
 #include "nobion/vision/frame.hpp"
 
-namespace pychron::vision::focus {
+namespace nobion::vision::focus {
 
 // Sharpness scores for a Z sweep: higher is sharper. Each divides by
 // pixel_depth so 8-, 12- and 16-bit frames compare. All return 0 for frames
@@ -15,4 +15,4 @@ double variance(const FrameView&);
 // Mean 3x3 Sobel gradient magnitude over interior pixels.
 double sobel_sum(const FrameView&);
 
-}  // namespace pychron::vision::focus
+}  // namespace nobion::vision::focus

@@ -18,7 +18,7 @@
 #include <string>
 #include <string_view>
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 // Where one `<term>Name` field is resolved: the field that takes the id and
 // the endpoint listing the vocabulary. An empty endpoint means there is no
@@ -200,4 +200,4 @@ enum class AgeKind { Plateau, WeightedMean, Isochron, Integrated };
 // The service's name for the kind of summary age, from its lookup list.
 std::string_view age_type_name(AgeKind kind);
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

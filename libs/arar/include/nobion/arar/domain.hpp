@@ -7,7 +7,7 @@
 
 #include "nobion/processing/domain.hpp"
 
-namespace pychron::arar {
+namespace nobion::arar {
 
 std::unique_ptr<processing::Domain> make_domain();
 
@@ -16,4 +16,4 @@ std::unique_ptr<processing::Domain> make_domain();
 // they read as the domain's whatever the run context names.
 [[nodiscard]] const processing::Domain& shared_domain();
 
-}  // namespace pychron::arar
+}  // namespace nobion::arar

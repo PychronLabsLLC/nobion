@@ -8,7 +8,7 @@
 
 #include "nobion/experiment/plan/parameters.hpp"
 
-namespace pychron::experiment::plan {
+namespace nobion::experiment::plan {
 namespace {
 
 PlanTemplate example() {
@@ -250,4 +250,4 @@ TEST(PlanParameters, PrepareVariableIsExposable) {
   EXPECT_NE(effective->find("cryo_temp = 35"), std::string::npos);  // He's, not exposed, as it was
 }
 
-}  // namespace pychron::experiment::plan
+}  // namespace nobion::experiment::plan

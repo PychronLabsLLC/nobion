@@ -14,7 +14,7 @@
 
 #include "golden.hpp"
 
-namespace golden = pychron::reduction::golden;
+namespace golden = nobion::reduction::golden;
 
 namespace {
 

@@ -18,7 +18,7 @@
 #include "nobion/publish/build.hpp"
 #include "nobion/publish/release.hpp"
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 enum class Destination { Folder, Store, EarthBank, Doi, Hosted };  // run order
 enum class EarthBankMode { Preflight, ExportXlsx, Upload };
@@ -85,4 +85,4 @@ std::vector<Destination> run_order(const PublicationPlan& plan);
 // Pre-flight and xlsx on nothing.
 bool depends_on_failed(const PublicationPlan& plan, Destination next, const std::vector<StepResult>& so_far);
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

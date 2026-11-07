@@ -50,7 +50,7 @@
 #include "nobion/devices/spectrometer/detectors.hpp"
 #include "nobion/devices/spectrometer/params.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 
 struct BeamGas {
   std::string isotope;
@@ -230,4 +230,4 @@ class BeamModelRegistry {
   std::map<std::string, std::shared_ptr<BeamModel>> models_;
 };
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

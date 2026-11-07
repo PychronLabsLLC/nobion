@@ -19,7 +19,7 @@
 #include "nobion/reduction/signal.hpp"
 #include "nobion/reduction/ufloat.hpp"
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 // ---- 5.2 Isotopes ---------------------------------------------------------
 
@@ -155,4 +155,4 @@ enum class Diagnostic : std::uint8_t {
 // The enumerator name, e.g. "CaClampedToZero" (golden expect_diagnostics).
 std::string_view to_string(Diagnostic d) noexcept;
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

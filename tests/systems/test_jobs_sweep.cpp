@@ -10,10 +10,10 @@
 #include "jobs_fakes.hpp"
 #include "nobion/systems/jobs/sweep.hpp"
 
-using namespace pychron;
-using namespace pychron::jobs;
-using namespace pychron::spectrometer::testing;
-using pychron::spectrometer::ChannelId;
+using namespace nobion;
+using namespace nobion::jobs;
+using namespace nobion::spectrometer::testing;
+using nobion::spectrometer::ChannelId;
 using namespace std::chrono_literals;
 
 namespace {

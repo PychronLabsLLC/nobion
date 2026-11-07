@@ -11,7 +11,7 @@
 #include "nobion/core/path_text.hpp"
 #include "nobion/core/sha256.hpp"
 
-namespace pychron::dvc::detail {
+namespace nobion::dvc::detail {
 
 namespace {
 
@@ -147,4 +147,4 @@ Result<std::size_t> walk_commits(
   return end;
 }
 
-}  // namespace pychron::dvc::detail
+}  // namespace nobion::dvc::detail

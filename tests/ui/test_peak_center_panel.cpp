@@ -26,9 +26,9 @@
 #include "spectrometer_bridge.hpp"
 #include "spectrometer_fixture.hpp"
 
-using namespace pychron;
-using pychron::ui::PeakCenterPanel;
-using pychron::ui::SpectrometerBridge;
+using namespace nobion;
+using nobion::ui::PeakCenterPanel;
+using nobion::ui::SpectrometerBridge;
 
 namespace {
 

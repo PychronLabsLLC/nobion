@@ -12,9 +12,9 @@
 #include "nobion/processing/domain.hpp"
 #include "nobion/processing/recall.hpp"
 
-namespace pp = pychron::processing;
-using pychron::arar::test::make_air;
-using pychron::arar::test::make_unknown;
+namespace pp = nobion::processing;
+using nobion::arar::test::make_air;
+using nobion::arar::test::make_unknown;
 
 namespace {
 
@@ -27,10 +27,10 @@ const pp::RecallRow* row(const pp::RecallSection& s, const std::string& name) {
 }  // namespace
 
 TEST(ArArRecall, SectionsAndBudgetMatchTodaysModel) {
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
 
   // An unknown with a flux: its ages, its ratios, and the budget of its age.
-  const auto unknown = pychron::arar::reduce_with_arar(make_unknown(0));
+  const auto unknown = nobion::arar::reduce_with_arar(make_unknown(0));
   const auto sections = domain->recall_sections(*unknown);
   ASSERT_EQ(sections.size(), 2u);
   const pp::RecallSection& computed = sections[0];
@@ -59,7 +59,7 @@ TEST(ArArRecall, SectionsAndBudgetMatchTodaysModel) {
   EXPECT_GE(budget.front().percent, budget.back().percent);
 
   // An air without a flux: no age, and why; its ratios; no budget.
-  const auto air = pychron::arar::reduce_with_arar(make_air(0));
+  const auto air = nobion::arar::reduce_with_arar(make_air(0));
   const auto air_sections = domain->recall_sections(*air);
   ASSERT_EQ(air_sections.size(), 2u);
   EXPECT_EQ(row(air_sections[0], "J"), nullptr);  // an air has no flux
@@ -76,10 +76,10 @@ TEST(ArArRecall, SectionsAndBudgetMatchTodaysModel) {
   ASSERT_EQ(model.isotopes.size(), 5u);
   EXPECT_EQ(model.isotopes[0].stages.rbegin()->first, pp::Stage::IcCorrected);
   EXPECT_TRUE(model.reduction_note.empty());
-  pychron::arar::ArArSettings settings;
+  nobion::arar::ArArSettings settings;
   auto helium = make_air(0);
   helium->isotopes.resize(0);
-  const auto none = pychron::arar::reduce_with_arar(helium, settings);
+  const auto none = nobion::arar::reduce_with_arar(helium, settings);
   EXPECT_EQ(pp::make_recall_model(*none).reduction_note, "no argon isotopes to reduce");
   EXPECT_TRUE(domain->error_budget(*none).empty());
 }

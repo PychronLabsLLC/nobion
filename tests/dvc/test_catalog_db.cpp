@@ -30,10 +30,10 @@
 #include "store_fixture.hpp"
 #include "verify_support.hpp"
 
-using namespace pychron;
-using namespace pychron::dvc;
-namespace P = pychron::persistence;
-namespace pd = pychron::persistence::detail;
+using namespace nobion;
+using namespace nobion::dvc;
+namespace P = nobion::persistence;
+namespace pd = nobion::persistence::detail;
 using ingest::RunStats;
 using nlohmann::json;
 using P::ConflictKind;

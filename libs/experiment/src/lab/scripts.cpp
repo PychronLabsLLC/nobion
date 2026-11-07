@@ -6,7 +6,7 @@
 
 #include "nobion/scripting/vocabulary.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 namespace fs = std::filesystem;
 using scripting::ScriptKind;
@@ -187,4 +187,4 @@ std::optional<ScriptFile> resolve_gosub(const Lab& lab, ScriptKind from, std::st
   return std::nullopt;
 }
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

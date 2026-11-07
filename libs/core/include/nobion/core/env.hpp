@@ -4,7 +4,7 @@
 #include <optional>
 #include <string>
 
-namespace pychron {
+namespace nobion {
 
 // Value of environment variable `name`, or nullopt when it is unset.
 // MSVC deprecates std::getenv (C4996); _dupenv_s is its replacement there.
@@ -24,4 +24,4 @@ inline std::optional<std::string> env_var(const char* name) {
 #endif
 }
 
-}  // namespace pychron
+}  // namespace nobion

@@ -6,7 +6,7 @@
 #include "nobion/core/host_name.hpp"
 #include "nobion/core/log_context.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace ps = persistence;
 
@@ -75,4 +75,4 @@ void EntryBridge::loop(Options options, std::function<void(Result<ps::Actor>)> o
   }
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

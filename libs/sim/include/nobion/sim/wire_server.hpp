@@ -38,7 +38,7 @@
 #include "nobion/transport/endpoints.hpp"
 #include "nobion/transport/listener.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 
 class WireServer {
  public:
@@ -97,4 +97,4 @@ class WireServer {
   std::set<ByteStream*> streams_;  // open connections, closed by stop()
 };
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

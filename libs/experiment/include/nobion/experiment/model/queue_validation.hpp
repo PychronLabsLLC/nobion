@@ -7,7 +7,7 @@
 
 #include "nobion/experiment/model/rules.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 // Resolvers are injected so the model stays independent of where plans,
 // scripts and conditionals live (template library, script dir, TOML files).
@@ -69,4 +69,4 @@ struct QueueReport {
 // All problems are collected; nothing stops at the first.
 QueueReport check_queue(const QueueSpec& q, const IdentifierRules& ids, const QueueResolvers& resolvers);
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

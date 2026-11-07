@@ -37,7 +37,7 @@
 #include "nobion/core/logger.hpp"
 #include "nobion/core/signal_bus.hpp"
 
-using namespace pychron;
+using namespace nobion;
 namespace fs = std::filesystem;
 
 namespace {
@@ -322,8 +322,8 @@ TEST(LogHub, ABusHandlerThatThrowsIsLoggedAndNotAtEveryFailure) {
   ASSERT_EQ(got.size(), 2u);
   EXPECT_EQ(got[0].level, LogLevel::Error);
   EXPECT_EQ(got[0].logger, "bus");
-  EXPECT_EQ(got[0].message, "a handler of pychron::ValveChanged threw: no such valve");
-  EXPECT_EQ(got[1].message, "a handler of pychron::ValveChanged threw: no such valve (10 times so far)");
+  EXPECT_EQ(got[0].message, "a handler of nobion::ValveChanged threw: no such valve");
+  EXPECT_EQ(got[1].message, "a handler of nobion::ValveChanged threw: no such valve (10 times so far)");
 
   // The hub is gone: the bus goes on, and nothing is written.
   hub->reset();

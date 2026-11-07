@@ -13,7 +13,7 @@
 #include "nobion/experiment/record/types.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::experiment::store {
+namespace nobion::experiment::store {
 
 struct RunIngest {
   std::vector<persistence::IngestItem> blobs;  // one per distinct raw series, in first-use order
@@ -37,4 +37,4 @@ Result<RunIngest> to_ingest(const record::AnalysisRecord& record, persistence::U
 // anything else nullopt.
 std::optional<int> increment_of(std::string_view step);
 
-}  // namespace pychron::experiment::store
+}  // namespace nobion::experiment::store

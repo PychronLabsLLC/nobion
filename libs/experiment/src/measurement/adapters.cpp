@@ -10,13 +10,13 @@
 #include <variant>
 #include <vector>
 
-namespace pychron::experiment::measurement {
+namespace nobion::experiment::measurement {
 
 namespace {
 
 spectrometer::PositionOptions no_settle() {
   spectrometer::PositionOptions options;
-  options.settle = pychron::Duration::zero();
+  options.settle = nobion::Duration::zero();
   return options;
 }
 
@@ -101,13 +101,13 @@ Result<void> SpectrometerPort::apply_optics(const std::string& name) {
 
 Result<void> SpectrometerPort::set_source_output(bool on) { return spec_.set_source_output(on); }
 
-Result<void> SpectrometerPort::start_acquisition(pychron::Duration integration) {
+Result<void> SpectrometerPort::start_acquisition(nobion::Duration integration) {
   auto& engine = spec_.acquisition();
   if (engine.running()) engine.stop();
   return engine.start(integration);
 }
 
-Result<std::optional<spectrometer::Reading>> SpectrometerPort::next_reading(pychron::Duration timeout) {
+Result<std::optional<spectrometer::Reading>> SpectrometerPort::next_reading(nobion::Duration timeout) {
   return spec_.acquisition().stream()->next(timeout);
 }
 
@@ -360,4 +360,4 @@ std::optional<double> InstrumentMetrics::scalar(const MetricRef& m) const {
   }
 }
 
-}  // namespace pychron::experiment::measurement
+}  // namespace nobion::experiment::measurement

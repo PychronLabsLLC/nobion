@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace {
 
@@ -139,4 +139,4 @@ Result<FieldTable> read_mftable_csv(std::string_view csv_text, const MolecularWe
   return table;
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

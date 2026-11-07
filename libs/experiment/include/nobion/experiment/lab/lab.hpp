@@ -58,7 +58,7 @@
 #include "nobion/systems/jobs/peak_center.hpp"
 #include "nobion/systems/spectrometer/data_dir.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 struct LabPaths {
   std::filesystem::path dir;
@@ -189,4 +189,4 @@ Result<std::map<std::string, jobs::PeakCenterConfig>> read_peak_center_file(cons
 // "runs[3].plan: unknown plan 'x'", "queue.delays: ...", "lab: ...".
 std::string describe(const Diagnostic& d);
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

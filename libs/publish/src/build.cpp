@@ -26,7 +26,7 @@
 
 #include "members.hpp"
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 namespace fs = std::filesystem;
 namespace pp = processing;
@@ -606,4 +606,4 @@ Result<BuildResult> build_release(ps::IStore& store, pp::StoreSource& source, Uu
   return result;
 }
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

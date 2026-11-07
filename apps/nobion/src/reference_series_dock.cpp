@@ -23,9 +23,9 @@
 #include "nobion/processing/time_series.hpp"
 #include "scene_view.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 namespace {
 
@@ -297,4 +297,4 @@ QDialog* ReferenceSeriesDock::options_dialog(ReferenceKind kind) {
   return dialog;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

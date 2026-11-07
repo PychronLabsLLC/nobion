@@ -15,8 +15,8 @@
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::systems;
+using namespace nobion;
+using namespace nobion::systems;
 using namespace std::chrono_literals;
 
 constexpr const char* kSystem = R"(
@@ -226,7 +226,7 @@ TEST(LineHeaters, AFailedScanAlarmsOnceUntilTheNextGoodOne) {
 // The scan is a poll (spec 2.2): a read that went through is a trace record,
 // and of a read that keeps failing only the first failure warns.
 TEST(LineHeaters, TheScanIsLoggedAsAPoll) {
-  pychron::testing::LogCapture log;
+  nobion::testing::LogCapture log;
   ASSERT_TRUE(log.ok());
   Line l;  // after the capture: devices take their logger when they are built
   ASSERT_TRUE(l.line->start());

@@ -7,7 +7,7 @@
 #include <numbers>
 #include <random>
 
-namespace pychron::vision {
+namespace nobion::vision {
 namespace {
 
 double clamp01(double v) { return std::clamp(v, 0.0, 1.0); }
@@ -520,4 +520,4 @@ std::pair<Frame, Truth> render(const GlowScene& s, Vec2 stage_mm) {
   return {std::move(f), Truth{t, sigma, visible}};
 }
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

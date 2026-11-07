@@ -8,7 +8,7 @@
 #include <functional>
 #include <mutex>
 
-namespace pychron::jobs {
+namespace nobion::jobs {
 
 class CancelToken {
  public:
@@ -42,4 +42,4 @@ class CancelToken {
   Hook hook_;
 };
 
-}  // namespace pychron::jobs
+}  // namespace nobion::jobs

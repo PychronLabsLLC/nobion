@@ -5,10 +5,10 @@
 #include "log_filter_proxy.hpp"
 #include "log_model.hpp"
 
-using namespace pychron;
-using pychron::ui::LogFilterProxy;
-using pychron::ui::LogModel;
-using pychron::ui::LogRecord;
+using namespace nobion;
+using nobion::ui::LogFilterProxy;
+using nobion::ui::LogModel;
+using nobion::ui::LogRecord;
 
 namespace {
 

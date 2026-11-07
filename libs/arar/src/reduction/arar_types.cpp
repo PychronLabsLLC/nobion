@@ -3,7 +3,7 @@
 #include <cmath>
 #include <string>
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 std::string_view to_string(ArgonIsotope iso) noexcept {
   switch (iso) {
@@ -122,4 +122,4 @@ std::string_view to_string(Diagnostic d) noexcept {
   return "";
 }
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

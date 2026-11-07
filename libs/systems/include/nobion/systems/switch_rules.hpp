@@ -12,7 +12,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/devices/types.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 // What the rule needs to know of one switch.
 struct SwitchView {
@@ -37,4 +37,4 @@ struct InterlockSet {
                                                    const std::vector<const SwitchView*>& exclusive,
                                                    const std::vector<const SwitchView*>& positive);
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

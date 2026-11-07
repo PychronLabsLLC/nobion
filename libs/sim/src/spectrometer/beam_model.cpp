@@ -8,7 +8,7 @@
 
 #include "nobion/core/keyed_noise.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 
 using spectrometer::DetectorKind;
 using spectrometer::ParamId;
@@ -388,4 +388,4 @@ void BeamModelRegistry::clear() {
   models_.clear();
 }
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

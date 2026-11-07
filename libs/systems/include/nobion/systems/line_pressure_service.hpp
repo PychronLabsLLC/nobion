@@ -19,7 +19,7 @@
 #include "nobion/devices/extraction/services.hpp"
 #include "nobion/systems/extraction_line.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 // A reading older than this many scans is stale.
 inline constexpr int kGaugeStaleScans = 3;
@@ -44,4 +44,4 @@ class LinePressureService final : public extraction::IPressureService {
   int stale_after_;
 };
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

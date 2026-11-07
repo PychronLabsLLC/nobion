@@ -8,7 +8,7 @@
 
 #include "nobion/processing/store_source.hpp"
 
-namespace pychron::arar {
+namespace nobion::arar {
 
 // Makes an ArArAnalysisData (analysis_data.hpp) of every analysis it is given,
 // empty parts and all: a J (with its unknown error kept NaN), the production
@@ -23,4 +23,4 @@ namespace pychron::arar {
 // the active domain sets both from that domain instead.
 [[nodiscard]] processing::StoreSourceOptions store_source_options(processing::StoreSourceOptions options = {});
 
-}  // namespace pychron::arar
+}  // namespace nobion::arar

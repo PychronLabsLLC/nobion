@@ -18,7 +18,7 @@
 #include "nobion/earthbank/vocab.hpp"
 #include "text_detail.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using nlohmann::json;
@@ -277,4 +277,4 @@ LookupResult LookupResolver::resolve(std::string_view name_field, std::string_vi
   return result;
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

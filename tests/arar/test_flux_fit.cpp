@@ -12,10 +12,10 @@
 #include "flux_level_inputs.hpp"
 #include "nobion/arar/flux_fit.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 namespace {
 
-namespace pr = pychron::reduction;
+namespace pr = nobion::reduction;
 
 using flux_test::level;
 
@@ -625,4 +625,4 @@ TEST(FluxFitLevel, AWeightedMeanRefusesAJWithNoError) {
 }
 
 }  // namespace
-}  // namespace pychron::processing
+}  // namespace nobion::processing

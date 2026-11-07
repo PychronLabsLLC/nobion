@@ -8,9 +8,9 @@
 
 #include "error_report.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 namespace {
 QString qs(const std::string& s) { return QString::fromStdString(s); }
@@ -142,4 +142,4 @@ bool PresetBar::factory_reset() {
   return true;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

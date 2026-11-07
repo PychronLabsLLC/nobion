@@ -9,7 +9,7 @@
 
 #include "nobion/experiment/conditionals/conditional.hpp"
 
-using namespace pychron::experiment;
+using namespace nobion::experiment;
 
 namespace {
 

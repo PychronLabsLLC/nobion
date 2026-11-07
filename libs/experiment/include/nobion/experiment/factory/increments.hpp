@@ -7,7 +7,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/experiment/model/run_spec.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 // Step letters are bijective base 26: "" -> "A", "Z" -> "AA", "AZ" -> "BA". Case-insensitive input.
 std::string next_step(std::string_view step);
@@ -42,4 +42,4 @@ std::vector<RunSpec> make_step_heat(const RunSpec& tmpl, const std::vector<doubl
 // start, start + increment, ... (n values).
 std::vector<double> step_values(double start, double increment, int n);
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

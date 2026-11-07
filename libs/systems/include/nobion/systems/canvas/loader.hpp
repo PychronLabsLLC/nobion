@@ -9,7 +9,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/systems/canvas/canvas.hpp"
 
-namespace pychron::canvas {
+namespace nobion::canvas {
 
 // Full outcome of a load: `canvas` is set only when `diagnostics` is empty.
 struct CanvasLoadReport {
@@ -34,4 +34,4 @@ CanvasLoadReport load_canvas_report(const std::filesystem::path& path);
 Result<Canvas> load_canvas_from_string(std::string_view toml, std::string_view name);
 Result<Canvas> load_canvas(const std::filesystem::path& path);
 
-}  // namespace pychron::canvas
+}  // namespace nobion::canvas

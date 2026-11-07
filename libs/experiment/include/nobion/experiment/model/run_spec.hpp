@@ -7,7 +7,7 @@
 #include "nobion/experiment/model/identifiers.hpp"
 #include "nobion/experiment/model/types.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 struct RunIdentity {
   std::string identifier;
@@ -72,4 +72,4 @@ inline constexpr int kQueueSchemaVersion = 1;
 // Measurement time is supplied by the caller (it depends on the plan).
 Duration estimate_run(const RunSpec& run, Duration measurement);
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

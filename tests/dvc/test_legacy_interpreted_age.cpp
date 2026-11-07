@@ -11,10 +11,10 @@
 #include "fixture_files.hpp"
 #include "nobion/dvc/legacy_layout.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 namespace {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 using nlohmann::json;
 using testing::fixture;
 
@@ -211,4 +211,4 @@ TEST(Layout, FrozenProductionOptionalKeysAndErrors) {
 }
 
 }  // namespace
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

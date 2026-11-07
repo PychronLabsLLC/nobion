@@ -29,7 +29,7 @@
 #include "nobion/reduction/stats.hpp"
 #include "nobion/reduction/ufloat.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 namespace pr = processing;
 namespace r = reduction;
@@ -1308,4 +1308,4 @@ Result<std::vector<Submission>> build_submissions(const std::vector<processing::
   return out;
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

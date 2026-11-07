@@ -17,7 +17,7 @@
 #include "nobion/processing/dataset.hpp"
 #include "nobion/reduction/stats.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 // The analysis reduced to an age.
 bool has_ages(const DatasetItem& item);
@@ -48,4 +48,4 @@ std::optional<GroupPlateau> group_plateau(const GroupItems& reduced, const reduc
 // a usable error).
 Result<reduction::Mean> group_weighted_mean(const GroupItems& items, reduction::MeanErrorKind error);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

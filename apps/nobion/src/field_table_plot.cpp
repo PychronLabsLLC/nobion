@@ -12,9 +12,9 @@
 
 #include "plot_style.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace sp = pychron::spectrometer;
+namespace sp = nobion::spectrometer;
 
 namespace {
 
@@ -139,4 +139,4 @@ void FieldTablePlot::on_mouse_move(QMouseEvent* event) {
   }
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -12,7 +12,7 @@
 #include "fakes.hpp"
 #include "nobion/scripting/rehearsal.hpp"
 
-namespace pychron::scripting::testing {
+namespace nobion::scripting::testing {
 
 inline std::string format_value(const Value& v) {
   return std::visit(
@@ -63,4 +63,4 @@ class RecordingRehearsal final : public IRehearsal {
   std::mutex mutex_;
 };
 
-}  // namespace pychron::scripting::testing
+}  // namespace nobion::scripting::testing

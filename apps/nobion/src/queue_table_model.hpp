@@ -37,7 +37,7 @@
 #include "nobion/experiment/model/experiment_queue.hpp"
 #include "nobion/experiment/run/state.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class QueueTableModel : public QAbstractTableModel {
   Q_OBJECT
@@ -213,4 +213,4 @@ class QueueTableModel : public QAbstractTableModel {
   std::uint64_t version_ = 0;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

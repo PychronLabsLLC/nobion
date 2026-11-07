@@ -10,7 +10,7 @@
 
 #include "store_impl.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 
 // Revisions staged in a unit of work, written into a transaction someone
 // else opened and will commit.
@@ -47,4 +47,4 @@ Result<CatalogOutcome> apply_catalog_edits(Db& db, Uuid client, const CatalogEdi
 Result<AllocationOutcome> allocate_identifiers(Db& db, Dialect dialect, Uuid client,
                                                const IdentifierAllocation& allocation);
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

@@ -13,12 +13,12 @@
 #include "nobion/processing/units.hpp"
 #include "schema_builder.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
 using namespace detail;
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 
 SchemaPtr panel_schema() {
   static const SchemaPtr s = make_schema(
@@ -382,4 +382,4 @@ class SpectrumUnit final : public Unit {
 
 std::unique_ptr<Unit> make_spectrum_unit() { return std::make_unique<SpectrumUnit>(); }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

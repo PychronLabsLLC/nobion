@@ -9,9 +9,9 @@
 
 #include "verify_parts.hpp"
 
-namespace pychron::ingest::detail {
+namespace nobion::ingest::detail {
 
-namespace P = pychron::persistence;
+namespace P = nobion::persistence;
 using P::CatalogTable;
 using P::Uuid;
 
@@ -135,4 +135,4 @@ Result<bool> catalog_row_exists(P::IStore& store, const CatalogItem& item) {
       item);
 }
 
-}  // namespace pychron::ingest::detail
+}  // namespace nobion::ingest::detail

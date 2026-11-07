@@ -16,7 +16,7 @@
 #include <QStyle>
 #include <QTimeZone>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -236,4 +236,4 @@ QVariant AnalysisTableModel::headerData(int section, Qt::Orientation orientation
   return section >= 0 && section < ColumnCount ? tr(names[static_cast<std::size_t>(section)]) : QVariant();
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

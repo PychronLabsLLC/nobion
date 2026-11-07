@@ -30,7 +30,7 @@
 
 namespace elctl {
 
-int import_command(const std::vector<std::string>& args, const pychron::processing::Domain& domain, Io io);
+int import_command(const std::vector<std::string>& args, const nobion::processing::Domain& domain, Io io);
 
 // For tests: called after each batch `import run` commits, before the run
 // asks whether it was interrupted. Empty: nothing is called.

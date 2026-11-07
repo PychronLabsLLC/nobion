@@ -57,7 +57,7 @@
 #include "nobion/devices/extraction/interfaces.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron::extraction {
+namespace nobion::extraction {
 
 struct ChromiumOptions {
   // Stage travel, mm, per axis (x, y, z): a move outside it is refused.
@@ -169,4 +169,4 @@ class ChromiumLaser final : public Device, public IExtractionDevice, public ILas
   std::string tray_;
 };
 
-}  // namespace pychron::extraction
+}  // namespace nobion::extraction

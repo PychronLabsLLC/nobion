@@ -13,7 +13,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
 using Json = nlohmann::json;  // objects keep their keys sorted, so dump() is deterministic
 
@@ -82,4 +82,4 @@ std::optional<std::string> extra_text(const Json& object);
 // "unexpected content".
 Error unexpected_content(const std::exception& e);
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

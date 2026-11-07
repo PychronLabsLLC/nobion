@@ -10,10 +10,10 @@
 #include "nobion/processing/recall.hpp"
 #include "nobion/processing/revisions.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 namespace {
 
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 
 // y = 100 - 0.5 t with a small alternating wiggle, 20 points; index 7 is a
 // wild point.
@@ -255,4 +255,4 @@ TEST(RevisionKinds, SpellingsRoundTrip) {
 }
 
 }  // namespace
-}  // namespace pychron::processing
+}  // namespace nobion::processing

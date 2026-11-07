@@ -21,7 +21,7 @@
 #include "nobion/arar/flux_fit.hpp"
 #include "nobion/processing/source.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 inline constexpr std::string_view kFluxMonitorsKey = "pychron/flux_monitors.json";
 
@@ -198,4 +198,4 @@ struct FluxHeadInfo {
 Result<FluxHeadInfo> flux_head_info(persistence::IStore& store, std::string_view irradiation, std::string_view level,
                                     int hole);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

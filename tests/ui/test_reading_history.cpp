@@ -12,9 +12,9 @@
 
 #include "reading_history.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
-using pychron::ui::ReadingHistory;
+using nobion::ui::ReadingHistory;
 
 namespace {
 

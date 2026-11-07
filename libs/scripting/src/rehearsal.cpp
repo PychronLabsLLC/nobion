@@ -2,7 +2,7 @@
 
 #include "nobion/scripting/script_host.hpp"
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 
 std::optional<std::string> rehearsal_refusal(const ScriptEnvironment& env) {
   if (env.line.device) return "line.device";
@@ -16,4 +16,4 @@ std::optional<std::string> rehearsal_refusal(const ScriptEnvironment& env) {
   return std::nullopt;
 }
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

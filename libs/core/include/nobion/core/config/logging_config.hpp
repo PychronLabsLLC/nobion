@@ -12,7 +12,7 @@
 #include "nobion/core/config/located.hpp"
 #include "nobion/core/events.hpp"
 
-namespace pychron::config {
+namespace nobion::config {
 
 struct LoggingConfig : Located {
   std::optional<std::filesystem::path> dir;  // nullopt = the app's default folder; empty = no file
@@ -25,4 +25,4 @@ struct LoggingConfig : Located {
   bool echo_stderr = false;
 };
 
-}  // namespace pychron::config
+}  // namespace nobion::config

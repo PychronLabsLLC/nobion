@@ -6,9 +6,9 @@
 
 #include "nobion/ingest/ids.hpp"
 
-namespace pychron::ingest::detail {
+namespace nobion::ingest::detail {
 
-namespace P = pychron::persistence;
+namespace P = nobion::persistence;
 using P::Uuid;
 
 namespace {
@@ -448,4 +448,4 @@ Result<Uuid> CatalogResolver::ref_object(P::RefType type, const std::string& key
   });
 }
 
-}  // namespace pychron::ingest::detail
+}  // namespace nobion::ingest::detail

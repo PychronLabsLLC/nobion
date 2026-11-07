@@ -28,7 +28,7 @@
 #include "menu_hub.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -399,4 +399,4 @@ QString AboutDialog::text() const {
   return QTextDocumentFragment::fromHtml(body_->text()).toPlainText() + QLatin1Char('\n') + build_->text();
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

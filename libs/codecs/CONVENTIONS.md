@@ -9,7 +9,7 @@ device want* and *what do its replies mean*. It never touches I/O.
    Every function is deterministic in its arguments.
 2. **Layout.** One vendor per namespace and directory:
    `include/nobion/codecs/<vendor>.hpp`, `src/<vendor>.cpp`,
-   namespace `pychron::codec::<vendor>`. Shared helpers live only in
+   namespace `nobion::codec::<vendor>`. Shared helpers live only in
    `nobion/codecs/codec.hpp`; add there rather than copy between vendors.
 3. **Encode** returns `codec::Command` — the tx bytes plus the `ReadSpec`
    that frames the reply (`std::nullopt` when the device sends nothing).

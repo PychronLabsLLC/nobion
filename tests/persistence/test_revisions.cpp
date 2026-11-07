@@ -5,9 +5,9 @@
 
 #include "store_fixture.hpp"
 
-using namespace pychron;
-using namespace pychron::persistence;
-using namespace pychron::persistence::testing;
+using namespace nobion;
+using namespace nobion::persistence;
+using namespace nobion::persistence::testing;
 
 namespace {
 

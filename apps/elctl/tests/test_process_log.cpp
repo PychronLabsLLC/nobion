@@ -31,8 +31,8 @@ class ProcessLog : public ElctlTest {
   fs::path make_install() {
     const fs::path root = path("lab");
     fs::create_directories(root);
-    pychron::setup::SiteConfig site;
-    pychron::setup::SiteInstall install;
+    nobion::setup::SiteConfig site;
+    nobion::setup::SiteInstall install;
     install.name = "lab";
     install.kind = "instrument";
     install.profile = "argus";
@@ -40,11 +40,11 @@ class ProcessLog : public ElctlTest {
     install.line = "extraction_line.toml";
     site.default_install = "lab";
     site.installs.push_back(install);
-    EXPECT_TRUE(pychron::setup::save_site(site, path("site.toml")));
+    EXPECT_TRUE(nobion::setup::save_site(site, path("site.toml")));
     return root;
   }
 
-  pychron::EnvLookup home_env() const {
+  nobion::EnvLookup home_env() const {
     const std::string home = path("home").string();
     return [home](std::string_view name) -> std::optional<std::string> {
       if (name == "HOME") return home;
@@ -52,15 +52,15 @@ class ProcessLog : public ElctlTest {
     };
   }
 
-  pychron::SteadyClock clock_;
-  std::shared_ptr<pychron::LogHub> hub_;
+  nobion::SteadyClock clock_;
+  std::shared_ptr<nobion::LogHub> hub_;
 
   // A hub writing <scratch>/plogs/elctl.log, as main() would make.
   void config_hub() {
-    pychron::config::LoggingConfig lc;
+    nobion::config::LoggingConfig lc;
     lc.dir = path("plogs");
     lc.file_name = "elctl.log";
-    auto made = pychron::LogHub::create(lc, clock_);
+    auto made = nobion::LogHub::create(lc, clock_);
     ASSERT_TRUE(made);
     hub_ = *made;
   }
@@ -70,7 +70,7 @@ TEST_F(ProcessLog, NoInstallWritesToOsFolder) {
   std::ostringstream err;
   fs::path file;
   {
-    auto hub = open_process_log({"version"}, clock_, pychron::HostOs::Mac, home_env(), err);
+    auto hub = open_process_log({"version"}, clock_, nobion::HostOs::Mac, home_env(), err);
     ASSERT_NE(hub, nullptr) << err.str();
     file = hub->file_path();
   }
@@ -83,7 +83,7 @@ TEST_F(ProcessLog, InstallWritesToRootLogs) {
   const auto root = make_install();
   std::ostringstream err;
   {
-    auto hub = open_process_log({"--install", "lab", "version"}, clock_, pychron::HostOs::Mac, home_env(), err);
+    auto hub = open_process_log({"--install", "lab", "version"}, clock_, nobion::HostOs::Mac, home_env(), err);
     ASSERT_NE(hub, nullptr) << err.str();
   }
   const auto file = root / "logs" / "elctl.log";
@@ -97,7 +97,7 @@ TEST_F(ProcessLog, ConfigNotesAreOnLoggerLogging) {
   const auto root = make_install();  // its extraction_line.toml is not there: a warn note says so
   std::ostringstream err;
   {
-    auto hub = open_process_log({"--install", "lab", "version"}, clock_, pychron::HostOs::Mac, home_env(), err);
+    auto hub = open_process_log({"--install", "lab", "version"}, clock_, nobion::HostOs::Mac, home_env(), err);
     ASSERT_NE(hub, nullptr) << err.str();
   }
   const std::string text = slurp(root / "logs" / "elctl.log");
@@ -111,7 +111,7 @@ TEST_F(ProcessLog, BadLoggingTomlFallsBackToDefaults) {
   write("lab/logging.toml", "colour = 1\n");
   std::ostringstream err;
   {
-    auto hub = open_process_log({"--install", "lab", "version"}, clock_, pychron::HostOs::Mac, home_env(), err);
+    auto hub = open_process_log({"--install", "lab", "version"}, clock_, nobion::HostOs::Mac, home_env(), err);
     ASSERT_NE(hub, nullptr) << err.str();
     EXPECT_EQ(hub->file_path(), root / "logs" / "elctl.log");
   }
@@ -132,7 +132,7 @@ TEST_F(ProcessLog, BadLoggingLocalTomlFallsBackToDefaults) {
   write("lab/logging.local.toml", "default_level = 3\n");
   std::ostringstream err;
   {
-    auto hub = open_process_log({"--install", "lab", "version"}, clock_, pychron::HostOs::Mac, home_env(), err);
+    auto hub = open_process_log({"--install", "lab", "version"}, clock_, nobion::HostOs::Mac, home_env(), err);
     ASSERT_NE(hub, nullptr) << err.str();
   }
   const std::string text = slurp(root / "logs" / "elctl.log");
@@ -142,15 +142,15 @@ TEST_F(ProcessLog, BadLoggingLocalTomlFallsBackToDefaults) {
 
 // No HOME: nowhere for the OS folder. Said once, and the command goes on.
 TEST_F(ProcessLog, NoHomeSaysThereIsNoLogFolder) {
-  const pychron::EnvLookup none = [](std::string_view) -> std::optional<std::string> { return std::nullopt; };
+  const nobion::EnvLookup none = [](std::string_view) -> std::optional<std::string> { return std::nullopt; };
   std::ostringstream err;
-  auto hub = open_process_log({"version"}, clock_, pychron::HostOs::Linux, none, err);
+  auto hub = open_process_log({"version"}, clock_, nobion::HostOs::Linux, none, err);
   ASSERT_NE(hub, nullptr) << err.str();
   EXPECT_TRUE(hub->file_path().empty());
   EXPECT_TRUE(contains(err.str(), "no log folder: HOME is not set")) << err.str();
 
   std::ostringstream werr;
-  auto whub = open_process_log({"version"}, clock_, pychron::HostOs::Windows, none, werr);
+  auto whub = open_process_log({"version"}, clock_, nobion::HostOs::Windows, none, werr);
   ASSERT_NE(whub, nullptr) << werr.str();
   EXPECT_TRUE(contains(werr.str(), "no log folder: LOCALAPPDATA is not set")) << werr.str();
 }
@@ -160,7 +160,7 @@ TEST_F(ProcessLog, NoFileAskedForSaysNothing) {
   make_install();
   write("lab/logging.toml", "dir = \"\"\n");
   std::ostringstream err;
-  auto hub = open_process_log({"--install", "lab", "version"}, clock_, pychron::HostOs::Mac, home_env(), err);
+  auto hub = open_process_log({"--install", "lab", "version"}, clock_, nobion::HostOs::Mac, home_env(), err);
   ASSERT_NE(hub, nullptr) << err.str();
   EXPECT_FALSE(contains(err.str(), "no log folder")) << err.str();
 }
@@ -169,7 +169,7 @@ TEST_F(ProcessLog, UnwritableInstallLogsDegrades) {
   make_install();
   write("lab/logs", "a file, not a folder");
   std::ostringstream err;
-  auto hub = open_process_log({"--install", "lab", "version"}, clock_, pychron::HostOs::Mac, home_env(), err);
+  auto hub = open_process_log({"--install", "lab", "version"}, clock_, nobion::HostOs::Mac, home_env(), err);
   ASSERT_NE(hub, nullptr);
   EXPECT_TRUE(hub->file_path().empty());
   EXPECT_TRUE(contains(err.str(), "file logging disabled")) << err.str();
@@ -182,7 +182,7 @@ TEST_F(ProcessLog, LoggingTomlDirOff) {
   write("lab/logging.toml", "dir = \"\"\n");
   std::ostringstream err;
   {
-    auto hub = open_process_log({"--install", "lab", "version"}, clock_, pychron::HostOs::Mac, home_env(), err);
+    auto hub = open_process_log({"--install", "lab", "version"}, clock_, nobion::HostOs::Mac, home_env(), err);
     ASSERT_NE(hub, nullptr) << err.str();
     EXPECT_TRUE(hub->file_path().empty());
   }
@@ -191,7 +191,7 @@ TEST_F(ProcessLog, LoggingTomlDirOff) {
 
 TEST_F(ProcessLog, AnUnknownInstallFallsBackToTheOsFolder) {
   std::ostringstream err;
-  auto hub = open_process_log({"--install", "nope", "version"}, clock_, pychron::HostOs::Mac, home_env(), err);
+  auto hub = open_process_log({"--install", "nope", "version"}, clock_, nobion::HostOs::Mac, home_env(), err);
   ASSERT_NE(hub, nullptr) << err.str();
   EXPECT_EQ(hub->file_path(), path("home") / "Library" / "Logs" / "nobion" / "elctl.log");
 }
@@ -203,7 +203,7 @@ TEST_F(ProcessLog, GlobalOptionsAreSeenInAnyOrder) {
        {std::vector<std::string>{"--sim", "--install", "lab", "version"},
         std::vector<std::string>{"-c", config(), "--install", "lab", "version"},
         std::vector<std::string>{"--install", "lab", "--sim", "-c", config(), "version"}}) {
-    auto hub = open_process_log(args, clock_, pychron::HostOs::Mac, home_env(), err);
+    auto hub = open_process_log(args, clock_, nobion::HostOs::Mac, home_env(), err);
     ASSERT_NE(hub, nullptr) << err.str();
     EXPECT_EQ(hub->file_path(), root / "logs" / "elctl.log");
   }
@@ -211,9 +211,9 @@ TEST_F(ProcessLog, GlobalOptionsAreSeenInAnyOrder) {
 
 TEST_F(ProcessLog, LineBuildUsesTheProcessHub) {
   config_hub();
-  auto cfg = pychron::config::load_system_config(config());
+  auto cfg = nobion::config::load_system_config(config());
   ASSERT_TRUE(cfg) << cfg.error().what;
-  const pychron::ProcessLogScope scope(hub_);
+  const nobion::ProcessLogScope scope(hub_);
   auto line = Line::build(std::move(*cfg), LineOptions{});
   ASSERT_TRUE(line) << line.error().what;
   EXPECT_EQ(hub_->bus(), &(*line)->bus());

@@ -9,7 +9,7 @@
 #include "nobion/processing/scene_svg.hpp"
 #include "scene_fixture.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 namespace {
 
 std::size_t count(const std::string& s, const std::string& what) {
@@ -95,4 +95,4 @@ TEST(SceneSvg, KeepsRunsOfSpaces) {
 }
 
 }  // namespace
-}  // namespace pychron::processing
+}  // namespace nobion::processing

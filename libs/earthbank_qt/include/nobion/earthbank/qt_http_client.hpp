@@ -28,7 +28,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/earthbank/http.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 class QtHttpClient final : public IHttpClient {
  public:
@@ -36,4 +36,4 @@ class QtHttpClient final : public IHttpClient {
   Result<HttpResponse> send(const HttpRequest& request) override;
 };
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

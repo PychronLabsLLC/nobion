@@ -20,7 +20,7 @@
 
 #include "nobion/persistence/ids.hpp"
 
-namespace pychron::persistence {
+namespace nobion::persistence {
 
 enum class ReleaseState { Draft, Published, Withdrawn };
 enum class Visibility { Private, Public };
@@ -156,4 +156,4 @@ struct ExternalIdRow {
   UtcTime registered;
 };
 
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence

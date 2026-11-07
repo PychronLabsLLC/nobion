@@ -9,7 +9,7 @@
 #pragma pop_macro("signals")
 #endif
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 Result<std::optional<std::string>> choose_database(const CommandLine& cli, const setup::SiteInstall* install) {
   if (cli.db) return cli.db;
@@ -28,4 +28,4 @@ RunSaving choose_run_saving(const CommandLine& cli, const std::string& database,
 }
 #endif
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

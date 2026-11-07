@@ -7,9 +7,9 @@
 
 #include "nobion/ingest/ids.hpp"
 
-using namespace pychron::ingest;
-using pychron::persistence::ImportSourceKind;
-using pychron::persistence::Uuid;
+using namespace nobion::ingest;
+using nobion::persistence::ImportSourceKind;
+using nobion::persistence::Uuid;
 
 TEST(IngestIds, NormalizeUrl) {
   EXPECT_EQ(normalize_source_url("https://GitHub.com/NMGRLData/Foo.git/"), "https://github.com/NMGRLData/Foo");

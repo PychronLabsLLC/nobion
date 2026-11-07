@@ -7,8 +7,8 @@
 
 #include "nobion/core/path_text.hpp"
 
-using pychron::path_from_utf8;
-using pychron::utf8;
+using nobion::path_from_utf8;
+using nobion::utf8;
 
 TEST(PathText, RoundTripsNonAsciiNames) {
   // "dépôt/Ünïcode répo" as UTF-8 bytes.

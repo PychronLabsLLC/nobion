@@ -35,7 +35,7 @@
 #include "nobion/ingest/writer.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::ingest {
+namespace nobion::ingest {
 
 // The point a legacy age was computed at: the commit that saved its
 // interpreted age. It is a place in the walk of the source, not a time: git
@@ -177,4 +177,4 @@ bool is_warning_conflict(const persistence::ImportConflictRow& row);
 Result<VerifyReport> verify(persistence::IStore& store, persistence::Uuid client, ISourceAdapter& adapter,
                             const WriterConfig& config, const AgeFn& age_fn, VerifyOptions options = {});
 
-}  // namespace pychron::ingest
+}  // namespace nobion::ingest

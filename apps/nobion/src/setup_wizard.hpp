@@ -39,7 +39,7 @@ class QPushButton;
 class QTextBrowser;
 class QWizardPage;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class SetupWizard : public QWizard {
   Q_OBJECT
@@ -163,4 +163,4 @@ class SetupWizard : public QWizard {
   QCheckBox* open_now_ = nullptr;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

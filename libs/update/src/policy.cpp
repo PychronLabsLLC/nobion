@@ -1,6 +1,6 @@
 #include <nobion/update/update.hpp>
 
-namespace pychron::update {
+namespace nobion::update {
 
 bool due(const CheckPolicy& policy, std::chrono::system_clock::time_point now) {
   if (!policy.enabled) return false;
@@ -15,4 +15,4 @@ std::optional<Release> worth_showing(const Release& release, Version running, co
   return release;
 }
 
-}  // namespace pychron::update
+}  // namespace nobion::update

@@ -31,7 +31,7 @@
 
 #include "nobion/reduction/arar_live.hpp"
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 // E12 chlorine inputs for the live path. With these set and Ar38 present,
 // compute_arar also emits cl36, kcl and clk.
@@ -84,4 +84,4 @@ struct ArArIntensities {
 // No validation: non-finite input propagates (never an error, no sentinels).
 std::map<std::string, double> compute_arar(const ArArIntensities& in, const ArArConstants& c);
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

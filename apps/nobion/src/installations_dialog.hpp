@@ -19,7 +19,7 @@ class QLabel;
 class QListWidget;
 class QPushButton;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class InstallationsDialog : public QDialog {
   Q_OBJECT
@@ -68,4 +68,4 @@ class InstallationsDialog : public QDialog {
   QPushButton* new_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

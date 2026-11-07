@@ -22,7 +22,7 @@
 #include <utility>
 #include <vector>
 
-namespace pychron::metrics {
+namespace nobion::metrics {
 
 // Label name -> value. The order given does not matter.
 using Labels = std::vector<std::pair<std::string, std::string>>;
@@ -165,4 +165,4 @@ class Registry {
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace pychron::metrics
+}  // namespace nobion::metrics

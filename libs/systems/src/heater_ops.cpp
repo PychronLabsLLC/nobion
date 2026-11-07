@@ -5,7 +5,7 @@
 
 #include "nobion/devices/extraction/capability.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 namespace {
 
@@ -65,4 +65,4 @@ Result<void> set_heater_setpoint(const std::string& name, IHeater& heater, doubl
   return {};
 }
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

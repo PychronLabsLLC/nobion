@@ -30,11 +30,11 @@
 #include "run_fakes.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment;
-using namespace pychron::experiment::executor;
-using namespace pychron::experiment::fakes;
-using Seconds = pychron::experiment::Duration;
+using namespace nobion;
+using namespace nobion::experiment;
+using namespace nobion::experiment::executor;
+using namespace nobion::experiment::fakes;
+using Seconds = nobion::experiment::Duration;
 
 namespace {
 
@@ -78,7 +78,7 @@ class ExecutorTest : public ::testing::Test {
     s.spectrometer = &spec_;
     s.valves = &valves_;
     s.spectrometer_info = [] { return run::SpectrometerInfo{"hash", "argon", 1.0}; };
-    s.engine.sleep = [this](pychron::Duration d) { clock_.advance(d); };
+    s.engine.sleep = [this](nobion::Duration d) { clock_.advance(d); };
     s.plans = &plans_;
     s.conditionals = &library_;
     s.aliquots = &lab_.aliquots;
@@ -92,7 +92,7 @@ class ExecutorTest : public ::testing::Test {
   ExecutorOptions options() {
     ExecutorOptions o;
     o.state_file = lab_.dir() / "executor_state.json";
-    o.sleep = [this](Seconds d) { clock_.advance(std::chrono::duration_cast<pychron::Duration>(d)); };
+    o.sleep = [this](Seconds d) { clock_.advance(std::chrono::duration_cast<nobion::Duration>(d)); };
     return o;
   }
 
@@ -511,7 +511,7 @@ TEST_F(ExecutorTest, ARowEditedDuringItsDelayIsReadAgain) {
       runs[1].skip = true;
       result = ex->edit(ex->queue_version(), runs);
     }
-    clock_.advance(std::chrono::duration_cast<pychron::Duration>(d));
+    clock_.advance(std::chrono::duration_cast<nobion::Duration>(d));
   };
   Executor executor(context(), o);
   ex = &executor;
@@ -827,7 +827,7 @@ class StampingPersister final : public persist::IAnalysisPersister {
 };
 
 // A script that takes `d` on the run's clock, as a script's sleep() does.
-FakeScriptHost::Body takes(pychron::Duration d) {
+FakeScriptHost::Body takes(nobion::Duration d) {
   return [d](const scripting::ScriptEnvironment& env, scripting::CancelToken& token) -> Result<void> {
     token.wait_until(*env.clock, env.clock->now() + d);
     return {};
@@ -983,12 +983,12 @@ double real_seconds_since(std::chrono::steady_clock::time_point t) {
   return std::chrono::duration<double>(std::chrono::steady_clock::now() - t).count();
 }
 
-using ExecutorVirtual = pychron::testing::VirtualTimeTest;
+using ExecutorVirtual = nobion::testing::VirtualTimeTest;
 
 // What a script writes while a run executes carries the run's thread tag and
 // the run's id (the one RunStarted gave).
 TEST_F(ExecutorVirtual, RunThreadCarriesRunScope) {
-  pychron::testing::LogCapture log;  // before the world: the run's thread ends first
+  nobion::testing::LogCapture log;  // before the world: the run's thread ends first
   ASSERT_TRUE(log.ok());
   World w({});
   Clock::Participant me(w.clock, "test");
@@ -1052,14 +1052,14 @@ class HourLongOutage final : public persist::IAnalysisPersister {
 };
 
 // When each run started, from the start of the queue.
-std::vector<pychron::Duration> start_offsets(World& w) {
-  std::vector<pychron::Duration> out;
+std::vector<nobion::Duration> start_offsets(World& w) {
+  std::vector<nobion::Duration> out;
   for (const auto& s : w.starts()) out.push_back(s.ts - kStart);
   return out;
 }
 
 TEST_F(ExecutorVirtual, AStoreDownForAnHourHoldsNoRun) {
-  std::vector<pychron::Duration> fault_free;
+  std::vector<nobion::Duration> fault_free;
   {
     World w({});
     Clock::Participant me(w.clock, "test");
@@ -1280,11 +1280,11 @@ TEST_F(ExecutorVirtual, CancelFromOutsideEndsAPacedQueue) {
   auto q = w.three_runs(Seconds{60});
   Executor ex(w.context(), w.options());
   QueueResult r;
-  pychron::testing::Crew crew(w.clock);
+  nobion::testing::Crew crew(w.clock);
   crew.start("queue", [&] { r = ex.execute(q); });
   // The queue is asleep in the delay before its first run, and stays there
   // for a minute of real time unless something wakes it.
-  ASSERT_TRUE(pychron::testing::await_waiters(w.clock, 1));
+  ASSERT_TRUE(nobion::testing::await_waiters(w.clock, 1));
   std::this_thread::sleep_for(50ms);
   const auto began = std::chrono::steady_clock::now();
   ex.cancel();
@@ -1303,7 +1303,7 @@ TEST_F(ExecutorVirtual, AbortWhileWaitingForAResource) {
   auto q = w.overlapped_runs();
   Executor ex(w.context(), w.options());
   QueueResult r;
-  pychron::testing::Crew crew(w.clock);
+  nobion::testing::Crew crew(w.clock);
   crew.start("queue", [&] { r = ex.execute(q); });
   // By now the second run has extracted and waits for the spectrometer,
   // which the first keeps for minutes yet. The first is half way through a
@@ -1346,18 +1346,18 @@ TEST_F(ExecutorVirtual, CancelFromOutsideReachesARunWaitingForAResource) {
   auto q = w.overlapped_runs();
   Executor ex(w.context(), w.options());
   QueueResult r;
-  pychron::testing::Crew crew(w.clock);
+  nobion::testing::Crew crew(w.clock);
   crew.start("queue", [&] { r = ex.execute(q); });
   // Asleep in the clock: the queue (for the second run), the first run (in
   // its reading) and the second (for the spectrometer).
-  ASSERT_TRUE(pychron::testing::eventually_real([&] { return paced.load() && w.clock.waiters() == 3; }));
+  ASSERT_TRUE(nobion::testing::eventually_real([&] { return paced.load() && w.clock.waiters() == 3; }));
   const auto first = w.run_id("12345"), second = w.run_id("12346");
   ASSERT_TRUE(w.entered(second, run::RunState::Equilibrating));
   ASSERT_FALSE(w.first_block(second));
   const auto began = std::chrono::steady_clock::now();
   ex.cancel();
   // The second run is cancelled while the first still holds the spectrometer.
-  EXPECT_TRUE(pychron::testing::eventually_real(
+  EXPECT_TRUE(nobion::testing::eventually_real(
       [&] { return w.entered(second, run::RunState::Cancelled).has_value(); }));
   EXPECT_FALSE(w.entered(first, run::RunState::Cancelled));
   EXPECT_FALSE(w.entered(first, run::RunState::PostMeasuring));
@@ -1437,7 +1437,7 @@ TEST_F(ExecutorVirtual, MinimumPumpTimeIsCountedFromThePreviousRunsPumping) {
   w.subs.push_back(w.bus.subscribe<run::RunStateChanged>([&](const run::RunStateChanged& e) {
     if (e.to != run::RunState::PostMeasuring || e.run_id != w.run_id("12345")) return;
     // The spectrometer is free and the pump time not yet said.
-    (void)pychron::testing::eventually_real([&] { return w.first_block(w.run_id("12346")).has_value(); }, 200ms);
+    (void)nobion::testing::eventually_real([&] { return w.first_block(w.run_id("12346")).has_value(); }, 200ms);
   }));
   Executor ex(w.context(), w.options());
   const auto r = ex.execute(q);
@@ -1528,7 +1528,7 @@ struct Wire {
     });
   }
   // Down for `d` from now (for good when not given), closed as a dropped link is.
-  void down(std::optional<pychron::Duration> d = std::nullopt) {
+  void down(std::optional<nobion::Duration> d = std::nullopt) {
     if (d) transport->down_for(*d);
     else transport->set_down(true);
     transport->close();
@@ -1622,8 +1622,8 @@ SignalBus::Subscription after_first_run(World& w, std::function<void()> act) {
 
 }  // namespace
 
-using ExecutorHolding_ = pychron::testing::VirtualTimeTest;
-using pychron::testing::Crew;
+using ExecutorHolding_ = nobion::testing::VirtualTimeTest;
+using nobion::testing::Crew;
 
 namespace {
 

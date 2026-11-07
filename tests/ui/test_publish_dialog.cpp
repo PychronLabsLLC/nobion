@@ -41,17 +41,17 @@
 #include "publish_dialog.hpp"
 #include "nobion/earthbank/secret_store.hpp"
 
-namespace ps = pychron::persistence;
-namespace pp = pychron::processing;
-namespace pb = pychron::publish;
+namespace ps = nobion::persistence;
+namespace pp = nobion::processing;
+namespace pb = nobion::publish;
 using pb::Destination;
 using pb::StepState;
-using Action = pychron::ui::EarthbankPublishPanel::Action;
-using pychron::ui::EarthbankPublishPanel;
-using pychron::ui::EarthbankSetup;
-using pychron::ui::EntryBridge;
-using pychron::ui::PublishActions;
-using pychron::ui::PublishDialog;
+using Action = nobion::ui::EarthbankPublishPanel::Action;
+using nobion::ui::EarthbankPublishPanel;
+using nobion::ui::EarthbankSetup;
+using nobion::ui::EntryBridge;
+using nobion::ui::PublishActions;
+using nobion::ui::PublishDialog;
 
 namespace {
 
@@ -83,7 +83,7 @@ void set_action(EarthbankPublishPanel& panel, Action action) {
   panel.action()->setCurrentIndex(panel.action()->findData(static_cast<int>(action)));
 }
 
-std::size_t record_posts(const pychron::earthbank::testing::FakeEarthBank& bank) {
+std::size_t record_posts(const nobion::earthbank::testing::FakeEarthBank& bank) {
   return bank.count("POST", "/api/arar/") + bank.count("POST", "/api/core/");
 }
 
@@ -140,27 +140,27 @@ class TestPublishDialog : public QObject {
 
   ps::Uuid create(const std::string& name) {
     auto created = pb::create_release(*store_, seed_.reducer(), spec(name));
-    if (!created) qFatal("release: %s", pychron::to_string(created.error()).c_str());
+    if (!created) qFatal("release: %s", nobion::to_string(created.error()).c_str());
     return created->release;
   }
 
   // A release published straight in the store, as if from a build.
   ps::Uuid published(const std::string& name, bool make_public) {
     const ps::Uuid r = create(name);
-    auto ok = pb::publish_release(*store_, seed_.reducer(), r, pychron::sha256(std::string_view{"x"}), make_public);
-    if (!ok) qFatal("publish: %s", pychron::to_string(ok.error()).c_str());
+    auto ok = pb::publish_release(*store_, seed_.reducer(), r, nobion::sha256(std::string_view{"x"}), make_public);
+    if (!ok) qFatal("publish: %s", nobion::to_string(ok.error()).c_str());
     return r;
   }
 
   ps::ReleaseRow release_row(const std::string& name) {
     auto row = pb::find_release(*store_, name);
-    if (!row) qFatal("find: %s", pychron::to_string(row.error()).c_str());
+    if (!row) qFatal("find: %s", nobion::to_string(row.error()).c_str());
     return *row;
   }
 
   EarthbankSetup earthbank() const {
     EarthbankSetup setup;
-    setup.secrets = [] { return std::shared_ptr<pychron::earthbank::ISecretStore>(pychron::earthbank::make_memory_secret_store()); };
+    setup.secrets = [] { return std::shared_ptr<nobion::earthbank::ISecretStore>(nobion::earthbank::make_memory_secret_store()); };
     setup.profiles_file = dir_.filePath(QStringLiteral("earthbank-profiles.toml")).toStdString();
     return setup;
   }
@@ -178,11 +178,11 @@ class TestPublishDialog : public QObject {
   Open open() { return open(earthbank()); }
   Open open(EarthbankSetup setup) {
     Open o;
-    auto source = pp::StoreSource::open(ps::StoreConfig{url_, false}, pychron::arar::store_source_options());
-    if (!source) qFatal("source: %s", pychron::to_string(source.error()).c_str());
+    auto source = pp::StoreSource::open(ps::StoreConfig{url_, false}, nobion::arar::store_source_options());
+    if (!source) qFatal("source: %s", nobion::to_string(source.error()).c_str());
     o.source = std::move(*source);
     auto bridge = EntryBridge::open({url_, "tester", "test-host", "publisher", "nobion/test"});
-    if (!bridge) qFatal("bridge: %s", pychron::to_string(bridge.error()).c_str());
+    if (!bridge) qFatal("bridge: %s", nobion::to_string(bridge.error()).c_str());
     o.bridge = std::move(*bridge);
     o.dialog = std::make_unique<PublishDialog>(*o.bridge, *o.source, url_, std::move(setup), settings());
     return o;
@@ -191,7 +191,7 @@ class TestPublishDialog : public QObject {
   // A published public release uploaded through the dialog, the first record
   // of it lost on the way: the run ends with that record in doubt and the
   // EarthBank tab's in-doubt buttons shown.
-  ps::Uuid upload_leaving_in_doubt(pychron::ui::test::EarthbankWorld& w, Open& o) {
+  ps::Uuid upload_leaving_in_doubt(nobion::ui::test::EarthbankWorld& w, Open& o) {
     const ps::Uuid r = published("r", true);
     o.dialog->open_existing(r);
     o.dialog->show();
@@ -221,10 +221,10 @@ class TestPublishDialog : public QObject {
     url_ = "sqlite:" + dir_.filePath(QStringLiteral("store-%1.db").arg(n)).toStdString();
     settings_file_ = dir_.filePath(QStringLiteral("settings-%1.ini").arg(n));
     auto s = ps::open_store(ps::StoreConfig{url_, true});
-    QVERIFY2(s.has_value(), s ? "" : pychron::to_string(s.error()).c_str());
+    QVERIFY2(s.has_value(), s ? "" : nobion::to_string(s.error()).c_str());
     store_ = std::move(*s);
     auto seeded = pb::testing::seed_release_store(*store_);
-    QVERIFY2(seeded.has_value(), seeded ? "" : pychron::to_string(seeded.error()).c_str());
+    QVERIFY2(seeded.has_value(), seeded ? "" : nobion::to_string(seeded.error()).c_str());
     seed_ = *seeded;
   }
 
@@ -541,7 +541,7 @@ class TestPublishDialog : public QObject {
   }
 
   void XlsxFromDraftAgainstFakeEarthBank() {
-    pychron::ui::test::EarthbankWorld w;  // no profile: the workbooks need none
+    nobion::ui::test::EarthbankWorld w;  // no profile: the workbooks need none
     const ps::Uuid r = create("r");
     Open o = open(w.setup());
     o.dialog->open_existing(r);
@@ -566,7 +566,7 @@ class TestPublishDialog : public QObject {
   }
 
   void UploadRefusedOnPrivate() {
-    pychron::ui::test::EarthbankWorld w;
+    nobion::ui::test::EarthbankWorld w;
     w.signed_up();
     const ps::Uuid r = published("r", false);
     Open o = open(w.setup());
@@ -587,7 +587,7 @@ class TestPublishDialog : public QObject {
 
   // Review focus 2: the D3 condition is judged again just before the upload.
   void UploadRecheckedAtRun() {
-    pychron::ui::test::EarthbankWorld w;
+    nobion::ui::test::EarthbankWorld w;
     w.signed_up();
     const ps::Uuid r = published("r", true);
     Open o = open(w.setup());
@@ -608,7 +608,7 @@ class TestPublishDialog : public QObject {
     QVERIFY2(o.dialog->refusals()->text().isEmpty(), qPrintable(o.dialog->refusals()->text()));
     // An embargo the dialog's check never saw.
     auto embargo = pb::set_embargo(*store_, seed_.reducer(), {ps::EmbargoScopeType::Sample, "FC-1", std::nullopt, std::nullopt});
-    QVERIFY2(embargo.has_value(), embargo ? "" : pychron::to_string(embargo.error()).c_str());
+    QVERIFY2(embargo.has_value(), embargo ? "" : nobion::to_string(embargo.error()).c_str());
     const std::size_t before = w.bank.requests().size();
     auto got = watch(*o.dialog);
     o.dialog->run_button()->click();
@@ -622,7 +622,7 @@ class TestPublishDialog : public QObject {
   }
 
   void UploadConfirmNoIsCancelled() {
-    pychron::ui::test::EarthbankWorld w;
+    nobion::ui::test::EarthbankWorld w;
     w.signed_up();
     const ps::Uuid r = published("r", true);
     Open o = open(w.setup());
@@ -718,13 +718,13 @@ class TestPublishDialog : public QObject {
     o.dialog->run_button()->click();
     o.dialog.reset();
     // The build runs out on the worker; its stages and result are queued and dropped.
-    auto flushed = o.bridge->run_sync<int>([](ps::IStore&, const ps::Actor&) -> pychron::Result<int> { return 0; });
+    auto flushed = o.bridge->run_sync<int>([](ps::IStore&, const ps::Actor&) -> nobion::Result<int> { return 0; });
     QVERIFY(flushed.has_value());
     QTest::qWait(50);
   }
 
   void NewReleaseFillsEarthBankPanelMidRun() {
-    pychron::ui::test::EarthbankWorld w;
+    nobion::ui::test::EarthbankWorld w;
     Open o = open(w.setup());
     o.dialog->set_ask_release(named("fresh"));
     o.dialog->open_new(analyses());
@@ -782,7 +782,7 @@ class TestPublishDialog : public QObject {
 
   // While a run is under way the EarthBank tab cannot change what runs.
   void EarthBankPageLockedDuringRun() {
-    pychron::ui::test::EarthbankWorld w;
+    nobion::ui::test::EarthbankWorld w;
     const ps::Uuid r = create("r");
     Open o = open(w.setup());
     o.dialog->open_existing(r);
@@ -824,7 +824,7 @@ class TestPublishDialog : public QObject {
 
   // Store makes the release public in the same run; the upload's recheck counts it.
   void StorePublicThenUploadInOneRun() {
-    pychron::ui::test::EarthbankWorld w;
+    nobion::ui::test::EarthbankWorld w;
     w.signed_up();
     const ps::Uuid r = create("r");  // a draft
     Open o = open(w.setup());
@@ -864,13 +864,13 @@ class TestPublishDialog : public QObject {
   // Finding: the in-doubt answer resends records. It is a run of the dialog's
   // own, through the upload gate: a release no longer public sends nothing.
   void InDoubtResumeRefusedWhenReleaseNoLongerPublic() {
-    pychron::ui::test::EarthbankWorld w;
+    nobion::ui::test::EarthbankWorld w;
     w.signed_up();
     Open o = open(w.setup());
     const ps::Uuid r = upload_leaving_in_doubt(w, o);
     EarthbankPublishPanel* panel = o.dialog->earthbank_panel();
     auto ok = pb::withdraw_release(*store_, seed_.reducer(), r, "superseded");
-    QVERIFY2(ok.has_value(), ok ? "" : pychron::to_string(ok.error()).c_str());
+    QVERIFY2(ok.has_value(), ok ? "" : nobion::to_string(ok.error()).c_str());
 
     const std::size_t requests = w.bank.requests().size();
     const std::size_t posts = record_posts(w.bank);
@@ -892,7 +892,7 @@ class TestPublishDialog : public QObject {
   }
 
   void InDoubtResumeRunsThroughTheDialog() {
-    pychron::ui::test::EarthbankWorld w;
+    nobion::ui::test::EarthbankWorld w;
     w.signed_up();
     Open o = open(w.setup());
     upload_leaving_in_doubt(w, o);

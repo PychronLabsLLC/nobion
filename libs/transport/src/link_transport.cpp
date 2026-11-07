@@ -1,6 +1,6 @@
 #include "nobion/transport/link_transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 LinkTransport::LinkTransport(std::string name, std::string link) : name_(std::move(name)), link_(std::move(link)) {}
 
@@ -22,4 +22,4 @@ Health LinkTransport::health() const {
   return h;
 }
 
-}  // namespace pychron
+}  // namespace nobion

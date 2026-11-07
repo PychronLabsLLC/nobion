@@ -15,8 +15,8 @@
 #include "nobion/systems/spectrometer/assembler.hpp"
 #include "nobion/systems/spectrometer/data_dir.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace std::chrono_literals;
 
 class TestPlotBuild : public QObject {

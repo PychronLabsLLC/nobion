@@ -17,7 +17,7 @@
 #include "nobion/processing/store_source.hpp"
 #pragma pop_macro("signals")
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 PublishActions::PublishActions(QWidget* owner, std::string store_url, std::function<QStringList()> selection)
     : QObject(owner),
@@ -116,4 +116,4 @@ void PublishActions::open_dialog_existing(persistence::Uuid release) {
   show_dialog([release](PublishDialog& d) { d.open_existing(release); });
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

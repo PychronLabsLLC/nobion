@@ -54,7 +54,7 @@
 namespace elctl {
 
 namespace fs = std::filesystem;
-using namespace pychron;
+using namespace nobion;
 
 namespace {
 
@@ -829,8 +829,8 @@ int run(const std::vector<std::string>& args, Io io) {
       return kOk;
     } else if (a == "--version") {
       // Where the shipped profiles were found: checks an installed layout.
-      const auto r = pychron::setup::find_resources();
-      io.out << "elctl " << pychron::setup::version() << "\nprofiles: " << r.profiles.string()
+      const auto r = nobion::setup::find_resources();
+      io.out << "elctl " << nobion::setup::version() << "\nprofiles: " << r.profiles.string()
              << "\nexamples: " << r.examples.string() << "\n";
       return kOk;
     } else {
@@ -869,7 +869,7 @@ int run(const std::vector<std::string>& args, Io io) {
       // from the install here. A failure to read it is kept for `exp run`,
       // which refuses to start (rather than write files) without --db.
       if (install->kind == "instrument" && !install->database.empty()) {
-        if (auto url = pychron::setup::database_url(*install)) {
+        if (auto url = nobion::setup::database_url(*install)) {
           globals.exp.database = *url;
         } else {
           globals.exp.database_error = url.error().what;

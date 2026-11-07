@@ -19,7 +19,7 @@
 #include "nobion/transport/bytes.hpp"
 #include "nobion/transport/read_spec.hpp"
 
-namespace pychron::codec {
+namespace nobion::codec {
 
 // What to put on the wire and how the transport knows the reply is complete.
 // `reply` is empty for commands the device does not answer.
@@ -95,4 +95,4 @@ inline std::optional<double> parse_decimal(std::string_view s) {
   return v;
 }
 
-}  // namespace pychron::codec
+}  // namespace nobion::codec

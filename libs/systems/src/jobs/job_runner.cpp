@@ -3,13 +3,13 @@
 #include <ranges>
 #include <string>
 
-namespace pychron::jobs {
+namespace nobion::jobs {
 
 struct JobRunner::Slot {
   Job job;
   CancelToken token;
   std::unique_ptr<Progress> progress;
-  pychron::JobId scheduled = 0;  // Scheduler job; 0 for run()
+  nobion::JobId scheduled = 0;  // Scheduler job; 0 for run()
 };
 
 JobRunner::JobRunner(Spectrometer& spectrometer, Scheduler& scheduler, SignalBus& bus, const Clock& clock)
@@ -215,4 +215,4 @@ void JobRunner::wait_idle() const {
   while (current_ != nullptr) clock_.wait(idle_, lock);
 }
 
-}  // namespace pychron::jobs
+}  // namespace nobion::jobs

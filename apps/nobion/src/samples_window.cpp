@@ -21,7 +21,7 @@
 #include "sample_import_dialog.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace ps = persistence;
 
@@ -439,4 +439,4 @@ void SamplesWindow::closeEvent(QCloseEvent* event) {
   event->accept();
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

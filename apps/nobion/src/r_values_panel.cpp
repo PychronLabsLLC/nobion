@@ -23,9 +23,9 @@
 #include "error_report.hpp"
 #include "nobion/core/user_file.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 namespace {
 
@@ -129,10 +129,10 @@ bool RValuesPanel::export_csv(const QString& path) const {
   QSaveFile file(path);
   const auto size = static_cast<qint64>(text.size());
   if (!file.open(QIODevice::WriteOnly) || file.write(text.data(), size) != size || !file.commit()) return false;
-  pychron::mark_as_user_file(std::filesystem::path(path.toStdU16String()));
+  nobion::mark_as_user_file(std::filesystem::path(path.toStdU16String()));
   return true;
 }
 
 void RValuesPanel::copy() const { QApplication::clipboard()->setText(qs(pp::r_values_tsv(matrices_, nsigma_))); }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -14,7 +14,7 @@
 #include "nobion/persistence/publish.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 using persistence::Uuid;
 using persistence::UtcTime;
@@ -56,4 +56,4 @@ struct RunId {
 };
 std::optional<RunId> parse_runid(std::string_view text);
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

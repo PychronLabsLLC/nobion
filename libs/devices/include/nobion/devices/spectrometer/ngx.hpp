@@ -28,7 +28,7 @@
 #include "nobion/devices/spectrometer/ngx_link.hpp"
 #include "nobion/devices/spectrometer/roles.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 struct NgxOptions {
   std::string link;  // registry name; default: the driver name
@@ -180,4 +180,4 @@ class NgxValves final : public Device, public IConnectable, public IValveActuato
   NgxValvesOptions options_;
 };
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

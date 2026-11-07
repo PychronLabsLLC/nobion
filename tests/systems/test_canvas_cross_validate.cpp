@@ -12,7 +12,7 @@
 #include "nobion/systems/canvas/loader.hpp"
 #include "nobion/systems/network_graph.hpp"
 
-namespace pychron::canvas {
+namespace nobion::canvas {
 namespace {
 
 constexpr std::string_view kSystem = R"toml(
@@ -260,4 +260,4 @@ TEST(CanvasCrossValidate, SystemSwitchNotDrawnIsWarning) {
 }
 
 }  // namespace
-}  // namespace pychron::canvas
+}  // namespace nobion::canvas

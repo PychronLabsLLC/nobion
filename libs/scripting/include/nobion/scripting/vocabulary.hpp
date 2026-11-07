@@ -11,7 +11,7 @@
 #include "nobion/devices/extraction/capability.hpp"
 #include "nobion/scripting/script.hpp"
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 
 struct CommandInfo {
   std::string_view name;
@@ -33,4 +33,4 @@ bool command_allowed(const CommandInfo& command, ScriptKind kind) noexcept;
 // Modules scripts may import.
 std::span<const std::string_view> default_import_allowlist() noexcept;
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

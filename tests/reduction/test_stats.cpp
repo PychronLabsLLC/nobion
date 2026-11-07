@@ -6,7 +6,7 @@
 #include <numbers>
 #include <vector>
 
-namespace pr = pychron::reduction;
+namespace pr = nobion::reduction;
 
 namespace {
 

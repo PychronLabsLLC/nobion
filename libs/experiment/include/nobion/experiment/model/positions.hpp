@@ -6,7 +6,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/experiment/model/types.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 // "1,3-5;9" -> holes 1 3 4 5 9. Separators: comma, semicolon, whitespace.
 // Descending ranges ("5-3") expand descending. Holes are >= 0.
@@ -21,4 +21,4 @@ std::vector<Position> split_position(const Position& p);
 // Increment helper: shifts every hole by `step`; holes below 0 are an error.
 Result<Position> increment_position(const Position& p, int step = 1);
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

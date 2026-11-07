@@ -7,7 +7,7 @@
 
 #include "nobion/devices/extraction/capability.hpp"
 
-namespace pychron::extraction {
+namespace nobion::extraction {
 
 namespace cr = codec::chromium;
 
@@ -40,7 +40,7 @@ std::optional<int> scan_number(std::string_view position) {
 
 // The command as sent, without its terminator, for error messages.
 std::string text_of(const codec::Command& command) {
-  std::string text = pychron::to_string(command.tx);
+  std::string text = nobion::to_string(command.tx);
   while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) text.pop_back();
   return text;
 }
@@ -48,7 +48,7 @@ std::string text_of(const codec::Command& command) {
 // A percentage for a message: as the codec would send it (no locale).
 std::string percent(double value) {
   if (auto command = cr::laser_output(std::clamp(value, 0.0, 100.0)); command && value >= 0 && value <= 100) {
-    std::string text = pychron::to_string(command->tx);
+    std::string text = nobion::to_string(command->tx);
     text.pop_back();  // the LF
     return text.substr(text.find(' ') + 1);
   }
@@ -628,6 +628,6 @@ Result<void> ChromiumLaser::set_tray(std::string_view tray) {
 
 std::vector<std::string> ChromiumLaser::positions() const { return {}; }
 
-}  // namespace pychron::extraction
+}  // namespace nobion::extraction
 
-REGISTER_DRIVER("chromium", pychron::extraction::ChromiumLaser);
+REGISTER_DRIVER("chromium", nobion::extraction::ChromiumLaser);

@@ -1,6 +1,6 @@
 #include "nobion/devices/sim_valves.hpp"
 
-namespace pychron {
+namespace nobion {
 
 SimValves::SimValves(std::string name, DeviceOptions options) : Device(std::move(name), options) {}
 
@@ -35,6 +35,6 @@ Result<ValveState> SimValves::read(const ValveAddress& address) {
   return observe(op, Result<ValveState>(it != open_.end() && it->second ? ValveState::Open : ValveState::Closed));
 }
 
-}  // namespace pychron
+}  // namespace nobion
 
-REGISTER_DRIVER("sim_valves", pychron::SimValves);
+REGISTER_DRIVER("sim_valves", nobion::SimValves);

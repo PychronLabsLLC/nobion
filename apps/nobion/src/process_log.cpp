@@ -8,7 +8,7 @@
 #include "nobion/core/logger.hpp"
 #include "nobion/setup/installer.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 ProcessLog open_process_log(const std::optional<setup::SiteInstall>& install,
                             const std::optional<std::filesystem::path>& line_config, const Clock& clock,
@@ -59,4 +59,4 @@ ProcessLog open_process_log(const std::optional<setup::SiteInstall>& install,
   return out;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -19,7 +19,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/vision/calibration.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 class LaserSystem;
 
@@ -79,4 +79,4 @@ class CameraScaleStore {
   std::filesystem::path dir_;
 };
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

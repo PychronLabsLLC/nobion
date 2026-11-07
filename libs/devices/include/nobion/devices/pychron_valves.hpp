@@ -23,7 +23,7 @@
 #include "nobion/devices/driver_registry.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // May each command be sent twice (Repeat, link.hpp)?
 //
@@ -47,4 +47,4 @@ class PychronValves final : public Device, public IValveActuator {
   Transport& transport_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

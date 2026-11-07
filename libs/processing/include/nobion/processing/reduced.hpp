@@ -15,7 +15,7 @@
 #include "nobion/reduction/signal.hpp"
 #include "nobion/reduction/ufloat.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 // Core stages only: a domain's own stages (Ar-Ar's decay and interference
 // corrected) are its DomainReduced's, by name.
@@ -88,4 +88,4 @@ using ReducedPtr = std::shared_ptr<const ReducedAnalysis>;
 // (Ar-Ar: arar_reduce).
 ReducedPtr reduce_analysis(AnalysisPtr analysis);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

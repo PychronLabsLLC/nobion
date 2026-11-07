@@ -4,7 +4,7 @@
 #include <array>
 #include <utility>
 
-namespace pychron::spectrometer::cfg {
+namespace nobion::spectrometer::cfg {
 namespace {
 
 constexpr std::array kRoles{
@@ -76,4 +76,4 @@ std::optional<ChannelRef> parse_channel_ref(std::string_view text) {
   return ChannelRef{std::string(text.substr(0, colon)), std::string(text.substr(colon + 1))};
 }
 
-}  // namespace pychron::spectrometer::cfg
+}  // namespace nobion::spectrometer::cfg

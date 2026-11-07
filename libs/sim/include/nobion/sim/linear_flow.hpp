@@ -61,7 +61,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 
 // K and s by their parts, so that K is symmetric in the sqrt(V) scaling by
 // construction. `loss` and `source` have one entry per volume.
@@ -106,4 +106,4 @@ class LinearFlow {
   std::vector<std::size_t> keeps_;
 };
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

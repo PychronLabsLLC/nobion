@@ -10,7 +10,7 @@
 #include <map>
 #include <set>
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 using Json = nlohmann::ordered_json;
 
@@ -365,4 +365,4 @@ std::string release_record_json(const Manifest& m, const ReleaseTables& t) {
   return j.dump(2) + "\n";
 }
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

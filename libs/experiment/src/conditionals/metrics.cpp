@@ -1,6 +1,6 @@
 #include "nobion/experiment/conditionals/metrics.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 std::optional<std::vector<double>> ChainContext::series(const MetricRef& m) const {
   for (const auto* c : chain_)
@@ -133,4 +133,4 @@ std::optional<double> RecordMetrics::scalar(const MetricRef& m) const {
   }
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

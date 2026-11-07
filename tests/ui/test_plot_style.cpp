@@ -14,15 +14,15 @@
 #include "strip_chart_model.hpp"
 #include "strip_chart_view.hpp"
 
-using pychron::ui::default_plot_style;
-using pychron::ui::DetectorSeries;
-using pychron::ui::PlotStyle;
-using pychron::ui::Preferences;
-using pychron::ui::plot_series_color;
-using pychron::ui::plot_style;
-using pychron::ui::StripChartModel;
-using pychron::ui::StripChartView;
-namespace pp = pychron::processing;
+using nobion::ui::default_plot_style;
+using nobion::ui::DetectorSeries;
+using nobion::ui::PlotStyle;
+using nobion::ui::Preferences;
+using nobion::ui::plot_series_color;
+using nobion::ui::plot_style;
+using nobion::ui::StripChartModel;
+using nobion::ui::StripChartView;
+namespace pp = nobion::processing;
 
 namespace {
 
@@ -34,7 +34,7 @@ class TestPlotStyle : public QObject {
   Q_OBJECT
 
  private slots:
-  void cleanup() { pychron::ui::apply_application_preferences(Preferences{}); }
+  void cleanup() { nobion::ui::apply_application_preferences(Preferences{}); }
 
   void default_series_are_the_figure_palette() {
     const auto style = default_plot_style();
@@ -74,7 +74,7 @@ class TestPlotStyle : public QObject {
   void style_from_preferences_overrides_only_named_slots() {
     Preferences p;
     p.plot_series_colors = {{7, "#00ff00"}};
-    const PlotStyle style = pychron::ui::plot_style_from(p);
+    const PlotStyle style = nobion::ui::plot_style_from(p);
     const PlotStyle defaults = default_plot_style();
     QCOMPARE(style.series.size(), std::size_t{12});
     QCOMPARE(style.series[6].name(), QStringLiteral("#00ff00"));
@@ -89,17 +89,17 @@ class TestPlotStyle : public QObject {
     style.series[5] = QColor(QStringLiteral("#222222"));
     style.series[11] = QColor(QStringLiteral("#333333"));
     Preferences p;
-    pychron::ui::store_plot_style(style, p);
+    nobion::ui::store_plot_style(style, p);
     QCOMPARE(p.plot_series_colors.size(), std::size_t{3});
-    QVERIFY(pychron::ui::plot_style_from(p) == style);
+    QVERIFY(nobion::ui::plot_style_from(p) == style);
   }
 
   void applying_preferences_sets_the_current_style() {
     Preferences p;
     p.plot_background = "#202020";
-    pychron::ui::apply_application_preferences(p);
+    nobion::ui::apply_application_preferences(p);
     QCOMPARE(plot_style().plot_background.name(), QStringLiteral("#202020"));
-    pychron::ui::apply_application_preferences(Preferences{});
+    nobion::ui::apply_application_preferences(Preferences{});
     QVERIFY(plot_style() == default_plot_style());
   }
 
@@ -107,7 +107,7 @@ class TestPlotStyle : public QObject {
     PlotStyle style;
     style.series = {QColor(QStringLiteral("#010101"))};
     style.plot_background = QColor(QStringLiteral("#ffffff"));
-    pychron::ui::set_plot_style(style);
+    nobion::ui::set_plot_style(style);
     QCOMPARE(plot_style().series.size(), std::size_t{12});
     QCOMPARE(plot_style().series[0].name(), QStringLiteral("#010101"));
     QCOMPARE(plot_style().series[1], default_plot_style().series[1]);

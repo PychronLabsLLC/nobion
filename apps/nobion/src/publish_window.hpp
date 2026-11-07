@@ -32,11 +32,11 @@ class QPushButton;
 class QStandardItemModel;
 class QTableView;
 
-namespace pychron::processing {
+namespace nobion::processing {
 class StoreSource;
 }
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class EntryBridge;
 
@@ -172,4 +172,4 @@ class PublishWindow : public QMainWindow {
   int jobs_ = 0;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

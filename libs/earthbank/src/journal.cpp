@@ -29,7 +29,7 @@
 #include "nobion/core/path_text.hpp"
 #include "nobion/core/sha256.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 namespace fs = std::filesystem;
@@ -318,4 +318,4 @@ Result<void> save_journal(const Journal& journal, const fs::path& file) {
   return {};
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

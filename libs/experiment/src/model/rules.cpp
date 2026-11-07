@@ -1,6 +1,6 @@
 #include "nobion/experiment/model/rules.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 FieldRules rules_for(AnalysisType type) {
   switch (type) {
@@ -88,4 +88,4 @@ std::vector<Issue> validate_queue(const QueueSpec& queue, const IdentifierRules&
   return out;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

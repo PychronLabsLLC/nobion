@@ -30,7 +30,7 @@
 
 #include "nobion/codecs/codec.hpp"
 
-namespace pychron::codec::modbus {
+namespace nobion::codec::modbus {
 
 enum class Function : std::uint8_t {
   ReadCoils = 0x01,
@@ -121,4 +121,4 @@ Bytes encode_write_single_coil(std::uint16_t tid, std::uint8_t unit, std::uint16
 Bytes encode_write_multiple_registers(std::uint16_t tid, std::uint8_t unit, std::uint16_t start, std::uint16_t count);
 Bytes encode_exception(std::uint16_t tid, std::uint8_t unit, std::uint8_t function, std::uint8_t code);
 
-}  // namespace pychron::codec::modbus
+}  // namespace nobion::codec::modbus

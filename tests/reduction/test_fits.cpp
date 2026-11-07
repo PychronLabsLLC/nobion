@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace pr = pychron::reduction;
+namespace pr = nobion::reduction;
 
 namespace {
 
@@ -207,7 +207,7 @@ TEST(Fits, KindNamesRoundTrip) {
   EXPECT_FALSE(pr::parse_fit_kind("weighted_mean").has_value());
 }
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 namespace {
 
 TEST(Fits, TheCurveIsKeptForDrawing) {
@@ -241,4 +241,4 @@ TEST(Fits, TheCurveIsKeptForDrawing) {
 }
 
 }  // namespace
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

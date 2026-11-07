@@ -16,22 +16,22 @@
 #include "queue_table_model.hpp"
 #include "run_factory_panel.hpp"
 
-using pychron::experiment::AnalysisType;
-using pychron::experiment::FactoryForm;
-using pychron::experiment::StepHeatTemplate;
-using pychron::ui::QueueTableModel;
-using pychron::ui::RunFactoryPanel;
-using pychron::ui::PackageChoice;
-using pychron::ui::PackageContents;
-namespace lab = pychron::experiment::lab;
+using nobion::experiment::AnalysisType;
+using nobion::experiment::FactoryForm;
+using nobion::experiment::StepHeatTemplate;
+using nobion::ui::QueueTableModel;
+using nobion::ui::RunFactoryPanel;
+using nobion::ui::PackageChoice;
+using nobion::ui::PackageContents;
+namespace lab = nobion::experiment::lab;
 
 namespace {
 
 // Records what the panel asks and answers nothing until the test does, so the
 // order of the answers is the test's choice.
-struct FakeIdentifierSource : pychron::ui::IdentifierSource {
-  using PackagesDone = std::function<void(pychron::Result<std::vector<PackageChoice>>)>;
-  using ContentsDone = std::function<void(pychron::Result<PackageContents>)>;
+struct FakeIdentifierSource : nobion::ui::IdentifierSource {
+  using PackagesDone = std::function<void(nobion::Result<std::vector<PackageChoice>>)>;
+  using ContentsDone = std::function<void(nobion::Result<PackageContents>)>;
   std::vector<PackagesDone> package_calls;
   std::vector<std::pair<std::string, ContentsDone>> content_calls;
   void packages(QObject*, PackagesDone done) override { package_calls.push_back(std::move(done)); }
@@ -99,11 +99,11 @@ class TestRunFactoryPanel : public QObject {
 
  private slots:
   void initTestCase() {
-    dir_ = pychron::ui::test::scratch_lab();
+    dir_ = nobion::ui::test::scratch_lab();
     // Written out of order: the combo sorts them.
     write_template("b-two", kBTwo);
     write_template("a-one", kAOne);
-    lab_ = std::make_unique<lab::Lab>(lab::load_lab(pychron::ui::test::lab_paths(dir_)));
+    lab_ = std::make_unique<lab::Lab>(lab::load_lab(nobion::ui::test::lab_paths(dir_)));
     QVERIFY(lab_->problems.empty());
   }
   void cleanupTestCase() {
@@ -112,7 +112,7 @@ class TestRunFactoryPanel : public QObject {
   }
   void init() {
     model_ = std::make_unique<QueueTableModel>(lab_->ids, [this](const auto& q) { return lab::check_lab_queue(*lab_, q); });
-    model_->set_queue(pychron::ui::test::example_queue(dir_, lab_->ids));
+    model_->set_queue(nobion::ui::test::example_queue(dir_, lab_->ids));
     selection_.clear();
     inserted_.clear();
     panel_ = std::make_unique<RunFactoryPanel>(*lab_, *model_, [this] { return selection_; });
@@ -181,9 +181,9 @@ class TestRunFactoryPanel : public QObject {
     f.step_heat = "2:2:4";
     panel_->set_form(f);
     // A step heat's preview says what the schedule is.
-    const auto heat = pychron::experiment::build_runs(panel_->form(), lab_->ids);
+    const auto heat = nobion::experiment::build_runs(panel_->form(), lab_->ids);
     QVERIFY(heat.has_value());
-    QCOMPARE(panel_->preview_text(), QString::fromStdString(pychron::experiment::step_heat_summary(*heat)));
+    QCOMPARE(panel_->preview_text(), QString::fromStdString(nobion::experiment::step_heat_summary(*heat)));
     QVERIFY(panel_->preview_text().startsWith(QStringLiteral("4 runs, steps A to D")));
     f.step_heat = "2, warm";
     panel_->set_form(f);
@@ -213,10 +213,10 @@ class TestRunFactoryPanel : public QObject {
     model_ = std::make_unique<QueueTableModel>(lab_->ids, [this](const auto& q) {
       auto c = lab::check_lab_queue(*lab_, q);
       for (std::size_t i = 0; i < q.runs.size(); ++i)
-        c.extra.push_back({pychron::experiment::Severity::Error, static_cast<int>(i), "peak_center", "checked afresh"});
+        c.extra.push_back({nobion::experiment::Severity::Error, static_cast<int>(i), "peak_center", "checked afresh"});
       return c;
     });
-    model_->set_queue(pychron::ui::test::example_queue(dir_, lab_->ids));
+    model_->set_queue(nobion::ui::test::example_queue(dir_, lab_->ids));
     panel_ = std::make_unique<RunFactoryPanel>(*lab_, *model_, [this] { return selection_; });
     panel_->set_form(with_identifier("20001", "1"));
     QVERIFY(!panel_->add_enabled());
@@ -342,10 +342,10 @@ class TestRunFactoryPanel : public QObject {
     FactoryForm f = with_identifier("20010", "7");
     f.step_heat_template = "a-one";
     panel_->set_form(f);
-    const auto runs = pychron::experiment::build_runs(panel_->form(), lab_->ids, lab_->step_heats);
+    const auto runs = nobion::experiment::build_runs(panel_->form(), lab_->ids, lab_->step_heats);
     QVERIFY(runs.has_value());
     QCOMPARE(runs->size(), std::size_t{3});
-    QCOMPARE(panel_->preview_text(), QString::fromStdString(pychron::experiment::step_heat_summary(*runs)));
+    QCOMPARE(panel_->preview_text(), QString::fromStdString(nobion::experiment::step_heat_summary(*runs)));
     QVERIFY2(panel_->preview_text().startsWith(QStringLiteral("3 runs, steps A to C, 2 to 6")),
              qPrintable(panel_->preview_text()));
   }
@@ -365,8 +365,8 @@ class TestRunFactoryPanel : public QObject {
       QCOMPARE(runs[at + i].id.step, steps[i]);
       QCOMPARE(runs[at + i].extraction.value, values[i]);
     }
-    QCOMPARE(runs[at + 1].extraction.duration, pychron::experiment::Duration(20));
-    QCOMPARE(runs[at + 2].extraction.duration, pychron::experiment::Duration(10));
+    QCOMPARE(runs[at + 1].extraction.duration, nobion::experiment::Duration(20));
+    QCOMPARE(runs[at + 2].extraction.duration, nobion::experiment::Duration(10));
     QCOMPARE(panel_->form().step_heat_template, std::string("a-one"));  // kept for the next Add
   }
 
@@ -399,7 +399,7 @@ class TestRunFactoryPanel : public QObject {
     QVERIFY(panel_->field_enabled("save_step_heat"));
     button("save_step_heat")->click();
     QCOMPARE(asked.size(), std::size_t{1});
-    QVERIFY(asked.front() == pychron::experiment::template_from_values({5, 10}, panel_->form()));
+    QVERIFY(asked.front() == nobion::experiment::template_from_values({5, 10}, panel_->form()));
     // A picked template has no text to save.
     panel_->choose_step_heat(QStringLiteral("a-one"));
     QVERIFY(!panel_->field_enabled("save_step_heat"));
@@ -473,7 +473,7 @@ class TestRunFactoryPanel : public QObject {
   // While a queue runs, runs go after the rows the executor has reached even
   // when an earlier row is selected.
   void aRunningQueueTakesRunsAfterTheReachedRows() {
-    model_->set_live(2, [](std::uint64_t base, const auto&) -> pychron::Result<std::uint64_t> { return base + 1; });
+    model_->set_live(2, [](std::uint64_t base, const auto&) -> nobion::Result<std::uint64_t> { return base + 1; });
     panel_->set_insert_after_selection(true);
     selection_ = {0};
     panel_->set_form(with_identifier("20001", "1"));
@@ -691,7 +691,7 @@ class TestRunFactoryPanel : public QObject {
   void aFirstPackagesFailureKeepsTheRowsHidden() {
     FakeIdentifierSource fake;
     panel_->set_identifier_source(&fake);
-    fake.package_calls.at(0)(pychron::fail(pychron::ErrorKind::Io, "store gone"));
+    fake.package_calls.at(0)(nobion::fail(nobion::ErrorKind::Io, "store gone"));
     QVERIFY(!panel_->selects_visible());
   }
 
@@ -700,7 +700,7 @@ class TestRunFactoryPanel : public QObject {
     load(fake);
     const QStringList before = panel_->package_choices();
     fake.notify();
-    fake.package_calls.back()(pychron::fail(pychron::ErrorKind::Io, "store gone"));
+    fake.package_calls.back()(nobion::fail(nobion::ErrorKind::Io, "store gone"));
     QCOMPARE(panel_->package_choices(), before);
     QVERIFY(panel_->selects_visible());
     QVERIFY(panel_->package_tooltip().contains(QStringLiteral("store gone")));
@@ -714,7 +714,7 @@ class TestRunFactoryPanel : public QObject {
     load(fake);
     choose_p1(fake);
     panel_->choose_package(2);
-    fake.content_calls.back().second(pychron::fail(pychron::ErrorKind::Io, "no such level"));
+    fake.content_calls.back().second(nobion::fail(nobion::ErrorKind::Io, "no such level"));
     QCOMPARE(panel_->level_choices(), QStringList{QStringLiteral("(all)")});
     QVERIFY(panel_->identifier_choices().isEmpty());
     QVERIFY(panel_->identifier_tooltip().contains(QStringLiteral("no such level")));
@@ -823,7 +823,7 @@ class TestRunFactoryPanel : public QObject {
     panel_->set_identifier_source(&fake);
     panel_->show();
     QCOMPARE(fake.package_calls.size(), std::size_t{1});  // one is out: showing asks nothing more
-    fake.package_calls[0](pychron::fail(pychron::ErrorKind::Io, "store gone"));
+    fake.package_calls[0](nobion::fail(nobion::ErrorKind::Io, "store gone"));
     QVERIFY(!panel_->selects_visible());
     QVERIFY(panel_->identifier_tooltip().contains(QStringLiteral("store gone")));
     panel_->hide();

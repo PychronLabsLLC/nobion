@@ -21,9 +21,9 @@
 #include "nobion/core/host_name.hpp"
 #include "nobion/core/sha256.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 
 namespace {
 
@@ -1562,4 +1562,4 @@ Result<SaveOutcome> StoreSource::restore_revision(const std::string& analysis, R
   return outcome;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

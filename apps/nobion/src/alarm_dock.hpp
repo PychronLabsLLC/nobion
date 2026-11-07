@@ -14,7 +14,7 @@
 
 #include "nobion/core/events.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 // A standing alarm: a row of the dock.
 struct AlarmRow {
@@ -60,4 +60,4 @@ class AlarmDock : public QDockWidget {
   QPushButton* ack_all_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -49,7 +49,7 @@
 #include "nobion/core/process.hpp"
 #include "nobion/experiment/executor/executor.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 enum class NotifyEvent { RunFailed, QueueEnded, Test, QueueHolding, QueueResumed, Unsafe };
 std::string_view to_string(NotifyEvent e) noexcept;
@@ -148,4 +148,4 @@ bool is_command_channel(const NotificationConfig& config, std::size_t index) noe
 // api_key_env names a variable that is not set here, in channel order.
 std::vector<std::pair<std::string, std::string>> unset_secrets(const NotificationConfig& config);
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

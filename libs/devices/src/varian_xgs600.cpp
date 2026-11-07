@@ -3,7 +3,7 @@
 #include <set>
 #include <utility>
 
-namespace pychron {
+namespace nobion {
 
 namespace xgs = codec::varian_xgs600;
 
@@ -91,6 +91,6 @@ SimTransport::Hook xgs600_sim_hook(Xgs600SimModel model) {
   };
 }
 
-}  // namespace pychron
+}  // namespace nobion
 
-REGISTER_DRIVER("varian_xgs600", pychron::VarianXgs600);
+REGISTER_DRIVER("varian_xgs600", nobion::VarianXgs600);

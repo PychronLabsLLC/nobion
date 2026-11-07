@@ -21,12 +21,12 @@
 #include "script_highlighter.hpp"
 #include "settings_guard.hpp"
 
-using pychron::scripting::ScriptKind;
-using pychron::ui::CodeEditor;
-using pychron::ui::ScriptEditorWindow;
-using pychron::ui::ScriptHighlighter;
+using nobion::scripting::ScriptKind;
+using nobion::ui::CodeEditor;
+using nobion::ui::ScriptEditorWindow;
+using nobion::ui::ScriptHighlighter;
 namespace fs = std::filesystem;
-namespace lab = pychron::experiment::lab;
+namespace lab = nobion::experiment::lab;
 
 namespace {
 
@@ -43,7 +43,7 @@ class TestScriptEditor : public QObject {
   Q_OBJECT
 
   QTemporaryDir tmp_;
-  pychron::ui::test::ApplicationSettingsGuard app_settings_;
+  nobion::ui::test::ApplicationSettingsGuard app_settings_;
   fs::path dir_;
   std::unique_ptr<lab::Lab> lab_;
   bool python_ = false;
@@ -54,13 +54,13 @@ class TestScriptEditor : public QObject {
 
  private slots:
   void initTestCase() {
-    dir_ = pychron::ui::test::scratch_lab();
+    dir_ = nobion::ui::test::scratch_lab();
     fs::create_directories(dir_ / "scripts" / "lib");
     std::ofstream(dir_ / "scripts" / "lib" / "pump.py") << "def main():\n    sleep(5)\n";
     std::ofstream(dir_ / "scripts" / "extraction" / "with_gosub.py")
         << "def main():\n    gosub('pump')\n    sleep(1)\n";
-    lab_ = std::make_unique<lab::Lab>(lab::load_lab(pychron::ui::test::lab_paths(dir_)));
-    python_ = pychron::scripting::make_script_host()->available();
+    lab_ = std::make_unique<lab::Lab>(lab::load_lab(nobion::ui::test::lab_paths(dir_)));
+    python_ = nobion::scripting::make_script_host()->available();
   }
   void cleanupTestCase() {
     lab_.reset();
@@ -182,7 +182,7 @@ class TestScriptEditor : public QObject {
 
   // File > Open: one of the lab's scripts, by the name the tree gives it.
   void fileOpenPicksOneOfTheLabsScripts() {
-    using pychron::ui::MenuHub;
+    using nobion::ui::MenuHub;
     ScriptEditorWindow w(*lab_, settings());
     QStringList offered;
     std::optional<QString> answer;

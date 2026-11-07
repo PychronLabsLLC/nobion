@@ -11,7 +11,7 @@
 #include "nobion/transport/trace.hpp"
 #include "nobion/transport/transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // Decorator: forwards every call to `inner` and appends tx/rx/err records
 // with timestamps to `sink`, in a format SimTransport::replay() reads.
@@ -58,4 +58,4 @@ class TraceRecorder final : public Transport {
   std::mutex mutex_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

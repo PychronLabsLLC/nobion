@@ -15,7 +15,7 @@
 #include "nobion/experiment/model/run_spec.hpp"
 #include "nobion/experiment/run/state.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 struct ResumeOffer {
   std::size_t next_row = 0;
@@ -40,4 +40,4 @@ struct ResumeOffer {
 [[nodiscard]] std::optional<ResumeOffer> resume_offer(const experiment::executor::ExecutorStateFile& file,
                                                       const experiment::QueueSpec& queue, const QDateTime& written);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

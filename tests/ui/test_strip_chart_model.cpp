@@ -15,16 +15,16 @@
 #include "strip_chart_model.hpp"
 #include "theme.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
-using pychron::spectrometer::IntensityReading;
-using pychron::spectrometer::Value;
-using pychron::ui::AxisRange;
-using pychron::ui::DetectorSeries;
-using pychron::ui::IntensitiesModel;
-using pychron::ui::PlotStyle;
-using pychron::ui::StripChartModel;
-using pychron::ui::YScale;
+using nobion::spectrometer::IntensityReading;
+using nobion::spectrometer::Value;
+using nobion::ui::AxisRange;
+using nobion::ui::DetectorSeries;
+using nobion::ui::IntensitiesModel;
+using nobion::ui::PlotStyle;
+using nobion::ui::StripChartModel;
+using nobion::ui::YScale;
 
 namespace {
 
@@ -337,7 +337,7 @@ class TestStripChartModel : public QObject {
     IntensitiesModel m(two());
     m.update(row(0.0, {{"H1", 4.0}}, true));
     const QModelIndex cell = m.index(0, IntensitiesModel::ColIntensity);
-    QCOMPARE(m.data(cell, Qt::BackgroundRole).value<QBrush>().color(), pychron::ui::theme().error);
+    QCOMPARE(m.data(cell, Qt::BackgroundRole).value<QBrush>().color(), nobion::ui::theme().error);
     QCOMPARE(m.data(cell, Qt::ToolTipRole).toString(), QStringLiteral("saturated"));
     QCOMPARE(m.data(m.index(0, IntensitiesModel::ColColour), Qt::BackgroundRole).value<QBrush>().color(),
              StripChartModel::palette_color(0));
@@ -355,7 +355,7 @@ class TestStripChartModel : public QObject {
     QCOMPARE(changed.count(), 1);
     for (int col : {IntensitiesModel::ColName, IntensitiesModel::ColIsotope, IntensitiesModel::ColIntensity,
                     IntensitiesModel::ColSigma, IntensitiesModel::ColUnits}) {
-      QCOMPARE(m.data(m.index(1, col), Qt::ForegroundRole).value<QBrush>().color(), pychron::ui::theme().faint_text);
+      QCOMPARE(m.data(m.index(1, col), Qt::ForegroundRole).value<QBrush>().color(), nobion::ui::theme().faint_text);
       QVERIFY(!m.data(m.index(0, col), Qt::ForegroundRole).isValid());
     }
     // Its swatch stays, so the row can still be told from the others.

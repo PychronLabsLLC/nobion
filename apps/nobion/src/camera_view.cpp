@@ -6,7 +6,7 @@
 
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -140,4 +140,4 @@ void CameraView::paintEvent(QPaintEvent*) {
   }
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

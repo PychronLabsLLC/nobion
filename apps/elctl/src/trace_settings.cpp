@@ -26,18 +26,18 @@ TraceSettings load_trace_settings(const fs::path& config_file) {
   return settings;
 }
 
-pychron::Result<void> save_trace_settings(const fs::path& config_file, const TraceSettings& settings) {
+nobion::Result<void> save_trace_settings(const fs::path& config_file, const TraceSettings& settings) {
   const fs::path path = trace_state_path(config_file);
   if (!settings.enabled()) {
     std::error_code ec;
     fs::remove(path, ec);
-    if (ec) return pychron::fail(pychron::ErrorKind::Io, "cannot remove " + path.string() + ": " + ec.message());
+    if (ec) return nobion::fail(nobion::ErrorKind::Io, "cannot remove " + path.string() + ": " + ec.message());
     return {};
   }
   std::ofstream out(path, std::ios::trunc);
   if (settings.all) out << "*\n";
   for (const auto& t : settings.transports) out << t << '\n';
-  if (!out) return pychron::fail(pychron::ErrorKind::Io, "cannot write " + path.string());
+  if (!out) return nobion::fail(nobion::ErrorKind::Io, "cannot write " + path.string());
   return {};
 }
 

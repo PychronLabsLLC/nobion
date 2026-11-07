@@ -19,7 +19,7 @@
 #include "nobion/processing/scene_draw.hpp"
 #include "nobion/processing/scene_layout.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 struct PdfInfo {
   std::int64_t created_unix = 0;  // /CreationDate, UTC seconds (a release's created_utc)
@@ -33,4 +33,4 @@ std::string scene_pdf(const Scene& scene, const PdfInfo& info, const FigureSize&
 Result<void> save_scene_pdf(const Scene& scene, const PdfInfo& info, const std::filesystem::path& path,
                             const FigureSize& size = {});
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

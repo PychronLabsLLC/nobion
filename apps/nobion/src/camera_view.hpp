@@ -15,7 +15,7 @@
 
 #include "nobion/laser/laser_system.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class CameraView : public QWidget {
   Q_OBJECT
@@ -56,4 +56,4 @@ class CameraView : public QWidget {
   bool stale_ = false;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

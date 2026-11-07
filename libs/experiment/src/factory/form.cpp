@@ -9,7 +9,7 @@
 #include "nobion/experiment/model/rules.hpp"
 #include "nobion/core/number.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 namespace {
 
@@ -256,4 +256,4 @@ Result<FactoryForm> next_form(const FactoryForm& form, const IncrementOptions& i
   return next;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

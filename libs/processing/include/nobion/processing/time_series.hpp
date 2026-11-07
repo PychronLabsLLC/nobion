@@ -11,7 +11,7 @@
 #include "nobion/processing/options.hpp"
 #include "nobion/processing/scene.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 class Unit;
 class Domain;  // domain.hpp
@@ -28,4 +28,4 @@ Result<Scene> build_time_series(const Dataset& dataset, const Options& options, 
 
 std::unique_ptr<Unit> make_time_series_unit();
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

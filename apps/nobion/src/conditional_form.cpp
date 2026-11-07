@@ -16,7 +16,7 @@
 
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 using experiment::ActionSpec;
 using experiment::Conditional;
@@ -364,4 +364,4 @@ bool ConditionalForm::shows_action() const { return !action_row_->isHidden(); }
 bool ConditionalForm::shows_resume() const { return !resume_->isHidden(); }
 bool ConditionalForm::shows_run_flags() const { return !run_flag_row_->isHidden(); }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

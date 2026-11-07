@@ -6,7 +6,7 @@
 
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -138,4 +138,4 @@ QIcon data_icon(const QString& name) {
   return icon;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

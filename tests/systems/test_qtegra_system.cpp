@@ -28,8 +28,8 @@
 #include "nobion/transport/sim_transport.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace std::chrono_literals;
 
 namespace {
@@ -173,7 +173,7 @@ class Collector {
   SignalBus::Subscription sub_;
 };
 
-class QtegraSystem : public pychron::testing::VirtualTimeTest {
+class QtegraSystem : public nobion::testing::VirtualTimeTest {
  protected:
   void SetUp() override {
     scheduler_.start();
@@ -405,17 +405,17 @@ TEST_F(QtegraSystem, SetIntegrationWaitsForAReadInFlight) {
   // (Only EXPECTs from here until the gate is open: the service cannot stop,
   // nor the crew be joined, while the read is held.)
   const std::size_t crowd = clock_.participants();
-  EXPECT_TRUE(pychron::testing::eventually_real([&] { return clock_.waiters() == crowd - 2; }));
+  EXPECT_TRUE(nobion::testing::eventually_real([&] { return clock_.waiters() == crowd - 2; }));
   std::mutex m;
   std::optional<Result<void>> result;
-  pychron::testing::Crew crew(clock_);
+  nobion::testing::Crew crew(clock_);
   crew.start("set_integration", [&] {
     auto r = service.set_integration(500ms);
     std::lock_guard lock(m);
     result = std::move(r);
   });
   // One more takes part, and it is asleep too.
-  EXPECT_TRUE(pychron::testing::eventually_real(
+  EXPECT_TRUE(nobion::testing::eventually_real(
       [&] { return clock_.participants() == crowd + 1 && clock_.waiters() == crowd - 1; }))
       << "set_integration is not waiting for the read in flight";
   {

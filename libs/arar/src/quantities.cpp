@@ -2,7 +2,7 @@
 
 #include <array>
 
-namespace pychron::arar {
+namespace nobion::arar {
 
 namespace {
 
@@ -65,4 +65,4 @@ std::vector<std::string> listed_quantities() {
   return out;
 }
 
-}  // namespace pychron::arar
+}  // namespace nobion::arar

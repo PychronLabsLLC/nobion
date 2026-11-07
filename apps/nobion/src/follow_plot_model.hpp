@@ -16,7 +16,7 @@
 #include "nobion/core/time_series_ring.hpp"
 #include "nobion/laser/laser_system.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 enum class FollowLine {
   StageX,
@@ -63,4 +63,4 @@ class FollowPlotModel {
   bool empty_ = true;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

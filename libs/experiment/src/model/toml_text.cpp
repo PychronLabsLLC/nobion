@@ -7,7 +7,7 @@
 #include <cstdlib>
 #include <cstring>
 
-namespace pychron::experiment::detail {
+namespace nobion::experiment::detail {
 
 // Canonical scalar text: basic (double-quoted) strings and the shortest float
 // that parses back to the same double, so dumps are stable and diff cleanly.
@@ -53,4 +53,4 @@ std::string toml_float(double v) {
   return s;
 }
 
-}  // namespace pychron::experiment::detail
+}  // namespace nobion::experiment::detail

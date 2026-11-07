@@ -6,7 +6,7 @@
 
 #include "registry_impl.hpp"
 
-namespace pychron::metrics {
+namespace nobion::metrics {
 
 namespace {
 
@@ -283,4 +283,4 @@ std::vector<std::string> Registry::names() const {
   return out;
 }
 
-}  // namespace pychron::metrics
+}  // namespace nobion::metrics

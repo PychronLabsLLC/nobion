@@ -7,8 +7,8 @@
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 
 TEST(SourceParamRegistry, CoversEveryParamWithUniqueNames) {
   auto all = source_params();

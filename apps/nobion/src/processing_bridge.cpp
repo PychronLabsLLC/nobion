@@ -11,9 +11,9 @@
 
 #include "nobion/core/log_context.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 ProcessingBridge::ProcessingBridge(pp::IAnalysisSource& source, const pp::Domain& domain, QObject* parent)
     : QObject(parent), source_(source), domain_(domain), worker_([this] {
@@ -161,4 +161,4 @@ void ProcessingBridge::loop() {
   }
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

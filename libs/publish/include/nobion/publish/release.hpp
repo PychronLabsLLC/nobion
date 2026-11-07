@@ -15,7 +15,7 @@
 #include "nobion/persistence/publish.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 using persistence::Uuid;
 using persistence::UtcTime;
@@ -80,4 +80,4 @@ Result<void> delete_release(persistence::IStore& store, const persistence::Actor
 // "name", "name@v2" or a uuid text -> the row; Config when none.
 Result<persistence::ReleaseRow> find_release(persistence::IStore& store, std::string_view name_or_uuid);
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

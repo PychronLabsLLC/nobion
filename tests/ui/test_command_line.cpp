@@ -8,7 +8,7 @@
 
 #include "command_line.hpp"
 
-using pychron::ui::parse_command_line;
+using nobion::ui::parse_command_line;
 using Path = std::filesystem::path;
 
 class TestCommandLine : public QObject {
@@ -67,7 +67,7 @@ class TestCommandLine : public QObject {
   void spectrometerFollowedByFlagIsUsageError() {
     auto cli = parse_command_line({QStringLiteral("--spectrometer"), QStringLiteral("--sim")});
     QVERIFY(!cli.has_value());
-    QCOMPARE(cli.error().kind, pychron::ErrorKind::Config);
+    QCOMPARE(cli.error().kind, nobion::ErrorKind::Config);
   }
 
   void spectrometerFileThenSim() {

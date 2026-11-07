@@ -93,7 +93,7 @@
 #include "nobion/arar/reduce.hpp"
 #include "nobion/arar/report.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 // The age reported for a sample. Left to the rule, a sample with heating
 // steps reports its plateau when one exists under PublishOptions::ages and
@@ -189,4 +189,4 @@ struct PublishOptions {
 Result<std::vector<Submission>> build_submissions(const std::vector<processing::AnalysisPtr>& analyses,
                                                   const PublishOptions& options);
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

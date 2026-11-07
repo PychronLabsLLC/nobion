@@ -30,7 +30,7 @@
 #include "nobion/devices/spectrometer/roles.hpp"
 #include "nobion/devices/spectrometer/types.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 // One detector's reading in detector units after software_gain.
 struct Value {
@@ -230,4 +230,4 @@ class AcquisitionEngine {
   std::optional<Error> collect_error_;
 };
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

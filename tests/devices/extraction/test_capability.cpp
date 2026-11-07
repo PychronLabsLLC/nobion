@@ -5,7 +5,7 @@
 #include "nobion/devices/extraction/interfaces.hpp"
 #include "nobion/devices/extraction/services.hpp"
 
-namespace pychron::extraction {
+namespace nobion::extraction {
 namespace {
 
 TEST(ExtractionCapability, NamesRoundTrip) {
@@ -77,4 +77,4 @@ TEST(ExtractionCapability, ServicesIgnoreDeviceClaimsForLineServices) {
 }
 
 }  // namespace
-}  // namespace pychron::extraction
+}  // namespace nobion::extraction

@@ -12,7 +12,7 @@
 
 #include "nobion/core/logger.hpp"
 
-namespace pychron::jobs {
+namespace nobion::jobs {
 
 namespace {
 
@@ -526,4 +526,4 @@ JobSpec peak_center_job(PeakCenterConfig config, PeakCenterOptions options) {
                  }};
 }
 
-}  // namespace pychron::jobs
+}  // namespace nobion::jobs

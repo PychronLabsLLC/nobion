@@ -42,11 +42,11 @@ TEST(ImportCmd, StubWithoutPersistence) {
 #include "nobion/persistence/store.hpp"
 #include "tiny/db.hpp"
 
-using namespace pychron;
-using namespace pychron::dvc;
-using namespace pychron::dvc::testing;
+using namespace nobion;
+using namespace nobion::dvc;
+using namespace nobion::dvc::testing;
 namespace fs = std::filesystem;
-namespace P = pychron::persistence;
+namespace P = nobion::persistence;
 using nlohmann::json;
 using P::Kind;
 using P::Uuid;

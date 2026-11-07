@@ -8,7 +8,7 @@
 #include "nobion/experiment/lab/lab.hpp"
 #include "nobion/experiment/model/positions.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 const IdentifierRules kIds = IdentifierRules::defaults();
@@ -366,4 +366,4 @@ TEST(StepHeatBuild, FormFromRunNeverNamesATemplate) {
 }
 
 }  // namespace
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

@@ -30,7 +30,7 @@
 #include "nobion/core/log_hub.hpp"
 #include "nobion/core/process_log.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -434,4 +434,4 @@ void LogDock::save_with_dialog() {
   if (!save_visible(path)) show_warning(this, "log", tr("Save log"), tr("Could not write %1").arg(path));
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

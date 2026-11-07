@@ -13,7 +13,7 @@
 #include "nobion/experiment/factory/increments.hpp"
 #include "nobion/experiment/record/serialize.hpp"
 
-namespace pychron::experiment::persist {
+namespace nobion::experiment::persist {
 
 namespace fs = std::filesystem;
 
@@ -329,7 +329,7 @@ SpoolFlusher::~SpoolFlusher() {
   while (running_) clock_.wait(idle_, lock);
 }
 
-void SpoolFlusher::schedule_locked(pychron::Duration delay) {
+void SpoolFlusher::schedule_locked(nobion::Duration delay) {
   const std::uint64_t seq = next_seq_++;
   auto id = scheduler_.after("spool.flush", delay, [this, seq] { run(seq); });
   if (id) jobs_.emplace(seq, *id);
@@ -347,7 +347,7 @@ void SpoolFlusher::flush_now() {
   // this one's flush running, or done, and asks for no more than again_.
   for (const auto& [seq, id] : jobs_) (void)scheduler_.cancel(id);
   jobs_.clear();
-  schedule_locked(pychron::Duration::zero());
+  schedule_locked(nobion::Duration::zero());
 }
 
 SpoolStatus SpoolFlusher::status() const {
@@ -376,7 +376,7 @@ void SpoolFlusher::run(std::uint64_t seq) {
   {
     const std::lock_guard lock(mutex_);
     if (flushed) delay_ = options_.interval;
-    const pychron::Duration next = again_ ? pychron::Duration::zero() : delay_;
+    const nobion::Duration next = again_ ? nobion::Duration::zero() : delay_;
     if (!flushed) delay_ = std::min(delay_ * 2, options_.max_interval);
     if (!closing_ && (again_ || now.pending > 0)) schedule_locked(next);
     again_ = false;
@@ -386,7 +386,7 @@ void SpoolFlusher::run(std::uint64_t seq) {
   if (changed && bus_ != nullptr) bus_->publish(now);
   // Notified under the lock: once it is released the destructor may run.
   const std::lock_guard lock(mutex_);
-  if (again_ && !closing_) schedule_locked(pychron::Duration::zero());  // asked for while it published
+  if (again_ && !closing_) schedule_locked(nobion::Duration::zero());  // asked for while it published
   again_ = false;
   running_ = false;
   clock_.notify_all(idle_);
@@ -439,4 +439,4 @@ Result<Allocation> AliquotAllocator::allocate(const RunIdentity& id) {
   return Allocation{*next, id.step};
 }
 
-}  // namespace pychron::experiment::persist
+}  // namespace nobion::experiment::persist

@@ -15,7 +15,7 @@
 #include "nobion/ingest/verify.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::ingest::detail {
+namespace nobion::ingest::detail {
 
 // The source being verified.
 struct VerifySource {
@@ -56,4 +56,4 @@ Result<void> check_parity(const VerifySource& source, persistence::Uuid client,
                           const std::set<std::string>& interpreted_ages, const AgeFn& age_fn,
                           const VerifyOptions& options, VerifyReport& report);
 
-}  // namespace pychron::ingest::detail
+}  // namespace nobion::ingest::detail

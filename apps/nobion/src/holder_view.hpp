@@ -12,7 +12,7 @@
 
 #include "entry_headers.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class HolderView : public QWidget {
   Q_OBJECT
@@ -50,4 +50,4 @@ class HolderView : public QWidget {
   QPointF drag_to_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

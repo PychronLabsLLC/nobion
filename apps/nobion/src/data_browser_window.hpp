@@ -61,7 +61,7 @@ class QTableView;
 class QToolBar;
 class QAction;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class DataBrowserWindow : public QWidget {
   Q_OBJECT
@@ -181,7 +181,7 @@ class DataBrowserWindow : public QWidget {
   void figure_requested(const QString& kind, const QStringList& uuids);
   void export_requested(const QString& exporter_id, const QString& path, const QStringList& uuids);
   void publish_requested(const QStringList& uuids);
-  void color_by_changed(pychron::ui::ColorBy by);
+  void color_by_changed(nobion::ui::ColorBy by);
 
  private:
   // What the user has in front of them, to be found again after a load.
@@ -276,4 +276,4 @@ class DataBrowserWindow : public QWidget {
   bool stale_ = false;                   // a refresh was asked for while the window was not visible
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

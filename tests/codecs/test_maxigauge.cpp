@@ -7,8 +7,8 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-namespace mg = pychron::codec::maxigauge;
+using namespace nobion;
+namespace mg = nobion::codec::maxigauge;
 
 namespace {
 

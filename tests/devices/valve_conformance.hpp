@@ -24,7 +24,7 @@
 #include "nobion/devices/capabilities.hpp"
 #include "nobion/transport/sim_transport.hpp"
 
-namespace pychron::test {
+namespace nobion::test {
 
 // Wraps a SimTransport hook: counts what is sent and can stop answering or
 // answer garbage, for rigs built on SimTransport::hooked().
@@ -108,11 +108,11 @@ inline void expect_valve_conformance(ValveRig& rig) {
       EXPECT_TRUE(r.error().kind == ErrorKind::Timeout || r.error().kind == ErrorKind::Io) << r.error().what;
     }
     auto silent_read = a.read(first);
-    ASSERT_FALSE(silent_read) << "no answer read as " << pychron::to_string(*silent_read);
+    ASSERT_FALSE(silent_read) << "no answer read as " << nobion::to_string(*silent_read);
 
     tap->set(WireTap::Mode::Garbage);
     auto garbled = a.read(first);
-    ASSERT_FALSE(garbled) << "garbage read as " << pychron::to_string(*garbled);
+    ASSERT_FALSE(garbled) << "garbage read as " << nobion::to_string(*garbled);
     EXPECT_EQ(garbled.error().kind, ErrorKind::Protocol) << garbled.error().what;
 
     tap->set(WireTap::Mode::Normal);
@@ -123,4 +123,4 @@ inline void expect_valve_conformance(ValveRig& rig) {
   }
 }
 
-}  // namespace pychron::test
+}  // namespace nobion::test

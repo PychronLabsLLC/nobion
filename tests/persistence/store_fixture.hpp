@@ -22,7 +22,7 @@
 #include "nobion/persistence/store.hpp"
 #include "tiny/db.hpp"
 
-namespace pychron::persistence::testing {
+namespace nobion::persistence::testing {
 
 inline std::string pg_url() {
   return env_var("NOBION_TEST_PG_URL").value_or("");
@@ -235,4 +235,4 @@ class StoreTest : public ::testing::TestWithParam<std::string> {
   Lab lab_;
 };
 
-}  // namespace pychron::persistence::testing
+}  // namespace nobion::persistence::testing

@@ -46,7 +46,7 @@
 #include "nobion/systems/jobs/job.hpp"
 #include "nobion/systems/jobs/sweep.hpp"
 
-namespace pychron::jobs {
+namespace nobion::jobs {
 
 // ---- pure fit -----------------------------------------------------------------
 
@@ -201,4 +201,4 @@ Result<PeakCenterResult> run_peak_center(Spectrometer& spectrometer, const PeakC
 // Kind "peak_center": result is PeakCenterResult.
 JobSpec peak_center_job(PeakCenterConfig config, PeakCenterOptions options = {});
 
-}  // namespace pychron::jobs
+}  // namespace nobion::jobs

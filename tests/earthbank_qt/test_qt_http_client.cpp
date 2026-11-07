@@ -39,7 +39,7 @@
 #include "nobion/earthbank/http.hpp"
 #include "nobion/earthbank/qt_http_client.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using namespace std::chrono_literals;
@@ -642,4 +642,4 @@ TEST(QtHttpClient, MakeHttpClientGivesOne) {
   EXPECT_NE(dynamic_cast<QtHttpClient*>(client.get()), nullptr);
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

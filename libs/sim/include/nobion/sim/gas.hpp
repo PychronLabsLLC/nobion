@@ -20,7 +20,7 @@
 #include <cstddef>
 #include <string_view>
 
-namespace pychron::sim {
+namespace nobion::sim {
 
 enum class Species { Ar36, Ar37, Ar38, Ar39, Ar40, Active, He4, Ne20 };
 
@@ -84,4 +84,4 @@ constexpr Composition with_ar40(const Composition& ratios, double ar40) noexcept
   return out;
 }
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

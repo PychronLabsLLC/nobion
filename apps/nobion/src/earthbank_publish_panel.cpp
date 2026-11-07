@@ -34,9 +34,9 @@
 #include "error_report.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace eb = pychron::earthbank;
+namespace eb = nobion::earthbank;
 
 namespace {
 
@@ -808,4 +808,4 @@ QString EarthbankPublishPanel::hint_text() const {
   return {};
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

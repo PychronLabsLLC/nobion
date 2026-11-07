@@ -34,7 +34,7 @@
 #include "theme.hpp"
 #include "toml_comments.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 using experiment::StepHeatTemplate;
 using experiment::Unit;
@@ -696,4 +696,4 @@ void StepHeatEditorWindow::closeEvent(QCloseEvent* event) {
   QMainWindow::closeEvent(event);
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

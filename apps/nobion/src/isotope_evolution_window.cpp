@@ -29,9 +29,9 @@
 #include "scene_view.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 
 namespace {
 
@@ -433,4 +433,4 @@ bool IsotopeEvolutionWindow::train(const QString& key, int klass) {
   return true;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

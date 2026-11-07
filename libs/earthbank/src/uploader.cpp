@@ -27,7 +27,7 @@
 #include "nobion/earthbank/preflight.hpp"
 #include "nobion/earthbank/session.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 namespace fs = std::filesystem;
@@ -761,4 +761,4 @@ Result<UploadReport> upload(const std::vector<Submission>& submissions, Session&
   return report;
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

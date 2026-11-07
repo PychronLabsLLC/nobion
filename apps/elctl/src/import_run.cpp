@@ -76,7 +76,7 @@ BOOL WINAPI elctl_import_on_console_event(DWORD event) {
 
 namespace elctl::import_detail {
 
-namespace ingest = pychron::ingest;
+namespace ingest = nobion::ingest;
 
 namespace {
 
@@ -116,7 +116,7 @@ void print_paused(Io io, const std::string& name, int done, int total) {
 // on stderr and is no verdict on the import: the caller's exit code stands.
 // A domain with nothing to derive (noble_gas) skips the pass.
 void derive_after_import(const Context& ctx) {
-  namespace pp = pychron::processing;
+  namespace pp = nobion::processing;
   if (ctx.domain->derived().empty()) {
     ctx.io.out << "derive: nothing to derive under domain " << ctx.domain->id() << '\n';
     return;

@@ -37,7 +37,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/laser/track_score.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 struct TrackTables;  // track_bench.cpp: no toml in this header
 
@@ -74,4 +74,4 @@ Result<std::vector<TrackCombo>> run_track(const TrackScenario& scenario, const T
 // `failed N` with the first error when any failed.
 std::string track_table(const std::vector<TrackCombo>& combos);
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

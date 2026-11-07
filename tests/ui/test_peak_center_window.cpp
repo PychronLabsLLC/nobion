@@ -23,9 +23,9 @@
 #include "spectrometer_bridge.hpp"
 #include "spectrometer_fixture.hpp"
 
-using namespace pychron;
-using pychron::ui::PeakCenterWindow;
-using pychron::ui::SpectrometerBridge;
+using namespace nobion;
+using nobion::ui::PeakCenterWindow;
+using nobion::ui::SpectrometerBridge;
 
 namespace {
 
@@ -57,7 +57,7 @@ class TestPeakCenterWindow : public QObject {
   }
 
   QTemporaryDir dir_;
-  pychron::ui::test::ApplicationSettingsGuard app_settings_;
+  nobion::ui::test::ApplicationSettingsGuard app_settings_;
   QString path_;
   int file_ = 0;
   std::unique_ptr<VirtualClock> clock_;  // before the sim on it

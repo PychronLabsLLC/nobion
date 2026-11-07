@@ -5,7 +5,7 @@
 #include "nobion/experiment/record/names.hpp"
 #include "nobion/experiment/record/serialize.hpp"
 
-namespace pychron::experiment::record {
+namespace nobion::experiment::record {
 
 std::string_view to_string(Phase p) noexcept {
   switch (p) {
@@ -148,4 +148,4 @@ Result<AnalysisRecord> RecordBuilder::finalize() const {
   return out;
 }
 
-}  // namespace pychron::experiment::record
+}  // namespace nobion::experiment::record

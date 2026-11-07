@@ -48,10 +48,10 @@ class EntryWindowsTest : public QObject {
 #include "samples_window.hpp"
 #include "store_identifier_source.hpp"
 
-using namespace pychron;
-namespace ps = pychron::persistence;
-namespace en = pychron::entry;
-using pychron::ui::EntryBridge;
+using namespace nobion;
+namespace ps = nobion::persistence;
+namespace en = nobion::entry;
+using nobion::ui::EntryBridge;
 
 namespace {
 
@@ -121,7 +121,7 @@ class EntryWindowsTest : public QObject {
 
   void samples_edit_and_save() {
     auto b = bridge();
-    pychron::ui::SamplesWindow w(*b);
+    nobion::ui::SamplesWindow w(*b);
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
     auto* model = w.model();
     QCOMPARE(model->stored_count(), 2);
@@ -129,10 +129,10 @@ class EntryWindowsTest : public QObject {
     for (int r = 0; r < model->stored_count(); ++r)
       if (model->stored(r)->name == "bt-1") row = r;
     QVERIFY(row >= 0);
-    QVERIFY(model->setData(model->index(row, pychron::ui::SampleTableModel::Note), QStringLiteral("dated")));
-    QVERIFY(model->setData(model->index(row, pychron::ui::SampleTableModel::Lat), QStringLiteral("34.5")));
-    QVERIFY(model->setData(model->index(row, pychron::ui::SampleTableModel::Lon), QStringLiteral("-106")));
-    QVERIFY(!model->setData(model->index(row, pychron::ui::SampleTableModel::Lat), QStringLiteral("north")));
+    QVERIFY(model->setData(model->index(row, nobion::ui::SampleTableModel::Note), QStringLiteral("dated")));
+    QVERIFY(model->setData(model->index(row, nobion::ui::SampleTableModel::Lat), QStringLiteral("34.5")));
+    QVERIFY(model->setData(model->index(row, nobion::ui::SampleTableModel::Lon), QStringLiteral("-106")));
+    QVERIFY(!model->setData(model->index(row, nobion::ui::SampleTableModel::Lat), QStringLiteral("north")));
     QVERIFY(model->dirty());
     w.save();
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy() && !model->dirty(), kWaitMs);
@@ -143,13 +143,13 @@ class EntryWindowsTest : public QObject {
 
   void samples_stale_edit_writes_nothing() {
     auto b = bridge();
-    pychron::ui::SamplesWindow w(*b);
+    nobion::ui::SamplesWindow w(*b);
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
     auto* model = w.model();
     int row = -1;
     for (int r = 0; r < model->stored_count(); ++r)
       if (model->stored(r)->name == "bt-1") row = r;
-    QVERIFY(model->setData(model->index(row, pychron::ui::SampleTableModel::Note), QStringLiteral("mine")));
+    QVERIFY(model->setData(model->index(row, nobion::ui::SampleTableModel::Note), QStringLiteral("mine")));
     // Another client changes the same field first.
     ps::CatalogEditBatch theirs;
     theirs.edits = {ps::CatalogUpdate{ps::CatalogTable::Sample, seeded_.bt1, {}, {{"note", std::string("theirs")}}}};
@@ -165,14 +165,14 @@ class EntryWindowsTest : public QObject {
   // as it is, nothing parsed (PI spec 6).
   void samples_new_pi_by_its_parts() {
     auto b = bridge();
-    pychron::ui::SamplesWindow w(*b);
+    nobion::ui::SamplesWindow w(*b);
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
     int asked = 0;
     w.set_ask_pi([&](const en::PiQuestion&) {
       ++asked;
       return std::optional<en::PiAnswer>();
     });
-    pychron::ui::NewSample s;
+    nobion::ui::NewSample s;
     s.name = "new-1";
     s.project = "Delta";
     s.material = "biotite";
@@ -180,7 +180,7 @@ class EntryWindowsTest : public QObject {
     w.set_form(s);
     QVERIFY(!w.add_from_form());  // no PI chosen
 
-    QPointer<pychron::ui::PiDialog> d = w.new_pi();
+    QPointer<nobion::ui::PiDialog> d = w.new_pi();
     QVERIFY(d);
     d->family_edit()->setText(QStringLiteral("van der Pluijm"));
     d->given_edit()->setText(QStringLiteral("Ben A."));
@@ -213,7 +213,7 @@ class EntryWindowsTest : public QObject {
   // The form refuses a bad ORCID or ROR where it is typed, with the value
   // quoted; an organisation has no given name and no ORCID.
   void pi_dialog_checks_its_fields() {
-    pychron::ui::PiDialog d;
+    nobion::ui::PiDialog d;
     QVERIFY(!d.ok_button()->isEnabled());  // no family name
     d.family_edit()->setText(QStringLiteral("Ross"));
     d.given_edit()->setText(QStringLiteral("Jake"));
@@ -245,7 +245,7 @@ class EntryWindowsTest : public QObject {
   // the stored PI, "another person" makes a new one.
   void samples_new_pi_namesake_is_asked() {
     auto b = bridge();
-    pychron::ui::SamplesWindow w(*b);
+    nobion::ui::SamplesWindow w(*b);
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
     std::vector<en::PiQuestion> asked;
     std::optional<en::PiAnswer> reply = en::PiAnswer{seeded_.ross};
@@ -254,7 +254,7 @@ class EntryWindowsTest : public QObject {
       return reply;
     });
     const auto enter = [&w] {
-      QPointer<pychron::ui::PiDialog> d = w.new_pi();
+      QPointer<nobion::ui::PiDialog> d = w.new_pi();
       d->family_edit()->setText(QStringLiteral("Ross"));
       d->given_edit()->setText(QStringLiteral("Jake"));
       d->ok_button()->click();
@@ -271,7 +271,7 @@ class EntryWindowsTest : public QObject {
     enter();
     QCOMPARE(asked.size(), std::size_t{2});
     QCOMPARE(w.model()->new_pis().size(), std::size_t{1});
-    pychron::ui::NewSample s;
+    nobion::ui::NewSample s;
     s.name = "new-3";
     s.project = "Beta";
     s.material = "sanidine";
@@ -304,7 +304,7 @@ class EntryWindowsTest : public QObject {
     projects[0].name = "Alpha";
     projects[0].principal_investigator = seeded_.ross;
     {
-      pychron::ui::PiQuestionDialog d(q, projects);
+      nobion::ui::PiQuestionDialog d(q, projects);
       QCOMPARE(d.candidates()->rowCount(), 2);
       QCOMPARE(d.candidates()->item(0, 1)->text(), QStringLiteral("NMT"));
       QCOMPARE(d.candidates()->item(0, 3)->text(), QStringLiteral("Alpha"));
@@ -317,7 +317,7 @@ class EntryWindowsTest : public QObject {
       QCOMPARE(d.answer(), std::optional<en::PiAnswer>(en::PiAnswer{c.uuid}));
     }
     {
-      pychron::ui::PiQuestionDialog d(q, projects);
+      nobion::ui::PiQuestionDialog d(q, projects);
       d.another_button()->click();
       QCOMPARE(d.answer(), std::optional<en::PiAnswer>(en::PiAnswer{std::nullopt}));
     }
@@ -326,19 +326,19 @@ class EntryWindowsTest : public QObject {
     b.uuid = ps::Uuid::v7();
     b.affiliation = std::nullopt;
     b.orcid = "0000-0001-5109-3700";
-    QCOMPARE(pychron::ui::pi_label(a, {a, b}), QStringLiteral("J Ross (NMT)"));
-    QCOMPARE(pychron::ui::pi_label(b, {a, b}), QStringLiteral("J Ross (3700)"));
-    QCOMPARE(pychron::ui::pi_label(a, {a, c}), QStringLiteral("J Ross"));
+    QCOMPARE(nobion::ui::pi_label(a, {a, b}), QStringLiteral("J Ross (NMT)"));
+    QCOMPARE(nobion::ui::pi_label(b, {a, b}), QStringLiteral("J Ross (3700)"));
+    QCOMPARE(nobion::ui::pi_label(a, {a, c}), QStringLiteral("J Ross"));
   }
 
   // The form's PI is chosen from the stored ones: no second PI.
   void samples_new_under_an_existing_pi() {
     auto b = bridge();
-    pychron::ui::SamplesWindow w(*b);
+    nobion::ui::SamplesWindow w(*b);
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
     QCOMPARE(w.pi_box()->count(), 1);
     QCOMPARE(w.pi_box()->itemText(0), QStringLiteral("J Ross"));
-    pychron::ui::NewSample s;
+    nobion::ui::NewSample s;
     s.name = "new-2";
     s.principal_investigator = seeded_.ross;
     s.project = "Alpha";
@@ -361,9 +361,9 @@ class EntryWindowsTest : public QObject {
   void pi_editor_makes_an_organisation() {
     const ps::Uuid lab = *store_->add_principal_investigator(seeded_.client, {"NMGRL"});
     auto b = bridge();
-    pychron::ui::SamplesWindow w(*b);
+    nobion::ui::SamplesWindow w(*b);
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
-    QPointer<pychron::ui::PiDialog> d = w.edit_pi(lab);
+    QPointer<nobion::ui::PiDialog> d = w.edit_pi(lab);
     QVERIFY(d);
     QCOMPARE(d->family_edit()->text(), QStringLiteral("NMGRL"));
     QCOMPARE(d->kind_box()->currentIndex(), 0);
@@ -381,7 +381,7 @@ class EntryWindowsTest : public QObject {
 
   void import_pasted_rows() {
     auto b = bridge();
-    pychron::ui::SampleImportDialog d(*b);
+    nobion::ui::SampleImportDialog d(*b);
     d.set_text(QStringLiteral("sample\tproject\tPI\tmaterial\nbt-1\tAlpha\tRoss, J\tsanidine\nz-1\tAlpha\tRoss, J\tsanidine\n"
                               "z-2\t9bad\tRoss, J\tsanidine\n"));
     QVERIFY(d.preview());
@@ -393,7 +393,7 @@ class EntryWindowsTest : public QObject {
     // Fix the row and import.
     d.set_text(QStringLiteral("sample\tproject\tPI\tmaterial\nbt-1\tAlpha\tRoss, J\tsanidine\nz-1\tAlpha\tRoss, J\tsanidine\n"));
     QVERIFY(d.preview());
-    QSignalSpy spy(&d, &pychron::ui::SampleImportDialog::imported);
+    QSignalSpy spy(&d, &nobion::ui::SampleImportDialog::imported);
     d.import_rows();
     QTRY_COMPARE_WITH_TIMEOUT(spy.count(), 1, kWaitMs);
     QCOMPARE(spy.at(0).at(0).toBool(), true);
@@ -414,7 +414,7 @@ class EntryWindowsTest : public QObject {
                                     {"affiliation", std::string("elsewhere")}}}};
     QVERIFY(std::holds_alternative<ps::CatalogApplied>(*store_->apply_catalog_edits(seeded_.client, add)));
     auto b = bridge();
-    pychron::ui::SampleImportDialog d(*b);
+    nobion::ui::SampleImportDialog d(*b);
     std::vector<std::string> asked;
     std::optional<en::PiAnswer> reply;
     d.set_ask_pi([&](const en::PiQuestion& q) {
@@ -428,7 +428,7 @@ class EntryWindowsTest : public QObject {
     QCOMPARE(d.plan()->questions.size(), std::size_t{1});
     QVERIFY2(d.message().contains(QStringLiteral("Import asks")), qPrintable(d.message()));
     // Not answered: nothing written.
-    QSignalSpy spy(&d, &pychron::ui::SampleImportDialog::imported);
+    QSignalSpy spy(&d, &nobion::ui::SampleImportDialog::imported);
     d.import_rows();
     QCOMPARE(asked.size(), std::size_t{1});
     QCOMPARE(spy.count(), 0);
@@ -450,7 +450,7 @@ class EntryWindowsTest : public QObject {
 
   void packages_assign_save_and_generate() {
     auto b = bridge();
-    pychron::ui::PackagesWindow w(*b);
+    nobion::ui::PackagesWindow w(*b);
     int asked = 0;
     w.set_confirm([&](const QString&) {
       ++asked;
@@ -467,7 +467,7 @@ class EntryWindowsTest : public QObject {
     QCOMPARE(w.holder_view()->selected(), (std::set<int>{1, 3}));
     w.assign(bt1);
     QVERIFY(w.grid()->edit().dirty());
-    QVERIFY(w.grid()->setData(w.grid()->index(0, pychron::ui::LevelGridModel::Packet), QStringLiteral("P1")));
+    QVERIFY(w.grid()->setData(w.grid()->index(0, nobion::ui::LevelGridModel::Packet), QStringLiteral("P1")));
 
     // Leaving with unsaved edits asks; "no" drops them.
     w.open_level(seeded_.level_b);
@@ -486,10 +486,10 @@ class EntryWindowsTest : public QObject {
     QCOMPARE(sheet.positions[1].position, 3);
 
     // Identifiers: preview equals what is written.
-    pychron::ui::IdentifierDialog d(*b, *w.current_package());
+    nobion::ui::IdentifierDialog d(*b, *w.current_package());
     QCOMPARE(d.plan().assignments.size(), std::size_t{2});
     const auto planned = d.plan().assignments;
-    QSignalSpy allocated(&d, &pychron::ui::IdentifierDialog::allocated);
+    QSignalSpy allocated(&d, &nobion::ui::IdentifierDialog::allocated);
     d.commit();
     QTRY_COMPARE_WITH_TIMEOUT(allocated.count(), 1, kWaitMs);
     const auto after = store_->level_sheet(seeded_.level_a)->value();
@@ -498,9 +498,9 @@ class EntryWindowsTest : public QObject {
   }
 
   void packages_tree_rows_and_expansion() {
-    namespace pt = pychron::ui::package_tree;
+    namespace pt = nobion::ui::package_tree;
     auto b = bridge();
-    pychron::ui::PackagesWindow w(*b);
+    nobion::ui::PackagesWindow w(*b);
     w.resize(900, 500);
     w.show();
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
@@ -566,7 +566,7 @@ class EntryWindowsTest : public QObject {
       QVERIFY(std::holds_alternative<ps::CatalogApplied>(*store_->apply_catalog_edits(seeded_.client, e.to_batch())));
     }
     auto pkg = *store_->irradiations();
-    pychron::ui::IdentifierDialog d(*b, pkg.front());
+    nobion::ui::IdentifierDialog d(*b, pkg.front());
     QCOMPARE(d.plan().expected_last, std::int64_t{0});
     // Another client numbers position 1 first.
     auto sheets = *en::package_sheets(*store_, seeded_.package);
@@ -578,7 +578,7 @@ class EntryWindowsTest : public QObject {
     QTRY_VERIFY_WITH_TIMEOUT(d.message().contains(QStringLiteral("new plan")), kWaitMs);
     QCOMPARE(d.plan().expected_last, std::int64_t{1});
     QCOMPARE(d.plan().assignments.size(), std::size_t{1});
-    QSignalSpy allocated(&d, &pychron::ui::IdentifierDialog::allocated);
+    QSignalSpy allocated(&d, &nobion::ui::IdentifierDialog::allocated);
     d.commit();
     QTRY_COMPARE_WITH_TIMEOUT(allocated.count(), 1, kWaitMs);
     QCOMPARE(*store_->identifier_counter(std::string(ps::kIdentifierScope)), std::optional<std::int64_t>(2));
@@ -586,7 +586,7 @@ class EntryWindowsTest : public QObject {
 
   void pdf_has_a_page_per_level() {
     auto b = bridge();
-    pychron::ui::PackagesWindow w(*b);
+    nobion::ui::PackagesWindow w(*b);
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
     w.open_level(seeded_.level_a);
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy() && w.grid()->has_edit(), kWaitMs);
@@ -599,8 +599,8 @@ class EntryWindowsTest : public QObject {
 
   void packages_fit_flux_asks_for_the_level() {
     auto b = bridge();
-    pychron::ui::PackagesWindow w(*b);
-    QSignalSpy asked(&w, &pychron::ui::PackagesWindow::flux_requested);
+    nobion::ui::PackagesWindow w(*b);
+    QSignalSpy asked(&w, &nobion::ui::PackagesWindow::flux_requested);
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
     QAction* fit = w.fit_flux_action();
     QVERIFY(fit != nullptr);
@@ -622,7 +622,7 @@ class EntryWindowsTest : public QObject {
 
   void show_level_selects_and_opens_it() {
     auto b = bridge();
-    pychron::ui::PackagesWindow w(*b);
+    nobion::ui::PackagesWindow w(*b);
     int asked = 0;
     w.set_confirm([&](const QString&) {
       ++asked;
@@ -662,13 +662,13 @@ class EntryWindowsTest : public QObject {
 
   void a_change_elsewhere_reloads_the_open_level() {
     auto b = bridge();
-    pychron::ui::PackagesWindow w(*b);
+    nobion::ui::PackagesWindow w(*b);
     w.set_confirm([](const QString&) { return false; });
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
     w.open_level(seeded_.level_a);
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy() && w.grid()->has_edit(), kWaitMs);
     const auto sample_at = [&](int row) {
-      return w.grid()->index(row, pychron::ui::LevelGridModel::Sample).data().toString();
+      return w.grid()->index(row, nobion::ui::LevelGridModel::Sample).data().toString();
     };
     QCOMPARE(sample_at(0), QString());
 
@@ -687,12 +687,12 @@ class EntryWindowsTest : public QObject {
     QCOMPARE(sample_at(0), QStringLiteral("bt-1"));
 
     // With edits pending the level is left as it is.
-    QVERIFY(w.grid()->setData(w.grid()->index(1, pychron::ui::LevelGridModel::Note), QStringLiteral("mine")));
+    QVERIFY(w.grid()->setData(w.grid()->index(1, nobion::ui::LevelGridModel::Note), QStringLiteral("mine")));
     QVERIFY(w.grid()->edit().dirty());
     b->notify_changed();
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
     QVERIFY(w.grid()->edit().dirty());
-    QCOMPARE(w.grid()->index(1, pychron::ui::LevelGridModel::Note).data().toString(), QStringLiteral("mine"));
+    QCOMPARE(w.grid()->index(1, nobion::ui::LevelGridModel::Note).data().toString(), QStringLiteral("mine"));
   }
 
   // Another client puts `sample` on position `position` of level A.
@@ -707,13 +707,13 @@ class EntryWindowsTest : public QObject {
 
   void a_change_elsewhere_keeps_unsaved_doses_and_level_fields() {
     auto b = bridge();
-    pychron::ui::PackagesWindow w(*b);
+    nobion::ui::PackagesWindow w(*b);
     w.set_confirm([](const QString&) { return false; });
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
     w.open_level(seeded_.level_a);
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy() && w.grid()->has_edit(), kWaitMs);
     const auto sample_at = [&](int position) {
-      return w.grid()->index(w.grid()->row_of(position), pychron::ui::LevelGridModel::Sample).data().toString();
+      return w.grid()->index(w.grid()->row_of(position), nobion::ui::LevelGridModel::Sample).data().toString();
     };
     auto* doses = w.findChild<QTableWidget*>(QStringLiteral("packages_doses"));
     auto* z = w.findChild<QLineEdit*>(QStringLiteral("packages_z"));
@@ -770,12 +770,12 @@ class EntryWindowsTest : public QObject {
 
   void a_change_elsewhere_keeps_a_grid_cell_being_typed() {
     auto b = bridge();
-    pychron::ui::PackagesWindow w(*b);
+    nobion::ui::PackagesWindow w(*b);
     w.set_confirm([](const QString&) { return false; });
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy(), kWaitMs);
     w.open_level(seeded_.level_a);
     QTRY_VERIFY_WITH_TIMEOUT(!w.busy() && w.grid()->has_edit(), kWaitMs);
-    using Grid = pychron::ui::LevelGridModel;
+    using Grid = nobion::ui::LevelGridModel;
     const auto sample_at = [&](int position) {
       return w.grid()->index(w.grid()->row_of(position), Grid::Sample).data().toString();
     };
@@ -799,9 +799,9 @@ class EntryWindowsTest : public QObject {
   }
 
   void entry_menu_opens_the_windows() {
-    pychron::ui::MenuHub::reset(pychron::ui::MenuHub::Bars::PerWindow);
+    nobion::ui::MenuHub::reset(nobion::ui::MenuHub::Bars::PerWindow);
     QMainWindow main;
-    auto* actions = new pychron::ui::EntryActions(&main, url_);
+    auto* actions = new nobion::ui::EntryActions(&main, url_);
     main.show();
     actions->samples_action()->trigger();
     QVERIFY(actions->samples() != nullptr);
@@ -835,36 +835,36 @@ class EntryWindowsTest : public QObject {
  private Q_SLOTS:
   void identifier_source_lists_packages() {
     QMainWindow main;
-    auto* actions = new pychron::ui::EntryActions(&main, url_);
-    pychron::ui::StoreIdentifierSource source(*actions);
+    auto* actions = new nobion::ui::EntryActions(&main, url_);
+    nobion::ui::StoreIdentifierSource source(*actions);
     QVERIFY(actions->bridge() == nullptr);  // opened by the first question, not before
-    std::optional<pychron::Result<std::vector<pychron::ui::PackageChoice>>> got;
+    std::optional<nobion::Result<std::vector<nobion::ui::PackageChoice>>> got;
     source.packages(&main, [&](auto r) { got.emplace(std::move(r)); });
     QVERIFY(!got.has_value());  // never answered before the call returns
     QTRY_VERIFY_WITH_TIMEOUT(got.has_value(), kWaitMs);
     QVERIFY2(got->has_value(), *got ? "" : to_string(got->error()).c_str());
-    QCOMPARE(**got, (std::vector<pychron::ui::PackageChoice>{{seeded_.package.str(), "P-1"}}));
+    QCOMPARE(**got, (std::vector<nobion::ui::PackageChoice>{{seeded_.package.str(), "P-1"}}));
   }
 
   void identifier_source_lists_a_packages_levels_and_identifiers() {
     seed_identifiers();
     QMainWindow main;
-    auto* actions = new pychron::ui::EntryActions(&main, url_);
-    pychron::ui::StoreIdentifierSource source(*actions);
-    std::optional<pychron::Result<pychron::ui::PackageContents>> got;
+    auto* actions = new nobion::ui::EntryActions(&main, url_);
+    nobion::ui::StoreIdentifierSource source(*actions);
+    std::optional<nobion::Result<nobion::ui::PackageContents>> got;
     source.contents(&main, seeded_.package.str(), [&](auto r) { got.emplace(std::move(r)); });
     QTRY_VERIFY_WITH_TIMEOUT(got.has_value(), kWaitMs);
     QVERIFY2(got->has_value(), *got ? "" : to_string(got->error()).c_str());
-    const pychron::ui::PackageContents want{
+    const nobion::ui::PackageContents want{
         {"A", "B"}, {{"70001", "FC-2", "A", 1}, {"70003", "FC-2", "A", 3}, {"70010", "bt-1", "B", 2}}};
     QVERIFY(**got == want);
   }
 
   void identifier_source_refuses_a_bad_package_id() {
     QMainWindow main;
-    auto* actions = new pychron::ui::EntryActions(&main, url_);
-    pychron::ui::StoreIdentifierSource source(*actions);
-    std::optional<pychron::Result<pychron::ui::PackageContents>> got;
+    auto* actions = new nobion::ui::EntryActions(&main, url_);
+    nobion::ui::StoreIdentifierSource source(*actions);
+    std::optional<nobion::Result<nobion::ui::PackageContents>> got;
     source.contents(&main, "not-a-uuid", [&](auto r) { got.emplace(std::move(r)); });
     QVERIFY(!got.has_value());
     QTRY_VERIFY_WITH_TIMEOUT(got.has_value(), kWaitMs);
@@ -873,9 +873,9 @@ class EntryWindowsTest : public QObject {
 
   void identifier_source_passes_on_changes() {
     QMainWindow main;
-    auto* actions = new pychron::ui::EntryActions(&main, url_);
-    pychron::ui::StoreIdentifierSource source(*actions);
-    QSignalSpy changed(&source, &pychron::ui::IdentifierSource::changed);
+    auto* actions = new nobion::ui::EntryActions(&main, url_);
+    nobion::ui::StoreIdentifierSource source(*actions);
+    QSignalSpy changed(&source, &nobion::ui::IdentifierSource::changed);
     bool answered = false;
     source.packages(&main, [&](const auto&) { answered = true; });
     QTRY_VERIFY_WITH_TIMEOUT(answered, kWaitMs);
@@ -888,9 +888,9 @@ class EntryWindowsTest : public QObject {
 
   void identifier_source_reports_a_store_it_cannot_open() {
     QMainWindow main;
-    auto* actions = new pychron::ui::EntryActions(&main, "sqlite:/nonexistent-dir/none/x.db");
-    pychron::ui::StoreIdentifierSource source(*actions);
-    std::optional<pychron::Result<std::vector<pychron::ui::PackageChoice>>> got;
+    auto* actions = new nobion::ui::EntryActions(&main, "sqlite:/nonexistent-dir/none/x.db");
+    nobion::ui::StoreIdentifierSource source(*actions);
+    std::optional<nobion::Result<std::vector<nobion::ui::PackageChoice>>> got;
     source.packages(&main, [&](auto r) { got.emplace(std::move(r)); });
     QVERIFY(QApplication::activeModalWidget() == nullptr);
     QTRY_VERIFY_WITH_TIMEOUT(got.has_value(), kWaitMs);

@@ -37,7 +37,7 @@
 #include "nobion/earthbank/uploader.hpp"
 #include "upload_support.hpp"
 
-namespace pychron::earthbank::testing {
+namespace nobion::earthbank::testing {
 
 struct RoundTrip {
   std::string base_url, username, password;
@@ -174,4 +174,4 @@ inline void run_round_trip(IHttpClient& http, const RoundTrip& with) {
   out << "a second upload sent nothing new\n";
 }
 
-}  // namespace pychron::earthbank::testing
+}  // namespace nobion::earthbank::testing

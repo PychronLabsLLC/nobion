@@ -11,7 +11,7 @@
 #include "nobion/entry/settings.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 struct PlannedIdentifier {
   persistence::Uuid position;
@@ -49,4 +49,4 @@ Result<std::int64_t> current_last(persistence::IStore& store);
 // Every level sheet of a package, in level-name order.
 Result<std::vector<persistence::LevelSheet>> package_sheets(persistence::IStore& store, persistence::Uuid package);
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

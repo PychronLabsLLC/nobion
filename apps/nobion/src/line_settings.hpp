@@ -21,7 +21,7 @@
 #include "nobion/core/config/logging_config.hpp"
 #include "nobion/core/config/metrics_config.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 struct LineSettings {
   config::LoggingConfig logging;         // in force here: the shared file with the local one over it
@@ -58,4 +58,4 @@ std::optional<LineSettings> load_line_settings(const std::filesystem::path& main
 // then as it was).
 QString save_line_settings(const std::filesystem::path& main_file, const LineSettings& wanted);
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

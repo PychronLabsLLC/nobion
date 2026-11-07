@@ -32,12 +32,12 @@
 #include "spectrometer_bridge.hpp"
 #include "spectrometer_fixture.hpp"
 
-using namespace pychron;
-using pychron::spectrometer::FieldTable;
-using pychron::spectrometer::FieldTableStore;
-using pychron::ui::FieldTableEditorWindow;
-using pychron::ui::FieldTableModel;
-using pychron::ui::SpectrometerBridge;
+using namespace nobion;
+using nobion::spectrometer::FieldTable;
+using nobion::spectrometer::FieldTableStore;
+using nobion::ui::FieldTableEditorWindow;
+using nobion::ui::FieldTableModel;
+using nobion::ui::SpectrometerBridge;
 namespace fs = std::filesystem;
 
 namespace {

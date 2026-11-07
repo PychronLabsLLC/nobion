@@ -25,8 +25,8 @@
 #include "nobion/processing/quantity.hpp"
 #include "nobion/processing/units.hpp"
 
-namespace pp = pychron::processing;
-using pychron::arar::test::make_step;
+namespace pp = nobion::processing;
+using nobion::arar::test::make_step;
 
 namespace {
 
@@ -45,11 +45,11 @@ std::vector<pp::AnalysisPtr> heating_steps() {
   std::vector<pp::AnalysisPtr> out;
   for (std::size_t i = 0; i < ar39.size(); ++i) {
     auto a = make_step(static_cast<int>(i), ar39[i], ar36[i], 10.0);
-    pychron::reduction::ProductionRatios production;
+    nobion::reduction::ProductionRatios production;
     production.k4039 = {0.0, 5e-3};
     production.ca3937 = {0.0, 1e-3};
     production.ca3637 = {0.0, 2e-4};
-    pychron::arar::edit_analysis_data(*a).production = production;
+    nobion::arar::edit_analysis_data(*a).production = production;
     out.push_back(std::move(a));
   }
   return out;
@@ -78,7 +78,7 @@ pp::Dataset reduced_one_by_one(const std::vector<pp::AnalysisPtr>& analyses) {
   pp::Dataset d;
   for (const auto& a : analyses) {
     pp::DatasetItem item;
-    item.analysis = pychron::arar::reduce_with_arar(a);
+    item.analysis = nobion::arar::reduce_with_arar(a);
     d.mutable_items().push_back(item);
   }
   return d;
@@ -100,7 +100,7 @@ void expect_relative(double actual, double expected, const char* what) {
 
 TEST(GroupAgesOverARun, IntegratedAgeAgreesWithPerAnalysisReduction) {
   const auto analyses = heating_steps();
-  const auto domain = pychron::arar::make_domain();
+  const auto domain = nobion::arar::make_domain();
   const pp::DatasetPtr chain = reduced_by_the_chain(analyses, *domain);
   ASSERT_TRUE(chain);
   ASSERT_EQ(chain->items().size(), analyses.size());

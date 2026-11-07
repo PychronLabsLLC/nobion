@@ -14,7 +14,7 @@
 
 #include "nobion/processing/scene.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 struct Range {
   double min = 0.0, max = 1.0;
@@ -104,4 +104,4 @@ SceneLayout layout_scene(const Scene& scene, const FigureSize& size = {});
 double map_x(const PanelLayout& panel, double x);
 double map_y(const PanelLayout& panel, double y);
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

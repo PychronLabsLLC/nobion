@@ -13,7 +13,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 struct PackageChoice {
   std::string id;  // opaque to the panel (the store's uuid as text)
@@ -50,4 +50,4 @@ class IdentifierSource : public QObject {
   void changed();  // the catalog changed: what was listed may be stale
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -4,7 +4,7 @@
 
 #include <QWidget>
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 FlowLayout::FlowLayout(QWidget* parent, int h_spacing, int v_spacing)
     : QLayout(parent), h_spacing_(h_spacing), v_spacing_(v_spacing) {
@@ -63,4 +63,4 @@ int FlowLayout::arrange(const QRect& rect, bool dry) const {
   return y + row_height - rect.y() + m.bottom();
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

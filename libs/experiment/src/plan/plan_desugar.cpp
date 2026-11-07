@@ -15,7 +15,7 @@
 #include <string>
 #include <utility>
 
-namespace pychron::experiment::plan::detail {
+namespace nobion::experiment::plan::detail {
 namespace {
 
 bool contains(const std::vector<std::string>& v, const std::string& s) {
@@ -217,4 +217,4 @@ Result<std::vector<Gas>> desugar_v1(const MeasurementPlan& plan, const V1Tables&
   return Desugar(plan, v1, catalog).run();
 }
 
-}  // namespace pychron::experiment::plan::detail
+}  // namespace nobion::experiment::plan::detail

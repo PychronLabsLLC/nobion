@@ -19,7 +19,7 @@
 #include "nobion/core/log_hub.hpp"
 #include "nobion/core/logger.hpp"
 
-namespace pychron {
+namespace nobion {
 
 class SignalBus;
 
@@ -166,4 +166,4 @@ class Scheduler {
   std::thread dispatcher_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

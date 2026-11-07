@@ -7,9 +7,9 @@
 #include "legacy_json.hpp"
 #include "nobion/dvc/legacy_layout.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 
 namespace {
 
@@ -171,4 +171,4 @@ Result<ParsedProduction> parse_frozen_production(std::string_view json, std::str
   return fail(unexpected_content(e));
 }
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

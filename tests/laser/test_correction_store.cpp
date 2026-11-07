@@ -14,8 +14,8 @@
 #include "nobion/core/sha256.hpp"
 #include "nobion/laser/calibration_store.hpp"
 
-using namespace pychron;
-using namespace pychron::laser;
+using namespace nobion;
+using namespace nobion::laser;
 namespace fs = std::filesystem;
 
 namespace {
@@ -76,7 +76,7 @@ TEST(Fingerprint, ChangesWithAnyPoint) {
 TEST(Fingerprint, IsTheSameEverywhere) {
   const std::vector<CalibrationPoint> points{{"5", 25.0, 25.0}, {"6", 30.0, 25.0}};
   const std::string spelled = "1:5\t4039000000000000\t4039000000000000\n1:6\t403e000000000000\t4039000000000000\n";
-  EXPECT_EQ(fingerprint(points), to_hex(pychron::sha256(std::string_view(spelled))));
+  EXPECT_EQ(fingerprint(points), to_hex(nobion::sha256(std::string_view(spelled))));
 }
 
 TEST_F(CorrectionStoreTest, TheCalibrationStatusCarriesItsFingerprint) {

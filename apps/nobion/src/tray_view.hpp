@@ -19,7 +19,7 @@
 #include "nobion/laser/calibration.hpp"
 #include "nobion/laser/tray_map.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class TrayView : public QWidget {
   Q_OBJECT
@@ -76,4 +76,4 @@ class TrayView : public QWidget {
   QString current_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

@@ -4,7 +4,7 @@
 
 #include "nobion/codecs/pulse_counter.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace pc = codec::pulse_counter;
 
@@ -72,4 +72,4 @@ SimTransport::Hook counter_sim_hook(CounterSimModel model) {
 
 REGISTER_DRIVER("pulse_counter", PulseCounter);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

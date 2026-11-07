@@ -1,6 +1,6 @@
 #include "nobion/core/error.hpp"
 
-namespace pychron {
+namespace nobion {
 
 std::string_view to_string(ErrorKind kind) noexcept {
   switch (kind) {
@@ -27,4 +27,4 @@ std::string to_string(const Error& error) {
   return out;
 }
 
-}  // namespace pychron
+}  // namespace nobion

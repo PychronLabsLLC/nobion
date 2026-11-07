@@ -6,7 +6,7 @@
 #include <string_view>
 #include <utility>
 
-namespace pychron {
+namespace nobion {
 
 // `key=value` pairs joined by ", ". The value of a key named password, token,
 // secret or key is replaced by ***. A key matches when, compared without
@@ -20,4 +20,4 @@ namespace pychron {
 // `max` plus three bytes.
 [[nodiscard]] std::string truncate_for_log(std::string_view text, std::size_t max = 200);
 
-}  // namespace pychron
+}  // namespace nobion

@@ -18,7 +18,7 @@
 
 class QGridLayout;
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 struct LegendEntry {
   QString section;  // "Valves", "Gauges", "Volumes", "Pipes", "Section colours"
@@ -75,4 +75,4 @@ class CanvasLegend : public QWidget {
   QWidget* body_ = nullptr;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

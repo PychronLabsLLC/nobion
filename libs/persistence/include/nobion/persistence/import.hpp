@@ -15,7 +15,7 @@
 #include "nobion/persistence/ids.hpp"
 #include "nobion/persistence/model.hpp"
 
-namespace pychron::persistence {
+namespace nobion::persistence {
 
 enum class ImportSourceKind { ProjectRepo, MetaRepo, LegacyDb };  // 'project_repo' | 'meta_repo' | 'legacy_db'
 enum class ConflictKind { HandEdit, UnknownAnalysis, ValueMismatch, Unparseable, IdentityClash, ProvisionalRenumber };
@@ -145,4 +145,4 @@ class IImportUnitOfWork {
   virtual Result<ChangeSeq> commit() = 0;
 };
 
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence

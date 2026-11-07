@@ -11,7 +11,7 @@
 #include "sample_import_dialog.hpp"
 #include "samples_window.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 EntryActions::EntryActions(QWidget* owner, std::string store_url)
     : QObject(owner),
@@ -94,4 +94,4 @@ PackagesWindow* EntryActions::packages() {
   return packages_;
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

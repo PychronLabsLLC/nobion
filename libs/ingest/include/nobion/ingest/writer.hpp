@@ -17,7 +17,7 @@
 #include "nobion/ingest/batch.hpp"
 #include "nobion/persistence/store.hpp"
 
-namespace pychron::ingest {
+namespace nobion::ingest {
 
 struct WriterConfig {
   std::string importer_version;
@@ -94,4 +94,4 @@ class BatchWriter {
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace pychron::ingest
+}  // namespace nobion::ingest

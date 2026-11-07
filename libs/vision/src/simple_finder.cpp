@@ -10,7 +10,7 @@
 #include "nobion/vision/finder.hpp"
 #include "nobion/vision/kernel.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 namespace {
 
@@ -338,4 +338,4 @@ std::vector<Target> SimpleFinder::find(const FrameView& view, const FinderParams
   return out;
 }
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

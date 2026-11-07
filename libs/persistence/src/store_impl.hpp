@@ -10,7 +10,7 @@
 #include "nobion/persistence/store.hpp"
 #include "tiny/db.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 
 // ---------------------------------------------------------------- change cursor (9.1)
 
@@ -141,4 +141,4 @@ Result<std::optional<AnalysisDetail>> load_analysis_detail(Db& db, Dialect diale
 Result<std::optional<BlobData>> load_blob(Db& db, const Sha256Digest& sha);
 Result<ChangeSeq> latest_change_seq(Db& db);
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

@@ -17,9 +17,9 @@
 #include "plot_style.hpp"
 #include "ui_fixture.hpp"
 
-using namespace pychron;
-using pychron::ui::CoreBridge;
-using pychron::ui::HeaterDock;
+using namespace nobion;
+using nobion::ui::CoreBridge;
+using nobion::ui::HeaterDock;
 
 class TestHeaterDock : public QObject {
   Q_OBJECT

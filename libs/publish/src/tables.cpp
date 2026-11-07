@@ -16,7 +16,7 @@
 #include "nobion/processing/reduced.hpp"
 #include "nobion/reduction/fits.hpp"
 
-namespace pychron::publish {
+namespace nobion::publish {
 
 namespace pp = processing;
 namespace ps = persistence;
@@ -738,4 +738,4 @@ ReleaseTables build_tables(const TableInputs& in) {
   return out;
 }
 
-}  // namespace pychron::publish
+}  // namespace nobion::publish

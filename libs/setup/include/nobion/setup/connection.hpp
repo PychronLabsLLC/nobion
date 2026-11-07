@@ -13,7 +13,7 @@
 #include "nobion/core/error.hpp"
 #include "nobion/setup/profile.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 // What was reached ("spec: isotopx_ngx at 10.0.0.20:1099"), or the first
 // transport or driver that failed. A simulated config connects to nothing
@@ -25,4 +25,4 @@ Result<std::string> connect_spectrometer(const std::filesystem::path& spectromet
 Result<std::string> test_instrument_connection(const ProfileLibrary& library, const ResolvedProfile& profile,
                                                const Answers& answers);
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

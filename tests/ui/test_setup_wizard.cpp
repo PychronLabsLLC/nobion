@@ -32,8 +32,8 @@
 #include "setup_support.hpp"
 #include "setup_wizard.hpp"
 
-using namespace pychron;
-using namespace pychron::ui;
+using namespace nobion;
+using namespace nobion::ui;
 namespace fs = std::filesystem;
 
 namespace {
@@ -540,7 +540,7 @@ class TestSetupWizard : public QObject {
     fs::create_directories(dir("records"));
     processing::RecordDirectorySource records(dir("records"));
     processing::PresetStore presets(dir("presets"), dir("lab-presets"));
-    const auto domain = pychron::arar::make_domain();
+    const auto domain = nobion::arar::make_domain();
     DataMainWindow w(records, presets, *domain, QStringLiteral("data-reduction"));
     QVERIFY(w.browser() != nullptr);
     QCOMPARE(w.centralWidget(), static_cast<QWidget*>(w.browser()));

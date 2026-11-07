@@ -16,7 +16,7 @@
 
 #include "nobion/codecs/codec.hpp"
 
-namespace pychron::codec::pulse_counter {
+namespace nobion::codec::pulse_counter {
 
 inline constexpr std::string_view kTerminator = "\r";
 
@@ -35,4 +35,4 @@ bool is_read_request(const Bytes& tx);
 Bytes encode_counts(const std::vector<std::uint64_t>& counts);
 Bytes encode_error(std::string_view message);
 
-}  // namespace pychron::codec::pulse_counter
+}  // namespace nobion::codec::pulse_counter

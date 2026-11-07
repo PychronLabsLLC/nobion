@@ -18,7 +18,7 @@
 #include "nobion/vision/live_feed.hpp"
 #include "nobion/vision/png.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 using extraction::IStage;
 using extraction::StagePosition;
@@ -996,4 +996,4 @@ std::vector<std::string> LaserSystem::positions() const {
   return out;
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

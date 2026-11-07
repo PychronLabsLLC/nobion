@@ -16,7 +16,7 @@
 #include "nobion/devices/extraction/services.hpp"
 #include "nobion/systems/switch_manager.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 
 class SwitchValveService final : public extraction::IValveService {
  public:
@@ -39,4 +39,4 @@ class SwitchValveService final : public extraction::IValveService {
   std::string actor_;
 };
 
-}  // namespace pychron::systems
+}  // namespace nobion::systems

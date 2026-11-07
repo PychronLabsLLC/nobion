@@ -2,7 +2,7 @@
 
 #include "nobion/core/calendar.hpp"
 
-using pychron::is_calendar_date;
+using nobion::is_calendar_date;
 
 TEST(Calendar, AcceptsDaysOfTheCalendar) {
   for (const char* day : {"2016-02-29", "2000-02-29", "1999-12-31", "0001-01-01", "9999-12-31", "2019-03-04"})

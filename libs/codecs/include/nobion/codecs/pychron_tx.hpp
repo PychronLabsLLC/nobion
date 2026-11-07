@@ -25,7 +25,7 @@
 
 #include "nobion/codecs/codec.hpp"
 
-namespace pychron::codec::pychron_tx {
+namespace nobion::codec::pychron_tx {
 
 inline constexpr std::string_view kTerminator = "\r";
 const ReadSpec& reply_spec() noexcept;
@@ -54,4 +54,4 @@ Bytes encode_ok(bool changed);  // "OK" / "ok"
 Bytes encode_state(bool open);  // "OK" / "False"
 Bytes encode_error(std::string_view code, std::string_view message);  // "ERROR 005 : message"
 
-}  // namespace pychron::codec::pychron_tx
+}  // namespace nobion::codec::pychron_tx

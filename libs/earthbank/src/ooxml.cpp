@@ -29,7 +29,7 @@
 
 #include "nobion/core/user_file.hpp"
 
-namespace pychron::earthbank::ooxml {
+namespace nobion::earthbank::ooxml {
 namespace {
 
 // ===========================================================================
@@ -1523,4 +1523,4 @@ Result<void> Workbook::save(const std::filesystem::path& out) const {
   return {};
 }
 
-}  // namespace pychron::earthbank::ooxml
+}  // namespace nobion::earthbank::ooxml

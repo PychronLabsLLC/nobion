@@ -48,7 +48,7 @@
 #include "nobion/experiment/lab/lasers.hpp"
 #include "nobion/laser/laser_system.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 struct LaserBridgeDeps {
   experiment::lab::Lasers& lasers;  // must outlive the bridge, as must `lab`
@@ -150,18 +150,18 @@ class LaserBridge : public QObject {
   void drain();
 
  signals:
-  void snapshot(const pychron::laser::LaserSnapshot& state);
-  void view(const pychron::laser::CameraView& seen);
+  void snapshot(const nobion::laser::LaserSnapshot& state);
+  void view(const nobion::laser::CameraView& seen);
   void viewFailed(const QString& why);
   // The steps a followed pattern took since the last delivery, oldest first.
   // At most kMaxPendingSamples wait for a main thread that has stalled; the
   // newest are kept.
-  void followSamples(const std::vector<pychron::laser::FollowSample>& samples);
-  void commandFinished(const QString& what, const pychron::Result<void>& result);
+  void followSamples(const std::vector<nobion::laser::FollowSample>& samples);
+  void commandFinished(const QString& what, const nobion::Result<void>& result);
   void driverChanged(bool watch_only);
   void calibrationChanged();
   void snapshotSaved(const QString& file);
-  void scaleMeasured(const pychron::laser::ScaleMeasurement& measured);
+  void scaleMeasured(const nobion::laser::ScaleMeasurement& measured);
 
  private:
   struct Gate;
@@ -202,4 +202,4 @@ class LaserBridge : public QObject {
   std::thread video_thread_;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

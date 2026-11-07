@@ -19,9 +19,9 @@
 #include "nobion/systems/spectrometer/spectrometer.hpp"
 #include "spectrometer_fakes.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
-using namespace pychron::spectrometer::testing;
+using namespace nobion;
+using namespace nobion::spectrometer;
+using namespace nobion::spectrometer::testing;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 

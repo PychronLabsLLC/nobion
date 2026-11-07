@@ -13,7 +13,7 @@
 #include "nobion/devices/capabilities.hpp"
 #include "nobion/devices/channel_gauge.hpp"
 
-namespace pychron {
+namespace nobion {
 
 // Registers configured gauges with the Scheduler, publishes PressureSample per
 // successful read, and evaluates alarm_high / alarm_low. An Alarm is published
@@ -54,4 +54,4 @@ class GaugeScanner {
   std::vector<std::shared_ptr<State>> states_;
 };
 
-}  // namespace pychron
+}  // namespace nobion

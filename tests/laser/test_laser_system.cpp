@@ -31,12 +31,12 @@
 #include "nobion/transport/sim_transport.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::extraction;
-using namespace pychron::laser;
+using namespace nobion;
+using namespace nobion::extraction;
+using namespace nobion::laser;
 using namespace std::chrono_literals;
 
-using namespace pychron::laser::harness;
+using namespace nobion::laser::harness;
 
 namespace {
 
@@ -300,7 +300,7 @@ TEST(LaserSystemFeatures, AStageThatCannotStopSaysSo) {
 
 namespace {
 
-struct LaserSystemVirtual : pychron::testing::VirtualTimeTest {};
+struct LaserSystemVirtual : nobion::testing::VirtualTimeTest {};
 
 }  // namespace
 
@@ -337,13 +337,13 @@ TEST_F(LaserSystemVirtual, TwoCallersContendWithoutStallingTime) {
 
   TimePoint asked{}, read{};
   bool enabled_ok = false, position_ok = false;
-  pychron::testing::Crew crew(clock);
+  nobion::testing::Crew crew(clock);
   crew.start("script", [&] {
     enabled_ok = system.is_enabled().has_value();
     asked = clock.now();
   });
   // The first caller has the gate, and its question is with the device.
-  ASSERT_TRUE(pychron::testing::eventually_real([&] { return slow_answers.load() == 1; }));
+  ASSERT_TRUE(nobion::testing::eventually_real([&] { return slow_answers.load() == 1; }));
   crew.start("watcher", [&] {
     position_ok = system.position().has_value();
     read = clock.now();

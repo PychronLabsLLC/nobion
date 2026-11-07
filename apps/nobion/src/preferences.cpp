@@ -13,7 +13,7 @@
 #include "row_colors.hpp"
 #include "theme.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 namespace {
 
@@ -105,4 +105,4 @@ void apply_application_preferences(const Preferences& preferences) {
   }
 }
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

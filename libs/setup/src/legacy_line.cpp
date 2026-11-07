@@ -19,7 +19,7 @@
 #include "nobion/systems/canvas/cross_validate.hpp"
 #include "nobion/systems/canvas/loader.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 namespace fs = std::filesystem;
 using namespace legacy;
@@ -927,4 +927,4 @@ Result<LegacyLine> import_legacy_line(const fs::path& folder) {
   return out;
 }
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

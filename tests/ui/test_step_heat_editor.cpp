@@ -24,11 +24,11 @@
 #include "step_heat_editor_window.hpp"
 #include "step_heat_table_model.hpp"
 
-using pychron::ui::StepHeatEditorWindow;
-using pychron::ui::StepHeatTableModel;
-namespace ex = pychron::experiment;
+using nobion::ui::StepHeatEditorWindow;
+using nobion::ui::StepHeatTableModel;
+namespace ex = nobion::experiment;
 namespace fs = std::filesystem;
-namespace lab = pychron::experiment::lab;
+namespace lab = nobion::experiment::lab;
 
 namespace {
 
@@ -81,15 +81,15 @@ class TestStepHeatEditor : public QObject {
 
   // The window tests: a fresh scratch lab per test; the lab outlives the window.
   QTemporaryDir tmp_;
-  pychron::ui::test::ApplicationSettingsGuard app_settings_;
+  nobion::ui::test::ApplicationSettingsGuard app_settings_;
   fs::path dir_;
   std::unique_ptr<lab::Lab> lab_;
   int settings_n_ = 0;
 
   fs::path file(const std::string& name) const { return dir_ / "queues" / "step_heats" / (name + ".toml"); }
   void make_lab() {
-    dir_ = pychron::ui::test::scratch_lab();
-    lab_ = std::make_unique<lab::Lab>(lab::load_lab(pychron::ui::test::lab_paths(dir_)));
+    dir_ = nobion::ui::test::scratch_lab();
+    lab_ = std::make_unique<lab::Lab>(lab::load_lab(nobion::ui::test::lab_paths(dir_)));
   }
   std::unique_ptr<StepHeatEditorWindow> window() {
     if (!lab_) make_lab();

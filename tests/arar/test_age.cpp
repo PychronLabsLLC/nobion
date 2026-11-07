@@ -14,8 +14,8 @@
 #include "golden.hpp"
 #include "nobion/arar/arar_reduction.hpp"
 
-using namespace pychron::reduction;
-namespace g = pychron::reduction::golden;
+using namespace nobion::reduction;
+namespace g = nobion::reduction::golden;
 
 namespace {
 
@@ -172,7 +172,7 @@ TEST(Age, NonPositiveArgumentErrors) {
   for (const double f : {-2.0, -1.0}) {
     const auto r = age_equation(UFloat(1.0), UFloat(f), c);
     ASSERT_FALSE(r) << fmt("F = ", f);
-    EXPECT_EQ(r.error().kind, pychron::ErrorKind::Config);
+    EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
     EXPECT_EQ(r.error().what.rfind("reduction: ", 0), 0u) << r.error().what;
     EXPECT_NE(r.error().what.find("1 + J F"), std::string::npos) << r.error().what;
   }

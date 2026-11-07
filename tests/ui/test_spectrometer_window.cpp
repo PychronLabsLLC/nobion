@@ -37,15 +37,15 @@
 #include "peak_center_view.hpp"
 #include "spectrometer_window.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
-using pychron::spectrometer::IntensityReading;
-using pychron::spectrometer::MagnetMoved;
-using pychron::ui::AxisRange;
-using pychron::ui::IntensitiesModel;
-using pychron::ui::SpectrometerBridge;
-using pychron::ui::SpectrometerWindow;
-using pychron::ui::YScale;
+using nobion::spectrometer::IntensityReading;
+using nobion::spectrometer::MagnetMoved;
+using nobion::ui::AxisRange;
+using nobion::ui::IntensitiesModel;
+using nobion::ui::SpectrometerBridge;
+using nobion::ui::SpectrometerWindow;
+using nobion::ui::YScale;
 
 namespace {
 
@@ -109,7 +109,7 @@ class TestSpectrometerWindow : public QObject {
   }
 
   QTemporaryDir dir_;
-  pychron::ui::test::ApplicationSettingsGuard app_settings_;
+  nobion::ui::test::ApplicationSettingsGuard app_settings_;
   QString path_;
   int file_ = 0;
   std::unique_ptr<ui::test::SimSpectrometer> sim_;
@@ -706,8 +706,8 @@ class TestSpectrometerWindow : public QObject {
     QVERIFY(QTest::qWaitForWindowExposed(window_.get()));
     QVERIFY(window_->findChild<QDockWidget*>(QStringLiteral("peakCenterDock")) == nullptr);
     QVERIFY(window_->findChild<QDockWidget*>(QStringLiteral("peakCenterPlotDock")) == nullptr);
-    QVERIFY(window_->findChild<pychron::ui::PeakCenterPanel*>() == nullptr);
-    QVERIFY(window_->findChild<pychron::ui::PeakCenterView*>() == nullptr);
+    QVERIFY(window_->findChild<nobion::ui::PeakCenterPanel*>() == nullptr);
+    QVERIFY(window_->findChild<nobion::ui::PeakCenterView*>() == nullptr);
   }
 
   // A layout saved while the window had the peak center docks names them:

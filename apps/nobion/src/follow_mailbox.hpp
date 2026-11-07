@@ -12,7 +12,7 @@
 
 #include "nobion/laser/laser_system.hpp"
 
-namespace pychron::ui {
+namespace nobion::ui {
 
 class FollowMailbox {
  public:
@@ -30,4 +30,4 @@ class FollowMailbox {
   bool posted_ = false;
 };
 
-}  // namespace pychron::ui
+}  // namespace nobion::ui

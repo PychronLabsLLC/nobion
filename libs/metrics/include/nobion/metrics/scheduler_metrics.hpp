@@ -14,7 +14,7 @@
 #include "nobion/core/scheduler.hpp"
 #include "nobion/metrics/registry.hpp"
 
-namespace pychron::metrics {
+namespace nobion::metrics {
 
 class SchedulerMetrics {
  public:
@@ -30,4 +30,4 @@ class SchedulerMetrics {
   CollectorHandle collector_;
 };
 
-}  // namespace pychron::metrics
+}  // namespace nobion::metrics

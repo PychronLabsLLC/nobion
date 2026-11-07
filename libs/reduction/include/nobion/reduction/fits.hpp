@@ -15,7 +15,7 @@
 
 #include "nobion/core/error.hpp"
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 enum class FitKind {
   Average,      // mean of y
@@ -77,4 +77,4 @@ Result<Intercept> fit(const Series& series, const FitSpec& spec);
 std::string_view to_string(FitKind kind) noexcept;
 std::optional<FitKind> parse_fit_kind(std::string_view name) noexcept;
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction
