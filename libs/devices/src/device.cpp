@@ -1,12 +1,14 @@
 #include "nobion/devices/device.hpp"
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <utility>
 
 #include "nobion/core/events.hpp"
 #include "nobion/core/log_context.hpp"
+#include "nobion/core/log_summary.hpp"
 #include "nobion/core/process_log.hpp"
 #include "nobion/core/signal_bus.hpp"
 
@@ -36,6 +38,10 @@ DeviceState state_of(std::uint64_t failures, bool ever_ok, std::uint64_t fault_a
   return failures >= fault_after ? DeviceState::Faulted : DeviceState::Degraded;
 }
 
+// What of a failure's text the event carries: a driver may put a whole
+// reply in it.
+constexpr std::size_t kMaxErrorText = 512;
+
 }  // namespace
 
 Device::Device(std::string name, DeviceOptions options)
@@ -54,9 +60,10 @@ DeviceHealth Device::health() const {
   return h;
 }
 
-void Device::set_health_bus(SignalBus* bus, std::string transport) noexcept {
+void Device::set_health_bus(SignalBus* bus, std::string_view transport) {
+  const std::lock_guard lock(change_mutex_);
   health_bus_ = bus;
-  transport_ = std::move(transport);
+  transport_ = std::string(transport);
 }
 
 TimePoint Device::log_now() const { return clock_ ? clock_->now() : SteadyClock().now(); }
@@ -92,6 +99,7 @@ void Device::log_relay(std::string_view what, TimePoint started, const Error* er
 
 void Device::record_ok() {
   const TimePoint at = log_now();
+  const std::lock_guard lock(change_mutex_);
   last_ok_.store(at.time_since_epoch().count());
   const std::uint64_t before = failures_.exchange(0);
   const bool was_ok = ever_ok_.exchange(true);
@@ -100,6 +108,7 @@ void Device::record_ok() {
 
 void Device::record_failure(const Error& error) {
   if (error.kind == ErrorKind::Cancelled) return;
+  const std::lock_guard lock(change_mutex_);
   last_error_.store(static_cast<int>(error.kind));
   const std::uint64_t before = failures_.fetch_add(1);
   const bool ok = ever_ok_.load();
@@ -116,7 +125,7 @@ void Device::publish_change(DeviceState from, DeviceState to, std::uint64_t fail
   e.consecutive_failures = failures;
   if (error != nullptr) {
     e.last_error_kind = error->kind;
-    e.last_error_text = error->what;
+    e.last_error_text = truncate_for_log(error->what, kMaxErrorText);
   } else if (const int kind = last_error_.load(); kind >= 0) {
     e.last_error_kind = static_cast<ErrorKind>(kind);
   }

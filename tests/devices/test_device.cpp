@@ -3,6 +3,8 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <mutex>
+#include <thread>
 
 #include "log_capture.hpp"
 #include "nobion/core/events.hpp"
@@ -176,6 +178,58 @@ TEST(Plain, RecoveryPublishesOk) {
   EXPECT_EQ(ok.to, DeviceState::Ok);
   EXPECT_EQ(ok.consecutive_failures, 0u);
   EXPECT_EQ(ok.last_error_kind, ErrorKind::Timeout);  // kept after recovery, as health() keeps it
+}
+
+// Threads failing and succeeding at once: what the bus delivers is one
+// chain of changes, each from where the last one left the device, ending in
+// the state the device is in.
+TEST(Plain, ConcurrentChangesFormOneChain) {
+  SignalBus bus;
+  std::mutex seen_mutex;
+  std::vector<DeviceHealthChanged> seen;
+  const auto sub = bus.subscribe<DeviceHealthChanged>([&](const DeviceHealthChanged& e) {
+    const std::lock_guard lock(seen_mutex);
+    seen.push_back(e);
+  });
+  Plain d("ig1", DeviceOptions{nullptr, 3});
+  d.set_health_bus(&bus, "gauges");
+  {
+    constexpr int kThreads = 8;
+    std::vector<std::jthread> threads;
+    threads.reserve(kThreads);
+    for (int t = 0; t < kThreads; ++t) {
+      threads.emplace_back([&d, t] {
+        for (int i = 0; i < 2000; ++i) {
+          // Mostly failures, so that every threshold is crossed again and again.
+          if ((i + t) % 5 == 0) {
+            (void)d.observe(Result<void>{});
+          } else {
+            (void)d.observe(failure(i));
+          }
+        }
+      });
+    }
+  }
+  const std::lock_guard lock(seen_mutex);
+  ASSERT_FALSE(seen.empty());
+  EXPECT_EQ(seen.front().from, DeviceState::Unknown);
+  for (std::size_t i = 1; i < seen.size(); ++i) {
+    ASSERT_EQ(seen[i].from, seen[i - 1].to) << "event " << i << " of " << seen.size();
+    ASSERT_NE(seen[i].from, seen[i].to);
+  }
+  EXPECT_EQ(seen.back().to, d.health().state);
+}
+
+// The error's text is carried, cut: a driver may put a whole reply in it.
+TEST(Plain, ALongErrorTextIsCut) {
+  SignalBus bus;
+  HealthEvents events(bus);
+  Plain d("ig1", DeviceOptions{nullptr, 3});
+  d.set_health_bus(&bus, "gauges");
+  (void)d.observe(Result<void>(fail(ErrorKind::Protocol, std::string(5000, 'x'))));
+  ASSERT_EQ(events.seen.size(), 1u);
+  EXPECT_LE(events.seen[0].last_error_text.size(), 515u);
+  EXPECT_TRUE(events.seen[0].last_error_text.ends_with("\xE2\x80\xA6"));
 }
 
 TEST(Plain, NoBusPublishesNothing) {

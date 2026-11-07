@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -38,8 +39,9 @@ struct DeviceOptions {
 // Identity and health of one configured device. Behavior lives in the
 // capability interfaces a driver implements, never here.
 //
-// Health is tracked lock-free so health() may be called from any thread
-// while the driver runs on a scheduler worker.
+// Health is read lock-free so health() may be called from any thread while
+// the driver runs on a scheduler worker. Its changes are made one at a time
+// (see change_mutex_), so that what the health bus delivers is in order.
 class Device {
  public:
   explicit Device(std::string name, DeviceOptions options = {});
@@ -60,7 +62,7 @@ class Device {
   // driver is made, before the device is used from any other thread: not
   // safe against an operation running at the same time. `bus` must outlive
   // the device, or be replaced first.
-  void set_health_bus(SignalBus* bus, std::string transport = {}) noexcept;
+  void set_health_bus(SignalBus* bus, std::string_view transport = {});
 
  protected:
   // One device operation as the log sees it: its name (a literal, snake_case:
@@ -151,8 +153,10 @@ class Device {
   }
 
   // Each publishes a DeviceHealthChanged when the state changes and there is
-  // a health bus. The counter's own read-modify-write decides the change, so
-  // of two threads crossing one threshold together only one publishes.
+  // a health bus, under change_mutex_: of two threads crossing thresholds
+  // together, each sees the other's change whole, and the bus delivers the
+  // changes in the order they were made (each event's `from` is the last
+  // one's `to`).
   void record_ok();
   void record_failure(const Error& error);
   void publish_change(DeviceState from, DeviceState to, std::uint64_t failures, const Error* error) const;
@@ -174,6 +178,11 @@ class Device {
   std::atomic<TimePoint::rep> last_ok_{0};
   std::atomic<std::uint64_t> failures_{0};
   std::atomic<int> last_error_{-1};  // ErrorKind, or -1 for none
+  // Held across one outcome's update of the fields above and its publish. A
+  // plain mutex: it guards a few fields and a publish, never a clock wait or
+  // a wire call. DeviceHealthChanged handlers are short and never call into
+  // a device (events.hpp), so nothing taken under it comes back here.
+  std::mutex change_mutex_;
   Logger log_;                       // device.<name>, taken when the device is made
 };
 

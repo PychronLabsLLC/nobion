@@ -88,7 +88,8 @@ struct LinkReconnected {
 // A device's health changed state (spec 2026-11-06-field-diagnostics, 7):
 // published by nobion::Device on the thread that ran the operation (a
 // transport worker, a scheduler job, the caller of the driver), once per
-// change, never once per failure. A handler copies what it needs and
+// change, never once per failure, in the order the changes were made. A
+// handler copies what it needs and
 // returns: it never calls into a device or a transport, which may be the
 // very one publishing.
 struct DeviceHealthChanged {
@@ -99,7 +100,8 @@ struct DeviceHealthChanged {
   std::uint64_t consecutive_failures = 0;
   // Of the last failure; kept after a recovery, as DeviceHealth keeps it.
   std::optional<ErrorKind> last_error_kind;
-  // The last failure's Error::what; empty on a change to Ok.
+  // The last failure's Error::what, cut to 512 bytes (truncate_for_log);
+  // empty on a change to Ok.
   std::string last_error_text;
   TimePoint ts{};  // the device's clock
 };

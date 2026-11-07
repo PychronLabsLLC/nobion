@@ -654,7 +654,7 @@
     },
     {
       "id": 11,
-      "title": "Device failures in a row",
+      "title": "Device failures in a row at the last state change",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -697,7 +697,7 @@
           "mode": "multi"
         }
       },
-      "description": "A device's failed operations in a row, as of its last change of health. Back to 0 when an operation goes through."
+      "description": "A device's failed operations in a row at the last state change of its health (unknown, ok, degraded, faulted). Not updated between changes: a device faulted at 3 stays at 3 while it goes on failing. Back to 0 when it recovers."
     }
   ]
 }

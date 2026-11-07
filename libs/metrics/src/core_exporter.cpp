@@ -49,7 +49,8 @@ constexpr const char* kDeviceState = "nobion_device_state";
 constexpr const char* kDeviceStateHelp = "A device's health: 0 unknown, 1 ok, 2 degraded, 3 faulted.";
 constexpr const char* kDeviceFailures = "nobion_device_consecutive_failures";
 constexpr const char* kDeviceFailuresHelp =
-    "A device's failed operations in a row when its health last changed state. The log has what each said.";
+    "A device's failed operations in a row at the last state change of its health; not updated between changes. "
+    "The log has what each said.";
 
 constexpr AlarmSeverity kSeverities[] = {AlarmSeverity::Info, AlarmSeverity::Warning, AlarmSeverity::Critical};
 constexpr LogLevel kLevels[] = {LogLevel::Trace, LogLevel::Debug, LogLevel::Info, LogLevel::Warn, LogLevel::Error};
