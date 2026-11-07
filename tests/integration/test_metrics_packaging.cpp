@@ -87,7 +87,7 @@ std::string family_of(const std::string& token, const std::set<std::string>& kno
 
 // file -> the families its queries name.
 std::map<std::string, std::set<std::string>> used(const std::set<std::string>& known) {
-  static const std::regex name("pychron_[a-z0-9_]+");
+  static const std::regex name("nobion_[a-z0-9_]+");
   std::map<std::string, std::set<std::string>> out;
   for (const fs::path& p : files_under(kRoot)) {
     const std::string text = slurp(p);
@@ -125,7 +125,7 @@ TEST(MetricsPackaging, EveryExportedMetricIsOnSomeDashboard) {
     if (file.size() > 5 && file.ends_with(".json")) shown.insert(names.begin(), names.end());
   }
   // The endpoint's own bookkeeping is for whoever debugs the endpoint.
-  const std::set<std::string> exempt{"pychron_metrics_dropped_series_total", "pychron_metrics_bad_requests_total"};
+  const std::set<std::string> exempt{"nobion_metrics_dropped_series_total", "nobion_metrics_bad_requests_total"};
   for (const std::string& n : known) {
     if (exempt.contains(n)) continue;
     EXPECT_EQ(shown.count(n), 1u) << n << " is exported and on no dashboard";
@@ -142,9 +142,9 @@ TEST(MetricsPackaging, LinkRecoveriesHoldsGapsAndBacklogsHaveAPanel) {
     if (file.size() > 5 && file.ends_with(".json")) shown.insert(names.begin(), names.end());
   }
   for (const char* n :
-       {"pychron_link_reconnects_total", "pychron_link_repeats_total", "pychron_executor_holds_total",
-        "pychron_executor_holding", "pychron_measurement_gaps_total", "pychron_spool_pending",
-        "pychron_notifications_outbox"}) {
+       {"nobion_link_reconnects_total", "nobion_link_repeats_total", "nobion_executor_holds_total",
+        "nobion_executor_holding", "nobion_measurement_gaps_total", "nobion_spool_pending",
+        "nobion_notifications_outbox"}) {
     EXPECT_EQ(known.count(n), 1u) << n << " is not exported";
     EXPECT_EQ(shown.count(n), 1u) << n << " is on no dashboard";
   }
@@ -152,9 +152,9 @@ TEST(MetricsPackaging, LinkRecoveriesHoldsGapsAndBacklogsHaveAPanel) {
 
 TEST(MetricsPackaging, TheAlertNamesBothConditions) {
   const std::string alert = slurp(kRoot / "grafana" / "provisioning" / "alerting" / "nobion-deadman.yml");
-  EXPECT_NE(alert.find("last_over_time(pychron_queue_active[24h])"), std::string::npos);
+  EXPECT_NE(alert.find("last_over_time(nobion_queue_active[24h])"), std::string::npos);
   EXPECT_NE(alert.find("up{job=\\\"nobion\\\"} == 0"), std::string::npos);
-  EXPECT_NE(alert.find("pychron_scheduler_heartbeat_age_seconds > 60"), std::string::npos);
+  EXPECT_NE(alert.find("nobion_scheduler_heartbeat_age_seconds > 60"), std::string::npos);
   // The box's clock and the instrument computer's need not agree: nothing here compares them.
   EXPECT_EQ(alert.find("time()"), std::string::npos);
   // Grafana leaves a template's dollar alone and keeps a doubled one as it is
@@ -174,7 +174,7 @@ TEST(MetricsPackaging, NoDashboardComparesTheBoxsClockWithTheInstruments) {
 // ignore it; without that the panel is silently empty.
 TEST(MetricsPackaging, QueueProgressDividesDoneByTotal) {
   const std::string board = slurp(kRoot / "grafana" / "dashboards" / "run-operations.json");
-  EXPECT_NE(board.find("status=\\\"done\\\"} / ignoring(status) clamp_min(pychron_queue_runs{"), std::string::npos);
+  EXPECT_NE(board.find("status=\\\"done\\\"} / ignoring(status) clamp_min(nobion_queue_runs{"), std::string::npos);
 }
 
 // The virtual box (box/docker-compose.yml) loads the real box's files; what

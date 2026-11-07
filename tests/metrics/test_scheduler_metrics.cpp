@@ -31,7 +31,7 @@ struct SchedulerMetricsTest : ::testing::Test {
   }
 };
 
-const char* const kHeartbeat = "pychron_scheduler_heartbeat_age_seconds";
+const char* const kHeartbeat = "nobion_scheduler_heartbeat_age_seconds";
 
 }  // namespace
 
@@ -47,9 +47,9 @@ TEST_F(SchedulerMetricsTest, RendersEachJobsCounters) {
   SchedulerMetrics metrics(registry, scheduler, [this] { return now; });
   for (int i = 0; i < 3; ++i) tick(1s);
   const std::string text = registry.render();
-  EXPECT_DOUBLE_EQ(value(text, "pychron_scheduler_job_runs_total{job=\"gauges\"}"), 3.0);
-  EXPECT_DOUBLE_EQ(value(text, "pychron_scheduler_job_failures_total{job=\"gauges\"}"), 1.0);
-  EXPECT_DOUBLE_EQ(value(text, "pychron_scheduler_job_skipped_overlaps_total{job=\"gauges\"}"), 0.0);
+  EXPECT_DOUBLE_EQ(value(text, "nobion_scheduler_job_runs_total{job=\"gauges\"}"), 3.0);
+  EXPECT_DOUBLE_EQ(value(text, "nobion_scheduler_job_failures_total{job=\"gauges\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(text, "nobion_scheduler_job_skipped_overlaps_total{job=\"gauges\"}"), 0.0);
 }
 
 TEST_F(SchedulerMetricsTest, TwoJobsWithOneNameAreAddedTogether) {
@@ -57,9 +57,9 @@ TEST_F(SchedulerMetricsTest, TwoJobsWithOneNameAreAddedTogether) {
   ASSERT_TRUE(scheduler.every("twin", 1s, [] {}).has_value());
   SchedulerMetrics metrics(registry, scheduler, [this] { return now; });
   tick(1s);
-  EXPECT_DOUBLE_EQ(value(registry.render(), "pychron_scheduler_job_runs_total{job=\"twin\"}"), 2.0);
+  EXPECT_DOUBLE_EQ(value(registry.render(), "nobion_scheduler_job_runs_total{job=\"twin\"}"), 2.0);
   // A second scrape reads the same totals: nothing is counted twice.
-  EXPECT_DOUBLE_EQ(value(registry.render(), "pychron_scheduler_job_runs_total{job=\"twin\"}"), 2.0);
+  EXPECT_DOUBLE_EQ(value(registry.render(), "nobion_scheduler_job_runs_total{job=\"twin\"}"), 2.0);
 }
 
 TEST_F(SchedulerMetricsTest, AJobThatIsReplacedKeepsCounting) {
@@ -68,11 +68,11 @@ TEST_F(SchedulerMetricsTest, AJobThatIsReplacedKeepsCounting) {
   SchedulerMetrics metrics(registry, scheduler, [this] { return now; });
   tick(1s);
   tick(1s);
-  EXPECT_DOUBLE_EQ(value(registry.render(), "pychron_scheduler_job_runs_total{job=\"scan\"}"), 2.0);
+  EXPECT_DOUBLE_EQ(value(registry.render(), "nobion_scheduler_job_runs_total{job=\"scan\"}"), 2.0);
   scheduler.cancel(*first);
   ASSERT_TRUE(scheduler.every("scan", 1s, [] {}).has_value());
   tick(1s);
-  EXPECT_DOUBLE_EQ(value(registry.render(), "pychron_scheduler_job_runs_total{job=\"scan\"}"), 3.0);
+  EXPECT_DOUBLE_EQ(value(registry.render(), "nobion_scheduler_job_runs_total{job=\"scan\"}"), 3.0);
 }
 
 TEST_F(SchedulerMetricsTest, TheHeartbeatsAgeGrowsUntilTheSchedulerBeatsAgain) {
@@ -95,7 +95,7 @@ TEST_F(SchedulerMetricsTest, AStoppedSchedulerShowsInTheAge) {
 TEST_F(SchedulerMetricsTest, TheHeartbeatJobIsCountedOnce) {
   SchedulerMetrics metrics(registry, scheduler, [this] { return now; });
   tick(5s);
-  EXPECT_DOUBLE_EQ(value(registry.render(), "pychron_scheduler_job_runs_total{job=\"metrics.heartbeat\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(registry.render(), "nobion_scheduler_job_runs_total{job=\"metrics.heartbeat\"}"), 1.0);
 }
 
 TEST_F(SchedulerMetricsTest, DestructionCancelsTheJobAndTheCollector) {
@@ -107,5 +107,5 @@ TEST_F(SchedulerMetricsTest, DestructionCancelsTheJobAndTheCollector) {
   EXPECT_EQ(scheduler.job_count(), before);
   ASSERT_TRUE(scheduler.every("later", 1s, [] {}).has_value());
   tick(1s);
-  EXPECT_FALSE(metrics_text::has(registry.render(), "pychron_scheduler_job_runs_total{job=\"later\"}"));
+  EXPECT_FALSE(metrics_text::has(registry.render(), "nobion_scheduler_job_runs_total{job=\"later\"}"));
 }

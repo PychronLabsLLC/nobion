@@ -52,7 +52,7 @@ groups:
               # last_over_time, not max_over_time over a short window: that
               # would resolve by itself once the old samples aged out, with
               # the application still gone.
-              expr: "up{job=\"nobion\"} == 0 and on(instance) last_over_time(pychron_queue_active[24h]) == 1"
+              expr: "up{job=\"nobion\"} == 0 and on(instance) last_over_time(nobion_queue_active[24h]) == 1"
           - refId: B
             datasourceUid: __expr__
             model:
@@ -91,7 +91,7 @@ groups:
             model:
               refId: A
               instant: true
-              expr: "pychron_queue_active == 1 and pychron_scheduler_heartbeat_age_seconds > 60"
+              expr: "nobion_queue_active == 1 and nobion_scheduler_heartbeat_age_seconds > 60"
           - refId: B
             datasourceUid: __expr__
             model:

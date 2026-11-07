@@ -1,7 +1,7 @@
 #pragma once
 
 // Reading the rendered text in tests: a series is found by everything before
-// its value, e.g. `pychron_pressure{gauge="IG1",unit="torr"}`.
+// its value, e.g. `nobion_pressure{gauge="IG1",unit="torr"}`.
 
 #include <cstdlib>
 #include <optional>
@@ -41,7 +41,7 @@ inline double value(const std::string& text, std::string_view series) {
 inline std::string without_own(const std::string& text) {
   std::string out;
   for (const std::string& line : lines(text)) {
-    if (line.find("pychron_metrics_") != std::string::npos) continue;
+    if (line.find("nobion_metrics_") != std::string::npos) continue;
     out += line + "\n";
   }
   return out;

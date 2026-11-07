@@ -666,7 +666,7 @@ TEST(NotifierOutbox, ANewNotifierSendsWhatTheLastOneLeftInOrder) {
                                              "webhook 66004-3"}));
 }
 
-// For the metrics (pychron_notifications_outbox): the size is said when it changes.
+// For the metrics (nobion_notifications_outbox): the size is said when it changes.
 TEST(NotifierOutbox, ItsSizeIsSaidWhenItChanges) {
   OutboxDir out;
   SignalBus bus;

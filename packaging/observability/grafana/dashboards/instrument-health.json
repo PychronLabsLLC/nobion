@@ -34,7 +34,7 @@
           "uid": "${datasource}"
         },
         "query": {
-          "query": "label_values(pychron_build_info, instrument)",
+          "query": "label_values(nobion_build_info, instrument)",
           "refId": "instrument"
         },
         "refresh": 2,
@@ -71,7 +71,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_pressure{instrument=\"$instrument\"}",
+          "expr": "nobion_pressure{instrument=\"$instrument\"}",
           "legendFormat": "{{gauge}} ({{unit}})"
         }
       ],
@@ -124,7 +124,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_last_sample_age_seconds{instrument=\"$instrument\"}",
+          "expr": "nobion_last_sample_age_seconds{instrument=\"$instrument\"}",
           "legendFormat": "{{kind}} {{source}}",
           "instant": true
         }
@@ -188,7 +188,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (valve) (pychron_valve_state{instrument=\"$instrument\",state=\"open\"}) + 2 * sum by (valve) (pychron_valve_state{instrument=\"$instrument\",state=\"unknown\"})",
+          "expr": "sum by (valve) (nobion_valve_state{instrument=\"$instrument\",state=\"open\"}) + 2 * sum by (valve) (nobion_valve_state{instrument=\"$instrument\",state=\"unknown\"})",
           "legendFormat": "{{valve}}"
         }
       ],
@@ -256,7 +256,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_temperature_kelvin{instrument=\"$instrument\"}",
+          "expr": "nobion_temperature_kelvin{instrument=\"$instrument\"}",
           "legendFormat": "{{source}} {{input}}"
         }
       ],
@@ -300,7 +300,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_heater_readback{instrument=\"$instrument\"}",
+          "expr": "nobion_heater_readback{instrument=\"$instrument\"}",
           "legendFormat": "{{heater}} readback"
         },
         {
@@ -309,7 +309,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_heater_setpoint{instrument=\"$instrument\"}",
+          "expr": "nobion_heater_setpoint{instrument=\"$instrument\"}",
           "legendFormat": "{{heater}} setpoint"
         }
       ],
@@ -372,7 +372,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_heater_enabled{instrument=\"$instrument\"}",
+          "expr": "nobion_heater_enabled{instrument=\"$instrument\"}",
           "legendFormat": "{{heater}}"
         }
       ],
@@ -435,7 +435,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (source, severity) (increase(pychron_alarms_total{instrument=\"$instrument\"}[$__rate_interval]))",
+          "expr": "sum by (source, severity) (increase(nobion_alarms_total{instrument=\"$instrument\"}[$__rate_interval]))",
           "legendFormat": "{{severity}} {{source}}"
         }
       ],
@@ -486,7 +486,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (valve) (increase(pychron_actuation_failures_total{instrument=\"$instrument\"}[$__range])) > 0",
+          "expr": "sum by (valve) (increase(nobion_actuation_failures_total{instrument=\"$instrument\"}[$__range])) > 0",
           "legendFormat": "{{valve}}",
           "instant": true
         }
@@ -543,7 +543,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (valve) (increase(pychron_valve_transitions_total{instrument=\"$instrument\"}[$__range]))",
+          "expr": "sum by (valve) (increase(nobion_valve_transitions_total{instrument=\"$instrument\"}[$__range]))",
           "legendFormat": "{{valve}}",
           "instant": true
         }

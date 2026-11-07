@@ -652,28 +652,28 @@ TEST_F(MetricsSessionTest, ASimulatedQueueIsCountedAndNamesNoRun) {
 
   const std::string body = scrape();
   using metrics_text::value;
-  EXPECT_DOUBLE_EQ(value(body, "pychron_runs_started_total"), runs);
-  EXPECT_DOUBLE_EQ(value(body, "pychron_runs_finished_total{state=\"success\",truncated=\"false\"}"), runs);
-  EXPECT_DOUBLE_EQ(value(body, "pychron_queues_ended_total{end=\"completed\"}"), 1.0);
-  EXPECT_DOUBLE_EQ(value(body, "pychron_queue_active"), 0.0);
-  EXPECT_DOUBLE_EQ(value(body, "pychron_executor_state{state=\"idle\"}"), 1.0);
-  EXPECT_DOUBLE_EQ(value(body, "pychron_queue_runs{status=\"total\"}"), runs);
-  EXPECT_DOUBLE_EQ(value(body, "pychron_queue_runs{status=\"done\"}"), runs);
-  EXPECT_DOUBLE_EQ(value(body, "pychron_run_save_errors_total"), 0.0);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_runs_started_total"), runs);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_runs_finished_total{state=\"success\",truncated=\"false\"}"), runs);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_queues_ended_total{end=\"completed\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_queue_active"), 0.0);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_executor_state{state=\"idle\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_queue_runs{status=\"total\"}"), runs);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_queue_runs{status=\"done\"}"), runs);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_run_save_errors_total"), 0.0);
   // Every run went through each phase once, and the phases took simulated time.
   for (const char* state : {"preparing", "extracting", "equilibrating", "measuring", "post_measuring", "saving"}) {
-    EXPECT_DOUBLE_EQ(value(body, std::string("pychron_run_state_duration_seconds_count{state=\"") + state + "\"}"), runs)
+    EXPECT_DOUBLE_EQ(value(body, std::string("nobion_run_state_duration_seconds_count{state=\"") + state + "\"}"), runs)
         << state;
   }
-  EXPECT_GT(value(body, "pychron_run_state_duration_seconds_sum{state=\"measuring\"}"), 1.0);
-  EXPECT_GT(value(body, "pychron_measurement_blocks_total{block=\"main\",ok=\"true\"}"), 0.0);
-  EXPECT_TRUE(metrics_text::has(body, "pychron_last_run_finished_age_seconds"));
-  EXPECT_GE(value(body, "pychron_scheduler_heartbeat_age_seconds"), 0.0);
-  EXPECT_LT(value(body, "pychron_scheduler_heartbeat_age_seconds"), 60.0);
+  EXPECT_GT(value(body, "nobion_run_state_duration_seconds_sum{state=\"measuring\"}"), 1.0);
+  EXPECT_GT(value(body, "nobion_measurement_blocks_total{block=\"main\",ok=\"true\"}"), 0.0);
+  EXPECT_TRUE(metrics_text::has(body, "nobion_last_run_finished_age_seconds"));
+  EXPECT_GE(value(body, "nobion_scheduler_heartbeat_age_seconds"), 0.0);
+  EXPECT_LT(value(body, "nobion_scheduler_heartbeat_age_seconds"), 60.0);
   // The line was read while the queue ran.
-  EXPECT_NE(body.find("\npychron_pressure{"), std::string::npos);
-  EXPECT_GT(value(body, "pychron_scheduler_job_runs_total{job=\"metrics.heartbeat\"}"), 0.0);
-  EXPECT_DOUBLE_EQ(value(body, "pychron_metrics_dropped_series_total"), 0.0);
+  EXPECT_NE(body.find("\nnobion_pressure{"), std::string::npos);
+  EXPECT_GT(value(body, "nobion_scheduler_job_runs_total{job=\"metrics.heartbeat\"}"), 0.0);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_metrics_dropped_series_total"), 0.0);
 
   // No run is named: neither its id nor its sample's identifier.
   std::lock_guard lock(mutex_);
@@ -698,10 +698,10 @@ TEST_F(MetricsSessionTest, EveryLinkIsCountedFromZero) {
   const std::string body = scrape();
   for (const Link* l : links) {
     const std::string labels = "{transport=\"" + l->transport().name() + "\"}";
-    EXPECT_TRUE(metrics_text::has(body, "pychron_link_reconnects_total" + labels)) << labels;
-    EXPECT_DOUBLE_EQ(metrics_text::value(body, "pychron_link_reconnects_total" + labels), 0.0) << labels;
-    EXPECT_TRUE(metrics_text::has(body, "pychron_link_repeats_total" + labels)) << labels;
-    EXPECT_DOUBLE_EQ(metrics_text::value(body, "pychron_link_repeats_total" + labels), 0.0) << labels;
+    EXPECT_TRUE(metrics_text::has(body, "nobion_link_reconnects_total" + labels)) << labels;
+    EXPECT_DOUBLE_EQ(metrics_text::value(body, "nobion_link_reconnects_total" + labels), 0.0) << labels;
+    EXPECT_TRUE(metrics_text::has(body, "nobion_link_repeats_total" + labels)) << labels;
+    EXPECT_DOUBLE_EQ(metrics_text::value(body, "nobion_link_repeats_total" + labels), 0.0) << labels;
   }
 }
 

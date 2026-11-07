@@ -26,7 +26,7 @@
 
 namespace nobion::metrics {
 
-// What pychron_build_info says about this build.
+// What nobion_build_info says about this build.
 struct BuildInfo {
   std::string version, os, compiler;
 };
@@ -58,8 +58,8 @@ class CoreExporter {
   CoreExporter(CoreExporter&&) = delete;
   CoreExporter& operator=(CoreExporter&&) = delete;
 
-  // From now on each scrape reads `source` for pychron_link_reconnects_total
-  // and pychron_link_repeats_total, one series per transport it names. It is
+  // From now on each scrape reads `source` for nobion_link_reconnects_total
+  // and nobion_link_repeats_total, one series per transport it names. It is
   // read once here too, so that every transport's counters exist from now
   // (at zero for links just made), not from their first reconnect. Replaces
   // any earlier source; an empty one stops the reading (the series stay at

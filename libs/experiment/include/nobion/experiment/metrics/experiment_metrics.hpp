@@ -15,7 +15,7 @@
 //
 // Durations are differences of the events' own times, on the line's clock:
 // in a simulation they are simulated seconds. The one age
-// (pychron_last_run_finished_age_seconds) is real time, worked out at the
+// (nobion_last_run_finished_age_seconds) is real time, worked out at the
 // scrape.
 
 #include <cstddef>

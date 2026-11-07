@@ -64,9 +64,9 @@ struct MetricsServer::Impl {
       : registry(r),
         options(std::move(o)),
         acceptor(io),
-        scrape_seconds(r.gauge("pychron_metrics_scrape_duration_seconds",
+        scrape_seconds(r.gauge("nobion_metrics_scrape_duration_seconds",
                                "How long the last rendering of the registry took.")),
-        bad_requests(r.counter("pychron_metrics_bad_requests_total",
+        bad_requests(r.counter("nobion_metrics_bad_requests_total",
                                "Connections dropped: too slow, too large, or not HTTP.")) {}
 
   // One client. Kept alive by its own handlers; when the last one is done

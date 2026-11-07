@@ -59,8 +59,8 @@ Check it from the box (use the instrument computer's address):
 curl http://INSTRUMENT_PC:9464/metrics
 ```
 
-You should see several dozen lines that begin `pychron_`, among them one
-`pychron_pressure` line for each gauge. If instead:
+You should see several dozen lines that begin `nobion_`, among them one
+`nobion_pressure` line for each gauge. If instead:
 
 - **the log says `metrics endpoint is off`** (there is an alarm too): the
   port is taken, usually by a second nobion on the same computer, or `bind`
@@ -186,7 +186,9 @@ Prometheus 3.5.
 ### A box set up with the old names
 
 Up to version 0.4, the job was called `pychron`, the folder Pychron and
-the alerts `PychronGone` and `PychronStuck`. On such a box:
+the alerts `PychronGone` and `PychronStuck`, and every metric name began
+`pychron_` (now `nobion_`: dashboards and alert rules from then find no
+data until replaced with the ones shipped now). On such a box:
 
 1. In the box's `prometheus.yml`, rename the job to `nobion` and reload
    Prometheus. Until then the alert finds no data.
@@ -253,49 +255,49 @@ turn it on.
 
 ## What is published
 
-Every name begins `pychron_`. Prometheus adds `instrument` (from step 2) to
+Every name begins `nobion_`. Prometheus adds `instrument` (from step 2) to
 each.
 
 ### The instrument
 
 | Metric | Labels | Meaning |
 |---|---|---|
-| `pychron_pressure` | `gauge`, `unit` | a gauge's last reading, in the unit it is configured with |
-| `pychron_temperature_kelvin` | `source`, `input` | a temperature controller's input |
-| `pychron_heater_readback`, `pychron_heater_setpoint` | `heater` | in the heater's configured unit; absent when the heater does not report it |
-| `pychron_heater_enabled` | `heater` | 1 while the output is on |
-| `pychron_valve_state` | `valve`, `state` (`open`, `closed`, `unknown`) | 1 for the state the valve is in |
-| `pychron_valve_transitions_total` | `valve` | times the valve changed state |
-| `pychron_actuation_failures_total` | `valve` | actuations that failed; `unknown` for a switch the line does not have |
-| `pychron_last_sample_age_seconds` | `kind`, `source` | seconds since the source was last read; a reading is only as fresh as this |
-| `pychron_alarms_total` | `source`, `severity` | alarms raised |
+| `nobion_pressure` | `gauge`, `unit` | a gauge's last reading, in the unit it is configured with |
+| `nobion_temperature_kelvin` | `source`, `input` | a temperature controller's input |
+| `nobion_heater_readback`, `nobion_heater_setpoint` | `heater` | in the heater's configured unit; absent when the heater does not report it |
+| `nobion_heater_enabled` | `heater` | 1 while the output is on |
+| `nobion_valve_state` | `valve`, `state` (`open`, `closed`, `unknown`) | 1 for the state the valve is in |
+| `nobion_valve_transitions_total` | `valve` | times the valve changed state |
+| `nobion_actuation_failures_total` | `valve` | actuations that failed; `unknown` for a switch the line does not have |
+| `nobion_last_sample_age_seconds` | `kind`, `source` | seconds since the source was last read; a reading is only as fresh as this |
+| `nobion_alarms_total` | `source`, `severity` | alarms raised |
 
 ### Runs and queues
 
 | Metric | Labels | Meaning |
 |---|---|---|
-| `pychron_queue_active` | | 1 while a queue is running |
-| `pychron_executor_state` | `state` (`idle`, `preparing`, `running`, `holding`, `stopping`, `cancelling`, `aborting`, `finalizing`) | 1 for the state the executor is in |
-| `pychron_queue_runs` | `status` (`total`, `done`) | the running queue's size and progress |
-| `pychron_queues_ended_total` | `end` | queues ended, by how |
-| `pychron_runs_started_total` | | |
-| `pychron_runs_finished_total` | `state`, `truncated` | runs ended, by their last state |
-| `pychron_run_save_errors_total` | | runs whose record could not be saved |
-| `pychron_run_state_duration_seconds` | `state` | a histogram of the time runs spend in each state; `saving` is the cost of writing the record |
-| `pychron_measurement_blocks_total` | `block`, `ok` | measurement blocks finished |
-| `pychron_conditional_trips_total` | `kind`, `level` | conditionals that tripped |
-| `pychron_executor_waits_total` | `reason` | times the executor waited, by what for |
-| `pychron_executor_holding` | | 1 while the queue holds: it waits for a link the next run needs, or for the spool, before it starts that run |
-| `pychron_executor_holds_total` | `reason` (`link`, `spool`, `run_failed`) | times the queue held: a link the next run needs was down, the spool asked to wait (its disk nearly full, or too many records not yet sent), or the run before failed for a link |
-| `pychron_measurement_gaps_total` | | silences of the spectrometer during a measurement, waited out or ending the run |
-| `pychron_spool_pending` | | records the store has not taken yet; they are sent again on their own |
-| `pychron_last_run_finished_age_seconds` | | seconds since a run last finished; absent until one has |
-| `pychron_notifications_total` | `channel`, `event`, `ok` | notifications handed to a channel |
-| `pychron_notifications_outbox` | | notifications waiting in the outbox: not yet taken, or given up, by every channel they are for |
-| `pychron_spectrometer_jobs_total` | `kind` (`sweep`, `peak_center`), `state` (`succeeded`, `failed`, `cancelled`) | spectrometer jobs ended, whether a run or the operator asked for them |
-| `pychron_spectrometer_job_active` | | 1 while a spectrometer job is running |
-| `pychron_spectrometer_job_progress_ratio` | | how far the running job is, 0 to 1; 0 when none is running |
-| `pychron_spectrometer_job_duration_seconds` | `kind` | a histogram of how long jobs that ran took |
+| `nobion_queue_active` | | 1 while a queue is running |
+| `nobion_executor_state` | `state` (`idle`, `preparing`, `running`, `holding`, `stopping`, `cancelling`, `aborting`, `finalizing`) | 1 for the state the executor is in |
+| `nobion_queue_runs` | `status` (`total`, `done`) | the running queue's size and progress |
+| `nobion_queues_ended_total` | `end` | queues ended, by how |
+| `nobion_runs_started_total` | | |
+| `nobion_runs_finished_total` | `state`, `truncated` | runs ended, by their last state |
+| `nobion_run_save_errors_total` | | runs whose record could not be saved |
+| `nobion_run_state_duration_seconds` | `state` | a histogram of the time runs spend in each state; `saving` is the cost of writing the record |
+| `nobion_measurement_blocks_total` | `block`, `ok` | measurement blocks finished |
+| `nobion_conditional_trips_total` | `kind`, `level` | conditionals that tripped |
+| `nobion_executor_waits_total` | `reason` | times the executor waited, by what for |
+| `nobion_executor_holding` | | 1 while the queue holds: it waits for a link the next run needs, or for the spool, before it starts that run |
+| `nobion_executor_holds_total` | `reason` (`link`, `spool`, `run_failed`) | times the queue held: a link the next run needs was down, the spool asked to wait (its disk nearly full, or too many records not yet sent), or the run before failed for a link |
+| `nobion_measurement_gaps_total` | | silences of the spectrometer during a measurement, waited out or ending the run |
+| `nobion_spool_pending` | | records the store has not taken yet; they are sent again on their own |
+| `nobion_last_run_finished_age_seconds` | | seconds since a run last finished; absent until one has |
+| `nobion_notifications_total` | `channel`, `event`, `ok` | notifications handed to a channel |
+| `nobion_notifications_outbox` | | notifications waiting in the outbox: not yet taken, or given up, by every channel they are for |
+| `nobion_spectrometer_jobs_total` | `kind` (`sweep`, `peak_center`), `state` (`succeeded`, `failed`, `cancelled`) | spectrometer jobs ended, whether a run or the operator asked for them |
+| `nobion_spectrometer_job_active` | | 1 while a spectrometer job is running |
+| `nobion_spectrometer_job_progress_ratio` | | how far the running job is, 0 to 1; 0 when none is running |
+| `nobion_spectrometer_job_duration_seconds` | `kind` | a histogram of how long jobs that ran took |
 
 Durations are measured on the line's clock: in a simulation run faster than
 real time they are simulated seconds.
@@ -304,19 +306,19 @@ real time they are simulated seconds.
 
 | Metric | Labels | Meaning |
 |---|---|---|
-| `pychron_build_info` | `version`, `os`, `compiler` | always 1; the labels say what is running |
-| `pychron_process_uptime_seconds` | | seconds since nobion started |
-| `pychron_log_records_total` | `level`, `component` | log records; `component` is the first part of the logger's name |
-| `pychron_bus_handler_failures_total` | `event` | parts of nobion that failed while handling an event, by the event. It should stay at zero: anything else is a bug, and the log (`bus`) has what was said |
-| `pychron_transport_connected` | `transport` | 1 while the transport is up, 0 while it is down |
-| `pychron_transport_outages_total` | `transport` | times the transport went down. Single errors are not counted: the log has them |
-| `pychron_link_reconnects_total` | `transport` | times the transport's link reconnected after a failure: each is an outage the line rode out |
-| `pychron_link_repeats_total` | `transport` | commands the link sent a second time after a failure, being safe to send twice (a read, an absolute target) |
-| `pychron_scheduler_job_runs_total`, `_failures_total`, `_skipped_overlaps_total` | `job` | each periodic job's counts |
-| `pychron_scheduler_heartbeat_age_seconds` | | seconds since the scheduler last ran its heartbeat job |
-| `pychron_metrics_scrape_duration_seconds` | | how long the last scrape took to answer |
-| `pychron_metrics_bad_requests_total` | | connections to the endpoint that were dropped |
-| `pychron_metrics_dropped_series_total` | | series refused (more than 1000 in one metric: a configuration with a great many devices, or a bug) |
+| `nobion_build_info` | `version`, `os`, `compiler` | always 1; the labels say what is running |
+| `nobion_process_uptime_seconds` | | seconds since nobion started |
+| `nobion_log_records_total` | `level`, `component` | log records; `component` is the first part of the logger's name |
+| `nobion_bus_handler_failures_total` | `event` | parts of nobion that failed while handling an event, by the event. It should stay at zero: anything else is a bug, and the log (`bus`) has what was said |
+| `nobion_transport_connected` | `transport` | 1 while the transport is up, 0 while it is down |
+| `nobion_transport_outages_total` | `transport` | times the transport went down. Single errors are not counted: the log has them |
+| `nobion_link_reconnects_total` | `transport` | times the transport's link reconnected after a failure: each is an outage the line rode out |
+| `nobion_link_repeats_total` | `transport` | commands the link sent a second time after a failure, being safe to send twice (a read, an absolute target) |
+| `nobion_scheduler_job_runs_total`, `_failures_total`, `_skipped_overlaps_total` | `job` | each periodic job's counts |
+| `nobion_scheduler_heartbeat_age_seconds` | | seconds since the scheduler last ran its heartbeat job |
+| `nobion_metrics_scrape_duration_seconds` | | how long the last scrape took to answer |
+| `nobion_metrics_bad_requests_total` | | connections to the endpoint that were dropped |
+| `nobion_metrics_dropped_series_total` | | series refused (more than 1000 in one metric: a configuration with a great many devices, or a bug) |
 
 Counters start again from zero when nobion restarts. The dashboards show
 increases over a time range, which is unaffected.

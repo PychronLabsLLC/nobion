@@ -32,7 +32,7 @@ class MetricsService {
   // nullptr when `config.enabled` is false: nothing is built and no port is
   // opened. `bus`, `scheduler` and `clock` (the line's) must outlive the
   // service. Records go to `log_hub`'s "metrics" logger, or straight to the
-  // bus without one. `version` is what pychron_build_info reports.
+  // bus without one. `version` is what nobion_build_info reports.
   static std::unique_ptr<MetricsService> start(const config::MetricsConfig& config, SignalBus& bus,
                                                Scheduler& scheduler, const Clock& clock,
                                                std::shared_ptr<LogHub> log_hub, std::string version);
@@ -51,7 +51,7 @@ class MetricsService {
   nobion::metrics::Registry& registry() noexcept;
 
   // The links whose reconnects and repeats each scrape reads
-  // (pychron_link_reconnects_total, pychron_link_repeats_total), by their
+  // (nobion_link_reconnects_total, nobion_link_repeats_total), by their
   // transport's name: the line's and the spectrometer's. Each transport's
   // counters exist from this call. Replaces what an earlier call gave. The
   // links must outlive the service. A link given twice is read once.

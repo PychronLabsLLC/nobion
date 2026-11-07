@@ -66,55 +66,55 @@ struct ExperimentMetricsTest : ::testing::Test {
   }
 };
 
-const char* const kDuration = "pychron_run_state_duration_seconds";
+const char* const kDuration = "nobion_run_state_duration_seconds";
 
 }  // namespace
 
 TEST_F(ExperimentMetricsTest, BeforeAnyQueueTheExecutorIsIdle) {
   const std::string t = text();
-  EXPECT_DOUBLE_EQ(value(t, "pychron_executor_state{state=\"idle\"}"), 1.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_executor_state{state=\"running\"}"), 0.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_queue_active"), 0.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_executor_state{state=\"idle\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_executor_state{state=\"running\"}"), 0.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_queue_active"), 0.0);
 }
 
 TEST_F(ExperimentMetricsTest, ExecutorStateIsOneOfEight) {
   bus.publish(executor::ExecutorStateChanged{ExecutorState::Idle, ExecutorState::Running, ""});
   const std::string t = text();
-  EXPECT_DOUBLE_EQ(value(t, "pychron_executor_state{state=\"running\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_executor_state{state=\"running\"}"), 1.0);
   for (const char* other : {"idle", "preparing", "holding", "stopping", "cancelling", "aborting", "finalizing"}) {
-    EXPECT_DOUBLE_EQ(value(t, std::string("pychron_executor_state{state=\"") + other + "\"}"), 0.0) << other;
+    EXPECT_DOUBLE_EQ(value(t, std::string("nobion_executor_state{state=\"") + other + "\"}"), 0.0) << other;
   }
 }
 
 TEST_F(ExperimentMetricsTest, QueueActiveFollowsTheQueue) {
   bus.publish(lab::QueueStarted{4, 0});
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_queue_active"), 1.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_queue_active"), 1.0);
   ended(QueueEnd::Completed);
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_queue_active"), 0.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_queue_active"), 0.0);
 }
 
 TEST_F(ExperimentMetricsTest, QueueActiveAlsoSetByTheFirstBusyState) {
   // An executor driven without a session publishes no QueueStarted.
   bus.publish(executor::ExecutorStateChanged{ExecutorState::Idle, ExecutorState::Preparing, ""});
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_queue_active"), 1.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_queue_active"), 1.0);
   bus.publish(executor::ExecutorStateChanged{ExecutorState::Finalizing, ExecutorState::Idle, ""});
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_queue_active"), 0.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_queue_active"), 0.0);
 }
 
 TEST_F(ExperimentMetricsTest, QueueProgress) {
   bus.publish(lab::QueueStarted{10, 2});
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_queue_runs{status=\"total\"}"), 8.0);
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_queue_runs{status=\"done\"}"), 0.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_queue_runs{status=\"total\"}"), 8.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_queue_runs{status=\"done\"}"), 0.0);
   finished(RunState::Success);
   finished(RunState::Failed);
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_queue_runs{status=\"done\"}"), 2.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_queue_runs{status=\"done\"}"), 2.0);
 
   executor::QueueEdited edited;
   edited.queue.runs.resize(12);
   edited.frozen = 4;
   bus.publish(edited);
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_queue_runs{status=\"total\"}"), 10.0);
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_queue_runs{status=\"done\"}"), 2.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_queue_runs{status=\"total\"}"), 10.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_queue_runs{status=\"done\"}"), 2.0);
 }
 
 TEST_F(ExperimentMetricsTest, RunsByOutcome) {
@@ -126,29 +126,29 @@ TEST_F(ExperimentMetricsTest, RunsByOutcome) {
   finished(RunState::Cancelled);
   finished(RunState::Aborted);
   const std::string t = text();
-  EXPECT_DOUBLE_EQ(value(t, "pychron_runs_started_total"), 6.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_runs_finished_total{state=\"success\",truncated=\"false\"}"), 1.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_runs_finished_total{state=\"success\",truncated=\"true\"}"), 1.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_runs_finished_total{state=\"failed\",truncated=\"false\"}"), 2.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_runs_finished_total{state=\"cancelled\",truncated=\"false\"}"), 1.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_runs_finished_total{state=\"aborted\",truncated=\"false\"}"), 1.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_run_save_errors_total"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_runs_started_total"), 6.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_runs_finished_total{state=\"success\",truncated=\"false\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_runs_finished_total{state=\"success\",truncated=\"true\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_runs_finished_total{state=\"failed\",truncated=\"false\"}"), 2.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_runs_finished_total{state=\"cancelled\",truncated=\"false\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_runs_finished_total{state=\"aborted\",truncated=\"false\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_run_save_errors_total"), 1.0);
 }
 
 TEST_F(ExperimentMetricsTest, CountersReadZeroBeforeTheFirstRun) {
   const std::string t = text();
-  EXPECT_DOUBLE_EQ(value(t, "pychron_runs_started_total"), 0.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_run_save_errors_total"), 0.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_runs_finished_total{state=\"failed\",truncated=\"false\"}"), 0.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_queues_ended_total{end=\"failed\"}"), 0.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_runs_started_total"), 0.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_run_save_errors_total"), 0.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_runs_finished_total{state=\"failed\",truncated=\"false\"}"), 0.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_queues_ended_total{end=\"failed\"}"), 0.0);
   // The rare ones above all: the first trip, the first failed block, the
   // first wait must each show as an increase.
-  EXPECT_DOUBLE_EQ(value(t, "pychron_conditional_trips_total{kind=\"termination\",level=\"system\"}"), 0.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_conditional_trips_total{kind=\"pre_run\",level=\"hook\"}"), 0.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_measurement_blocks_total{block=\"peak_center_before\",ok=\"false\"}"), 0.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_measurement_blocks_total{block=\"main\",ok=\"true\"}"), 0.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_conditional_trips_total{kind=\"termination\",level=\"system\"}"), 0.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_conditional_trips_total{kind=\"pre_run\",level=\"hook\"}"), 0.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_measurement_blocks_total{block=\"peak_center_before\",ok=\"false\"}"), 0.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_measurement_blocks_total{block=\"main\",ok=\"true\"}"), 0.0);
   for (const char* reason : {"scheduled_start", "delay", "extraction_device", "pump_time", "other"}) {
-    EXPECT_DOUBLE_EQ(value(t, std::string("pychron_executor_waits_total{reason=\"") + reason + "\"}"), 0.0) << reason;
+    EXPECT_DOUBLE_EQ(value(t, std::string("nobion_executor_waits_total{reason=\"") + reason + "\"}"), 0.0) << reason;
   }
 }
 
@@ -157,13 +157,13 @@ TEST_F(ExperimentMetricsTest, CountersReadZeroBeforeTheFirstRun) {
 TEST_F(ExperimentMetricsTest, HoldsGapsAndBacklogsReadZeroBeforeAnyEvent) {
   const std::string t = text();
   for (const char* reason : {"link", "spool", "run_failed"}) {
-    const std::string series = std::string("pychron_executor_holds_total{reason=\"") + reason + "\"}";
+    const std::string series = std::string("nobion_executor_holds_total{reason=\"") + reason + "\"}";
     EXPECT_TRUE(has(t, series)) << reason;
     EXPECT_DOUBLE_EQ(value(t, series), 0.0) << reason;
   }
   for (const char* series :
-       {"pychron_executor_holding", "pychron_measurement_gaps_total", "pychron_spool_pending",
-        "pychron_notifications_outbox"}) {
+       {"nobion_executor_holding", "nobion_measurement_gaps_total", "nobion_spool_pending",
+        "nobion_notifications_outbox"}) {
     EXPECT_TRUE(has(t, series)) << series;
     EXPECT_DOUBLE_EQ(value(t, series), 0.0) << series;
   }
@@ -180,55 +180,55 @@ TEST_F(ExperimentMetricsTest, HoldsAreCountedByReason) {
   h.kind = executor::HoldReason::Spool;
   bus.publish(h);
   const std::string t = text();
-  EXPECT_DOUBLE_EQ(value(t, "pychron_executor_holds_total{reason=\"link\"}"), 1.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_executor_holds_total{reason=\"run_failed\"}"), 2.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_executor_holds_total{reason=\"spool\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_executor_holds_total{reason=\"link\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_executor_holds_total{reason=\"run_failed\"}"), 2.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_executor_holds_total{reason=\"spool\"}"), 1.0);
   EXPECT_EQ(t.find("valve_bus"), std::string::npos);
 }
 
 TEST_F(ExperimentMetricsTest, HoldingFollowsTheExecutorsState) {
   bus.publish(executor::ExecutorStateChanged{ExecutorState::Running, ExecutorState::Holding, "link down"});
   std::string t = text();
-  EXPECT_DOUBLE_EQ(value(t, "pychron_executor_holding"), 1.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_executor_state{state=\"holding\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_executor_holding"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_executor_state{state=\"holding\"}"), 1.0);
   bus.publish(executor::ExecutorStateChanged{ExecutorState::Holding, ExecutorState::Running, "holding ended"});
   t = text();
-  EXPECT_DOUBLE_EQ(value(t, "pychron_executor_holding"), 0.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_executor_state{state=\"holding\"}"), 0.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_executor_holding"), 0.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_executor_state{state=\"holding\"}"), 0.0);
   bus.publish(executor::ExecutorStateChanged{ExecutorState::Running, ExecutorState::Holding, ""});
   bus.publish(executor::ExecutorStateChanged{ExecutorState::Holding, ExecutorState::Cancelling, ""});
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_executor_holding"), 0.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_executor_holding"), 0.0);
 }
 
 TEST_F(ExperimentMetricsTest, EachGapIsCounted) {
   bus.publish(measurement::MeasurementGap{"run-1", measurement::Block::Main, 10.0, 40.0, true, at(40)});
   bus.publish(measurement::MeasurementGap{"run-1", measurement::Block::BaselineAfter, 50.0, 170.0, false, at(170)});
   const std::string t = text();
-  EXPECT_DOUBLE_EQ(value(t, "pychron_measurement_gaps_total"), 2.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_measurement_gaps_total"), 2.0);
   EXPECT_EQ(t.find("run-1"), std::string::npos);
 }
 
 TEST_F(ExperimentMetricsTest, SpoolPendingIsTheLastStatus) {
   bus.publish(persist::SpoolStatus{3, std::string("uuid: store down")});
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_spool_pending"), 3.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_spool_pending"), 3.0);
   bus.publish(persist::SpoolStatus{0, std::nullopt});
   const std::string t = text();
-  EXPECT_DOUBLE_EQ(value(t, "pychron_spool_pending"), 0.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_spool_pending"), 0.0);
   EXPECT_EQ(t.find("store down"), std::string::npos);
 }
 
 TEST_F(ExperimentMetricsTest, OutboxIsTheLastSizeSaid) {
   bus.publish(lab::NotificationOutbox{2});
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_notifications_outbox"), 2.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_notifications_outbox"), 2.0);
   bus.publish(lab::NotificationOutbox{1});
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_notifications_outbox"), 1.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_notifications_outbox"), 1.0);
 }
 
 // A channel is known only once it has been used; from then every event and outcome counts from zero.
 TEST_F(ExperimentMetricsTest, AChannelsOtherOutcomesReadZero) {
   bus.publish(lab::NotificationSent{"email", lab::NotifyEvent::RunFailed, "s", true, ""});
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_notifications_total{channel=\"email\",event=\"run_failed\",ok=\"false\"}"), 0.0);
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_notifications_total{channel=\"email\",event=\"queue_ended\",ok=\"false\"}"), 0.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_notifications_total{channel=\"email\",event=\"run_failed\",ok=\"false\"}"), 0.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_notifications_total{channel=\"email\",event=\"queue_ended\",ok=\"false\"}"), 0.0);
 }
 
 TEST_F(ExperimentMetricsTest, StateDurations) {
@@ -283,14 +283,14 @@ TEST_F(ExperimentMetricsTest, AnAbortedQueueLeavesNothingBehind) {
   finished(RunState::Success);
   ended(QueueEnd::Aborted);  // r1 never said it ended
   EXPECT_EQ(metrics->tracked_runs(), 0u);
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_queue_active"), 0.0);
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_queues_ended_total{end=\"aborted\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_queue_active"), 0.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_queues_ended_total{end=\"aborted\"}"), 1.0);
 
   bus.publish(lab::QueueStarted{3, 0});
   const std::string t = text();
-  EXPECT_DOUBLE_EQ(value(t, "pychron_queue_runs{status=\"total\"}"), 3.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_queue_runs{status=\"done\"}"), 0.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_queue_active"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_queue_runs{status=\"total\"}"), 3.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_queue_runs{status=\"done\"}"), 0.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_queue_active"), 1.0);
 }
 
 TEST_F(ExperimentMetricsTest, AClockThatGoesBackwardsCountsNoTime) {
@@ -303,8 +303,8 @@ TEST_F(ExperimentMetricsTest, MeasurementBlocks) {
   bus.publish(measurement::BlockFinished{"r1", measurement::Block::Main, true, "", -1});
   bus.publish(measurement::BlockFinished{"r1", measurement::Block::BaselineAfter, false, "", -1});
   const std::string t = text();
-  EXPECT_DOUBLE_EQ(value(t, "pychron_measurement_blocks_total{block=\"main\",ok=\"true\"}"), 1.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_measurement_blocks_total{block=\"baseline_after\",ok=\"false\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_measurement_blocks_total{block=\"main\",ok=\"true\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_measurement_blocks_total{block=\"baseline_after\",ok=\"false\"}"), 1.0);
 }
 
 TEST_F(ExperimentMetricsTest, ConditionalTrips) {
@@ -314,7 +314,7 @@ TEST_F(ExperimentMetricsTest, ConditionalTrips) {
   trip.level = ConditionalLevel::Queue;
   bus.publish(measurement::ConditionalTripped{"r1", trip});
   const std::string t = text();
-  EXPECT_DOUBLE_EQ(value(t, "pychron_conditional_trips_total{kind=\"truncation\",level=\"queue\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_conditional_trips_total{kind=\"truncation\",level=\"queue\"}"), 1.0);
   EXPECT_EQ(t.find("age > 30"), std::string::npos);
 }
 
@@ -325,7 +325,7 @@ TEST_F(ExperimentMetricsTest, WaitReasonsAreAFixedSet) {
   }
   const std::string t = text();
   for (const char* label : {"scheduled_start", "delay", "extraction_device", "pump_time", "other"}) {
-    EXPECT_DOUBLE_EQ(value(t, std::string("pychron_executor_waits_total{reason=\"") + label + "\"}"), 1.0) << label;
+    EXPECT_DOUBLE_EQ(value(t, std::string("nobion_executor_waits_total{reason=\"") + label + "\"}"), 1.0) << label;
   }
   EXPECT_EQ(t.find("12345-01A"), std::string::npos);
   EXPECT_EQ(t.find("something new"), std::string::npos);
@@ -335,25 +335,25 @@ TEST_F(ExperimentMetricsTest, Notifications) {
   bus.publish(lab::NotificationSent{"email", lab::NotifyEvent::RunFailed, "Run 12345-01A failed", false, "550 refused"});
   bus.publish(lab::NotificationSent{"email", lab::NotifyEvent::QueueEnded, "Queue ended", true, ""});
   const std::string t = text();
-  EXPECT_DOUBLE_EQ(value(t, "pychron_notifications_total{channel=\"email\",event=\"run_failed\",ok=\"false\"}"), 1.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_notifications_total{channel=\"email\",event=\"queue_ended\",ok=\"true\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_notifications_total{channel=\"email\",event=\"run_failed\",ok=\"false\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_notifications_total{channel=\"email\",event=\"queue_ended\",ok=\"true\"}"), 1.0);
   EXPECT_EQ(t.find("550"), std::string::npos);
   EXPECT_EQ(t.find("12345-01A"), std::string::npos);
 }
 
 TEST_F(ExperimentMetricsTest, ANotificationWithNoChannelIsChannelNone) {
   bus.publish(lab::NotificationSent{"", lab::NotifyEvent::RunFailed, "s", false, "no notifications are configured"});
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_notifications_total{channel=\"none\",event=\"run_failed\",ok=\"false\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_notifications_total{channel=\"none\",event=\"run_failed\",ok=\"false\"}"), 1.0);
 }
 
 TEST_F(ExperimentMetricsTest, TheAgeOfTheLastRunIsRealTimeSinceItFinished) {
-  EXPECT_FALSE(has(text(), "pychron_last_run_finished_age_seconds")) << "no run has finished yet";
+  EXPECT_FALSE(has(text(), "nobion_last_run_finished_age_seconds")) << "no run has finished yet";
   finished(RunState::Success);
   now += 90.0;
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_last_run_finished_age_seconds"), 90.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_last_run_finished_age_seconds"), 90.0);
   finished(RunState::Failed);
   now += 5.0;
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_last_run_finished_age_seconds"), 5.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_last_run_finished_age_seconds"), 5.0);
 }
 
 TEST_F(ExperimentMetricsTest, RunIdsAndIdentifiersAreNeverRendered) {
@@ -369,11 +369,11 @@ TEST_F(ExperimentMetricsTest, RunIdsAndIdentifiersAreNeverRendered) {
 }
 
 TEST_F(ExperimentMetricsTest, SpectrometerJobsByKindAndHowTheyEnded) {
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_spectrometer_jobs_total{kind=\"peak_center\",state=\"failed\"}"), 0.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_spectrometer_jobs_total{kind=\"peak_center\",state=\"failed\"}"), 0.0);
   bus.publish(nobion::jobs::JobStarted{1, "peak_center", {}});
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_spectrometer_job_active"), 1.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_spectrometer_job_active"), 1.0);
   bus.publish(nobion::jobs::JobProgress{1, "peak_center", nobion::jobs::ProgressUpdate{5, 20, "", std::nullopt}});
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_spectrometer_job_progress_ratio"), 0.25);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_spectrometer_job_progress_ratio"), 0.25);
 
   nobion::jobs::Job job;
   job.id = 1;
@@ -384,11 +384,11 @@ TEST_F(ExperimentMetricsTest, SpectrometerJobsByKindAndHowTheyEnded) {
   job.finished = at(140);
   bus.publish(nobion::jobs::JobFinished{job});
   const std::string t = text();
-  EXPECT_DOUBLE_EQ(value(t, "pychron_spectrometer_jobs_total{kind=\"peak_center\",state=\"succeeded\"}"), 1.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_spectrometer_job_active"), 0.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_spectrometer_job_progress_ratio"), 0.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_spectrometer_job_duration_seconds_sum{kind=\"peak_center\"}"), 40.0);
-  EXPECT_DOUBLE_EQ(value(t, "pychron_spectrometer_job_duration_seconds_count{kind=\"peak_center\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_spectrometer_jobs_total{kind=\"peak_center\",state=\"succeeded\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_spectrometer_job_active"), 0.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_spectrometer_job_progress_ratio"), 0.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_spectrometer_job_duration_seconds_sum{kind=\"peak_center\"}"), 40.0);
+  EXPECT_DOUBLE_EQ(value(t, "nobion_spectrometer_job_duration_seconds_count{kind=\"peak_center\"}"), 1.0);
 }
 
 // Cancelled while it waited: it ended, and took no time doing anything.
@@ -399,21 +399,21 @@ TEST_F(ExperimentMetricsTest, AJobThatNeverRanIsCountedAndNotTimed) {
   job.finished = at(140);
   bus.publish(nobion::jobs::JobFinished{job});
   const std::string t = text();
-  EXPECT_DOUBLE_EQ(value(t, "pychron_spectrometer_jobs_total{kind=\"sweep\",state=\"cancelled\"}"), 1.0);
-  EXPECT_FALSE(has(t, "pychron_spectrometer_job_duration_seconds_count{kind=\"sweep\"}"));
+  EXPECT_DOUBLE_EQ(value(t, "nobion_spectrometer_jobs_total{kind=\"sweep\",state=\"cancelled\"}"), 1.0);
+  EXPECT_FALSE(has(t, "nobion_spectrometer_job_duration_seconds_count{kind=\"sweep\"}"));
 }
 
 TEST_F(ExperimentMetricsTest, EveryFamilyIsNamedBeforeItsFirstEvent) {
   const std::vector<std::string> names = registry.names();
   for (const char* expected :
-       {"pychron_executor_state", "pychron_queue_active", "pychron_queue_runs", "pychron_queues_ended_total",
-        "pychron_runs_started_total", "pychron_runs_finished_total", "pychron_run_save_errors_total",
-        "pychron_run_state_duration_seconds", "pychron_measurement_blocks_total", "pychron_conditional_trips_total",
-        "pychron_executor_waits_total", "pychron_last_run_finished_age_seconds",
-        "pychron_notifications_total", "pychron_spectrometer_jobs_total", "pychron_spectrometer_job_active",
-        "pychron_spectrometer_job_progress_ratio", "pychron_spectrometer_job_duration_seconds",
-        "pychron_executor_holds_total", "pychron_executor_holding", "pychron_measurement_gaps_total",
-        "pychron_spool_pending", "pychron_notifications_outbox"}) {
+       {"nobion_executor_state", "nobion_queue_active", "nobion_queue_runs", "nobion_queues_ended_total",
+        "nobion_runs_started_total", "nobion_runs_finished_total", "nobion_run_save_errors_total",
+        "nobion_run_state_duration_seconds", "nobion_measurement_blocks_total", "nobion_conditional_trips_total",
+        "nobion_executor_waits_total", "nobion_last_run_finished_age_seconds",
+        "nobion_notifications_total", "nobion_spectrometer_jobs_total", "nobion_spectrometer_job_active",
+        "nobion_spectrometer_job_progress_ratio", "nobion_spectrometer_job_duration_seconds",
+        "nobion_executor_holds_total", "nobion_executor_holding", "nobion_measurement_gaps_total",
+        "nobion_spool_pending", "nobion_notifications_outbox"}) {
     EXPECT_NE(std::find(names.begin(), names.end(), expected), names.end()) << expected;
   }
 }
@@ -421,5 +421,5 @@ TEST_F(ExperimentMetricsTest, EveryFamilyIsNamedBeforeItsFirstEvent) {
 TEST_F(ExperimentMetricsTest, StopsListeningWhenDestroyed) {
   metrics.reset();
   bus.publish(executor::RunStarted{0, "r", "i", "i-01", at(0)});
-  EXPECT_DOUBLE_EQ(value(text(), "pychron_runs_started_total"), 0.0);
+  EXPECT_DOUBLE_EQ(value(text(), "nobion_runs_started_total"), 0.0);
 }

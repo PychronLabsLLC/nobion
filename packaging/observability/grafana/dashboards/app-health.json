@@ -34,7 +34,7 @@
           "uid": "${datasource}"
         },
         "query": {
-          "query": "label_values(pychron_build_info, instrument)",
+          "query": "label_values(nobion_build_info, instrument)",
           "refId": "instrument"
         },
         "refresh": 2,
@@ -71,7 +71,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_build_info{instrument=\"$instrument\"}",
+          "expr": "nobion_build_info{instrument=\"$instrument\"}",
           "legendFormat": "{{version}}  {{os}}  {{compiler}}",
           "instant": true
         }
@@ -116,7 +116,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_process_uptime_seconds{instrument=\"$instrument\"}",
+          "expr": "nobion_process_uptime_seconds{instrument=\"$instrument\"}",
           "legendFormat": "",
           "instant": true
         }
@@ -162,7 +162,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_scheduler_heartbeat_age_seconds{instrument=\"$instrument\"}",
+          "expr": "nobion_scheduler_heartbeat_age_seconds{instrument=\"$instrument\"}",
           "legendFormat": "",
           "instant": true
         }
@@ -226,7 +226,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(increase(pychron_run_save_errors_total{instrument=\"$instrument\"}[$__range]))",
+          "expr": "sum(increase(nobion_run_save_errors_total{instrument=\"$instrument\"}[$__range]))",
           "legendFormat": "",
           "instant": true
         }
@@ -285,7 +285,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_metrics_scrape_duration_seconds{instrument=\"$instrument\"}",
+          "expr": "nobion_metrics_scrape_duration_seconds{instrument=\"$instrument\"}",
           "legendFormat": "",
           "instant": true
         }
@@ -332,7 +332,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_transport_connected{instrument=\"$instrument\"}",
+          "expr": "nobion_transport_connected{instrument=\"$instrument\"}",
           "legendFormat": "{{transport}}"
         }
       ],
@@ -395,7 +395,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (transport) (increase(pychron_transport_outages_total{instrument=\"$instrument\"}[$__rate_interval]))",
+          "expr": "sum by (transport) (increase(nobion_transport_outages_total{instrument=\"$instrument\"}[$__rate_interval]))",
           "legendFormat": "{{transport}}"
         }
       ],
@@ -447,7 +447,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (level, component) (increase(pychron_log_records_total{instrument=\"$instrument\",level=~\"warn|error\"}[$__rate_interval]))",
+          "expr": "sum by (level, component) (increase(nobion_log_records_total{instrument=\"$instrument\",level=~\"warn|error\"}[$__rate_interval]))",
           "legendFormat": "{{level}} {{component}}"
         }
       ],
@@ -498,7 +498,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(pychron_run_state_duration_seconds_bucket{instrument=\"$instrument\",state=\"saving\"}[6h])))",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(nobion_run_state_duration_seconds_bucket{instrument=\"$instrument\",state=\"saving\"}[6h])))",
           "legendFormat": "median"
         },
         {
@@ -507,7 +507,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(pychron_run_state_duration_seconds_bucket{instrument=\"$instrument\",state=\"saving\"}[6h])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(nobion_run_state_duration_seconds_bucket{instrument=\"$instrument\",state=\"saving\"}[6h])))",
           "legendFormat": "95%"
         }
       ],
@@ -552,7 +552,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (job) (increase(pychron_scheduler_job_failures_total{instrument=\"$instrument\"}[$__rate_interval]))",
+          "expr": "sum by (job) (increase(nobion_scheduler_job_failures_total{instrument=\"$instrument\"}[$__rate_interval]))",
           "legendFormat": "{{job}}"
         }
       ],
@@ -603,7 +603,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (job) (increase(pychron_scheduler_job_skipped_overlaps_total{instrument=\"$instrument\"}[$__rate_interval]))",
+          "expr": "sum by (job) (increase(nobion_scheduler_job_skipped_overlaps_total{instrument=\"$instrument\"}[$__rate_interval]))",
           "legendFormat": "{{job}}"
         }
       ],
@@ -655,7 +655,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (job) (rate(pychron_scheduler_job_runs_total{instrument=\"$instrument\"}[5m]))",
+          "expr": "sum by (job) (rate(nobion_scheduler_job_runs_total{instrument=\"$instrument\"}[5m]))",
           "legendFormat": "{{job}}"
         }
       ],
@@ -700,7 +700,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (event) (increase(pychron_bus_handler_failures_total{instrument=\"$instrument\"}[$__rate_interval]))",
+          "expr": "sum by (event) (increase(nobion_bus_handler_failures_total{instrument=\"$instrument\"}[$__rate_interval]))",
           "legendFormat": "{{event}}"
         }
       ],
@@ -752,7 +752,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (transport) (increase(pychron_link_reconnects_total{instrument=\"$instrument\"}[$__rate_interval]))",
+          "expr": "sum by (transport) (increase(nobion_link_reconnects_total{instrument=\"$instrument\"}[$__rate_interval]))",
           "legendFormat": "{{transport}}"
         }
       ],
@@ -804,7 +804,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (transport) (increase(pychron_link_repeats_total{instrument=\"$instrument\"}[$__rate_interval]))",
+          "expr": "sum by (transport) (increase(nobion_link_repeats_total{instrument=\"$instrument\"}[$__rate_interval]))",
           "legendFormat": "{{transport}}"
         }
       ],

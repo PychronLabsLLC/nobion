@@ -324,7 +324,7 @@ endif()
 
 add_executable(nobion src/main.cpp)
 target_link_libraries(nobion PRIVATE nobion_ui_lib)
-# main.cpp reports the version in pychron_build_info (the metrics endpoint)
+# main.cpp reports the version in nobion_build_info (the metrics endpoint)
 target_compile_definitions(nobion PRIVATE NOBION_VERSION="${PROJECT_VERSION}")
 # spectrometer sim drivers register from static initializers nothing references
 nobion_link_drivers(nobion nobion_sim)

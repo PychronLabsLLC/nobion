@@ -84,13 +84,13 @@ TEST_F(MetricsServiceTest, EnabledServesWhatTheBusSays) {
   bus.publish(PressureSample{"IG1", 3e-9, "torr", {}});
 
   const std::string body = http_client::body(http_client::get(service->port(), "/metrics"));
-  EXPECT_DOUBLE_EQ(value(body, "pychron_pressure{gauge=\"IG1\",unit=\"torr\"}"), 3e-9);
-  EXPECT_NE(body.find("pychron_build_info{"), std::string::npos);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_pressure{gauge=\"IG1\",unit=\"torr\"}"), 3e-9);
+  EXPECT_NE(body.find("nobion_build_info{"), std::string::npos);
   EXPECT_NE(body.find("version=\"9.9.9\""), std::string::npos);
   // Each of the exporters is there: the experiment's, the scheduler's, the server's own.
-  EXPECT_DOUBLE_EQ(value(body, "pychron_executor_state{state=\"idle\"}"), 1.0);
-  EXPECT_TRUE(has(body, "pychron_scheduler_heartbeat_age_seconds"));
-  EXPECT_TRUE(has(body, "pychron_metrics_bad_requests_total"));
+  EXPECT_DOUBLE_EQ(value(body, "nobion_executor_state{state=\"idle\"}"), 1.0);
+  EXPECT_TRUE(has(body, "nobion_scheduler_heartbeat_age_seconds"));
+  EXPECT_TRUE(has(body, "nobion_metrics_bad_requests_total"));
   EXPECT_TRUE(alarms.empty());
 }
 
@@ -126,7 +126,7 @@ TEST_F(MetricsServiceTest, APortInUseLeavesTheApplicationRunning) {
   EXPECT_TRUE(logged(LogLevel::Error, "metrics endpoint is off"));
   // The rest of the application is untouched, and the registry still follows the bus.
   bus.publish(PressureSample{"IG1", 1e-9, "torr", {}});
-  EXPECT_DOUBLE_EQ(value(service->registry().render(), "pychron_pressure{gauge=\"IG1\",unit=\"torr\"}"), 1e-9);
+  EXPECT_DOUBLE_EQ(value(service->registry().render(), "nobion_pressure{gauge=\"IG1\",unit=\"torr\"}"), 1e-9);
 }
 
 TEST_F(MetricsServiceTest, ABindThatIsNotThisMachinesIsAnAlarmNotACrash) {
@@ -148,7 +148,7 @@ TEST_F(MetricsServiceTest, AFullFamilyIsLoggedOnce) {
   std::lock_guard lock(m);
   int said = 0;
   for (const Log& l : logs) {
-    if (l.level == LogLevel::Warn && l.message.find("pychron_pressure") != std::string::npos) ++said;
+    if (l.level == LogLevel::Warn && l.message.find("nobion_pressure") != std::string::npos) ++said;
   }
   EXPECT_EQ(said, 1);
 }

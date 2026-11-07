@@ -7,40 +7,40 @@ namespace nobion::metrics {
 
 namespace {
 
-constexpr const char* kPressure = "pychron_pressure";
+constexpr const char* kPressure = "nobion_pressure";
 constexpr const char* kPressureHelp = "The last reading of a pressure gauge, in the unit the gauge is configured with.";
-constexpr const char* kTemperature = "pychron_temperature_kelvin";
+constexpr const char* kTemperature = "nobion_temperature_kelvin";
 constexpr const char* kTemperatureHelp = "The last reading of a temperature controller's input.";
-constexpr const char* kHeaterReadback = "pychron_heater_readback";
+constexpr const char* kHeaterReadback = "nobion_heater_readback";
 constexpr const char* kHeaterReadbackHelp = "A heater's last readback, in its configured unit.";
-constexpr const char* kHeaterSetpoint = "pychron_heater_setpoint";
+constexpr const char* kHeaterSetpoint = "nobion_heater_setpoint";
 constexpr const char* kHeaterSetpointHelp = "A heater's setpoint, in its configured unit.";
-constexpr const char* kHeaterEnabled = "pychron_heater_enabled";
+constexpr const char* kHeaterEnabled = "nobion_heater_enabled";
 constexpr const char* kHeaterEnabledHelp = "1 while a heater's output is enabled.";
-constexpr const char* kValveState = "pychron_valve_state";
+constexpr const char* kValveState = "nobion_valve_state";
 constexpr const char* kValveStateHelp = "1 for the state a valve is in, 0 for the others.";
-constexpr const char* kValveTransitions = "pychron_valve_transitions_total";
+constexpr const char* kValveTransitions = "nobion_valve_transitions_total";
 constexpr const char* kValveTransitionsHelp = "Times a valve changed state.";
-constexpr const char* kActuationFailures = "pychron_actuation_failures_total";
+constexpr const char* kActuationFailures = "nobion_actuation_failures_total";
 constexpr const char* kActuationFailuresHelp = "Valve actuations that failed.";
-constexpr const char* kLastSampleAge = "pychron_last_sample_age_seconds";
+constexpr const char* kLastSampleAge = "nobion_last_sample_age_seconds";
 constexpr const char* kLastSampleAgeHelp = "Real seconds since a source was last read. A reading is only as fresh as this.";
-constexpr const char* kUptime = "pychron_process_uptime_seconds";
+constexpr const char* kUptime = "nobion_process_uptime_seconds";
 constexpr const char* kUptimeHelp = "Real seconds since the application started.";
-constexpr const char* kAlarms = "pychron_alarms_total";
+constexpr const char* kAlarms = "nobion_alarms_total";
 constexpr const char* kAlarmsHelp = "Alarms raised.";
-constexpr const char* kLogRecords = "pychron_log_records_total";
+constexpr const char* kLogRecords = "nobion_log_records_total";
 constexpr const char* kLogRecordsHelp = "Log records, by level and by the first part of the logger's name.";
-constexpr const char* kTransportConnected = "pychron_transport_connected";
+constexpr const char* kTransportConnected = "nobion_transport_connected";
 constexpr const char* kTransportConnectedHelp = "1 while a transport is up (working or degraded), 0 while it is down.";
-constexpr const char* kBusFailures = "pychron_bus_handler_failures_total";
+constexpr const char* kBusFailures = "nobion_bus_handler_failures_total";
 constexpr const char* kBusFailuresHelp =
     "Subscribers of the event bus that threw, by the event they were handling. The log has what each said.";
-constexpr const char* kTransportOutages = "pychron_transport_outages_total";
+constexpr const char* kTransportOutages = "nobion_transport_outages_total";
 constexpr const char* kTransportOutagesHelp = "Times a transport went down.";
-constexpr const char* kLinkReconnects = "pychron_link_reconnects_total";
+constexpr const char* kLinkReconnects = "nobion_link_reconnects_total";
 constexpr const char* kLinkReconnectsHelp = "Times a transport's link reconnected after a failure.";
-constexpr const char* kLinkRepeats = "pychron_link_repeats_total";
+constexpr const char* kLinkRepeats = "nobion_link_repeats_total";
 constexpr const char* kLinkRepeatsHelp =
     "Commands a transport's link sent again after a failure, being safe to send twice.";
 
@@ -138,7 +138,7 @@ CoreExporter::CoreExporter(Registry& registry, SignalBus& bus, BuildInfo build, 
   registry.declare(MetricType::Counter, kLinkRepeats, kLinkRepeatsHelp);
 
   registry
-      .gauge("pychron_build_info", "Always 1; the labels say which build is running.",
+      .gauge("nobion_build_info", "Always 1; the labels say which build is running.",
              {{"version", build.version}, {"os", build.os}, {"compiler", build.compiler}})
       .set(1);
   started_ = now_();
