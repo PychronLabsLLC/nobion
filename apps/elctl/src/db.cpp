@@ -1,5 +1,6 @@
 #include "db.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <filesystem>
 #include <optional>
@@ -8,6 +9,7 @@
 #include <system_error>
 
 #include "derive_summary.hpp"
+#include "nobion/core/path_text.hpp"
 #include "nobion/setup/doctor.hpp"
 #include "setup.hpp"
 #include "nobion/persistence/store.hpp"
@@ -25,7 +27,10 @@ namespace ps = nobion::persistence;
 
 constexpr const char* kShortUsage =
     "usage: elctl [--install NAME] db status [--db <url>]     is the store's schema up to date? (exit 1 when not)\n"
-    "       elctl [--install NAME] db migrate [--db <url>]    apply the migrations the store lacks\n"
+    "       elctl [--install NAME] db migrate [--db <url>] [--backed-up]\n"
+    "                                      apply the migrations the store lacks; a SQLite store is\n"
+    "                                      copied beside itself first (the copy is named), a PostgreSQL\n"
+    "                                      store is refused until --backed-up says it was (pg_dump)\n"
     "       elctl [--install NAME] db derive [--db <url>] [--all] [--limit N] [--quiet]\n"
     "                                      fill the cache of ages the browser filters by\n"
     "  <url>: sqlite:/path/to/store.db or postgresql://user:password@host/dbname;\n"
@@ -81,6 +86,47 @@ void print_pis_without_given_name(ps::IStore& store, Io io) {
   }
 }
 
+// The URL without its password: what may be printed.
+std::string without_password(const std::string& url) {
+  const auto scheme = url.find("://");
+  if (scheme == std::string::npos) return url;
+  const auto start = scheme + 3;
+  const auto at = url.find('@', start);
+  const auto slash = url.find('/', start);
+  if (at == std::string::npos || (slash != std::string::npos && slash < at)) return url;
+  const auto colon = url.find(':', start);
+  if (colon == std::string::npos || colon > at) return url;
+  return url.substr(0, colon) + url.substr(at);
+}
+
+// A pg_dump command that backs up the store `url` names, without its
+// password (pg_dump asks for it, or reads PGPASSWORD or ~/.pgpass).
+// search_path is nobion's, not libpq's: it becomes --schema.
+std::string pg_dump_command(const std::string& url) {
+  std::string printable = without_password(url);
+  std::string schema;
+  if (const auto q = printable.find('?'); q != std::string::npos) {
+    std::string kept;
+    std::size_t at = q + 1;
+    while (at <= printable.size()) {
+      const auto amp = std::min(printable.find('&', at), printable.size());
+      const std::string item = printable.substr(at, amp - at);
+      if (item.starts_with("search_path=")) {
+        schema = item.substr(std::string_view("search_path=").size());
+      } else if (!item.empty()) {
+        kept += (kept.empty() ? "" : "&") + item;
+      }
+      at = amp + 1;
+    }
+    printable.replace(q, std::string::npos, kept.empty() ? std::string() : "?" + kept);
+  }
+  std::string quoted = "'";
+  for (const char c : printable) quoted += c == '\'' ? std::string("'\\''") : std::string(1, c);
+  quoted += '\'';
+  return "pg_dump --format=custom --file=nobion-pre-migrate.dump" + (schema.empty() ? "" : " --schema=" + schema) +
+         " " + quoted;
+}
+
 namespace pp = nobion::processing;
 
 // elctl db derive: the backfill of the cache of ages (age cache spec 4.5).
@@ -127,11 +173,13 @@ int db_command(const std::vector<std::string>& args, const std::optional<std::st
   const std::string& what = args[0];
   if (what != "status" && what != "migrate" && what != "derive") return usage(io, "unknown action '" + what + "'");
   std::string url;
-  bool all = false, quiet = false;
+  bool all = false, quiet = false, backed_up = false;
   std::optional<int> limit;
   for (std::size_t i = 1; i < args.size(); ++i) {
     if (args[i] == "--db" && i + 1 < args.size()) {
       url = args[++i];
+    } else if (what == "migrate" && args[i] == "--backed-up") {
+      backed_up = true;
     } else if (what == "derive" && args[i] == "--all") {
       all = true;
     } else if (what == "derive" && args[i] == "--quiet") {
@@ -181,7 +229,21 @@ int db_command(const std::vector<std::string>& args, const std::optional<std::st
     return kFailed;
   }
 
-  auto migrated = ps::open_store(ps::StoreConfig{url, true});
+  // nobion copies a SQLite store before migrating it; a PostgreSQL store is
+  // its owner's to back up (field diagnostics spec, section 11).
+  const bool postgres = url.starts_with("postgresql://") || url.starts_with("postgres://");
+  if (postgres && !backed_up && ps::is_schema_behind(current.error())) {
+    io.out << "not migrated: " << without_password(url) << " is a PostgreSQL store with migrations pending\n"
+           << "  (" << current.error().what << ").\n"
+           << "nobion does not copy a PostgreSQL store. Back it up first, for example:\n"
+           << "  " << pg_dump_command(url) << '\n'
+           << "then run again with --backed-up.\n";
+    io.err << "elctl db: back up the PostgreSQL store, then migrate with --backed-up\n";
+    return kFailed;
+  }
+  ps::StoreConfig config{url, true};
+  config.on_backup = [&io](const fs::path& backup) { io.out << "backed up: " << nobion::utf8(backup) << '\n'; };
+  auto migrated = ps::open_store(config);
   if (!migrated) return fatal(io, migrated.error().what);
   auto applied = (*migrated)->schema_status();
   if (!applied) return fatal(io, applied.error().what);

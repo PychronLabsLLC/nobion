@@ -887,8 +887,25 @@ Neither command makes a database: a SQLite path that is not there, or an
 empty file, is an error (exit 2). To make a new store use `import add` or
 set up a data-reduction install.
 
-A copy of the file is a complete backup of a SQLite store; make one first if
-the store is the only copy of its data.
+Before it changes a store that has migrations already, it backs it up:
+
+- A SQLite store is copied beside itself, as
+  `<name>.pre-<from>-to-<to>-<UTC time>.sqlite` (for `nobion.db` going from
+  migration 7 to 8: `nobion.pre-7-to-8-20261107T120000Z.sqlite`), and the
+  copy is named on a line `backed up: <path>`. The copy is the store as it
+  was; to go back, close nobion and put it in the store's place. When the
+  copy cannot be written (no space, no permission) nothing is migrated.
+  Every program that migrates a store (`init`, `import`, `entry`, the setup
+  wizard) makes the same copy. Delete old copies when you no longer need
+  them.
+- A PostgreSQL store is not copied by nobion. `db migrate` refuses one with
+  migrations pending and prints a `pg_dump` command for it (without its
+  password). Back it up, then run `elctl db migrate --db <url> --backed-up`.
+  A new, empty database needs no flag.
+
+| Option | Meaning |
+|---|---|
+| `--backed-up` | A PostgreSQL store with migrations pending has been backed up: migrate it. |
 
 ### db derive
 

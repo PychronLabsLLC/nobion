@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstddef>
+#include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -11,6 +13,15 @@
 #include "tiny/db.hpp"
 
 namespace nobion::persistence::detail {
+
+struct BackupPolicy {
+  bool enabled = false;
+  std::function<void(const std::filesystem::path&)> on_backup;
+};
+
+// The code of the Config error a store behind its migrations gives with
+// apply = false (an empty store's has none).
+inline constexpr const char* kCodeSchemaBehind = "schema_behind";
 
 // Generated at configure time from migrations/<dialect>/NNNN_<name>.sql.
 struct EmbeddedMigration {
@@ -33,6 +44,13 @@ std::vector<std::string> split_sql(std::string_view sql);
 // With apply = false, any pending migration is a Config error instead.
 // up_to stops after that version (a test that needs a store as an older build
 // left it); unset, every migration this build carries.
-Result<std::vector<AppliedMigration>> migrate(Db& db, bool apply, std::optional<int> up_to = std::nullopt);
+//
+// With apply and policy.enabled, a store that has migrations applied and lacks
+// one is copied first, outside any transaction (field diagnostics spec,
+// section 11): a SQLite file store with VACUUM INTO beside itself; an
+// in-memory store and PostgreSQL are not copied. A copy that cannot be made
+// refuses the migration (Io). policy.on_backup is called with the copy's path.
+Result<std::vector<AppliedMigration>> migrate(Db& db, bool apply, std::optional<int> up_to = std::nullopt,
+                                              const BackupPolicy& policy = {});
 
 }  // namespace nobion::persistence::detail

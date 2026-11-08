@@ -27,12 +27,20 @@ TEST(DbCmd, StubWithoutPersistence) {
 #include <QSqlQuery>
 #include <QString>
 
+#include <QCoreApplication>
+#include <QUrl>
+#include <chrono>
+
+#include "migrate.hpp"
+#include "nobion/core/env.hpp"
 #include "nobion/persistence/store.hpp"
 #include "store_fixture.hpp"
+#include "tiny/db.hpp"
 
 namespace {
 
 namespace ps = nobion::persistence;
+namespace pd = nobion::persistence::detail;
 namespace fs = std::filesystem;
 
 class DbCmd : public elctl::testing::ElctlTest {
@@ -214,6 +222,112 @@ TEST_F(DbCmd, DbStatusUsesTheInstallsDatabase) {
   const Outcome nowhere = run_raw({"--install", "nowhere", "db", "status"});
   EXPECT_EQ(nowhere.code, elctl::kFailed);
   EXPECT_FALSE(contains(nowhere.out, "up to date")) << nowhere.out;
+}
+
+// Field diagnostics spec, section 11: a SQLite store is copied before a
+// migration changes it, and the copy is named on the way out.
+class ElctlDb : public DbCmd {};
+
+TEST_F(ElctlDb, MigratePrintsTheBackup) {
+  take_back_the_last_migration();
+  const Outcome o = run_raw({"db", "migrate", "--db", db_});
+  ASSERT_EQ(o.code, elctl::kOk) << o.err;
+  const auto at = o.out.find("backed up: ");
+  ASSERT_NE(at, std::string::npos) << o.out;
+  const std::string shown = o.out.substr(at + 11, o.out.find('\n', at) - at - 11);
+  const fs::path backup(shown);
+  EXPECT_TRUE(fs::equivalent(backup.parent_path(), file_.parent_path())) << shown;  // links resolved
+  EXPECT_TRUE(backup.filename().string().starts_with("store.pre-")) << shown;
+  EXPECT_TRUE(fs::is_regular_file(backup)) << shown;
+  // The copy is the store as it was: still behind.
+  EXPECT_FALSE(ps::open_store(ps::StoreConfig{"sqlite:" + shown, false}));
+
+  // Nothing pending, nothing copied.
+  const Outcome again = run_raw({"db", "migrate", "--db", db_});
+  EXPECT_EQ(again.code, elctl::kOk) << again.err;
+  EXPECT_FALSE(contains(again.out, "backed up")) << again.out;
+}
+
+// nobion does not copy a PostgreSQL store: elctl db migrate refuses one with
+// migrations pending until told it is backed up, and says how.
+TEST_F(ElctlDb, PostgresMigrateNeedsBackedUp) {
+  const auto base_env = nobion::env_var("NOBION_TEST_PG_URL");
+  if (!base_env || base_env->empty()) GTEST_SKIP() << "NOBION_TEST_PG_URL not set";
+  // A password in the URL even when the server asks for none, so that the
+  // test can see it is not printed.
+  QUrl base(QString::fromStdString(*base_env));
+  if (base.password().isEmpty()) base.setPassword(QStringLiteral("not-printed-pw"));
+  const std::string password = base.password().toStdString();
+  const std::string schema = "nobion_t_elctl_" + std::to_string(QCoreApplication::applicationPid()) + "_" +
+                             std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+  const std::string base_url = base.toString(QUrl::FullyEncoded).toStdString();
+  const std::string url =
+      base_url + (base_url.find('?') == std::string::npos ? "?" : "&") + "search_path=" + schema;
+  auto admin = pd::Db::open(ps::StoreConfig{base_url, false});
+  ASSERT_TRUE(admin) << to_string(admin.error());
+  ASSERT_TRUE((*admin)->unprepared(QString::fromStdString("CREATE SCHEMA " + schema)));
+  struct Drop {
+    pd::Db& db;
+    std::string schema;
+    ~Drop() { (void)db.unprepared(QString::fromStdString("DROP SCHEMA IF EXISTS " + schema + " CASCADE")); }
+  } drop{**admin, schema};
+  int latest = 0;
+  {
+    auto db = pd::Db::open(ps::StoreConfig{url, false});
+    ASSERT_TRUE(db) << to_string(db.error());
+    auto memory = ps::open_store(ps::StoreConfig{"sqlite::memory:", true});
+    ASSERT_TRUE(memory);
+    auto status = (*memory)->schema_status();
+    ASSERT_TRUE(status && !status->empty());
+    latest = status->back().version;
+    auto behind = pd::migrate(**db, true, latest - 1);
+    ASSERT_TRUE(behind) << to_string(behind.error());
+  }
+
+  const Outcome refused = run_raw({"db", "migrate", "--db", url});
+  EXPECT_NE(refused.code, elctl::kOk);
+  EXPECT_TRUE(contains(refused.out, "pg_dump --format=custom")) << refused.out;
+  EXPECT_TRUE(contains(refused.out, "--backed-up")) << refused.out;
+  // search_path is nobion's, not libpq's: pg_dump is given the schema instead.
+  const auto dump_at = refused.out.find("pg_dump");
+  const std::string dump =
+      dump_at == std::string::npos ? std::string() : refused.out.substr(dump_at, refused.out.find('\n', dump_at) - dump_at);
+  EXPECT_TRUE(contains(dump, "--schema=" + schema)) << dump;
+  EXPECT_FALSE(contains(dump, "search_path")) << dump;
+  EXPECT_FALSE(contains(refused.out, password)) << refused.out;
+  EXPECT_FALSE(contains(refused.err, password)) << refused.err;
+  EXPECT_FALSE(ps::open_store(ps::StoreConfig{url, false}));  // nothing migrated
+
+  const Outcome migrated = run_raw({"db", "migrate", "--db", url, "--backed-up"});
+  EXPECT_EQ(migrated.code, elctl::kOk) << migrated.err;
+  EXPECT_TRUE(contains(migrated.out, "migrated")) << migrated.out;
+  EXPECT_FALSE(contains(migrated.out, "backed up: ")) << migrated.out;
+  EXPECT_TRUE(ps::open_store(ps::StoreConfig{url, false}));
+}
+
+// A fresh PostgreSQL database has nothing to lose: no flag needed.
+TEST_F(ElctlDb, AFreshPostgresStoreNeedsNoBackup) {
+  const auto base_env = nobion::env_var("NOBION_TEST_PG_URL");
+  if (!base_env || base_env->empty()) GTEST_SKIP() << "NOBION_TEST_PG_URL not set";
+  const std::string schema = "nobion_t_elctl_" + std::to_string(QCoreApplication::applicationPid()) + "_" +
+                             std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+  const std::string url =
+      *base_env + (base_env->find('?') == std::string::npos ? "?" : "&") + "search_path=" + schema;
+  auto admin = pd::Db::open(ps::StoreConfig{*base_env, false});
+  ASSERT_TRUE(admin) << to_string(admin.error());
+  ASSERT_TRUE((*admin)->unprepared(QString::fromStdString("CREATE SCHEMA " + schema)));
+  struct Drop {
+    pd::Db& db;
+    std::string schema;
+    ~Drop() { (void)db.unprepared(QString::fromStdString("DROP SCHEMA IF EXISTS " + schema + " CASCADE")); }
+  } drop{**admin, schema};
+  const Outcome o = run_raw({"db", "migrate", "--db", url});
+  EXPECT_EQ(o.code, elctl::kOk) << o.err << o.out;
+}
+
+TEST_F(ElctlDb, BackedUpIsOnlyMigrates) {
+  EXPECT_EQ(run_raw({"db", "status", "--db", db_, "--backed-up"}).code, elctl::kUsage);
+  EXPECT_EQ(run_raw({"db", "migrate", "--db", db_, "--backed-up"}).code, elctl::kOk);
 }
 
 // elctl db derive, on the seeded store: two heating steps of an irradiated

@@ -3,10 +3,15 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <map>
 #include <set>
 
 #include "migrate.hpp"
+#include "nobion/core/path_text.hpp"
 #include "sql/browse.hpp"
 #include "sql/catalog.hpp"
 #include "sql/statements.hpp"
@@ -610,4 +615,191 @@ TEST(SchemaIndexes, ReleaseSamplesOfASampleUseIndex) {
   ASSERT_FALSE(plan.empty());
   EXPECT_NE(plan.find("release_sample_sample_ix"), std::string::npos) << plan;
   EXPECT_EQ(plan.find("SCAN"), std::string::npos) << plan;
+}
+
+// ------------------------------------------------- backup before migration
+// Field diagnostics spec, section 11: a store that has migrations applied and
+// lacks one this build carries is copied with VACUUM INTO before the first
+// migration runs, so a lab whose migration goes wrong can get its data back.
+
+namespace {
+
+// A folder of its own under the temporary directory, removed with everything
+// in it (a backup is written beside the store).
+class MigrateDir {
+ public:
+  explicit MigrateDir(const std::string& name = "nobion_migrate_")
+      : dir_(std::filesystem::temp_directory_path() / (name + TestDatabase::unique_tag())) {
+    std::filesystem::create_directories(dir_);
+  }
+  ~MigrateDir() {
+    std::error_code ignored;
+    std::filesystem::remove_all(dir_, ignored);
+  }
+  MigrateDir(const MigrateDir&) = delete;
+  MigrateDir& operator=(const MigrateDir&) = delete;
+
+  const std::filesystem::path& dir() const { return dir_; }
+  std::filesystem::path store() const { return dir_ / "nobion.db"; }
+  std::string url() const { return "sqlite:" + nobion::utf8(store()); }
+
+  // Every file of the folder that is a backup of the store.
+  std::vector<std::filesystem::path> backups() const {
+    std::vector<std::filesystem::path> out;
+    for (const auto& e : std::filesystem::directory_iterator(dir_)) {
+      const std::string name = nobion::utf8(e.path().filename());
+      if (name.starts_with("nobion.pre-")) out.push_back(e.path());
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+  }
+
+ private:
+  std::filesystem::path dir_;
+};
+
+// The highest migration this build carries.
+int latest_version() {
+  auto store = open_store(StoreConfig{"sqlite::memory:", true});
+  EXPECT_TRUE(store);
+  if (!store) return 0;
+  auto status = (*store)->schema_status();
+  EXPECT_TRUE(status && !status->empty());
+  return status && !status->empty() ? status->back().version : 0;
+}
+
+// A store as the build before this one left it: every migration but the last.
+void make_store_one_behind(const std::string& url) {
+  auto db = raw(url);
+  ASSERT_TRUE(db);
+  auto migrated = pd::migrate(*db, true, latest_version() - 1);
+  ASSERT_TRUE(migrated) << to_string(migrated.error());
+}
+
+int max_applied(const std::string& url) {
+  auto db = raw(url);
+  if (!db) return -1;
+  auto rows = db->select_one(QStringLiteral("SELECT max(version) AS v FROM schema_version"));
+  EXPECT_TRUE(rows && *rows);
+  return rows && *rows ? (**rows).value("v").toInt() : -1;
+}
+
+StoreConfig migrating(const std::string& url, std::vector<std::filesystem::path>& seen) {
+  StoreConfig config{url, true};
+  config.on_backup = [&seen](const std::filesystem::path& p) { seen.push_back(p); };
+  return config;
+}
+
+}  // namespace
+
+TEST(Migrate, APendingMigrationOnAFileStoreIsBackedUpFirst) {
+  MigrateDir dir;
+  make_store_one_behind(dir.url());
+  const int n = latest_version();
+  std::vector<std::filesystem::path> seen;
+  {
+    auto store = open_store(migrating(dir.url(), seen));
+    ASSERT_TRUE(store) << to_string(store.error());
+  }
+  ASSERT_EQ(seen.size(), 1u);
+  ASSERT_EQ(dir.backups().size(), 1u);
+  // Named as SQLite names the store's file, links resolved (/var is /private/var on macOS).
+  EXPECT_TRUE(std::filesystem::equivalent(dir.backups()[0], seen[0]));
+  EXPECT_TRUE(std::filesystem::equivalent(seen[0].parent_path(), dir.dir()));
+  const std::string name = nobion::utf8(seen[0].filename());
+  const std::string prefix = "nobion.pre-" + std::to_string(n - 1) + "-to-" + std::to_string(n) + "-";
+  EXPECT_TRUE(name.starts_with(prefix)) << name;
+  EXPECT_TRUE(name.ends_with(".sqlite")) << name;
+
+  // The backup is the store as it was: it opens, one migration behind.
+  auto backup = open_store(StoreConfig{"sqlite:" + nobion::utf8(seen[0]), false});
+  ASSERT_FALSE(backup);
+  EXPECT_EQ(backup.error().kind, ErrorKind::Config);
+  EXPECT_EQ(max_applied("sqlite:" + nobion::utf8(seen[0])), n - 1);
+  EXPECT_EQ(max_applied(dir.url()), n);
+}
+
+TEST(Migrate, AFreshStoreIsNotBackedUp) {
+  MigrateDir dir;
+  std::vector<std::filesystem::path> seen;
+  auto store = open_store(migrating(dir.url(), seen));
+  ASSERT_TRUE(store) << to_string(store.error());
+  EXPECT_TRUE(seen.empty());
+  EXPECT_TRUE(dir.backups().empty());
+}
+
+TEST(Migrate, AnUpToDateStoreIsNotBackedUp) {
+  MigrateDir dir;
+  ASSERT_TRUE(open_or_die(dir.url()));
+  std::vector<std::filesystem::path> seen;
+  auto store = open_store(migrating(dir.url(), seen));
+  ASSERT_TRUE(store) << to_string(store.error());
+  EXPECT_TRUE(seen.empty());
+  EXPECT_TRUE(dir.backups().empty());
+}
+
+TEST(Migrate, AnInMemoryStoreIsNotBackedUp) {
+  auto db = raw("sqlite::memory:");
+  ASSERT_TRUE(db);
+  ASSERT_TRUE(pd::migrate(*db, true, latest_version() - 1));
+  std::vector<std::filesystem::path> seen;
+  pd::BackupPolicy policy{true, [&seen](const std::filesystem::path& p) { seen.push_back(p); }};
+  auto migrated = pd::migrate(*db, true, std::nullopt, policy);
+  ASSERT_TRUE(migrated) << to_string(migrated.error());
+  EXPECT_EQ(migrated->back().version, latest_version());
+  EXPECT_TRUE(seen.empty());
+}
+
+// Where the backup cannot be written nothing is migrated: a migration with
+// no way back is not started. A read-only folder cannot stand in for that
+// here: SQLite refuses to write a WAL store in one (SQLITE_READONLY_DIRECTORY)
+// before any backup is tried. So every name the backup could take in the
+// next minute is taken already, which the backup refuses to overwrite.
+TEST(Migrate, AFailedBackupRefusesTheMigration) {
+  MigrateDir dir;
+  make_store_one_behind(dir.url());
+  const int n = latest_version();
+  const UtcTime now = UtcTime::now();
+  for (int s = -2; s <= 60; ++s) {
+    std::string stamp;
+    for (const char c : UtcTime{now.micros + std::int64_t{s} * 1'000'000}.iso().substr(0, 19))
+      if (c != '-' && c != ':') stamp.push_back(c);
+    std::ofstream(dir.dir() / ("nobion.pre-" + std::to_string(n - 1) + "-to-" + std::to_string(n) + "-" + stamp +
+                               "Z.sqlite"))
+        << "not a database";
+  }
+  const auto taken = dir.backups();
+  std::vector<std::filesystem::path> seen;
+  auto store = open_store(migrating(dir.url(), seen));
+  ASSERT_FALSE(store);
+  EXPECT_EQ(store.error().kind, ErrorKind::Io) << to_string(store.error());
+  EXPECT_NE(store.error().what.find("not migrated"), std::string::npos) << store.error().what;
+  EXPECT_TRUE(seen.empty());
+  EXPECT_EQ(dir.backups(), taken);
+  EXPECT_EQ(max_applied(dir.url()), n - 1);
+}
+
+TEST(Migrate, APathWithAQuoteIsBackedUp) {
+  MigrateDir dir("nobion_o'migrate_");
+  make_store_one_behind(dir.url());
+  std::vector<std::filesystem::path> seen;
+  {
+    auto store = open_store(migrating(dir.url(), seen));
+    ASSERT_TRUE(store) << to_string(store.error());
+  }
+  ASSERT_EQ(seen.size(), 1u);
+  EXPECT_TRUE(std::filesystem::is_regular_file(seen[0]));
+  EXPECT_EQ(max_applied("sqlite:" + nobion::utf8(seen[0])), latest_version() - 1);
+}
+
+// Off, no copy is made (a caller that has its own).
+TEST(Migrate, BackupCanBeTurnedOff) {
+  MigrateDir dir;
+  make_store_one_behind(dir.url());
+  std::vector<std::filesystem::path> seen;
+  StoreConfig config = migrating(dir.url(), seen);
+  config.backup_before_migrate = false;
+  ASSERT_TRUE(open_store(config));
+  EXPECT_TRUE(seen.empty());
+  EXPECT_TRUE(dir.backups().empty());
 }

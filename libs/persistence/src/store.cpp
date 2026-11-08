@@ -923,12 +923,17 @@ bool is_refused_catalog_fill(const Error& error) noexcept {
   return error.code == detail::kCodeRefusedFill;
 }
 
+bool is_schema_behind(const Error& error) noexcept {
+  return error.code == detail::kCodeSchemaBehind;
+}
+
 Result<std::unique_ptr<IStore>> open_store(const StoreConfig& config) {
   auto db = detail::Db::open(config);
   if (!db) return fail(db.error());
   if ((*db)->dialect() == Dialect::Sqlite)
     if (auto r = detail::check_sqlite(**db, config.url != "sqlite::memory:"); !r) return fail(r.error());
-  if (auto r = detail::migrate(**db, config.migrate); !r) return fail(r.error());
+  const detail::BackupPolicy backup{config.backup_before_migrate, config.on_backup};
+  if (auto r = detail::migrate(**db, config.migrate, std::nullopt, backup); !r) return fail(r.error());
   return std::unique_ptr<IStore>(std::make_unique<detail::TinyStore>(std::move(*db)));
 }
 

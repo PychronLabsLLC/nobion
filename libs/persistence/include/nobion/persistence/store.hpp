@@ -9,12 +9,15 @@
 // lost compare-and-swap is a value (CommitOutcome holding conflicts).
 
 #include <cstdint>
+#include <filesystem>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -31,11 +34,27 @@ namespace nobion::persistence {
 enum class Dialect { PostgreSql, Sqlite };
 
 struct StoreConfig {
+  // Constructors rather than an aggregate: `StoreConfig{url, false}`, written
+  // all over, names the two fields every caller sets and leaves the rest at
+  // their defaults without a missing-initializer warning per call.
+  StoreConfig() = default;
+  explicit StoreConfig(std::string store_url) : url(std::move(store_url)) {}
+  StoreConfig(std::string store_url, bool apply_migrations) : url(std::move(store_url)), migrate(apply_migrations) {}
+
   // "sqlite::memory:", "sqlite:/path/to/file.db",
   // "postgresql://user:password@host:port/dbname[?sslmode=verify-full&sslrootcert=...&search_path=...]"
   std::string url;
   // Apply pending migrations on open. Off: refuse to open an outdated schema.
   bool migrate = true;
+  // With migrate: before the first migration changes a store that already has
+  // migrations applied, copy it. A SQLite file store is copied with
+  // VACUUM INTO to "<db dir>/<db stem>.pre-<from>-to-<to>-<UTC stamp>.sqlite";
+  // when the copy cannot be made nothing is migrated (Io). An in-memory store
+  // and PostgreSQL are not copied: a PostgreSQL store is backed up by its
+  // owner (pg_dump) before `elctl db migrate --backed-up`.
+  bool backup_before_migrate = true;
+  // Called with the copy's path once it is complete, before any migration.
+  std::function<void(const std::filesystem::path&)> on_backup;
 };
 
 struct Actor {
@@ -865,6 +884,11 @@ bool is_unknown_catalog_reference(const Error& error) noexcept;
 // permission, a missing column, a PostgreSQL trigger that raises, bad SQL, a
 // lost connection, a busy database).
 bool is_refused_catalog_fill(const Error& error) noexcept;
+
+// True for the error open_store gives, with migrate off, for a store that has
+// migrations applied and lacks one this build carries (code
+// "schema_behind"). Not for an empty store, which has nothing to lose.
+bool is_schema_behind(const Error& error) noexcept;
 
 // identifier + "-" + two-digit aliquot + step letters (A..Z, AA, ...), as
 // legacy make_runid.

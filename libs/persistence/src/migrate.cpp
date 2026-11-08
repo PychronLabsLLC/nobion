@@ -3,7 +3,10 @@
 #include <algorithm>
 #include <cctype>
 #include <map>
+#include <system_error>
 
+#include "nobion/core/path_text.hpp"
+#include "nobion/core/process_log.hpp"
 #include "nobion/core/sha256.hpp"
 #include "sql/statements.hpp"
 
@@ -38,6 +41,53 @@ bool parse_file_name(std::string_view file, int& version, std::string& descripti
   }
   description = std::string(file.substr(5, file.size() - 9));
   return version > 0;
+}
+
+// The file of a SQLite connection's main database; empty for an in-memory one.
+Result<std::filesystem::path> sqlite_file(Db& db) {
+  auto rows = db.select(QStringLiteral("SELECT name, file FROM pragma_database_list"));
+  if (!rows) return fail(rows.error());
+  for (const auto& r : *rows)
+    if (to_std(r.value("name")) == "main") return path_from_utf8(to_std(r.value("file")));
+  return std::filesystem::path{};
+}
+
+// "2026-11-07T12:34:56.123456Z" -> "20261107T123456Z": a name every file
+// system takes, in order when listed.
+std::string file_stamp(const UtcTime& t) {
+  std::string out;
+  for (const char c : t.iso().substr(0, 19))
+    if (c != '-' && c != ':') out.push_back(c);
+  return out + "Z";
+}
+
+// A store that has migrations applied and lacks one (from: highest applied,
+// to: highest known) is copied before any of them runs (spec 11). SQLite file
+// stores only: VACUUM INTO writes a complete, consistent copy through this
+// connection, the write-ahead log included, where a byte copy of the file
+// could miss what the log holds. It runs outside any transaction.
+Result<void> back_up(Db& db, int from, int to, const BackupPolicy& policy) {
+  if (db.dialect() != Dialect::Sqlite) return {};
+  auto file = sqlite_file(db);
+  if (!file) return fail(file.error());
+  if (file->empty()) return {};
+  const std::filesystem::path target =
+      file->parent_path() / (utf8(file->stem()) + ".pre-" + std::to_string(from) + "-to-" + std::to_string(to) + "-" +
+                             file_stamp(UtcTime::now()) + ".sqlite");
+  const std::string refused = "store not migrated: no backup of " + utf8(*file) + " at " + utf8(target) + ": ";
+  std::error_code code;
+  if (std::filesystem::exists(target, code) || code)
+    return fail(ErrorKind::Io, refused + (code ? code.message() : std::string("the file is already there")));
+  std::string quoted;
+  for (const char c : utf8(target)) {
+    quoted.push_back(c);
+    if (c == '\'') quoted.push_back('\'');
+  }
+  if (auto r = db.unprepared(qs("VACUUM INTO '" + quoted + "'")); !r) return fail(ErrorKind::Io, refused + r.error().what);
+  process_logger("store").info("backed up " + utf8(*file) + " before migrating it from " + std::to_string(from) +
+                               " to " + std::to_string(to) + ": " + utf8(target));
+  if (policy.on_backup) policy.on_backup(target);
+  return {};
 }
 
 }  // namespace
@@ -84,7 +134,7 @@ std::vector<std::string> split_sql(std::string_view sql) {
   return out;
 }
 
-Result<std::vector<AppliedMigration>> migrate(Db& db, bool apply, std::optional<int> up_to) {
+Result<std::vector<AppliedMigration>> migrate(Db& db, bool apply, std::optional<int> up_to, const BackupPolicy& policy) {
   const char* dialect_dir = db.dialect() == Dialect::PostgreSql ? "pg" : "sqlite";
 
   struct Pending {
@@ -125,6 +175,15 @@ Result<std::vector<AppliedMigration>> migrate(Db& db, bool apply, std::optional<
     return applied;
   };
 
+  if (apply && policy.enabled && !known.empty()) {
+    auto applied = read_applied();
+    if (!applied) return fail(applied.error());
+    const bool pending = std::any_of(known.begin(), known.end(),
+                                     [&](const Pending& m) { return !applied->contains(m.version); });
+    if (!applied->empty() && pending)
+      if (auto r = back_up(db, applied->rbegin()->first, known.back().version, policy); !r) return fail(r.error());
+  }
+
   for (const auto& m : known) {
     WriteTx tx(db);
     if (auto r = tx.begin(); !r) return fail(r.error());
@@ -141,10 +200,13 @@ Result<std::vector<AppliedMigration>> migrate(Db& db, bool apply, std::optional<
                                            ": checksum differs from the migration this build carries");
       continue;
     }
-    if (!apply)
-      return fail(ErrorKind::Config, "database schema is out of date (migration " + std::to_string(m.version) + " " +
-                                         m.description +
-                                         " not applied); bring it up to date with: elctl db migrate --db <url>");
+    if (!apply) {
+      Error behind{ErrorKind::Config,
+                   "database schema is out of date (migration " + std::to_string(m.version) + " " + m.description +
+                       " not applied); bring it up to date with: elctl db migrate --db <url>",
+                   {}, applied->empty() ? std::string() : std::string(kCodeSchemaBehind)};
+      return fail(std::move(behind));
+    }
     for (const auto& statement : split_sql(m.text))
       if (auto r = db.unprepared(qs(statement)); !r) return fail(r.error());
     Row row;

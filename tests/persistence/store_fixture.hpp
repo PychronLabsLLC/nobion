@@ -59,7 +59,10 @@ class TestDatabase {
 
   ~TestDatabase() {
     if (admin_) (void)admin_->unprepared(detail::qs("DROP SCHEMA IF EXISTS " + schema_ + " CASCADE"));
-    if (!path_.empty()) remove_sqlite_files(path_);
+    if (!path_.empty()) {
+      remove_sqlite_files(path_);
+      remove_backups(path_);
+    }
   }
 
   // "<pid>_<64 random bits, hex>_<n>": a name no other database of this
@@ -85,6 +88,18 @@ class TestDatabase {
       std::error_code ignored;
       std::filesystem::remove(database.string() + suffix, ignored);
     }
+  }
+
+  // The copies a migration made beside the database before changing it
+  // ("<stem>.pre-<from>-to-<to>-<stamp>.sqlite", field diagnostics spec 11).
+  static void remove_backups(const std::filesystem::path& database) {
+    const std::string prefix = database.stem().string() + ".pre-";
+    std::error_code code;
+    std::vector<std::filesystem::path> found;
+    for (std::filesystem::directory_iterator it(database.parent_path(), code), end; !code && it != end;
+         it.increment(code))
+      if (it->path().filename().string().starts_with(prefix)) found.push_back(it->path());
+    for (const auto& f : found) std::filesystem::remove(f, code);
   }
 
   const std::string& url() const { return url_; }
