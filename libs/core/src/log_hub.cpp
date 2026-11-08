@@ -280,7 +280,11 @@ class FileLock {
                                  FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
                                  create ? OPEN_ALWAYS : OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h == INVALID_HANDLE_VALUE) return Outcome::Failed;
+    // The locked byte is far past any content: a Windows byte-range lock
+    // refuses other handles' reads of the bytes it covers, and a live
+    // sentinel must stay readable.
     OVERLAPPED overlapped{};
+    overlapped.OffsetHigh = kLockOffsetHigh;
     if (LockFileEx(h, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &overlapped)) {
       handle_ = h;
       return Outcome::Held;
@@ -358,6 +362,7 @@ class FileLock {
 
  private:
 #ifdef _WIN32
+  static constexpr DWORD kLockOffsetHigh = 0x7FFFFFFF;  // byte 0x7FFFFFFF00000000
   HANDLE handle_ = INVALID_HANDLE_VALUE;
 #else
   int fd_ = -1;
@@ -1462,7 +1467,8 @@ std::string sentinel_field(const std::string& text, std::string_view key) {
   while (pos < text.size()) {
     std::size_t end = text.find('\n', pos);
     if (end == std::string::npos) end = text.size();
-    const std::string_view line(text.data() + pos, end - pos);
+    std::string_view line(text.data() + pos, end - pos);
+    if (line.ends_with('\r')) line.remove_suffix(1);  // a copy saved with Windows line ends
     if (line.size() > key.size() && line.starts_with(key) && line[key.size()] == '=')
       return std::string(line.substr(key.size() + 1));
     pos = end + 1;
