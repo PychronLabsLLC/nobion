@@ -539,6 +539,11 @@ TEST(LogHub, AMultiLineMessageIsOneLineOfTheFile) {
     testing::internal::CaptureStderr();
     hub->write(LogLevel::Warn, "v", "a\nb");
     hub->write(LogLevel::Warn, "v", "c\r\nd\re\n");
+    // GetCapturedStderr calls fflush(nullptr), which flushes the log file's
+    // FILE too, while spdlog's writer thread writes to it with
+    // fwrite_unlocked (glibc): a record caught between the two was lost on
+    // CI. The writer is idle once the hub has flushed.
+    hub->flush();
     const std::string err = testing::internal::GetCapturedStderr();
     EXPECT_EQ(err, "[warn] v: a / b\n[warn] v: c / d / e / \n");
   }
