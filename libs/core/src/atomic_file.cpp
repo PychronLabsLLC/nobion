@@ -255,6 +255,30 @@ Result<void> write_file_atomic(const std::filesystem::path& path, std::string_vi
 #endif
 }
 
+Result<void> rename_durably(const std::filesystem::path& from, const std::filesystem::path& to) {
+#ifdef _WIN32
+  if (::MoveFileExW(from.c_str(), to.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) == 0) {
+    return win_io("cannot rename to", to, ::GetLastError());
+  }
+  return {};
+#else
+  if (::rename(from.c_str(), to.c_str()) != 0) {
+    return io("cannot rename to", to, errno);
+  }
+  const auto dir = to.has_parent_path() ? to.parent_path() : std::filesystem::path(".");
+  const int dfd = ::open(dir.c_str(), O_RDONLY | O_CLOEXEC);
+  if (dfd < 0) {
+    return io("cannot open directory", dir, errno);
+  }
+  if (::fsync(dfd) != 0) {
+    close_quietly(dfd);
+    return io("cannot sync directory", dir, errno);
+  }
+  ::close(dfd);
+  return {};
+#endif
+}
+
 namespace testing {
 void fail_atomic_write_at(int step) noexcept { g_fail_at.store(step, std::memory_order_relaxed); }
 }  // namespace testing

@@ -35,6 +35,14 @@ enum class Durability {
                                              Durability durability = Durability::Power,
                                              std::optional<std::filesystem::perms> new_file_mode = std::nullopt);
 
+// Renames `from` to `to` (replacing it) so the rename survives power loss:
+// POSIX renames, then syncs `to`'s directory; Windows uses MoveFileExW
+// (REPLACE_EXISTING | WRITE_THROUGH). For a file that has to keep an open
+// handle across the rename (a lock file), whose content its writer has synced
+// itself; anything else goes through write_file_atomic. An Io error from the
+// directory sync comes after the rename: the file already has its new name.
+[[nodiscard]] Result<void> rename_durably(const std::filesystem::path& from, const std::filesystem::path& to);
+
 namespace testing {
 // Makes step `step` of write_file_atomic fail with an Io error; 0 turns it off.
 // Steps: 1 create temp, 2 write, 3 sync file, 4 rename, 5 sync directory.

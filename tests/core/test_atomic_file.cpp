@@ -171,4 +171,21 @@ TEST_F(AtomicFile, AFailedWriteOfANewFileLeavesNothing) {
   EXPECT_EQ(count_temps(), 0U);
 }
 
+TEST_F(AtomicFile, RenameDurablyReplacesTheTarget) {
+  const auto from = dir_ / "a.new";
+  const auto to = dir_ / "a.session";
+  spit(from, "new");
+  spit(to, "old");
+  ASSERT_TRUE(nobion::rename_durably(from, to).has_value());
+  EXPECT_FALSE(fs::exists(from));
+  EXPECT_EQ(slurp(to), "new");
+}
+
+TEST_F(AtomicFile, RenameDurablyOfAMissingFileIsAnIoError) {
+  const auto result = nobion::rename_durably(dir_ / "missing", dir_ / "to");
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error().kind, nobion::ErrorKind::Io);
+  EXPECT_FALSE(fs::exists(dir_ / "to"));
+}
+
 }  // namespace

@@ -301,7 +301,9 @@ class FileLock {
 #endif
   }
 
-  // Replaces the file's content with `text`; false if it could not be written.
+  // Replaces the file's content with `text` and syncs it to the device (macOS:
+  // past the drive cache), so it survives power loss; false if it could not
+  // be written or synced.
   bool write_text(std::string_view text) noexcept {
 #ifdef _WIN32
     if (handle_ == INVALID_HANDLE_VALUE) return false;
@@ -310,7 +312,7 @@ class FileLock {
     if (WriteFile(handle_, text.data(), static_cast<DWORD>(text.size()), &written, &at) == FALSE ||
         written != text.size())
       return false;
-    return SetEndOfFile(handle_) != FALSE;
+    return SetEndOfFile(handle_) != FALSE && FlushFileBuffers(handle_) != FALSE;
 #else
     if (fd_ < 0 || ::ftruncate(fd_, 0) != 0) return false;
     std::size_t done = 0;
@@ -319,7 +321,10 @@ class FileLock {
       if (n <= 0) return false;
       done += static_cast<std::size_t>(n);
     }
-    return true;
+#ifdef __APPLE__
+    if (::fcntl(fd_, F_FULLFSYNC) == 0) return true;
+#endif
+    return ::fsync(fd_) == 0;
 #endif
   }
 
@@ -1778,10 +1783,9 @@ void make_sentinel(LogHub::Impl& impl) noexcept {
                              "\nstarted=" + utc_stamp(impl.pin().clock->wall_now()) + "\n";
     std::error_code ec;
     bool placed = impl.session_lock.write_text(text);
-    if (placed) {
-      std::filesystem::rename(building, final_path, ec);
-      placed = !ec;
-    }
+    // The lock moves with the file (its handle stays open across the rename),
+    // so write_file_atomic cannot place it; write_text synced the content.
+    if (placed) placed = rename_durably(building, final_path).has_value();
     if (!placed) {
       impl.session_lock.release();
       std::filesystem::remove(building, ec);
