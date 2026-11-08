@@ -119,6 +119,45 @@ jobs:
           fi
           echo "PBS=$pbs" >> "$GITHUB_ENV"
 
+      # OpenCV for libs/vision: core, imgproc and videoio only, static, built
+      # from a pinned tarball by packaging/opencv/build.py (field diagnostics
+      # spec 12.1). Homebrew's or apt's would bring a hundred shared libraries
+      # into the package. Cached on OS, arch, OpenCV version and the script's
+      # sha256: a change to an option in the script is a new build.
+      - name: OpenCV cache key
+        run: |
+          tmp="$RUNNER_TEMP"
+          if [ "$RUNNER_OS" = Windows ]; then tmp=$(cygpath -m "$RUNNER_TEMP"); fi
+          version=$($PY packaging/opencv/build.py --print-version)
+          script_sha=$($PY -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' packaging/opencv/build.py)
+          cmake_dir=$($PY packaging/opencv/build.py --print-cmake-dir)
+          {
+            echo "OCV_SRC=$tmp/opencv-src"
+            echo "OCV_PREFIX=$tmp/opencv"
+            echo "OCV_DIR=$tmp/opencv/$cmake_dir"
+            echo "OCV_KEY=opencv-${RUNNER_OS}-${RUNNER_ARCH}-${version}-${script_sha}"
+          } >> "$GITHUB_ENV"
+
+      - name: Restore OpenCV
+        id: opencv-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.OCV_PREFIX }}
+          key: ${{ env.OCV_KEY }}
+
+      - name: Build OpenCV
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        run: $PY packaging/opencv/build.py "$OCV_SRC" "$OCV_PREFIX"
+
+      # Saved as soon as it is built, so a later step's failure does not cost
+      # the next run the build.
+      - name: Save OpenCV
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.OCV_PREFIX }}
+          key: ${{ env.OCV_KEY }}
+
       - name: Signing identity (macOS)
         if: runner.os == 'macOS'
         env:
@@ -160,7 +199,8 @@ jobs:
           cmake -S . -B build "${gen[@]}" -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DBUILD_UI=ON -DBUILD_TESTS=OFF -DNOBION_WARNINGS_AS_ERRORS=OFF \
             -DPython_ROOT_DIR="$PBS" -DPython_FIND_STRATEGY=LOCATION \
-            -DNOBION_BUNDLE_PYTHON="$PBS"
+            -DNOBION_BUNDLE_PYTHON="$PBS" \
+            -DNOBION_VISION_OPENCV=ON -DOpenCV_DIR="$OCV_DIR" -DNOBION_PUBLISH=OFF
 
       - name: Build
         run: cmake --build build --config RelWithDebInfo --parallel
@@ -177,6 +217,13 @@ jobs:
           if ! printf '%s\n' "$id" | grep -Eq '^elctl [0-9]+\.[0-9]+\.[0-9]+\+[0-9a-f]{12}$'; then
             echo "build id is not a clean, known commit: $id"; exit 1
           fi
+          # The optional libraries a release is built with (spec 12): the
+          # trimmed OpenCV in, Arrow out. The list compiled into the programs
+          # (About, support bundle) is this file's.
+          features=$(tr -d '\r' < build/generated/build_features.txt)
+          echo "features: $(tr '\n' ' ' <<< "$features")"
+          if ! grep -qx 'vision_opencv' <<< "$features"; then echo "::error::built without vision_opencv"; exit 1; fi
+          if grep -qx 'publish_parquet' <<< "$features"; then echo "::error::built with publish_parquet"; exit 1; fi
 
       # RelWithDebInfo compiles with -O2 -g where Release did -O3: a numeric
       # fixture that differs under that stops the release. What is packaged
@@ -189,7 +236,8 @@ jobs:
           cmake -S . -B build-tests "${gen[@]}" -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DBUILD_UI=OFF -DBUILD_TESTS=ON -DNOBION_WARNINGS_AS_ERRORS=OFF \
             -DPython_ROOT_DIR="$PBS" -DPython_FIND_STRATEGY=LOCATION \
-            -DNOBION_BUNDLE_PYTHON="$PBS"
+            -DNOBION_BUNDLE_PYTHON="$PBS" \
+            -DNOBION_VISION_OPENCV=ON -DOpenCV_DIR="$OCV_DIR" -DNOBION_PUBLISH=OFF
 
       - name: Test (release configuration)
         run: |

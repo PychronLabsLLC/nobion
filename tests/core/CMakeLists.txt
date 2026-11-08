@@ -96,6 +96,12 @@ if(Python3_Interpreter_FOUND)
     COMMAND "${Python3_EXECUTABLE}" -m unittest discover -s "${PROJECT_SOURCE_DIR}/tools/tests" -p "test_symbolize.py"
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
   set_tests_properties(tools.symbolize PROPERTIES TIMEOUT 60)
+  # packaging/opencv/build.py: the option set a release's OpenCV is built
+  # with, per OS; nothing is downloaded or built.
+  add_test(NAME tools.opencv_build
+    COMMAND "${Python3_EXECUTABLE}" -m unittest discover -s "${PROJECT_SOURCE_DIR}/tools/tests" -p "test_opencv_build.py"
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}")
+  set_tests_properties(tools.opencv_build PROPERTIES TIMEOUT 60)
   # tools/agent_bench (the agent toolchain's ledger and fixed set): its tests
   # start no agent; the runner is given a repository made in a temporary
   # directory and a stand-in for the agent.

@@ -31,6 +31,12 @@ this page is the reader's reference to what is in the directory.
   README.md                       one paragraph: what this is
 ```
 
+The Parquet tables under `data/` need a build of nobion with Apache Arrow
+(`-DNOBION_PUBLISH=ON`; `docs/dev_setup.md`). The packaged installers are
+built without it (`NOBION_PUBLISH=OFF` in `release.yml`), so a release made
+by an installed nobion has everything above but `data/*.parquet`. **About
+Nobion** lists `publish_parquet` among the features when the build has it.
+
 `<sample>` is the sample's name with every character outside `A-Z a-z 0-9 . _ -`
 replaced by `_` (an empty name, dots only, a Windows device name or a
 trailing dot become `sample`, `name_`); when two samples of the release have

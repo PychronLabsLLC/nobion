@@ -127,6 +127,12 @@ install(DIRECTORY "${PROJECT_SOURCE_DIR}/configs/examples/" DESTINATION "${NOBIO
   COMPONENT ${NOBION_COMPONENT})
 install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_SOURCE_DIR}/README.md" DESTINATION "${NOBION_INSTALL_DOC}"
   COMPONENT ${NOBION_COMPONENT})
+# The licence texts of what a package links statically: OpenCV, built by
+# packaging/opencv/build.py for a release (field diagnostics spec 12.1).
+if(NOBION_VISION_OPENCV_ENABLED)
+  install(FILES "${PROJECT_SOURCE_DIR}/packaging/THIRD_PARTY_NOTICES.md" DESTINATION "${NOBION_INSTALL_DOC}"
+    COMPONENT ${NOBION_COMPONENT})
+endif()
 # EarthBank's workbook templates, the vendor's files as they are (not the note
 # kept beside them in the source tree).
 if(TARGET nobion_earthbank)

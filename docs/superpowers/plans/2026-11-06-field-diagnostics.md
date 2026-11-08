@@ -512,7 +512,7 @@ TEST(BuildInfo, FeaturesNameWhatWasCompiledIn) {
 | 8 | example queue `--sim-speed max`, Release vs RelWithDebInfo | | |
 | 9 | `ctest --preset dev` wall; queue `--sim-speed max` | | |
 | 12 | nobion `--sim` CPU %, records/s, recorder off vs on | | |
-| 21 | installer size per OS; release job time cold / warm | | |
+| 21 | installer size per OS; release job time cold / warm | macOS (dev Mac, ad hoc signed, no bundled Python): `.dmg` 50,157,622 B, `Nobion.app` 123,952 KiB (`Nobion` 20.9 MB, `elctl` 16.3 MB); nobion build cold, no ccache, 18 cores: 94.2 s. Linux, Windows: first release run. Job time: first release run | macOS: `.dmg` 52,787,452 B (+2.63 MB, +5.2 %), `Nobion.app` 130,556 KiB (+6.4 MiB; `Nobion` 24.3 MB, `elctl` 19.6 MB), no OpenCV dylib (`otool -L`); nobion build 95.9 s; OpenCV 4.14.0 build cold (configure+build+install, tarball present, no ccache) 26.3 s wall, 179.6 s CPU; prefix 26 MB. Linux, Windows sizes, job time cold / warm: first release run |
 
 ## Open questions
 
