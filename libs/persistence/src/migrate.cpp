@@ -80,9 +80,9 @@ Result<void> back_up(Db& db, int from, int to, const BackupPolicy& policy) {
   if (std::filesystem::exists(target, code) || code)
     return fail(ErrorKind::Io, refused + (code ? code.message() : std::string("the file is already there")));
   // Written aside and named only when whole: a copy cut short (disk full, a
-  // kill, power lost) never has the name of a backup. SQLite writes the copy
-  // with the store's synchronous setting (FULL), so it is on disk when VACUUM
-  // INTO returns; the rename then syncs the directory.
+  // kill, power lost) never has the name of a backup. The rename syncs the
+  // copy's content and then the directory, so the backup is on disk without
+  // leaning on how SQLite syncs VACUUM INTO output.
   std::filesystem::path partial = target;
   partial += ".partial";
   auto remove_partial = [&partial] {

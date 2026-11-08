@@ -257,11 +257,34 @@ Result<void> write_file_atomic(const std::filesystem::path& path, std::string_vi
 
 Result<void> rename_durably(const std::filesystem::path& from, const std::filesystem::path& to) {
 #ifdef _WIN32
+  // The content first: a handle that may write (FlushFileBuffers needs one),
+  // sharing everything so a lock file's own open handle is not refused.
+  const HANDLE h = ::CreateFileW(from.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                 nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (h == INVALID_HANDLE_VALUE) {
+    return win_io("cannot open", from, ::GetLastError());
+  }
+  if (::FlushFileBuffers(h) == 0) {
+    const DWORD code = ::GetLastError();
+    ::CloseHandle(h);
+    return win_io("cannot sync", from, code);
+  }
+  ::CloseHandle(h);
   if (::MoveFileExW(from.c_str(), to.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) == 0) {
     return win_io("cannot rename to", to, ::GetLastError());
   }
   return {};
 #else
+  // The content first (macOS: past the drive cache), then the name.
+  const int fd = ::open(from.c_str(), O_RDONLY | O_CLOEXEC);
+  if (fd < 0) {
+    return io("cannot open", from, errno);
+  }
+  if (sync_fd(fd) != 0) {
+    close_quietly(fd);
+    return io("cannot sync", from, errno);
+  }
+  ::close(fd);
   if (::rename(from.c_str(), to.c_str()) != 0) {
     return io("cannot rename to", to, errno);
   }

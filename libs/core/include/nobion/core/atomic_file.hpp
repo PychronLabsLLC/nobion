@@ -35,12 +35,14 @@ enum class Durability {
                                              Durability durability = Durability::Power,
                                              std::optional<std::filesystem::perms> new_file_mode = std::nullopt);
 
-// Renames `from` to `to` (replacing it) so the rename survives power loss:
-// POSIX renames, then syncs `to`'s directory; Windows uses MoveFileExW
-// (REPLACE_EXISTING | WRITE_THROUGH). For a file that has to keep an open
-// handle across the rename (a lock file), whose content its writer has synced
-// itself; anything else goes through write_file_atomic. An Io error from the
-// directory sync comes after the rename: the file already has its new name.
+// Syncs `from`'s content to the device (macOS: F_FULLFSYNC; Windows:
+// FlushFileBuffers), then renames it to `to` (replacing it) so both survive
+// power loss: POSIX renames, then syncs `to`'s directory; Windows uses
+// MoveFileExW (REPLACE_EXISTING | WRITE_THROUGH). For a file written by
+// something else (a lock file that keeps its open handle across the rename,
+// a copy SQLite wrote); content the process writes itself goes through
+// write_file_atomic. An Io error from the directory sync comes after the
+// rename: the file already has its new name.
 [[nodiscard]] Result<void> rename_durably(const std::filesystem::path& from, const std::filesystem::path& to);
 
 namespace testing {
