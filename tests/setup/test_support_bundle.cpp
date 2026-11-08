@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <memory>
 #include <random>
 #include <string>
 #include <vector>
@@ -21,16 +22,21 @@
 #include "nobion/core/config/logging_config.hpp"
 #include "nobion/core/log_hub.hpp"
 #include "nobion/core/logger.hpp"
+#include "nobion/devices/spectrometer/ngx_link.hpp"
+#include "nobion/devices/spectrometer/ngx_sim.hpp"
 #include "nobion/setup/install.hpp"
 #include "nobion/setup/installer.hpp"
 #include "nobion/setup/profile.hpp"
 #include "nobion/setup/site.hpp"
 #include "nobion/setup/support_bundle.hpp"
+#include "nobion/transport/sim_transport.hpp"
+#include "nobion/transport/trace_recorder.hpp"
 #include "temp_path.hpp"
 
 using namespace nobion;
 using namespace nobion::setup;
 namespace fs = std::filesystem;
+using namespace std::chrono_literals;
 
 namespace {
 
@@ -472,6 +478,57 @@ TEST_F(SupportBundle, TakesAFreshDumpFromTheHub) {
   });
   ASSERT_NE(dump, entries.end());
   EXPECT_NE(dump->second.find("before the bundle"), std::string::npos);
+}
+
+// An NGX session that logged in, recorded as a lab records it (the wire
+// logger in the flight recorder, a trace file under the install): no entry
+// of the bundle holds the password, in text or in hex.
+TEST_F(SupportBundle, NoDevicePasswordFromTheWire) {
+  config::LoggingConfig cfg;
+  cfg.dir = logs;
+  cfg.recorder.size_mb = 4;
+  SteadyClock clock;
+  auto hub = LogHub::create(cfg, clock);
+  ASSERT_TRUE(hub) << hub.error().what;
+  auto model = std::make_shared<spectrometer::NgxSimModel>();
+  model->clock = &clock;
+  model->mass = 39.96;
+  TransportOptions to;
+  to.name = "ngx";
+  to.clock = &clock;
+  auto sim = SimTransport::hooked(spectrometer::ngx_sim_hook(model), to, spectrometer::ngx_sim_events(model));
+  ASSERT_TRUE(sim->open());
+  fs::create_directories(root / "traces");
+  auto recorder =
+      TraceRecorder::to_file(std::move(sim), (root / "traces" / "ngx.trace").string(), clock, (*hub)->logger("ngx.wire"));
+  ASSERT_TRUE(recorder);
+  {
+    spectrometer::NgxLinkOptions lo;
+    lo.user = "pychron";
+    lo.password = "s3cret-ngx";
+    lo.command_timeout = 5s;  // an upper limit only: the sim answers at once
+    spectrometer::NgxLink link(**recorder, lo, clock);
+    ASSERT_TRUE(link.connect());
+    ASSERT_TRUE(link.ask("GETMASS"));
+  }
+  recorder->reset();
+
+  BundleOptions o = options();
+  o.hub = *hub;
+  auto written = write_support_bundle(&site, o);
+  ASSERT_TRUE(written) << written.error().what;
+  const auto entries = unzip(out);
+  ASSERT_TRUE(entries.count("traces/ngx.trace"));
+  const std::string hex = to_hex(to_bytes("s3cret-ngx"));
+  const std::string hex_upper = "73 33 63 72 65 74 2D 6E 67 78";
+  bool wire_seen = false;
+  for (const auto& [name, bytes] : entries) {
+    EXPECT_EQ(bytes.find("s3cret-ngx"), std::string::npos) << name;
+    EXPECT_EQ(bytes.find(hex), std::string::npos) << name;
+    EXPECT_EQ(bytes.find(hex_upper), std::string::npos) << name;
+    wire_seen = wire_seen || bytes.find("ngx.wire: tx") != std::string::npos;
+  }
+  EXPECT_TRUE(wire_seen);  // the session is in the bundle's dump
 }
 
 TEST_F(SupportBundle, TheDefaultNameIsUnderTheLogFolder) {
