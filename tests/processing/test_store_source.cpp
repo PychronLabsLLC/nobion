@@ -995,11 +995,14 @@ TEST(StoreSourceMapping, ASeriesLengthIsTakenFromTheInterceptsOwnDetector) {
 
 TEST(StoreSourceMapping, NonfinitePointers) {
   using V = std::vector<std::string>;
-  EXPECT_EQ(nonfinite_pointers(R"({"nonfinite": {"/value": "NaN", "/error": "Infinity"}})"), (V{"/value", "/error"}));
-  EXPECT_EQ(nonfinite_pointers(R"({"a": [1, {"nonfinite": {"/x": "NaN"}}], "s": "}\"{", "n": -1.5e3, "b": true,
-                                  "nonfinite" : { "/value" : "-Infinity" } , "z": null})"),
-            (V{"/value"}));
-  EXPECT_TRUE(nonfinite_pointers(R"({"nested": {"nonfinite": {"/value": "NaN"}}})").empty());  // top level only
+  // Raw strings outside the gtest macros: MSVC cannot take one as a macro argument (C2017).
+  const std::string both = R"({"nonfinite": {"/value": "NaN", "/error": "Infinity"}})";
+  const std::string busy = R"({"a": [1, {"nonfinite": {"/x": "NaN"}}], "s": "}\"{", "n": -1.5e3, "b": true,
+                                  "nonfinite" : { "/value" : "-Infinity" } , "z": null})";
+  const std::string nested = R"({"nested": {"nonfinite": {"/value": "NaN"}}})";
+  EXPECT_EQ(nonfinite_pointers(both), (V{"/value", "/error"}));
+  EXPECT_EQ(nonfinite_pointers(busy), (V{"/value"}));
+  EXPECT_TRUE(nonfinite_pointers(nested).empty());  // top level only
   EXPECT_TRUE(nonfinite_pointers(R"({"nonfinite": "/value"})").empty());
   EXPECT_TRUE(nonfinite_pointers(R"({"nonfinite": {}})").empty());
   EXPECT_TRUE(nonfinite_pointers("{}").empty());

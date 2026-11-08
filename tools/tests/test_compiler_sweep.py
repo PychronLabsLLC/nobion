@@ -91,7 +91,7 @@ class Select(unittest.TestCase):
         for changed in ("libs/core/CMakeLists.txt", "cmake/NobionWarnings.cmake", "CMakePresets.json"):
             selected, why = self.select({changed}, entries=[entry("a"), entry("b")])
             self.assertEqual(names(selected), ["a", "b"])
-            self.assertIn(changed, why)
+            self.assertIn(str(Path(changed)), why)  # the reason names it in native separators
 
     def test_no_dependency_log_sweeps_everything(self):
         selected, why = self.select({"libs/core/src/b.cpp"}, entries=[entry("a"), entry("b")], deps_text=None)

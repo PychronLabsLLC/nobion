@@ -429,7 +429,7 @@ TEST(TrackBench, CheckOnlyLeavesATraceThatIsThere) {
   TrackOptions options;
   options.check_only = true;
   options.trace = temp.dir / "trace.csv";
-  std::ofstream(options.trace) << "kept\n";
+  std::ofstream(options.trace, std::ios::binary) << "kept\n";
   ASSERT_TRUE(run_track(scenario(text(1, 1)), options));
   EXPECT_EQ(read_file(options.trace), "kept\n");
 }

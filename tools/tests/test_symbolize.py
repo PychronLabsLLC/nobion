@@ -62,6 +62,7 @@ class Parse(unittest.TestCase):
         self.assertIsNone(crash.module_of(0x1021FC000 + 0xC0000))
 
 
+@unittest.skipIf(sys.platform == "win32", "the fake tools are POSIX shell scripts")
 class Run(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -181,6 +182,7 @@ class Run(unittest.TestCase):
         self.assertIn(str(self.symbols), result.stdout)
 
 
+@unittest.skipIf(sys.platform == "win32", "the fake tools are POSIX shell scripts")
 class Split(unittest.TestCase):
     def test_archive_names(self):
         self.assertEqual(split_symbols.archive_name("0.4.0", "macos", "arm64"), "nobion-0.4.0-macOS-arm64.dSYM.zip")

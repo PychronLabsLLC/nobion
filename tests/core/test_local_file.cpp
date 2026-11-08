@@ -237,7 +237,9 @@ TEST_F(LocalFile, SetAppendsToACommentOnlyFile) {
 TEST_F(LocalFile, SetMakesAFileThatIsNotThere) {
   ASSERT_TRUE(set_local_table(local, "b", "[b]\ny = 9\n"));
   EXPECT_EQ(read(local), "[b]\ny = 9\n");
+#ifndef _WIN32  // Windows has no owner-only mode bits: a new file reports all of them
   EXPECT_EQ(fs::status(local).permissions() & fs::perms::mask, fs::perms::owner_read | fs::perms::owner_write);
+#endif
 }
 
 TEST_F(LocalFile, AFileItCannotMakeSenseOfIsLeftAlone) {

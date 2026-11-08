@@ -49,7 +49,7 @@ class AtomicFile : public ::testing::Test {
   [[nodiscard]] std::size_t count_temps() const {
     std::size_t n = 0;
     for (const auto& e : fs::directory_iterator(dir_)) {
-      if (e.path().filename().string().find(".tmp") != std::string::npos) {
+      if (e.path().filename().native().find(fs::path(".tmp").native()) != fs::path::string_type::npos) {
         ++n;
       }
     }

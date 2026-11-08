@@ -1755,7 +1755,8 @@ TEST_P(BatchWriterTest, RewritesOfOneCommitAreMergedAcrossBatches) {
   EXPECT_LT(first, second) << detail;
   EXPECT_EQ(detail.find("665/73-09.json", second + 1), std::string::npos) << detail;
   EXPECT_NE(detail.find("-7399522718437156748"), std::string::npos) << detail;
-  EXPECT_NE(detail.find(R"(a ] \" })"), std::string::npos) << detail;
+  const std::string quoted = R"(a ] \" })";  // outside the macro: MSVC C2017
+  EXPECT_NE(detail.find(quoted), std::string::npos) << detail;
   EXPECT_EQ(world_->count("changeset"), 3);  // the collection, c2, c3
 
   // Again, and replayed: the row is not touched.
