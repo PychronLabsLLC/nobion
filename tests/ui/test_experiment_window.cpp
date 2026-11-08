@@ -1649,7 +1649,11 @@ class TestExperimentWindow : public QObject {
     QCOMPARE(error, QStringLiteral("a queue is running"));
     QCOMPARE(window.model().queue().runs.size(), rows);
     QVERIFY(window.path().has_value());
-    QTRY_VERIFY_WITH_TIMEOUT(!window.executor()->running(), 60000);
+    // Ended here, not run out: on a slow CI runner the queue in real time
+    // outlasted ctest's limit for the whole file.
+    window.set_confirm([](const QString&, const QString&) { return true; });
+    window.executor()->request_abort();
+    QTRY_VERIFY_WITH_TIMEOUT(!window.executor()->running(), 30000);
   }
 
   // The identifier source reaches the run factory whichever of the two comes first.
