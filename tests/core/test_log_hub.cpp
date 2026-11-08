@@ -1306,8 +1306,19 @@ TEST(LogHub, AttachAndDropUnderConcurrentWrites) {
 
   EXPECT_EQ(b1.late.load(), 0);
   EXPECT_EQ(b2.late.load(), 0);
-  EXPECT_GT(b1.seen.load() + b2.seen.load(), 0);
   EXPECT_EQ(hub->bus(), nullptr);
+  // Whether any write fell inside an attachment above is the scheduler's
+  // (a fast Release build finished every write first): delivery is checked
+  // here, after the race.
+  {
+    const int before = b1.seen.load();
+    b1.live.store(true);
+    const LogHub::BusAttachment attached = hub->attach_bus(b1.bus);
+    relay.info("after the race");
+    hub->flush();
+    EXPECT_GT(b1.seen.load(), before);
+  }
+  b1.live.store(false);
 
   std::vector<int> per_writer(kWriters, 0);
   const std::regex stamp(R"(^(\d{4})-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z \[)");
