@@ -221,8 +221,10 @@ void DiagnosticsCollector::show_result(const QString& path, const QString& error
     box->setIcon(QMessageBox::Information);
     box->setText(tr("Diagnostics saved to %1").arg(native));
     box->setInformativeText(
-        tr("Send this file to support by email or a file share. Passwords and keys in it are masked; "
-           "credentials.toml is never included. Nothing was uploaded."));
+        tr("Send this file to support by email or a file share. Passwords, keys and webhook addresses in "
+           "configuration files are masked, and so are passwords in addresses in logs; crash dumps are "
+           "copied as written, so read the file before sending it. credentials.toml is never included. "
+           "Nothing was uploaded."));
     auto* reveal = box->addButton(reveal_label(), QMessageBox::ActionRole);
     reveal->setObjectName(QStringLiteral("revealBundleButton"));
     // An action-role button would close the box; keep it open and show the file.
