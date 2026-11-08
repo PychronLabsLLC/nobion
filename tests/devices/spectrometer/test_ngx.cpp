@@ -97,7 +97,7 @@ using nobion::testing::Crew;
 
 // "73 33 63 72 65 74": the wire log's spelling of `text`.
 std::string to_hex_upper_spaced(std::string_view text) {
-  static constexpr char kHex[] = "0123456789ABCDEF";
+  static constexpr std::string_view kHex = "0123456789ABCDEF";
   std::string out;
   for (const char c : text) {
     const auto v = static_cast<unsigned char>(c);
