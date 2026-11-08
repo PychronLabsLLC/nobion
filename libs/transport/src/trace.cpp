@@ -9,7 +9,9 @@ namespace nobion {
 std::string format_trace_record(const TraceRecord& record) {
   std::string out = std::to_string(record.at.count());
   switch (record.dir) {
-    case TraceRecord::Dir::Tx: out += " tx " + to_hex(record.data); break;
+    case TraceRecord::Dir::Tx:
+      out += record.withheld > 0 ? " tx withheld " + std::to_string(record.withheld) : " tx " + to_hex(record.data);
+      break;
     case TraceRecord::Dir::Rx: out += " rx " + to_hex(record.data); break;
     case TraceRecord::Dir::Err: out += " err " + record.message; break;
   }
@@ -56,7 +58,17 @@ Result<std::vector<TraceRecord>> parse_trace(std::istream& in) {
     TraceRecord rec;
     rec.at = std::chrono::microseconds(micros);
     const auto dir = next_token(rest);
-    if (dir == "tx" || dir == "rx") {
+    if (dir == "tx" && trim(rest).starts_with("withheld")) {
+      std::string_view count_text = trim(rest).substr(std::string_view("withheld").size());
+      count_text = trim(count_text);
+      std::size_t count = 0;
+      const auto [end, err] = std::from_chars(count_text.data(), count_text.data() + count_text.size(), count);
+      if (err != std::errc{} || end != count_text.data() + count_text.size() || count == 0) {
+        return bad("bad withheld count '" + std::string(count_text) + "'");
+      }
+      rec.dir = TraceRecord::Dir::Tx;
+      rec.withheld = count;
+    } else if (dir == "tx" || dir == "rx") {
       rec.dir = dir == "tx" ? TraceRecord::Dir::Tx : TraceRecord::Dir::Rx;
       auto data = from_hex(trim(rest));
       if (!data) return bad("bad hex payload");

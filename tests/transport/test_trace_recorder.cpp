@@ -4,7 +4,9 @@
 
 #include <cstdio>
 #include <filesystem>
+#include <functional>
 #include <sstream>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -25,6 +27,31 @@ TransportOptions opts() {
   o.timeout = 50ms;
   return o;
 }
+
+// Counts which write a decorator above it called.
+class SecretProbe final : public Transport {
+ public:
+  const std::string& name() const override { return name_; }
+  Result<void> open() override { return {}; }
+  void close() override {}
+  Result<Bytes> exchange(Bytes, ReadSpec, Duration, Resend) override { return Bytes{}; }
+  Result<void> write(Bytes tx) override {
+    plain.push_back(to_string(tx));
+    return {};
+  }
+  Result<void> write_secret(Bytes tx) override {
+    secret.push_back(to_string(tx));
+    return {};
+  }
+  Result<Bytes> read(ReadSpec, Duration) override { return Bytes{}; }
+  Result<void> transaction(std::function<Result<void>()> body) override { return body(); }
+  Health health() const override { return {}; }
+
+  std::vector<std::string> plain, secret;
+
+ private:
+  std::string name_ = "probe";
+};
 
 }  // namespace
 
@@ -218,4 +245,66 @@ TEST(TraceRecorder, WireOrderMatchesTraceOrder) {
     const char ch = static_cast<char>(r.data[0]);
     EXPECT_NE(wire[i].find(std::string("|") + ch + ".|"), std::string::npos) << i;
   }
+}
+
+// A secret write reaches the wire whole, and the trace file and the wire log
+// hold only its byte count.
+TEST(TraceRecorder, ASecretWriteIsSentButNeverRecorded) {
+  WireCapture cap;
+  auto sim = SimTransport::scripted({{to_bytes("Login u,hunter2\r\n"), {}}}, opts());
+  auto* raw = sim.get();
+  auto sink = std::make_shared<std::ostringstream>();
+  TraceRecorder rec(std::move(sim), sink, cap.clock, cap.hub->logger("rec.wire"));
+  ASSERT_TRUE(rec.open());
+  ASSERT_TRUE(rec.write_secret(to_bytes("Login u,hunter2\r\n")));
+  EXPECT_TRUE(raw->verify());
+
+  const std::string file = sink->str();
+  EXPECT_EQ(file.find(to_hex(to_bytes("hunter2"))), std::string::npos) << file;
+  EXPECT_NE(file.find("tx withheld 17"), std::string::npos) << file;
+  ASSERT_EQ(cap.got.size(), 1u);
+  EXPECT_EQ(cap.got[0].message, "tx 17B withheld");
+  EXPECT_EQ(cap.got[0].message.find("hunter2"), std::string::npos);
+}
+
+// The recorder hands a secret on as a secret, so a second recorder (or any
+// decorator) under it keeps it out of its own records too.
+TEST(TraceRecorder, ASecretWriteStaysASecretBelow) {
+  ManualClock clock;
+  auto probe = std::make_unique<SecretProbe>();
+  auto* seen = probe.get();
+  auto inner_sink = std::make_shared<std::ostringstream>();
+  auto inner = std::make_unique<TraceRecorder>(std::move(probe), inner_sink, clock);
+  TraceRecorder outer(std::move(inner), nullptr, clock);
+  ASSERT_TRUE(outer.write_secret(to_bytes("pw")));
+  ASSERT_TRUE(outer.write(to_bytes("plain")));
+  EXPECT_EQ(seen->secret, std::vector<std::string>{"pw"});
+  EXPECT_EQ(seen->plain, std::vector<std::string>{"plain"});
+  EXPECT_NE(inner_sink->str().find("tx withheld 2"), std::string::npos) << inner_sink->str();
+}
+
+// A trace with a withheld tx still replays: that step takes whatever is
+// written in its place.
+TEST(TraceRecorder, AWithheldTxReplaysAsAnyWrite) {
+  ManualClock clock;
+  auto live = SimTransport::hooked(
+      [](const Bytes& tx) { return to_string(tx).starts_with("Login") ? to_bytes("E00\n") : to_bytes("re\n"); },
+      opts());
+  auto sink = std::make_shared<std::ostringstream>();
+  {
+    TraceRecorder rec(std::move(live), sink, clock);
+    ASSERT_TRUE(rec.open());
+    ASSERT_TRUE(rec.write_secret(to_bytes("Login u,pw\n")));
+    ASSERT_TRUE(rec.read(ReadSpec::until("\n")));
+    ASSERT_TRUE(rec.exchange(to_bytes("q\n"), ReadSpec::until("\n")));
+  }
+  std::istringstream in(sink->str());
+  auto records = parse_trace(in);
+  ASSERT_TRUE(records) << to_string(records.error());
+  auto replay = SimTransport::replay(*records, opts());
+  ASSERT_TRUE(replay->open());
+  ASSERT_TRUE(replay->write(to_bytes("Login someone,else\n")));
+  EXPECT_EQ(to_string(*replay->read(ReadSpec::until("\n"))), "E00\n");
+  EXPECT_EQ(to_string(*replay->exchange(to_bytes("q\n"), ReadSpec::until("\n"))), "re\n");
+  EXPECT_TRUE(replay->verify());
 }

@@ -18,6 +18,8 @@ struct SimStep {
   Bytes expect;
   Bytes reply;
   Duration delay{};
+  // Any tx is taken for `expect` (a replayed secret the trace withheld).
+  bool any_tx = false;
 };
 
 // Fakes the wire. Same queue/worker/retry/health machinery as real
@@ -26,7 +28,8 @@ struct SimStep {
 // Modes:
 //   scripted  ordered SimSteps; any unexpected tx is recorded as a failure
 //             (see verify()) and the write fails with Protocol.
-//   replay    steps rebuilt from a TraceRecorder file.
+//   replay    steps rebuilt from a TraceRecorder file; a withheld tx
+//             (a secret) is a step that takes whatever is written.
 //   hook      a callback maps each tx to a reply (empty = no reply);
 //             optionally with an Unsolicited source of input.
 //

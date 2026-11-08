@@ -82,6 +82,15 @@ Result<void> TraceRecorder::write(Bytes tx) {
   });
 }
 
+Result<void> TraceRecorder::write_secret(Bytes tx) {
+  return transact(*inner_, [&]() -> Result<void> {
+    record_withheld(tx.size());
+    auto r = inner_->write_secret(std::move(tx));
+    if (!r) record_error(r.error());
+    return r;
+  });
+}
+
 Result<Bytes> TraceRecorder::read(ReadSpec rs, Duration timeout) {
   return transact(*inner_, [&]() -> Result<Bytes> {
     auto r = inner_->read(std::move(rs), timeout);
@@ -119,6 +128,19 @@ void TraceRecorder::record(TraceRecord::Dir dir, const Bytes& data) {
   }
   if (wire_log_ && wire_log_->enabled(LogLevel::Trace))
     wire_log_->trace(std::string(dir == TraceRecord::Dir::Tx ? "tx " : "rx ") + wire_text(data));
+}
+
+void TraceRecorder::record_withheld(std::size_t count) {
+  std::lock_guard lock(mutex_);  // guards the sink only
+  if (sink_) {
+    const auto at = std::chrono::duration_cast<std::chrono::microseconds>(clock_->now() - start_);
+    TraceRecord rec{at, TraceRecord::Dir::Tx, {}, {}};
+    rec.withheld = count;
+    *sink_ << format_trace_record(rec) << '\n';
+    sink_->flush();
+  }
+  if (wire_log_ && wire_log_->enabled(LogLevel::Trace))
+    wire_log_->trace("tx " + std::to_string(count) + "B withheld");
 }
 
 void TraceRecorder::record_error(const Error& error) {

@@ -125,7 +125,7 @@ std::unique_ptr<SimTransport> SimTransport::replay(const std::vector<TraceRecord
   for (const auto& rec : records) {
     switch (rec.dir) {
       case TraceRecord::Dir::Tx:
-        state->steps.push_back(SimStep{rec.data, {}, {}});
+        state->steps.push_back(SimStep{rec.data, {}, {}, rec.withheld > 0});
         break;
       case TraceRecord::Dir::Rx:
         if (state->steps.empty()) {
@@ -244,7 +244,7 @@ Result<void> SimTransport::do_write(const Bytes& tx, Duration) {
   s.written.push_back(tx);
   if (s.written.size() > kWrittenLimit) s.written.pop_front();
   if (s.mode == State::Mode::Scripted) {
-    if (s.steps.empty() || s.steps.front().expect != tx) {
+    if (s.steps.empty() || (!s.steps.front().any_tx && s.steps.front().expect != tx)) {
       std::string what = "unexpected tx '" + escape(tx) + "'";
       what += s.steps.empty() ? " (script exhausted)" : " (expected '" + escape(s.steps.front().expect) + "')";
       s.unexpected.push_back(what);

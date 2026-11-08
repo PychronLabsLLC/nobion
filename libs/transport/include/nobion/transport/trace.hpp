@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstddef>
 #include <iosfwd>
 #include <string>
 #include <vector>
@@ -14,6 +15,7 @@ namespace nobion {
 //
 //   # free-form comment
 //   <micros> tx <hex>
+//   <micros> tx withheld <n>   (a secret: n bytes sent, none recorded)
 //   <micros> rx <hex>
 //   <micros> err <error kind> <message>
 //
@@ -26,6 +28,9 @@ struct TraceRecord {
   Dir dir = Dir::Tx;
   Bytes data;          // Tx / Rx
   std::string message; // Err: "<kind> <what>"
+  // Tx of a secret (Transport::write_secret): this many bytes went out and
+  // `data` is empty. Replayed as a step that takes any write.
+  std::size_t withheld = 0;
 
   friend bool operator==(const TraceRecord&, const TraceRecord&) = default;
 };

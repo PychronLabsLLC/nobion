@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -40,6 +41,9 @@ class TraceRecorder final : public Transport {
                          Resend resend = Resend::Never) override;
   Result<void> transaction(std::function<Result<void>()> body) override;
   Result<void> write(Bytes tx) override;
+  // Sent to inner's write_secret; recorded as "tx withheld <n>" in the file
+  // and "tx <n>B withheld" in the wire log, never the bytes.
+  Result<void> write_secret(Bytes tx) override;
   Result<Bytes> read(ReadSpec rs, Duration timeout = kDefaultTimeout) override;
   Result<std::optional<Bytes>> poll(ReadSpec rs, Duration timeout = kDefaultTimeout) override;
   Health health() const override;
@@ -48,6 +52,7 @@ class TraceRecorder final : public Transport {
 
  private:
   void record(TraceRecord::Dir dir, const Bytes& data);
+  void record_withheld(std::size_t count);
   void record_error(const Error& error);
 
   std::unique_ptr<Transport> inner_;

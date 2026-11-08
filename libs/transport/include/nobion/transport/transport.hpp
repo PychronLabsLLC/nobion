@@ -47,6 +47,11 @@ class Transport {
   virtual Result<Bytes> exchange(Bytes tx, ReadSpec rs, Duration timeout = kDefaultTimeout,
                                  Resend resend = Resend::Never) = 0;
   virtual Result<void> write(Bytes tx) = 0;
+  // write() for bytes that must reach the wire but never a record of it (a
+  // login's password): a recorder writes only their byte count, and a
+  // transport that wraps another hands them on with write_secret, so the
+  // mark is not lost on the way down. One that records nothing keeps this.
+  virtual Result<void> write_secret(Bytes tx) { return write(std::move(tx)); }
   virtual Result<Bytes> read(ReadSpec rs, Duration timeout = kDefaultTimeout) = 0;
   // read() for a reader that waits on unsolicited input (an instrument's
   // event stream): no complete frame within `timeout` is nullopt, not a
