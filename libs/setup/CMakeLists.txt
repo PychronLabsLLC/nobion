@@ -12,6 +12,8 @@ target_include_directories(nobion_setup PUBLIC
 
 target_compile_features(nobion_setup PUBLIC cxx_std_20)
 target_link_libraries(nobion_setup PUBLIC nobion::experiment nobion::systems nobion::core)
+# miniz: the support bundle's zip (support_bundle.cpp), as libs/earthbank uses it.
+target_link_libraries(nobion_setup PRIVATE miniz::miniz)
 
 # The source tree: where a program that is not installed finds the profiles
 # and example configs (setup::find_resources).

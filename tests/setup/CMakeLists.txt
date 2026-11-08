@@ -4,7 +4,8 @@ file(GLOB NOBION_SETUP_TESTS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/test
 if(NOBION_SETUP_TESTS)
   add_executable(nobion_setup_tests ${NOBION_SETUP_TESTS})
   # asio: test_connection.cpp serves a simulated NGX controller over TCP.
-  target_link_libraries(nobion_setup_tests PRIVATE nobion::setup asio::asio GTest::gtest_main)
+  # miniz: test_support_bundle.cpp reads the bundle back.
+  target_link_libraries(nobion_setup_tests PRIVATE nobion::setup asio::asio miniz::miniz GTest::gtest_main)
   # test_legacy_line.cpp reads the importer's private legacy/lite.hpp readers.
   target_include_directories(nobion_setup_tests PRIVATE "${PROJECT_SOURCE_DIR}/libs/setup/src"
     "${PROJECT_SOURCE_DIR}/tests/support")

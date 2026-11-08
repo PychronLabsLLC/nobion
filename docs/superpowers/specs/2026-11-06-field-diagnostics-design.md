@@ -247,9 +247,19 @@ One zip a lab sends back.
     std::uint64_t max_bytes = 200ull << 20;  // over it: newest content kept, oldest dropped, README says what
     bool include_traces = true;
     std::function<std::string()> live;       // running app's extra state (JSON); null in elctl
+    std::shared_ptr<LogHub> hub;             // fresh dump_recorder("bundle"); null: none
+    std::filesystem::path log_dir;           // empty: fresh dump's folder, else default_log_dir(install root)
+    std::filesystem::path trace_dir;         // empty: <install root>/traces
+    std::filesystem::path site_path;         // empty: default_site_path(); missing file left out
+    DoctorOptions doctor;                    // probe forced off
+    std::string qt_version;                  // nobion: qVersion(); empty: not in build.json
   };
-  Result<std::filesystem::path> write_support_bundle(const setup::Install*, const BundleOptions&);
+  Result<std::filesystem::path> write_support_bundle(const setup::SiteInstall*, const BundleOptions&);
   ```
+
+- Written to temp file beside `out`, renamed (`write_file_atomic`, `Durability::Crash`), then `mark_as_user_file`. Null install: no `config/` but `site.toml`, no `state/`, `doctor.txt` is `no install`.
+- Cap: every entry deflated once up front (size known), then oldest droppable entry (by mtime) dropped until estimate, README included, fits `max_bytes`. Droppable: logs, `crash/`, `flight/` files, traces. Never dropped: newest `*.log`, config, state, reports. Nothing left to drop and still over: written anyway, README says so.
+- `config/` leaves out hidden folders (`.nobion`, `.git`), data, log, trace folders, `tables/` (in `state/`), any `credentials.toml`, `*.state.toml` (in `state/`), file over 16 MiB (named in README). `EDITED.txt` lines: `edited <path>`, `missing <path>` (in map, gone), `unknown <path>` (not in map).
 
 - Contents (zip paths):
   - `README.txt`: what this is, build id, host, OS, when, what was left out and why, hang-stack commands (section 6).
