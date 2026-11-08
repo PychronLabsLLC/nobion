@@ -309,7 +309,10 @@ HostFacts host_facts() {
 #endif
 }
 
-// `true` when `p` is `dir` or inside it (both made absolute and normal).
+// `true` when `p` is `dir` or inside it, compared part by part on absolute,
+// lexically normal paths. Case is compared as written: on Windows
+// `C:\Lab\Data` is not under `c:\lab\data` (accepted; both come from the
+// same configuration, spelled alike).
 bool is_under(const fs::path& p, const fs::path& dir) {
   if (dir.empty()) return false;
   std::error_code ec;
@@ -525,8 +528,9 @@ void collect_install(Collector& c, const SiteInstall& install, const fs::path& l
     std::set<std::string> seen;
     for (const auto& [rel, sha] : record->files) {
       seen.insert(rel);
-      const fs::path file = root / fs::path(std::u8string(rel.begin(), rel.end()));
-      if (secret_path(fs::path(std::u8string(rel.begin(), rel.end()))) || hidden(fs::path(rel))) continue;
+      const fs::path rel_path(std::u8string(rel.begin(), rel.end()));  // UTF-8, never the ANSI code page
+      const fs::path file = root / rel_path;
+      if (secret_path(rel_path) || hidden(rel_path)) continue;
       if (is_link(file)) continue;
       std::ifstream in(file, std::ios::binary);
       if (!in || !is_plain_file(file)) {
@@ -631,10 +635,13 @@ std::string readme(const ReadmeFacts& f, const Collector& c, const std::vector<s
     << "=====================\n\n"
     << "What a lab sends back when something goes wrong: logs, crash files, flight\n"
     << "recorder dumps, the install's config and state, wire traces and the doctor\n"
-    << "report. In TOML files the values of password, token, secret and key entries\n"
-    << "are masked as " << redact::kMask << "; everywhere the password of a URL is. Logs, crash files,\n"
-    << "dumps and traces are masked for URL passwords only: read them before sending.\n"
-    << "The credentials file is never included. Nothing was uploaded.\n\n"
+    << "report. In TOML files the values of password, token, secret and key entries,\n"
+    << "and webhook URLs, are masked as " << redact::kMask << "; everywhere the password of a URL\n"
+    << "and the value of a secret query parameter (?token=) are. Logs, crash reports,\n"
+    << "flight dumps and traces are masked for those only: read them before sending.\n"
+    << "Crash dumps (.dmp) are copied as written: they hold the program's memory.\n"
+    << "A device login's password never reaches the wire records. The credentials\n"
+    << "file is never included. Nothing was uploaded.\n\n"
     << "build    " << build_id() << "\n"
     << "host     " << host_name() << "\n"
     << "os       " << f.host.os << (f.host.machine.empty() ? "" : " " + f.host.machine) << "\n"
