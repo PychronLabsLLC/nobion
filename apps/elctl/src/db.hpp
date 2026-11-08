@@ -3,7 +3,10 @@
 // elctl db: the DVC store's schema.
 //
 //   elctl [--install NAME] db status  [--db <url>]   is the store's schema the one this build needs?
-//   elctl [--install NAME] db migrate [--db <url>]   apply the migrations it lacks
+//   elctl [--install NAME] db migrate [--db <url>] [--backed-up]
+//                                 apply the migrations it lacks; a SQLite store
+//                                 is copied beside itself first, a PostgreSQL one
+//                                 refused until --backed-up (field diagnostics spec 11)
 //   elctl [--install NAME] db derive  [--db <url>] [--all] [--limit N] [--quiet]
 //                                 fill the cache of ages (age cache spec 4.5):
 //                                 reduce, and cache the age of, every analysis
@@ -42,5 +45,13 @@ namespace elctl {
 
 int db_command(const std::vector<std::string>& args, const std::optional<std::string>& install,
                const nobion::processing::Domain& domain, Io io);
+
+// Built with persistence only. The URL as it may be printed: no password (in
+// the authority or as a `password=` query item).
+std::string printable_store_url(const std::string& url);
+// The pg_dump command (POSIX shell) `db migrate` prints when it refuses a
+// PostgreSQL store that has not been backed up: the printable URL without its
+// search_path, which becomes --schema; every argument that varies quoted.
+std::string pg_dump_command(const std::string& url);
 
 }  // namespace elctl

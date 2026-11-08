@@ -58,11 +58,13 @@ if(TARGET nobion_persistence)
   # processing_store: the reduction `import verify` compares legacy ages with,
   # and the source `export` and `earthbank` read. arar_store: the flux store
   # `flux` reads and writes. earthbank: the submissions and the workbooks; it
-  # has no network code.
+  # has no network code. Qt6::Core (persistence's own Qt): QUrl, so that
+  # `db migrate` prints a store URL without its password as the store parses it.
   target_link_libraries(nobion_elctl_lib PUBLIC nobion_persistence nobion::dvc nobion::ingest nobion::entry
     nobion::processing_store nobion::arar_store nobion::experiment_store nobion::earthbank nobion::publish
-    PRIVATE nlohmann_json::nlohmann_json)
-  target_compile_definitions(nobion_elctl_lib PUBLIC NOBION_ELCTL_HAS_STORE=1 NOBION_ELCTL_IMPORT)
+    PRIVATE nlohmann_json::nlohmann_json Qt6::Core)
+  target_compile_definitions(nobion_elctl_lib PUBLIC NOBION_ELCTL_HAS_STORE=1 NOBION_ELCTL_IMPORT
+    PRIVATE QT_NO_KEYWORDS)  # the store's headers name members `signals`
 endif()
 if(TARGET nobion_earthbank_qt)
   target_link_libraries(nobion_elctl_lib PUBLIC nobion::earthbank_qt)

@@ -1,12 +1,15 @@
 #include "db.hpp"
 
-#include <algorithm>
 #include <charconv>
 #include <filesystem>
 #include <optional>
 #include <ostream>
 #include <string_view>
 #include <system_error>
+
+#include <QString>
+#include <QUrl>
+#include <QUrlQuery>
 
 #include "derive_summary.hpp"
 #include "nobion/core/path_text.hpp"
@@ -86,47 +89,6 @@ void print_pis_without_given_name(ps::IStore& store, Io io) {
   }
 }
 
-// The URL without its password: what may be printed.
-std::string without_password(const std::string& url) {
-  const auto scheme = url.find("://");
-  if (scheme == std::string::npos) return url;
-  const auto start = scheme + 3;
-  const auto at = url.find('@', start);
-  const auto slash = url.find('/', start);
-  if (at == std::string::npos || (slash != std::string::npos && slash < at)) return url;
-  const auto colon = url.find(':', start);
-  if (colon == std::string::npos || colon > at) return url;
-  return url.substr(0, colon) + url.substr(at);
-}
-
-// A pg_dump command that backs up the store `url` names, without its
-// password (pg_dump asks for it, or reads PGPASSWORD or ~/.pgpass).
-// search_path is nobion's, not libpq's: it becomes --schema.
-std::string pg_dump_command(const std::string& url) {
-  std::string printable = without_password(url);
-  std::string schema;
-  if (const auto q = printable.find('?'); q != std::string::npos) {
-    std::string kept;
-    std::size_t at = q + 1;
-    while (at <= printable.size()) {
-      const auto amp = std::min(printable.find('&', at), printable.size());
-      const std::string item = printable.substr(at, amp - at);
-      if (item.starts_with("search_path=")) {
-        schema = item.substr(std::string_view("search_path=").size());
-      } else if (!item.empty()) {
-        kept += (kept.empty() ? "" : "&") + item;
-      }
-      at = amp + 1;
-    }
-    printable.replace(q, std::string::npos, kept.empty() ? std::string() : "?" + kept);
-  }
-  std::string quoted = "'";
-  for (const char c : printable) quoted += c == '\'' ? std::string("'\\''") : std::string(1, c);
-  quoted += '\'';
-  return "pg_dump --format=custom --file=nobion-pre-migrate.dump" + (schema.empty() ? "" : " --schema=" + schema) +
-         " " + quoted;
-}
-
 namespace pp = nobion::processing;
 
 // elctl db derive: the backfill of the cache of ages (age cache spec 4.5).
@@ -163,6 +125,45 @@ nobion::Result<std::string> install_url(const std::optional<std::string>& name, 
 }
 
 }  // namespace
+
+namespace {
+
+// The URL parsed as the store parses it (Db::open), with no password: not in
+// the authority, not as a password= query item.
+QUrl without_password(const std::string& url) {
+  QUrl u(QString::fromStdString(url));
+  u.setPassword({});
+  QUrlQuery query(u);
+  query.removeAllQueryItems(QStringLiteral("password"));
+  u.setQuery(query.isEmpty() ? QString() : query.query(QUrl::FullyEncoded));
+  return u;
+}
+
+// One argument for a POSIX shell: single-quoted, a quote as '\''.
+std::string shell_quoted(const std::string& text) {
+  std::string out = "'";
+  for (const char c : text) out += c == '\'' ? std::string("'\\''") : std::string(1, c);
+  return out + '\'';
+}
+
+}  // namespace
+
+std::string printable_store_url(const std::string& url) {
+  return without_password(url).toString(QUrl::FullyEncoded).toStdString();
+}
+
+std::string pg_dump_command(const std::string& url) {
+  QUrl u = without_password(url);
+  QUrlQuery query(u);
+  // search_path is nobion's, not libpq's (pg_dump would refuse it): --schema.
+  const std::string schema =
+      query.queryItemValue(QStringLiteral("search_path"), QUrl::FullyDecoded).toStdString();
+  query.removeAllQueryItems(QStringLiteral("search_path"));
+  u.setQuery(query.isEmpty() ? QString() : query.query(QUrl::FullyEncoded));
+  return "pg_dump --format=custom --file=nobion-pre-migrate.dump" +
+         (schema.empty() ? std::string() : " " + shell_quoted("--schema=" + schema)) + " " +
+         shell_quoted(u.toString(QUrl::FullyEncoded).toStdString());
+}
 
 int db_command(const std::vector<std::string>& args, const std::optional<std::string>& install,
                const nobion::processing::Domain& domain, Io io) {
@@ -233,7 +234,7 @@ int db_command(const std::vector<std::string>& args, const std::optional<std::st
   // its owner's to back up (field diagnostics spec, section 11).
   const bool postgres = url.starts_with("postgresql://") || url.starts_with("postgres://");
   if (postgres && !backed_up && ps::is_schema_behind(current.error())) {
-    io.out << "not migrated: " << without_password(url) << " is a PostgreSQL store with migrations pending\n"
+    io.out << "not migrated: " << printable_store_url(url) << " is a PostgreSQL store with migrations pending\n"
            << "  (" << current.error().what << ").\n"
            << "nobion does not copy a PostgreSQL store. Back it up first, for example:\n"
            << "  " << pg_dump_command(url) << '\n'
