@@ -225,7 +225,7 @@ Choice choose_install(const nobion::ui::CommandLine& cli, const setup::Resources
 // File > Installations from an open window: switching closes this one and
 // starts nobion again on the other install.
 std::function<void()> installations_handler(QWidget* window, const setup::Resources& resources, std::string current) {
-  return [window, resources, current] {
+  return [window, resources, current = std::move(current)] {
     auto library = setup::ProfileLibrary::load(resources.profiles, resources.examples);
     nobion::ui::InstallationsDialog dialog(setup::default_site_path(), library ? &*library : nullptr,
                                             nobion::ui::database_opener(), current, window);
