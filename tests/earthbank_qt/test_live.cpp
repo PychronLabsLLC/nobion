@@ -24,14 +24,14 @@
 
 #include "live_round_trip.hpp"
 #include "nobion/earthbank/profiles.hpp"
+#include "nobion/core/env.hpp"
 #include "nobion/earthbank/qt_http_client.hpp"
 
 namespace nobion::earthbank::testing {
 namespace {
 
 std::string env(const char* name) {
-  const char* value = std::getenv(name);  // NOLINT(concurrency-mt-unsafe): read once, before any thread is made
-  return value != nullptr ? std::string(value) : std::string();
+  return nobion::env_var(name).value_or("");
 }
 
 TEST(EarthbankLive, UploadsTheFixtureSamplesAndRemovesThem) {

@@ -21,6 +21,7 @@
 #include "exp.hpp"
 #include "log_capture.hpp"
 #include "nobion/core/clock.hpp"
+#include "nobion/core/env.hpp"
 #include "nobion/core/events.hpp"
 #include "nobion/core/log_dir.hpp"
 #include "nobion/core/log_hub.hpp"
@@ -684,7 +685,7 @@ TEST_F(ElctlExpTest, ItsDataGoesToTheLabNotTheQueuesDirectory) {
 class ScopedEnv {
  public:
   ScopedEnv(std::string name, const std::string& value) : name_(std::move(name)) {
-    if (const char* old = std::getenv(name_.c_str())) old_ = old;  // NOLINT(concurrency-mt-unsafe): tests set it alone
+    old_ = nobion::env_var(name_.c_str());
     set(value);
   }
   ~ScopedEnv() { set(old_.value_or("")); }
