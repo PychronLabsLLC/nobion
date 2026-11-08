@@ -130,7 +130,7 @@ Result<void> write_windows(const std::filesystem::path& path, std::string_view b
                        : Result<void>(win_io("cannot replace", path, last));
   }
   // MOVEFILE_WRITE_THROUGH covers the directory entry: no separate step.
-  if (injected(5)) {
+  if (durability == Durability::Power && injected(5)) {
     return injected_failure(5, path);
   }
   return {};
