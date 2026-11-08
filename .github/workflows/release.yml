@@ -122,20 +122,21 @@ jobs:
       # OpenCV for libs/vision: core, imgproc and videoio only, static, built
       # from a pinned tarball by packaging/opencv/build.py (field diagnostics
       # spec 12.1). Homebrew's or apt's would bring a hundred shared libraries
-      # into the package. Cached on OS, arch, OpenCV version and the script's
-      # sha256: a change to an option in the script is a new build.
+      # into the package. Cached on OS, arch, runner image, OpenCV version and
+      # the script's sha256: a change to an option in the script, or a new
+      # runner image (compiler, SDK), is a new build.
       - name: OpenCV cache key
         run: |
           tmp="$RUNNER_TEMP"
           if [ "$RUNNER_OS" = Windows ]; then tmp=$(cygpath -m "$RUNNER_TEMP"); fi
-          version=$($PY packaging/opencv/build.py --print-version)
-          script_sha=$($PY -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' packaging/opencv/build.py)
-          cmake_dir=$($PY packaging/opencv/build.py --print-cmake-dir)
+          version=$($PY packaging/opencv/build.py --print-version | tr -d '\r')
+          script_sha=$($PY -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' packaging/opencv/build.py | tr -d '\r')
+          cmake_dir=$($PY packaging/opencv/build.py --print-cmake-dir | tr -d '\r')
           {
             echo "OCV_SRC=$tmp/opencv-src"
             echo "OCV_PREFIX=$tmp/opencv"
             echo "OCV_DIR=$tmp/opencv/$cmake_dir"
-            echo "OCV_KEY=opencv-${RUNNER_OS}-${RUNNER_ARCH}-${version}-${script_sha}"
+            echo "OCV_KEY=opencv-${RUNNER_OS}-${RUNNER_ARCH}-${ImageOS:-image}-${ImageVersion:-0}-${version}-${script_sha}"
           } >> "$GITHUB_ENV"
 
       - name: Restore OpenCV
@@ -200,7 +201,7 @@ jobs:
             -DBUILD_UI=ON -DBUILD_TESTS=OFF -DNOBION_WARNINGS_AS_ERRORS=OFF \
             -DPython_ROOT_DIR="$PBS" -DPython_FIND_STRATEGY=LOCATION \
             -DNOBION_BUNDLE_PYTHON="$PBS" \
-            -DNOBION_VISION_OPENCV=ON -DOpenCV_DIR="$OCV_DIR" -DNOBION_PUBLISH=OFF
+            -DNOBION_VISION_OPENCV=ON -DOpenCV_DIR="$OCV_DIR" -DOpenCV_STATIC=ON -DNOBION_PUBLISH=OFF
 
       - name: Build
         run: cmake --build build --config RelWithDebInfo --parallel
@@ -237,7 +238,7 @@ jobs:
             -DBUILD_UI=OFF -DBUILD_TESTS=ON -DNOBION_WARNINGS_AS_ERRORS=OFF \
             -DPython_ROOT_DIR="$PBS" -DPython_FIND_STRATEGY=LOCATION \
             -DNOBION_BUNDLE_PYTHON="$PBS" \
-            -DNOBION_VISION_OPENCV=ON -DOpenCV_DIR="$OCV_DIR" -DNOBION_PUBLISH=OFF
+            -DNOBION_VISION_OPENCV=ON -DOpenCV_DIR="$OCV_DIR" -DOpenCV_STATIC=ON -DNOBION_PUBLISH=OFF
 
       - name: Test (release configuration)
         run: |

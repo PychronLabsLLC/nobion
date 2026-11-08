@@ -498,7 +498,7 @@ TEST(BuildInfo, FeaturesNameWhatWasCompiledIn) {
 
 - [ ] **Step 1: Write the failing test** `tools/tests/test_opencv_build.py`: `build.py --print-cmake-args --os macos|linux|windows` prints exactly the option set of spec 12.1 for that OS (backends per OS; every `WITH_*` listed off is `OFF`; `BUILD_SHARED_LIBS=OFF`; `BUILD_LIST=core,imgproc,videoio`); the pinned tarball's sha256 is a 64-hex constant.
 - [ ] **Step 2: Run** — FAIL.
-- [ ] **Step 3: Implement** the script (download, verify sha256, configure, build, install into `<prefix>`) and the workflow steps (cache key `opencv-<os>-<arch>-<version>-<sha256 of build.py>`).
+- [ ] **Step 3: Implement** the script (download, verify sha256, configure, build, install into `<prefix>`) and the workflow steps (cache key `opencv-<os>-<arch>-<runner image>-<image version>-<version>-<sha256 of build.py>`).
 - [ ] **Step 4: Verify locally** on macOS: `python3 packaging/opencv/build.py <src> <prefix>`, then configure a release-config build with `-DOpenCV_DIR=<prefix>/lib/cmake/opencv4 -DNOBION_VISION_OPENCV=ON -DNOBION_PUBLISH=OFF`, build, run `nobion_vision_tests` and `elctl --version` (features show `vision_opencv`, not `publish_parquet`); `otool -L` on `nobion` lists no OpenCV dylib. **Measure** installer size and release job time, cold and warm cache, before and after; record here.
 - [ ] **Step 5: Commit** `ci: releases link a trimmed static OpenCV and build without Arrow`
 

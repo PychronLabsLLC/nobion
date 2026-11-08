@@ -157,11 +157,15 @@ def fetch(src: Path) -> Path:
         with tarfile.open(tarball) as tar:
             if hasattr(tarfile, "data_filter"):
                 tar.extractall(src, filter="data")
-            else:  # Python before 3.12: check the names by hand
+            else:  # Python before 3.12: check names and link targets by hand
+                def leaves(name: str) -> bool:
+                    return name.startswith(("/", "..")) or "/../" in name or name.endswith("/..")
                 for member in tar.getmembers():
-                    if member.name.startswith(("/", "..")) or "/../" in member.name:
+                    if leaves(member.name):
                         sys.exit(f"error: {member.name} leaves the source directory")
-                tar.extractall(src)  # noqa: S202 (names checked above)
+                    if (member.issym() or member.islnk()) and leaves(member.linkname):
+                        sys.exit(f"error: {member.name} links outside the source directory")
+                tar.extractall(src)  # noqa: S202 (names and links checked above)
     return source
 
 
