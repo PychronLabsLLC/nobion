@@ -122,6 +122,8 @@ Last minutes of everything, in memory, written out when something goes wrong.
   "*.wire" = "trace"      # default: wire bytes always kept
   ```
 
+  Bytes sent with `Transport::write_secret` (NGX login) never reach `*.wire` or a trace: byte count only (9).
+
 - `Logger` (`logger.hpp`, state packed `(epoch << 9) | (explicit << 8) | level`): `level()` stays the file level. A second cached value, the recorder level, packed the same way (`recorder_level()`); `enabled(l)` compares against min(`level()`, `recorder_level()`): two atomic loads, no cached gate. Measured (section 14, plan Task 12 Step 4): no cost worth a third cached value.
 - `log(l, m)`: file, stderr echo and bus (`Log` at or above `dock_level`) only when `l >= level()`, exactly as today; ring when `l >=` recorder level, and every record that goes to file (ring is superset of file while recorder on). Bus event records (`trace.<Event>`) follow the same rule.
 - `Logger::set_level` (explicit) changes the file level only; the recorder level follows recorder rules only.
@@ -277,7 +279,10 @@ One zip a lab sends back.
   - `live.json`: from `live`: nobion's `live_state_json` (`apps/nobion/src/collect_diagnostics.hpp`), read on main thread from `CoreBridge` state (`transports` always present: connected, error_count, last_error per transport; pressures; pending actuations), `AlarmDock` standing alarms, `LabSession` executor state, pending saves, last save error, problems, Log dock level and log file. Not in it (no main-thread mirror holds them): device health, alarm history, metrics text (endpoint has it), recorder levels.
 - Redaction, `libs/core` `redact.hpp` (public; replaces the private `is_secret_key` in `libs/core/src/log_summary.cpp`, which then calls it):
   - key rule: a key equal to, or ending in `_`/`-` plus, one of `password`, `passwd`, `token`, `secret`, `key`, `credential`, `api_key` (case-insensitive; the existing suffix rule, list extended). Value replaced by `***` (the existing text).
-  - value rule: in any text, `<scheme>://<user>:<password>@` becomes `<scheme>://<user>:***@`.
+  - value rule: in any text, `<scheme>://<user>:<password>@` becomes `<scheme>://<user>:***@`; value of `?name=value` / `&name=value` whose name passes key rule masked up to next `&`, `#`, quote or space (`?token=***&x=1`). Linear.
+  - hook rule (TOML): whole value masked for key containing `hook`, and for key `url` when key (dotted) or enclosing `[table]` / `[[array of tables]]` header contains `hook` (case-insensitive): `[[webhook]] url = "https://hooks.slack.com/..."` → `url = "***"`. Hook URL is bearer secret. `url` elsewhere keeps value (value rule still applies).
+  - Device passwords never reach wire records (9): nothing to mask.
+  - Not masked: crash dumps (`.dmp`, copied as written; hold process memory). Logs, crash reports, flight dumps, traces: value rule only. README, result dialog, `elctl --help` and user docs say so: config masked, logs for address passwords and secret parameters only, dumps as written; read before sending.
   - Never copied: `.nobion/credentials.toml`, keychain items.
   - Applied to every text file in the bundle (TOML by key and value rule; logs, JSON, traces' comment lines, `live.json` by value rule; TOML keys inside logged `key=value` summaries already redacted at log time).
 - Entry points:
@@ -291,6 +296,7 @@ One zip a lab sends back.
 
 - `SpectrometerContext` (`libs/systems/include/nobion/systems/spectrometer/spectrometer.hpp:149`) gains `std::shared_ptr<LogHub> log_hub` (same type as `TransportContext::log_hub`, `libs/transport/include/nobion/transport/factory.hpp:19`); `SpectrometerAssembler::default_transport` passes it on. Both apps set it.
 - Qtegra and NGX transports then log `<name>.wire` like line transports, and the flight recorder keeps their bytes by default (5.1).
+- Secrets on wire: `Transport::write_secret(Bytes)` (virtual; base default `return write(std::move(tx));`). `TraceRecorder::write_secret` sends to inner's `write_secret` and records only byte count: trace file `<micros> tx withheld <n>` (`TraceRecord::withheld = n`, `data` empty), wire log `tx <n>B withheld`. Never bytes, hex or ASCII. Every decorator transport forwards `write_secret` to inner's `write_secret` (in `libs/`: `TraceRecorder` only; `LinkTransport` wraps nothing, keeps base, fails `Config`). `SimTransport::replay`: withheld tx becomes step with `SimStep::any_tx`, takes any write. `NgxLink::handshake` sends `Login <user>,<password>` with `send_secret` (`write_secret`).
 
 ## 10. Durable file writes
 

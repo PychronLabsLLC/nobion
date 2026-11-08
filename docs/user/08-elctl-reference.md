@@ -260,8 +260,10 @@ pass --install NAME`).
 
 ### support-bundle
 
-Write one zip of logs, configuration (secrets masked), saved state, wire
-traces and the doctor report, to send to support, and print where it is.
+Write one zip of logs, configuration, saved state, wire traces and the
+doctor report, to send to support, and print where it is. Secrets in
+configuration files and passwords in addresses are masked; crash dumps are
+copied as written, so read the bundle before sending it.
 Uploads nothing and never touches the hardware. What it holds and leaves out:
 [Troubleshooting](10-troubleshooting.md#sending-diagnostics-to-support).
 

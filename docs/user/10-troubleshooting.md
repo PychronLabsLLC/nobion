@@ -322,13 +322,18 @@ most; the oldest log files are left out first to stay under that.
 - `README.txt`, which says what is in the file and what was left out.
 
 **What it leaves out.** Passwords, tokens and keys in configuration files
-are replaced by `***`, and so is the password in any database or service
-address (`postgresql://user:***@host/db`). The file
+are replaced by `***`, and so is a webhook address (a `url` under
+`[[webhook]]`, or any entry whose name holds "hook"), the password in any
+database or service address (`postgresql://user:***@host/db`) and the value
+of an address's secret parameter (`?token=***`). A spectrometer's login
+password is never written to the wire records at all. The file
 `.nobion/credentials.toml` is never included, nor any file or folder whose
 name says it holds a secret or credentials. Record contents, the data
-folder and the database itself are not included. Logs and traces are
-masked only for passwords in addresses, so look through the bundle before
-sending it if your scripts log anything private.
+folder and the database itself are not included. Logs, crash reports and
+traces are masked only for passwords in addresses and secret parameters,
+and crash dumps (`.dmp`) are copied as written (they hold the program's
+memory), so look through the bundle before sending it if your scripts log
+anything private.
 
 ## Still stuck
 
