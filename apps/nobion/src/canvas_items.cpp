@@ -203,7 +203,7 @@ const ValveItem::Cached& ValveItem::cached(const QFont& font) const {
     const double h = metrics.height();
     const double half = kSize / 2;
     constexpr std::array kOrder{Bottom, Top, Right, Left};
-    const auto* open_side =
+    const auto open_side =
         std::find_if(kOrder.begin(), kOrder.end(), [this](Side s) { return (pipe_sides_ & s) == 0; });
     switch (open_side == kOrder.end() ? Bottom : *open_side) {
       case Top:
