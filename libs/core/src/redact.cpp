@@ -19,6 +19,14 @@ bool equals_nocase(std::string_view a, std::string_view b) noexcept {
   return true;
 }
 
+bool contains_nocase(std::string_view text, std::string_view word) noexcept {
+  if (word.size() > text.size()) return false;
+  for (std::size_t i = 0; i + word.size() <= text.size(); ++i) {
+    if (equals_nocase(text.substr(i, word.size()), word)) return true;
+  }
+  return false;
+}
+
 bool is_space(char c) noexcept { return c == ' ' || c == '\t'; }
 bool is_line_break(char c) noexcept { return c == '\n' || c == '\r'; }
 bool is_upper(char c) noexcept { return std::isupper(static_cast<unsigned char>(c)) != 0; }
@@ -90,7 +98,17 @@ constexpr int kMaxDepth = 64;
 struct Scan {
   std::size_t wasted = 0;
   std::size_t limit = 0;
+  // The current [table] or [[array of tables]] header names a hook.
+  bool hook_table = false;
 };
+
+// A hook's URL is its credential (a Slack webhook path is a bearer token):
+// a key holding "hook" anywhere, or `url` under a hook table or dotted hook
+// key (`[[webhook]] url`, `webhook.url`).
+bool is_hook_secret(const Scan& scan, std::string_view whole_key, std::string_view last) noexcept {
+  if (contains_nocase(last, "hook")) return true;
+  return equals_nocase(last, "url") && (scan.hook_table || contains_nocase(whole_key, "hook"));
+}
 
 // The end of the line holding s[i] (before its '\r' or '\n').
 std::size_t line_end(std::string_view s, std::size_t i) noexcept {
@@ -249,7 +267,8 @@ std::size_t mask_assignment(Scan& scan, std::string_view s, std::size_t i, std::
   }
   std::size_t eq = key_end + 1;
   while (eq < s.size() && is_space(s[eq])) ++eq;
-  const bool secret = is_secret_key(last_part(last));
+  const bool secret =
+      is_secret_key(last_part(last)) || is_hook_secret(scan, s.substr(i, key_end - i), last_part(last));
   if (secret && top && (eq >= s.size() || is_line_break(s[eq]))) {
     // `password =` with the value on a later line: that line is masked whole.
     std::size_t next = eq;
@@ -320,7 +339,18 @@ bool is_secret_key(std::string_view key) noexcept {
   return false;
 }
 
-std::string in_text(std::string_view text) {
+namespace {
+
+bool is_param_name_char(char c) noexcept {
+  return std::isalnum(static_cast<unsigned char>(c)) != 0 || c == '_' || c == '-' || c == '.';
+}
+
+bool ends_param_value(char c) noexcept {
+  return c == '&' || c == '#' || c == '"' || c == '\'' || std::isspace(static_cast<unsigned char>(c)) != 0;
+}
+
+// The password of every `scheme://user:password@host`.
+std::string url_passwords(std::string_view text) {
   std::string out;
   out.reserve(text.size());
   std::size_t copied = 0;  // text before this is already in `out`
@@ -351,6 +381,40 @@ std::string in_text(std::string_view text) {
   return out;
 }
 
+// The value of every `?name=value` and `&name=value` whose name is a secret
+// key, up to the next '&', '#', quote or space. Each character is looked at
+// once.
+std::string query_secrets(std::string text) {
+  std::size_t k = text.find_first_of("?&");
+  std::string out;  // reserved at the first mask: most text has none
+  std::size_t copied = 0;
+  while (k != kNone) {
+    std::size_t n = k + 1;
+    while (n < text.size() && is_param_name_char(text[n])) ++n;
+    std::size_t resume = n;
+    if (n < text.size() && text[n] == '=' && n > k + 1 &&
+        is_secret_key(std::string_view(text).substr(k + 1, n - k - 1))) {
+      std::size_t v = n + 1;
+      while (v < text.size() && !ends_param_value(text[v])) ++v;
+      if (v > n + 1) {
+        if (copied == 0) out.reserve(text.size());
+        out.append(text, copied, n + 1 - copied);
+        out += kMask;
+        copied = v;
+      }
+      resume = v;
+    }
+    k = text.find_first_of("?&", resume);
+  }
+  if (copied == 0) return text;
+  out.append(text, copied, kNone);
+  return out;
+}
+
+}  // namespace
+
+std::string in_text(std::string_view text) { return query_secrets(url_passwords(text)); }
+
 std::string in_toml(std::string_view toml) {
   std::string masked;
   masked.reserve(toml.size());
@@ -365,6 +429,11 @@ std::string in_toml(std::string_view toml) {
     std::size_t first = pos;
     while (first < toml.size() && is_space(toml[first])) ++first;
     std::size_t next = kNone;
+    if (first < toml.size() && toml[first] == '[') {
+      const std::size_t eol_header = line_end(toml, first);
+      const std::string_view line = toml.substr(first, eol_header - first);
+      scan.hook_table = contains_nocase(line.substr(0, line.find(']')), "hook");
+    }
     if (first < toml.size() && toml[first] != '#' && toml[first] != '[' && !is_line_break(toml[first])) {
       const std::size_t mark = masked.size();
       masked.append(toml.substr(pos, first - pos));

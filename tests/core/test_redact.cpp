@@ -157,6 +157,13 @@ TEST(Redact, LinearOnTenMegabytes) {
   EXPECT_EQ(timed("in_toml long run in table", [&] { return redact::in_toml(run); }), run);
   const std::string dotted = "x = {" + repeat("a.", ten_mb) + "}";
   EXPECT_EQ(timed("in_toml dotted run in table", [&] { return redact::in_toml(dotted); }), dotted);
+  const std::string queries = repeat("?token=&x=1&", ten_mb);
+  EXPECT_EQ(timed("in_text query parameters", [&] { return redact::in_text(queries); }).size(), queries.size());
+  const std::string names = "?" + repeat("a", ten_mb);
+  EXPECT_EQ(timed("in_text long parameter name", [&] { return redact::in_text(names); }), names);
+  const std::string hooks = repeat("[[webhook]]\nurl = \"https://h/x\"\n", ten_mb);
+  EXPECT_EQ(timed("in_toml webhook tables", [&] { return redact::in_toml(hooks); }).find("https://h/x"),
+            std::string::npos);
   const std::string spaced = "x = {" + repeat("a . ", ten_mb) + "}";
   EXPECT_EQ(timed("in_toml spaced dotted run in table", [&] { return redact::in_toml(spaced); }), spaced);
 }
@@ -187,4 +194,46 @@ TEST(Redact, ValueOnTheNextLineIsMasked) {
   EXPECT_EQ(redact::in_toml("password =\nhunter2\nhost = \"h\"\n"), "password =\n***\nhost = \"h\"\n");
   EXPECT_EQ(redact::in_toml("password =\r\n\r\nhunter2\r\nx = 1"), "password =\r\n\r\n***\r\nx = 1");
   EXPECT_EQ(redact::in_toml("password ="), "password =");
+}
+
+// A webhook's URL is its own credential (a Slack hook path is a bearer
+// secret): its value is masked whole under a hook table or key.
+TEST(Redact, WebhookUrlsAreMaskedWhole) {
+  const std::string slack = "https://hooks.slack.com/services/T000/B000/XXXX";
+  EXPECT_EQ(redact::in_toml("[[webhook]]\nname = \"lab\"\nurl = \"" + slack + "\"\n"),
+            "[[webhook]]\nname = \"lab\"\nurl = \"***\"\n");
+  EXPECT_EQ(redact::in_toml("[webhook]\nURL = \"" + slack + "\"\n"), "[webhook]\nURL = \"***\"\n");
+  EXPECT_EQ(redact::in_toml("[notify.hooks]\nurl = 'x'\n"), "[notify.hooks]\nurl = \"***\"\n");
+  EXPECT_EQ(redact::in_toml("webhook_url = \"" + slack + "\"\n"), "webhook_url = \"***\"\n");
+  EXPECT_EQ(redact::in_toml("slack_hook = \"" + slack + "\"\n"), "slack_hook = \"***\"\n");
+  EXPECT_EQ(redact::in_toml("webhook.url = \"" + slack + "\"\n"), "webhook.url = \"***\"\n");
+  EXPECT_EQ(redact::in_toml("[[webhook]]\nopts = { url = \"x\", n = 1 }\n"),
+            "[[webhook]]\nopts = { url = \"***\", n = 1 }\n");
+  // Outside a hook table a url keeps its value (its password still masked).
+  EXPECT_EQ(redact::in_toml("[[webhook]]\nurl = \"a\"\n[database]\nurl = \"postgres://u:pw@h/db\"\n"),
+            "[[webhook]]\nurl = \"***\"\n[database]\nurl = \"postgres://u:***@h/db\"\n");
+  EXPECT_EQ(redact::in_toml("url = \"https://h/x\"\n"), "url = \"https://h/x\"\n");
+}
+
+// The notifications.toml example, as a lab fills it in.
+TEST(Redact, NotificationsWebhookShape) {
+  const std::string toml =
+      "[[webhook]]\n"
+      "name = \"slack\"\n"
+      "url = \"https://hooks.slack.com/services/T000/B000/XXXX\"  # the hook\n"
+      "events = [\"run_failed\"]\n";
+  const std::string masked = redact::in_toml(toml);
+  EXPECT_EQ(masked.find("hooks.slack.com"), std::string::npos) << masked;
+  EXPECT_NE(masked.find("# the hook"), std::string::npos) << masked;
+  EXPECT_NE(masked.find("run_failed"), std::string::npos) << masked;
+}
+
+// A query parameter named as a secret keeps its name and loses its value.
+TEST(Redact, SecretQueryParametersAreMasked) {
+  EXPECT_EQ(redact::in_text("?token=abc&x=1"), "?token=***&x=1");
+  EXPECT_EQ(redact::in_text("GET https://h/p?a=1&api_key=k3y#frag done"), "GET https://h/p?a=1&api_key=***#frag done");
+  EXPECT_EQ(redact::in_text("https://u:pw@h/p?Token=t"), "https://u:***@h/p?Token=***");
+  EXPECT_EQ(redact::in_text("\"https://h/?secret=s\""), "\"https://h/?secret=***\"");
+  EXPECT_EQ(redact::in_text("?keyboard=1&monkey=2&token="), "?keyboard=1&monkey=2&token=");
+  EXPECT_EQ(redact::in_text("a & b=c ?d"), "a & b=c ?d");
 }
