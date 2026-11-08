@@ -177,7 +177,7 @@ std::string manifest_json(const Manifest& m) {
 Result<Manifest> parse_manifest(std::string_view json) {
   const Json j = Json::parse(json, nullptr, false);
   if (!j.is_object()) return fail(ErrorKind::Config, "manifest: not a JSON object");
-  if (!j.contains("format") || j["format"] != kManifestFormat)
+  if (!j.contains("format") || !j["format"].is_string() || j["format"].get<std::string>() != kManifestFormat)
     return fail(ErrorKind::Config, std::string("manifest: not ") + std::string(kManifestFormat));
   for (const char* key : {"release", "build", "pins", "tables", "files"})
     if (!j.contains(key)) return fail(ErrorKind::Config, std::string("manifest: no ") + key);
