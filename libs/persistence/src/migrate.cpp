@@ -5,6 +5,7 @@
 #include <map>
 #include <system_error>
 
+#include "nobion/core/atomic_file.hpp"
 #include "nobion/core/path_text.hpp"
 #include "nobion/core/process_log.hpp"
 #include "nobion/core/sha256.hpp"
@@ -78,12 +79,30 @@ Result<void> back_up(Db& db, int from, int to, const BackupPolicy& policy) {
   std::error_code code;
   if (std::filesystem::exists(target, code) || code)
     return fail(ErrorKind::Io, refused + (code ? code.message() : std::string("the file is already there")));
+  // Written aside and named only when whole: a copy cut short (disk full, a
+  // kill, power lost) never has the name of a backup. SQLite writes the copy
+  // with the store's synchronous setting (FULL), so it is on disk when VACUUM
+  // INTO returns; the rename then syncs the directory.
+  std::filesystem::path partial = target;
+  partial += ".partial";
+  auto remove_partial = [&partial] {
+    std::error_code ignored;
+    if (std::filesystem::is_regular_file(partial, ignored)) std::filesystem::remove(partial, ignored);
+  };
+  remove_partial();  // what an earlier copy, cut short, left
   std::string quoted;
-  for (const char c : utf8(target)) {
+  for (const char c : utf8(partial)) {
     quoted.push_back(c);
     if (c == '\'') quoted.push_back('\'');
   }
-  if (auto r = db.unprepared(qs("VACUUM INTO '" + quoted + "'")); !r) return fail(ErrorKind::Io, refused + r.error().what);
+  if (auto r = db.unprepared(qs("VACUUM INTO '" + quoted + "'")); !r) {
+    remove_partial();
+    return fail(ErrorKind::Io, refused + r.error().what);
+  }
+  if (auto r = rename_durably(partial, target); !r) {
+    remove_partial();
+    return fail(ErrorKind::Io, refused + r.error().what);
+  }
   process_logger("store").info("backed up " + utf8(*file) + " before migrating it from " + std::to_string(from) +
                                " to " + std::to_string(to) + ": " + utf8(target));
   if (policy.on_backup) policy.on_backup(target);

@@ -684,6 +684,23 @@ int max_applied(const std::string& url) {
   return rows && *rows ? (**rows).value("v").toInt() : -1;
 }
 
+// Every name a backup from n-1 to n of the store in `dir` could take in the
+// next minute (and the two seconds before), ending in `suffix`.
+std::vector<std::filesystem::path> backup_names_for_a_minute(const MigrateDir& dir, int n, const std::string& suffix) {
+  std::vector<std::filesystem::path> out;
+  const UtcTime now = UtcTime::now();
+  const std::string prefix = "nobion.pre-" + std::to_string(n - 1) + "-to-" + std::to_string(n) + "-";
+  for (int s = -2; s <= 60; ++s) {
+    std::string name = prefix;
+    for (const char c : UtcTime{now.micros + std::int64_t{s} * 1'000'000}.iso().substr(0, 19))
+      if (c != '-' && c != ':') name.push_back(c);
+    name += 'Z';
+    name += suffix;
+    out.push_back(dir.dir() / name);
+  }
+  return out;
+}
+
 StoreConfig migrating(const std::string& url, std::vector<std::filesystem::path>& seen) {
   StoreConfig config{url, true};
   config.on_backup = [&seen](const std::filesystem::path& p) { seen.push_back(p); };
@@ -759,15 +776,7 @@ TEST(Migrate, AFailedBackupRefusesTheMigration) {
   MigrateDir dir;
   make_store_one_behind(dir.url());
   const int n = latest_version();
-  const UtcTime now = UtcTime::now();
-  for (int s = -2; s <= 60; ++s) {
-    std::string stamp;
-    for (const char c : UtcTime{now.micros + std::int64_t{s} * 1'000'000}.iso().substr(0, 19))
-      if (c != '-' && c != ':') stamp.push_back(c);
-    std::ofstream(dir.dir() / ("nobion.pre-" + std::to_string(n - 1) + "-to-" + std::to_string(n) + "-" + stamp +
-                               "Z.sqlite"))
-        << "not a database";
-  }
+  for (const auto& name : backup_names_for_a_minute(dir, n, ".sqlite")) std::ofstream(name) << "not a database";
   const auto taken = dir.backups();
   std::vector<std::filesystem::path> seen;
   auto store = open_store(migrating(dir.url(), seen));
@@ -776,6 +785,31 @@ TEST(Migrate, AFailedBackupRefusesTheMigration) {
   EXPECT_NE(store.error().what.find("not migrated"), std::string::npos) << store.error().what;
   EXPECT_TRUE(seen.empty());
   EXPECT_EQ(dir.backups(), taken);
+  EXPECT_EQ(max_applied(dir.url()), n - 1);
+}
+
+// The copy is written aside, to "<target>.partial", and given its name only
+// when whole: a copy that fails half-way (disk full) leaves no file that looks
+// like a backup, and nothing is migrated. Here VACUUM INTO fails because a
+// folder (not the backup's to remove) sits at every name it could write to.
+TEST(Migrate, AFailedCopyLeavesNoBackupAndRefusesTheMigration) {
+  MigrateDir dir;
+  make_store_one_behind(dir.url());
+  const int n = latest_version();
+  for (const auto& name : backup_names_for_a_minute(dir, n, ".sqlite.partial")) {
+    std::filesystem::create_directory(name);
+    std::ofstream(name / "keep") << "not the backup's";
+  }
+  std::vector<std::filesystem::path> seen;
+  auto store = open_store(migrating(dir.url(), seen));
+  ASSERT_FALSE(store);
+  EXPECT_EQ(store.error().kind, ErrorKind::Io) << to_string(store.error());
+  EXPECT_NE(store.error().what.find("not migrated"), std::string::npos) << store.error().what;
+  EXPECT_TRUE(seen.empty());
+  for (const auto& p : dir.backups()) {
+    EXPECT_TRUE(std::filesystem::is_directory(p)) << p;  // only the folders the test put there
+    EXPECT_TRUE(std::filesystem::exists(p / "keep")) << p;
+  }
   EXPECT_EQ(max_applied(dir.url()), n - 1);
 }
 
