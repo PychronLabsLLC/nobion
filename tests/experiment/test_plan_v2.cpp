@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "nobion/experiment/plan/plan.hpp"
+#include "nobion/core/env.hpp"
 #include "nobion/experiment/plan/duration.hpp"
 #include "nobion/experiment/plan/plan_json.hpp"
 #include "nobion/experiment/plan/plan_loader.hpp"
@@ -1395,8 +1396,7 @@ std::string read_bytes(const fs::path& p) {
 }
 
 bool update_goldens() {
-  const char* v = std::getenv("NOBION_UPDATE_GOLDENS");  // NOLINT(concurrency-mt-unsafe): read once, no setenv in this suite
-  return v != nullptr && std::string_view(v) == "1";
+  return nobion::env_var("NOBION_UPDATE_GOLDENS") == "1";
 }
 
 }  // namespace

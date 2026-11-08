@@ -49,13 +49,13 @@ constexpr const char* kSpecUsage =
 std::string fixed5(double v) {
   std::array<char, 64> buf{};
   const int n = std::snprintf(buf.data(), buf.size(), "%0.5f", v);
-  return n > 0 ? std::string(buf.data(), static_cast<std::size_t>(std::min<int>(n, buf.size() - 1))) : "?";
+  return n > 0 ? std::string(buf.data(), static_cast<std::size_t>(std::min(n, static_cast<int>(buf.size()) - 1))) : "?";
 }
 
 std::string signed5(double v) {
   std::array<char, 64> buf{};
   const int n = std::snprintf(buf.data(), buf.size(), "%+0.5f", v);
-  return n > 0 ? std::string(buf.data(), static_cast<std::size_t>(std::min<int>(n, buf.size() - 1))) : "?";
+  return n > 0 ? std::string(buf.data(), static_cast<std::size_t>(std::min(n, static_cast<int>(buf.size()) - 1))) : "?";
 }
 
 std::string cell(const std::optional<double>& v) { return v ? fixed5(*v) : "-"; }

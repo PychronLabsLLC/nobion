@@ -2,6 +2,7 @@
 // design, sections 5.3 and 5.7).
 
 #include "nobion/publish/tables.hpp"
+#include "nobion/core/env.hpp"
 
 #include <gtest/gtest.h>
 
@@ -240,7 +241,7 @@ TEST(Tables, RowHashesEqualTheCommittedFixture) {
   for (const Table* t : {&tables.samples, &tables.positions, &tables.analyses, &tables.isotopes, &tables.interpreted_ages})
     actual += t->name + " " + std::to_string(t->rows.size()) + " " + nobion::to_hex(rows_sha256(*t)) + "\n";
   const std::filesystem::path fixture = std::filesystem::path(NOBION_PUBLISH_FIXTURE_DIR) / "table-inputs.rows_sha256";
-  if (const char* write = std::getenv("NOBION_WRITE_FIXTURE"); write && std::string(write) == "1") {
+  if (nobion::env_var("NOBION_WRITE_FIXTURE") == "1") {
     std::ofstream out(fixture, std::ios::binary);
     out << actual;
     GTEST_SKIP() << "wrote " << fixture;

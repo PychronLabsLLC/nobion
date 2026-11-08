@@ -28,19 +28,26 @@
 #include <vector>
 
 #include "nobion/arar/domain.hpp"
+#include "nobion/core/env.hpp"
 #include "nobion/arar/store_loader.hpp"
 #include "nobion/processing/store_source.hpp"
 #include "nobion/processing/units.hpp"
 
 namespace nobion::processing {
 
+// NOBION_BENCH_N, or `fallback` when it is unset.
+static std::size_t bench_n(std::size_t fallback) {
+  const auto n = nobion::env_var("NOBION_BENCH_N");
+  return n ? std::strtoul(n->c_str(), nullptr, 10) : fallback;
+}
+
 static double now_s() { return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
 
 TEST(StoreLoadTiming, FigurePipeline) {
-  const char* url = std::getenv("NOBION_BENCH_DB");
-  if (url == nullptr) return;
+  const auto url = nobion::env_var("NOBION_BENCH_DB");
+  if (!url) return;
   double t0 = now_s();
-  auto opened = StoreSource::open(persistence::StoreConfig{url, false}, arar::store_source_options());
+  auto opened = StoreSource::open(persistence::StoreConfig{*url, false}, arar::store_source_options());
   ASSERT_TRUE(opened) << to_string(opened.error());
   auto& source = **opened;
   std::printf("open                 %8.3f s\n", now_s() - t0);
@@ -55,7 +62,7 @@ TEST(StoreLoadTiming, FigurePipeline) {
   std::map<std::string, std::vector<std::string>> by_id;
   for (const auto& r : page->rows) by_id[r.identifier].push_back(r.uuid);
   std::vector<std::string> uuids;
-  const std::size_t want = std::getenv("NOBION_BENCH_N") ? std::strtoul(std::getenv("NOBION_BENCH_N"), nullptr, 10) : 24;
+  const std::size_t want = bench_n(24);
   // The biggest identifiers first, until there are enough analyses.
   std::vector<std::pair<std::size_t, std::string>> sized;
   for (const auto& [id, v] : by_id) sized.emplace_back(v.size(), id);
@@ -168,16 +175,16 @@ double time_tab(StoreSource& source, const Tab& tab, const std::string& spectrom
 }  // namespace
 
 TEST(StoreLoadTiming, ReferenceSeries) {
-  const char* url = std::getenv("NOBION_BENCH_DB");
-  if (url == nullptr) return;
-  const std::size_t n = std::getenv("NOBION_BENCH_N") ? std::strtoul(std::getenv("NOBION_BENCH_N"), nullptr, 10) : 50;
+  const auto url = nobion::env_var("NOBION_BENCH_DB");
+  if (!url) return;
+  const std::size_t n = bench_n(50);
   const Tab blanks{"blanks", {"blank_unknown", "blank_air", "blank_cocktail", "blank_extraction_line", "blank_laser"}};
   const Tab air{"air", {"air"}};
   // Not a tab: the same shape over unknowns, for a store with few references.
   const Tab unknowns{"unknowns", {"unknown"}};
 
   const auto open = [&] {
-    auto opened = StoreSource::open(persistence::StoreConfig{url, false}, arar::store_source_options());
+    auto opened = StoreSource::open(persistence::StoreConfig{*url, false}, arar::store_source_options());
     EXPECT_TRUE(opened) << to_string(opened.error());
     return opened ? std::move(*opened) : nullptr;
   };

@@ -6,6 +6,7 @@
 #include <string>
 
 #include "nobion/experiment/record/builder.hpp"
+#include "nobion/core/env.hpp"
 #include "nobion/experiment/record/serialize.hpp"
 #include "nobion/experiment/record/sha256.hpp"
 
@@ -511,7 +512,7 @@ TEST(AnalysisRecord, V3RoundTrips) {
 // CI checks these). NOBION_UPDATE_GOLDENS=1 rewrites them.
 TEST(AnalysisRecord, V3FixtureSha) {
   const auto rec = v3_record();
-  if (const char* update = std::getenv("NOBION_UPDATE_GOLDENS"); update && std::string(update) == "1") {
+  if (nobion::env_var("NOBION_UPDATE_GOLDENS") == "1") {
     for (const char* name : {"v3.toml", "v3.json"}) {
       std::ofstream out(std::string(NOBION_TEST_DATA_DIR) + "/records/" + name, std::ios::binary);
       out << (std::string(name).ends_with(".json") ? to_json(rec) : to_toml(rec));

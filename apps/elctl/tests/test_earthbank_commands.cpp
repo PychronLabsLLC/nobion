@@ -55,6 +55,7 @@ TEST(ElctlEarthbank, TheNetworkCommandsWithoutPersistence) {
 #include "fake_earthbank.hpp"
 #include "ooxml.hpp"
 #include "nobion/earthbank/profiles.hpp"
+#include "nobion/core/env.hpp"
 #include "nobion/earthbank/secret_store.hpp"
 #include "nobion/publish/build.hpp"
 #include "nobion/publish/publication.hpp"
@@ -148,7 +149,7 @@ class ElctlEarthbank : public elctl::testing::StoreTest {
     StoreTest::SetUp();
     // The templates the source tree holds, whatever the environment says;
     // what it said is put back afterwards.
-    if (const char* was = std::getenv(kTemplatesVariable)) templates_were_ = was;
+    templates_were_ = nobion::env_var(kTemplatesVariable);
     set_templates_variable(std::nullopt);
     fused_ = *store_->add_sample(acq_, {.name = "S-FUS", .project = project_, .material = material_});
     unknown_at(4, fused_, "77001");
@@ -741,7 +742,7 @@ class ElctlEarthbankAccount : public ElctlEarthbank {
  protected:
   void SetUp() override {
     ElctlEarthbank::SetUp();
-    if (const char* was = std::getenv(kPasswordVariable)) password_was_ = was;
+    password_was_ = nobion::env_var(kPasswordVariable);
     set_variable(std::nullopt);
     profiles_ = path("profiles.toml");
   }

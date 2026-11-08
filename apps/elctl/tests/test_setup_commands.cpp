@@ -12,6 +12,7 @@
 
 #include "elctl_fixture.hpp"
 #include "nobion/setup/site.hpp"
+#include "nobion/core/env.hpp"
 
 #ifdef NOBION_ELCTL_HAS_STORE
 #include <QSqlDatabase>
@@ -545,12 +546,12 @@ std::optional<PgParts> parse_pg(std::string url) {
 }
 
 TEST_F(ElctlSetupTest, SetServerAgainstPostgres) {
-  const char* raw = std::getenv("NOBION_TEST_PG_URL");
-  if (raw == nullptr || *raw == '\0') GTEST_SKIP() << "NOBION_TEST_PG_URL not set";
-  const auto pg = parse_pg(raw);
+  const auto raw = nobion::env_var("NOBION_TEST_PG_URL");
+  if (!raw || raw->empty()) GTEST_SKIP() << "NOBION_TEST_PG_URL not set";
+  const auto pg = parse_pg(*raw);
   if (!pg) GTEST_SKIP() << "NOBION_TEST_PG_URL is not postgresql://user[:password]@host[:port]/db";
   {
-    auto store = nobion::persistence::open_store(nobion::persistence::StoreConfig{raw, true});
+    auto store = nobion::persistence::open_store(nobion::persistence::StoreConfig{*raw, true});
     ASSERT_TRUE(store) << store.error().what;
   }
   const auto root = path("dr-pg");

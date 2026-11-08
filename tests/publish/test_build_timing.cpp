@@ -19,6 +19,7 @@
 #include <random>
 
 #include "nobion/processing/store_source.hpp"
+#include "nobion/core/env.hpp"
 #include "nobion/publish/build.hpp"
 #include "nobion/publish/release.hpp"
 #include "release_fixture.hpp"
@@ -40,8 +41,9 @@ double seconds_since(std::chrono::steady_clock::time_point t0) {
 }  // namespace
 
 TEST_P(BuildTiming, CreateAndBuildScaleWithTheCount) {
-  const char* n_text = std::getenv("NOBION_BENCH_N");
-  if (!n_text) GTEST_SKIP() << "set NOBION_BENCH_N";
+  const auto n_env = nobion::env_var("NOBION_BENCH_N");
+  if (!n_env) GTEST_SKIP() << "set NOBION_BENCH_N";
+  const char* n_text = n_env->c_str();
   if (GetParam() != "sqlite") GTEST_SKIP();
   int n = 0;
   const std::string_view n_view(n_text);
