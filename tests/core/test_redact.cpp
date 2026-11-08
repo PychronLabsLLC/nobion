@@ -140,8 +140,23 @@ TEST(Redact, TomlNestingIsCappedAndNeverOverflows) {
   EXPECT_FALSE(tables.empty());
 }
 
+// Under AddressSanitizer every case costs several times as much (CI's Linux
+// ASan job took 6.8 s for one 10 MB case): there the input is 2 MB, still
+// hours for anything quadratic, and the 5 s bound holds.
+#if defined(__SANITIZE_ADDRESS__)
+constexpr bool kAddressSanitizer = true;
+#elif defined(__has_feature) && !defined(__CPPCHECK__)
+#if __has_feature(address_sanitizer)
+constexpr bool kAddressSanitizer = true;
+#else
+constexpr bool kAddressSanitizer = false;
+#endif
+#else
+constexpr bool kAddressSanitizer = false;
+#endif
+
 TEST(Redact, LinearOnTenMegabytes) {
-  const std::size_t ten_mb = 10U * 1024U * 1024U;
+  const std::size_t ten_mb = (kAddressSanitizer ? 2U : 10U) * 1024U * 1024U;
   const std::string scheme_chain = repeat("a://", ten_mb);
   EXPECT_EQ(timed("in_text a://a://", [&] { return redact::in_text(scheme_chain); }).size(), scheme_chain.size());
   const std::string quoted_urls = repeat("\"http://a\",", ten_mb);
