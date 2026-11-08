@@ -86,8 +86,12 @@ Result<void> back_up(Db& db, int from, int to, const BackupPolicy& policy) {
   std::filesystem::path partial = target;
   partial += ".partial";
   auto remove_partial = [&partial] {
+    // A file or a link (dangling or not: VACUUM INTO would write through it);
+    // a directory is left, and the copy then fails and the migration is refused.
     std::error_code ignored;
-    if (std::filesystem::is_regular_file(partial, ignored)) std::filesystem::remove(partial, ignored);
+    const auto type = std::filesystem::symlink_status(partial, ignored).type();
+    if (type == std::filesystem::file_type::regular || type == std::filesystem::file_type::symlink)
+      std::filesystem::remove(partial, ignored);
   };
   remove_partial();  // what an earlier copy, cut short, left
   std::string quoted;

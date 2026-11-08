@@ -326,20 +326,21 @@ TEST_F(ElctlDb, AFreshPostgresStoreNeedsNoBackup) {
 }
 
 // The printed command holds no password: not one with '/' and '@' in it
-// (percent-encoded, as a URL carries them), not a password= query item. The
+// (percent-encoded, as a URL carries them), not a password= or sslpassword=
+// query item. The
 // schema argument is quoted whole, so a search_path with a space or a '$'
 // pastes as one argument and runs nothing.
 TEST(ElctlDbPrint, ThePgDumpCommandHoldsNoPassword) {
   const std::string url =
-      "postgresql://lab:s%2Fe%40cr3t@db.example.org:5433/nobion?sslmode=require&password=qpass&search_path=my%20schema%24x";
+      "postgresql://lab:s%2Fe%40cr3t@db.example.org:5433/nobion?sslmode=require&password=qpass&sslpassword=keypass&search_path=my%20schema%24x";
   const std::string command = elctl::pg_dump_command(url);
-  for (const char* secret : {"s%2Fe%40cr3t", "s/e@cr3t", "cr3t", "qpass", "password"})
+  for (const char* secret : {"s%2Fe%40cr3t", "s/e@cr3t", "cr3t", "qpass", "keypass", "password"})
     EXPECT_FALSE(contains(command, secret)) << secret << ": " << command;
   EXPECT_EQ(command,
             "pg_dump --format=custom --file=nobion-pre-migrate.dump '--schema=my schema$x' "
             "'postgresql://lab@db.example.org:5433/nobion?sslmode=require'");
   const std::string shown = elctl::printable_store_url(url);
-  for (const char* secret : {"cr3t", "qpass", "password"}) EXPECT_FALSE(contains(shown, secret)) << shown;
+  for (const char* secret : {"cr3t", "qpass", "keypass", "password"}) EXPECT_FALSE(contains(shown, secret)) << shown;
   EXPECT_TRUE(contains(shown, "search_path=")) << shown;
   // A quote in the schema closes and reopens the quoting.
   EXPECT_TRUE(contains(elctl::pg_dump_command("postgresql://u@h/d?search_path=o'k"), "'--schema=o'\\''k'"))

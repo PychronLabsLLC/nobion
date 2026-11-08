@@ -135,6 +135,7 @@ QUrl without_password(const std::string& url) {
   u.setPassword({});
   QUrlQuery query(u);
   query.removeAllQueryItems(QStringLiteral("password"));
+  query.removeAllQueryItems(QStringLiteral("sslpassword"));
   u.setQuery(query.isEmpty() ? QString() : query.query(QUrl::FullyEncoded));
   return u;
 }
