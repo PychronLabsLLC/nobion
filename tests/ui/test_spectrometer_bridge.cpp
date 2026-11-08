@@ -596,8 +596,11 @@ class TestSpectrometerBridge : public QObject {
     std::atomic<int> moved{0};
     auto sub = sim_->bus.subscribe<MagnetMoved>([&moved](const MagnetMoved&) { ++moved; });
     bridge_->position("Ar40", "H1");
-    QTest::qSleep(100);  // the executor is inside the move; no events are processed here
-    QCOMPARE(moved.load(), 0);
+    // No events are processed here, so the move's result is still queued (or
+    // the move still running) when the bridge goes. Whether the move has
+    // ended by then is the runner's speed (a CI runner finished it inside
+    // 100 ms): not asserted.
+    QTest::qSleep(100);
     bridge_.reset();
     // The destructor waited for the move; its result went nowhere.
     QCOMPARE(moved.load(), 1);
