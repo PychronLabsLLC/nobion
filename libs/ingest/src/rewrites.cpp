@@ -96,7 +96,7 @@ bool members(std::string_view object, std::vector<Member>& out) {
   return true;
 }
 
-std::string quoted(std::string_view text) {
+std::string json_quoted(std::string_view text) {
   std::string out = "\"";
   for (const char c : text) {
     if (c == '"' || c == '\\') out += '\\';
@@ -135,7 +135,7 @@ std::optional<std::string> with_rewrites(std::string_view stored, std::string_vi
 
   bool added = false;
   for (const auto& note : notes) {
-    std::string path = quoted(note.path);
+    std::string path = json_quoted(note.path);
     const bool known = std::any_of(entries.begin(), entries.end(), [&](const auto& entry) { return entry.first == path; });
     if (known) continue;
     entries.emplace_back(std::move(path), note.json);
