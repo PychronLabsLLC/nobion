@@ -2029,12 +2029,14 @@ TEST(LogHub, ConcurrentWritesSnapshotsAndDumps) {
   static_assert(static_cast<std::size_t>(kWriters) * kRecords * 900 >
                 5 * static_cast<std::size_t>(config::kRecorderMinMb) * 1024 * 1024);
   std::atomic<int> done{0};
+  std::atomic<int> last_to_finish{-1};
   std::vector<std::thread> writers;
   writers.reserve(kWriters);
   for (int t = 0; t < kWriters; ++t) {
     writers.emplace_back([&, t] {
       const Logger log = hub->logger("w" + std::to_string(t));
       for (int i = 0; i < kRecords; ++i) log.debug("record " + std::to_string(i) + " " + pad + " end");
+      last_to_finish.store(t);
       done.fetch_add(1);
     });
   }
@@ -2069,8 +2071,15 @@ TEST(LogHub, ConcurrentWritesSnapshotsAndDumps) {
   } while (done.load() < kWriters);
   for (auto& w : writers) w.join();
   EXPECT_GT(snapshots, 0);
-  // The ring wrapped: the first records are gone.
+  // The ring wrapped: the first records are gone, and the last record written
+  // is kept. Which writer wrote it rests on scheduling: a writer starved under
+  // load can finish more than the ring's size behind the others, and a writer
+  // that finished early has had its last record pushed out. The writer that
+  // finished last wrote the newest record, so that one is asked for.
   const std::string last = hub->recorder_snapshot();
   EXPECT_EQ(last.find("] w0: record 0 "), std::string::npos);
-  EXPECT_NE(last.find("] w0: record " + std::to_string(kRecords - 1) + " "), std::string::npos);
+  const int newest = last_to_finish.load();
+  ASSERT_GE(newest, 0);
+  EXPECT_NE(last.find("] w" + std::to_string(newest) + ": record " + std::to_string(kRecords - 1) + " "),
+            std::string::npos);
 }
