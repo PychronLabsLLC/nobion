@@ -12,18 +12,25 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
+#include "nobion/core/config/logging_config.hpp"
+#include "nobion/core/log_hub.hpp"
 #include "nobion/core/virtual_clock.hpp"
 #include "nobion/devices/spectrometer/ngx.hpp"
 #include "nobion/devices/spectrometer/ngx_sim.hpp"
 #include "nobion/transport/link_transport.hpp"
+#include "nobion/transport/trace_recorder.hpp"
+#include "temp_path.hpp"
 #include "valve_conformance.hpp"
 #include "virtual_time.hpp"
 
@@ -61,6 +68,10 @@ class FlakyTransport final : public Transport {
     if (before_write) before_write(std::string(tx.begin(), tx.end()));
     return inner_.write(std::move(tx));
   }
+  Result<void> write_secret(Bytes tx) override {
+    if (before_write) before_write(std::string(tx.begin(), tx.end()));
+    return inner_.write_secret(std::move(tx));
+  }
   Result<Bytes> read(ReadSpec rs, Duration timeout) override {
     if (drop_next.exchange(false)) {
       if (on_drop) on_drop();
@@ -83,6 +94,19 @@ class FlakyTransport final : public Transport {
 };
 
 using nobion::testing::Crew;
+
+// "73 33 63 72 65 74": the wire log's spelling of `text`.
+std::string to_hex_upper_spaced(std::string_view text) {
+  static constexpr char kHex[] = "0123456789ABCDEF";
+  std::string out;
+  for (const char c : text) {
+    const auto v = static_cast<unsigned char>(c);
+    if (!out.empty()) out += ' ';
+    out += kHex[v >> 4U];
+    out += kHex[v & 0xFU];
+  }
+  return out;
+}
 
 std::string uniq(const char* base) {
   static std::atomic<int> n{0};
@@ -162,6 +186,51 @@ TEST_F(Ngx, TheSessionLogsInAndNeverShowsThePassword) {
   clock.sleep_for(100ms);
   EXPECT_EQ(sim->health().state, HealthState::Connected);
   EXPECT_EQ(sim->health().consecutive_failures, 0u);
+}
+
+// The login reaches the instrument, but neither the flight recorder's ring
+// (the "<name>.wire" logger at Trace, as shipped) nor a trace file holds its
+// password: the link sends it as a secret.
+TEST_F(Ngx, ThePasswordIsInNoWireRecord) {
+  const auto dir = nobion::testing::unique_temp_path("nobion-ngx-wire-");
+  std::filesystem::create_directories(dir);
+  config::LoggingConfig cfg;
+  cfg.dir = dir;
+  cfg.recorder.size_mb = 4;
+  SteadyClock hub_clock;
+  auto hub = LogHub::create(cfg, hub_clock);
+  ASSERT_TRUE(hub) << hub.error().what;
+  TransportOptions o;
+  o.name = "ngx";
+  o.clock = &clock;
+  auto inner = SimTransport::hooked(ngx_sim_hook(model), o, ngx_sim_events(model));
+  ASSERT_TRUE(inner->open());
+  const auto trace = dir / "ngx.trace";
+  auto recorder = TraceRecorder::to_file(std::move(inner), trace.string(), clock, (*hub)->logger("ngx.wire"));
+  ASSERT_TRUE(recorder);
+  {
+    auto s = make(**recorder);
+    ASSERT_TRUE(s);
+    ASSERT_TRUE(s->connect());
+    {
+      std::lock_guard lock(model->mutex);
+      EXPECT_EQ(model->password, "s3cret");
+    }
+    clock.sleep_for(50ms);
+  }
+  const std::string ring = (*hub)->recorder_snapshot();
+  EXPECT_NE(ring.find("StopAcq"), std::string::npos) << ring;  // the wire is recorded
+  EXPECT_EQ(ring.find("s3cret"), std::string::npos) << ring;
+  EXPECT_EQ(ring.find(to_hex(to_bytes("s3cret"))), std::string::npos);
+  EXPECT_EQ(ring.find(to_hex_upper_spaced("s3cret")), std::string::npos);
+  recorder->reset();
+  std::ifstream in(trace);
+  const std::string file{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+  EXPECT_NE(file.find("tx withheld"), std::string::npos) << file;
+  EXPECT_EQ(file.find(to_hex(to_bytes("s3cret"))), std::string::npos) << file;
+  hub->reset();
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
 }
 
 TEST_F(Ngx, ARefusedLoginFailsTheConnect) {

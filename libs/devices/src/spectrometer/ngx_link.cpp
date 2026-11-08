@@ -105,6 +105,12 @@ Result<void> NgxLink::send(std::string_view command) {
   return transport_.write(to_bytes(tx));
 }
 
+Result<void> NgxLink::send_secret(std::string_view command) {
+  std::string tx(command);
+  tx += options_.send_terminator;
+  return transport_.write_secret(to_bytes(tx));
+}
+
 Result<void> NgxLink::handshake() {
   // One greeting line first; legacy logs it and never checks it.
   if (auto banner = read_line(options_.banner_timeout); !banner && banner.error().kind != ErrorKind::Timeout) {
@@ -112,7 +118,8 @@ Result<void> NgxLink::handshake() {
   }
   if (options_.user.empty()) return {};
   const std::string login = "Login " + options_.user + "," + options_.password;
-  if (auto w = send(login); !w) return fail(std::move(w).error());
+  // The login carries the password: a wire log or trace records its length.
+  if (auto w = send_secret(login); !w) return fail(std::move(w).error());
   const TimePoint deadline = clock_.now() + options_.command_timeout;
   for (;;) {
     const Duration left = deadline - clock_.now();

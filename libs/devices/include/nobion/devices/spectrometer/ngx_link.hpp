@@ -157,6 +157,8 @@ class NgxLink {
   Result<void> handshake();
   Result<std::string> read_line(Duration timeout);
   Result<void> send(std::string_view command);
+  // send() through Transport::write_secret: on the wire, in no wire record.
+  Result<void> send_secret(std::string_view command);
   void reader(std::shared_ptr<Clock::Hold> started);
   void route(std::string line);
   void went_down(const Error& why);
