@@ -64,8 +64,11 @@ CRASH_HELPER_NOINLINE int recurse(int depth) {
   return below + frame[0];
 }
 
+// The store is volatile, not only the pointer: with a plain store, the Linux
+// RelWithDebInfo test build (gcc 13, -O2) ran past it and exited 4; a
+// volatile access is never dropped.
 CRASH_HELPER_NOINLINE void write_null() {
-  int* volatile target = nullptr;
+  volatile int* volatile target = nullptr;
   // cppcheck-suppress nullPointer ; the crash is the point
   *target = 1;  // NOLINT(clang-analyzer-core.NullDereference): the crash is the point
 }
