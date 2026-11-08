@@ -7,6 +7,7 @@
 #include <miniz.h>
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -73,6 +74,11 @@ std::map<std::string, std::string> unzip(const fs::path& path) {
   }
   mz_zip_reader_end(&zip);
   return out;
+}
+
+std::string lower_copy(std::string s) {
+  std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  return s;
 }
 
 bool has_prefix(const std::map<std::string, std::string>& entries, std::string_view prefix) {
@@ -323,6 +329,51 @@ TEST_F(SupportBundle, OnlyAllowedConfigFilesAreCopied) {
     EXPECT_EQ(readme.find(bad), std::string::npos) << bad << "\n" << readme;
   }
   EXPECT_NE(readme.find("config files left out"), std::string::npos) << readme;
+}
+
+TEST_F(SupportBundle, ExtensionsAreReadWithoutCase) {
+  write(root / "Device.TOML", "password = \"hunter2\"\nport = 4001\n");
+  write(root / "Gauge.STATE.TOML", "token = \"hunter3\"\n");
+  ASSERT_TRUE(write_support_bundle(&site, options()));
+  const auto entries = unzip(out);
+  ASSERT_TRUE(entries.count("config/Device.TOML"));
+  EXPECT_NE(entries.at("config/Device.TOML").find("port = 4001"), std::string::npos);
+  EXPECT_TRUE(entries.count("state/Gauge.STATE.TOML"));
+  for (const auto& [name, bytes] : entries) {
+    EXPECT_EQ(bytes.find("hunter"), std::string::npos) << name;
+  }
+}
+
+TEST_F(SupportBundle, ASecretFolderIsNeverCopied) {
+  write(root / "secrets" / "api.txt", "token: abc123\n");
+  write(root / "Secrets" / "db.toml", "pin = \"1234\"\n");
+  write(root / "lab" / "Credentials" / "x.json", R"({"pin":"5678"})");
+  ASSERT_TRUE(write_support_bundle(&site, options()));
+  for (const auto& [name, bytes] : unzip(out)) {
+    EXPECT_EQ(lower_copy(name).find("secret"), std::string::npos) << name;
+    EXPECT_EQ(lower_copy(name).find("credential"), std::string::npos) << name;
+    EXPECT_EQ(bytes.find("abc123"), std::string::npos) << name;
+    EXPECT_EQ(bytes.find("1234\""), std::string::npos) << name;
+    EXPECT_EQ(bytes.find("5678"), std::string::npos) << name;
+  }
+}
+
+TEST_F(SupportBundle, ANameThatIsASecretKeyIsNeverCopied) {
+  for (const char* name : {"password.txt", "api_token.json", "passwd.toml", "Token.yaml"}) {
+    write(root / name, std::string("leak-") + name + "\n");
+  }
+  write(root / "keyboard.toml", "layout = \"us\"\n");
+  write(root / "monkey.json", R"({"name":"monkey"})");
+  ASSERT_TRUE(write_support_bundle(&site, options()));
+  const auto entries = unzip(out);
+  EXPECT_TRUE(entries.count("config/keyboard.toml"));
+  EXPECT_TRUE(entries.count("config/monkey.json"));
+  for (const auto& [name, bytes] : entries) {
+    EXPECT_EQ(bytes.find("leak-"), std::string::npos) << name;
+  }
+  for (const char* name : {"password.txt", "api_token.json", "passwd.toml", "Token.yaml"}) {
+    EXPECT_FALSE(entries.count(std::string("config/") + name)) << name;
+  }
 }
 
 TEST_F(SupportBundle, StampsFollowTheGivenClock) {

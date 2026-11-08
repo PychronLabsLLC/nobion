@@ -86,11 +86,30 @@ bool is_link(const fs::path& p) { return own_type(p) == fs::file_type::symlink; 
 bool is_plain_file(const fs::path& p) { return own_type(p) == fs::file_type::regular; }
 bool is_plain_dir(const fs::path& p) { return own_type(p) == fs::file_type::directory; }
 
-// A name that says it holds a secret (credentials.local.toml, my_secrets.toml).
-bool secret_name(const fs::path& p) {
-  const std::string name = lower(utf8(p.filename()));
+// The extension, lower-cased: every extension rule (allowlist, redaction,
+// `.state.toml`) reads it this way, so `Device.TOML` is TOML.
+std::string extension_of(const fs::path& p) { return lower(utf8(p.extension())); }
+
+bool says_secret(const fs::path& part) {
+  const std::string name = lower(utf8(part));
   return name.find("credential") != std::string::npos || name.find("secret") != std::string::npos;
 }
+
+// A file name that says it holds a secret: credentials.local.toml,
+// my_secrets.toml, or a stem that is a secret key (password.txt,
+// api_token.json; not keyboard.toml).
+bool secret_name(const fs::path& p) {
+  return says_secret(p.filename()) || redact::is_secret_key(utf8(p.stem()));
+}
+
+// `rel` (under the install root) has a folder that says it holds secrets
+// (secrets/, Credentials/) or a secret file name.
+bool secret_path(const fs::path& rel) {
+  return std::any_of(rel.begin(), rel.end(), [](const fs::path& part) { return says_secret(part); }) ||
+         secret_name(rel);
+}
+
+bool is_state_file(const fs::path& p) { return lower(utf8(p.filename())).ends_with(".state.toml"); }
 
 bool hidden(const fs::path& rel) {
   return std::any_of(rel.begin(), rel.end(), [](const fs::path& part) {
@@ -162,7 +181,7 @@ std::string redacted(std::string_view bytes, Redact how) {
 }
 
 Redact redaction_for(const fs::path& path) {
-  const auto ext = path.extension();
+  const std::string ext = extension_of(path);
   if (ext == ".toml") return Redact::Toml;
   if (ext == ".dmp") return Redact::None;  // a minidump: binary, kept as written
   return Redact::Text;
@@ -306,10 +325,6 @@ bool is_under(const fs::path& p, const fs::path& dir) {
   return true;
 }
 
-bool ends_with(std::string_view s, std::string_view suffix) {
-  return s.size() >= suffix.size() && s.substr(s.size() - suffix.size()) == suffix;
-}
-
 // spdlog names rotated files `<stem>.<n>.log`.
 bool is_rotated_log(const fs::path& p) {
   const std::string stem = utf8(p.stem());
@@ -353,7 +368,7 @@ std::vector<Candidate> log_candidates(Collector& c, const fs::path& log_dir, con
   const std::time_t oldest = c.now - std::chrono::duration_cast<std::chrono::seconds>(options.logs_since).count();
   std::vector<Candidate> out;
   for (const auto& p : plain_files(c, log_dir)) {
-    if (p.extension() != ".log" || secret_name(p)) continue;
+    if (extension_of(p) != ".log" || secret_name(p)) continue;
     const std::string name = "logs/" + utf8(p.filename());
     const std::time_t mtime = mtime_of(p, c.now);
     if (is_rotated_log(p) && mtime < oldest) {
@@ -370,7 +385,7 @@ std::vector<Candidate> other_candidates(Collector& c, const fs::path& log_dir, c
   std::vector<Candidate> out;
   const auto add_dir = [&](const fs::path& dir, const std::string& prefix, std::string_view ext) {
     for (const auto& p : plain_files(c, dir)) {
-      if (secret_name(p) || (!ext.empty() && p.extension() != ext)) continue;
+      if (secret_name(p) || (!ext.empty() && extension_of(p) != ext)) continue;
       out.push_back({p, prefix + utf8(p.filename()), mtime_of(p, c.now)});
     }
   };
@@ -443,7 +458,7 @@ struct ConfigScan {
 };
 
 bool allowed_config(const fs::path& p) {
-  const std::string ext = lower(utf8(p.extension()));
+  const std::string ext = extension_of(p);
   return std::find(kConfigExtensions.begin(), kConfigExtensions.end(), ext) != kConfigExtensions.end();
 }
 
@@ -462,17 +477,17 @@ ConfigScan scan_root(Collector& c, const fs::path& root, const std::vector<fs::p
     if (it->is_directory(fe)) {
       // Hidden folders (.nobion holds the credentials; .git), and folders
       // that are data, logs, traces or field tables (state/ takes those).
-      const bool skip = hidden(rel) || std::any_of(skip_dirs.begin(), skip_dirs.end(),
+      const bool skip = hidden(rel) || says_secret(p.filename()) || std::any_of(skip_dirs.begin(), skip_dirs.end(),
                                                    [&](const fs::path& d) { return is_under(p, d); });
       if (skip) it.disable_recursion_pending();
       continue;
     }
     if (!it->is_regular_file(fe)) continue;
-    if (secret_name(p) || hidden(rel)) {
+    if (secret_path(rel) || hidden(rel)) {
       ++c.config_left_out;
       continue;
     }
-    if (ends_with(utf8(p.filename()), ".state.toml")) {
+    if (is_state_file(p)) {
       scan.state.push_back(rel);
       continue;
     }
@@ -511,7 +526,7 @@ void collect_install(Collector& c, const SiteInstall& install, const fs::path& l
     for (const auto& [rel, sha] : record->files) {
       seen.insert(rel);
       const fs::path file = root / fs::path(std::u8string(rel.begin(), rel.end()));
-      if (secret_name(file) || hidden(fs::path(rel))) continue;
+      if (secret_path(fs::path(std::u8string(rel.begin(), rel.end()))) || hidden(fs::path(rel))) continue;
       if (is_link(file)) continue;
       std::ifstream in(file, std::ios::binary);
       if (!in || !is_plain_file(file)) {
