@@ -273,7 +273,7 @@ elctl support-bundle [--install NAME] [--out FILE] [--since 72h] [--no-traces]
 |---|---|
 | `--install NAME` | The install to collect. Default: the default install. With nothing installed the bundle is written without one. |
 | `--out FILE` | Where to write the zip. Default: `<log folder>/bundles/nobion-<computer>-<time>.zip`. |
-| `--since D` | Keep old log files written within `D` (`72h` by default; `90m`, `2h`; rounded up to whole hours). The current files are always in. |
+| `--since D` | Keep old log files written within `D` (`72h` by default; `90m`, `2h`; rounded up to whole hours). The unit is required: a bare number is refused. The current files are always in. |
 | `--no-traces` | Leave the wire traces out. |
 
 Exit 0 when written; 1 if the install named cannot be found (or there are

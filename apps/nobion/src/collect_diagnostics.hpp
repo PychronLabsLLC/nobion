@@ -24,6 +24,7 @@
 #include <QPointer>
 #include <QString>
 
+#include "nobion/core/error.hpp"
 #include "nobion/setup/site.hpp"
 
 class QProgressDialog;
@@ -33,6 +34,10 @@ namespace nobion {
 class Clock;
 class LogHub;
 }  // namespace nobion
+
+namespace nobion::setup {
+struct BundleOptions;
+}  // namespace nobion::setup
 
 namespace nobion::ui {
 
@@ -63,6 +68,11 @@ struct DiagnosticsDeps {
   std::shared_ptr<LogHub> hub;
   // As BundleOptions; empty: its defaults. Tests give their own.
   std::filesystem::path out, log_dir, trace_dir, site_path;
+  // Writes the bundle, on the worker; empty: setup::write_support_bundle.
+  // Tests give one of their own (one that throws, one that waits).
+  std::function<Result<std::filesystem::path>(const setup::SiteInstall*, const setup::BundleOptions&)> write;
+  // The result message's reveal button; empty: reveal_in_file_manager.
+  std::function<void(const QString&)> reveal;
 };
 
 class DiagnosticsCollector : public QObject {

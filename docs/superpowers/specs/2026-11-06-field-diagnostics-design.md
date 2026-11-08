@@ -283,7 +283,7 @@ One zip a lab sends back.
 - Entry points:
   - `elctl support-bundle [--install X] [--out file] [--since 72h] [--no-traces]`.
   - nobion Help > Collect Diagnostics…: snapshot for `live` taken on the main thread from `CoreBridge`/`ExperimentBridge`, then the bundle written on a worker thread with progress (non-modal busy dialog: no progress callback in `write_support_bundle`); message names the zip, button reveals it in file manager; error shown as message. `DiagnosticsCollector`, child of window; result handed back under its own mutex, queued signal carries nothing. Instrument window: line's clock, process hub, install; data reduction window: no live state, system time.
-  - `elctl support-bundle`: install named, else default; nothing installed or site config that does not load: written without install (note on stderr); name not found or several and no default: exit 1. `--since` rounded up to whole hours. Process log hub gives log folder and fresh dump. Prints path.
+  - `elctl support-bundle`: install named, else default; nothing installed or site config that does not load: written without install (note on stderr); name not found or several and no default: exit 1. `--since` needs unit (bare number refused, usage error), rounded up to whole hours. Throw from write: message on stderr, exit 1 (nobion worker: shown as failed write). Process log hub gives log folder and fresh dump. Prints path.
   - the unclean-exit dialog (3.3).
 - Never uploads. Sending is the operator's (email, share). Upload: section 13.
 

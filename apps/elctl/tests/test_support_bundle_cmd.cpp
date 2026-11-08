@@ -95,6 +95,11 @@ TEST_F(ElctlSupportBundle, MistakesAreUsageErrors) {
   auto o = run_raw({"support-bundle", "--since", "soon"});
   EXPECT_EQ(o.code, 2);
   EXPECT_TRUE(contains(o.err, "--since")) << o.err;
+  // A bare number would be seconds: refused, so 72 is never read as 72 s.
+  o = run_raw({"support-bundle", "--since", "72", "--out", path("bare.zip").string()});
+  EXPECT_EQ(o.code, 2);
+  EXPECT_TRUE(contains(o.err, "unit")) << o.err;
+  EXPECT_FALSE(fs::exists(path("bare.zip")));
   o = run_raw({"support-bundle", "--out"});
   EXPECT_EQ(o.code, 2);
   o = run_raw({"support-bundle", "--probe"});

@@ -1,6 +1,8 @@
 #include "support_bundle_cmd.hpp"
 
+#include <cctype>
 #include <chrono>
+#include <exception>
 #include <filesystem>
 #include <optional>
 #include <ostream>
@@ -8,6 +10,7 @@
 #include <vector>
 
 #include "duration.hpp"
+#include "nobion/core/path_text.hpp"
 #include "nobion/core/process_log.hpp"
 #include "nobion/setup/profile.hpp"
 #include "nobion/setup/installer.hpp"
@@ -44,6 +47,11 @@ int support_bundle_command(const std::vector<std::string>& args, std::optional<s
       } else if (a == "--out") {
         options.out = fs::path(value);
       } else {
+        // parse_duration reads a bare number as seconds; here that is
+        // surely a mistake for hours, so a unit is required.
+        if (value.empty() || std::isalpha(static_cast<unsigned char>(value.back())) == 0) {
+          return usage("--since needs a unit (72h, 90m)");
+        }
         const auto since = parse_duration(value);
         if (!since) return usage("--since: " + since.error().what);
         // Whole hours, rounded up: --since 90m keeps two hours rather than one.
@@ -88,12 +96,23 @@ int support_bundle_command(const std::vector<std::string>& args, std::optional<s
   options.hub = nobion::process_log_hub();
   options.site_path = site_path;
 
-  const auto written = nobion::setup::write_support_bundle(chosen ? &*chosen : nullptr, options);
-  if (!written) {
-    io.err << "error: " << written.error().what << "\n";
+  // A throw from the write (out of memory, a file system error) is a failure
+  // like any other, said on stderr.
+  std::optional<nobion::Result<fs::path>> written;
+  try {
+    written = nobion::setup::write_support_bundle(chosen ? &*chosen : nullptr, options);
+  } catch (const std::exception& e) {
+    io.err << "error: support bundle not written: " << e.what() << "\n";
+    return kFailed;
+  } catch (...) {
+    io.err << "error: support bundle not written: unknown error\n";
     return kFailed;
   }
-  io.out << written->string() << "\n";
+  if (!*written) {
+    io.err << "error: " << written->error().what << "\n";
+    return kFailed;
+  }
+  io.out << nobion::utf8(**written) << "\n";
   return kOk;
 }
 

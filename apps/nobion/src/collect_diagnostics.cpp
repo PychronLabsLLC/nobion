@@ -1,6 +1,8 @@
 #include "collect_diagnostics.hpp"
 
+#include <exception>
 #include <mutex>
+#include <string>
 #include <utility>
 
 #include <QAbstractButton>
@@ -169,8 +171,19 @@ void DiagnosticsCollector::collect() {
   progress_->setMinimumDuration(0);
   progress_->show();
 
-  worker_ = std::thread([gate = gate_, install = deps_.install, options = std::move(options)] {
-    auto written = setup::write_support_bundle(install ? &*install : nullptr, options);
+  auto write = deps_.write;
+  if (!write) write = setup::write_support_bundle;
+  worker_ = std::thread([gate = gate_, install = deps_.install, options = std::move(options), write = std::move(write)] {
+    // An exception leaving this thread would end the program, and with it a
+    // running instrument: it is a failed write like any other.
+    std::optional<Result<std::filesystem::path>> written;
+    try {
+      written = write(install ? &*install : nullptr, options);
+    } catch (const std::exception& e) {
+      written = fail(ErrorKind::Io, std::string("support bundle not written: ") + e.what());
+    } catch (...) {
+      written = fail(ErrorKind::Io, "support bundle not written: unknown error");
+    }
     const std::lock_guard lock(gate->mutex);
     gate->result = std::move(written);
     if (gate->target != nullptr) emit gate->target->resultQueued();
@@ -214,7 +227,9 @@ void DiagnosticsCollector::show_result(const QString& path, const QString& error
     reveal->setObjectName(QStringLiteral("revealBundleButton"));
     // An action-role button would close the box; keep it open and show the file.
     disconnect(reveal, &QAbstractButton::clicked, nullptr, nullptr);
-    connect(reveal, &QAbstractButton::clicked, box, [path] { reveal_in_file_manager(path); });
+    auto show = deps_.reveal;
+    if (!show) show = reveal_in_file_manager;
+    connect(reveal, &QAbstractButton::clicked, box, [path, show = std::move(show)] { show(path); });
     box->addButton(QMessageBox::Ok);
   } else {
     box->setIcon(QMessageBox::Warning);
