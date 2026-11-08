@@ -253,13 +253,18 @@ One zip a lab sends back.
     std::filesystem::path site_path;         // empty: default_site_path(); missing file left out
     DoctorOptions doctor;                    // probe forced off
     std::string qt_version;                  // nobion: qVersion(); empty: not in build.json
+    const Clock* clock = nullptr;            // stamps; null: system time
   };
   Result<std::filesystem::path> write_support_bundle(const setup::SiteInstall*, const BundleOptions&);
   ```
 
 - Written to temp file beside `out`, renamed (`write_file_atomic`, `Durability::Crash`), then `mark_as_user_file`. Null install: no `config/` but `site.toml`, no `state/`, `doctor.txt` is `no install`.
-- Cap: every entry deflated once up front (size known), then oldest droppable entry (by mtime) dropped until estimate, README included, fits `max_bytes`. Droppable: logs, `crash/`, `flight/` files, traces. Never dropped: newest `*.log`, config, state, reports. Nothing left to drop and still over: written anyway, README says so.
-- `config/` leaves out hidden folders (`.nobion`, `.git`), data, log, trace folders, `tables/` (in `state/`), any `credentials.toml`, `*.state.toml` (in `state/`), file over 16 MiB (named in README). `EDITED.txt` lines: `edited <path>`, `missing <path>` (in map, gone), `unknown <path>` (not in map).
+- Stamps written into bundle (README, `build.json` `written`, default file name) from `clock->wall_now()` when given, else system time. `logs_since` cutoff and file ages stay on system time: file mtimes real.
+- Links: every symlink (file or folder) skipped at every read site (`symlink_status`), counted in README. Configured folders themselves (install root, log dir, trace dir) taken as given.
+- Per-file cap: file larger than `max_bytes` gives only its last `max_bytes` (text: from next line start), read without loading rest; README names each cut entry (`cut <zip path>`). TOML file over `max_bytes` left out whole (tail can start inside multi-line secret).
+- Cap: non-droppable entries read first; then newest readable `*.log` (by mtime) always in; then logs, `crash/`, `flight/` files, traces newest first while estimate under `max_bytes`; rest dropped unread (memory near 2× `max_bytes`). Every entry deflated once (size known); then oldest droppable still in dropped until estimate, README included, fits. Never dropped: newest log, config, state, reports. Nothing left to drop and still over: written anyway, README says so.
+- `config/` is allowlist: regular files under install root with extension `.toml .txt .json .yaml .yml .csv .md`, no path part starting with `.` (so never `.nobion/`), name not containing `credential` or `secret` (case-insensitive), at most 16 MiB; never data, log, trace folders (data: `<root>/data` when install names none), `tables/` (in `state/`), `*.state.toml` (in `state/`). README gives only count of config files left out, never names. Same name rule for logs, traces, state, tables. `EDITED.txt` lines: `edited <path>`, `missing <path>` (in map, gone), `unknown <path>` (copied, not in map).
+- Zip names UTF-8 (`generic_u8string()`, miniz general-purpose bit 11); no `path::string()`.
 
 - Contents (zip paths):
   - `README.txt`: what this is, build id, host, OS, when, what was left out and why, hang-stack commands (section 6).

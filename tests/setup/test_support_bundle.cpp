@@ -46,7 +46,8 @@ std::string read(const fs::path& path) {
   return {std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
 }
 
-// Every entry of the zip at `path`, name -> bytes.
+// Every entry of the zip at `path`, name -> bytes. Names are unique, and a
+// name that is not ASCII is flagged UTF-8 (general-purpose bit 11).
 std::map<std::string, std::string> unzip(const fs::path& path) {
   const std::string bytes = read(path);
   std::map<std::string, std::string> out;
@@ -63,7 +64,12 @@ std::map<std::string, std::string> unzip(const fs::path& path) {
     if (!data.empty() && !mz_zip_reader_extract_to_mem(&zip, i, data.data(), data.size(), 0)) {
       ADD_FAILURE() << "cannot extract " << stat.m_filename;
     }
-    out.emplace(stat.m_filename, std::move(data));
+    const std::string name = stat.m_filename;
+    const bool ascii = std::all_of(name.begin(), name.end(), [](char c) { return static_cast<unsigned char>(c) < 0x80; });
+    if (!ascii) {
+      EXPECT_NE(stat.m_bit_flag & (1U << 11U), 0U) << "not flagged UTF-8: " << name;
+    }
+    EXPECT_TRUE(out.emplace(name, std::move(data)).second) << "two entries named " << name;
   }
   mz_zip_reader_end(&zip);
   return out;
@@ -165,6 +171,10 @@ TEST_F(SupportBundle, NoSecretSurvives) {
   write(root / "notifications.toml", "[brevo]\nbrevo_key = \"s3cret-C\"\nsender = \"lab@example.org\"\n");
   write(logs / "nobion.log",
         "2026-11-07T10:00:00.000Z [error] [main] store: cannot open postgres://u:s3cret-D@h/db: refused\n");
+  write(root / "sub" / "credentials.toml", "[database]\npassword = \"s3cret-A\"\n");
+  write(root / "traces" / "ngx.trace", "# connect amqp://u:s3cret-D@h\n");
+  write(logs / "crash" / "nobion-1.txt", "fatal signal 11 at postgres://u:s3cret-D@h/db\n");
+  write(root / "extraction_line.state.toml", "[db]\ntoken = \"s3cret-C\"\n");
 
   auto written = write_support_bundle(&site, options());
   ASSERT_TRUE(written) << written.error().what;
@@ -207,10 +217,135 @@ TEST_F(SupportBundle, KeepsUnderMaxBytes) {
   const auto entries = unzip(out);
   EXPECT_TRUE(entries.count("logs/nobion.log"));
   EXPECT_FALSE(entries.count("logs/nobion.5.log"));
-  const std::string& readme = entries.at("README.txt");
-  EXPECT_NE(readme.find("logs/nobion.5.log"), std::string::npos) << readme;
-  EXPECT_NE(readme.find("dropped"), std::string::npos) << readme;
+  // Newest first until the cap: the current log and nobion.1 kept, the rest dropped.
+  std::vector<std::string> kept_logs;
+  for (const auto& [name, bytes] : entries) {
+    if (name.starts_with("logs/")) kept_logs.push_back(name);
+  }
+  EXPECT_EQ(kept_logs, (std::vector<std::string>{"logs/nobion.1.log", "logs/nobion.log"}));
+  const std::string readme = entries.at("README.txt");
+  for (int i = 2; i <= 5; ++i) {
+    const std::string name = "logs/nobion." + std::to_string(i) + ".log";
+    EXPECT_NE(readme.find("dropped " + name), std::string::npos) << name << "\n" << readme;
+  }
+  EXPECT_EQ(readme.find("dropped logs/nobion.1.log"), std::string::npos) << readme;
+  EXPECT_EQ(readme.find("still over"), std::string::npos) << readme;
   EXPECT_TRUE(entries.count("config/install.toml")) << "config is never dropped for size";
+}
+
+TEST_F(SupportBundle, TheNewestLogByTimeIsNeverDropped) {
+  // The newest log is a rotated one here; the current file is older and goes first.
+  const auto now = fs::file_time_type::clock::now();
+  write(logs / "nobion.1.log", noise(900u << 10, 1));
+  fs::last_write_time(logs / "nobion.1.log", now);
+  write(logs / "nobion.log", noise(600u << 10, 2));
+  fs::last_write_time(logs / "nobion.log", now - std::chrono::hours(1));
+  BundleOptions o = options();
+  o.max_bytes = 1u << 20;
+  ASSERT_TRUE(write_support_bundle(&site, o));
+  const auto entries = unzip(out);
+  EXPECT_TRUE(entries.count("logs/nobion.1.log"));
+  EXPECT_FALSE(entries.count("logs/nobion.log"));
+  EXPECT_NE(entries.at("README.txt").find("dropped logs/nobion.log"), std::string::npos);
+}
+
+TEST_F(SupportBundle, StillOverTheCapIsWrittenAndSaysSo) {
+  // The newest log is never dropped: its 64 KiB tail and the config are more than the cap.
+  write(logs / "nobion.log", noise(128u << 10, 7));
+  BundleOptions o = options();
+  o.max_bytes = 64u << 10;
+  auto written = write_support_bundle(&site, o);
+  ASSERT_TRUE(written) << written.error().what;
+  const auto entries = unzip(out);
+  EXPECT_NE(entries.at("README.txt").find("still over"), std::string::npos) << entries.at("README.txt");
+  EXPECT_TRUE(entries.count("logs/nobion.log"));
+  EXPECT_TRUE(entries.count("config/install.toml"));
+  EXPECT_GT(fs::file_size(out), o.max_bytes);
+}
+
+TEST_F(SupportBundle, AFileLargerThanTheCapGivesOnlyItsTail) {
+  std::string big;
+  for (int i = 0; big.size() < (3u << 20); ++i) big += "line " + std::to_string(i) + " " + noise(90, static_cast<unsigned>(i)) + "\n";
+  write(logs / "nobion.log", big);
+  BundleOptions o = options();
+  o.max_bytes = 1u << 20;
+  ASSERT_TRUE(write_support_bundle(&site, o));
+  EXPECT_LE(fs::file_size(out), o.max_bytes);
+  const auto entries = unzip(out);
+  const std::string tail = entries.at("logs/nobion.log");
+  ASSERT_LE(tail.size(), o.max_bytes);
+  ASSERT_GT(tail.size(), 0U);
+  ASSERT_TRUE(tail.starts_with("line ")) << "starts at a line start";
+  EXPECT_TRUE(big.ends_with(tail));
+  EXPECT_EQ(big[big.size() - tail.size() - 1], '\n');
+  EXPECT_NE(entries.at("README.txt").find("cut logs/nobion.log"), std::string::npos) << entries.at("README.txt");
+}
+
+TEST_F(SupportBundle, LinksAreNeverFollowed) {
+  write(dir / "outside" / "secret.txt", "plain-secret-L\n");
+  write(dir / "outside" / "dir" / "inner.toml", "x = \"plain-secret-M\"\n");
+  std::error_code ec;
+  fs::create_symlink(dir / "outside" / "secret.txt", root / "notes.txt", ec);
+  ASSERT_FALSE(ec) << ec.message();
+  fs::create_directory_symlink(dir / "outside" / "dir", root / "linked", ec);
+  ASSERT_FALSE(ec) << ec.message();
+  fs::create_symlink(dir / "outside" / "secret.txt", logs / "linked.log", ec);
+  ASSERT_FALSE(ec) << ec.message();
+  fs::create_directory_symlink(dir / "outside" / "dir", logs / "crash", ec);
+  ASSERT_FALSE(ec) << ec.message();
+  BundleOptions o = options();
+  fs::create_symlink(dir / "outside" / "secret.txt", dir / "site.toml", ec);
+  ASSERT_FALSE(ec) << ec.message();
+  ASSERT_TRUE(write_support_bundle(&site, o));
+  for (const auto& [name, bytes] : unzip(out)) {
+    EXPECT_EQ(bytes.find("plain-secret-"), std::string::npos) << name;
+  }
+}
+
+TEST_F(SupportBundle, OnlyAllowedConfigFilesAreCopied) {
+  for (const char* name : {".env", ".netrc", "id_rsa", "server.pem", "tls.key", "Credentials.toml",
+                           "credentials.local.toml", "my_secrets.toml", "sub/credentials.toml", "scripts/x.py",
+                           ".hidden/plain.toml"}) {
+    write(root / name, std::string("leak = \"leak-") + name + "\"\n");
+  }
+  write(root / "notes.md", "kept\n");
+  ASSERT_TRUE(write_support_bundle(&site, options()));
+  const auto entries = unzip(out);
+  EXPECT_TRUE(entries.count("config/notes.md"));
+  for (const auto& [name, bytes] : entries) {
+    EXPECT_EQ(bytes.find("leak-"), std::string::npos) << name;
+    for (const char* bad : {".env", ".netrc", "id_rsa", ".pem", "tls.key", "redential", "ecret", ".py"}) {
+      EXPECT_EQ(name.find(bad), std::string::npos) << name;
+    }
+  }
+  const std::string readme = entries.at("README.txt");
+  for (const char* bad : {".env", ".netrc", "id_rsa", "server.pem", "tls.key", "Credentials.toml", "credentials.local", "sub/credentials", "my_secrets", "x.py", "plain.toml"}) {
+    EXPECT_EQ(readme.find(bad), std::string::npos) << bad << "\n" << readme;
+  }
+  EXPECT_NE(readme.find("config files left out"), std::string::npos) << readme;
+}
+
+TEST_F(SupportBundle, StampsFollowTheGivenClock) {
+  // 2030-01-02T03:04:05Z
+  ManualClock clock(TimePoint{}, WallTime{std::chrono::seconds(1893553445)});
+  BundleOptions o = options();
+  o.out.clear();
+  o.clock = &clock;
+  auto written = write_support_bundle(&site, o);
+  ASSERT_TRUE(written) << written.error().what;
+  EXPECT_NE(written->filename().string().find("-20300102T030405Z.zip"), std::string::npos) << *written;
+  const auto entries = unzip(*written);
+  EXPECT_NE(entries.at("README.txt").find("2030-01-02T03:04:05Z"), std::string::npos);
+  EXPECT_NE(entries.at("build.json").find("2030-01-02T03:04:05Z"), std::string::npos);
+  EXPECT_TRUE(entries.count("logs/nobion.log")) << "the log cutoff stays on real time";
+}
+
+TEST_F(SupportBundle, NamesAreUtf8) {
+  const fs::path name = fs::path(u8"nobion-M\u00fcller.log");
+  write(logs / name, "hello\n");
+  ASSERT_TRUE(write_support_bundle(&site, options()));
+  const auto entries = unzip(out);
+  EXPECT_TRUE(entries.count("logs/nobion-M\xc3\xbcller.log"));
 }
 
 TEST_F(SupportBundle, OldRotatedLogsAreLeftOut) {
@@ -248,7 +383,9 @@ TEST_F(SupportBundle, StateAndTracesAreCollected) {
   EXPECT_TRUE(entries.count("state/executor_state.json"));
   ASSERT_TRUE(entries.count("state/outbox.txt"));
   EXPECT_NE(entries.at("state/outbox.txt").find("n-0001.json"), std::string::npos);
-  for (const auto& [name, bytes] : entries) EXPECT_EQ(bytes.find("private"), std::string::npos) << name;
+  for (const auto& [name, bytes] : entries) {
+    EXPECT_EQ(bytes.find("private"), std::string::npos) << name;
+  }
   EXPECT_TRUE(entries.count("traces/ngx.trace"));
 
   BundleOptions o = options();

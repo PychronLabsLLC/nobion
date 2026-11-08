@@ -16,9 +16,12 @@
 //   live.json           BundleOptions::live, when set
 //   logs/               *.log of the log folder (rotated ones newer than logs_since),
 //                       logs/crash/, logs/flight/ (a fresh `bundle` dump when a hub is given)
-//   config/             every file of the install root but runtime state, data, logs,
-//                       traces and hidden folders; config/install.toml, config/site.toml,
-//                       config/EDITED.txt
+//   config/             files of the install root with extension .toml .txt .json .yaml
+//                       .yml .csv .md, no hidden path part, no name holding "credential"
+//                       or "secret", not runtime state, data, logs or traces;
+//                       config/install.toml, config/site.toml, config/EDITED.txt
+// No symbolic link is followed. Logs, crash files, dumps and traces are masked
+// for URL passwords only. A file over max_bytes gives its last max_bytes.
 //   state/              *.state.toml, executor_state.json, field tables' `current` and the
 //                       version it names, state/outbox.txt and state/spool.txt (names,
 //                       sizes, ages; no bodies)
@@ -36,6 +39,7 @@
 #include "nobion/setup/site.hpp"
 
 namespace nobion {
+class Clock;
 class LogHub;
 }
 
@@ -48,7 +52,8 @@ struct BundleOptions {
   std::filesystem::path out;
   std::chrono::hours logs_since{72};       // rotated logs older than this left out
   // Over it, the oldest logs, crash files, dumps and traces are dropped (never
-  // the newest log, config, state or reports) and README.txt names them.
+  // the newest log, config, state or reports) and README.txt names them. Also
+  // the most one file gives: its tail (a TOML file over it is left out).
   std::uint64_t max_bytes = 200ull << 20;
   bool include_traces = true;
   std::function<std::string()> live;       // running app's extra state (JSON); null in elctl
@@ -64,6 +69,10 @@ struct BundleOptions {
   // For doctor.txt; `probe` is always off here: the bundle never touches hardware.
   DoctorOptions doctor;
   std::string qt_version;                  // nobion: qVersion(); empty: left out of build.json
+  // Stamps written into the bundle (README, build.json, the default file
+  // name) read clock->wall_now(); null: system time. The logs_since cutoff
+  // and file ages stay on system time: file times are real.
+  const Clock* clock = nullptr;
 };
 
 // Writes the bundle and returns its path. Io when the zip cannot be written;
