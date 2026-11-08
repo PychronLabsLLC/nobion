@@ -326,8 +326,17 @@ TEST_F(VirtualClockTest, ThreadsStartingAndLeavingNeverLoseAJump) {
 
 // The same race with every jump paced (ten simulated milliseconds cost ten
 // real microseconds), so that sleeps are interrupted and handed over.
+// Windows rounds every timed wait up to its timer tick (about 15.6 ms), so a
+// round there costs some 32 ms instead of under 0.1 ms: a thousand rounds took
+// 32.6 s on CI's Windows runner and ran past the 45 s dead-man in a loaded
+// Release build. Two hundred keep it near a seventh of that.
 TEST_F(VirtualClockTest, PacedThreadsStartingAndLeavingNeverLoseAJump) {
-  expect_threads_starting_and_leaving_never_lose_a_jump(1'000, 1'000);
+#ifdef _WIN32
+  constexpr int kRounds = 200;
+#else
+  constexpr int kRounds = 1'000;
+#endif
+  expect_threads_starting_and_leaving_never_lose_a_jump(1'000, kRounds);
 }
 
 TEST_F(VirtualClockTest, WallNowIsEpochPlusElapsed) {
