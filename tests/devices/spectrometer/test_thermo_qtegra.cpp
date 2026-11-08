@@ -1028,8 +1028,9 @@ TEST(QtegraSim, DataSourceWinsOverIntensities) {
 TEST(QtegraSim, OnCommandSeesSettings) {
   auto model = std::make_shared<QtegraSimModel>();
   std::vector<std::pair<std::string, std::vector<std::string>>> seen;
-  model->on_command = [&seen, model](const std::string& verb, const std::vector<std::string>& args) {
-    const std::lock_guard lock(model->mutex);  // not held by the hook here
+  // A raw pointer: the model holding a hook that holds the model leaks both.
+  model->on_command = [&seen, m = model.get()](const std::string& verb, const std::vector<std::string>& args) {
+    const std::lock_guard lock(m->mutex);  // not held by the hook here
     seen.emplace_back(verb, args);
   };
   auto hook = qtegra_sim_hook(model);

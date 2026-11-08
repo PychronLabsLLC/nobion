@@ -829,8 +829,9 @@ TEST(NgxSim, ValuesAtFeedsAcqLines) {
 TEST(NgxSim, OnCommandSeesSetMass) {
   auto model = std::make_shared<NgxSimModel>();
   std::string verb, args;
-  model->on_command = [&, model](const std::string& v, const std::string& a) {
-    const std::lock_guard lock(model->mutex);  // not held by the hook here
+  // A raw pointer: the model holding a hook that holds the model leaks both.
+  model->on_command = [&, m = model.get()](const std::string& v, const std::string& a) {
+    const std::lock_guard lock(m->mutex);  // not held by the hook here
     verb = v;
     args = a;
   };
