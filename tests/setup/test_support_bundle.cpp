@@ -180,7 +180,9 @@ TEST_F(SupportBundle, NoSecretSurvives) {
   config.default_install = site.name;
   ASSERT_TRUE(save_site(config, dir / "site.toml"));
   ASSERT_NE(read(dir / "site.toml").find("s3cret-B"), std::string::npos);
-  write(root / "notifications.toml", "[brevo]\nbrevo_key = \"s3cret-C\"\nsender = \"lab@example.org\"\n");
+  write(root / "notifications.toml",
+        "[brevo]\nbrevo_key = \"s3cret-C\"\nsender = \"lab@example.org\"\n"
+        "[[webhook]]\nname = \"slack\"\nurl = \"https://hooks.slack.com/services/T0/B0/s3cret-E\"\n");
   write(logs / "nobion.log",
         "2026-11-07T10:00:00.000Z [error] [main] store: cannot open postgres://u:s3cret-D@h/db: refused\n");
   write(root / "sub" / "credentials.toml", "[database]\npassword = \"s3cret-A\"\n");
@@ -195,7 +197,7 @@ TEST_F(SupportBundle, NoSecretSurvives) {
   ASSERT_TRUE(entries.count("config/notifications.toml"));
   for (const auto& [name, bytes] : entries) {
     EXPECT_EQ(name.find("credentials"), std::string::npos) << name;
-    for (const char* secret : {"s3cret-A", "s3cret-B", "s3cret-C", "s3cret-D"}) {
+    for (const char* secret : {"s3cret-A", "s3cret-B", "s3cret-C", "s3cret-D", "s3cret-E"}) {
       EXPECT_EQ(bytes.find(secret), std::string::npos) << secret << " in " << name;
     }
   }
@@ -205,7 +207,7 @@ TEST_F(SupportBundle, NoSecretSurvives) {
   EXPECT_NE(entries.at("config/notifications.toml").find("lab@example.org"), std::string::npos);
   // And the raw zip bytes hold none of them either (names, comments).
   const std::string raw = read(out);
-  for (const char* secret : {"s3cret-A", "s3cret-B", "s3cret-C", "s3cret-D"}) {
+  for (const char* secret : {"s3cret-A", "s3cret-B", "s3cret-C", "s3cret-D", "s3cret-E"}) {
     EXPECT_EQ(raw.find(secret), std::string::npos) << secret;
   }
 }
@@ -423,7 +425,9 @@ TEST_F(SupportBundle, LiveStateIsIncludedWhenGiven) {
   ASSERT_TRUE(written) << written.error().what;
   const auto entries = unzip(out);
   ASSERT_TRUE(entries.count("live.json"));
-  EXPECT_NE(entries.at("live.json").find(R"("executor":"idle")"), std::string::npos);
+  // Named, not in the macro: MSVC cannot take a raw string as a macro argument (C2017).
+  const std::string idle = R"("executor":"idle")";
+  EXPECT_NE(entries.at("live.json").find(idle), std::string::npos);
   EXPECT_EQ(entries.at("live.json").find("pw-live"), std::string::npos);
 }
 
