@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-06-full-rename-design.md` (read it whole).
 
+**Status (2026-11-08):** the rename itself (Tasks 2 and 3) is on `develop`, done by area in commits `01d1f197` to `698c8a05` rather than by a committed script; the settings migration was deleted on 2026-11-08. Task 5 is dropped: the owner's machine already uses the new names, so there is nothing for the tool to move. Still owed, on a branch of its own: the check and its exception list from Task 1 and their wiring from Task 4, and the rename script from Task 1 for the branches that have not landed. The spec's section 9 has the details.
+
 ## Global Constraints
 
 - Rule: `pychron` → `nobion`, `Pychron` → `Nobion`, `PYCHRON` → `NOBION`, substring, case preserved, in tracked paths and tracked text files; binary files never touched.
@@ -101,6 +103,8 @@ One branch. Field diagnostics (`2026-11-06-field-diagnostics.md`) restarts after
 - [ ] **Step 3: Commit** `chore(tools): a push with a pychron name in it is refused`
 
 ### Task 5: Moving the developer's own state
+
+Dropped on 2026-11-08 (spec section 9): the owner's machine was moved to the new names without this tool.
 
 **Files:**
 - Create: `tools/rename_local_state.py`, `tools/tests/test_rename_local_state.py`

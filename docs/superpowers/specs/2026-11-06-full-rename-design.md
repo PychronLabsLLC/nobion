@@ -1,6 +1,7 @@
 # Full rename: pychron → nobion inside the code
 
 Date: 2026-11-06. Deciders: Jake Ross.
+Status: rename built (`01d1f197` to `698c8a05`); script, exception list, check and local-state tool not built. What landed and what is owed: section 9.
 Style: compressed (root `AGENTS.md`). Nothing technical dropped.
 
 ## 1. Why, and why now
@@ -55,7 +56,7 @@ What this reaches, so nobody is surprised:
 Nothing is deployed: programs read only new names. No alias namespace, no fallback env var, no old path probed.
 
 - `apps/nobion/src/settings_migration.{hpp,cpp}` and `tests/ui/test_settings_migration.cpp` (carry QSettings from `pychron-ui` to `nobion`, `2026-11-03-nobion-app-design.md`) deleted: the only machine they served has run them.
-- Developer's own Mac: one-off `tools/rename_local_state.py [--dry-run]`, not built into anything:
+- Developer's own Mac: one-off `tools/rename_local_state.py [--dry-run]`, not built into anything (dropped, section 9: owner's Mac moved without it):
   - moves per-user dirs of section 2 (logs, Application Support with `examples` and `earthbank`, XDG dirs, import cache) to new names; refuses if a target exists;
   - for each install in the old `site.toml`: `<root>/.pychron` → `<root>/.nobion`, `data/pychron.db` → `data/nobion.db`; rewrites paths and `sqlite:` URLs inside the moved `site.toml`, `install.toml` and `credentials.toml`;
   - moves `~/pychron-logs` (from the old `configs/examples/logging.toml`) if present;
@@ -86,14 +87,14 @@ Checks before landing:
 
 ## 6. Keeping it renamed
 
-`tools/check_names.py`: fails, naming file and line, on a case-insensitive `pychron` in a tracked text file or path that section 3 does not allow (same `name_keep.txt`; in identifiers-only paths it fails only on the tokens listed there). Run by `tools/githooks/pre-push` and ctest `tools.check_names`.
+`tools/check_names.py`: fails, naming file and line, on a case-insensitive `pychron` in a tracked text file or path that section 3 does not allow (same `name_keep.txt`; in identifiers-only paths it fails only on the tokens listed there). Run by `tools/githooks/pre-push` and ctest `tools.check_names`. Not built: section 9.
 
 ## 7. Other branches and worktrees
 
 Unlanded branches with work (12 at `8d3ad1da`, among them `feat/grains` with 30 commits, `feat/systems-t096`, `feat/data-t070`, `feat/extractionline-t093`):
 
 - `feat/core-build-identity` (field diagnostics Task 1, unreviewed WIP `a9693f78`): branch and worktree deleted; field diagnostics restarts at Task 1 after this lands.
-- Any other branch, when next worked on: run `tools/rename_to_nobion.py` on its tip, commit `refactor: rename to nobion`, rebase onto `develop` (matching hunks fall away; what is left is real conflict), delete its build tree. `docs/dev_setup.md` gives the steps. This branch touches no other worktree.
+- Any other branch, when next worked on: run `tools/rename_to_nobion.py` on its tip, commit `refactor: rename to nobion`, rebase onto `develop` (matching hunks fall away; what is left is real conflict), delete its build tree. `docs/dev_setup.md` gives the steps. This branch touches no other worktree. Script not built: section 9.
 
 ## 8. Out of scope
 
@@ -101,6 +102,13 @@ Unlanded branches with work (12 at `8d3ad1da`, among them `feat/grains` with 30 
 - Renaming `elctl`.
 - Landed specs and plans, `CHANGELOG.md`, applied migrations, a migration rewriting the `pychron:` texts in database functions.
 - Renaming other branches (section 7 gives the steps).
+
+## 9. As built
+
+- Rename landed as commits by area, not one generated commit: folders (`01d1f197`), env vars (`02658439`), include root (`eef84880`), namespace (`3dc7636a`), CMake names (`038aa9f2`), metric names (`1a5f41c4`), log and database files (`a82229a9`), identities, formats, messages (`f07a7852`), two findings (`698c8a05`). `tools/rename_to_nobion.py` and `tools/name_keep.txt` never committed. Section 3 exceptions held by hand: remaining `pychron` on `develop` (243 files outside `docs/superpowers` and `CHANGELOG.md`, 2026-11-08) are the section 3 kinds (legacy protocol files, legacy prose, legacy data and fixtures, company, EarthBank vocabulary, applied migrations).
+- Built as specified: `cpack_sign.cmake` filter `/Nobion\.app$`; field diagnostics spec and plan in new names (`4209ad8b`, `112e9421`); section 4 deletion of `settings_migration.{hpp,cpp}` and `tests/ui/test_settings_migration.cpp` (2026-11-08, own commit).
+- Dropped: `tools/rename_local_state.py`. Owner's Mac already on new names, checked 2026-11-08: `~/Library/Logs/nobion`, `~/Library/Application Support/Nobion`, each install's `<root>/.nobion`, no `PYCHRON_*` env var. Nothing left for it to move.
+- Owed, own branch: `tools/check_names.py`, `tools/name_keep.txt`, unittests, pre-push and ctest `tools.check_names` (section 6); `tools/rename_to_nobion.py` for unlanded branches and its `docs/dev_setup.md` steps (section 7). Until then, an unlanded branch is renamed by hand before its rebase.
 
 ## Open questions
 
