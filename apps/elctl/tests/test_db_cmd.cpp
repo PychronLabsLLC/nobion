@@ -294,8 +294,10 @@ TEST_F(ElctlDb, PostgresMigrateNeedsBackedUp) {
       dump_at == std::string::npos ? std::string() : refused.out.substr(dump_at, refused.out.find('\n', dump_at) - dump_at);
   EXPECT_TRUE(contains(dump, "--schema=" + schema)) << dump;
   EXPECT_FALSE(contains(dump, "search_path")) << dump;
-  EXPECT_FALSE(contains(refused.out, password)) << refused.out;
-  EXPECT_FALSE(contains(refused.err, password)) << refused.err;
+  // As URL userinfo: CI's password is "nobion", which every message holds.
+  const std::string userinfo_password = ":" + password + "@";
+  EXPECT_FALSE(contains(refused.out, userinfo_password)) << refused.out;
+  EXPECT_FALSE(contains(refused.err, userinfo_password)) << refused.err;
   EXPECT_FALSE(ps::open_store(ps::StoreConfig{url, false}));  // nothing migrated
 
   const Outcome migrated = run_raw({"db", "migrate", "--db", url, "--backed-up"});
