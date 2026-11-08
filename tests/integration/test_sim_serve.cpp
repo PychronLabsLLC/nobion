@@ -86,6 +86,11 @@ class SimServeSteady : public ::testing::Test {
     options.sim.sim_file = fs::path();  // the simulator's own numbers, not the example's tuning
     options.sim.sim.valve_conductance = 1e3;  // a valve's gas crosses in well under a millisecond
     options.sim.sim.noise = 0.0;
+    // Pumps slow enough that gas let onto a pumped line is still there when
+    // the next reading comes over the wire: at the default 50 L/s prep's
+    // 50 cc empties in about a millisecond, and a Windows runner read IG1
+    // only after it was back at the pump's base.
+    options.sim.sim.pump_speed = 1e-3;
     auto server = LineServer::start(*cfg, &*canvas, clock_, options);
     ASSERT_TRUE(server) << server.error().what;
     server_ = std::move(*server);
