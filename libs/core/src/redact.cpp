@@ -234,10 +234,9 @@ std::string in_text(std::string_view text) {
     const std::size_t scheme = text.find("://", search);
     if (scheme == kNone) break;
     const std::size_t start = scheme + 3;
-    // The token runs to whitespace or a quote; its userinfo to the last '@'.
+    // The token runs to whitespace (a quote may be in a password); its userinfo to the last '@'.
     std::size_t end = start;
-    while (end < text.size() && std::isspace(static_cast<unsigned char>(text[end])) == 0 && text[end] != '"' &&
-           text[end] != '\'') {
+    while (end < text.size() && std::isspace(static_cast<unsigned char>(text[end])) == 0) {
       ++end;
     }
     const std::string_view token = text.substr(start, end - start);

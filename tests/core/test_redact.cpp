@@ -46,6 +46,8 @@ TEST(Redact, UrlPasswordsWithOddCharacters) {
   EXPECT_EQ(redact::in_text("http://user:p/w@host/x"), "http://user:***@host/x");
   EXPECT_EQ(redact::in_text("http://user:p?w@host/x"), "http://user:***@host/x");
   EXPECT_EQ(redact::in_text("http://user:p#w@host/x"), "http://user:***@host/x");
+  EXPECT_EQ(redact::in_text("amqp://u:p'w@h"), "amqp://u:***@h");
+  EXPECT_EQ(redact::in_text("url = \"pg://u:p\\\"w@h/db\""), "url = \"pg://u:***@h/db\"");
   EXPECT_EQ(redact::in_text("x://u:p@w@h/db"), "x://u:***@h/db");
   EXPECT_EQ(redact::in_text("HTTPS://u:pw@h"), "HTTPS://u:***@h");
   EXPECT_EQ(redact::in_text("https://u@h:80/x"), "https://u@h:80/x");
