@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <chrono>
+#include <iostream>
 #include <string>
 
 #include <toml++/toml.hpp>
@@ -93,4 +95,88 @@ TEST(Redact, TomlTablesNestedInArraysAndTables) {
             "users = [{ name = \"a\", token = \"***\" }, { name = \"b\", keyboard = 1 }]");
   EXPECT_EQ(redact::in_toml("a = { b = { password = \"x\", c = [ { key = 1 } ] } }"),
             "a = { b = { password = \"***\", c = [ { key = \"***\" } ] } }");
+}
+
+namespace {
+
+// Runs `fn` and fails when it takes 5 s or more (an upper bound only; the
+// real cost is far below it). Prints the time.
+template <class Fn>
+std::string timed(const char* what, Fn&& fn) {
+  const auto begin = std::chrono::steady_clock::now();
+  std::string out = fn();
+  const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin);
+  std::cout << "[ timing ] " << what << ": " << ms.count() << " ms\n";
+  EXPECT_LT(ms.count(), 5000) << what;
+  return out;
+}
+
+std::string repeat(std::string_view unit, std::size_t bytes) {
+  std::string out;
+  out.reserve(bytes + unit.size());
+  while (out.size() < bytes) out += unit;
+  return out;
+}
+
+}  // namespace
+
+TEST(Redact, TomlDottedKeysWithQuotedPartsAndSpaces) {
+  EXPECT_EQ(redact::in_toml("a.\"password\" = \"x\""), "a.\"password\" = \"***\"");
+  EXPECT_EQ(redact::in_toml("\"a\".password = \"x\""), "\"a\".password = \"***\"");
+  EXPECT_EQ(redact::in_toml("a . password = \"x\""), "a . password = \"***\"");
+  EXPECT_EQ(redact::in_toml("x.'token' = 'x'"), "x.'token' = \"***\"");
+  EXPECT_EQ(redact::in_toml("x.\"keyboard\" = 'x'"), "x.\"keyboard\" = 'x'");
+}
+
+TEST(Redact, TomlNestingIsCappedAndNeverOverflows) {
+  const std::string deep = repeat("[", 100000) + repeat("]", 100000);
+  const std::string secret = timed("deep secret", [&] { return redact::in_toml("password = " + deep); });
+  EXPECT_EQ(secret, "password = \"***\"");
+  const std::string other = timed("deep other", [&] { return redact::in_toml("x = " + deep + "\nurl = \"pg://u:pw@h\""); });
+  EXPECT_EQ(other, "x = " + deep + "\nurl = \"pg://u:***@h\"");
+  const std::string tables = timed("deep tables", [&] {
+    return redact::in_toml("x = " + repeat("{a=", 100000) + "1" + repeat("}", 100000));
+  });
+  EXPECT_FALSE(tables.empty());
+}
+
+TEST(Redact, LinearOnTenMegabytes) {
+  const std::size_t ten_mb = 10U * 1024U * 1024U;
+  const std::string scheme_chain = repeat("a://", ten_mb);
+  EXPECT_EQ(timed("in_text a://a://", [&] { return redact::in_text(scheme_chain); }).size(), scheme_chain.size());
+  const std::string quoted_urls = repeat("\"http://a\",", ten_mb);
+  EXPECT_EQ(timed("in_text quoted urls", [&] { return redact::in_text(quoted_urls); }).size(), quoted_urls.size());
+  const std::string log = repeat("2026-11-06 12:00:00 INFO link up host=h port=5 note=\"ok\"\n", ten_mb);
+  EXPECT_EQ(timed("in_text log", [&] { return redact::in_text(log); }), log);
+  EXPECT_EQ(timed("in_toml log", [&] { return redact::in_toml(log); }), log);
+  const std::string openers = repeat("x = [\n", ten_mb);
+  EXPECT_EQ(timed("in_toml unterminated arrays", [&] { return redact::in_toml(openers); }), openers);
+  const std::string triples = repeat("x = \"\"\"\n", ten_mb);
+  EXPECT_EQ(timed("in_toml unterminated strings", [&] { return redact::in_toml(triples); }), triples);
+  const std::string run = "x = {" + repeat("a", ten_mb) + "}";
+  EXPECT_EQ(timed("in_toml long run in table", [&] { return redact::in_toml(run); }), run);
+}
+
+TEST(Redact, ByteOrderMarkBeforeTheFirstKey) {
+  EXPECT_EQ(redact::in_toml("\xEF\xBB\xBFpassword = \"x\"\nhost = \"h\"\n"), "\xEF\xBB\xBFpassword = \"***\"\nhost = \"h\"\n");
+}
+
+TEST(Redact, UnterminatedValuesEndAtTheirFirstLine) {
+  EXPECT_EQ(redact::in_toml("x = [ 1,\npassword = \"p\""), "x = [ 1,\npassword = \"***\"");
+  EXPECT_EQ(redact::in_toml("x = \"\"\"abc\npassword = \"p\"\n"), "x = \"\"\"abc\npassword = \"***\"\n");
+  EXPECT_EQ(redact::in_toml("token = [abc\nhost = \"h\"\nmore = 1\n"), "token = \"***\"\nhost = \"h\"\nmore = 1\n");
+  EXPECT_EQ(redact::in_toml("secret = \"\"\"abc\nhost = \"h\"\n"), "secret = \"***\"\nhost = \"h\"\n");
+}
+
+TEST(Redact, BareSecretValueRunsToEndOfLine) {
+  EXPECT_EQ(redact::in_toml("password = ab,cd\n"), "password = \"***\"\n");
+  EXPECT_EQ(redact::in_toml("secret = ab]cd # note\nx = 1\n"), "secret = \"***\" # note\nx = 1\n");
+  EXPECT_EQ(redact::in_toml("password = ab#cd\n"), "password = \"***\"\n");
+  EXPECT_EQ(redact::in_toml("t = { password = ab, x = 1 }"), "t = { password = \"***\", x = 1 }");
+}
+
+TEST(Redact, ValueOnTheNextLineIsMasked) {
+  EXPECT_EQ(redact::in_toml("password =\nhunter2\nhost = \"h\"\n"), "password =\n***\nhost = \"h\"\n");
+  EXPECT_EQ(redact::in_toml("password =\r\n\r\nhunter2\r\nx = 1"), "password =\r\n\r\n***\r\nx = 1");
+  EXPECT_EQ(redact::in_toml("password ="), "password =");
 }
