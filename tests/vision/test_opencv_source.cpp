@@ -74,6 +74,25 @@ double quad_mean(const Frame& f, int q) {
   return sum / n;
 }
 
+// Per quadrant, the mean {R, G, B} of the middle half of the first frame as cv::VideoCapture
+// decodes the file. OpenCV's own MJPEG writer (the only one in a build without FFmpeg, as a
+// release's) scales Cb by about 0.78, which moves the blue plane of a saturated quadrant by
+// some 35, more than kTol: a channel is checked against the plane OpenCV decodes, so what is
+// tested is which plane the source picks, not the codec.
+std::array<std::array<double, 3>, 4> decoded_planes(const std::filesystem::path& file) {
+  std::array<std::array<double, 3>, 4> planes{};
+  cv::VideoCapture cap(file.string());
+  cv::Mat m;
+  if (!cap.isOpened() || !cap.read(m) || m.type() != CV_8UC3) return planes;
+  const int qw = m.cols / 2, qh = m.rows / 2;
+  for (int q = 0; q < 4; ++q) {
+    const cv::Rect r((q % 2) * qw + qw / 4, (q / 2) * qh + qh / 4, qw / 2, qh / 2);
+    const cv::Scalar bgr = cv::mean(m(r));
+    planes[static_cast<std::size_t>(q)] = {bgr[2], bgr[1], bgr[0]};
+  }
+  return planes;
+}
+
 // Fixture: a video in a temp dir, or a skip.
 class OpenCvSourceVideo : public ::testing::Test {
  protected:
@@ -109,7 +128,6 @@ class OpenCvSourceVideo : public ::testing::Test {
   }
 
   auto luma() const { return [](int q) { return kLuma[static_cast<std::size_t>(q)]; }; }
-  static auto chan(int c) { return [c](int q) { return static_cast<double>(kColours[static_cast<std::size_t>(q)][static_cast<std::size_t>(c)]); }; }
 
   TempDir dir;
   std::filesystem::path file;
@@ -121,11 +139,18 @@ TEST_F(OpenCvSourceVideo, LumaIdentityStream) { expect_stream({}, kW, kH, {0, 1,
 
 TEST_F(OpenCvSourceVideo, ChannelsPickTheRightPlane) {
   // A pure-red quadrant must be bright in R and dark in B: this catches a BGR index swap.
+  // The decoded planes are near the colours written (an R/B swap would be 170 off), and
+  // the source must give the plane asked for.
+  const auto planes = decoded_planes(file);
+  for (std::size_t q = 0; q < 4; ++q)
+    for (std::size_t c = 0; c < 3; ++c) EXPECT_NEAR(planes[q][c], kColours[q][c], 2 * kTol) << "quadrant " << q << " channel " << c;
   for (const auto& [ch, idx] : {std::pair{SourceConfig::Channel::R, 0}, std::pair{SourceConfig::Channel::G, 1},
                                std::pair{SourceConfig::Channel::B, 2}}) {
     SourceConfig c;
     c.channel = ch;
-    expect_stream(c, kW, kH, {0, 1, 2, 3}, chan(idx));
+    expect_stream(c, kW, kH, {0, 1, 2, 3}, [&planes, i = static_cast<std::size_t>(idx)](int q) {
+      return planes[static_cast<std::size_t>(q)][i];
+    });
   }
 }
 
