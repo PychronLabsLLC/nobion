@@ -203,11 +203,23 @@ class TestCollectDiagnostics : public QObject {
   }
 
   // The window closing while the bundle is written: the collector waits for
-  // the worker, which then signals nobody.
+  // the worker, which then signals nobody. The worker is let go only once the
+  // collector's destruction has begun, so it is still running then.
   void theWindowCanGoWhileTheWorkerRuns() {
     std::atomic<bool> release{false};
     std::atomic<bool> returned{false};
-    std::thread releaser;
+    // Releases the worker first thing in its destructor, before the base
+    // class's waits for it.
+    struct ReleasingCollector final : DiagnosticsCollector {
+      ReleasingCollector(QWidget* parent, nobion::ui::DiagnosticsDeps deps, std::atomic<bool>& gate)
+          : DiagnosticsCollector(parent, std::move(deps)), gate_(gate) {}
+      ReleasingCollector(const ReleasingCollector&) = delete;
+      ReleasingCollector& operator=(const ReleasingCollector&) = delete;
+      ReleasingCollector(ReleasingCollector&&) = delete;
+      ReleasingCollector& operator=(ReleasingCollector&&) = delete;
+      ~ReleasingCollector() override { gate_ = true; }
+      std::atomic<bool>& gate_;
+    };
     {
       QMainWindow window;
       nobion::ui::DiagnosticsDeps deps;
@@ -217,15 +229,10 @@ class TestCollectDiagnostics : public QObject {
         returned = true;
         return fs::path("/somewhere/bundle.zip");
       };
-      auto* collector = new DiagnosticsCollector(&window, std::move(deps));
+      auto* collector = new ReleasingCollector(&window, std::move(deps), release);
       collector->collect();
       QVERIFY(collector->busy());
-      releaser = std::thread([&release] {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        release = true;
-      });
     }  // the window, and the collector with it, go here
-    releaser.join();
     QVERIFY(returned);
     QCoreApplication::processEvents();  // the queued result finds no collector
   }
