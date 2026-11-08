@@ -181,7 +181,9 @@ class TestShortcuts : public QObject {
     QList<QAction*> help;
     for (QMenu* m : MenuHub::instance().menus(MenuHub::instance().bar_for(&figure)))
       if (m->title().remove(QLatin1Char('&')) == QStringLiteral("Help")) help = m->actions();
-    QCOMPARE(help.size(), 6);  // Command Palette…, Keyboard Shortcuts, Canvas Legend, separator, Save Flight Recorder, About
+    // Command Palette…, Keyboard Shortcuts, Canvas Legend, separator, Collect Diagnostics…, Save Flight Recorder, About
+    QCOMPARE(help.size(), 7);
+    QCOMPARE(help.at(4)->objectName(), QStringLiteral("collectDiagnostics"));
     QCOMPARE(help.at(2), main.legend_action());
     QCOMPARE(help.at(1)->text(), QStringLiteral("Keyboard Shortcuts"));
     QCOMPARE(help.last(), main.about_action());

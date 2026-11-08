@@ -26,6 +26,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include "collect_diagnostics.hpp"
 #include "menu_hub.hpp"
 #include "theme.hpp"
 #include "nobion/core/build_info.hpp"
@@ -280,7 +281,12 @@ QAction* add_help_menu(QMainWindow* window) {
   // 5.3), on this thread: the operator asked, and waits for the path.
   auto* flight = new QAction(QStringLiteral("Save Flight Recorder"), window);
   flight->setObjectName(QStringLiteral("saveFlightRecorder"));
-  MenuHub::instance().contribute(window, MenuHub::Menu::Help, {flight, about}, MenuHub::Scope::App);
+  // One zip to send to support (spec section 8): the window's collector
+  // (collect_diagnostics.hpp), written off this thread.
+  auto* collect = new QAction(QStringLiteral("Collect Diagnostics…"), window);
+  collect->setObjectName(QStringLiteral("collectDiagnostics"));
+  MenuHub::instance().contribute(window, MenuHub::Menu::Help, {collect, flight, about}, MenuHub::Scope::App);
+  QObject::connect(collect, &QAction::triggered, window, [window] { nobion::ui::diagnostics_collector(window)->collect(); });
   QObject::connect(flight, &QAction::triggered, window, [window] {
     const auto hub = nobion::process_log_hub();
     if (!hub) {

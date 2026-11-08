@@ -25,7 +25,7 @@ This page is a reference. For a first look at Nobion, start with
 - [Exit codes](#exit-codes)
 - [Which commands need persistence](#which-commands-need-persistence)
 - [Offline checks](#offline-checks): `validate`, `canvas-check`, `list-drivers`, `list`, `conditionals-check`
-- [Setup](#setup): `init`, `doctor`, `data-source`, `import-line`, `version`
+- [Setup](#setup): `init`, `doctor`, `support-bundle`, `data-source`, `import-line`, `version`
 - [Hardware and simulation](#hardware-and-simulation): `probe`, `state`, `open`, `close`, `read`, `heater`, `scan`, `trace`, `sim`
 - [Experiments](#experiments): `exp validate`, `exp run`, `exp notify`
 - [Lasers](#lasers): `laser ...`
@@ -56,7 +56,7 @@ is the command; everything after it belongs to the command.
 | `--version` | Print the version, and where the shipped `profiles` and `examples` were found. |
 | `-h`, `--help` | Print the command summary and exit 0. |
 
-`init`, `doctor`, `data-source`, `import-line` and `version` need no extraction line. Everything else
+`init`, `doctor`, `support-bundle`, `data-source`, `import-line` and `version` need no extraction line. Everything else
 (`validate`, `list`, `probe`, `exp`, `laser` and so on) uses the config chosen
 by `-c` / `--install`.
 
@@ -257,6 +257,27 @@ simulated); notifications (the `curl` program, and whether the secrets named in
 Exit 0, or 1 if any check fails (or warns, with `--strict`), or if no install
 can be found (`nothing is installed yet`, `several installs and no default ...;
 pass --install NAME`).
+
+### support-bundle
+
+Write one zip of logs, configuration (secrets masked), saved state, wire
+traces and the doctor report, to send to support, and print where it is.
+Uploads nothing and never touches the hardware. What it holds and leaves out:
+[Troubleshooting](10-troubleshooting.md#sending-diagnostics-to-support).
+
+```bash
+elctl support-bundle [--install NAME] [--out FILE] [--since 72h] [--no-traces]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--install NAME` | The install to collect. Default: the default install. With nothing installed the bundle is written without one. |
+| `--out FILE` | Where to write the zip. Default: `<log folder>/bundles/nobion-<computer>-<time>.zip`. |
+| `--since D` | Keep old log files written within `D` (`72h` by default; `90m`, `2h`; rounded up to whole hours). The current files are always in. |
+| `--no-traces` | Leave the wire traces out. |
+
+Exit 0 when written; 1 if the install named cannot be found (or there are
+several and no default) or the zip cannot be written; 2 for a usage mistake.
 
 ### data-source
 

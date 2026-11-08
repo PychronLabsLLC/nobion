@@ -47,15 +47,16 @@ UncleanExitDialog::UncleanExitDialog(const PreviousSession& previous, QWidget* p
   connect(dismiss, &QPushButton::clicked, this, &QDialog::reject);
 }
 
-void show_unclean_exit_notice(QWidget* window) {
+UncleanExitDialog* show_unclean_exit_notice(QWidget* window) {
   const auto hub = process_log_hub();
-  if (!hub || window == nullptr) return;
+  if (!hub || window == nullptr) return nullptr;
   const auto previous = hub->previous_session();
-  if (!previous) return;
+  if (!previous) return nullptr;
   auto* dialog = new UncleanExitDialog(*previous, window);
   dialog->setAttribute(Qt::WA_DeleteOnClose);
   dialog->setWindowModality(Qt::NonModal);
   dialog->show();
+  return dialog;
 }
 
 }  // namespace nobion::ui

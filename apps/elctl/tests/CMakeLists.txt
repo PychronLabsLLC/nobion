@@ -1,7 +1,8 @@
 file(GLOB NOBION_ELCTL_TESTS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp")
 
 add_executable(nobion_elctl_tests ${NOBION_ELCTL_TESTS})
-target_link_libraries(nobion_elctl_tests PRIVATE nobion_elctl_lib nobion::update_testing GTest::gtest_main)
+# miniz: test_support_bundle_cmd.cpp reads the bundle back (tests/support zip_entries.hpp).
+target_link_libraries(nobion_elctl_tests PRIVATE nobion_elctl_lib nobion::update_testing miniz::miniz GTest::gtest_main)
 nobion_link_drivers(nobion_elctl_tests nobion_sim)
 # tests/support: log_capture.hpp (a process log hub on a temporary folder,
 # read back) and example_lab.hpp (a scratch copy of the examples).

@@ -27,8 +27,9 @@ class UncleanExitDialog : public QDialog {
 // Shows the dialog over `window` when the process log hub found an unclean
 // previous session; nothing otherwise. Not modal and never blocking: an
 // instrument may be running behind it, and the operator must be able to keep
-// working. It deletes itself on close. Until Collect Diagnostics exists
-// (field-diagnostics Task 19) its button only closes the dialog.
-void show_unclean_exit_notice(QWidget* window);
+// working. It deletes itself on close. Returns the dialog (null when none is
+// shown), whose collectRequested the caller connects to the window's
+// DiagnosticsCollector (collect_diagnostics.hpp).
+UncleanExitDialog* show_unclean_exit_notice(QWidget* window);
 
 }  // namespace nobion::ui

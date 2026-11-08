@@ -76,6 +76,7 @@
 #include <QTimer>
 
 #include "brand.hpp"
+#include "collect_diagnostics.hpp"
 #include "command_line.hpp"
 #include "data_main_window.hpp"
 #include "data_source_page.hpp"
@@ -347,7 +348,16 @@ int run_data_reduction(const setup::SiteInstall& install, const nobion::processi
   window.apply_preferences(nobion::ui::load_preferences(QSettings()));
   window.resize(1200, 800);
   window.show();
-  nobion::ui::show_unclean_exit_notice(&window);
+  // Help > Collect Diagnostics… and the unclean-exit dialog's Collect: no
+  // line here, so no live state, and system time (as the window's clock).
+  nobion::ui::DiagnosticsDeps diagnostics;
+  diagnostics.install = install;
+  diagnostics.hub = nobion::process_log_hub();
+  auto* collector = new nobion::ui::DiagnosticsCollector(&window, std::move(diagnostics));
+  if (auto* notice = nobion::ui::show_unclean_exit_notice(&window)) {
+    QObject::connect(notice, &nobion::ui::UncleanExitDialog::collectRequested, collector,
+                     &nobion::ui::DiagnosticsCollector::collect);
+  }
   // No line here, so no line clock: the computer's. Made after the window,
   // so the checker goes first; a failed automatic check is not shown.
   QSettings update_settings;
@@ -873,7 +883,27 @@ int main(int argc, char** argv) {
     }
 #endif
     window.show();
-    nobion::ui::show_unclean_exit_notice(&window);
+    // Help > Collect Diagnostics… and the unclean-exit dialog's Collect. The
+    // live state is read on the main thread when asked: the line's
+    // transports and pressures, the standing alarms, the executor (once the
+    // session below exists), the Log dock's level. Stamps on the line's clock.
+    nobion::ui::DiagnosticsDeps diagnostics;
+    diagnostics.install = install;
+    diagnostics.hub = hub;
+    diagnostics.clock = &(*line)->clock();
+    diagnostics.snapshot = [&window, &experiment_bridge, hub] {
+      nobion::ui::LiveSources sources;
+      sources.core = &window.bridge();
+      sources.alarms = window.alarm_dock();
+      sources.experiment = experiment_bridge.get();
+      sources.hub = hub.get();
+      return nobion::ui::live_state_json(sources);
+    };
+    auto* collector = new nobion::ui::DiagnosticsCollector(&window, std::move(diagnostics));
+    if (auto* notice = nobion::ui::show_unclean_exit_notice(&window)) {
+      QObject::connect(notice, &nobion::ui::UncleanExitDialog::collectRequested, collector,
+                       &nobion::ui::DiagnosticsCollector::collect);
+    }
     if (spectrometer_error) {
       window.log_dock()->append_error("startup", QStringLiteral("spectrometer not loaded"),
                                       QString::fromStdString(*spectrometer_error));

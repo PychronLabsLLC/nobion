@@ -1,5 +1,6 @@
 // UncleanExitDialog: says which build ended without a clean exit, and its
-// Collect Diagnostics button asks for the collection (Task 19 connects it).
+// Collect Diagnostics button asks for the collection (main.cpp connects it
+// to the window's DiagnosticsCollector).
 
 #include <QtTest/QtTest>
 

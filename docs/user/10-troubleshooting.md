@@ -272,7 +272,65 @@ Both programs write a log file as they run, with no setup.
   file; the program says `no log folder: HOME is not set` once and runs
   without one.
 
+## Sending diagnostics to support
+
+A support bundle is one zip file that holds what a developer needs to see
+what went wrong. Make one and send it with your problem report.
+
+**How to make one.** Any of these three ways gives the same file:
+
+- In `nobion`, choose **Help > Collect Diagnostics…**. A small window says
+  that it is collecting; you can go on working. When it is done, a message
+  says where the file is, with a button that shows it in Finder (Explorer on
+  Windows).
+- When `nobion` starts after it did not close cleanly, it says so in a
+  window. Click **Collect Diagnostics…** there.
+- On the command line:
+
+  ```bash
+  elctl support-bundle                     # the default install
+  elctl support-bundle --install lab --out ~/Desktop/lab-problem.zip
+  elctl support-bundle --since 24h --no-traces
+  ```
+
+  It prints where it wrote the file. `--since` keeps old log files from
+  that long ago (the default is 72 hours; the current log files are always
+  in), and `--no-traces` leaves the wire traces out.
+
+Unless told otherwise, the file goes in a `bundles` folder inside the log
+folder (see "Logs" above), named `nobion-<computer>-<time>.zip`.
+
+**How to send it.** Nothing is uploaded: attach the file to an email, or
+put it on a file share and send the link. A bundle is kept to 200 MB at
+most; the oldest log files are left out first to stay under that.
+
+**What it holds.**
+
+- The log files of both programs from the last 72 hours, crash files, and
+  the flight recorder's saved records, with a fresh one from the running
+  `nobion`.
+- The install's configuration files, the install record, a list of the
+  files you have edited since the install, and the site configuration.
+- The line's saved state (valve locks, the executor's state, the field
+  table in use) and a list of the runs still waiting to be saved (names and
+  sizes only).
+- The wire traces, unless left out.
+- The `elctl doctor` report (it never connects to the hardware for this).
+- From `nobion`: what the window knew when you asked (each transport's
+  connection and last error, pressures, standing alarms, the executor's
+  state).
+- `README.txt`, which says what is in the file and what was left out.
+
+**What it leaves out.** Passwords, tokens and keys in configuration files
+are replaced by `***`, and so is the password in any database or service
+address (`postgresql://user:***@host/db`). The file
+`.nobion/credentials.toml` is never included, nor any file or folder whose
+name says it holds a secret or credentials. Record contents, the data
+folder and the database itself are not included. Logs and traces are
+masked only for passwords in addresses, so look through the bundle before
+sending it if your scripts log anything private.
+
 ## Still stuck
 
-Collect `elctl doctor` output and the Log dock text, and see
+Send a support bundle (above), and see
 [Escalation in the runbook](../installation_runbook.md#escalation).

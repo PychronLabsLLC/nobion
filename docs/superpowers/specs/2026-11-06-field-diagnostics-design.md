@@ -274,7 +274,7 @@ One zip a lab sends back.
   - `state/`: line `*.state.toml`, `executor_state.json`, field table `current` and its version file, outbox and spool listings (names, sizes, ages; no record bodies).
   - `traces/`: `<trace dir>/*.trace`, newest first, within the cap, when `include_traces`.
   - `doctor.txt`: `elctl doctor` report (no `--probe`: never touches hardware).
-  - `live.json`: from `live`: transport and device health, active alarms and the last 100, executor state, metrics text (registry render), current log and recorder levels.
+  - `live.json`: from `live`: nobion's `live_state_json` (`apps/nobion/src/collect_diagnostics.hpp`), read on main thread from `CoreBridge` state (`transports` always present: connected, error_count, last_error per transport; pressures; pending actuations), `AlarmDock` standing alarms, `LabSession` executor state, pending saves, last save error, problems, Log dock level and log file. Not in it (no main-thread mirror holds them): device health, alarm history, metrics text (endpoint has it), recorder levels.
 - Redaction, `libs/core` `redact.hpp` (public; replaces the private `is_secret_key` in `libs/core/src/log_summary.cpp`, which then calls it):
   - key rule: a key equal to, or ending in `_`/`-` plus, one of `password`, `passwd`, `token`, `secret`, `key`, `credential`, `api_key` (case-insensitive; the existing suffix rule, list extended). Value replaced by `***` (the existing text).
   - value rule: in any text, `<scheme>://<user>:<password>@` becomes `<scheme>://<user>:***@`.
@@ -282,7 +282,8 @@ One zip a lab sends back.
   - Applied to every text file in the bundle (TOML by key and value rule; logs, JSON, traces' comment lines, `live.json` by value rule; TOML keys inside logged `key=value` summaries already redacted at log time).
 - Entry points:
   - `elctl support-bundle [--install X] [--out file] [--since 72h] [--no-traces]`.
-  - nobion Help > Collect Diagnostics…: snapshot for `live` taken on the main thread from `CoreBridge`/`ExperimentBridge`, then the bundle written on a worker thread with progress; the zip revealed in the file manager.
+  - nobion Help > Collect Diagnostics…: snapshot for `live` taken on the main thread from `CoreBridge`/`ExperimentBridge`, then the bundle written on a worker thread with progress (non-modal busy dialog: no progress callback in `write_support_bundle`); message names the zip, button reveals it in file manager; error shown as message. `DiagnosticsCollector`, child of window; result handed back under its own mutex, queued signal carries nothing. Instrument window: line's clock, process hub, install; data reduction window: no live state, system time.
+  - `elctl support-bundle`: install named, else default; nothing installed or site config that does not load: written without install (note on stderr); name not found or several and no default: exit 1. `--since` rounded up to whole hours. Process log hub gives log folder and fresh dump. Prints path.
   - the unclean-exit dialog (3.3).
 - Never uploads. Sending is the operator's (email, share). Upload: section 13.
 

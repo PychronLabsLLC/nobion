@@ -36,6 +36,7 @@
 #include "nobion/setup/doctor.hpp"
 #include "nobion/setup/installer.hpp"
 #include "setup.hpp"
+#include "support_bundle_cmd.hpp"
 #include "version_cmd.hpp"
 #include "line.hpp"
 #include "nobion/core/config/loader.hpp"
@@ -101,6 +102,9 @@ constexpr const char* kUsageText =
     "  init --reconfigure [--set id=value]... [--yes]\n"
     "                              re-render an install with new answers; edited files are kept\n"
     "  doctor [--strict] [--probe] check an install (the default, or --install NAME)\n"
+    "  support-bundle [--out FILE] [--since 72h] [--no-traces]\n"
+    "                              one zip of logs, config (secrets masked), state and the doctor\n"
+    "                              report, to send to support; prints its path. Uploads nothing\n"
     "  version [--check]           print the version; --check asks GitHub for the latest release\n"
     "                              (exit 10 when a newer one exists)\n"
     "  data-source                 the install's database and data folder\n"
@@ -852,6 +856,7 @@ int run(const std::vector<std::string>& args, Io io) {
   }
   if (command == "version") return version_command(rest, io);
   if (command == "doctor") return doctor_command(rest, globals.install, io);
+  if (command == "support-bundle") return support_bundle_command(rest, globals.install, io);
   if (command == "data-source") return data_source_command(rest, globals.install, io);
   if (command == "import-line") return import_line_command(rest, io);
   // --install NAME (or, with no -c, the default install): its files are the defaults.

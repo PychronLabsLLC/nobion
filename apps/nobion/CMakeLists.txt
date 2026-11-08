@@ -27,6 +27,7 @@ add_library(nobion_ui_lib STATIC
   src/dock_layouts.cpp
   src/error_report.cpp
   src/unclean_exit_dialog.cpp
+  src/collect_diagnostics.cpp
   src/log_dock.cpp
   src/log_model.cpp
   src/log_filter_proxy.cpp
@@ -143,6 +144,7 @@ add_library(nobion_ui_lib STATIC
   src/dock_layouts.hpp
   src/error_report.hpp
   src/unclean_exit_dialog.hpp
+  src/collect_diagnostics.hpp
   src/log_dock.hpp
   src/log_model.hpp
   src/log_filter_proxy.hpp
