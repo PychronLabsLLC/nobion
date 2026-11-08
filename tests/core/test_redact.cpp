@@ -155,6 +155,14 @@ TEST(Redact, LinearOnTenMegabytes) {
   EXPECT_EQ(timed("in_toml unterminated strings", [&] { return redact::in_toml(triples); }), triples);
   const std::string run = "x = {" + repeat("a", ten_mb) + "}";
   EXPECT_EQ(timed("in_toml long run in table", [&] { return redact::in_toml(run); }), run);
+  const std::string dotted = "x = {" + repeat("a.", ten_mb) + "}";
+  EXPECT_EQ(timed("in_toml dotted run in table", [&] { return redact::in_toml(dotted); }), dotted);
+  const std::string spaced = "x = {" + repeat("a . ", ten_mb) + "}";
+  EXPECT_EQ(timed("in_toml spaced dotted run in table", [&] { return redact::in_toml(spaced); }), spaced);
+}
+
+TEST(Redact, ADottedRunWithNoKeyIsSkippedAndTheNextKeyIsStillRead) {
+  EXPECT_EQ(redact::in_toml("x = { a.b., password = \"p\" }"), "x = { a.b., password = \"***\" }");
 }
 
 TEST(Redact, ByteOrderMarkBeforeTheFirstKey) {

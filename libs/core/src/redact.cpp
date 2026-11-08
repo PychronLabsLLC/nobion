@@ -198,8 +198,11 @@ void mask_bracketed(Scan& scan, std::string_view value, std::string& out, int de
 
 // Reads a possibly dotted key at s[i] (`a.b`, `a."b"`, `"a" . 'b'`). Returns
 // the index after it (and any spaces) and sets `last` to the content of its
-// last part, or returns kNone when there is no key.
-std::size_t read_key(std::string_view s, std::size_t i, std::string_view& last) noexcept {
+// last part, or returns kNone when there is no key and sets `reached` to
+// where the reading stopped: no key starts inside a run of dotted parts, so a
+// caller resumes there, and a long run that ends in an empty part (`a.a.a.`) is
+// read once, not once for each of its characters.
+std::size_t read_key(std::string_view s, std::size_t i, std::string_view& last, std::size_t& reached) noexcept {
   std::size_t j = i;
   while (true) {
     while (j < s.size() && is_space(s[j])) ++j;
@@ -210,7 +213,10 @@ std::size_t read_key(std::string_view s, std::size_t i, std::string_view& last) 
       last = s.substr(j + 1, part_end - j - (closed ? 2 : 1));
     } else {
       while (part_end < s.size() && is_bare_key_char(s[part_end])) ++part_end;
-      if (part_end == j) return kNone;
+      if (part_end == j) {
+        reached = j;
+        return kNone;
+      }
       last = s.substr(j, part_end - j);
     }
     std::size_t after = part_end;
@@ -230,9 +236,13 @@ std::size_t read_key(std::string_view s, std::size_t i, std::string_view& last) 
 std::size_t mask_assignment(Scan& scan, std::string_view s, std::size_t i, std::string& out, int depth, bool top,
                             std::size_t& skip) {
   std::string_view last;
-  const std::size_t key_end = read_key(s, i, last);
+  std::size_t reached = i;
+  const std::size_t key_end = read_key(s, i, last, reached);
   skip = i + 1;
-  if (key_end == kNone) return kNone;
+  if (key_end == kNone) {
+    skip = reached > i ? reached : i + 1;
+    return kNone;
+  }
   if (key_end >= s.size() || s[key_end] != '=') {
     skip = key_end > i ? key_end : i + 1;
     return kNone;
