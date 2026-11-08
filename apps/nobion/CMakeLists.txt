@@ -119,7 +119,6 @@ add_library(nobion_ui_lib STATIC
   src/earthbank_package_dialog.cpp
   src/update_checker.cpp
   src/update_ui.cpp
-  src/settings_migration.cpp
   src/earthbank_publish_panel.cpp
   src/follow_mailbox.cpp
   src/laser_bridge.cpp

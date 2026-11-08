@@ -107,7 +107,6 @@
 #include "nobion/core/event_recorder.hpp"
 #include "nobion/core/process_log.hpp"
 #include "process_log.hpp"
-#include "settings_migration.hpp"
 #include "qt_log_handler.hpp"
 #include "nobion/core/virtual_clock.hpp"
 #include "nobion/experiment/event_log.hpp"
@@ -453,7 +452,6 @@ int main(int argc, char** argv) {
   QApplication app(argc, argv);
   QCoreApplication::setOrganizationName(QStringLiteral("PychronLabs"));
   QApplication::setApplicationName(QStringLiteral("nobion"));
-  nobion::ui::migrate_legacy_application_settings();
   nobion::ui::style::apply(app);
   QApplication::setWindowIcon(nobion::ui::brand::app_icon());
 
