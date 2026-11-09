@@ -9,7 +9,10 @@ target_compile_definitions(nobion_laser_tests PRIVATE
   NOBION_TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/data")
 nobion_set_warnings(nobion_laser_tests)
 
-gtest_discover_tests(nobion_laser_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)
+# The shipped track scenarios (TrackBench.A*GrainIsHeldOn) simulate a sweep in
+# CPU time: 34 s each alone under ASan on CI's Linux runner, past 60 s with
+# every core busy. The timeout is three times that.
+gtest_discover_tests(nobion_laser_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 180)
 
 # tools/export_patterns.py (legacy .lp pickles to pattern TOML) is tested with
 # the standard library's unittest; with elctl built, what it writes is also
