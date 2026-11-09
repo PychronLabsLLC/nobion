@@ -20,13 +20,13 @@
 #include <string_view>
 #include <utility>
 
-#include "pychron/core/error.hpp"
-#include "pychron/ingest/adapter.hpp"
-#include "pychron/ingest/batch.hpp"
-#include "pychron/ingest/conflict_markers.hpp"
-#include "pychron/persistence/store.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/ingest/adapter.hpp"
+#include "nobion/ingest/batch.hpp"
+#include "nobion/ingest/conflict_markers.hpp"
+#include "nobion/persistence/store.hpp"
 
-namespace pychron::ingest::detail {
+namespace nobion::ingest::detail {
 
 // Why a revision that is not stored is not written. `behind`: the commit of
 // the stored revision that decides it, when there is one.
@@ -104,4 +104,4 @@ std::string late_revision_detail(const RevisionItem& revision, const Late& late)
 // Whether a conflict's detail is one late_revision_detail() made.
 bool is_late_revision_detail(std::string_view detail_json);
 
-}  // namespace pychron::ingest::detail
+}  // namespace nobion::ingest::detail

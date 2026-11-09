@@ -1,4 +1,4 @@
-#include "pychron/core/config/loader.hpp"
+#include "nobion/core/config/loader.hpp"
 
 #include <array>
 #include <cstdlib>
@@ -7,10 +7,10 @@
 #include <set>
 #include <sstream>
 
-#include "pychron/core/config/validate.hpp"
-#include "pychron/core/env.hpp"
+#include "nobion/core/config/validate.hpp"
+#include "nobion/core/env.hpp"
 
-namespace pychron::config {
+namespace nobion::config {
 namespace {
 
 using Keys = std::set<std::string, std::less<>>;
@@ -270,6 +270,9 @@ class ConfigBuilder {
  public:
   ConfigBuilder(std::string file, std::vector<Diagnostic>& out) : p_(file, out), file_(std::move(file)) {}
 
+  // The [logging] parser alone, for a file that holds just those keys.
+  void read_logging(const toml::table& t, LoggingConfig& l) { parse_logging(t, l); }
+
   SystemConfig build(const toml::table& root, const toml::table* local) {
     SystemConfig c;
     c.source_file = file_;
@@ -469,7 +472,8 @@ class ConfigBuilder {
   void parse_logging(const toml::table& t, LoggingConfig& l) {
     p_.begin(l, t, "logging");
     const auto get = lookup_in(t);
-    p_.reject_unknown(t, l, Keys{"dir", "max_size_mb", "max_files", "default_level", "levels", "echo_stderr"});
+    p_.reject_unknown(t, l, Keys{"dir", "max_size_mb", "max_files", "default_level", "dock_level", "levels", "echo_stderr",
+                                  "recorder"});
     std::string dir;
     // Only when the key is there: read over a table the local file gave, a
     // missing `dir` must leave the shared file's alone.
@@ -477,18 +481,30 @@ class ConfigBuilder {
     p_.read(get, l, "max_size_mb", l.max_size_mb, false, 1);
     p_.read(get, l, "max_files", l.max_files, false, 1);
     p_.read_enum(get, l, "default_level", l.default_level, false, kLevels);
+    p_.read_enum(get, l, "dock_level", l.dock_level, false, kLevels);
     p_.read(get, l, "echo_stderr", l.echo_stderr);
 
-    const auto* n = p_.find(get, l, "levels", false);
-    if (n == nullptr) return;
-    const auto* lv = p_.as_table(*n, "logging.levels");
-    if (lv == nullptr) return;
-    // A levels table is the whole list. In the local file that lets one of
-    // the shared file's levels be dropped, which adding to them could not.
-    l.levels.clear();
-    for (auto&& [glob, node] : *lv) {
+    if (const auto* n = p_.find(get, l, "levels", false)) {
+      if (const auto* lv = p_.as_table(*n, "logging.levels")) {
+        // A levels table is the whole list. In the local file that lets one of
+        // the shared file's levels be dropped, which adding to them could not.
+        l.levels.clear();
+        read_level_table(*lv, "logging.levels", l.levels);
+      }
+    }
+
+    if (const auto* r = p_.find(get, l, "recorder", false)) {
+      if (const auto* rt = p_.as_table(*r, "logging.recorder")) parse_recorder(*rt, l.recorder);
+    }
+  }
+
+  // `glob = "level"` entries of `table`, appended to `out`; a bad entry is reported and skipped.
+  void read_level_table(const toml::table& table, const std::string& path,
+                        std::vector<std::pair<std::string, LogLevel>>& out) {
+    for (auto&& [glob, node] : table) {
       const auto key = std::string(glob.str());
-      const auto field = "logging.levels." + key;
+      std::string field = path;
+      field.append(".").append(key);
       const auto* s = node.as_string();
       if (s == nullptr) {
         p_.error(p_.loc(node), field, "expected string, got " + std::string(type_name(node.type())));
@@ -507,7 +523,26 @@ class ConfigBuilder {
                  "invalid value '" + s->get() + "' (expected trace | debug | info | warn | error)");
         continue;
       }
-      l.levels.emplace_back(key, level);
+      out.emplace_back(key, level);
+    }
+  }
+
+  // `[recorder]` of logging.toml (spec 5.1): the flight recorder's ring and levels.
+  void parse_recorder(const toml::table& t, RecorderConfig& r) {
+    p_.begin(r, t, "logging.recorder");
+    const auto get = lookup_in(t);
+    p_.reject_unknown(t, r, Keys{"enabled", "size_mb", "default_level", "levels"});
+    p_.read(get, r, "enabled", r.enabled);
+    auto size_mb = static_cast<std::int64_t>(r.size_mb);
+    if (p_.read(get, r, "size_mb", size_mb, false, kRecorderMinMb, kRecorderMaxMb)) {
+      r.size_mb = static_cast<std::size_t>(size_mb);
+    }
+    p_.read_enum(get, r, "default_level", r.default_level, false, kLevels);
+    if (const auto* n = p_.find(get, r, "levels", false)) {
+      if (const auto* lv = p_.as_table(*n, "logging.recorder.levels")) {
+        r.levels.clear();
+        read_level_table(*lv, "logging.recorder.levels", r.levels);
+      }
     }
   }
 
@@ -583,6 +618,16 @@ class ConfigBuilder {
         break;
       }
     }
+    if (const auto* n = t.get("recovery")) {
+      allowed.insert("recovery");  // reported below, not as an unknown field
+      if (tc.kind == TransportKind::Link) {
+        // Recovered by the connection it names, under that one's policy.
+        p_.error(p_.loc(*n), Parser::field(tc, "recovery"),
+                 "not on kind \"link\": transport '" + name + "' is recovered by the connection it names");
+      } else {
+        parse_recovery(*n, Parser::field(tc, "recovery"), tc.recovery);
+      }
+    }
     p_.reject_unknown(t, tc, allowed);
     if (ovr != nullptr) {
       for (auto&& [k, v] : *ovr) {
@@ -592,6 +637,26 @@ class ConfigBuilder {
       }
     }
     return tc;
+  }
+
+  // `[transports.<name>.recovery]`: reconnect, optional, call_window_s.
+  void parse_recovery(const toml::node& n, const std::string& path, RecoveryConfig& r) {
+    const auto* t = p_.as_table(n, path);
+    if (t == nullptr) return;
+    p_.begin(r, *t, path);
+    const auto get = lookup_in(*t);
+    p_.reject_unknown(*t, r, Keys{"reconnect", "optional", "call_window_s"});
+    p_.read(get, r, "reconnect", r.reconnect);
+    p_.read(get, r, "optional", r.optional);
+    std::optional<double> window;
+    if (p_.read(get, r, "call_window_s", window) && window) {
+      if (*window >= 0.0 && *window <= RecoveryConfig::kMaxCallWindowS) {
+        r.call_window_s = *window;
+      } else {
+        p_.error(r.where("call_window_s"), Parser::field(r, "call_window_s"),
+                 "value out of range, must be in [0, 3600]");
+      }
+    }
   }
 
   DriverConfig parse_driver(const std::string& name, const toml::table& t) {
@@ -845,6 +910,18 @@ LoadReport load_report(const std::filesystem::path& path) {
                                  local_path.generic_string());
 }
 
+Result<void> parse_logging_text(std::string_view toml, std::string_view name, LoggingConfig& into) {
+  std::vector<Diagnostic> diagnostics;
+  const auto root = parse_toml(toml, name, diagnostics);
+  if (root) {
+    LoggingConfig staged = into;
+    ConfigBuilder(std::string(name), diagnostics).read_logging(*root, staged);
+    if (diagnostics.empty()) into = std::move(staged);
+  }
+  if (!diagnostics.empty()) return fail(to_error(diagnostics));
+  return {};
+}
+
 Result<SystemConfig> load_system_config(const std::filesystem::path& path) {
   auto report = load_report(path);
   if (!report.ok()) return fail(to_error(report.diagnostics));
@@ -859,4 +936,4 @@ Result<SystemConfig> load_system_config_from_string(std::string_view main_toml, 
   return std::move(*report.config);
 }
 
-}  // namespace pychron::config
+}  // namespace nobion::config

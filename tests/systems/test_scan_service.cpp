@@ -10,21 +10,21 @@
 #include <thread>
 #include <vector>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
-#include "pychron/systems/spectrometer/scan_service.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
+#include "nobion/systems/spectrometer/scan_service.hpp"
 #include "spectrometer_fakes.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
-using namespace pychron::spectrometer::testing;
+using namespace nobion;
+using namespace nobion::spectrometer;
+using namespace nobion::spectrometer::testing;
 using namespace std::chrono_literals;
 
 namespace {
 
 const std::filesystem::path kIntegrated =
-    std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "spectrometer.sim-integrated.toml";
+    std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "spectrometer.sim-integrated.toml";
 
 const std::vector<ChannelId> kChannels{"H2", "H1", "AX", "L1", "L2", "CDD"};
 
@@ -336,7 +336,7 @@ TEST(ScanService, DestroyWhileReadingsFlowOnThreadedScheduler) {
 
 namespace {
 
-struct ScanServiceVirtual : pychron::testing::VirtualTimeTest {};
+struct ScanServiceVirtual : nobion::testing::VirtualTimeTest {};
 
 }  // namespace
 
@@ -370,12 +370,12 @@ TEST_F(ScanServiceVirtual, AStopWaitsForAStartWithoutStallingTime) {
 
   TimePoint started{}, stopped{};
   bool start_ok = false;
-  pychron::testing::Crew crew(clock);
+  nobion::testing::Crew crew(clock);
   crew.start("start", [&] {
     start_ok = service.start(1s).has_value();
     started = clock.now();
   });
-  ASSERT_TRUE(pychron::testing::await_waiters(clock, 1));  // the start, inside configure()
+  ASSERT_TRUE(nobion::testing::await_waiters(clock, 1));  // the start, inside configure()
   ASSERT_EQ(acquirer.configures.load(), 1);
   crew.start("stop", [&] {
     service.stop();

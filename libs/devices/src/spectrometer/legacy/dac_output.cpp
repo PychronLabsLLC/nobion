@@ -1,15 +1,15 @@
-#include "pychron/devices/spectrometer/legacy/dac_output.hpp"
+#include "nobion/devices/spectrometer/legacy/dac_output.hpp"
 
 #include <mutex>
 
-#include "pychron/codecs/map215.hpp"
+#include "nobion/codecs/map215.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace map = codec::map215;
 
-Map215Dac::Map215Dac(Transport& transport, int range, double full_scale)
-    : transport_(transport), range_(range), full_scale_(full_scale) {}
+Map215Dac::Map215Dac(Transport& transport, int range, double full_scale, Link* link)
+    : transport_(transport), range_(range), full_scale_(full_scale), link_(link) {}
 
 Result<double> Map215Dac::write(double volts) {
   auto code = map::to_code(volts, full_scale_);
@@ -18,10 +18,14 @@ Result<double> Map215Dac::write(double volts) {
   if (!select) return fail(std::move(select).error());
   auto value = map::write_code(*code);
   if (!value) return fail(std::move(value).error());
-  auto written = transact(transport_, [&]() -> Result<void> {
-    if (auto r = transport_.write(select->tx); !r) return r;
-    return transport_.write(value->tx);
-  });
+  // Not a Device: through the link by hand. Both writes are absolute: Safe.
+  const std::function<Result<void>()> pair = [&]() -> Result<void> {
+    return transact(transport_, [&]() -> Result<void> {
+      if (auto r = transport_.write(select->tx); !r) return r;
+      return transport_.write(value->tx);
+    });
+  };
+  auto written = link_ != nullptr ? link_->call(pair, Repeat::Safe) : pair();
   if (!written) return fail(std::move(written).error());
   return map::to_volts(*code, full_scale_);
 }
@@ -49,4 +53,4 @@ SimTransport::Hook map215_sim_hook(Map215SimModel model) {
   return [state](const Bytes& tx) { return state->respond(tx); };
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

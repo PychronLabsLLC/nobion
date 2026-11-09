@@ -1,12 +1,12 @@
-#include "pychron/devices/spectrometer/legacy/serial_hv.hpp"
+#include "nobion/devices/spectrometer/legacy/serial_hv.hpp"
 
 #include <gtest/gtest.h>
 
-#include "pychron/devices/driver_registry.hpp"
+#include "nobion/devices/driver_registry.hpp"
 #include "spectrometer/legacy/sim_util.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace legacy_test;
 
 TEST(SerialHv, SetHvSendsVsetAndExpectsOk) {

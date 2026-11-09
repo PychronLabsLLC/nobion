@@ -1,12 +1,12 @@
-#include "pychron/systems/spectrometer/field_table.hpp"
+#include "nobion/systems/spectrometer/field_table.hpp"
 
 #include <gtest/gtest.h>
 
 #include <cmath>
 #include <random>
 
-namespace ps = pychron::spectrometer;
-using pychron::ErrorKind;
+namespace ps = nobion::spectrometer;
+using nobion::ErrorKind;
 
 namespace {
 
@@ -36,7 +36,7 @@ TEST(FieldTable, QuadraticFitReproducesCurve) {
   auto t = argon_table();
   for (double m : {36.0, 38.5, 39.9624, 41.0}) {
     auto v = t.value_for(m, "H1");
-    ASSERT_TRUE(v.has_value()) << pychron::to_string(v.error());
+    ASSERT_TRUE(v.has_value()) << nobion::to_string(v.error());
     EXPECT_NEAR(*v, h1_curve(m), 1e-9);
   }
 }
@@ -103,7 +103,7 @@ TEST(FieldTable, InverseRoundTrip) {
       auto v = t.value_for(m, det);
       ASSERT_TRUE(v.has_value());
       auto back = t.mass_for(*v, det);
-      ASSERT_TRUE(back.has_value()) << pychron::to_string(back.error());
+      ASSERT_TRUE(back.has_value()) << nobion::to_string(back.error());
       EXPECT_NEAR(*back, m, 1e-6) << det;
     }
   }
@@ -211,7 +211,7 @@ isotope = "Ar36"
 mass = 35.968
 H1 = 4.5
 )");
-  ASSERT_TRUE(t.has_value()) << pychron::to_string(t.error());
+  ASSERT_TRUE(t.has_value()) << nobion::to_string(t.error());
   EXPECT_EQ(t->default_fit(), ps::FitKind::Quadratic);
   EXPECT_EQ(t->axis(), ps::TableAxis::Dac);
   EXPECT_EQ(t->fit("H2"), ps::FitKind::Linear);
@@ -225,7 +225,7 @@ TEST(FieldTableToml, RoundTripsThroughText) {
   auto t = argon_table();
   t.set_fit("AX", ps::FitKind::Cubic);
   auto back = ps::parse_field_table(ps::to_toml(t));
-  ASSERT_TRUE(back.has_value()) << pychron::to_string(back.error());
+  ASSERT_TRUE(back.has_value()) << nobion::to_string(back.error());
   EXPECT_EQ(*back, t);
 }
 

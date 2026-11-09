@@ -9,10 +9,10 @@
 #include <mutex>
 #include <thread>
 
-#include "pychron/vision/live_feed.hpp"
+#include "nobion/vision/live_feed.hpp"
 
-using namespace pychron;
-using namespace pychron::vision;
+using namespace nobion;
+using namespace nobion::vision;
 using namespace std::chrono_literals;
 using Steady = std::chrono::steady_clock;
 

@@ -1,4 +1,4 @@
-#include "pychron/reduction/stats.hpp"
+#include "nobion/reduction/stats.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -8,7 +8,7 @@
 #include <string>
 #include <utility>
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 namespace {
 
@@ -577,4 +577,4 @@ Result<YorkFit> york_fit(std::span<const XyPoint> pts, YorkMethod method, int ma
   return f;
 }
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

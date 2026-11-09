@@ -105,5 +105,7 @@ isotope = "Ar36"
 color = "#8c564b"
 dead_time_ns = 25
 cdd_voltage = 1450
-deflection = { control = true, correction = [0.0, 0.0010], sign = -1, max = 800, per_volt = 0.0029 }
+# A CDD is deflected off its beam at up to 2000 (worked plan 7.3); a value past
+# `max` is refused, never run as `max`.
+deflection = { control = true, correction = [0.0, 0.0010], sign = -1, max = 2000, per_volt = 0.0029 }
 protection = { threshold = 5e5, on_move = true }

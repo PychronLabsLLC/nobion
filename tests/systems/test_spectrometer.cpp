@@ -8,21 +8,21 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
-#include "pychron/systems/spectrometer/spectrometer.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
+#include "nobion/systems/spectrometer/spectrometer.hpp"
 #include "spectrometer_fakes.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
-using namespace pychron::spectrometer::testing;
+using namespace nobion;
+using namespace nobion::spectrometer;
+using namespace nobion::spectrometer::testing;
 using namespace std::chrono_literals;
 
 namespace {
 
 const std::filesystem::path kIntegrated =
-    std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "spectrometer.sim-integrated.toml";
+    std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "spectrometer.sim-integrated.toml";
 
 // sim-integrated config and tables, but every role is a fake.
 struct Rig {
@@ -44,12 +44,15 @@ struct Rig {
   std::optional<cfg::Limits> magnet_limits;  // replaces [magnet].limits when set
   bool af_demag = false;                     // enables [magnet].af_demag with a 0.5 swing
   bool log_sleeps = false;                   // facade waits also go to `log`, to show their order
+  IOpticsControl* optics = nullptr;          // the optics role, when bound
+  std::map<std::string, cfg::OpticsPreset> presets;  // [optics.*] added to the config
 
   cfg::SpectrometerData data() {
     auto d = cfg::load_spectrometer(kIntegrated);
     EXPECT_TRUE(d.has_value()) << (d ? "" : d.error().what);
     if (magnet_limits) d->config.magnet.limits = magnet_limits;
     if (af_demag) d->config.magnet.af_demag = cfg::AfDemag{true, 0.4, 0.4, 0.5, 0.5};
+    for (const auto& [name, preset] : presets) d->config.optics[name] = preset;
     return std::move(*d);
   }
 
@@ -64,6 +67,7 @@ struct Rig {
     roles.acquirers = {{"sim", &acquirer}};
     roles.detector_control = with_control ? &control : nullptr;
     roles.beam_blank = &blank;
+    roles.optics = optics;
     Spectrometer::Options options;
     options.sleep = [this](Duration dt) {
       sleeps.push_back(dt);
@@ -116,8 +120,7 @@ TEST(Spectrometer, PositionIsotopeRunsPipeline) {
 TEST(Spectrometer, DeflectionCorrectionUsesRuntimeDeflectionAndRoundTrips) {
   Rig r;
   r.build();
-  auto clamped = r.spec->set_deflection("L1", 100.0);
-  ASSERT_TRUE(clamped.has_value());
+  ASSERT_TRUE(r.spec->set_deflection("L1", 100.0).has_value());
   auto native = r.spec->native_for(39.9623831237, "L1");
   ASSERT_TRUE(native.has_value());
   EXPECT_NEAR(*native, 4.750 - 0.0012 * 100.0, 1e-9);  // L1 sign = -1
@@ -400,6 +403,41 @@ TEST(Spectrometer, WithTableScopesTheActiveTable) {
   EXPECT_FALSE(r.spec->with_table("missing").has_value());
 }
 
+// A run's own table (a peak center step's write_table): selected like any
+// other, never saved, not a name a loaded table has, gone when dropped.
+TEST(Spectrometer, ARunTableIsSelectableAndNeverSaved) {
+  Rig r;
+  FieldTable ic(FitKind::Discrete, TableAxis::Dac, {ControlPoint{"Ar40", 39.9623831237, {{"H1", 6.0}}}});
+  r.build({{"ic", ic}});
+  EXPECT_FALSE(r.spec->add_run_table("argon", r.spec->field_table()));  // loaded
+  EXPECT_FALSE(r.spec->add_run_table("ic", r.spec->field_table()));
+  ASSERT_TRUE(r.spec->add_run_table("ic_run", r.spec->field_table()));
+  EXPECT_FALSE(r.spec->add_run_table("ic_run", r.spec->field_table()));  // once
+  EXPECT_TRUE(r.spec->is_run_table("ic_run"));
+  {
+    auto scope = r.spec->with_table("ic_run");
+    ASSERT_TRUE(scope.has_value());
+    ASSERT_TRUE(r.spec->update_table("H1", "Ar40", 5.5, false));
+    auto saved = r.spec->save_table(std::chrono::system_clock::time_point{});
+    ASSERT_FALSE(saved);
+    EXPECT_NE(saved.error().what.find("not saved"), std::string::npos) << saved.error().what;
+    auto pos = r.spec->position(PositionTarget{Isotope{"Ar40"}, "H1"});
+    ASSERT_TRUE(pos.has_value());
+    EXPECT_NEAR(pos->native, 5.5, 1e-9);
+  }
+  auto pos = r.spec->position(PositionTarget{Isotope{"Ar40"}, "H1"});
+  ASSERT_TRUE(pos.has_value());
+  EXPECT_NEAR(pos->native, 5.001, 1e-9);  // the current table is untouched
+  auto scope = r.spec->with_table("ic_run");
+  ASSERT_TRUE(scope.has_value());
+  r.spec->drop_run_table("ic_run");
+  EXPECT_EQ(r.spec->active_table(), "argon");  // the dropped table was active
+  EXPECT_FALSE(r.spec->is_run_table("ic_run"));
+  EXPECT_FALSE(r.spec->with_table("ic_run").has_value());
+  r.spec->drop_run_table("argon");  // not a run table: nothing
+  EXPECT_TRUE(r.spec->with_table("argon").has_value());
+}
+
 TEST(Spectrometer, UpdateTableShiftsSubsequentPositions) {
   Rig r;
   r.build();
@@ -437,14 +475,51 @@ TEST(Spectrometer, DetectorOpsGuardedByCaps) {
   EXPECT_TRUE(r.spec->detector_state("H1")->protected_);
 }
 
-TEST(Spectrometer, DeflectionClampedToMax) {
+TEST(Spectrometer, DeflectionPastMaxIsRefused) {
   Rig r;
   r.build();
-  auto defl = r.spec->set_deflection("H1", 2000.0);
-  ASSERT_TRUE(defl.has_value());
-  EXPECT_DOUBLE_EQ(*defl, 800.0);
-  EXPECT_DOUBLE_EQ(r.control.deflection["H1"], 800.0);
-  EXPECT_EQ(*r.spec->detector_state("H1")->deflection, 800.0);
+  ASSERT_TRUE(r.spec->set_deflection("H1", 10.0).has_value());
+  for (const double asked : {2000.0, -800.5}) {
+    auto defl = r.spec->set_deflection("H1", asked);
+    ASSERT_FALSE(defl.has_value()) << asked;
+    EXPECT_EQ(defl.error().kind, ErrorKind::Config);
+    // The message names the detector, what was asked and the configured max.
+    EXPECT_NE(defl.error().what.find("'H1'"), std::string::npos) << defl.error().what;
+    EXPECT_NE(defl.error().what.find(asked > 0 ? "2000" : "-800.5"), std::string::npos) << defl.error().what;
+    EXPECT_NE(defl.error().what.find("800"), std::string::npos) << defl.error().what;
+  }
+  // Nothing reached the control and the recorded deflection is the last one set.
+  EXPECT_DOUBLE_EQ(r.control.deflection["H1"], 10.0);
+  EXPECT_EQ(*r.spec->detector_state("H1")->deflection, 10.0);
+  // The max itself is allowed, on either side.
+  EXPECT_DOUBLE_EQ(*r.spec->set_deflection("H1", 800.0), 800.0);
+  EXPECT_DOUBLE_EQ(*r.spec->set_deflection("H1", -800.0), -800.0);
+}
+
+TEST(Spectrometer, ReadDeflectionReadsTheControlAndRecordsIt) {
+  Rig r;
+  r.build();
+  r.control.deflection["H1"] = 42.0;  // set on the instrument, not through the facade
+  auto defl = r.spec->read_deflection("H1");
+  ASSERT_TRUE(defl.has_value()) << defl.error().what;
+  EXPECT_DOUBLE_EQ(*defl, 42.0);
+  EXPECT_EQ(*r.spec->detector_state("H1")->deflection, 42.0);
+
+  Rig no_caps;
+  no_caps.control.caps_ = DetectorCap::Protect;
+  no_caps.build();
+  auto unsupported = no_caps.spec->read_deflection("H1");
+  ASSERT_FALSE(unsupported.has_value());
+  EXPECT_EQ(unsupported.error().kind, ErrorKind::Config);
+}
+
+TEST(Spectrometer, BlankBeamGoesToTheBeamBlank) {
+  Rig r;
+  r.build();
+  ASSERT_TRUE(r.spec->blank_beam(true).has_value());
+  EXPECT_TRUE(r.blank.blanked);
+  ASSERT_TRUE(r.spec->blank_beam(false).has_value());
+  EXPECT_FALSE(r.blank.blanked);
 }
 
 TEST(Spectrometer, NoDetectorControlMeansUnsupported) {
@@ -484,7 +559,7 @@ TEST(Spectrometer, SnapshotIsContentHashed) {
 
 namespace {
 
-struct SpectrometerVirtual : pychron::testing::VirtualTimeTest {};
+struct SpectrometerVirtual : nobion::testing::VirtualTimeTest {};
 
 }  // namespace
 
@@ -521,7 +596,7 @@ TEST_F(SpectrometerVirtual, AScanPollAndAMoveContendWithoutStallingTime) {
   bool move_ok = false;
   std::optional<double> seen;       // the magnet, as the poll read it
   SpectrometerState snapshot;
-  pychron::testing::Crew crew(clock);
+  nobion::testing::Crew crew(clock);
   crew.start("move", [&] {
     PositionOptions options;
     options.settle = 5s;
@@ -529,7 +604,7 @@ TEST_F(SpectrometerVirtual, AScanPollAndAMoveContendWithoutStallingTime) {
     move_ok = spec.move_native(5.0, options).has_value();
     moved = clock.now();
   });
-  ASSERT_TRUE(pychron::testing::await_waiters(clock, 1));  // the move, settling with the spectrometer
+  ASSERT_TRUE(nobion::testing::await_waiters(clock, 1));  // the move, settling with the spectrometer
   crew.start("poll", [&] {
     if (auto native = spec.magnet_native()) seen = *native;
     snapshot = spec.snapshot();
@@ -547,4 +622,50 @@ TEST_F(SpectrometerVirtual, AScanPollAndAMoveContendWithoutStallingTime) {
   EXPECT_EQ(snapshot.ts, start + 5s);
   EXPECT_EQ(clock.now(), start + 5s);
   EXPECT_LT(std::chrono::steady_clock::now() - real_start, 5s);
+}
+
+namespace {
+// Records what it is told, as a driver with the "optics" role would act on it.
+struct FakeOptics final : IOpticsControl {
+  std::vector<std::string> calls;
+  Result<void> apply_optics(const std::string& name, const OpticsParams& params) override {
+    std::string c = "optics " + name;
+    for (const auto& [k, v] : params) {
+      c += ' ';
+      c += k;
+      c += '=';
+      c += v;
+    }
+    calls.push_back(c);
+    return {};
+  }
+  Result<void> set_source_output(bool on) override {
+    calls.emplace_back(on ? "source on" : "source off");
+    return {};
+  }
+};
+}  // namespace
+
+// Measurement plan v2 spec 5.3: a preset is applied through the optics role;
+// without the role, or for a preset the config has not, it is refused.
+TEST(SpectrometerFacade, ApplyOpticsWithoutRoleIsRefused) {
+  Rig r;
+  r.presets["ar_config_a"] = cfg::OpticsPreset{{{"zoom", "2"}, {"deflector_a", "-880"}}};
+  r.build();
+  EXPECT_FALSE(r.spec->has_optics_control());
+  auto refused = r.spec->apply_optics("ar_config_a");
+  ASSERT_FALSE(refused);
+  EXPECT_EQ(refused.error().kind, ErrorKind::Config);
+  EXPECT_FALSE(r.spec->set_source_output(false));
+
+  Rig with;
+  FakeOptics optics;
+  with.optics = &optics;
+  with.presets = r.presets;
+  with.build();
+  EXPECT_TRUE(with.spec->has_optics_control());
+  ASSERT_TRUE(with.spec->apply_optics("ar_config_a"));
+  EXPECT_FALSE(with.spec->apply_optics("nope"));
+  ASSERT_TRUE(with.spec->set_source_output(false));
+  EXPECT_EQ(optics.calls, (std::vector<std::string>{"optics ar_config_a zoom=2 deflector_a=-880", "source off"}));
 }

@@ -5,11 +5,12 @@
 
 #include <functional>
 #include <memory>
+#include <span>
 #include <utility>
 
-#include "pychron/persistence/store.hpp"
+#include "nobion/persistence/store.hpp"
 
-namespace pychron::ingest::testing {
+namespace nobion::ingest::testing {
 
 // clang-format off
 class ForwardingStore : public persistence::IStore {
@@ -59,6 +60,8 @@ class ForwardingStore : public persistence::IStore {
   Result<Uuid> add_irradiation(Uuid client, const std::string& name) override { return inner_.add_irradiation(client, name); }
   Result<Uuid> add_irradiation(Uuid client, const persistence::IrradiationSpec& spec) override { return inner_.add_irradiation(client, spec); }
   Result<std::vector<persistence::PrincipalInvestigatorRow>> principal_investigators() override { return inner_.principal_investigators(); }
+  Result<std::vector<persistence::PrincipalInvestigatorRow>> principal_investigators_named(const std::string& family_name, const std::string& given_initial) override { return inner_.principal_investigators_named(family_name, given_initial); }
+  Result<std::optional<persistence::PrincipalInvestigatorRow>> find_principal_investigator_by_orcid(const std::string& orcid) override { return inner_.find_principal_investigator_by_orcid(orcid); }
   Result<std::vector<persistence::ProjectRow>> projects(std::optional<Uuid> pi) override { return inner_.projects(pi); }
   Result<std::vector<persistence::MaterialRow>> materials() override { return inner_.materials(); }
   Result<std::vector<persistence::SampleRow>> samples(const persistence::SampleQuery& query) override { return inner_.samples(query); }
@@ -91,10 +94,30 @@ class ForwardingStore : public persistence::IStore {
   Result<persistence::CommitOutcome> restore_bookmark(const Actor& actor, Uuid bookmark, std::string message) override { return inner_.restore_bookmark(actor, bookmark, std::move(message)); }
   Result<persistence::CommitOutcome> rollback_to_collection(const Actor& actor, Uuid analysis, std::string message, std::vector<Kind> kinds) override { return inner_.rollback_to_collection(actor, analysis, std::move(message), std::move(kinds)); }
   Result<persistence::RefResolution> resolve_refs(Uuid analysis, const persistence::RefPolicy& policy) override { return inner_.resolve_refs(analysis, policy); }
+  Result<std::optional<persistence::AnalysisView>> load_analysis_at(Uuid analysis, Uuid bookmark) override { return inner_.load_analysis_at(analysis, bookmark); }
+  Result<persistence::RefResolution> resolve_refs_at(Uuid analysis, Uuid bookmark) override { return inner_.resolve_refs_at(analysis, bookmark); }
+  Result<Uuid> add_release(const Actor& actor, const persistence::ReleaseInsert& release) override { return inner_.add_release(actor, release); }
+  Result<std::optional<persistence::ReleaseRow>> release(Uuid release) override { return inner_.release(release); }
+  Result<std::optional<persistence::ReleaseRow>> find_release(const std::string& name, std::optional<int> version) override { return inner_.find_release(name, version); }
+  Result<std::vector<persistence::ReleaseRow>> releases(const persistence::ReleaseQuery& query) override { return inner_.releases(query); }
+  Result<void> update_release(const Actor& actor, const persistence::ReleaseUpdate& update) override { return inner_.update_release(actor, update); }
+  Result<void> delete_release(const Actor& actor, Uuid release) override { return inner_.delete_release(actor, release); }
+  Result<std::vector<Uuid>> release_samples(Uuid release) override { return inner_.release_samples(release); }
+  Result<std::vector<persistence::ReleaseInterpretedAge>> release_interpreted_ages(Uuid release) override { return inner_.release_interpreted_ages(release); }
+  Result<std::vector<persistence::InterpretedAgeRow>> interpreted_ages() override { return inner_.interpreted_ages(); }
+  Result<Uuid> add_embargo(const Actor& actor, const persistence::EmbargoInsert& embargo) override { return inner_.add_embargo(actor, embargo); }
+  Result<void> lift_embargo(const Actor& actor, Uuid embargo) override { return inner_.lift_embargo(actor, embargo); }
+  Result<std::vector<persistence::EmbargoRow>> embargoes(bool live_only, persistence::UtcTime at) override { return inner_.embargoes(live_only, at); }
+  Result<std::vector<Uuid>> embargoed_samples(std::span<const Uuid> samples, persistence::UtcTime at) override { return inner_.embargoed_samples(samples, at); }
+  Result<std::vector<Uuid>> embargoed_analyses(std::span<const Uuid> analyses, persistence::UtcTime at) override { return inner_.embargoed_analyses(analyses, at); }
+  Result<Uuid> add_external_id(const Actor& actor, const persistence::ExternalIdInsert& id) override { return inner_.add_external_id(actor, id); }
+  Result<std::vector<persistence::ExternalIdRow>> external_ids(std::string_view entity_type, Uuid entity) override { return inner_.external_ids(entity_type, entity); }
   Result<Sha256Digest> input_fingerprint(Uuid analysis, const std::string& reduction_version) override { return inner_.input_fingerprint(analysis, reduction_version); }
   Result<void> put_derived(Uuid analysis, const Sha256Digest& fingerprint, const std::string& reduction_version, const std::vector<persistence::DerivedRow>& rows) override { return inner_.put_derived(analysis, fingerprint, reduction_version, rows); }
+  Result<void> put_derived_many(std::span<const persistence::DerivedPut> puts, const std::string& reduction_version) override { return inner_.put_derived_many(puts, reduction_version); }
   Result<std::optional<std::vector<persistence::DerivedRow>>> get_derived(Uuid analysis, const std::string& reduction_version) override { return inner_.get_derived(analysis, reduction_version); }
   Result<int> prune_derived(Uuid analysis) override { return inner_.prune_derived(analysis); }
+  Result<std::map<Uuid, Sha256Digest>> derived_fingerprints(std::span<const Uuid> analyses) override { return inner_.derived_fingerprints(analyses); }
   Result<persistence::IngestAck> ingest(const persistence::IngestItem& item) override { return inner_.ingest(item); }
   Result<std::optional<Uuid>> head(Uuid subject, Kind kind) override { return inner_.head(subject, kind); }
   Result<std::vector<persistence::HeadInfo>> heads(Uuid subject) override { return inner_.heads(subject); }
@@ -104,7 +127,8 @@ class ForwardingStore : public persistence::IStore {
   Result<std::optional<persistence::AnalysisView>> load_analysis(Uuid analysis) override { return inner_.load_analysis(analysis); }
   Result<std::vector<persistence::AnalysisSummary>> find_analyses(const persistence::AnalysisQuery& query) override { return inner_.find_analyses(query); }
   Result<persistence::BrowseResult> browse(const persistence::BrowseRequest& request) override { return inner_.browse(request); }
-  Result<std::vector<std::string>> facet(persistence::BrowseFacet facet, const persistence::BrowseFilter& filter) override { return inner_.facet(facet, filter); }
+  Result<std::vector<persistence::FacetValue>> facet(persistence::BrowseFacet facet, const persistence::BrowseFilter& filter) override { return inner_.facet(facet, filter); }
+  Result<std::vector<persistence::PositionListing>> positions(const persistence::BrowseFilter& filter) override { return inner_.positions(filter); }
   Result<std::optional<persistence::AnalysisDetail>> load_analysis_detail(Uuid analysis) override { return inner_.load_analysis_detail(analysis); }
   Result<std::optional<persistence::BlobData>> load_blob(const Sha256Digest& sha) override { return inner_.load_blob(sha); }
   Result<persistence::ChangePage> changes_since(persistence::ChangeSeq cursor, int limit) override { return inner_.changes_since(cursor, limit); }
@@ -122,4 +146,4 @@ class ForwardingStore : public persistence::IStore {
 };
 // clang-format on
 
-}  // namespace pychron::ingest::testing
+}  // namespace nobion::ingest::testing

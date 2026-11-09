@@ -1,4 +1,4 @@
-#include "pychron/transport/serial_transport.hpp"
+#include "nobion/transport/serial_transport.hpp"
 
 #include <gtest/gtest.h>
 
@@ -13,7 +13,7 @@
 #include <unistd.h>
 #endif
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {
@@ -31,7 +31,7 @@ TEST(SerialTransport, MissingPortIsIoError) {
 #ifdef _WIN32
   SerialSettings s{"COM250"};
 #else
-  SerialSettings s{"/dev/pychron-no-such-port"};
+  SerialSettings s{"/dev/nobion-no-such-port"};
 #endif
   SerialTransport t(s, opts());
   auto r = t.open();

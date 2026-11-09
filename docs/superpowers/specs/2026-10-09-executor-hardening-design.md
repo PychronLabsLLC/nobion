@@ -1,6 +1,13 @@
 # Executor hardening: unreliable links to instruments and services
 
-Status: draft, not agreed. Nothing implemented.
+Status: agreed 2026-10-13 (owner), as written. Section 9's two points
+settled from code 2026-10-13 (answers there; 4.4 and 4.5 changed to match).
+Tests that need sim serve's real sockets are deferred until it lands
+(section 6). Plan: `docs/superpowers/plans/2026-10-13-executor-hardening.md`.
+Implemented 2026-10-18 (plan Tasks 1 to 23; "As built" notes per section).
+Deferred: real-socket test killing sim serve's `WireServer` listener
+(section 6), written when `WireServer` lands; store-backed offline aliquot
+allocation (4.8, constraint only, in `libs/experiment/AGENTS.md`).
 
 Date: 2026-10-09. Builds on `2026-09-29-experiment-system-design.md`
 (sections 3.1 to 3.3, 8.4), `2026-10-06-virtual-clock-design.md`. Tested
@@ -95,7 +102,7 @@ run: section 4.8.
 ```cpp
 enum class Repeat { Safe, Unsafe };   // may this call be sent twice?
 
-struct LinkPolicy {                   // per transport; [transports.<name>.link]
+struct LinkPolicy {                   // per transport; [transports.<name>.recovery]
   bool reconnect = true;
   Duration backoff_min = 1s, backoff_max = 30s;   // doubling
   Duration call_window = 20s;         // how long one call keeps trying
@@ -115,10 +122,19 @@ struct LinkPolicy {                   // per transport; [transports.<name>.link]
   command whose second arrival does more (toggle, step, `StartAcq`, fire for
   duration, relative move) is `Unsafe`. Table per driver in plan; driver
   header carries it.
+- Unit repeated is the driver's transaction, never one write of it (Chromium
+  action + confirm, ProXR bank select + relay, Lakeshore `RANGE` + `SETP` +
+  `SETP?`). Transaction holding `Safe` and `Unsafe` commands (Agilent route,
+  then `SYST:ERR?`): op marks transient failure of its `Unsafe` part with
+  `code = "outcome_unknown"`; `Link` handles that failure as `Unsafe` call's
+  (reconnect, no repeat), whatever call's `Repeat`.
+- Stop after `Laser.Fire` lost (`outcome_unknown`): `Safe`, tried for
+  critical window (10 min, 4.4), not `call_window`.
 - `SwitchManager::actuate`: `outcome_unknown` from actuator -> read state
   back (already there when `verify`); matches target: success; else repeat
   once; `verify = false` valve: repeat (absolute target). State stays
-  `Unknown` on bus until resolved, as today.
+  `Unknown` on bus until resolved, as today. No shipped valve driver has an
+  `Unsafe` command (section 9): rule for a driver that will.
 - Known `Reconnector` window (generation not tied to connection) closed:
   generation taken under transport transaction.
 - Every reconnect publishes `LinkReconnected{transport, attempts, down_for}`;
@@ -134,7 +150,7 @@ configured: for run `r`, required links = transports under (a) every valve,
 switch and gauge its scripts' line serves (whole line: scripts are code, not
 analysed), (b) its extraction device, (c) spectrometer, when run has plan.
 `LabSession` builds `LinkSet` per run from hardware it already holds.
-`optional = true` on a transport (`[transports.<name>.link]`) takes it out of
+`optional = true` on a transport (`[transports.<name>.recovery]`) takes it out of
 (a): camera, cryostat readout, monitoring gauges.
 
 ### 4.4 Run phases
@@ -158,7 +174,8 @@ spectrometer link that drops moves no valve, protects no detector and starts
 no safe state by itself. Resumed: `MeasurementGap{block, from, to}` recorded
 (event in record, `RunNote`), block continues to its planned end time, not
 planned count: time zero and block end do not move. Not resumed, or
-`Unsafe` acquisition start lost (`outcome_unknown`): acquisition restarted
+`Unsafe` acquisition start lost (`outcome_unknown`; NGX `StartAcq` only:
+Qtegra has no wire start, section 9): acquisition restarted
 once if link is back, else block ends; run is `Failed` if main block has
 fewer than `min_counts` (default 20% of planned, at least fit's minimum),
 else `Success` with `truncated = true`, reason `link`. Conditionals are not
@@ -166,17 +183,49 @@ evaluated across a gap: first evaluation after it uses data after it only
 for window functions that need contiguous points (`slope`, `mean` over
 window); plan lists functions.
 
+As built (Task 13): gap per collection (hop, baseline, whiff, sniff);
+counted from last reading; collection's planned end = its start + counts x
+integration. `Io`/`Timeout`/`NotConnected` from port are silence; definite
+error fails as before. Sniff gap waits only to inlet's next move (open or
+close stays on time). After main with a gap: signal counts under
+`max(ceil(0.2 x planned), fit's parameter count)` -> `Failed`; silence not
+resumed with enough -> `Truncated`, `truncated_by_link`. A resumed gap that
+ends main on time with enough counts: `Completed`. Inlet close and
+unprotect in measurement: `measurement::keep_trying` (shared with 4.7).
+Record: `gap` event per gap; `RunNote` said, not repeated as `note` event.
+
 ### 4.5 Nothing measured is dropped
 
 `Failed` run that passed point of no return calls `save()`: record with
 whatever exists (extraction actuals, series, notes, gaps), through spool, as
 `b.draft()` path already allows. Record carries `status`: `complete`,
-`truncated`, `failed`, and `failure` text. Importers and reduction skip
-`failed` unless asked; schema change to `record/types.hpp` and
-`serialize.cpp`, version bumped; readers of old records read missing
-`status` as `complete` or `truncated` from existing flag.
+`truncated`, `failed`, and `failure` text. `truncated` whoever cut the run
+short (operator, conditional, link). A `failed` record is ingested and
+tagged `invalid`: left out of browser and figures by default as any invalid
+analysis, still open to recall (owner, 2026-10-13). Additive keys in `record/types.hpp` and
+`serialize.cpp` (`provenance.status`, `provenance.failure`), schema version
+stays 2 (section 9): `status` is written only when it is not `complete`,
+`failure` only when not empty, so a complete record keeps its bytes and its
+sha. A record without `status` reads as `complete`: a record truncated
+before this spec carries no flag (truncation shows only in its state
+events) and is not reclassified.
 
 Aliquot of such run is spent, never reused.
+
+As built (Tasks 9, 10):
+- `RecordBuilder::set_status(status, failure)`. `failed` record finalized
+  with only Identity phase complete (no results by nature; `to_ingest`
+  refuses record without sha, which would have kept it in spool for good).
+- `RunResult::past_no_return` set as extraction script starts (after
+  resource wait; run without extraction script never sets it, saves nothing
+  on failure); failure
+  after it: `save(error)` before `Fail`, so record on disk before state is
+  `Failed` and before `RunFinished`. Run's error stays run's; save failure
+  of failed run: `save_error`, note. Run without plan (degas) saves nothing,
+  as before.
+- Aliquot number issued in prepare before plan loads; prepare failure saves
+  nothing, spends no sample; `FilePersister` does not issue that number
+  again in same process (as before this spec).
 
 ### 4.6 Executor: Holding
 
@@ -241,6 +290,17 @@ does not hold or continue. Steps after failed one still run.
 Safe state is idempotent by construction (absolute targets): applying twice
 is allowed and happens.
 
+As built (Task 11): `Run::make_safe()` (`SafeStateResult::failed_steps`).
+Run sees ports, not `Link`: each step repeated by run on its clock (backoff
+1 s doubling to 30 s) until `kSafeStateWindow` (10 min, `run.hpp`; from
+`executor.toml` after Task 15); each port call has its link's own window
+beneath. Definite error: step fails at once. Warning `Alarm` at 20 s,
+critical when step gives up, source `safe_state`. Detectors unprotected:
+union of `protect` of plan's hops. Runs after save, before run is `Failed`;
+also after a failed post-measurement script (run still `Success`).
+`RunResult::unsafe`, `unsafe_steps`. Queue end on `unsafe` and notification:
+Task 17.
+
 ### 4.8 Services
 
 Rule: no run waits on network service. Each has local durable buffer.
@@ -250,6 +310,14 @@ Rule: no run waits on network service. Each has local durable buffer.
   `last_error` published (`SpoolStatus`). Applies unchanged when database
   persister and git mirror arrive (experiment spec 8.4): they sit behind
   spool.
+  As built (Task 19): `persist::SpoolFlusher` (`persister.hpp`), one-shot
+  scheduler jobs, at most one flush at once. Also at queue start, replacing
+  inline `recover()` when executor has flusher. First retry after failure
+  5 min, then 10, 20, 30, 30. Flush succeeds when `SavePipeline::flush()`
+  returns ok (something sent, or nothing failed). `SpoolStatus` published on
+  change only; `last_error` is pipeline's, else error of failed flush. A
+  record already gone from spool when hand-off reads it was sent by another
+  thread: not a failure.
 - Aliquots: allocator answers from local knowledge (`FilePersister` today).
   When store-backed allocation lands it must answer offline from last known
   highest and reconcile on flush; conflict is flagged, never renumbered
@@ -260,12 +328,25 @@ Rule: no run waits on network service. Each has local durable buffer.
   `queue_holding`, `queue_resumed`, `unsafe`. A notification about lost
   network goes out when network returns; `command` channel (local program)
   is how lab gets told meanwhile.
+  Built: retry gaps 1, 2, 4 ... 32 min, then 60 min, from first try
+  (`next_attempt(first_tried, attempts)`, pure); last try at most 24 h after
+  first. Order kept per channel, each channel on its own: a later
+  notification waits behind an earlier one retrying on that channel only.
+  `[[command]]` channels tried first. File (`<seq>.toml`) holds event,
+  subject, body, fields, queue's email, and per channel its place, name,
+  attempts and next try; no password, key, configured address or URL. Test
+  notification never written, tried once. `queue_holding` on
+  `ExecutorHolding`; `queue_resumed` on `ExecutorStateChanged` `Holding` ->
+  `Running`; `unsafe` then `queue_ended` on queue end with `code =
+  "unsafe"`. New events in every channel's default `on`. Retry on real time
+  (virtual clock spec 4.4).
 - Metrics endpoint: pull; no effect on runs.
 
 ### 4.9 Seen and counted
 
-- Bus: `LinkReconnected`, `ExecutorHolding`, `MeasurementGap`,
-  `SpoolStatus`; `TransportHealth` as now.
+- Bus: `LinkReconnected`, `ExecutorHolding` (with `kind`, a `HoldReason`:
+  `link`, `spool`, `run_failed`), `MeasurementGap`, `SpoolStatus`,
+  `NotificationOutbox` (outbox size, on change); `TransportHealth` as now.
 - UI: health bar shows hold with reason and countdown to `hold_limit`;
   Resume and Skip in Experiment > Executor. `elctl exp run` prints same
   lines; `SIGUSR1` not used: operator stops and `--resume`s.
@@ -273,9 +354,13 @@ Rule: no run waits on network service. Each has local durable buffer.
   counter born at zero; panel per metric):
   `pychron_link_reconnects_total{transport}`,
   `pychron_link_repeats_total{transport}`,
-  `pychron_executor_holds_total{reason}` (reason: enumeration),
+  `pychron_executor_holds_total{reason}` (reason: enumeration,
+  `HoldReason`),
   `pychron_executor_holding` (0/1), `pychron_measurement_gaps_total`,
-  `pychron_spool_pending`, `pychron_notifications_outbox`.
+  `pychron_spool_pending`, `pychron_notifications_outbox`. Link counters
+  read at scrape from `Link::reconnects()`, `Link::repeats()` through a
+  function given to exporter (`libs/metrics` does not depend on
+  `libs/devices`); no `LinkRepeated` event.
 
 ### 4.10 Configuration
 
@@ -304,7 +389,30 @@ max_pending = 200
 ```
 
 Per transport, in line and spectrometer files:
-`[transports.<name>.link]` `reconnect`, `optional`, `call_window_s`.
+`[transports.<name>.recovery]` `reconnect`, `optional`, `call_window_s`.
+(Not `link`: a spectrometer transport has a string key of that name, kind
+`"link"`, the NGX's shared connection. Such a transport uses the policy of
+the transport it names.)
+
+As built (Task 7):
+- Table absent: `LinkPolicy{}`. `call_window_s` number, 0 to 3600;
+  unknown key, wrong type, value out of range: `Config` error naming
+  `transports.<name>.recovery.<key>`. Backoff not per transport.
+- Line and spectrometer assembler make one `Link` per transport
+  (`ExtractionLine::link(name)`, `SpectrometerRoles::links`), destroyed after
+  drivers, before transports; every driver on transport given it
+  (`DriverArgs::link`, `Device::link()`).
+- Kind `"link"`: `recovery` table is `Config` error naming transport; no
+  `Link` of its own. Its drivers (NGX, Qtegra borrowers) use recovery of
+  connection it names, made where that connection is owned.
+- Qtegra and NGX keep own connection (`QtegraLink` owns its `Link`;
+  `NgxLink` its reader): take only transport's policy (`policy_of(args)`).
+  `NgxLink` built without one keeps its reader's backoff 250 ms to 5 s
+  (`NgxLinkOptions::reader_policy()`). `reconnect = false` on NGX: `call()`
+  not run again; reader still reopens (only reader of connection).
+- Example line shows table commented out with defaults on `valve_bus`; it has
+  no camera transport (cameras are `cameras.toml`, not transports), so no
+  `optional = true` set there. Test holds commented table to defaults.
 
 Loader range-checks every key; example file lists each commented out with
 default; test holds example and defaults together (as `sim.toml`).
@@ -318,11 +426,14 @@ default; test holds example and defaults together (as `sim.toml`).
 - Every wait added here is a clock wait; every mutex held across one a
   `ClockMutex`. `--sim-speed` queue with injected outages gives same result
   every time.
-- With no fault, behaviour and records are as before this spec, except
-  `status` field.
+- With no fault, behaviour and records are as before this spec: a complete
+  record is byte for byte what it was (`status` not written).
 - Outage shorter than `call_window` on any one link, at any instant of a
   run, changes nothing in queue's result but notes and counters. (Property
-  test, section 6.)
+  test, section 6.) As built (Task 18): "nothing" = same queue end, same
+  runs and states, same record status, same series with same counts. A
+  reading that waited for a link is later on a moving clock: its time and
+  value are not compared.
 - Executor never ends a queue for a transient failure without having held
   first, except `after_link_failure = "end"`.
 
@@ -355,7 +466,9 @@ Simulated time (`VirtualTimeTest`, `Crew`), faults from `set_down` /
 - `MetricsPackaging`: new metrics have panels.
 - Real sockets: `ExampleLineSteady`-style test killing listener of
   `WireServer` (sim serve spec) once that lands; until then TCP loopback
-  server in test.
+  server in test. Owner, 2026-10-13: hardening is built first and does not
+  wait for sim serve; this one test is deferred, written when `WireServer`
+  exists.
 - TSan run of the above before landing (new waits, shared state).
 
 ## 7. Order of work
@@ -390,10 +503,47 @@ return, safe-state idempotence).
 Decided 2026-10-09: `max_gap` 120 s; no action on spectrometer link drop;
 failed run flagged only, no rerun.
 
-## 9. Open
+## 9. Settled from code (2026-10-13)
 
-- Qtegra and Chromium: which commands report completion separately from
-  acceptance; decides `Safe`/`Unsafe` for moves and acquisitions. Read from
-  drivers in plan.
-- `status` field: new record version, or additive field old readers ignore?
-  Depends on `serialize.cpp` version rules; check before plan.
+Was open; read from `develop` `4098d1e5`.
+
+Completion apart from acceptance, and `Repeat`:
+
+- Qtegra (`thermo_qtegra.cpp`, `qtegra_valves.cpp`, `qtegra_gauges.cpp`):
+  every command sent is a read or sets an absolute target: all `Safe`. No
+  acquisition start or stop on the wire: `start()` / `stop()` are local
+  flags and `next()` polls `GetData`. Two commands are accepted before they
+  are complete: `SetMagnetDAC` (done when `GetMagnetMoving` says so, polled
+  by `moving()`) and `SetIntegrationTime` (local settle timer). Repeating
+  either restarts nothing that matters: same target.
+- Chromium (`extraction/chromium.cpp`): an action is written, then a
+  confirming query is written and read, in one transport transaction
+  (`act()`); that transaction is the unit repeated. `Laser.Fire` is the one
+  `Unsafe` command (starts output; its confirm, `Laser.Status?`, does not
+  say whether it fired). `Laser.Enable 0|1`, `Laser.Output <p>`,
+  `Stage.MoveTo`, `Scans.MoveTo <n>`, `Laser.Stop`, `Stage.Stop`,
+  `Scans.Stop`, `Scans.Status_Verbosity 1` and every query are `Safe`.
+  `Stage.MoveTo` and `Scans.MoveTo` are accepted at once and complete when
+  `moving()` (polls `Stage.Pos?`, `Stage.Status?`, `Scans.InPos?`) says so.
+  `Laser.Fire` lost (`outcome_unknown`): `fire_laser()` sends `Laser.Stop`
+  (as its recovery does today) and returns the error; nothing is fired
+  twice.
+- A repeat is sent inside the call that failed, before it returns, so a
+  repeated `Stop` or `MoveTo` cannot arrive after a later command of the
+  same caller.
+- NGX: `StartAcq` is `Unsafe` (the only wire acquisition start in the tree);
+  4.4's restart-once rule is about it. A valve actuation is three commands
+  (`SAB 1`, `OpenValve` or `CloseValve`, `SAB 0`): repeated as one unit.
+- Other drivers, same reading: `Unsafe` are the reads that take something
+  off the instrument, Agilent `SYST:ERR?` (error queue) and the pulse
+  counter's `R` (count since last read). Rest `Safe`; table in plan, Task 6.
+
+`status`: additive, version stays 2. `serialize.cpp` rejects any
+`schema_version` other than `kRecordSchemaVersion` (2) and ignores unknown
+keys; `instrument.simulated` (`79c0332f`) and the cryo fields (`03614a36`)
+were added without a bump, the first written only when true so that old
+records keep their sha (`tests/data/records/v2.*`,
+`libs/experiment/AGENTS.md`). A bump would make every record already
+written unreadable without a migration. 4.5 changed to say so. The record
+has no `truncated` flag (`RunResult::truncated` and `RunSummary::truncated`
+only), so nothing old is read as `truncated`.

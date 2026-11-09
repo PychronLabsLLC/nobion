@@ -15,10 +15,10 @@
 
 #include "laser_harness.hpp"
 
-using namespace pychron;
-using namespace pychron::extraction;
-using namespace pychron::laser;
-using namespace pychron::laser::harness;
+using namespace nobion;
+using namespace nobion::extraction;
+using namespace nobion::laser;
+using namespace nobion::laser::harness;
 using namespace std::chrono_literals;
 using vision::AutocenterReason;
 using Outcome = AutocenterOutcome::Result;
@@ -127,6 +127,35 @@ TEST(Autocenter, ConvergesOnTheTrueHoleAndSaves) {
   // The clock's calendar time: the harness's ManualClock starts in 1970.
   EXPECT_TRUE(on_disk.at("3").found.starts_with("1970-01-01T00:")) << on_disk.at("3").found;
   EXPECT_EQ(h.system.corrections().size(), 1u);
+}
+
+TEST(Autocenter, ConvergesOnAHoleWithAGrainInIt) {
+  CameraConfig seen = camera_config();
+  vision::GrainParams grain;
+  grain.grain_radius_mm = 0.25;
+  seen.sim_grain = grain;
+  seen.sim_grain_offset_mm = {0.1, 0.05};
+  CountedHarness h(seen);
+  ASSERT_TRUE(h.system.move_to_position("3", true));
+  auto done = h.drive();
+  ASSERT_TRUE(done) << done.error().what;
+  EXPECT_EQ(h.system.last_autocenter().result, Outcome::Converged);
+  EXPECT_NEAR(h.at().x, kTrueX, 0.03);
+  EXPECT_NEAR(h.at().y, kTrueY, 0.03);
+}
+
+// A hole in steel is a crescent to a threshold, which SimpleFinder takes for
+// nothing round. Centering then fails; it must not end anywhere else.
+TEST(Autocenter, ACrescentIsCentered) {
+  CameraConfig seen = camera_config();
+  seen.sim_machined = true;
+  CountedHarness h(seen);
+  ASSERT_TRUE(h.system.move_to_position("3", true));
+  auto done = h.drive();
+  ASSERT_TRUE(done) << done.error().what;
+  EXPECT_EQ(h.system.last_autocenter().result, Outcome::Converged);
+  EXPECT_NEAR(h.at().x, kTrueX, 0.05);
+  EXPECT_NEAR(h.at().y, kTrueY, 0.05);
 }
 
 TEST(Autocenter, TheNextMoveStartsAtTheCorrection) {

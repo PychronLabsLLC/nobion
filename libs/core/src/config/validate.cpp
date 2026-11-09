@@ -1,11 +1,11 @@
-#include "pychron/core/config/validate.hpp"
+#include "nobion/core/config/validate.hpp"
 
 #include <algorithm>
 #include <map>
 #include <set>
 #include <variant>
 
-namespace pychron::config {
+namespace nobion::config {
 namespace {
 
 class Validator {
@@ -215,4 +215,4 @@ class Validator {
 
 std::vector<Diagnostic> validate(const SystemConfig& config) { return Validator(config).run(); }
 
-}  // namespace pychron::config
+}  // namespace nobion::config

@@ -1,13 +1,13 @@
 // varian_xgs600 over its simulated controller (plan 2026-10-05, task B1).
-#include "pychron/devices/varian_xgs600.hpp"
+#include "nobion/devices/varian_xgs600.hpp"
 
 #include <gtest/gtest.h>
 
 #include <chrono>
 
-#include "pychron/devices/driver_registry.hpp"
+#include "nobion/devices/driver_registry.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {

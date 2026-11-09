@@ -1,6 +1,7 @@
-#include "pychron/experiment/store/store_persister.hpp"
+#include "nobion/experiment/store/store_persister.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <array>
 #include <cctype>
 #include <exception>
@@ -13,15 +14,19 @@
 #include <optional>
 #include <set>
 #include <thread>
+#include <tuple>
 #include <utility>
 
-#include "pychron/core/host_name.hpp"
-#include "pychron/experiment/store/record_ingest.hpp"
-#include "pychron/persistence/catalog.hpp"
+#include "nobion/core/host_name.hpp"
+#include "nobion/core/log_error.hpp"
+#include "nobion/core/log_context.hpp"
+#include "nobion/experiment/factory/increments.hpp"
+#include "nobion/experiment/store/record_ingest.hpp"
+#include "nobion/persistence/catalog.hpp"
 
-namespace pychron::experiment::store {
+namespace nobion::experiment::store {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 
 namespace {
 
@@ -41,6 +46,12 @@ Result<void> ingest(ps::IStore& store, const ps::IngestItem& item) {
   return {};
 }
 
+// The store's answer as a LastRun (increment is the step's index; none: aliquot 0).
+persist::LastRun to_last_run(const std::optional<ps::LastAnalysis>& last) {
+  if (!last) return persist::LastRun{0, -1};
+  return persist::LastRun{last->aliquot, last->increment};
+}
+
 }  // namespace
 
 StorePersister::StorePersister(ps::IStore& store, ps::Uuid client, std::filesystem::path data)
@@ -52,10 +63,11 @@ Result<int> StorePersister::next_aliquot(const std::string& identifier) {
   {
     const std::lock_guard<std::mutex> lock(mutex_);
     if (last) {
-      highest = *last ? (*last)->aliquot : 0;
-      read_[identifier] = highest;
+      const persist::LastRun read = to_last_run(*last);
+      read_[identifier] = read;
+      highest = read.aliquot;
     } else if (const auto cached = read_.find(identifier); cached != read_.end()) {
-      highest = cached->second;
+      highest = cached->second.aliquot;
     } else {
       return fail(last.error());
     }
@@ -76,6 +88,35 @@ Result<int> StorePersister::next_aliquot(const std::string& identifier) {
   return highest + 1;
 }
 
+Result<std::optional<persist::LastRun>> StorePersister::last_run(const std::string& identifier) {
+  persist::LastRun best;
+  auto last = store_.last_analysis(identifier);
+  {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    if (last) {
+      best = to_last_run(*last);
+      read_[identifier] = best;
+    } else if (const auto cached = read_.find(identifier); cached != read_.end()) {
+      best = cached->second;
+    } else {
+      return fail(last.error());
+    }
+  }
+  // A record waiting to be sent is a saved run too; the file read stays outside the lock.
+  const persist::Spool spool(data_ / "spool");
+  auto waiting = spool.pending();  // a missing folder is an empty spool, not an error
+  if (!waiting) return fail(waiting.error());
+  for (const auto& uuid : *waiting) {
+    // A record that cannot be read can never be sent, so it is no saved run.
+    auto rec = spool.get(uuid);
+    if (!rec || rec->identity.identifier != identifier) continue;
+    const persist::LastRun run{rec->identity.aliquot, step_index(rec->identity.step)};
+    if (std::tie(run.aliquot, run.step) > std::tie(best.aliquot, best.step)) best = run;
+  }
+  if (best.aliquot == 0) return std::optional<persist::LastRun>{};
+  return std::optional<persist::LastRun>{best};
+}
+
 Result<void> StorePersister::begin_run(const RunIdentity& id, const QueueSpec& queue) {
   return files_.begin_run(id, queue);
 }
@@ -90,11 +131,27 @@ Result<void> StorePersister::save_artifact(const std::string& uuid, const std::s
 }
 
 Result<void> StorePersister::save_analysis(const record::AnalysisRecord& record) {
-  auto items = to_ingest(record, client_);
-  if (!items) return fail(items.error());
-  for (const auto& blob : items->blobs)
-    if (auto r = ingest(store_, blob); !r) return r;
-  return ingest(store_, items->analysis);
+  // May run on the spool's thread, outside the run's scope: the record names
+  // its run. A real write takes real time, so the duration is steady_clock's
+  // (a read, never a wait).
+  const std::string attempted =
+      "save " + format_runid(record.identity.identifier, record.identity.aliquot, record.identity.step);
+  log_.debug(attempted + ": start");
+  const auto began = std::chrono::steady_clock::now();
+  auto saved = [&]() -> Result<void> {
+    auto items = to_ingest(record, client_);
+    if (!items) return fail(items.error());
+    for (const auto& blob : items->blobs)
+      if (auto r = ingest(store_, blob); !r) return r;
+    return ingest(store_, items->analysis);
+  }();
+  if (!saved) {
+    log_error(log_, saved.error(), attempted);
+  } else {
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - began);
+    log_.debug(attempted + ": done in " + std::to_string(ms.count()) + " ms");
+  }
+  return saved;
 }
 
 Result<std::vector<std::string>> StorePersister::check_queue(const QueueSpec& queue) {
@@ -406,6 +463,10 @@ class Marshalled final : public persist::IAnalysisPersister {
   Result<int> next_aliquot(const std::string& identifier) override {
     return impl_.call<Result<int>>([&](StorePersister& p) { return p.next_aliquot(identifier); });
   }
+  Result<std::optional<persist::LastRun>> last_run(const std::string& identifier) override {
+    return impl_.call<Result<std::optional<persist::LastRun>>>(
+        [&](StorePersister& p) { return p.last_run(identifier); });
+  }
   Result<void> begin_run(const RunIdentity& id, const QueueSpec& queue) override {
     return impl_.call<Result<void>>([&](StorePersister& p) { return p.begin_run(id, queue); });
   }
@@ -454,6 +515,7 @@ Result<std::unique_ptr<Acquisition>> open_acquisition(const std::string& url, st
   AcquisitionImpl& core = *impl;
   core.url = url;  // before the worker exists; read by it and by callers, never written again
   core.worker = std::thread([&core, data = std::move(data), software_version]() mutable {
+    const LogContext::Thread log_thread("store");
     core.work(std::move(data), software_version);
   });
   {
@@ -467,4 +529,4 @@ Result<std::unique_ptr<Acquisition>> open_acquisition(const std::string& url, st
   return std::unique_ptr<Acquisition>(new Acquisition(std::move(impl)));
 }
 
-}  // namespace pychron::experiment::store
+}  // namespace nobion::experiment::store

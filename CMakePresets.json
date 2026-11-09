@@ -13,7 +13,7 @@
       "cacheVariables": {
         "BUILD_TESTS": "ON",
         "BUILD_UI": "OFF",
-        "PYCHRON_WARNINGS_AS_ERRORS": "ON"
+        "NOBION_WARNINGS_AS_ERRORS": "ON"
       }
     },
     {
@@ -28,7 +28,7 @@
       "generator": "Ninja",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "PYCHRON_SANITIZE": "address,undefined"
+        "NOBION_SANITIZE": "address,undefined"
       },
       "condition": {
         "type": "equals",
@@ -100,6 +100,15 @@
         "BUILD_UI": "ON",
         "CMAKE_PREFIX_PATH": "$env{QT_PREFIX};$env{HOME}/Qt/6.12.0/macos;/opt/homebrew/opt/qt;/usr/local/opt/qt"
       }
+    },
+    {
+      "name": "coverage",
+      "displayName": "dev with clang source-based coverage (tools/coverage_report.py; clang only)",
+      "inherits": "dev",
+      "cacheVariables": {
+        "NOBION_COVERAGE": "ON",
+        "NOBION_WARNINGS_AS_ERRORS": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -128,6 +137,10 @@
     {
       "name": "dev-ui",
       "configurePreset": "dev-ui"
+    },
+    {
+      "name": "coverage",
+      "configurePreset": "coverage"
     }
   ],
   "testPresets": [
@@ -178,7 +191,7 @@
       "inherits": "dev",
       "filter": {
         "exclude": {
-          "name": "^(Engines/(Project|Meta)ImportTest\\.|ImportCmd)"
+          "name": "^(Engines/(Project|Meta)ImportTest\\.|ImportCmd|Outage\\.|Links/LinkOutage\\.)"
         }
       }
     },
@@ -187,10 +200,19 @@
       "configurePreset": "dev-ui",
       "environment": {
         "LSAN_OPTIONS": "suppressions=${sourceDir}/cmake/lsan.supp:print_suppressions=0",
-        "CTEST_PARALLEL_LEVEL": "2"
+        "CTEST_PARALLEL_LEVEL": ""
       },
       "output": {
         "outputOnFailure": true
+      }
+    },
+    {
+      "name": "coverage",
+      "displayName": "every test, each process merging its raw profile into build/coverage/profiles",
+      "inherits": "dev",
+      "configurePreset": "coverage",
+      "environment": {
+        "LLVM_PROFILE_FILE": "${sourceDir}/build/coverage/profiles/%4m.profraw"
       }
     }
   ]

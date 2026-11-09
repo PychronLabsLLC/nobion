@@ -100,7 +100,10 @@ Spec 4.1, 4.4, and the "not written when nothing changed" rule of 4.5.
   (analysis to fingerprint of its `age` row) and its statement
   `kDerivedFingerprints`; forwarded in `forwarding_store.hpp`.
 - `StoreSource` gains `flush_derived()` for tests and for `elctl`: returns
-  when every queued write is done.
+  when every queued write is done, with what became of the ages since the
+  last flush (`DerivedFlush`: written, current, failed, last error). The
+  source has no logger, so that count is how a dropped write is reported;
+  `elctl db derive` (Task 5) prints it.
 - Tests:
   - `tests/processing/test_derived.cpp`: no fingerprint, null; settings
     other than default, null; an air (no age), a `DerivedAge` without age;
@@ -118,6 +121,11 @@ Spec 4.1, 4.4, and the "not written when nothing changed" rule of 4.5.
   `tests/processing/pychron_processing_store_tests` under
   `-DPYCHRON_SANITIZE=thread` before the commit.
 - Commit: `feat(processing): a sink that keeps reduced ages in the store's cache`.
+
+Done 2026-10-13 on `feat/age-cache-sink`. One departure from the spec's
+text, made in the spec too (4.5): the statement tests the name as
+`name || '' = 'age'`, since with `name = 'age'` and no statistics SQLite
+searched `derived_value_name_ix` and read every cached age of the store.
 
 ## Task 4: every reduction the application makes writes the cache
 
@@ -142,6 +150,12 @@ Spec 4.5, writer 1.
   a store whose cache is already current (the unit now makes one read per
   run and no write).
 - Commit: `feat(processing): reducing an analysis keeps its age in the cache`.
+
+Done 2026-10-14 on `feat/age-cache-writers`. Two points the text left
+open: `RecallWindow::display` puts only while there are no unsaved fit
+edits (an edited analysis keeps the stored fingerprint, so its age would be
+cached as the analysis's), and `AMonitorReducedForFluxIsNotCached` is in
+`tests/processing/test_flux_store.cpp`, where the seeded level is.
 
 ## Task 5: the backfill
 
@@ -169,6 +183,20 @@ Spec 4.5, writer 2.
   of the lab's store, first run and second, wall time and the stats line.
 - Commit: `feat(elctl): db derive fills the cache of ages`.
 
+Done 2026-10-14 on `feat/age-derive`. As built: `derive_ages` works over a
+small `IDeriveSource` (browse, fingerprints, load, write, drop), with
+`StoreSource` behind it, so a test can make one load fail; `StoreSource`
+gains `fingerprints` (cached and current, one page), `write_derived_now`
+(the `--all` write, whatever is cached) and `drop_loaded` (a walk holds no
+more than a page of analyses: its load cache has no bound). `DeriveStats`
+also names its failures (`failures`, "<run id>: <why>"); `written` counts
+those without an age as well, `no_age` says how many. `DeriveOptions` has a
+`page_size` (200) so a test walks pages of one; a page the store refuses to
+write stops the walk with that error (what earlier pages wrote stays). The
+tests are in
+`tests/processing/test_store_source.cpp`, on its seeded store, not in a
+`test_derive.cpp`.
+
 ## Task 6: import derives
 
 Spec 4.5, writer 3.
@@ -185,6 +213,12 @@ Spec 4.5, writer 3.
   short by `--max-batches` leaves none.
 - `docs/legacy_import.md`: the derive pass and `--no-derive`.
 - Commit: `feat(elctl): import run fills the cache of ages when the walk ends`.
+
+Done 2026-10-16 on `feat/data-t023`. `import run` has no `--max-batches`:
+the flag that cuts a run short is `--limit`, so the test is of that. The
+pass also runs when a source could not be opened (the walk went through the
+others; the exit code stays 2), and not after a dry run. Its summary line is
+the one `db derive` prints (`derive_summary.hpp`, shared by both).
 
 ## Task 7: browse reads and filters by the cached age
 
@@ -226,6 +260,20 @@ Spec 4.7, store and processing.
   (`PYCHRON_TEST_PG_URL`) before the commit: a new join and a new filter.
 - Commit: `feat(persistence): browse carries the cached age and filters by it`.
 
+Done 2026-10-16 on `feat/data-t023`. One departure, made in the spec too
+(4.7): two joins, not one. The page with no age bound joins on
+`dv.name || '' = 'age'` (`kBrowseAgeJoin`): written `dv.name = 'age'`,
+SQLite searched `derived_value_name_ix` for every row of the page (0.4 to
+0.5 s a page on the lab's store). Under an age bound every statement joins on
+`dv.name = 'age'` (`kBrowseAgeRangeJoin`), so the bound is a range on that
+index. The statements are built by `browse_page_statement`,
+`browse_count_statement` and `facet_statement` in `store_impl.hpp`, which
+the plan tests read; the two reference-series plan tests now read them too.
+The `matches()` test is `MemorySource.AgeBoundsMatchTheCachedAge` in
+`tests/processing/test_units.cpp`; the summary test is
+`StoreSourceTest.ASummaryCarriesTheAgeTheSinkWrote` (its fixture is SQLite
+only; the browse tests in `tests/persistence` ran on PostgreSQL).
+
 ## Task 8: reference saves say when ages go out of date
 
 Spec 4.5, item 4.
@@ -242,6 +290,23 @@ Spec 4.5, item 4.
   tested now), the line after a save, and no such line when nothing was
   saved; `apps/elctl/tests`, `elctl flux` prints it.
 - Commit: `feat(processing): saving a flux fit says which cached ages it outdates`.
+
+Done 2026-10-16 on `feat/data-t023`. The level's positions held only the
+monitors' analyses, so the count of an unknown's (whose age a new J changes
+too) was not there to be had: `load_level` now browses every identifier of
+the level in its one browse and counts each position's analyses
+(`LevelPosition::analysis_count`, carried to `FittedPosition`), loading and
+reducing only the monitors' as before. `save_level` sums the count over the
+positions it wrote (`FluxSaveOutcome::outdated_ages`); `flux_view.hpp`'s
+`flux_outdated_ages_line` gives the text (singular for one analysis, nothing
+for none). `elctl flux fit --save` prints it on its own line; the flux
+window's save text gains it after `; ` (its tests' expected texts updated).
+Spec 4.5 item 4 records this and that the blank and IC factor windows say
+nothing. Tests: `FluxText.OutdatedAgesLine`,
+`FluxSaveLevel.ASaveCountsTheAnalysesWhoseCachedAgesItOutdates` (SQLite and
+PostgreSQL), `FluxCmd.SaveThenRepeatSaysUnchanged`,
+`FluxWindowTest::save_outcomes_are_said_verbatim`. `docs/flux.md` states
+the rule.
 
 ## Task 9: the browser
 
@@ -278,6 +343,14 @@ Spec 4.7, browser.
 - Spec: status "implemented"; anything that departed from it in Tasks 1 to
   9 written into it in the same branch.
 - Commit: `docs: cached ages, the age filter and elctl db derive`.
+
+Done 2026-10-16 on `feat/data-t023`. `elctl db migrate` is described in
+`docs/user/08-elctl-reference.md` ("The store's schema"), so `db derive` is
+a subsection there; the user guide's new subsection is "The Age column and
+the cached age". The spec records what Tasks 5, 6 and 9 built that its first
+text did not say: the derive API as built (`IDeriveSource`, `page_size`,
+`failures`), the exit status 2, the import pass's rules, and the browser's
+value-alone text, the status line without a total and the spin boxes.
 
 ## Before landing
 

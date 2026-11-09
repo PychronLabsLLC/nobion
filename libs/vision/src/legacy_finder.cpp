@@ -1,4 +1,4 @@
-#include "pychron/vision/legacy_finder.hpp"
+#include "nobion/vision/legacy_finder.hpp"
 
 #include <algorithm>
 #include <climits>
@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-#ifdef PYCHRON_VISION_OPENCV_ENABLED
+#ifdef NOBION_VISION_OPENCV_ENABLED
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #if __has_include(<opencv2/geometry.hpp>)
@@ -16,9 +16,9 @@
 #endif
 #endif
 
-namespace pychron::vision {
+namespace nobion::vision {
 
-#ifdef PYCHRON_VISION_OPENCV_ENABLED
+#ifdef NOBION_VISION_OPENCV_ENABLED
 
 namespace {
 
@@ -272,4 +272,4 @@ std::unique_ptr<ITargetFinder> make_legacy_finder() { return nullptr; }
 
 #endif
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

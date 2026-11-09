@@ -1,4 +1,4 @@
-#include "pychron/earthbank/mapping.hpp"
+#include "nobion/earthbank/mapping.hpp"
 
 #include <algorithm>
 #include <array>
@@ -14,21 +14,22 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/core/error.hpp"
-#include "pychron/core/expected.hpp"
-#include "pychron/earthbank/model.hpp"
-#include "pychron/earthbank/vocab.hpp"
-#include "pychron/processing/arar_groups.hpp"
-#include "pychron/processing/dataset.hpp"
-#include "pychron/processing/group_ages.hpp"
-#include "pychron/processing/model.hpp"
-#include "pychron/processing/reduced.hpp"
-#include "pychron/reduction/arar_reduction.hpp"
-#include "pychron/reduction/arar_types.hpp"
-#include "pychron/reduction/stats.hpp"
-#include "pychron/reduction/ufloat.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/core/expected.hpp"
+#include "nobion/earthbank/model.hpp"
+#include "nobion/earthbank/vocab.hpp"
+#include "nobion/arar/arar_groups.hpp"
+#include "nobion/processing/dataset.hpp"
+#include "nobion/arar/group_ages.hpp"
+#include "nobion/processing/model.hpp"
+#include "nobion/processing/reduced.hpp"
+#include "nobion/arar/arar_reduction.hpp"
+#include "nobion/arar/arar_types.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/reduction/stats.hpp"
+#include "nobion/reduction/ufloat.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 namespace pr = processing;
 namespace r = reduction;
@@ -107,8 +108,8 @@ class Numbers {
 
 // `record.field` with the field's own name, and the same with its
 // `<field>Uncertainty` neighbour.
-#define PYCHRON_EARTHBANK_SET(numbers, record, field, value) (numbers).set((record).field, #field, value)
-#define PYCHRON_EARTHBANK_SET_PM(numbers, record, field, ...) \
+#define NOBION_EARTHBANK_SET(numbers, record, field, value) (numbers).set((record).field, #field, value)
+#define NOBION_EARTHBANK_SET_PM(numbers, record, field, ...) \
   (numbers).set((record).field, (record).field##Uncertainty, #field, __VA_ARGS__)
 
 // ---------------------------------------------------------------- time
@@ -149,10 +150,12 @@ struct Member {
   pr::ReducedPtr reduced;
 
   const pr::Analysis& a() const { return *analysis; }
-  bool has_age() const { return reduced->arar && reduced->arar->ages; }
+  // The Ar-Ar result: present for every member with an age.
+  const arar::ArArReduced* ar() const { return arar::reduced_of(*reduced); }
+  bool has_age() const { return ar() != nullptr && ar()->arar.ages; }
   bool is_step() const { return analysis->increment >= 0; }
   // The analysis measured the isotope. The reduction puts a zero in the place
-  // of one it did not (reduce_analysis) and goes on, so an analysis is
+  // of one it did not (reduce_arar) and goes on, so an analysis is
   // published only when it measured all five (submission_of).
   bool measured(r::ArgonIsotope isotope) const {
     return reduced->stage(r::to_string(isotope), pr::Stage::Intercept).has_value();
@@ -348,13 +351,13 @@ std::string_view units_name(r::AgeUnits units) {
 // The total 40K decay constant an analysis's age used, per year: the flux's
 // own when it carries one (not exactly 0 +- 0, as reduction::age_equation
 // reads it), otherwise lambda_b + lambda_e.
-double decay_constant_of(const pr::ReducedAnalysis& reduced) {
+double decay_constant_of(const arar::ArArReduced& reduced) {
   if (const auto& k = reduced.lambda_k_total; k && !(k->value == 0.0 && k->error == 0.0)) return k->value;
-  return r::lambda_k(*reduced.constants).value;
+  return r::lambda_k(reduced.constants).value;
 }
 
-// What the ages of the sample rest on. Every analysis with an age has
-// constants (reduce_analysis sets them before it reduces).
+// What the ages of the sample rest on. Every analysis with an age has an
+// Ar-Ar result, and with it the constants it was reduced with.
 struct Constants {
   double decay_constant = 0.0;  // per year
   double atm4036 = 0.0;
@@ -369,19 +372,19 @@ Result<Constants> constants_of(std::string_view sample, const Members& dated) {
   const auto show = [](double v) { return shown(v); };
   auto decay = agreed(
       sample, dated, "decay constant",
-      [](const Member& m) { return std::optional(decay_constant_of(*m.reduced)); }, show);
+      [](const Member& m) { return std::optional(decay_constant_of(*m.ar())); }, show);
   if (!decay) return fail(decay.error());
   auto air = agreed(
       sample, dated, "atmospheric 40Ar/36Ar",
-      [](const Member& m) { return std::optional(m.reduced->constants->atm4036.value); }, show);
+      [](const Member& m) { return std::optional(m.ar()->constants.atm4036.value); }, show);
   if (!air) return fail(air.error());
   auto units = agreed(
-      sample, dated, "age unit", [](const Member& m) { return std::optional(m.reduced->constants->age_units); },
+      sample, dated, "age unit", [](const Member& m) { return std::optional(m.ar()->constants.age_units); },
       [](r::AgeUnits u) { return std::string(units_name(u)); });
   if (!units) return fail(units.error());
   auto decay_error = agreed(
       sample, dated, "decay constant uncertainty in the ages",
-      [](const Member& m) { return std::optional(m.reduced->constants->include_decay_error); },
+      [](const Member& m) { return std::optional(m.ar()->constants.include_decay_error); },
       [](bool included) { return std::string(included ? "included" : "not included"); });
   if (!decay_error) return fail(decay_error.error());
   Constants out;
@@ -477,28 +480,37 @@ struct GroupJ {
 
 double relative_error(const r::UFloat& j) { return j.nominal() == 0 ? 0.0 : j.std_dev() / std::abs(j.nominal()); }
 
+// The J an analysis's ages were made with; none without an Ar-Ar result.
+std::optional<r::UFloat> j_of(const pr::ReducedAnalysis& reduced) {
+  const arar::ArArReduced* ar = arar::reduced_of(reduced);
+  return ar ? ar->j : std::nullopt;
+}
+
 GroupJ j_of(const pr::GroupItems& items) {
   GroupJ out;
   for (const pr::DatasetItem* item : items) {
     const pr::ReducedAnalysis& reduced = *item->analysis;
-    if (!reduced.j) continue;
+    const auto j = j_of(reduced);
+    if (!j) continue;
     if (out.first == nullptr) {
       out.first = out.widest = &reduced;
-      out.relative = relative_error(*reduced.j);
+      out.relative = relative_error(*j);
       continue;
     }
-    const bool same = reduced.j->nominal() == out.first->j->nominal() && reduced.j->std_dev() == out.first->j->std_dev();
+    const auto first = j_of(*out.first);
+    const bool same = j->nominal() == first->nominal() && j->std_dev() == first->std_dev();
     if (!same && out.other == nullptr) out.other = &reduced;
-    if (relative_error(*reduced.j) > out.relative) {
+    if (relative_error(*j) > out.relative) {
       out.widest = &reduced;
-      out.relative = relative_error(*reduced.j);
+      out.relative = relative_error(*j);
     }
   }
   return out;
 }
 
 std::string j_text(const pr::ReducedAnalysis& reduced) {
-  return shown(reduced.j->nominal()) + " +/- " + shown(reduced.j->std_dev()) + " (" + reduced.analysis->runid + ")";
+  const auto j = j_of(reduced);  // GroupJ holds only analyses with one
+  return shown(j->nominal()) + " +/- " + shown(j->std_dev()) + " (" + reduced.analysis->runid + ")";
 }
 
 // The J term of a mean of ages: the relative J uncertainty of the analyses
@@ -564,7 +576,7 @@ Candidate weighted_mean_age(const Group& g, const PublishOptions& o) {
   out.analytical = mean->error;
   // The mean passes over an age without a usable error (reduction::weighted_mean).
   for (const pr::DatasetItem* item : g.all) {
-    const r::UFloat& age = item->analysis->arar->ages->age;
+    const r::UFloat& age = arar::reduced_of(*item->analysis)->arar.ages->age;
     if (std::isfinite(age.nominal()) && std::isfinite(age.std_dev()) && age.std_dev() != 0.0) out.used.push_back(item);
   }
   add_j_term(out, mean->value, mean->error);
@@ -618,7 +630,7 @@ Candidate integrated_age(const Group& g) {
   out.analytical = plain->std_dev();
   out.with_j = with_j->std_dev();
   // Every analysis here has an age, so the sum took each of them: an analysis
-  // that reduced with something missing has no age (reduce_analysis).
+  // that reduced with something missing has no age (reduce_arar).
   out.n = g.all.size();
   out.error_kind = false;
   out.used = g.all;
@@ -680,7 +692,7 @@ Result<SummaryAge> preferred_age(std::string_view sample, const Group& g, const 
 }
 
 // The name and version the two descriptions give.
-std::string software_of(const PublishOptions& o) { return o.software.empty() ? std::string("pychron-cpp") : o.software; }
+std::string software_of(const PublishOptions& o) { return o.software.empty() ? std::string("nobion") : o.software; }
 
 // What the reported age is and what its uncertainty holds, in one sentence of
 // facts: it is the age summary's description, the only place the record can
@@ -772,7 +784,7 @@ std::map<const pr::ReducedAnalysis*, Released> released_39(const Members& given,
       return x->a().timestamp < y->a().timestamp;
     });
     // A published analysis has an age, and so a reduction.
-    const auto k39 = [](const Member* m) { return m->reduced->arar->f.interference.k39.nominal(); };
+    const auto k39 = [](const Member* m) { return m->ar()->arar.f.interference.k39.nominal(); };
     double total = 0.0;
     for (const Member* m : steps) {
       if (k39(m) > 0) total += k39(m);
@@ -803,7 +815,7 @@ struct IsotopeFields {
   const char* blank_name;
 };
 
-#define PYCHRON_EARTHBANK_ISOTOPE(mass)                                                              \
+#define NOBION_EARTHBANK_ISOTOPE(mass)                                                              \
   IsotopeFields {                                                                                    \
     r::ArgonIsotope::Ar##mass, &Measurement::ar##mass##Corr, &Measurement::ar##mass##CorrUncertainty, \
         &Measurement::ar##mass##ExcInt, &Measurement::ar##mass##ExcIntUncertainty,                   \
@@ -811,11 +823,11 @@ struct IsotopeFields {
         "ar" #mass "ExcInt", "ar" #mass "blank"                                                      \
   }
 
-constexpr std::array kIsotopeFields = {PYCHRON_EARTHBANK_ISOTOPE(40), PYCHRON_EARTHBANK_ISOTOPE(39),
-                                       PYCHRON_EARTHBANK_ISOTOPE(38), PYCHRON_EARTHBANK_ISOTOPE(37),
-                                       PYCHRON_EARTHBANK_ISOTOPE(36)};
+constexpr std::array kIsotopeFields = {NOBION_EARTHBANK_ISOTOPE(40), NOBION_EARTHBANK_ISOTOPE(39),
+                                       NOBION_EARTHBANK_ISOTOPE(38), NOBION_EARTHBANK_ISOTOPE(37),
+                                       NOBION_EARTHBANK_ISOTOPE(36)};
 
-#undef PYCHRON_EARTHBANK_ISOTOPE
+#undef NOBION_EARTHBANK_ISOTOPE
 
 // A corrected isotope over 39ArK.
 struct RatioFields {
@@ -824,16 +836,16 @@ struct RatioFields {
   const char* name;
 };
 
-#define PYCHRON_EARTHBANK_RATIO(mass)                                           \
+#define NOBION_EARTHBANK_RATIO(mass)                                           \
   RatioFields {                                                                 \
     r::ArgonIsotope::Ar##mass, &Measurement::ratio##mass##Arx39ArCorr,          \
         &Measurement::ratio##mass##Arx39ArCorrUncertainty, "ratio" #mass "Arx39ArCorr" \
   }
 
-constexpr std::array kRatioFields = {PYCHRON_EARTHBANK_RATIO(36), PYCHRON_EARTHBANK_RATIO(37),
-                                     PYCHRON_EARTHBANK_RATIO(38), PYCHRON_EARTHBANK_RATIO(40)};
+constexpr std::array kRatioFields = {NOBION_EARTHBANK_RATIO(36), NOBION_EARTHBANK_RATIO(37),
+                                     NOBION_EARTHBANK_RATIO(38), NOBION_EARTHBANK_RATIO(40)};
 
-#undef PYCHRON_EARTHBANK_RATIO
+#undef NOBION_EARTHBANK_RATIO
 
 // What the service calls an isotope "corrected": for mass discrimination, for
 // decay (39Ar and 37Ar) and for interferences. For four of them that is the
@@ -844,8 +856,8 @@ constexpr std::array kRatioFields = {PYCHRON_EARTHBANK_RATIO(36), PYCHRON_EARTHB
 // removed; the atmospheric and the chlorine-derived 38Ar are no interference
 // and stay. (A published analysis measured every isotope.)
 std::optional<r::UFloat> corrected(const Member& m, r::ArgonIsotope isotope) {
-  if (isotope != r::ArgonIsotope::Ar38) return m.reduced->stage(r::to_string(isotope), pr::Stage::InterferenceCorrected);
-  const r::ArArResult& arar = *m.reduced->arar;
+  if (isotope != r::ArgonIsotope::Ar38) return m.ar()->stage(r::to_string(isotope), "interference_corrected");
+  const r::ArArResult& arar = m.ar()->arar;
   return arar.corrected[r::index(isotope)] - arar.f.interference.k38 - arar.f.interference.ca38;
 }
 
@@ -858,9 +870,9 @@ std::optional<r::UFloat> corrected(const Member& m, r::ArgonIsotope isotope) {
 // the same stage with the decay factor, an exact number, divided out again,
 // so that the five have had the same done to them but for 39Ar's decay.
 std::optional<r::UFloat> excluding_interferences(const Member& m, r::ArgonIsotope isotope) {
-  auto stage = m.reduced->stage(r::to_string(isotope), pr::Stage::DecayCorrected);
+  auto stage = m.ar()->stage(r::to_string(isotope), "decay_corrected");
   if (!stage || isotope != r::ArgonIsotope::Ar37) return stage;
-  return *stage / m.reduced->arar->decay.df37;
+  return *stage / m.ar()->arar.decay.df37;
 }
 
 // Laser power with its units, or the furnace's temperature: units with a `C`
@@ -868,8 +880,8 @@ std::optional<r::UFloat> excluding_interferences(const Member& m, r::ArgonIsotop
 void extraction(Measurement& out, Numbers& numbers, const pr::ExtractionInfo& info) {
   if (!info.value) return;
   if (info.units.find('C') != std::string::npos) {
-    PYCHRON_EARTHBANK_SET(numbers, out, furnaceTemperature, *info.value);
-  } else if (PYCHRON_EARTHBANK_SET(numbers, out, laserPower, *info.value)) {
+    NOBION_EARTHBANK_SET(numbers, out, furnaceTemperature, *info.value);
+  } else if (NOBION_EARTHBANK_SET(numbers, out, laserPower, *info.value)) {
     set_text(out.laserPowerUnits, info.units);
   }
 }
@@ -892,7 +904,7 @@ Measurement measurement_of(const Member& m, const Released* released, const Summ
                            double to_ma, Notes& notes) {
   const pr::Analysis& a = m.a();
   const pr::ReducedAnalysis& reduced = *m.reduced;
-  const r::ArArResult& arar = *reduced.arar;
+  const r::ArArResult& arar = m.ar()->arar;
   Numbers numbers(a.runid, notes);
   Measurement out;
 
@@ -903,7 +915,7 @@ Measurement measurement_of(const Member& m, const Released* released, const Summ
   } else {
     notes.push_back(a.runid + ": the analysis has no time; analysisTime was left out");
   }
-  if (m.is_step()) PYCHRON_EARTHBANK_SET(numbers, out, stepNumber, static_cast<double>(a.increment + 1));
+  if (m.is_step()) NOBION_EARTHBANK_SET(numbers, out, stepNumber, static_cast<double>(a.increment + 1));
   extraction(out, numbers, a.extraction);
   // beamSize is not sent: ExtractionInfo::beam_diameter is recorded without
   // its unit (legacy pychron called it microns; a queue may give mm), and a
@@ -921,24 +933,24 @@ Measurement measurement_of(const Member& m, const Released* released, const Summ
     if (top && k39) numbers.set(out.*f.ratio, out.*f.ratio_error, f.name, *top / *k39);
   }
 
-  PYCHRON_EARTHBANK_SET_PM(numbers, out, ratio40Arx39ArK, arar.f.f);
+  NOBION_EARTHBANK_SET_PM(numbers, out, ratio40Arx39ArK, arar.f.f);
   // 40Ar* in percent of the corrected 40Ar (40Ar* and trapped 40Ar), as the
   // service defines it; the reduction's own yield is of all the 40Ar, the
   // K-derived 40Ar included.
   if (const auto ar40 = corrected(m, r::ArgonIsotope::Ar40); ar40 && ar40->nominal() != 0.0) {
-    PYCHRON_EARTHBANK_SET(numbers, out, radiogenicArgon, (arar.f.rad40 / *ar40 * 100.0).nominal());
+    NOBION_EARTHBANK_SET(numbers, out, radiogenicArgon, (arar.f.rad40 / *ar40 * 100.0).nominal());
   }
-  PYCHRON_EARTHBANK_SET_PM(numbers, out, caK, arar.cak);
-  PYCHRON_EARTHBANK_SET_PM(numbers, out, kCa, arar.kca);
-  PYCHRON_EARTHBANK_SET_PM(numbers, out, clK, arar.clk);
+  NOBION_EARTHBANK_SET_PM(numbers, out, caK, arar.cak);
+  NOBION_EARTHBANK_SET_PM(numbers, out, kCa, arar.kca);
+  NOBION_EARTHBANK_SET_PM(numbers, out, clK, arar.clk);
   if (released != nullptr) {
-    PYCHRON_EARTHBANK_SET(numbers, out, ar39KReleased, released->percent);
-    PYCHRON_EARTHBANK_SET(numbers, out, cumulative39ArK, released->cumulative);
+    NOBION_EARTHBANK_SET(numbers, out, ar39KReleased, released->percent);
+    NOBION_EARTHBANK_SET(numbers, out, cumulative39ArK, released->cumulative);
   }
 
-  PYCHRON_EARTHBANK_SET_PM(numbers, out, jValue, reduced.j);
+  NOBION_EARTHBANK_SET_PM(numbers, out, jValue, m.ar()->j);
   out.jvalueUncertaintyTypeName = std::string(kOneSigma);
-  PYCHRON_EARTHBANK_SET_PM(numbers, out, apparentAge, arar.ages->age, to_ma);
+  NOBION_EARTHBANK_SET_PM(numbers, out, apparentAge, arar.ages->age, to_ma);
   out.apparentAgeUncertainityTypeName = std::string(kOneSigma);
 
   // Whether the reported age used this analysis, in the column of that kind
@@ -1130,17 +1142,17 @@ AgeSummary age_summary_of(const std::string& name, const SummaryAge& age, const 
                           Notes& notes) {
   Numbers numbers(name, notes);
   AgeSummary out;
-  PYCHRON_EARTHBANK_SET(numbers, out, age, age.age * constants.to_ma);
+  NOBION_EARTHBANK_SET(numbers, out, age, age.age * constants.to_ma);
   const double sigma = options.age_includes_j_error ? age.with_j : age.analytical;
-  PYCHRON_EARTHBANK_SET(numbers, out, ageUncertainty, sigma * constants.to_ma);
+  NOBION_EARTHBANK_SET(numbers, out, ageUncertainty, sigma * constants.to_ma);
   out.ageCalcTypeName = std::string(age_type_name(age.kind));
   // The type is the sigma level. What kind of one sigma it is (a mean's error
   // kind, or propagated; with J or without) is in the description.
   out.ageUncertaintyTypeName = std::string(kOneSigma);
   out.calculatedAgeUncertaintyTypeName = std::string(kOneSigma);
   out.calculatedAgeUncertaintyTypeUnitsName = std::string(kAbsoluteUncertainty);
-  if (age.mswd) PYCHRON_EARTHBANK_SET(numbers, out, mswd, *age.mswd);
-  if (age.probability) PYCHRON_EARTHBANK_SET(numbers, out, agepvalue, *age.probability);
+  if (age.mswd) NOBION_EARTHBANK_SET(numbers, out, mswd, *age.mswd);
+  if (age.probability) NOBION_EARTHBANK_SET(numbers, out, agepvalue, *age.probability);
   out.nAnalysisGrouped = static_cast<std::int64_t>(age.n);
   out.preferredAge = true;
   out.dataInterpretationToolName = std::string(kInterpretationTool);
@@ -1267,8 +1279,8 @@ Result<Submission> submission_of(const std::string& name, Members members, const
 
 }  // namespace
 
-#undef PYCHRON_EARTHBANK_SET
-#undef PYCHRON_EARTHBANK_SET_PM
+#undef NOBION_EARTHBANK_SET
+#undef NOBION_EARTHBANK_SET_PM
 
 Result<std::vector<Submission>> build_submissions(const std::vector<processing::AnalysisPtr>& analyses,
                                                   const PublishOptions& options) {
@@ -1278,7 +1290,7 @@ Result<std::vector<Submission>> build_submissions(const std::vector<processing::
     if (analysis->sample.empty()) {
       return fail(ErrorKind::Config, "earthbank: analysis " + analysis->runid + " has no sample name");
     }
-    by_sample[analysis->sample].push_back({analysis, pr::reduce_analysis(analysis, options.reduction)});
+    by_sample[analysis->sample].push_back({analysis, arar::reduce_with_arar(analysis, options.reduction)});
   }
 
   std::vector<Submission> out;
@@ -1296,4 +1308,4 @@ Result<std::vector<Submission>> build_submissions(const std::vector<processing::
   return out;
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

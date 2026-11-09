@@ -2,15 +2,15 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/devices/spectrometer/thermo_qtegra.hpp"
-#include "pychron/devices/spectrometer/thermo_qtegra_sim.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra_sim.hpp"
 #include "spectrometer/conformance.hpp"
 #include "spectrometer/legacy/sim_util.hpp"
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace legacy_test;
 
 // Shortest legal Qtegra integration period.

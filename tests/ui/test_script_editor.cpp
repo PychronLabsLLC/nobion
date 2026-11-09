@@ -6,6 +6,7 @@
 #include <memory>
 #include <sstream>
 
+#include <QSignalSpy>
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
@@ -14,18 +15,18 @@
 
 #include "code_editor.hpp"
 #include "experiment_fixture.hpp"
-#include "pychron/scripting/script_host.hpp"
+#include "nobion/scripting/script_host.hpp"
 #include "menu_hub.hpp"
 #include "script_editor_window.hpp"
 #include "script_highlighter.hpp"
 #include "settings_guard.hpp"
 
-using pychron::scripting::ScriptKind;
-using pychron::ui::CodeEditor;
-using pychron::ui::ScriptEditorWindow;
-using pychron::ui::ScriptHighlighter;
+using nobion::scripting::ScriptKind;
+using nobion::ui::CodeEditor;
+using nobion::ui::ScriptEditorWindow;
+using nobion::ui::ScriptHighlighter;
 namespace fs = std::filesystem;
-namespace lab = pychron::experiment::lab;
+namespace lab = nobion::experiment::lab;
 
 namespace {
 
@@ -42,7 +43,7 @@ class TestScriptEditor : public QObject {
   Q_OBJECT
 
   QTemporaryDir tmp_;
-  pychron::ui::test::ApplicationSettingsGuard app_settings_;
+  nobion::ui::test::ApplicationSettingsGuard app_settings_;
   fs::path dir_;
   std::unique_ptr<lab::Lab> lab_;
   bool python_ = false;
@@ -53,13 +54,13 @@ class TestScriptEditor : public QObject {
 
  private slots:
   void initTestCase() {
-    dir_ = pychron::ui::test::scratch_lab();
+    dir_ = nobion::ui::test::scratch_lab();
     fs::create_directories(dir_ / "scripts" / "lib");
     std::ofstream(dir_ / "scripts" / "lib" / "pump.py") << "def main():\n    sleep(5)\n";
     std::ofstream(dir_ / "scripts" / "extraction" / "with_gosub.py")
         << "def main():\n    gosub('pump')\n    sleep(1)\n";
-    lab_ = std::make_unique<lab::Lab>(lab::load_lab(pychron::ui::test::lab_paths(dir_)));
-    python_ = pychron::scripting::make_script_host()->available();
+    lab_ = std::make_unique<lab::Lab>(lab::load_lab(nobion::ui::test::lab_paths(dir_)));
+    python_ = nobion::scripting::make_script_host()->available();
   }
   void cleanupTestCase() {
     lab_.reset();
@@ -181,7 +182,7 @@ class TestScriptEditor : public QObject {
 
   // File > Open: one of the lab's scripts, by the name the tree gives it.
   void fileOpenPicksOneOfTheLabsScripts() {
-    using pychron::ui::MenuHub;
+    using nobion::ui::MenuHub;
     ScriptEditorWindow w(*lab_, settings());
     QStringList offered;
     std::optional<QString> answer;
@@ -255,6 +256,30 @@ class TestScriptEditor : public QObject {
     QVERIFY(w->close());
     QVERIFY(read(dir_ / "scripts" / "post_measurement" / "sim_pump.py").find("# saved on close") != std::string::npos);
     std::ofstream(dir_ / "scripts" / "post_measurement" / "sim_pump.py") << before;
+  }
+
+  // Scripts > Rehearse… hands the current tab's text (unsaved edits too) and
+  // kind to whoever rehearses it; greyed without a tab and for a hook.
+  void rehearseHandsOverTheTabsText() {
+    ScriptEditorWindow w(*lab_, settings());
+    QVERIFY(w.rehearse_action() != nullptr);
+    QCOMPARE(w.rehearse_action()->text(), QStringLiteral("&Rehearse…"));
+    QSignalSpy spy(&w, &ScriptEditorWindow::rehearseRequested);
+    QVERIFY(!w.rehearse_current());
+    QVERIFY(w.open(ScriptKind::Extraction, QStringLiteral("sim_extract")));
+    w.current_editor()->moveCursor(QTextCursor::End);
+    w.current_editor()->insertPlainText(QStringLiteral("# unsaved\n"));
+    QVERIFY(w.rehearse_current());
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(spy.at(0).at(0).value<ScriptKind>(), ScriptKind::Extraction);
+    QCOMPARE(spy.at(0).at(1).toString(), QStringLiteral("sim_extract"));
+    QVERIFY(spy.at(0).at(2).toString().endsWith(QStringLiteral("# unsaved\n")));
+
+    QString error;
+    QVERIFY(w.new_script(ScriptKind::MeasurementHook, QStringLiteral("rehearse_hook"), &error));
+    QVERIFY(!w.rehearse_current());  // rehearse() refuses hooks
+    QCOMPARE(spy.count(), 1);
+    fs::remove(dir_ / "scripts" / "measurement_hooks" / "rehearse_hook.py");
   }
 };
 

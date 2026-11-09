@@ -19,7 +19,7 @@ only this component's. Kept compressed, as that file is.
   from normalized source url and from commit and path: changing
   `normalize_source_url` or an id recipe orphans every existing import. Words
   that make a conflict a warning live in
-  `libs/ingest/include/pychron/ingest/conflict_markers.hpp`.
+  `libs/ingest/include/nobion/ingest/conflict_markers.hpp`.
 - `GitFixture` switches user's and machine's git configuration off for the
   test process (`GitReader::mirror` reads it); a test that wants one sets
   `GIT_CONFIG_GLOBAL` itself. No test may run git against this repository.

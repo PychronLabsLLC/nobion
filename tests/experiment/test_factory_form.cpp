@@ -4,11 +4,11 @@
 
 #include <filesystem>
 
-#include "pychron/experiment/factory/form.hpp"
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/experiment/model/positions.hpp"
+#include "nobion/experiment/factory/form.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/model/positions.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 const IdentifierRules kIds = IdentifierRules::defaults();
@@ -191,12 +191,12 @@ TEST(FactoryForm, NextFormAdvancesPastWhatWasAdded) {
 }
 
 TEST(FactoryForm, TheExampleLabsDefaultsBlocksAndListings) {
-  const std::filesystem::path dir = PYCHRON_EXAMPLE_CONFIGS_DIR;
+  const std::filesystem::path dir = NOBION_EXAMPLE_CONFIGS_DIR;
   const auto lab = lab::load_lab({dir, dir / "extraction_line.toml", dir / "spectrometer.sim-integrated.toml"});
   ASSERT_TRUE(lab.problems.empty()) << lab.problems.front();
   EXPECT_EQ(lab.plans->names(), std::vector<std::string>{"sim_multicollect"});
   EXPECT_EQ(lab.scripts->names(scripting::ScriptKind::Extraction),
-            (std::vector<std::string>{"laser_extract", "sim_air", "sim_blank", "sim_extract"}));
+            (std::vector<std::string>{"laser_extract", "sim_air", "sim_blank", "sim_cocktail", "sim_extract"}));
   EXPECT_EQ(lab.scripts->names(scripting::ScriptKind::PostMeasurement), std::vector<std::string>{"sim_pump"});
   EXPECT_TRUE(lab.scripts->names(scripting::ScriptKind::PostEquilibration).empty());
   ASSERT_TRUE(lab.blocks.contains("blank_pair"));
@@ -216,5 +216,154 @@ TEST(FactoryForm, TheExampleLabsDefaultsBlocksAndListings) {
   EXPECT_FALSE(with_lab_defaults(f, lab.ids, lab.defaults).has_value());
 }
 
+
+// Step heats from a named template (step heat template spec, task 6).
+
+StepHeatLibrary library_with(const std::string& name, const std::vector<double>& values) {
+  StepHeatTemplate t;
+  t.name = name;
+  t.duration = Duration(30);
+  t.cleanup = Duration(15);
+  t.steps.reserve(values.size());
+  for (const double v : values) {
+    StepHeatStep s;
+    s.value = v;
+    t.steps.push_back(s);
+  }
+  StepHeatLibrary lib;
+  lib.emplace(name, std::move(t));
+  return lib;
+}
+
+std::vector<std::string> steps_of(const std::vector<RunSpec>& runs) {
+  std::vector<std::string> out;
+  out.reserve(runs.size());
+  for (const auto& r : runs) out.push_back(r.id.step);
+  return out;
+}
+
+TEST(StepHeatBuild, TemplateMakesOneRunPerStep) {
+  auto f = unknown_form();
+  f.step_heat_template = "laser-12";
+  const auto lib = library_with("laser-12", {0.5, 1, 1.5});
+  auto runs = build_runs(f, kIds, lib);
+  ASSERT_TRUE(runs) << runs.error().what;
+  ASSERT_EQ(runs->size(), 3u);
+  EXPECT_EQ(ids_of(*runs), (std::vector<std::string>{"20001/A", "20001/B", "20001/C"}));
+  EXPECT_EQ((*runs)[1].extraction.value, 1);
+  for (const auto& r : *runs) {
+    EXPECT_EQ(r.extraction.duration, Duration(30));
+    EXPECT_EQ(r.extraction.cleanup, Duration(15));
+    EXPECT_EQ(pos(r), "4");
+  }
+}
+
+TEST(StepHeatBuild, TemplateAndTextIsAnError) {
+  auto f = unknown_form();
+  f.step_heat_template = "laser-12";
+  f.step_heat = " 1, 2 ";
+  auto runs = build_runs(f, kIds, library_with("laser-12", {1}));
+  ASSERT_FALSE(runs);
+  EXPECT_EQ(runs.error().kind, ErrorKind::Config);
+  EXPECT_NE(runs.error().what.find("choose a step heat template or type step values, not both"), std::string::npos)
+      << runs.error().what;
+}
+
+TEST(StepHeatBuild, TemplateAndUnparsableTextIsTheNotBothError) {
+  auto f = unknown_form();
+  f.step_heat_template = "laser-12";
+  f.step_heat = "abc";
+  auto runs = build_runs(f, kIds, library_with("laser-12", {1}));
+  ASSERT_FALSE(runs);
+  EXPECT_EQ(runs.error().kind, ErrorKind::Config);
+  EXPECT_NE(runs.error().what.find("choose a step heat template or type step values, not both"), std::string::npos)
+      << runs.error().what;
+}
+
+TEST(StepHeatBuild, UnknownTemplateIsAnError) {
+  auto f = unknown_form();
+  f.step_heat_template = "nope";
+  auto runs = build_runs(f, kIds, library_with("laser-12", {1}));
+  ASSERT_FALSE(runs);
+  EXPECT_EQ(runs.error().kind, ErrorKind::Config);
+  EXPECT_NE(runs.error().what.find("unknown step heat template 'nope'"), std::string::npos) << runs.error().what;
+  // No library at all: the same refusal.
+  runs = build_runs(f, kIds);
+  ASSERT_FALSE(runs);
+  EXPECT_NE(runs.error().what.find("unknown step heat template 'nope'"), std::string::npos) << runs.error().what;
+}
+
+TEST(StepHeatBuild, TemplateNeedsATypeThatHeats) {
+  auto f = unknown_form();
+  f.identifier = "a";  // air does not heat (blank_unknown does)
+  f.step_heat_template = "laser-12";
+  auto runs = build_runs(f, kIds, library_with("laser-12", {1, 2}));
+  ASSERT_FALSE(runs);
+  EXPECT_NE(runs.error().what.find("does not"), std::string::npos) << runs.error().what;
+}
+
+TEST(StepHeatBuild, PerHoleGivesWholeScheduleForEachHole) {
+  auto f = unknown_form();
+  f.position = "1-3";
+  f.step_heat_template = "two";
+  auto runs = build_runs(f, kIds, library_with("two", {1, 2}));
+  ASSERT_TRUE(runs) << runs.error().what;
+  ASSERT_EQ(runs->size(), 6u);
+  std::vector<std::string> holes;
+  holes.reserve(runs->size());
+  for (const auto& r : *runs) holes.push_back(pos(r));
+  EXPECT_EQ(holes, (std::vector<std::string>{"1", "1", "2", "2", "3", "3"}));
+  EXPECT_EQ(steps_of(*runs), (std::vector<std::string>{"A", "B", "A", "B", "A", "B"}));
+  EXPECT_EQ((*runs)[5].extraction.value, 2);
+}
+
+TEST(StepHeatBuild, PerHoleWithIdentifierStep) {
+  auto f = unknown_form();
+  f.position = "1-3";
+  f.identifier_step = 1;
+  f.step_heat_template = "two";
+  auto runs = build_runs(f, kIds, library_with("two", {1, 2}));
+  ASSERT_TRUE(runs) << runs.error().what;
+  EXPECT_EQ(ids_of(*runs), (std::vector<std::string>{"20001/A", "20001/B", "20002/A", "20002/B", "20003/A",
+                                                     "20003/B"}));
+}
+
+TEST(StepHeatBuild, WithoutPerHoleOneScheduleOverThePosition) {
+  auto f = unknown_form();
+  f.position = "1-3";
+  f.one_run_per_hole = false;
+  f.step_heat_template = "two";
+  auto runs = build_runs(f, kIds, library_with("two", {1, 2}));
+  ASSERT_TRUE(runs) << runs.error().what;
+  ASSERT_EQ(runs->size(), 2u);
+  EXPECT_EQ(pos((*runs)[0]), "1-3");
+  EXPECT_EQ(pos((*runs)[1]), "1-3");
+  EXPECT_EQ(steps_of(*runs), (std::vector<std::string>{"A", "B"}));
+}
+
+TEST(StepHeatBuild, NextFormKeepsTheTemplate) {
+  auto f = unknown_form();
+  f.step_heat_template = "two";
+  const auto lib = library_with("two", {1, 2});
+  auto next = next_form(f, {1, 1}, kIds, lib);
+  ASSERT_TRUE(next) << next.error().what;
+  EXPECT_EQ(next->step_heat_template, "two");
+  EXPECT_EQ(next->identifier, "20002");
+  EXPECT_EQ(next->position, "5");
+  // An unknown template refuses here as it does in build_runs.
+  EXPECT_FALSE(next_form(f, {1, 1}, kIds));
+}
+
+TEST(StepHeatBuild, FormFromRunNeverNamesATemplate) {
+  auto f = unknown_form();
+  f.step_heat_template = "two";
+  auto runs = build_runs(f, kIds, library_with("two", {1, 2}));
+  ASSERT_TRUE(runs) << runs.error().what;
+  for (const auto& r : *runs) EXPECT_TRUE(form_from_run(r).step_heat_template.empty());
+  FactoryForm a, b;
+  b.step_heat_template = "two";
+  EXPECT_FALSE(a == b);
+}
+
 }  // namespace
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

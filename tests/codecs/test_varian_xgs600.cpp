@@ -1,9 +1,9 @@
-#include "pychron/codecs/varian_xgs600.hpp"
+#include "nobion/codecs/varian_xgs600.hpp"
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-namespace xgs = pychron::codec::varian_xgs600;
+using namespace nobion;
+namespace xgs = nobion::codec::varian_xgs600;
 
 TEST(Xgs600Codec, ReadPressureByLabel) {
   EXPECT_EQ(*xgs::read_pressure("00", "IG1"), (codec::Command{to_bytes("#0002UIG1\r"), ReadSpec::until("\r")}));

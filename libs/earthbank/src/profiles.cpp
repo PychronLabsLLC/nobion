@@ -1,9 +1,8 @@
-#include "pychron/earthbank/profiles.hpp"
+#include "nobion/earthbank/profiles.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
-#include <atomic>
 #include <cctype>
-#include <cerrno>
 #include <charconv>
 #include <cstddef>
 #include <cstdint>
@@ -21,18 +20,11 @@
 #include <nlohmann/json.hpp>
 #include <toml++/toml.hpp>
 
-#ifdef _WIN32
-#include <process.h>
-#else
-#include <fcntl.h>
-#include <unistd.h>
-#endif
+#include "nobion/core/env.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/core/path_text.hpp"
 
-#include "pychron/core/env.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/core/path_text.hpp"
-
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 namespace fs = std::filesystem;
@@ -296,52 +288,6 @@ std::string to_toml(const Profiles& profiles) {
   return out;
 }
 
-long process_id() {
-#ifdef _WIN32
-  return static_cast<long>(_getpid());
-#else
-  return static_cast<long>(getpid());
-#endif
-}
-
-#ifndef _WIN32
-std::string words_for(int error_number) { return std::error_code(error_number, std::generic_category()).message(); }
-#endif
-
-// A new file `file` holding `text`, the owner's alone, and on the disk when
-// this returns. What went wrong otherwise; the file may then be there in
-// part, for the caller to remove.
-std::optional<std::string> write_new(const fs::path& file, std::string_view text) {
-#ifdef _WIN32
-  // No mode to give here: what keeps the file the owner's is the access
-  // list it inherits from %APPDATA%, which is the user's own.
-  std::ofstream out(file, std::ios::binary | std::ios::trunc);
-  if (!out) return "cannot be created";
-  out.write(text.data(), static_cast<std::streamsize>(text.size()));
-  out.flush();
-  if (!out) return "cannot be written";
-  return std::nullopt;
-#else
-  // Never through a link somebody left under the name, and never open to
-  // anybody else, not even while it is empty.
-  const int fd = ::open(file.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
-  if (fd < 0) return words_for(errno);
-  std::optional<std::string> wrong;
-  while (!text.empty() && !wrong) {
-    const ssize_t wrote = ::write(fd, text.data(), text.size());
-    if (wrote < 0) {
-      if (errno == EINTR) continue;
-      wrong = words_for(errno);
-    } else {
-      text.remove_prefix(static_cast<std::size_t>(wrote));
-    }
-  }
-  if (!wrong && ::fsync(fd) != 0) wrong = words_for(errno);
-  if (::close(fd) != 0 && !wrong) wrong = words_for(errno);
-  return wrong;
-#endif
-}
-
 // --- legacy pychron's preferences ---
 
 // The value of a line of the file as its writer (ConfigObj) quoted it: in
@@ -468,31 +414,21 @@ Result<void> save_profiles(const Profiles& profiles, const fs::path& file) {
     fs::create_directories(file.parent_path(), ec);
     if (ec) return fail(ErrorKind::Io, where + ": cannot make its directory: " + ec.message());
   }
-  // Beside the file, so that the rename is within one file system; a name
-  // of this process's and this call's own.
-  static std::atomic<unsigned> serial{0};
-  fs::path beside = file;
-  beside += ".tmp." + std::to_string(process_id()) + "." + std::to_string(serial.fetch_add(1));
-  fs::remove(beside, ec);
-  if (const auto wrong = write_new(beside, text)) {
-    fs::remove(beside, ec);
-    return fail(ErrorKind::Io, where + ": cannot write it (the old file, if any, is as it was): " + *wrong);
-  }
-  fs::rename(beside, file, ec);
-  if (ec) {
-    const std::string why = ec.message();
-    fs::remove(beside, ec);
-    return fail(ErrorKind::Io, where + ": cannot replace it (the old file, if any, is as it was): " + why);
-  }
+  // The file is the owner's alone: a new one is made so, the bits of an
+  // existing one are tightened first (write_file_atomic keeps them).
+  if (fs::exists(file, ec)) fs::permissions(file, fs::perms::owner_read | fs::perms::owner_write, ec);
+  if (auto written = write_file_atomic(file, text, Durability::Power, fs::perms::owner_read | fs::perms::owner_write);
+      !written)
+    return fail(ErrorKind::Io, where + ": cannot replace it (the old file, if any, is as it was): " + written.error().what);
   return {};
 }
 
 fs::path default_profiles_file() {
   // The directory libs/setup keeps the site file in (default_site_path).
 #if defined(_WIN32) || defined(__APPLE__)
-  const fs::path tail = fs::path("Pychron") / "earthbank" / "profiles.toml";
+  const fs::path tail = fs::path("Nobion") / "earthbank" / "profiles.toml";
 #else
-  const fs::path tail = fs::path("pychron") / "earthbank" / "profiles.toml";
+  const fs::path tail = fs::path("nobion") / "earthbank" / "profiles.toml";
 #endif
   const auto set = [](const char* name) -> std::optional<fs::path> {
     auto value = env_var(name);
@@ -641,4 +577,4 @@ Result<Profiles> import_legacy_ini(const fs::path& ini) {
   return out;
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

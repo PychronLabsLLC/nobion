@@ -2,11 +2,11 @@
 
 #include <cmath>
 
-#include "pychron/vision/focus.hpp"
-#include "pychron/vision/kernel.hpp"
-#include "pychron/vision/synth.hpp"
+#include "nobion/vision/focus.hpp"
+#include "nobion/vision/kernel.hpp"
+#include "nobion/vision/synth.hpp"
 
-using namespace pychron::vision;
+using namespace nobion::vision;
 
 namespace {
 HoleScene scene(std::uint16_t depth = 255) {

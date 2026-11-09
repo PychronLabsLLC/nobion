@@ -1,13 +1,13 @@
-#include "pychron/devices/plc2000_heater.hpp"
+#include "nobion/devices/plc2000_heater.hpp"
 
 #include <cmath>
 #include <limits>
 
-#include "pychron/devices/extraction/capability.hpp"
-#include "pychron/devices/modbus_device_sim.hpp"
-#include "pychron/devices/modbus_ids.hpp"
+#include "nobion/devices/extraction/capability.hpp"
+#include "nobion/devices/modbus_device_sim.hpp"
+#include "nobion/devices/modbus_ids.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace mb = codec::modbus;
 
@@ -19,8 +19,10 @@ std::uint16_t wire(std::uint16_t address) { return static_cast<std::uint16_t>(ad
 }  // namespace
 
 Plc2000Heater::Plc2000Heater(std::string name, Transport& transport, Plc2000HeaterOptions options,
-                             const Clock* clock)
-    : Device(std::move(name), DeviceOptions{clock}), transport_(transport), options_(std::move(options)) {}
+                             const Clock* clock, Link* link)
+    : Device(std::move(name), DeviceOptions{clock, DeviceOptions{}.fault_after, link}),
+      transport_(transport),
+      options_(options) {}
 
 DriverSchema Plc2000Heater::schema() {
   return {"",
@@ -39,7 +41,7 @@ DriverSchema Plc2000Heater::schema() {
 Result<std::unique_ptr<Plc2000Heater>> Plc2000Heater::create(const DriverArgs& args) {
   auto options = parse_options(args.options);
   if (!options) return fail(std::move(options).error());
-  return std::make_unique<Plc2000Heater>(args.name, args.transport, std::move(*options), args.clock);
+  return std::make_unique<Plc2000Heater>(args.name, args.transport, *options, args.clock, args.link);
 }
 
 Result<Plc2000HeaterOptions> Plc2000Heater::parse_options(const toml::table& o) {
@@ -76,39 +78,42 @@ Result<Plc2000HeaterOptions> Plc2000Heater::parse_options(const toml::table& o) 
 }
 
 Result<bool> Plc2000Heater::read_coil(const std::optional<std::uint16_t>& address, const char* what) {
+  const Operation op = begin("read_coil");
   if (!address) return fail(extraction::not_supported(std::string(what) + " (no address configured)", name()));
-  auto value = [&]() -> Result<bool> {
+  auto value = relay<bool>("read_coil", [&](Resend resend) -> Result<bool> {
     const auto tid = next_modbus_transaction_id();
     auto cmd = mb::read_coils(tid, options_.unit, wire(*address), 1);
     if (!cmd) return fail(std::move(cmd).error());
-    auto reply = transport_.exchange(cmd->tx, *cmd->reply);
+    auto reply = transport_.exchange(cmd->tx, *cmd->reply, Transport::kDefaultTimeout, resend);
     if (!reply) return fail(std::move(reply).error());
     auto coils = mb::decode_coils(tid, options_.unit, 1, *reply);
     if (!coils) return fail(std::move(coils).error());
     return coils->front();
-  }();
-  return observe(std::move(value));
+  }, Repeat::Safe);
+  return observe(op, std::move(value));
 }
 
 Result<void> Plc2000Heater::write_coil(const std::optional<std::uint16_t>& address, const char* what, bool on) {
+  const Operation op = begin("write_coil");
   if (!address) return fail(extraction::not_supported(std::string(what) + " (no address configured)", name()));
-  auto done = [&]() -> Result<void> {
+  auto done = relay<void>("write_coil", [&](Resend resend) -> Result<void> {
     const auto tid = next_modbus_transaction_id();
     const auto cmd = mb::write_single_coil(tid, options_.unit, wire(*address), on);
-    auto reply = transport_.exchange(cmd.tx, *cmd.reply);
+    auto reply = transport_.exchange(cmd.tx, *cmd.reply, Transport::kDefaultTimeout, resend);
     if (!reply) return fail(std::move(reply).error());
     return mb::decode_write_single_coil(tid, options_.unit, wire(*address), on, *reply);
-  }();
-  return observe(std::move(done));
+  }, Repeat::Safe);
+  return observe(op, std::move(done));
 }
 
 Result<double> Plc2000Heater::read_float(const std::optional<std::uint16_t>& address, const char* what) {
+  const Operation op = begin("read_float");
   if (!address) return fail(extraction::not_supported(std::string(what) + " (no address configured)", name()));
-  auto value = [&]() -> Result<double> {
+  auto value = relay<double>("read_float", [&](Resend resend) -> Result<double> {
     const auto tid = next_modbus_transaction_id();
     auto cmd = mb::read_input_registers(tid, options_.unit, wire(*address), 2);
     if (!cmd) return fail(std::move(cmd).error());
-    auto reply = transport_.exchange(cmd->tx, *cmd->reply);
+    auto reply = transport_.exchange(cmd->tx, *cmd->reply, Transport::kDefaultTimeout, resend);
     if (!reply) return fail(std::move(reply).error());
     auto regs = mb::decode_registers(tid, options_.unit, mb::Function::ReadInputRegisters, 2, *reply);
     if (!regs) return fail(std::move(regs).error());
@@ -117,8 +122,8 @@ Result<double> Plc2000Heater::read_float(const std::optional<std::uint16_t>& add
       return codec::protocol_error("plc2000_heater: " + std::string(what) + " register holds no number", *reply);
     }
     return v;
-  }();
-  return observe(std::move(value));
+  }, Repeat::Safe);
+  return observe(op, std::move(value));
 }
 
 Result<void> Plc2000Heater::set_enabled(bool on) { return write_coil(options_.enable, "enable", on); }
@@ -129,6 +134,7 @@ Result<double> Plc2000Heater::setpoint() { return read_float(options_.setpoint, 
 Result<double> Plc2000Heater::readback() { return read_float(options_.readback, "readback"); }
 
 Result<void> Plc2000Heater::set_setpoint(double value) {
+  const Operation op = begin("set_setpoint");
   if (!options_.setpoint) return fail(extraction::not_supported("setpoint (no address configured)", name()));
   std::array<std::uint16_t, 2> words{};
   if (options_.setpoint_write_format == SetpointWriteFormat::Int32) {
@@ -142,16 +148,16 @@ Result<void> Plc2000Heater::set_setpoint(double value) {
     if (!std::isfinite(value)) return fail(ErrorKind::Config, "setpoint is not a number", name());
     words = mb::encode_float(static_cast<float>(value), options_.word_order);
   }
-  auto done = [&]() -> Result<void> {
+  auto done = relay<void>("set_setpoint", [&](Resend resend) -> Result<void> {
     const auto tid = next_modbus_transaction_id();
     const auto start = wire(*options_.setpoint);
     auto cmd = mb::write_multiple_registers(tid, options_.unit, start, {words[0], words[1]});
     if (!cmd) return fail(std::move(cmd).error());
-    auto reply = transport_.exchange(cmd->tx, *cmd->reply);
+    auto reply = transport_.exchange(cmd->tx, *cmd->reply, Transport::kDefaultTimeout, resend);
     if (!reply) return fail(std::move(reply).error());
     return mb::decode_write_multiple_registers(tid, options_.unit, start, 2, *reply);
-  }();
-  return observe(std::move(done));
+  }, Repeat::Safe);
+  return observe(op, std::move(done));
 }
 
 // --- sim ------------------------------------------------------------------------
@@ -254,6 +260,6 @@ void Plc2000HeaterSim::set_setpoint_error(double error) {
   setpoint_error_ = error;
 }
 
-}  // namespace pychron
+}  // namespace nobion
 
-REGISTER_DRIVER("plc2000_heater", pychron::Plc2000Heater);
+REGISTER_DRIVER("plc2000_heater", nobion::Plc2000Heater);

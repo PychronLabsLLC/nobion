@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export legacy Pychron laser patterns (.lp pickles) to pychron-cpp TOML.
+"""Export legacy Pychron laser patterns (.lp pickles) to nobion TOML.
 
     python3 tools/export_patterns.py <dir of .lp files> <out dir> [--force]
 
@@ -10,7 +10,7 @@ every class a pickle names is replaced by an inert stand-in that only keeps
 the attributes it is given. Each pattern becomes <out dir>/<name>.toml, the
 file `<lab>/patterns` holds (docs/dev_setup.md).
 
-Not exported, and said so: arc and seek patterns (pychron-cpp has no arc move
+Not exported, and said so: arc and seek patterns (nobion has no arc move
 and no seek), the deprecated diamond, z and power series, a spiral's inward
 direction, and a dragonfly's limit, delay and mask.
 Run it once per lab, then check the result with `elctl laser patterns`.
@@ -165,7 +165,7 @@ _DRAGONFLY = {
 }
 _DRAGONFLY_TOTAL = ("manual_total_duration", 0.0, 0.0, 3600.0, False)
 _NOT_EXPORTED = {
-    "ArcPattern": "an arc needs a controller arc move, which pychron-cpp does not have",
+    "ArcPattern": "an arc needs a controller arc move, which nobion does not have",
     "SeekPattern": "seek is driven by vision, not a pattern of points",
     "DiamondPattern": "deprecated in legacy Pychron: make it a polygon with nsides = 4",
 }

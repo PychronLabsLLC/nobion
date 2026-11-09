@@ -18,13 +18,13 @@
 
 #include "earthbank_worker.hpp"
 #include "fake_earthbank.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/http.hpp"
-#include "pychron/earthbank/profiles.hpp"
-#include "pychron/earthbank/secret_store.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/http.hpp"
+#include "nobion/earthbank/profiles.hpp"
+#include "nobion/earthbank/secret_store.hpp"
 #include "session_support.hpp"
 
-namespace pychron::ui::test {
+namespace nobion::ui::test {
 
 // Passes requests on. While held, a request (every one, or with hold_at only
 // those of one method and path) waits here, on the worker's thread, until the
@@ -137,4 +137,4 @@ struct EarthbankWorld {
   }
 };
 
-}  // namespace pychron::ui::test
+}  // namespace nobion::ui::test

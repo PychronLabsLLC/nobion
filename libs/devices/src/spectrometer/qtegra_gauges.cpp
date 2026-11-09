@@ -1,11 +1,11 @@
-#include "pychron/devices/spectrometer/qtegra_gauges.hpp"
+#include "nobion/devices/spectrometer/qtegra_gauges.hpp"
 
 #include <set>
 #include <utility>
 
-#include "pychron/codecs/thermo_qtegra.hpp"
+#include "nobion/codecs/thermo_qtegra.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace q = codec::qtegra;
 
@@ -39,7 +39,7 @@ DriverSchema QtegraGauges::schema() {
           {{"parameters", KeyType::StringArray, true,
             "Qtegra parameter names, e.g. [\"Ion Gauge MS Readback\"]; channel 1 is the first"},
            {"link", KeyType::String, false,
-            "on its own tcp/udp transport: the name its connection is registered under; default: the driver name"},
+            "on its own tcp transport: the name its connection is registered under; default: the driver name"},
            {"terminator", KeyType::String, false,
             "on its own transport: write terminator cr (default), lf or crlf; a shared link uses the owner's"}}};
 }
@@ -60,7 +60,7 @@ Result<std::unique_ptr<QtegraGauges>> QtegraGauges::create(const DriverArgs& arg
   auto terminator = parse_terminator(o["terminator"].value_or(std::string("cr")));
   if (!terminator) return fail(std::move(terminator).error());
   auto link = make_qtegra_link(args.transport, o["link"].value_or(args.name), *terminator,
-                               args.clock != nullptr ? *args.clock : steady_clock());
+                               args.clock != nullptr ? *args.clock : steady_clock(), policy_of(args));
   if (!link) return fail(std::move(link).error());
   return std::make_unique<QtegraGauges>(args.name, std::move(*link), std::move(parameters), args.clock);
 }
@@ -74,23 +74,28 @@ std::vector<int> QtegraGauges::pressure_channels() const {
 Result<double> QtegraGauges::read_pressure() { return read_pressure(1); }
 
 Result<double> QtegraGauges::read_pressure(int channel) {
-  auto value = [&]() -> Result<double> {
-    if (channel < 1 || std::cmp_greater(channel, parameters_.size())) {
-      return fail(ErrorKind::Config, "channel " + std::to_string(channel) + " has no parameter (parameters has " +
-                                         std::to_string(parameters_.size()) + ")");
-    }
-    auto link = link_.get();
-    if (!link) return fail(std::move(link).error());
-    auto command = q::get_parameter(parameters_[static_cast<std::size_t>(channel - 1)], (*link)->terminator());
-    if (!command) return fail(std::move(command).error());
-    auto reply = (*link)->exchange(*command);
-    if (!reply) return fail(std::move(reply).error());
-    auto number = q::decode_number(*reply);
-    if (!number) return fail(std::move(number).error());
-    if (*number < 0) return codec::protocol_error("qtegra: a negative pressure", *reply);
-    return *number;
-  }();
-  return observe(std::move(value));
+  const Operation op = begin("read_pressure");
+  if (channel < 1 || std::cmp_greater(channel, parameters_.size())) {
+    return observe(op, Result<double>(fail(ErrorKind::Config, "channel " + std::to_string(channel) +
+                                                                  " has no parameter (parameters has " +
+                                                                  std::to_string(parameters_.size()) + ")")));
+  }
+  auto link = link_.get();
+  if (!link) return observe(op, Result<double>(fail(std::move(link).error())));
+  QtegraLink& shared = **link;
+  auto command = q::get_parameter(parameters_[static_cast<std::size_t>(channel - 1)], shared.terminator());
+  if (!command) return observe(op, Result<double>(fail(std::move(command).error())));
+  return call<double>("read_pressure",
+      &shared.link(),
+      [&](Resend resend) -> Result<double> {
+        auto reply = shared.exchange(*command, resend);
+        if (!reply) return fail(std::move(reply).error());
+        auto number = q::decode_number(*reply);
+        if (!number) return fail(std::move(number).error());
+        if (*number < 0) return codec::protocol_error("qtegra: a negative pressure", *reply);
+        return *number;
+      },
+      Repeat::Safe);
 }
 
 Result<Sample> QtegraGauges::sample() {
@@ -99,6 +104,6 @@ Result<Sample> QtegraGauges::sample() {
   return Sample{name(), clock_->now(), *p};
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer
 
-REGISTER_DRIVER("qtegra_gauges", pychron::spectrometer::QtegraGauges);
+REGISTER_DRIVER("qtegra_gauges", nobion::spectrometer::QtegraGauges);

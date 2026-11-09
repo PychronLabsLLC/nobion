@@ -1,18 +1,77 @@
-#include "pychron/laser/tray_camera.hpp"
+#include "nobion/laser/tray_camera.hpp"
 
-#include "pychron/vision/camera_backend.hpp"
-#include "pychron/vision/live_feed.hpp"
+#include "nobion/vision/camera_backend.hpp"
+#include "nobion/vision/live_feed.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
-#include "pychron/vision/fixture.hpp"
+#include "nobion/core/keyed_noise.hpp"
+#include "nobion/vision/fixture.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 SimTrayCamera::SimTrayCamera(const CameraConfig& config, TraySightFn sight, const Clock& clock)
     : config_(config), sight_(std::move(sight)), clock_(clock) {}
+
+SimTrayCamera::Nearest SimTrayCamera::nearest_hole(const TraySight& sight, StageXY error) {
+  Nearest out;
+  out.distance_mm = std::numeric_limits<double>::infinity();
+  for (std::size_t i = 0; i < sight.holes.size(); ++i) {
+    const auto& hole = sight.holes[i];
+    const double d = std::hypot(hole.x + error.x - sight.stage.x, hole.y + error.y - sight.stage.y);
+    if (d < out.distance_mm) {
+      out.distance_mm = d;
+      out.hole = &hole;
+      out.index = i;
+    }
+  }
+  return out;
+}
+
+SimTrayCamera::HeldGrain& SimTrayCamera::grain_of(const TraySight& sight, std::size_t index, TimePoint now) {
+  auto held = grains_.find(index);
+  if (held == grains_.end()) {
+    const std::uint64_t seed = keyed_bits(grain_seed_, "grain.hole", static_cast<std::int64_t>(index));
+    vision::GrainModel made(*config_.sim_grain, seed, sight.hole_radius_mm,
+                            vision::Vec2{config_.sim_grain_offset_mm.x, config_.sim_grain_offset_mm.y});
+    held = grains_.emplace(index, HeldGrain{std::move(made), now}).first;
+  }
+  return held->second;
+}
+
+void SimTrayCamera::advance_grain(const TraySight& sight, StageXY real, std::size_t index, TimePoint now) {
+  HeldGrain& grain = grain_of(sight, index, now);
+  const vision::Vec2 aim = config_.map().to_mm({config_.aim_offset_px.x, config_.aim_offset_px.y});
+  const vision::Vec2 beam{sight.stage.x + aim.x - real.x, sight.stage.y + aim.y - real.y};
+  const bool lit = sight.firing && under_beam_ == index;
+  grain.model.advance(now - grain.at, beam, lit ? sight.output_percent : 0.0);
+  grain.at = now;
+  under_beam_ = index;
+}
+
+void SimTrayCamera::reset_grains() {
+  grains_.clear();
+  under_beam_.reset();
+  crept_ = {};
+  lit_since_.reset();
+}
+
+std::optional<GrainView> SimTrayCamera::observe() {
+  if (!config_.sim_grain) return std::nullopt;
+  const TraySight sight = sight_ ? sight_() : TraySight{};
+  const StageXY error = config_.sim_tray_error_mm;
+  const Nearest nearest = nearest_hole(sight, error);
+  if (nearest.hole == nullptr) return std::nullopt;
+  const StageXY real{nearest.hole->x + error.x, nearest.hole->y + error.y};
+  advance_grain(sight, real, nearest.index, clock_.now());
+  const vision::GrainTruth truth = grains_.at(nearest.index).model.truth();
+  const vision::Vec2 aim = config_.map().to_mm({config_.aim_offset_px.x, config_.aim_offset_px.y});
+  return GrainView{{real.x + truth.center_mm.x, real.y + truth.center_mm.y},
+                   {sight.stage.x + aim.x, sight.stage.y + aim.y},
+                   truth};
+}
 
 vision::FrameInfo SimTrayCamera::info() const { return {config_.sim_width, config_.sim_height, 255, 0.0}; }
 
@@ -26,18 +85,16 @@ Result<vision::Frame> SimTrayCamera::grab() {
   scene.px_per_mm = config_.px_per_mm;
   scene.hole_radius_mm = sight.hole_radius_mm;
   scene.noise = config_.sim_noise;
-  scene.seed = static_cast<std::uint32_t>(seq_ + 1);  // differs frame to frame, repeats run to run
+  // Differs frame to frame, repeats run to run. A grain's frames also differ
+  // from one grain seed to another.
+  scene.seed = config_.sim_grain
+                   ? static_cast<std::uint32_t>(keyed_bits(grain_seed_, "grain.frame", static_cast<std::int64_t>(seq_ + 1)))
+                   : static_cast<std::uint32_t>(seq_ + 1);
 
   // The hole nearest the stage, where it really is.
-  const StageXY* nearest = nullptr;
-  double best = std::numeric_limits<double>::infinity();
-  for (const auto& hole : sight.holes) {
-    const double d = std::hypot(hole.x + error.x - sight.stage.x, hole.y + error.y - sight.stage.y);
-    if (d < best) {
-      best = d;
-      nearest = &hole;
-    }
-  }
+  const Nearest closest = nearest_hole(sight, error);
+  const StageXY* nearest = closest.hole;
+  const double best = closest.distance_mm;
   // In view: its center within the frame's half diagonal.
   const double reach_mm = 0.5 * std::hypot(scene.width, scene.height) / scene.px_per_mm;
   const bool in_view = nearest != nullptr && best <= reach_mm;
@@ -57,9 +114,45 @@ Result<vision::Frame> SimTrayCamera::grab() {
   }
   lit_since_ = sight.firing ? std::optional<TimePoint>(now) : std::nullopt;
 
+  // The grain heats under the beam whether or not it is seen, and cools
+  // unseen when the beam is off.
+  if (config_.sim_grain && nearest != nullptr) {
+    advance_grain(sight, {nearest->x + error.x, nearest->y + error.y}, closest.index, now);
+  }
+
   vision::Frame frame;
   vision::Truth truth;
-  if (sight.firing) {
+  if (sight.firing && config_.sim_grain) {
+    vision::GlowScene glow;
+    glow.width = scene.width;
+    glow.height = scene.height;
+    glow.px_per_mm = scene.px_per_mm;
+    glow.noise = scene.noise;
+    glow.seed = scene.seed;
+    if (nearest != nullptr) {
+      const vision::GrainModel& grain = grains_.at(closest.index).model;
+      // The lobes lie from the hole's center; the hole is where it really is.
+      for (const auto& lobe : grain.lobes()) {
+        vision::GlowLobe at = lobe;
+        at.at_mm = {scene.hole_mm.x + lobe.at_mm.x, scene.hole_mm.y + lobe.at_mm.y};
+        if (!in_view) at.peak = 0;  // no hole in view: dark
+        glow.lobes.push_back(at);
+      }
+      if (auto body = grain.body()) {
+        // As the lobes: from the hole's center, and dark with no hole in view.
+        for (vision::Vec2& p : body->outline_mm) p = {scene.hole_mm.x + p.x, scene.hole_mm.y + p.y};
+        if (!in_view) body->peak = 0;
+        glow.body = std::move(*body);
+      }
+    }
+    if (glow.lobes.empty()) glow.lobes.push_back({scene.hole_mm, config_.sim_grain->lobe_sigma_mm, 0.0});
+    const bool lit = std::any_of(glow.lobes.begin(), glow.lobes.end(), [](const auto& l) { return l.peak > 0; }) ||
+                     (glow.body && glow.body->peak > 0);
+    auto drawn = vision::render(glow, {sight.stage.x, sight.stage.y});
+    frame = std::move(drawn.first);
+    truth = drawn.second;
+    truth.visible = truth.visible && in_view && lit;
+  } else if (sight.firing) {
     // Under the beam the picture is the glow, not the holes.
     vision::GlowScene glow;
     glow.width = scene.width;
@@ -90,11 +183,36 @@ Result<vision::Frame> SimTrayCamera::grab() {
   // second, on a tray of many holes.
   vision::HoleScene other = scene;
   for (const auto& hole : sight.holes) {
-    if (&hole == nearest || !in_view || sight.firing) continue;
+    if (&hole == nearest || !in_view || sight.firing || config_.sim_machined) continue;
     const StageXY real{hole.x + error.x, hole.y + error.y};
     if (std::hypot(real.x - sight.stage.x, real.y - sight.stage.y) > reach_mm + sight.hole_radius_mm) continue;
     other.hole_mm = {real.x, real.y};
     vision::darken_hole(frame, other, {sight.stage.x, sight.stage.y});
+  }
+
+  if (config_.sim_machined && !sight.firing) {
+    if (!steel_) steel_ = vision::make_machined_surface(scene.px_per_mm, 1);
+    std::vector<vision::Vec2> seen;
+    for (const auto& hole : sight.holes) {
+      const StageXY real{hole.x + error.x, hole.y + error.y};
+      if (std::hypot(real.x - sight.stage.x, real.y - sight.stage.y) > reach_mm + sight.hole_radius_mm) continue;
+      seen.push_back({real.x, real.y});
+    }
+    vision::render_machined(frame, scene, *steel_, seen, {sight.stage.x, sight.stage.y});
+  }
+
+  // With the beam off the grains lie in their holes, seen by the lamp.
+  if (config_.sim_grain && in_view && !sight.firing) {
+    for (std::size_t i = 0; i < sight.holes.size(); ++i) {
+      const StageXY real{sight.holes[i].x + error.x, sight.holes[i].y + error.y};
+      if (std::hypot(real.x - sight.stage.x, real.y - sight.stage.y) > reach_mm + sight.hole_radius_mm) continue;
+      auto body = grain_of(sight, i, now).model.body();
+      if (!body) continue;
+      for (vision::Vec2& p : body->outline_mm) p = {real.x + p.x, real.y + p.y};
+      // Pale on steel, where a hole's floor is nearly the tray's grey.
+      vision::draw_grain(frame, scene, body->outline_mm, {sight.stage.x, sight.stage.y},
+                         config_.sim_machined ? 0.8 : 0.5);
+    }
   }
 
   // The vision library renders the usual camera: image +x is stage +x, image
@@ -164,4 +282,4 @@ Result<std::unique_ptr<vision::IFrameSource>> make_frame_source(const CameraConf
   return std::unique_ptr<vision::IFrameSource>(std::make_unique<SimTrayCamera>(config, std::move(sight), clock));
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

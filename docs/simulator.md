@@ -1,6 +1,6 @@
 # The simulated lab
 
-What pychron simulates when it runs with no hardware, how to give the
+What nobion simulates when it runs with no hardware, how to give the
 simulated line your own numbers (`sim.toml`), and what the example lab reads
 when it runs air shots and blanks. The code is `libs/sim`; the design is
 `superpowers/specs/2026-10-06-lab-simulator-design.md`.
@@ -28,11 +28,14 @@ if the files are simulated already.
 
 Modelled:
 
-- **Gas by species.** Six of them: Ar36, Ar37, Ar38, Ar39, Ar40 and `active`,
+- **Gas by species.** Eight of them: Ar36, Ar37, Ar38, Ar39, Ar40, `active`,
   which stands for everything a getter removes (N2, O2, H2O, CO2) as one gas
-  of mass 28. Air is 298.56 Ar40 and 0.1885 Ar38 to one Ar36, and active gas
-  106 times the argon (argon is 0.93 % of air). A volume's pressure is the
-  sum over the six, and that is what its gauge reads.
+  of mass 28, and He4 and Ne20, for a staged release of noble gases. Air is
+  298.56 Ar40 and 0.1885 Ar38 to one Ar36, and active gas 106 times the argon
+  (argon is 0.93 % of air); it has no helium or neon here (a few ppm), so only
+  a volume or composition that is given them has any. A getter takes neither.
+  A volume's pressure is the sum over the eight, and that is what its gauge
+  reads.
 - **Volumes and valves.** Each volume holds a partial pressure of each
   species. An open valve carries each species from the higher partial
   pressure to the lower at the valve's conductance, so two volumes come to
@@ -136,7 +139,7 @@ prints
 note: the simulated spectrometer is not joined to the line: the canvas has no spectrometer stage
 ```
 
-and `pychron-ui` writes the same sentence to the terminal it was started
+and `nobion` writes the same sentence to the terminal it was started
 from.
 
 A gauge that `extraction_line.toml` has and the canvas does not is a 1 cc
@@ -175,9 +178,8 @@ sim: valve 'V1~V2': a valve's name may not contain '~' on a simulated line (the 
 
 The valves that carry no gas are listed once, in one log line at `info`, when
 the line is built, which is before any window is open. It goes where the
-line's log goes: to `pychron.log` if `extraction_line.toml` has
-`[logging] dir` (the Log dock of `pychron-ui` shows that file's history when
-it opens), and to the terminal if it has `echo_stderr = true`. An
+line's log goes: to `nobion.log` (kept by default; the Log dock of `nobion` shows that
+file's history when it opens), and to the terminal if it has `echo_stderr = true`. An
 `elctl exp run` user sees it in the same two places; `elctl` prints nothing
 of it otherwise. The example line has no valve without gas, so it logs no
 such line. The full-size example line (`configs/examples/nmgrl`) logs:
@@ -213,7 +215,7 @@ or detector by name. It cannot change what a stage is: that is the canvas's
   is the file the previous point finds. An install whose line was imported
   gets none from the setup.
 - It is read only when the line is loaded with its canvas, since its names
-  are the canvas's. `pychron-ui` and `elctl exp run` load the canvas. A tool
+  are the canvas's. `nobion` and `elctl exp run` load the canvas. A tool
   that loads the line alone does not read it, and a simulated line says so
   in its log, at `info`:
   `sim: <file> not read: the line was loaded without its canvas`.
@@ -255,7 +257,7 @@ volume. Keys are the species; one not given is 0.
 
 | Key | Unit | Range |
 |---|---|---|
-| `Ar36`, `Ar37`, `Ar38`, `Ar39`, `Ar40`, `active` | ratio to Ar36 | 0 to 1e9 |
+| `Ar36`, `Ar37`, `Ar38`, `Ar39`, `Ar40`, `active`, `He4`, `Ne20` | ratio to Ar36 | 0 to 1e9 |
 
 Two are built in and need no table:
 
@@ -316,7 +318,24 @@ in the spectrometer's file.
 | `baseline` | fA (cps on a counting detector) | 0 | -1e30 to 1e30 | what it reads with no beam on it |
 | `baseline_drift_per_h` | the same, per hour | 0 | -1e30 to 1e30 | how that changes, from when the program started |
 
-Nothing else may be in the file: the seven sections above, and under each
+`[[cryo_trap]]`: a cryotrap, for a staged release (measurement plan v2,
+section 11): gas frozen in a volume and let out one species at a time by
+warming it. Each species given a release temperature is held in the volume,
+carried by none of its valves either way, while the cryostat reads below that
+temperature, and flows as any gas above it. The line is moved a whole second
+of the clock at a time, each second held as the cryostat's temperature is at
+its start (a command to the cryostat first moves the line to its instant), so
+what passes does not depend on how often anything reads the line. None by
+default; there may be several.
+
+| Key | Unit | Default | Range | Meaning |
+|---|---|---|---|---|
+| `volume` | name | (required) | a volume of the canvas | where the gas is frozen |
+| `cryostat` | name | (required) | a `lakeshore` driver of `extraction_line.toml` | the controller whose input is the trap's temperature. Any other name stops the line from loading |
+| `input` | letter | `"A"` | `"A"` to `"D"` | the controller's input that reads the trap |
+| `release_k` | K, by species | (required) | above 0, to 1e4 | `{ He4 = 30, Ne20 = 70 }`: each species given is held below its temperature; one not given is never held |
+
+Nothing else may be in the file: the eight sections above, and under each
 the keys listed. A section may be given once.
 
 ### Errors you will meet
@@ -328,7 +347,7 @@ there are more than twelve). From the example lab:
 
 ```
 error: sim.toml:3:defaults.noise: value -1 out of range, must be from 0 to 10 as a fraction of the reading
-sim.toml:5:volumes.perp: unknown volume 'perp'; known: IG1, PG1, air, air_tank, bone, prep, rough, spec, turbo
+sim.toml:5:volumes.perp: unknown volume 'perp'; known: IG1, PG1, air, air_tank, prep, rough, spec, stage1, turbo
 sim.toml:9:valves.B.conductence: unknown key; known: conductance
 sim.toml:12:spectrometer.sensitivity: value 0 out of range, must be above 0 to 1e+30 fA per mbar
 ```
@@ -351,7 +370,7 @@ error: sim.toml: detectors.H3: unknown detector 'H3'; known: H2, H1, AX, L1, L2,
 ```
 
 `elctl exp validate` checks the queue, not the simulator: these errors come
-when the line is loaded, from `elctl exp run` or `pychron-ui`.
+when the line is loaded, from `elctl exp run` or `nobion`.
 
 ## The spectrometer side
 
@@ -397,48 +416,64 @@ simulated.
 
 ## The example lab
 
-`configs/examples` is a small lab that runs air shots and blanks:
+`configs/examples` is a small lab that runs air shots and blanks. Its main
+row, pipettes and turbo are:
 
 ```
-bone --A-- prep --B-- spec
-            |  \
-           P1   C -- turbo (IG1, PG1) -- M1 -- rough
-            |
-           air        (the pipette, 0.1 cc)
-            |
-           P2
-            |
-         air_tank
+stage1 --A-- prep --B-- spec
+            /  |  \
+          Q1   P1  C -- turbo (IG1, PG1) -- R1 -- M1 -- rough
+          |    |
+   cocktail    air      (the pipettes, 0.1 cc each)
+          |    |
+          Q2   P2
+          |    |
+ cocktail_tank air_tank
 ```
 
-`prep`, `spec` and `air_tank` are 50 cc, `bone` 12.5 cc. `B` is the inlet to
-the spectrometer and `C` the valve to the turbo. `P1` and `P2` are
-interlocked: never both open.
+Every valve starts closed, and the shipped queues' scripts move only `B`,
+`C`, `P1` and `P2`. Off the sketch, and closed off at start, are the
+CO2 laser chamber (`laser`, behind `L` on `stage1`), the two getters
+(`getter1` behind `G1` on `stage1`, `getter2` behind `G2` on `prep`), the
+cryo trap (`cryo`, behind `Y` on `prep`), the second turbo (`turbo2`, behind
+`D` on `stage1`, roughed through `R2` and `M2`) and the ion pump (`ion`,
+behind `I` on `spec`). A getter takes active gas from whatever it is open to, so the
+getters stay shut to leave the shipped numbers as they are. The cocktail
+pipette is used only by `scripts/extraction/sim_cocktail.py`, which no
+shipped queue names.
 
-Its `sim.toml` sets five numbers, so that the signals are of a lab's size:
+`prep`, `spec`, `air_tank` and `cocktail_tank` are 50 cc, `stage1` 12.5 cc;
+every other stage is the default 50 cc. `B` is the inlet to the spectrometer
+and `C` the valve to the turbo. `P1` and `P2` are interlocked, never both
+open, and so are `Q1` and `Q2`. `air_tank` holds air, `cocktail_tank` the
+built-in `cocktail` (Ar36 to Ar40 with Ar39 twenty times Ar36): one shot of
+it is about 3.0e4 fA of Ar40 and 2.0e3 fA of Ar39.
+
+Its `sim.toml` sets six numbers, so that the signals are of a lab's size:
 
 | Key | Value | Default | What it does |
 |---|---|---|---|
 | `[defaults] pressure` | 1e-10 | 1e-8 | the lab starts pumped down |
 | `[defaults] outgassing` | 1.5e-13 | 5e-13 | a static volume rises 0.15 fA/s of Ar40: a blank of about 10 fA |
 | `[volumes.air_tank] argon40` | 9.5e-5 | 3e-5 | one pipette of it, spread over prep and the source, is 9.5e-8 mbar: 9.5e4 fA of Ar40 |
+| `[volumes.cocktail_tank] composition` | `"cocktail"` | `"air"` | the second tank holds the cocktail at a tank's default 3e-5 mbar of Ar40 |
 | `[valves.B] conductance` | 0.02 | 0.1 | the inlet equilibrates with a time constant of 1.25 s, slow enough to see |
 | `[pumps.turbo] base` | 1e-10 | 1e-9 | a pumped source reads about 1 fA of Ar40, inside a Faraday's noise |
 
 ### Running the air queue
 
-`experiment.sim-air.toml` is five analyses: blank, air, air, air, blank.
+`queues/experiment.sim-air.toml` is five analyses: blank, air, air, air, blank.
 
 Every command here is run from `configs/examples`, and calls the programs by
-their names, `elctl` and `pychron-ui`: have them on your `PATH`, or write
+their names, `elctl` and `nobion`: have them on your `PATH`, or write
 the path out. In a build tree, from that folder, `elctl` is
-`../../build/dev/apps/elctl/elctl` and `pychron-ui` is
-`../../build/dev-ui/apps/pychron-ui/pychron-ui`
-(`../../build/dev-ui/apps/pychron-ui/Pychron.app/Contents/MacOS/Pychron` on
+`../../build/dev/apps/elctl/elctl` and `nobion` is
+`../../build/dev-ui/apps/nobion/nobion`
+(`../../build/dev-ui/apps/nobion/Nobion.app/Contents/MacOS/Nobion` on
 macOS).
 
 ```bash
-elctl -c extraction_line.toml --sim exp validate experiment.sim-air.toml \
+elctl -c extraction_line.toml --sim exp validate queues/experiment.sim-air.toml \
     --spectrometer spectrometer.sim-integrated.toml
 ```
 
@@ -449,7 +484,7 @@ queue sim-air: 5 run(s), ETA 0:39:30
     2  a           air            sim_multicollect    0:07:45
     3  a           air            sim_multicollect    0:07:45
     4  ba          blank_air      sim_multicollect    0:07:45
-ok: experiment.sim-air.toml
+ok: queues/experiment.sim-air.toml
 ```
 
 The ETA adds up what the queue file and the plan state: the queue's delays,
@@ -459,9 +494,9 @@ where the scripts wait (the pipette, the pump-out) and for the peak center
 after each measurement, which the estimate leaves out.
 
 ```bash
-elctl -c extraction_line.toml --sim exp run experiment.sim-air.toml \
+elctl -c extraction_line.toml --sim exp run queues/experiment.sim-air.toml \
     --spectrometer spectrometer.sim-integrated.toml --sim-speed max \
-    --data ~/pychron-sim-data
+    --data ~/nobion-sim-data
 ```
 
 `--data` keeps the records out of the examples folder. The example lab has
@@ -472,7 +507,7 @@ analysis as it goes and ends with
 
 ```
 queue completed
-5/5 run(s) succeeded; records in /Users/you/pychron-sim-data/records
+5/5 run(s) succeeded; records in /Users/you/nobion-sim-data/records
 ```
 
 A run also writes `extraction_line.state.toml` beside `extraction_line.toml`:
@@ -484,8 +519,8 @@ To experiment, copy the folder and work in the copy, which leaves the
 examples as they came:
 
 ```bash
-cp -R . ~/pychron-sim-lab
-cd ~/pychron-sim-lab
+cp -R . ~/nobion-sim-lab
+cd ~/nobion-sim-lab
 rm -f extraction_line.state.toml
 ```
 
@@ -501,13 +536,13 @@ The `elctl` commands are the same there. Without `--data` the records go to
 | `--sim-speed max` | about 5 seconds: the clock does not wait at all |
 
 The speed does not change what is measured. `max` is `elctl`'s only;
-`pychron-ui` takes a number.
+`nobion` takes a number.
 
 In the window, from `configs/examples` again:
 
 ```bash
-pychron-ui --examples --sim --sim-speed 50 --data ~/pychron-sim-data \
-    --queue experiment.sim-air.toml
+nobion --examples --sim --sim-speed 50 --data ~/nobion-sim-data \
+    --queue queues/experiment.sim-air.toml
 ```
 
 `--examples` is the example lab wherever the program finds it, which in a
@@ -515,9 +550,9 @@ build tree is `configs/examples`; `--queue` is a path from the folder you
 are in. In a copy of the lab, name its files instead:
 
 ```bash
-pychron-ui extraction_line.toml canvas.toml --sim --sim-speed 50 \
+nobion extraction_line.toml canvas.toml --sim --sim-speed 50 \
     --spectrometer spectrometer.sim-integrated.toml \
-    --queue experiment.sim-air.toml
+    --queue queues/experiment.sim-air.toml
 ```
 
 Open the experiment window (View > Experiment), start the queue there, and
@@ -563,7 +598,7 @@ example lab, each less its baseline (they are under `results` in each
 To print them:
 
 ```bash
-python3 - ~/pychron-sim-data/records/*/*-[0-9].json <<'EOF'
+python3 - ~/nobion-sim-data/records/*/*-[0-9].json <<'EOF'
 import json, sys
 for name in sys.argv[1:]:
     r = json.load(open(name))["results"]
@@ -610,7 +645,7 @@ Things to try, each by editing a copy of the example:
 
 ### The stock queues
 
-`experiment.toml` and `experiment.laser.toml` are the example's ordinary
+`queues/experiment.toml` and `queues/experiment.laser.toml` are the example's ordinary
 queues: a blank and two unknowns, written as record files like every run of
 the example lab. The simulator has no sample gas, so their
 extraction scripts (`sim_extract.py`, `laser_extract.py`) let in one pipette
@@ -619,10 +654,10 @@ reads about 9.5e4 fA of Ar40 with the 40/36 of air, and the blank about
 7 fA. It is not a sample.
 
 An instrument install made with the example line has a queue of its own,
-`experiment.toml` in the install: five runs, `ba`, `a`, `a`, `a`, `ba` (a
+`queues/experiment.toml` in the install: five runs, `ba`, `a`, `a`, `a`, `ba` (a
 blank, three air shots, a blank), about 19 minutes of simulated time. It runs
 the same scripts and the same air and blank physics as
-`experiment.sim-air.toml` above, with the install's own `multicollect` plan in
+`queues/experiment.sim-air.toml` above, with the install's own `multicollect` plan in
 place of the example's. It names only samples and a mass spectrometer that
 the install's `seed.toml` put in its database.
 
@@ -636,11 +671,11 @@ in [the elctl reference](user/08-elctl-reference.md) (`exp run`).
 
 ### The model without a queue
 
-The gas model belongs to the line as `pychron-ui` and `elctl exp run` load
+The gas model belongs to the line as `nobion` and `elctl exp run` load
 it. `elctl`'s own hardware commands (`open`, `close`, `read`, `state`,
 `scan`, and the `sim` session) simulate the controllers only: valves answer
 and gauges read a fixed number whatever the valves do. To watch the gas
-move by hand, use the canvas in `pychron-ui --examples --sim`.
+move by hand, use the canvas in `nobion --examples --sim`.
 
 ## Reproducibility
 
@@ -675,6 +710,105 @@ What does change the numbers:
   library's `log`, `sqrt` and `cos`, which may differ in the last digit
   between platforms. A count on the ion counter can then differ by one, very
   rarely.
+
+## Links that drop
+
+A test can take a simulated link away. `SimTransport::set_down(true)` makes
+every call on it fail as a vanished peer does (`Io`, which closes the
+channel), and `open()` fail the same way, until `set_down(false)`. The
+link coming back does not reopen the channel: the caller calls `open()`
+again, and input that was waiting when the link went is gone. `down_for(d)`
+is an outage that ends by itself after `d` of the transport's clock: on a
+`VirtualClock` a ten-minute outage costs no real time to the threads that
+wait through it in that clock. While the
+link is down nothing reaches the script or the hook, so a scripted step
+waits for the link to come back. Nothing in the program sets a link down: it
+is for tests of what happens when one goes.
+
+## The simulated lab on the wire
+
+`--sim` replaces every transport with an in-process one, so what an install
+says about its hardware (hosts, ports, which driver on which wire, addresses
+and channels) is never used until the instrument is connected. `elctl sim
+serve` puts the simulated lab behind real sockets instead: one listener per
+transport of the line's config, each answering as the device its driver
+expects. The program is then started on the unchanged hardware config with
+`--sim-endpoints`, and its real TCP and UDP transports, framing and recovery
+talk to the simulated lab as they will to the instrument.
+
+```bash
+elctl -c lab/extraction_line.toml sim serve
+```
+
+It prints where each transport is served and writes `sim-endpoints.toml`
+beside the line's file. In a second terminal:
+
+```bash
+elctl -c lab/extraction_line.toml --sim-endpoints lab/sim-endpoints.toml exp run queue.toml
+```
+
+or `nobion --sim-endpoints lab/sim-endpoints.toml` with the install.
+Interrupting `sim serve` stops it and removes the file. Each start is the
+lab of `sim.toml` with every valve closed: a client reads valves back from
+it, as from the instrument.
+
+| Transport kind | Served as |
+|---|---|
+| `tcp`, `modbus_tcp` | TCP |
+| `udp` | UDP |
+| `serial` | TCP; baud, parity and port name are not exercised |
+| `sim` | not served: in-process in the client, not joined to the served gas |
+| `link` | not served: follows the transport it names |
+| `modbus_rtu` | not served (not supported) |
+
+Driver kinds answered by an emulator: `proxr_relay`, `agilent_switch`,
+`qtegra_valves`, `qtegra_gauges`, `pychron_valves`, `ngx_valves`,
+`pfeiffer_maxigauge`, `varian_xgs600`, `gp_microion`, `plc2000_valves`,
+`plc2000_gauges`, `plc2000_heater`, `lakeshore`, `chromium`, and on the
+spectrometer `thermo_qtegra` and `isotopx_ngx`. A transport whose driver has
+none is a silent wire (the driver sees timeouts), and `sim serve` says so.
+
+The spectrometer is served too: the install's spectrometer file, or the one
+`--spectrometer <file>` names (`--no-spectrometer` serves the line alone).
+Its Qtegra or NGX PC answers from a simulated beam built from the file's field
+table and detectors and fed by the served line's gas, as a simulated
+spectrometer is in-process: put air in the source and an air shot reads an
+air shot. One PC reached by several transports (the line's valves on the
+Qtegra PC at the spectrometer's address, or a line transport of `kind =
+"link"` borrowing the NGX driver's link) is one emulator, so those valves move
+the served line; transports of different makers at one address are refused.
+The table shows each spectrometer transport with `(spectrometer)` after its
+name, and `shares <name>` where it shares another's port.
+
+Options: `--config` and `--canvas` (default: the install's, or the files the
+global options name, and a `canvas.toml` beside the line), `--bind <addr>`
+(default `127.0.0.1`), `--advertise <host>` (the host written to the file,
+for a client on another machine), `--port-base <n>` (ports `n`, `n+1`, ... in
+order of transport name; default: the system chooses), `--endpoints <file>`.
+
+Rules:
+
+- With `--sim-endpoints`, a transport that is not `kind = "sim"` or `link`
+  and has no entry in the file fails the load: nothing reaches a configured
+  address during a rehearsal.
+- The file names the line it serves; a client loading another file refuses
+  it. `--sim-endpoints-any` skips that check, for a copy of the line at
+  another path (a container).
+- `--sim-endpoints` with `--sim`, or with `--sim-speed`, is refused: the
+  served lab runs in real time.
+- The emulators accept any login and have no authentication. Binding beyond
+  loopback opens ports that move nothing real but answer anyone who can reach
+  them; `sim serve` warns when it does.
+
+`packaging/sim` runs all this in a Linux container, for a machine with no
+build of `elctl`, or the lab on another host; its README says how. The client
+then needs `--sim-endpoints-any`, since the server knows the files by their
+paths in the container.
+
+Not exercised: serial settings, timing, and each vendor's quirks beyond what
+its emulator models. Not served yet: answers recorded from the real
+instrument (`--replay`), and spectrometer drivers other than `thermo_qtegra`
+and `isotopx_ngx` (legacy ones are silent wires).
 
 ## Limits and approximations
 

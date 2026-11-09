@@ -31,12 +31,14 @@
 #include <string_view>
 #include <vector>
 
-#include "pychron/core/error.hpp"
-#include "pychron/processing/model.hpp"
-#include "pychron/processing/reduced.hpp"
-#include "pychron/processing/store_source.hpp"
-#include "pychron/processing/units.hpp"
-#include "pychron/reduction/stats.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/model.hpp"
+#include "nobion/processing/reduced.hpp"
+#include "nobion/processing/store_source.hpp"
+#include "nobion/processing/units.hpp"
+#include "nobion/reduction/stats.hpp"
 
 namespace elctl {
 
@@ -54,33 +56,42 @@ struct AgeFlags {
   int plateau_steps = 3;
   double plateau_gas = 50.0;
 
-  pychron::processing::ReductionSettings reduction() const;
-  pychron::reduction::PlateauCriteria criteria() const;
+  nobion::arar::ArArSettings reduction() const;
+  nobion::reduction::PlateauCriteria criteria() const;
 };
 
 // `args[i]` as one of the flags above. True: it was one, and is taken with
 // its value (`i` is left on the last word taken). False: it is not one, and
 // nothing was touched. Config: it is one and its value is missing or wrong.
-pychron::Result<bool> take_selection_flag(Selection& selection, const std::vector<std::string>& args, std::size_t& i);
-pychron::Result<bool> take_age_flag(AgeFlags& ages, const std::vector<std::string>& args, std::size_t& i);
+nobion::Result<bool> take_selection_flag(Selection& selection, const std::vector<std::string>& args, std::size_t& i);
+nobion::Result<bool> take_age_flag(AgeFlags& ages, const std::vector<std::string>& args, std::size_t& i);
 
 // What only the whole selection can say: --to before --from.
-pychron::Result<void> check_selection(const Selection& selection);
+nobion::Result<void> check_selection(const Selection& selection);
 
 std::optional<int> parse_int(std::string_view text);
 
-// The store at `db_url`, for reading. A command that reads does not make a
-// store: a SQLite file that is not there, or is empty, is an error.
-pychron::Result<std::unique_ptr<pychron::processing::StoreSource>> open_source(const std::string& db_url);
+// How a store source opens under `domain`: the domain's reduction version
+// and its extension loader (Ar-Ar's; noble_gas has none).
+nobion::processing::StoreSourceOptions store_options(const nobion::processing::Domain& domain);
+// store_options() of the Ar-Ar domain: `elctl publish` and `earthbank` are
+// Ar-Ar's whatever the install.
+nobion::processing::StoreSourceOptions arar_store_options();
+
+// The store at `db_url`, for reading, opened with `options` on one
+// connection. A command that reads does not make a store: a SQLite file that
+// is not there, or is empty, is an error.
+nobion::Result<std::unique_ptr<nobion::processing::StoreSource>> open_source(
+    const std::string& db_url, nobion::processing::StoreSourceOptions options);
 
 // Adds the node `select` that loads the selection, oldest analysis first.
-pychron::Result<void> add_select(pychron::processing::Pipeline& pipeline, const pychron::processing::UnitRegistry& registry,
+nobion::Result<void> add_select(nobion::processing::Pipeline& pipeline, const nobion::processing::UnitRegistry& registry,
                                  const Selection& selection);
 
 // The selected analyses, not reduced, oldest first. `warnings` gets what the
 // load has to say (analyses that could not be read).
-pychron::Result<std::vector<pychron::processing::AnalysisPtr>> load_selection(const Selection& selection,
-                                                                              const std::string& db_url,
-                                                                              std::vector<std::string>& warnings);
+nobion::Result<std::vector<nobion::processing::AnalysisPtr>> load_selection(
+    const Selection& selection, const std::string& db_url, nobion::processing::StoreSourceOptions options,
+    std::vector<std::string>& warnings);
 
 }  // namespace elctl

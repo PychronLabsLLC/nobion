@@ -1,4 +1,4 @@
-#include "pychron/sim/spectrometer/sim_drivers.hpp"
+#include "nobion/sim/spectrometer/sim_drivers.hpp"
 
 #include <chrono>
 #include <cmath>
@@ -9,15 +9,15 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/transport/sim_transport.hpp"
 #include "virtual_time.hpp"
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::sim;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::sim;
+using namespace nobion::spectrometer;
 using namespace std::chrono_literals;
 
 struct Bench {
@@ -319,7 +319,7 @@ TEST(FramePacer, ATimeoutWaitsForTheClockNotForRealTime) {
   EXPECT_FALSE(waited.get().has_value());
 }
 
-struct FramePacerVirtual : pychron::testing::VirtualTimeTest {};
+struct FramePacerVirtual : nobion::testing::VirtualTimeTest {};
 
 // Ten minutes of one-second frames, each stamped on its second.
 TEST_F(FramePacerVirtual, FramesArriveOnThePeriodWithNoRealDelay) {
@@ -370,7 +370,7 @@ TEST_F(FramePacerVirtual, StopWakesAWaiter) {
   pacer.start(1h);
   std::optional<TimePoint> frame;
   TimePoint returned{};
-  pychron::testing::Crew crew(clock);
+  nobion::testing::Crew crew(clock);
   crew.start("waiter", [&] {
     std::uint64_t seq = 0;
     frame = pacer.wait(10s, seq);
@@ -394,7 +394,7 @@ TEST_F(FramePacerVirtual, AStartWakesAWaiter) {
   sim::detail::FramePacer pacer(clock);
   pacer.start(1h);
   std::optional<TimePoint> frame;
-  pychron::testing::Crew crew(clock);
+  nobion::testing::Crew crew(clock);
   crew.start("waiter", [&] {
     std::uint64_t seq = 0;
     frame = pacer.wait(10s, seq);

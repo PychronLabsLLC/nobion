@@ -1,14 +1,18 @@
-#include "pychron/systems/jobs/peak_center.hpp"
+#include "nobion/systems/jobs/peak_center.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <set>
+#include <sstream>
 #include <thread>
 
 #include <toml++/toml.hpp>
 
-namespace pychron::jobs {
+#include "nobion/core/logger.hpp"
+
+namespace nobion::jobs {
 
 namespace {
 
@@ -147,7 +151,13 @@ Result<PeakShape> find_peak_center(std::vector<std::pair<double, double>> points
 
 namespace {
 
-Result<void> validate(const PeakCenterConfig& c) {
+Duration seconds(double s) {
+  return std::chrono::duration_cast<Duration>(std::chrono::duration<double>(s));
+}
+
+}  // namespace
+
+Result<void> validate_peak_center_config(const PeakCenterConfig& c) {
   auto bad = [&](const std::string& m) { return fail(ErrorKind::Config, "peak center '" + c.name + "': " + m); };
   if (!(c.window > 0)) return bad("window must be positive");
   if (!(c.step > 0) || c.step >= c.window) return bad("step must be positive and smaller than window");
@@ -158,11 +168,33 @@ Result<void> validate(const PeakCenterConfig& c) {
   return {};
 }
 
-Duration seconds(double s) {
-  return std::chrono::duration_cast<Duration>(std::chrono::duration<double>(s));
+std::string format_peak_center_config(const PeakCenterConfig& c) {
+  const auto secs = [](Duration d) { return std::chrono::duration<double>(d).count(); };
+  toml::table t;
+  t.insert_or_assign("detector", c.detector);
+  t.insert_or_assign("isotope", c.isotope);
+  toml::array extra;
+  for (const auto& d : c.additional_detectors) extra.push_back(d);
+  t.insert_or_assign("additional_detectors", std::move(extra));
+  if (c.center) t.insert_or_assign("center", *c.center);
+  t.insert_or_assign("window", c.window);
+  t.insert_or_assign("step", c.step);
+  t.insert_or_assign("percent", c.percent);
+  t.insert_or_assign("min_peak_height", c.min_peak_height);
+  t.insert_or_assign("test_peak_flat", c.test_peak_flat);
+  t.insert_or_assign("n_tries", static_cast<std::int64_t>(c.n_tries));
+  t.insert_or_assign("direction", c.increase ? "increase" : "decrease");
+  t.insert_or_assign("integration_s", secs(c.integration));
+  t.insert_or_assign("settle_s", secs(c.settle));
+  t.insert_or_assign("baseline_timeout_s", secs(c.baseline_timeout));
+  t.insert_or_assign("dac_offset", c.dac_offset);
+  t.insert_or_assign("peak_shift_threshold", c.peak_shift_threshold);
+  t.insert_or_assign("update_table", c.update_table);
+  t.insert_or_assign("propagate", c.propagate);
+  std::ostringstream out;
+  out << toml::toml_formatter{t};
+  return out.str();
 }
-
-}  // namespace
 
 Result<std::map<std::string, PeakCenterConfig>> parse_peak_center_configs(std::string_view text,
                                                                          std::string_view file) {
@@ -245,7 +277,7 @@ Result<std::map<std::string, PeakCenterConfig>> parse_peak_center_configs(std::s
     bool_key("update_table", c.update_table);
     bool_key("propagate", c.propagate);
     if (!error.empty()) return fail(ErrorKind::Config, where + ": " + error);
-    if (auto v = validate(c); !v) return fail(ErrorKind::Config, where + ": " + v.error().what);
+    if (auto v = validate_peak_center_config(c); !v) return fail(ErrorKind::Config, where + ": " + v.error().what);
     out.emplace(name, std::move(c));
   }
   return out;
@@ -262,7 +294,8 @@ class Runner {
       : spec_(spec), cfg_(cfg), progress_(progress), cancel_(cancel), options_(options) {}
 
   Result<PeakCenterResult> run() {
-    if (auto v = validate(cfg_); !v) return fail(v.error());
+    if (auto v = validate_peak_center_config(cfg_); !v) return fail(v.error());
+    const auto hold = spec_.hold_table("peak_center");  // released when the run returns
     r_.config = cfg_;
     r_.isotope = cfg_.isotope;
     r_.detector = cfg_.detector.empty() ? spec_.reference_detector() : cfg_.detector;
@@ -288,7 +321,7 @@ class Runner {
       const double end = cfg_.increase ? c + d : c - d;
       progress_.report({0, 0, "peak center try " + std::to_string(i + 1) + ": " + num(std::min(start, end)) +
                                   " - " + num(std::max(start, end)), std::nullopt});
-      auto t = attempt(start, end);
+      auto t = attempt(start, end, i);
       if (!t) return fail(t.error());
       auto outcome = conclude();
       if (outcome == Outcome::Done) break;
@@ -332,10 +365,14 @@ class Runner {
     return it != r.values.end() && it->second ? it->second->mean : 0.0;
   }
 
-  Result<void> attempt(double start, double end) {
+  Result<void> attempt(double start, double end, int try_index) {
     PeakCenterTry t;
     t.start = start;
     t.end = end;
+    if (options_.bus != nullptr) {
+      options_.bus->publish(PeakCenterTryStarted{r_.detector, r_.isotope, cfg_.additional_detectors, try_index,
+                                                 cfg_.n_tries, start, end, r_.initial_center});
+    }
     // Reference intensity on peak, then wait at the start for the baseline.
     if (auto m = spec_.move_native((start + end) / 2); !m) return fail(m.error());
     sleep(2 * integration());
@@ -368,7 +405,13 @@ class Runner {
     sweep.settle = cfg_.settle;
     sweep.record = with_additional();
     Sweep runner(options_.sweep);
-    auto points = runner.run(spec_, sweep, progress_, cancel_);
+    // A Progress takes its sink only when made: the sweep reports to this one,
+    // which publishes the point and hands the update on to the job's.
+    Progress stepped([this, try_index](const ProgressUpdate& u) {
+      if (options_.bus != nullptr && u.point) options_.bus->publish(PeakCenterPoint{try_index, *u.point});
+      progress_.report(u);
+    });
+    auto points = runner.run(spec_, sweep, stepped, cancel_);
     t.points = runner.points();
     r_.tries.push_back(std::move(t));
     if (!points) return fail(points.error());
@@ -426,8 +469,11 @@ class Runner {
     if (!table_value) return fail(table_value.error());
     r_.table_value = *table_value;
     if (cfg_.update_table && !cfg_.isotope.empty()) {
-      if (auto u = spec_.update_table(r_.detector, cfg_.isotope, *table_value, cfg_.propagate); !u) return u;
+      auto notes = write_peak_center_to_table(spec_, r_.detector, cfg_.isotope, *table_value, cfg_.propagate,
+                                              cfg_.save_table);
+      if (!notes) return fail(notes.error());
       r_.table_updated = true;
+      r_.notes.insert(r_.notes.end(), notes->begin(), notes->end());
       auto p = spec_.position(spectrometer::PositionTarget{spectrometer::Isotope{cfg_.isotope}, r_.detector});
       if (!p) return fail(p.error());
       return {};
@@ -449,6 +495,23 @@ class Runner {
 
 }  // namespace
 
+Result<std::vector<std::string>> write_peak_center_to_table(Spectrometer& spectrometer, const DetectorId& detector,
+                                                            const std::string& isotope, double table_value,
+                                                            bool propagate, bool save) {
+  if (auto u = spectrometer.update_table(detector, isotope, table_value, propagate); !u) return fail(u.error());
+  std::vector<std::string> notes;
+  // D2 (field table editor spec, section 6): persist the update. A failed
+  // save keeps the in-memory table and the success.
+  if (save) {
+    if (auto saved = spectrometer.save_table(spectrometer.clock().wall_now()); !saved) {
+      std::string note = "field table not saved: " + saved.error().what;
+      Logger("peak_center", spectrometer.clock(), &spectrometer.bus()).warn(note);
+      notes.push_back(std::move(note));
+    }
+  }
+  return notes;
+}
+
 Result<PeakCenterResult> run_peak_center(Spectrometer& spectrometer, const PeakCenterConfig& config,
                                          Progress& progress, CancelToken& cancel, const PeakCenterOptions& options) {
   return Runner(spectrometer, config, progress, cancel, options).run();
@@ -463,4 +526,4 @@ JobSpec peak_center_job(PeakCenterConfig config, PeakCenterOptions options) {
                  }};
 }
 
-}  // namespace pychron::jobs
+}  // namespace nobion::jobs

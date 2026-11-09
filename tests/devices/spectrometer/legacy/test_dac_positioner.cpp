@@ -1,15 +1,15 @@
-#include "pychron/devices/spectrometer/legacy/dac_positioner.hpp"
+#include "nobion/devices/spectrometer/legacy/dac_positioner.hpp"
 
 #include <gtest/gtest.h>
 
 #include <vector>
 
-#include "pychron/codecs/map215.hpp"
-#include "pychron/devices/driver_registry.hpp"
+#include "nobion/codecs/map215.hpp"
+#include "nobion/devices/driver_registry.hpp"
 #include "spectrometer/legacy/sim_util.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace legacy_test;
 
 namespace {

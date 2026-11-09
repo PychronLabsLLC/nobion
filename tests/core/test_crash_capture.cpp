@@ -1,0 +1,513 @@
+// The crash file a fatal signal leaves (spec 2026-11-06-field-diagnostics
+// sections 3.2, 3.3, 14). Each test spawns tests/core/crash_helper.cpp, which
+// dies the way its mode says, and reads what the handler wrote. On Windows the
+// exception filter writes a shorter crash file and a minidump.
+
+#include <gtest/gtest.h>
+
+#include <algorithm>
+#include <chrono>
+#include <cstddef>
+#include <filesystem>
+#include <fstream>
+#include <initializer_list>
+#include <random>
+#include <regex>
+#include <sstream>
+#include <string>
+#include <system_error>
+#include <thread>
+#include <vector>
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <process.h>
+#include <windows.h>
+// After windows.h. Older SDKs' dbghelp.h trips C4091.
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4091)
+#endif
+#include <dbghelp.h>
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+#else
+#include <csignal>
+#include <spawn.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
+
+#include "nobion/core/build_info.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/config/logging_config.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/signal_stack.hpp"
+
+#ifndef _WIN32
+extern char** environ;  // NOLINT(readability-redundant-declaration): POSIX declares it nowhere
+#endif
+
+namespace fs = std::filesystem;
+
+namespace {
+
+// gcc says __SANITIZE_ADDRESS__; clang answers __has_feature, which a
+// compiler without it must not see called (nor cppcheck, which cannot
+// evaluate it).
+#if defined(__SANITIZE_ADDRESS__)
+constexpr bool kAddressSanitizer = true;
+#elif defined(__has_feature) && !defined(__CPPCHECK__)
+#if __has_feature(address_sanitizer)
+constexpr bool kAddressSanitizer = true;
+#else
+constexpr bool kAddressSanitizer = false;
+#endif
+#else
+constexpr bool kAddressSanitizer = false;
+#endif
+
+class TempDir {
+ public:
+  TempDir() {
+    std::random_device rd;
+    std::mt19937_64 gen(rd());
+    path_ = fs::temp_directory_path() / ("nobion_crash_" + std::to_string(gen()));
+    fs::create_directories(path_);
+  }
+  ~TempDir() {
+    std::error_code ec;
+    fs::remove_all(path_, ec);
+  }
+  TempDir(const TempDir&) = delete;
+  TempDir& operator=(const TempDir&) = delete;
+  TempDir(TempDir&&) = delete;
+  TempDir& operator=(TempDir&&) = delete;
+  [[nodiscard]] const fs::path& path() const { return path_; }
+
+ private:
+  fs::path path_;
+};
+
+std::string read_file(const fs::path& path) {
+  std::ifstream in(path, std::ios::binary);
+  std::ostringstream out;
+  out << in.rdbuf();
+  return out.str();
+}
+
+std::vector<std::string> lines_of(const std::string& text) {
+  std::vector<std::string> lines;
+  std::istringstream in(text);
+  for (std::string line; std::getline(in, line);) lines.push_back(line);
+  return lines;
+}
+
+#ifndef _WIN32
+
+struct Death {
+  pid_t pid = -1;
+  int status = 0;
+};
+
+// Spawns the helper on `dir` in `mode` and waits (at most 30 s) for it to end.
+Death run_helper(const fs::path& dir, const std::string& mode) {
+  Death death;
+  const std::string helper = NOBION_CRASH_HELPER;
+  const std::string dir_text = dir.string();
+  // posix_spawn takes char* const[]; it does not write through them.
+  std::string helper_arg = helper;
+  std::string dir_arg = dir_text;
+  std::string mode_arg = mode;
+  std::vector<char*> argv{helper_arg.data(), dir_arg.data(), mode_arg.data(), nullptr};
+  if (posix_spawn(&death.pid, helper.c_str(), nullptr, nullptr, argv.data(), environ) != 0) {
+    death.pid = -1;
+    return death;
+  }
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+  for (;;) {
+    const pid_t done = ::waitpid(death.pid, &death.status, WNOHANG);
+    if (done == death.pid) return death;
+    if (std::chrono::steady_clock::now() >= deadline) {
+      ::kill(death.pid, SIGKILL);
+      ::waitpid(death.pid, &death.status, 0);
+      ADD_FAILURE() << "helper in mode " << mode << " still running after 30 s";
+      return death;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+}
+
+// What every crash file must hold, for a helper that died by one of
+// `signals`; with `thread` set, the thread line is `thread <thread>`. The
+// file's lines are left in `lines`. (void: ASSERT_* returns from it.)
+void check_crash_file(const std::string& mode, std::initializer_list<int> signals, const std::string& thread,
+                      std::vector<std::string>& lines) {
+  TempDir tmp;
+  const Death death = run_helper(tmp.path(), mode);
+  ASSERT_GT(death.pid, 0) << "could not spawn " << NOBION_CRASH_HELPER;
+  ASSERT_TRUE(WIFSIGNALED(death.status))
+      << mode << ": exited with status " << (WIFEXITED(death.status) ? WEXITSTATUS(death.status) : -1);
+  const int sig = WTERMSIG(death.status);
+  bool expected = false;
+  for (const int s : signals) expected = expected || s == sig;
+  EXPECT_TRUE(expected) << mode << ": died by signal " << sig;
+
+  const fs::path file = tmp.path() / "crash" / ("crash_helper-" + std::to_string(death.pid) + ".txt");
+  ASSERT_TRUE(fs::exists(file)) << file;
+  const std::string text = read_file(file);
+  lines = lines_of(text);
+
+  std::size_t frames = 0;
+  bool signal_line = false;
+  bool build_line = false;
+  bool thread_line = false;
+  bool helper_module = false;
+  std::string pc;  // the `pc 0x..` line's address: the faulting instruction
+  const std::regex frame_re("^0x[0-9a-f]+$");
+  const std::regex pc_re("^pc (0x[0-9a-f]+)$");
+  const std::regex module_re("^module (.+) 0x[0-9a-f]+ 0x[0-9a-f]+$");
+  for (const auto& line : lines) {
+    if (line == "fatal signal " + std::to_string(sig)) signal_line = true;
+    if (line == "build " + nobion::build_id()) build_line = true;
+    if (thread.empty() ? line.starts_with("thread ") : line == "thread " + thread) thread_line = true;
+    if (std::regex_match(line, frame_re)) ++frames;
+    std::smatch m;
+    if (std::regex_match(line, m, pc_re)) pc = m[1].str();
+    if (std::regex_match(line, m, module_re)) {
+      if (m[1].str().ends_with("crash_helper")) helper_module = true;
+    }
+  }
+  EXPECT_TRUE(signal_line) << text;
+  EXPECT_TRUE(build_line) << text;
+  EXPECT_TRUE(thread_line) << (thread.empty() ? std::string("a thread line") : "thread " + thread) << "\n" << text;
+  EXPECT_GE(frames, 3u) << text;
+  EXPECT_TRUE(helper_module) << text;
+  // The faulting instruction, which tools/symbolize.py looks up as it is
+  // (every frame line is a return address, looked up at address - 1, unless
+  // it equals this). Not always among the frames: macOS's backtrace() goes
+  // from the signal trampoline to the faulting function's caller.
+  EXPECT_FALSE(pc.empty()) << "a pc line\n" << text;
+}
+
+std::vector<std::string> expect_crash_file(const std::string& mode, std::initializer_list<int> signals,
+                                           const std::string& thread = {}) {
+  std::vector<std::string> lines;
+  check_crash_file(mode, signals, thread, lines);
+  return lines;
+}
+
+#endif
+
+#define CRASH_TEST_PRECONDITIONS()                                                       \
+  do {                                                                                   \
+    if (kAddressSanitizer) GTEST_SKIP() << "AddressSanitizer owns the fatal signals"; \
+  } while (false)
+
+#ifdef _WIN32
+
+struct WinDeath {
+  bool spawned = false;
+  DWORD pid = 0;
+  DWORD exit_code = 0;
+};
+
+// Spawns the helper on `dir` in `mode` and waits (at most 30 s) for it to end.
+WinDeath run_helper(const fs::path& dir, const std::string& mode) {
+  WinDeath death;
+  const std::wstring helper = fs::path(NOBION_CRASH_HELPER).wstring();
+  // CreateProcessW may write into the command line: a buffer of our own.
+  // The quoting holds for a dir that does not end in a backslash (a temp
+  // dir's name never does): `\"` would escape the closing quote.
+  std::wstring command = L"\"" + helper + L"\" \"" + dir.wstring() + L"\" " + fs::path(mode).wstring();
+  STARTUPINFOW startup{};
+  startup.cb = static_cast<DWORD>(sizeof(startup));
+  PROCESS_INFORMATION process{};
+  // No crash dialog for the helper: the error mode is inherited when the
+  // process is created, and ours is put back right after.
+  const UINT previous = SetErrorMode(0);
+  (void)SetErrorMode(previous | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
+  const BOOL created = CreateProcessW(helper.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr,
+                                      &startup, &process);
+  (void)SetErrorMode(previous);
+  if (created == FALSE) return death;
+  death.spawned = true;
+  death.pid = process.dwProcessId;
+  if (WaitForSingleObject(process.hProcess, 30000) != WAIT_OBJECT_0) {
+    (void)TerminateProcess(process.hProcess, 1);
+    (void)WaitForSingleObject(process.hProcess, INFINITE);
+    ADD_FAILURE() << "helper in mode " << mode << " still running after 30 s";
+  }
+  (void)GetExitCodeProcess(process.hProcess, &death.exit_code);
+  (void)CloseHandle(process.hThread);
+  (void)CloseHandle(process.hProcess);
+  return death;
+}
+
+// Number of threads in the minidump at `path`, read with dbghelp's own
+// reader from a mapped view; 0 when it cannot be read.
+ULONG32 dump_thread_count(const fs::path& path) {
+  const HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                                  FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (file == INVALID_HANDLE_VALUE) return 0;
+  ULONG32 threads = 0;
+  const HANDLE mapping = CreateFileMappingW(file, nullptr, PAGE_READONLY, 0, 0, nullptr);
+  if (mapping != nullptr) {
+    void* const base = MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0);
+    if (base != nullptr) {
+      PMINIDUMP_DIRECTORY directory = nullptr;
+      PVOID stream = nullptr;
+      ULONG size = 0;
+      if (MiniDumpReadDumpStream(base, static_cast<ULONG>(ThreadListStream), &directory, &stream, &size) != FALSE &&
+          stream != nullptr && size >= sizeof(ULONG32)) {
+        threads = static_cast<const MINIDUMP_THREAD_LIST*>(stream)->NumberOfThreads;
+      }
+      (void)UnmapViewOfFile(base);
+    }
+    (void)CloseHandle(mapping);
+  }
+  (void)CloseHandle(file);
+  return threads;
+}
+
+// The helper dies in `mode` by exception `code` on the thread tagged
+// `thread`; its crash file holds the exception, build and thread lines, and
+// its dump a thread list. (void: ASSERT_* returns from it.)
+void check_windows_crash(const std::string& mode, const std::string& code, const std::string& thread) {
+  TempDir tmp;
+  const WinDeath death = run_helper(tmp.path(), mode);
+  ASSERT_TRUE(death.spawned) << "could not spawn " << NOBION_CRASH_HELPER;
+  EXPECT_NE(death.exit_code, 0u) << mode;
+  EXPECT_NE(death.exit_code, 4u) << mode << ": survived";
+
+  const std::string stem = "crash_helper-" + std::to_string(death.pid);
+  const fs::path text_file = tmp.path() / "crash" / (stem + ".txt");
+  const fs::path dump_file = tmp.path() / "crash" / (stem + ".dmp");
+  ASSERT_TRUE(fs::exists(text_file)) << text_file;
+  const std::string text = read_file(text_file);
+  bool exception_line = false;
+  bool build_line = false;
+  bool thread_line = false;
+  for (const auto& line : lines_of(text)) {
+    if (line == "fatal exception 0x" + code) exception_line = true;
+    if (line == "build " + nobion::build_id()) build_line = true;
+    if (line == "thread " + thread) thread_line = true;
+  }
+  EXPECT_TRUE(exception_line) << mode << ": fatal exception 0x" << code << "\n" << text;
+  EXPECT_TRUE(build_line) << text;
+  EXPECT_TRUE(thread_line) << mode << ": thread " << thread << "\n" << text;
+  ASSERT_TRUE(fs::exists(dump_file)) << dump_file;
+  EXPECT_GE(dump_thread_count(dump_file), 1u) << dump_file;
+}
+
+#endif
+
+}  // namespace
+
+#ifndef _WIN32
+
+TEST(CrashCapture, SegvWritesACrashFile) {
+  CRASH_TEST_PRECONDITIONS();
+  expect_crash_file("segv", {SIGSEGV, SIGBUS}, "crash_helper.main");
+}
+
+TEST(CrashCapture, AbortWritesACrashFile) {
+  CRASH_TEST_PRECONDITIONS();
+  expect_crash_file("abort", {SIGABRT});
+}
+
+TEST(CrashCapture, BusWritesACrashFile) {
+  CRASH_TEST_PRECONDITIONS();
+  expect_crash_file("bus", {SIGBUS});
+}
+
+TEST(CrashCapture, FpeWritesACrashFile) {
+  CRASH_TEST_PRECONDITIONS();
+  expect_crash_file("fpe", {SIGFPE});
+}
+
+TEST(CrashCapture, IllWritesACrashFile) {
+  CRASH_TEST_PRECONDITIONS();
+  expect_crash_file("ill", {SIGILL});
+}
+
+TEST(CrashCapture, TrapWritesACrashFile) {
+  CRASH_TEST_PRECONDITIONS();
+  expect_crash_file("trap", {SIGTRAP});
+}
+
+// Stack overflow: macOS reports the guard page as SIGSEGV or SIGBUS.
+TEST(CrashCapture, OverflowMainWritesACrashFile) {
+  CRASH_TEST_PRECONDITIONS();
+  expect_crash_file("overflow-main", {SIGSEGV, SIGBUS});
+}
+
+TEST(CrashCapture, OverflowThreadWritesACrashFile) {
+  CRASH_TEST_PRECONDITIONS();
+  expect_crash_file("overflow-thread", {SIGSEGV, SIGBUS}, "crash_helper.overflow");
+}
+
+// A thread that never called install_signal_stack(): SA_ONSTACK with no
+// alternate stack runs the handler on the thread's own.
+TEST(CrashCapture, RawThreadSegvWritesACrashFile) {
+  CRASH_TEST_PRECONDITIONS();
+  expect_crash_file("raw-thread-segv", {SIGSEGV, SIGBUS}, "?");
+}
+
+// The exception text is one line, before the SIGABRT block abort() adds.
+TEST(CrashCapture, TerminateWritesTheExceptionText) {
+  CRASH_TEST_PRECONDITIONS();
+  const auto lines = expect_crash_file("terminate", {SIGABRT}, "crash_helper.main");
+  ASSERT_FALSE(lines.empty());
+  EXPECT_EQ(lines.front(), "terminate called after throwing: crash helper boom");
+  EXPECT_EQ(std::count(lines.begin(), lines.end(), lines.front()), 1);
+  ASSERT_GE(lines.size(), 2u);
+  EXPECT_EQ(lines[1], "fatal signal " + std::to_string(SIGABRT));
+}
+
+TEST(CrashCapture, HardenedWritesACrashFile) {
+  CRASH_TEST_PRECONDITIONS();
+  if (!nobion::has_feature("hardened_stdlib")) GTEST_SKIP() << "standard library not hardened";
+  expect_crash_file("hardened", {SIGABRT, SIGTRAP, SIGILL});
+}
+
+#endif
+
+// The flight recorder's ring is at the end of the crash file: the helper's
+// `ring marker` record, as the log file has it (spec 5.4).
+TEST(CrashCapture, CrashFileHoldsTheRing) {
+#if defined(__SANITIZE_ADDRESS__)
+  GTEST_SKIP() << "AddressSanitizer owns the fatal signals";
+#else
+  TempDir tmp;
+#ifdef _WIN32
+  const WinDeath death = run_helper(tmp.path(), "segv");
+  ASSERT_TRUE(death.spawned) << "could not spawn " << NOBION_CRASH_HELPER;
+#else
+  CRASH_TEST_PRECONDITIONS();
+  const Death death = run_helper(tmp.path(), "segv");
+  ASSERT_GT(death.pid, 0) << "could not spawn " << NOBION_CRASH_HELPER;
+  ASSERT_TRUE(WIFSIGNALED(death.status));
+#endif
+  const fs::path file = tmp.path() / "crash" / ("crash_helper-" + std::to_string(death.pid) + ".txt");
+  ASSERT_TRUE(fs::exists(file)) << file;
+  const std::string text = read_file(file);
+  // The log file may not have it yet (records below error are written within
+  // about 1 s): the ring has it, in the file's format.
+  const std::regex marker(
+      R"(^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z \[info\] \[crash_helper\.main\] crash_helper: ring marker$)");
+  bool found = false;
+  for (const auto& line : lines_of(text)) found = found || std::regex_match(line, marker);
+  EXPECT_TRUE(found) << text;
+#endif
+}
+
+// Windows: a null write, a stack overflow on the main thread, and (below) one
+// on a thread of ours (install_signal_stack gave it its stack guarantee) each
+// leave the text lines and a minidump dbghelp reads.
+#ifdef _WIN32
+TEST(CrashCapture, WindowsWritesTextAndDump) {
+  // Chosen by the preprocessor, not an if on kAddressSanitizer: MSVC warns of
+  // a constant condition (C4127) and of what a skip leaves unreachable (C4702).
+#if defined(__SANITIZE_ADDRESS__)
+  GTEST_SKIP() << "AddressSanitizer owns the exceptions";
+#else
+  check_windows_crash("segv", "c0000005", "crash_helper.main");               // STATUS_ACCESS_VIOLATION
+  check_windows_crash("overflow-main", "c00000fd", "crash_helper.main");      // STATUS_STACK_OVERFLOW
+#endif
+}
+
+// A test of its own: three crashes in one could pass the 60 s ctest timeout.
+TEST(CrashCapture, WindowsThreadOverflowWritesTextAndDump) {
+#if defined(__SANITIZE_ADDRESS__)
+  GTEST_SKIP() << "AddressSanitizer owns the exceptions";
+#else
+  check_windows_crash("overflow-thread", "c00000fd", "crash_helper.overflow");
+#endif
+}
+#else
+TEST(CrashCapture, WindowsWritesTextAndDump) { GTEST_SKIP() << "Windows only: the exception filter and minidump"; }
+TEST(CrashCapture, WindowsThreadOverflowWritesTextAndDump) { GTEST_SKIP() << "Windows only"; }
+#endif
+
+TEST(CrashCapture, CrashFilePathIsInTheCrashFolder) {
+  TempDir tmp;
+  nobion::SteadyClock clock;
+  nobion::config::LoggingConfig config;
+  config.dir = tmp.path();
+  config.file_name = "app.log";
+  auto hub = nobion::LogHub::create(config, clock);
+  ASSERT_TRUE(hub);
+  EXPECT_TRUE(fs::is_directory(tmp.path() / "crash"));
+#ifdef _WIN32
+  const std::string pid = std::to_string(_getpid());
+#else
+  const std::string pid = std::to_string(::getpid());
+#endif
+  EXPECT_EQ((*hub)->crash_file_path(), tmp.path() / "crash" / ("app-" + pid + ".txt"));
+}
+
+TEST(CrashCapture, NoFileNoCrashFile) {
+  nobion::SteadyClock clock;
+  nobion::config::LoggingConfig config;
+  config.dir = fs::path();
+  auto hub = nobion::LogHub::create(config, clock);
+  ASSERT_TRUE(hub);
+  EXPECT_TRUE((*hub)->crash_file_path().empty());
+}
+
+// Hub start keeps the newest 20 crashes; a dump and its text file are one.
+TEST(CrashCapture, HubStartKeepsTheNewest20Crashes) {
+  TempDir tmp;
+  const fs::path crash = tmp.path() / "crash";
+  fs::create_directories(crash);
+  const auto now = fs::file_time_type::clock::now();
+  for (int i = 0; i < 25; ++i) {
+    const auto stem = "app-" + std::to_string(1000 + i);
+    for (const char* ext : {".txt", ".dmp"}) {
+      const fs::path file = crash / (stem + ext);
+      std::ofstream(file) << "crash " << i;
+      fs::last_write_time(file, now - std::chrono::minutes(100 - i));
+    }
+  }
+  std::ofstream(crash / "notes.md") << "not a crash file";
+
+  nobion::SteadyClock clock;
+  nobion::config::LoggingConfig config;
+  config.dir = tmp.path();
+  config.file_name = "app.log";
+  auto hub = nobion::LogHub::create(config, clock);
+  ASSERT_TRUE(hub);
+  for (int i = 0; i < 25; ++i) {
+    const auto stem = "app-" + std::to_string(1000 + i);
+    const bool kept = i >= 5;  // the five oldest go
+    EXPECT_EQ(fs::exists(crash / (stem + ".txt")), kept) << stem;
+    EXPECT_EQ(fs::exists(crash / (stem + ".dmp")), kept) << stem;
+  }
+  EXPECT_TRUE(fs::exists(crash / "notes.md"));
+}
+
+TEST(CrashCapture, InstallSignalStackIsIdempotent) {
+  std::thread t([] {
+    nobion::install_signal_stack();
+#ifndef _WIN32
+    stack_t first{};
+    ASSERT_EQ(::sigaltstack(nullptr, &first), 0);
+    EXPECT_EQ(first.ss_flags & SS_DISABLE, 0);
+    if (!kAddressSanitizer) {  // ASan may have given the thread a smaller one
+      EXPECT_GE(first.ss_size, 64u * 1024u);
+    }
+    nobion::install_signal_stack();
+    stack_t second{};
+    ASSERT_EQ(::sigaltstack(nullptr, &second), 0);
+    EXPECT_EQ(second.ss_sp, first.ss_sp);
+#endif
+  });
+  t.join();
+}

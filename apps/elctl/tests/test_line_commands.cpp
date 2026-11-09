@@ -14,7 +14,7 @@ namespace {
 TEST_F(ElctlTest, ProbePrintsHealthTable) {
   auto o = run({"probe"});
   EXPECT_EQ(o.code, 0) << o.out << o.err;
-  for (const char* name : {"valve_bus", "gauge_net", "actuator1", "ig_controller"}) {
+  for (const char* name : {"valve_bus", "gauge_net", "actuator1", "ig_controller", "cg_controller"}) {
     EXPECT_TRUE(contains(o.out, name)) << name << "\n" << o.out;
   }
   EXPECT_TRUE(contains(o.out, "connected")) << o.out;
@@ -40,6 +40,15 @@ TEST_F(ElctlTest, ProbeReportsUnreachableHardware) {
   // --sim runs the identical config against simulated hardware.
   auto sim = run({"--sim", "probe"});
   EXPECT_EQ(sim.code, 0) << sim.out << sim.err;
+}
+
+// The example's second gauge controller is another make (a Micro-Ion): its
+// simulated wire answers too.
+TEST_F(ElctlTest, ReadsAGaugeOnTheMicroIon) {
+  auto o = run({"read", "CG1"});
+  EXPECT_EQ(o.code, 0) << o.out << o.err;
+  EXPECT_TRUE(contains(o.out, "CG1")) << o.out;
+  EXPECT_TRUE(contains(o.out, "torr")) << o.out;
 }
 
 TEST_F(ElctlTest, StateReadsEverySwitchBack) {
@@ -148,15 +157,13 @@ TEST_F(ElctlTest, LoggingConfigCreatesLogFile) {
     std::ifstream f(path("extraction_line.toml"));
     text.assign(std::istreambuf_iterator<char>(f), {});
   }
-  const std::string table = "[logging]\n";
-  auto at = text.find(table);
-  ASSERT_NE(at, std::string::npos);
-  text.insert(at + table.size(), "dir = '" + logs.string() + "'\n");
+  // The example line has no [logging] table now (logging.toml holds it).
+  text += "\n[logging]\ndir = '" + logs.string() + "'\n";
   write("extraction_line.toml", text);
 
   auto o = run({"--sim", "probe"});
   EXPECT_EQ(o.code, 0) << o.out << o.err;
-  EXPECT_TRUE(std::filesystem::exists(logs / "pychron.log")) << o.err;
+  EXPECT_TRUE(std::filesystem::exists(logs / "nobion.log")) << o.err;
 }
 
 // The example line plus two PLC heaters, one without setpoint or use_pid.

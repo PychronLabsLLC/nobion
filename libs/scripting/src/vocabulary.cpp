@@ -1,9 +1,9 @@
-#include "pychron/scripting/vocabulary.hpp"
+#include "nobion/scripting/vocabulary.hpp"
 
 #include <algorithm>
 #include <array>
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 namespace {
 
 using extraction::Capability;
@@ -99,4 +99,4 @@ bool command_allowed(const CommandInfo& command, ScriptKind kind) noexcept {
 
 std::span<const std::string_view> default_import_allowlist() noexcept { return kImports; }
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

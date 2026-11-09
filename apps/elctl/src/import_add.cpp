@@ -9,14 +9,14 @@
 #include <system_error>
 
 #include "import_impl.hpp"
-#include "pychron/dvc/git_reader.hpp"
-#include "pychron/ingest/ids.hpp"
-#include "pychron/ingest/tz.hpp"
+#include "nobion/dvc/git_reader.hpp"
+#include "nobion/ingest/ids.hpp"
+#include "nobion/ingest/tz.hpp"
 
 namespace elctl::import_detail {
 
-namespace dvc = pychron::dvc;
-namespace ingest = pychron::ingest;
+namespace dvc = nobion::dvc;
+namespace ingest = nobion::ingest;
 
 namespace {
 

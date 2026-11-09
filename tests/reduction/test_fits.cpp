@@ -1,4 +1,4 @@
-#include "pychron/reduction/fits.hpp"
+#include "nobion/reduction/fits.hpp"
 
 #include <gtest/gtest.h>
 
@@ -8,11 +8,11 @@
 #include <string>
 #include <vector>
 
-namespace pr = pychron::reduction;
+namespace pr = nobion::reduction;
 
 namespace {
 
-const std::string kSeriesDir = std::string(PYCHRON_TEST_DATA_DIR) + "/series/";
+const std::string kSeriesDir = std::string(NOBION_TEST_DATA_DIR) + "/series/";
 
 std::vector<std::string> split(const std::string& line, char sep) {
   std::vector<std::string> out;
@@ -207,7 +207,7 @@ TEST(Fits, KindNamesRoundTrip) {
   EXPECT_FALSE(pr::parse_fit_kind("weighted_mean").has_value());
 }
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 namespace {
 
 TEST(Fits, TheCurveIsKeptForDrawing) {
@@ -241,4 +241,4 @@ TEST(Fits, TheCurveIsKeptForDrawing) {
 }
 
 }  // namespace
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

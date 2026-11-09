@@ -3,13 +3,13 @@
 #include <string>
 
 #include "config_fixtures.hpp"
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/config/validate.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/config/validate.hpp"
 
-using namespace pychron;
-using namespace pychron::config;
-using pychron::test::has;
-using pychron::test::line_of;
+using namespace nobion;
+using namespace nobion::config;
+using nobion::test::has;
+using nobion::test::line_of;
 
 namespace {
 

@@ -26,9 +26,9 @@
 #include "health_bar.hpp"
 #include "theme.hpp"
 
-using pychron::ui::HealthBar;
-using pychron::ui::theme;
-namespace style = pychron::ui::style;
+using nobion::ui::HealthBar;
+using nobion::ui::theme;
+namespace style = nobion::ui::style;
 
 namespace {
 
@@ -234,7 +234,7 @@ class TestTheme : public QObject {
 
     HealthBar bar;
     bar.seed({"laser"});
-    pychron::TransportHealth health;
+    nobion::TransportHealth health;
     health.transport = "laser";
     health.connected = false;
     bar.update_health(health);
@@ -244,9 +244,9 @@ class TestTheme : public QObject {
     QCOMPARE(image.pixelColor(image.width() / 2, 1), theme().error);
   }
 
-  // A tooltip is a light surface with a hairline, like a menu: not the menu
-  // bar's ink.
-  void tooltip_is_a_light_surface_with_a_hairline() {
+  // A tooltip is ink, like the menu bar, so it stands off every light
+  // surface. The offscreen platform has no translucent windows: square.
+  void tooltip_is_ink() {
     QLabel host(QStringLiteral("host"));
     host.resize(200, 100);
     host.show();
@@ -257,11 +257,23 @@ class TestTheme : public QObject {
       if (w->inherits("QTipLabel")) tip = w;
     }
     QVERIFY(tip);
+    QVERIFY(!tip->testAttribute(Qt::WA_TranslucentBackground));
     const QImage image = tip->grab().toImage();
-    QCOMPARE(image.pixelColor(0, image.height() / 2), theme().strong_border);
-    QCOMPARE(image.pixelColor(3, image.height() / 2), theme().base);
-    QCOMPARE(text_color(*tip), theme().text);
+    QCOMPARE(image.pixelColor(0, 0), theme().chrome);
+    QCOMPARE(image.pixelColor(3, image.height() / 2), theme().chrome);
+    QCOMPARE(text_color(*tip), theme().on_chrome);
     QToolTip::hideText();
+  }
+
+  // Rounded only where the window can be translucent: on X11 without a
+  // compositor a clear corner is black.
+  void popups_are_rounded_where_windows_can_be_translucent() {
+    QVERIFY(style::rounded_popups(QStringLiteral("cocoa")));
+    QVERIFY(style::rounded_popups(QStringLiteral("windows")));
+    QVERIFY(style::rounded_popups(QStringLiteral("wayland")));
+    QVERIFY(!style::rounded_popups(QStringLiteral("xcb")));
+    QVERIFY(!style::rounded_popups(QStringLiteral("offscreen")));
+    QVERIFY(!style::style_sheet().contains(QStringLiteral("radius: @")));
   }
 
   void tip_text_sets_the_first_of_several_lines_heavier() {
@@ -270,6 +282,26 @@ class TestTheme : public QObject {
     QVERIFY(Qt::mightBeRichText(tip));
     QVERIFY(tip.contains(QStringLiteral("font-weight:600\">62410-01D  excluded</span>")));
     QVERIFY(tip.contains(QStringLiteral("Age &lt;Ma&gt; 28.2<br>12.4% gas")));
+    // The details are fainter than the subject, on the tooltip's ink.
+    const qsizetype at = tip.indexOf(QStringLiteral("color:#"));
+    QVERIFY(at > 0);
+    const QColor detail(tip.mid(at + 6, 7));
+    QVERIFY(detail.isValid());
+    QVERIFY(detail.lightness() < theme().on_chrome.lightness());
+    QVERIFY(detail.lightness() > theme().chrome.lightness());
+  }
+
+  // "label\tvalue" lines are rows of one table, so their values line up;
+  // plain lines around them stay prose.
+  void tip_text_sets_label_value_lines_as_table_rows() {
+    const QString tip = style::tip_text(QStringLiteral("C\nBone to <inlet>\nState\tOpen\nTime open\t41 h\nnote"));
+    QCOMPARE(tip.count(QStringLiteral("<table")), 1);
+    QCOMPARE(tip.count(QStringLiteral("<tr>")), 2);
+    QVERIFY(tip.contains(QStringLiteral(">State</td><td style=\"white-space:pre\">Open</td>")));
+    QVERIFY(tip.contains(QStringLiteral(">Time open</td><td style=\"white-space:pre\">41 h</td>")));
+    QVERIFY(tip.contains(QStringLiteral(">Bone to &lt;inlet&gt;</p>")));
+    QVERIFY(tip.indexOf(QStringLiteral(">note</p>")) > tip.indexOf(QStringLiteral("</table>")));
+    QVERIFY(!tip.contains(QLatin1Char('\t')));
   }
 
   void fonts() {
@@ -294,17 +326,18 @@ class TestTheme : public QObject {
     check(style::mono_font(), "the code font");
   }
 
-  // Colours are named in theme.cpp and nowhere else.
+  // Colours are named in theme.cpp and nowhere else, but for white in
+  // plot_style.cpp: the live plots' default background (plot palette spec 5).
   void no_widget_source_names_a_colour_by_value() {
     const QRegularExpression literal(QStringLiteral(
         "QColor\\(\\s*(0x|[0-9])|QRgb\\s*[,>][^;]*0x|\"[^\"\\n]*#[0-9a-fA-F]{3,8}\\b|"
         "\\bQt::(black|white|red|green|blue|cyan|magenta|yellow|gray|(dark|light)[A-Z][a-z]+)\\b"));
-    const QDir dir(QStringLiteral(PYCHRON_UI_SOURCE_DIR));
+    const QDir dir(QStringLiteral(NOBION_UI_SOURCE_DIR));
     const QStringList files = dir.entryList({QStringLiteral("*.cpp"), QStringLiteral("*.hpp")}, QDir::Files);
     QVERIFY(files.size() > 20);
     QStringList found;
     for (const QString& name : files) {
-      if (name == QStringLiteral("theme.cpp")) continue;
+      if (name == QStringLiteral("theme.cpp") || name == QStringLiteral("plot_style.cpp")) continue;
       QFile file(dir.filePath(name));
       QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
       int number = 0;

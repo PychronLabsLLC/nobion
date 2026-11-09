@@ -1,4 +1,4 @@
-#include "pychron/experiment/model/identifiers.hpp"
+#include "nobion/experiment/model/identifiers.hpp"
 
 #include <algorithm>
 #include <array>
@@ -9,7 +9,7 @@
 
 #include <toml++/toml.hpp>
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 struct TypeName {
@@ -160,4 +160,4 @@ std::string IdentifierRules::prefix_for(AnalysisType t) const {
   return best;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

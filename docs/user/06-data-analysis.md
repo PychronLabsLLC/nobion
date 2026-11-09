@@ -2,7 +2,7 @@
 
 How to find analyses, look at one, refit its isotope evolutions, fit blanks
 and detector factors from reference runs, draw ideograms, age spectra and
-isochrons, and write a data table. Everything here is in `pychron-ui`
+isochrons, and write a data table. Everything here is in `nobion`
 (the **Data** browser) except the export, which `elctl` can also do.
 
 Before this page: [01 Getting started](01-getting-started.md) installs and
@@ -32,7 +32,8 @@ instead of repeating them:
 9. [Reading the numbers](#reading-the-numbers)
 10. [Samples and packages](#samples-and-packages)
 11. [Exporting](#exporting)
-12. [Unverified or not yet implemented](#unverified-or-not-yet-implemented)
+12. [Publishing a release](#publishing-a-release)
+13. [Unverified or not yet implemented](#unverified-or-not-yet-implemented)
 
 ## Where the data comes from
 
@@ -42,7 +43,7 @@ decided when the program starts; the title of the browser window says which
 
 | Source | What it is | When you get it | Can save edits? |
 |---|---|---|---|
-| **Database store** | The lab's PostgreSQL database (or a SQLite file for a single computer). It holds the catalog (samples, irradiations), every analysis, and the full revision history of each analysis's fits. | `pychron-ui --db <url>`, or an install that has a `database` set (every data-reduction install does, and so does every instrument install made with a database; `elctl init` and the setup wizard write it into the site file). | Yes: fits, blanks and IC factors are saved as new revisions, and old ones can be restored. |
+| **Database store** | The lab's PostgreSQL database (or a SQLite file for a single computer). It holds the catalog (samples, irradiations), every analysis, and the full revision history of each analysis's fits. | `nobion --db <url>`, or an install that has a `database` set (every data-reduction install does, and so does every instrument install made with a database; `elctl init` and the setup wizard write it into the site file). | Yes: fits, blanks and IC factors are saved as new revisions, and old ones can be restored. |
 | **Records folder** | A folder of per-analysis `.json` files, `<data>/records/<identifier>/<run id>.json`. | When there is no database: the example lab, an install made before installs had a database, a build without the database library. `<data>` is `--data <dir>`, else the install's `data` folder, else `<lab>/data`. Also shown, with a banner, when an instrument install's database cannot be opened (below). | No. Recall, figures and export work; every **Save** and **History** control is disabled with a tooltip saying a source that keeps revisions is needed. |
 
 The program uses one database throughout: `--db` when it is given, else the
@@ -60,7 +61,7 @@ standard error and browses the records folder instead.
 While a queue runs, the data browser follows it. When a run ends, and when a
 queue starts, the browser asks its source whether anything has changed, and
 only then reloads. It keeps what you were doing: the rows already loaded (a
-page you reached with **Load more** stays loaded), the selection, the scroll
+page you reached with **Load more** stays loaded), the Selected list, the scroll
 position and the column widths. A browser that is hidden at the time catches
 up the next time it is shown. **Rescan** does the same on request, for a
 change made by someone else.
@@ -74,7 +75,7 @@ record files, which a database browser does not list. See
 ### When an instrument install's database is away
 
 If the install's database cannot be opened (the server is down, the password
-cannot be read, the schema is behind), `pychron-ui` still starts, so the line
+cannot be read, the schema is behind), `nobion` still starts, so the line
 can be worked. The data browser then shows a banner, `The database could not
 be opened: <reason>` and `Showing the records folder <path>.`, and lists
 whatever record files that folder holds, which are not the install's
@@ -124,37 +125,87 @@ The left column filters; the table shows the newest analyses first.
 | Search box | Analyses whose run id, identifier or sample **starts with** the text (not case sensitive). |
 | Date drop-down | Any date, last 24 hours, last week, last month, last year, or **Range…**. "Last" is counted back from the **newest analysis in the source**, not from today. |
 | **From** / **To** (with Range…) | A low and a high date and time, in UTC like the Date column. Each end counts only while its box is ticked, so you can give one end and leave the other open. To includes the whole of the minute it names. They start as the range of the rows shown. If From is after To the status line says so and nothing changes. |
+| **Age from** / **to** | A low and a high age, in Ma, both included. Each end counts only while its box is ticked, and a typed value is applied when you leave the box or press Enter. Only analyses with a **cached** age in the range are kept: one with no cached age, or none at all (a blank, an air), is never matched by a bound. If the low age is above the high one the status line reads `Age from is above to` and nothing changes. See [The Age column and the cached age](#the-age-column-and-the-cached-age). |
 | **Hide invalid** | On by default. Hides analyses tagged `invalid`. |
-| **Colour by** | What the rows are tinted by (see below). |
-| Analysis type, Spectrometer, Sample, Identifier, Irradiation, Level | Tick values to keep only those. Within one list, ticks are alternatives (or); between lists they all apply (and). Each list shows only values that exist given the other filters, but a value you ticked stays visible even if nothing matches. |
+| **Color by** | What the rows are tinted by (see below). |
+| Analysis type, Spectrometer, Sample, Identifier, PI, Irradiation, Level | Tick values to keep only those. Within one list, ticks are alternatives (or); between lists they all apply (and). Each list shows only values that exist given the other filters, but a value you ticked stays visible even if nothing matches. |
 | **Filter** box and **×** on each list | Typing in the box hides the values that do not contain the text (not case sensitive). It only narrows the list: nothing is filtered until you tick a value, and a ticked value is never hidden. **×** unticks everything in that list. The list's title counts the ticks. |
 | **Rescan** | Asks the source for new analyses (the database change log, or the folder) and reloads. A queue's runs do not need it: see [New runs appear by themselves](#new-runs-appear-by-themselves). |
+
+The PI list goes by the PI itself, not by the name. Two people who both show
+as "J Ross" are two lines, told apart by the affiliation in brackets, or by
+the last four characters of the ORCID: `J Ross (NMT)`, `J Ross (3700)`. If
+neither has one, the two lines read the same but still filter apart. A PI
+shows as "Jake Ross" ("J Ross" when only the initial is known); a laboratory
+or a group shows as its name. Over a folder of records there are no stored
+PIs, so the list is simply the names the records give.
 
 Tick an irradiation and the Level list shows only its levels. A level is
 matched by its name: with no irradiation ticked, ticking level `A` keeps
 level A of every irradiation.
 
 The table has columns Run ID, Type, Sample, Identifier, Spec., Date (UTC),
-Extract, Tag, Irradiation, and (hidden by default) Project, UUID. Right-click
-a column header to show or hide columns.
+Extract, Age (Ma), Tag, Irradiation, and (hidden by default) Project, UUID.
+Right-click a column header to show or hide columns.
 
-### Row colours
+### The Age column and the cached age
 
-**Colour by** chooses what the tint of a row tells you. The choice is
+**Age (Ma)** shows an analysis's age and its 1-sigma analytical error
+(without the error of J), as `value ± error`, both to the error's fourth
+significant figure. It is empty when the analysis has no cached age. The
+**Age from** / **to** filter reads the same value. Both always speak Ma,
+whatever units your figures show ages in.
+
+This age is **cached**: it is stored in the database next to the analysis,
+so that the browser can show and filter by it without reducing every
+analysis it lists. It is not recomputed when the browser shows it.
+
+- **When it is computed.** Whenever nobion reduces an analysis with the
+  default settings: opening it in Recall (while it has no unsaved fit
+  edits), drawing it in a figure, exporting it. Also by `elctl import run`
+  at the end of an import, and by `elctl db derive`, which fills in every
+  analysis whose cached age is missing or out of date (see
+  [08 elctl reference](08-elctl-reference.md#db-derive)). A figure drawn
+  with other options (another fit, other constants) does not change the
+  cached age.
+- **What it is computed from.** The analysis's saved fits, blanks, IC
+  factors, flux, production ratios and chronology. Analyses reduced to no
+  age (blanks, air, no flux) are recorded as having none.
+- **When it goes out of date.** Saving a flux fit, blanks or IC factors
+  changes the inputs of many analyses at once, and nothing is recomputed at
+  that moment. Their cached ages stay as they were until each analysis is
+  next reduced, or until `elctl db derive` runs. After saving a flux fit the
+  flux window says how many analyses that was: `cached ages of <n> analyses
+  are now out of date; run elctl db derive`. The blank and IC factor windows
+  do not say it.
+- **How to bring it up to date.** Run `elctl db derive --db <url>`. It
+  touches only the analyses whose cached age is missing or stale, so running
+  it again soon after costs little. Until then the browser cannot tell a
+  stale age from a current one, and the age filter works on what is cached.
+- **A figure always recomputes.** Figures, Recall, the data tables and the
+  export reduce each analysis from its data every time; they never use the
+  cached age. The cached age only decides what the browser shows and finds.
+
+An analysis in a records folder (no database) has no cached age: the column
+is empty and an age bound matches nothing.
+
+### Row colors
+
+**Color by** chooses what the tint of a row tells you. The choice is
 remembered.
 
-| Colour by | Rows |
+| Color by | Rows |
 |---|---|
-| Analysis type | Blanks, air, cocktails and detector-IC runs have their own colours. **Preferences > Data** sets a colour (or none) for unknowns, blanks, air, cocktails, detector-IC runs and everything else; **Reset colours** goes back to the built-in ones. |
-| Tag | `invalid` has the error colour; every other tag that is not `ok` has a colour of its own. |
-| Spectrometer | One colour for each spectrometer shown. |
-| Irradiation level | One colour for each irradiation and level shown; analyses with no irradiation have none. |
+| Analysis type | Blanks, air, cocktails and detector-IC runs have their own colors. **Preferences > Data** sets a color (or none) for unknowns, blanks, air, cocktails, detector-IC runs and everything else; **Reset colors** goes back to the built-in ones. |
+| Tag | `invalid` has the error color; every other tag that is not `ok` has a color of its own. |
+| Spectrometer | One color for each spectrometer shown. |
+| Irradiation level | One color for each irradiation and level shown; analyses with no irradiation have none. |
 | None | No tint. |
 
 Whatever the choice (except Tag), an analysis with a tag other than `ok` has
-the error colour. Under Spectrometer, Irradiation level and Tag the colours
+the error color. Under Spectrometer, Irradiation level and Tag the colors
 only tell neighbours apart: there are eight, they are given out in
-alphabetical order of the values shown, and a value can change colour when
+alphabetical order of the values shown, and a value can change color when
 you filter or load more.
 
 ### Time breaks
@@ -180,23 +231,62 @@ in fact running.
 The browser loads one page at a time (200 analyses by default;
 **Preferences** sets 20 to 5000). The status line reads
 `<shown> of <total> analyses`, and **Load more** fetches the next page.
-Every figure, fit and export acts on the rows you have **selected**; with
-nothing selected it acts on **all rows shown (loaded)**, so press Load more
-first if you want the whole set.
+
+### Filtered and Selected
+
+The right side of the window holds two lists side by side. **Filtered** is
+the result of your query and filters, the table described above, with
+**Load more** under it. **Selected** is the set of analyses the figures,
+export and publishing work on, with a count (`12 selected`) under it. Between
+them are four buttons:
+
+| Button | Does |
+|---|---|
+| **Add →** | Adds the rows highlighted in Filtered to Selected. |
+| **Add all** | Adds every analysis the query matches, not only the rows loaded: it walks all pages. Above 1000 matches it asks first. |
+| **← Remove** | Takes the rows highlighted in Selected out of it. |
+| **Clear** | Empties Selected. |
+
+From the keyboard, **Enter** (or Return) in Filtered adds the highlighted
+rows, and **Delete** (or Backspace) in Selected removes them. A double-click
+on a row, or **Space**, recalls it in either list, and **Ctrl+N** and
+**Ctrl+B** step through whichever list has the focus. A row of Filtered that
+is already selected shows a check mark in the Run ID column.
+
+The figure buttons, **Export**, **Publish** and **View > Publish** (**New
+release**) use Selected only, and are disabled while it is empty: filtering
+alone no longer picks analyses for them, so add what you want first.
+Selected survives every change of filter, so you can build it up from
+several queries (one sample, then another). It lasts until the program quits
+and is not saved.
+
+When the store changes (a run lands, a tag changes) Selected is refreshed. A
+run tagged `invalid` stays in it, shown by its tag, so that nothing leaves a
+set you built without your seeing it. A run that is no longer in the store is
+dropped, and the status line says so.
 
 ### The toolbar
 
 The buttons along the top of the window each have an icon with its name
-under it; hold the pointer over one for what it does. From left to right, in
-three groups:
+under it; hold the pointer over one for what it does. They are the buttons of
+the install's domain (the `domain` key of its entry in the
+[site file](07-configuration-reference.md#the-site-file)). The table below is
+the Ar/Ar set, which is what an install gets unless it says otherwise. From
+left to right, in three groups:
 
 | Button | Opens |
 |---|---|
-| **Time series**, **Ideogram**, **Age spectrum**, **Inverse isochron**, **Spectrum + isochron** | A figure window of the selected analyses. |
+| **Time series**, **Ideogram**, **Age spectrum**, **Inverse isochron**, **Spectrum + isochron** | A figure window of the Selected analyses. |
 | **Isotope evolutions...** | The isotope-evolution refit window. |
 | **Blanks...**, **IC factors...** | The reference-fit window. |
-| **Recall** (or double-click, or Enter on a row) | The recall window for the current row. **Ctrl+N** and **Ctrl+B** (Cmd on macOS) step to the next and previous row and recall it. |
-| **Export** | A data report (CSV or JSON) of the selection. See [Exporting](#exporting). |
+| **Recall** (or double-click or Space on a row) | The recall window for the current row. **Ctrl+N** and **Ctrl+B** (Cmd on macOS) step to the next and previous row and recall it. |
+| **Export** | A data report (CSV or JSON) of the Selected analyses. See [Exporting](#exporting). |
+| **Publish** | The Publish dialog on a new release of the Selected analyses. See [Publishing a release](#publishing-a-release). Off without a database. |
+
+An install whose domain is `noble_gas` measures abundances and has no age, so
+its toolbar shows **Time series**, **Isotope evolutions...**, **Blanks...**,
+**IC factors...**, **Recall** and **Publish**. The browser's Age column and
+age filter, and **Export**, follow in a later release.
 
 ## Recall: one analysis in detail
 
@@ -209,7 +299,7 @@ an age. Several can be open at once. Its title line is
 | **Summary** | *Computed*: age, 40Ar\*/39ArK (F), K/Ca, %40Ar\* and so on, each with its 1-sigma, percent error and units. *Corrected ratios*: the argon ratios after all corrections. If values are missing, a note says why (no J, no production ratios, an isotope with an unknown intercept or blank, ...). |
 | **Isotopes** | One row per isotope with detector, fit, number of points, and the value after each correction **stage**; choose one stage or all. Stages: `I` intercept; `Bs` baseline; `I-Bs` baseline corrected; `Bk` blank; `I-Bs-Bk` blank corrected; `IC` detector factor; `x IC` IC corrected; `Decay`; `IFC` interference corrected. A last column says where the blank came from. |
 | **Evolutions** | The raw measurements against time with the fit drawn through them and the intercept at time zero. Switch between **Signal**, **Baseline** and **Sniff**. See below. |
-| **Error budget** | Which inputs the age's variance comes from, as a percentage each, largest first (the isotopes, their baselines, J, the decay constant, ...). |
+| **Error budget** | When the analysis has an age: which inputs the age's variance comes from, as a percentage each, largest first (the isotopes, their baselines, J, the decay constant, ...). |
 | **Identity**, **Extraction**, **Spectrometer** | Sample, project and irradiation; extraction settings (value, duration, cleanup, positions); gains, deflections, source settings and peak centers at the time of the run. |
 | **History** | Database only. See below. |
 
@@ -298,7 +388,7 @@ was loaded (`Not saved: ...`).
 
 Blanks and detector intercalibration (IC) factors are not measured on the
 unknown: they are fitted from **reference** analyses run near it in time.
-**Blanks...** and **IC factors...** in the toolbar do that for the selected
+**Blanks...** and **IC factors...** in the toolbar do that for the Selected
 unknowns.
 
 1. At the top, choose which reference types to look for, the window in
@@ -357,10 +447,21 @@ setting), and an **Analyses** dock below listing each analysis with its
 group and an **Included** tick.
 
 Toolbar: **Group by** (how analyses are split into groups, drawn in
-different colours), **Graph by** (which groups share a graph, see below),
+different colors), **Graph by** (which groups share a graph, see below),
 **Reset view**, **Export...** (the picture as PDF or
 PNG), **Export table...** (the data report of exactly these analyses; see
 [export.md](../export.md)).
+
+Zoom with the wheel and pan by dragging; a double-click, or **Reset view**,
+goes back to the figure's limits. To keep a view, right-click the graph and
+choose **Use these limits**: the ranges on show are written into the
+figure's limit options (**X min** and **X max**, and **Y min** and **Y
+max** of each panel), so they are saved with a preset and stay when the
+figure is rebuilt. With several graphs, the ranges are those of the graph
+you clicked, and the X limits apply to every graph. A figure whose options
+have no limits (a spectrum has none for X, the spectrum with its isochron
+has none at all) says so in the status line. Clear the fields in
+**Options** to go back to limits worked out from the data.
 
 **Graph by** splits the figure into several graphs, each titled with what
 it holds:
@@ -371,13 +472,13 @@ it holds:
 | `same as group` | a graph for each group: with **Group by** `identifier` and four identifiers, four ideograms of one group each |
 | a key (`sample`, `identifier`, `irradiation`, ...) | the groups that share that value on one graph: **Group by** `aliquot` and **Graph by** `sample` draws eight aliquots of four samples as four ideograms of two groups each |
 
-A group keeps its colour and its row of the **Groups** table whichever graph
+A group keeps its color and its row of the **Groups** table whichever graph
 it is on. If the graph key is finer than the grouping (group by sample,
 graph by aliquot) a group is drawn on each graph it has analyses on, with
 that part's own statistics. **Graphs per row** (Layout section of the
 options) arranges the graphs: 1 stacks them, 2 makes a grid two wide.
 
-Every figure window reduces the selected analyses with the default
+Every figure window reduces the Selected analyses with the default
 reduction settings: constants preset `default`, no decay-constant error.
 The window you work in is: **select** analyses, **reduce** them, **group**
 them, apply your **exclusions**, draw the figure. Changing an option redraws
@@ -392,8 +493,9 @@ still drawn (as ghosts, or hidden, per *Excluded analyses* in Appearance).
 Double-click a row in the Analyses dock to open that analysis in Recall. The dock says why a point is out: `excluded by
 you`, `included by you`, `filtered`, or `tag: omit` or `tag: outlier`.
 Analyses tagged `omit` or `outlier` start out excluded but you can put them
-back. Analyses you selected are used even if they are tagged `invalid`; the
-browser's **Hide invalid** filter is what keeps them out of a selection.
+back. Analyses in Selected are used even if they are tagged `invalid`; take them
+out with **← Remove**. The browser's **Hide invalid** filter only keeps them
+out of Filtered, so they are not added.
 
 > A figure's exclusions live in the window. They are not stored in the
 > database and are gone when the window closes. What is kept in a preset is
@@ -406,7 +508,7 @@ watch blanks, air shots, extraction values and spectrometer stability.
 Default grouping: none.
 
 Per panel: `quantity` (default `Ar40`), `enabled`, `title`, `height`,
-`scale` (linear or log), `y_min`, `y_max`, marker shape, size and colour,
+`scale` (linear or log), `y_min`, `y_max`, marker shape, size and color,
 `show_errors`, `fit` (none, average, weighted_mean, linear, parabolic, cubic,
 exponential) with `fit_error` (sem, sd, msem) and `show_envelope`,
 `deviation` (plot as absolute or percent deviation from the fit),
@@ -419,7 +521,8 @@ Axes: `x.kind` is `time` (with `x.time_format`, `auto` or a strftime string),
 Factory presets: **Default** (Ar40 and Ar40/Ar36), **Air monitor**,
 **Blanks** (baseline-corrected intensities of each isotope, averaged),
 **Unknowns** (age, K/Ca on a log axis, %40Ar\*), **Spectrometer** (baseline,
-intercept and extract value of Ar40).
+intercept and extract value of Ar40), **Presentation** (the Default's panels
+with large fonts and markers).
 
 ### Ideogram
 
@@ -433,17 +536,41 @@ points below it. Default grouping: identifier.
 | `j_error_in_mean` | add the J uncertainty of the group in quadrature to the mean's | on |
 | `probability` | `cumulative` (sum of each analysis's normal curve) or `kernel` (kernel density of the values; errors ignored) | cumulative |
 | `x.limits` | `auto`, `asymptotic` (stop where the curve falls to `x.asymptotic_percent` of its peak, default 10) or `centered` (`x.centered_range` either side of the mean); plus `x.min`, `x.max`, `x.padding_percent`, `x.title` | auto |
-| Display | `show_mean_indicator`, `show_mean_text`, `show_percent_error`, `show_mswd`, `show_probability`, `show_n`, `show_original_curve` (a dashed curve including excluded analyses), `fill_curve` | all on except probability and fill |
+| Display | `show_mean_indicator`, `show_mean_text`, `show_percent_error`, `show_mswd`, `show_probability`, `show_n`, `show_original_curve` (a dashed curve including excluded analyses), `fill_curve`, `show_rvalues` (R-values table, below) | all on except probability, fill and R-values |
 
 Panels (up to 8, top to bottom): `probability` (the curve),
 `analysis_number` (points ordered by age, with error bars),
 `analysis_number_nonsorted` (points in run order), and `value` (another
 quantity, such as `kca`, against the age axis). Spans (up to 32) shade a
-range of the age axis with a label, colour and opacity, on every panel or on
+range of the age axis with a label, color and opacity, on every panel or on
 one named panel.
 
 Factory presets: **Default**, **Probability only**, **Ages only**,
 **With K/Ca**, **Presentation** (large fonts, 2-sigma bars, filled curve).
+
+#### R-values
+
+With **R-values table** (`show_rvalues`) on, a dock beside the analyses
+shows, for each graph with two groups or more, the ratio of every group's
+mean F (40Ar\*/39ArK) to every other group's: the value used to
+intercalibrate standards or to recalculate ages against a monitor.
+
+- F̄ of a group is the mean of F over its included analyses, whatever the
+  ideogram plots, with the ideogram's `mean` and `error_kind` (msem expands
+  the error by √MSWD when MSWD > 1). J does not enter: F has none.
+- The cell in row *i*, column *j* is R = F̄*j* / F̄*i*, so the row of a
+  standard reads every other group against it; the lower triangle holds the
+  reciprocals. Its error is σR = \|R\| √((σ*i*/F̄*i*)² + (σ*j*/F̄*j*)²).
+- Cells and headers show `value ± error` at the figure's `error_bar_nsigma`,
+  six decimals; the tooltip of a cell gives R and its 1σ error in full.
+- Errors treat the groups as independent. Correlated errors, such as
+  interference corrections or blanks two groups share, are not accounted
+  for; the table says so under it.
+
+**Copy** puts the tables on the clipboard as shown, tab-separated.
+**Export CSV...** writes one row per ordered pair of groups:
+`graph,numerator,denominator,f_num,f_num_err,f_den,f_den_err,r,r_err,mean,error_kind`,
+errors at 1σ, numbers in full, after a `#` line with the note.
 
 ### Age spectrum
 
@@ -467,8 +594,11 @@ In the Groups list, **Plateau from step** and **to step** (step letters) fix
 the plateau by hand instead of searching.
 
 Panels (up to 6): `age_spectrum`, or `value` (such as `kca`,
-`radiogenic_yield`). Factory presets: **Default**, **With K/Ca**, **With
-%40Ar\***, **Mahon**.
+`radiogenic_yield`). Each panel has a `height` (relative, 1), and `y_min` and
+`y_max`: set, they fix that panel's Y range; unset, the range is found from
+the steps (see `y.ignore_gas_percent`). A `value` panel also has a `scale`
+(`linear` or `log`). Factory presets: **Default**, **With K/Ca**, **With
+%40Ar\***, **Mahon**, **Presentation** (large fonts).
 
 ### Inverse isochron
 
@@ -494,12 +624,12 @@ The age spectrum and the inverse isochron of the same analyses in one
 window: the spectrum on the left, the isochron on the right, one such pair
 per graph when the grouping makes several. Default grouping: aliquot. An
 analysis excluded in one is excluded in the other, and the groups table
-(colours, labels, fixed plateau steps) is shared.
+(colors, labels, fixed plateau steps) is shared.
 
 The settings are those of the two figures above. The spectrum's are under
 **Spectrum: ...** sections (`spectrum.plateau.method`, the
 `[[spectrum.panels]]` rows, ...), the isochron's under **Isochron: ...**
-(`isochron.method`, `isochron.ellipse`, ...), and the title, fonts, colours,
+(`isochron.method`, `isochron.ellipse`, ...), and the title, fonts, colors,
 legend and statistics settings are set once for both.
 
 | Setting | Meaning | Default |
@@ -508,10 +638,12 @@ legend and statistics settings are set once for both.
 | `isochron.exclude_non_plateau` | fit the isochron to the steps of the plateau **the spectrum shows**: the same criterion, the same minimum steps and gas, and the fixed steps of the groups table when they are set. (In the inverse isochron figure alone this setting always uses a Fleck plateau of 3 steps, 50% gas, 2 sigma.) With no plateau there are no steps to fit. | off |
 
 Factory presets: **Default**, **Plateau steps** (the isochron of the plateau
-steps, the others dimmed on the spectrum), **With K/Ca**. **Export table...**
+steps, the others dimmed on the spectrum), **With K/Ca**, **Presentation**
+(large fonts, larger isochron markers). **Export table...**
 writes the same report as the age spectrum's, with these plateau settings.
 
-Factory presets: **Default**, **Filled 95%**, **Plateau steps**.
+Factory presets: **Default**, **Filled 95%**, **Plateau steps**,
+**Presentation** (large fonts and markers).
 
 ### Settings every figure shares
 
@@ -523,8 +655,14 @@ Factory presets: **Default**, **Filled 95%**, **Plateau steps**.
 | Statistics | `statistics_location` (`top_left`), `statistics_sig_figs` (4) | |
 | Groups (list, up to 32) | per group: `color`, `marker` (`auto`, circle, square, diamond, triangle, cross, plus, star), legend `label`, `fill_alpha` (70), and for spectra the plateau steps | |
 
-Colours are `#rrggbb` or `#rrggbbaa`. A value outside its range or the wrong
+Colors are `#rrggbb` or `#rrggbbaa`. A value outside its range or the wrong
 type is dropped when a preset is loaded, with a warning.
+
+The fit windows for blanks, IC factors and isotope evolutions take part of
+this list, with the same names and defaults: `panel_spacing`, the `font.*`
+sizes and family, `background`, `plot_background`, `show_grid`,
+`show_legend` and `legend_location`. A preset of one of those windows saved
+before they had these settings loads as it did and draws as it drew.
 
 ### What can be plotted: quantities
 
@@ -549,7 +687,7 @@ Wherever a setting asks for a *quantity* it takes a small expression:
 
 If an analysis lacks the quantity it is left out of that panel; a missing
 value is never drawn as zero. The Options dock offers the list of what the
-selected analyses can supply.
+Selected analyses can supply.
 
 ## Options and named presets
 
@@ -607,8 +745,10 @@ key names.
 
 "Reducing" an analysis turns what the spectrometer measured into an age. The
 steps are the same everywhere (Recall, figures, export), implemented in
-`libs/reduction` (arithmetic and ages) and `libs/processing` (what to
-reduce, with which stored values).
+`libs/reduction` (uncertainty arithmetic and isotope fits), `libs/processing`
+(what to reduce: the intercepts with their baseline, blank and detector
+corrections) and `libs/arar` (the Ar-Ar corrections and ages, with the flux,
+production ratios and chronology they take from the store).
 
 ### 1. Fit each isotope's evolution to get the intercept
 
@@ -798,7 +938,7 @@ location columns in the export.
 Three ways to get numbers out, all producing the same report (see
 [export.md](../export.md) for what every column means):
 
-- **Export** in the data browser: the selected analyses (or all shown),
+- **Export** in the data browser: the analyses in the Selected list,
   grouped by aliquot if any is a heating step, otherwise by identifier;
   file name ends `.csv` or `.json`. It is named after the sample when the
   selection has only one.
@@ -814,6 +954,80 @@ file, so a downloaded, unsigned macOS program does not leave it quarantined.
 If macOS refuses to open it anyway, see
 [the installation runbook](../installation_runbook.md) and
 [10 Troubleshooting](10-troubleshooting.md).
+
+## Publishing a release
+
+A *release* is an immutable, citable directory of a selection's reduced data
+(tables, report, figures, a manifest of every file's hash); what is in it is
+[release_format.md](../release_format.md). **View > Publish…** opens the
+Publish window on the install's database; it does what `elctl publish` and
+`elctl embargo` do ([08 elctl reference](08-elctl-reference.md)). It is there
+only when the install has a database.
+
+The table lists every release: name, version, state (draft, published,
+withdrawn), visibility (private unless made public), the analyses it pins,
+DOI and date. Then, in order:
+
+1. **New release…**: made of what **Export** would take in the data browser
+   (the Selected list). The dialog says how many of
+   them are under embargo now and asks for a name, title, description,
+   authors (with ORCID), licence (CC-BY-4.0 unless you choose another),
+   publisher, the tags kept, an embargo date and the release it supersedes.
+   The release pins every analysis's current revisions: later edits do not
+   change it. It starts as a private draft.
+2. **Build…**: writes `<directory>/<name>-v<version>`. **With figures** adds an
+   ideogram, a spectrum per step-heated aliquot and an inverse isochron per
+   sample, as SVG and PDF. **Private build** keeps embargoed analyses (and says
+   so in its manifest); such a build is for the lab, never hosted as public.
+   The bar shows each stage; the status line names the directory, and says so
+   when the program was built without Apache Arrow (no Parquet tables).
+3. **Verify…**: checks a built directory against its manifest and against a
+   rebuild from the database, and lists every file or table that differs.
+4. **Publish…**: opens the Publish dialog on the selected release (see below).
+5. **Withdraw…** (with a reason) and **Make public** for a published release.
+
+The **Embargoes** dock lists embargoes in force: a project, a sample (its
+name, or `name@project`) or an analysis (`70001-01`), until a date or until
+lifted. An embargoed analysis is left out of a release's public build and of
+everything built from it. **Set…** adds one, **Lift** ends the selected one.
+
+### The Publish dialog
+
+The dialog does the whole of publishing in one place. Open it from the data
+browser's **Publish** button (on a new release made of the Selected analyses) or
+from the Publish window's **Publish…** (on the release selected there). The
+data browser's button is off, and says "Publishing needs a database", on an
+install without one.
+
+At the top choose the release: **New release from selection** (it shows how
+many analyses and how many are under embargo now; **Details…** asks for the
+name, title, authors and the rest, and a name is required) or **Existing
+release** (a draft or published one). Under it tick the destinations; nothing
+is ticked at first, and the dialog remembers your choice. Each ticked
+destination has a tab for its settings:
+
+- **Release folder**: the directory to build into, with figures, private
+  build.
+- **Publish in store**: makes the draft a published release, private or
+  public. It is built from the folder of the same run; without Folder ticked,
+  name the directory of a build of this release.
+- **EarthBank**: pre-flight, export of the workbooks, or upload, as in
+  [Publishing to EarthBank](../earthbank.md). An upload is allowed only for a
+  release that is published, public and not under embargo.
+
+The dialog lists what stops a run (a release already published, a missing
+directory, an upload of a private release) under the destinations, and Run
+stays off while anything does. A run goes in a fixed order whatever order you
+ticked: the new release is made, then the folder, the store, EarthBank. The
+table of results has a row for each destination saying whether it ran, was
+skipped (because a step it needs failed), was cancelled or failed, and why. A
+step that fails skips the ones that depend on it; the others still run.
+**Cancel** stops the run at the next step (inside an upload, after the record
+that is out). Nothing is undone: a built folder stays, a published release
+stays published, and records already sent stay on EarthBank. Closing the
+dialog during a run asks first.
+
+DOI and Hosted are shown and cannot be ticked: neither is built yet.
 
 ## Unverified or not yet implemented
 

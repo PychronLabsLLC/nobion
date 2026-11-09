@@ -1,22 +1,23 @@
-#include "pychron/experiment/store/record_ingest.hpp"
+#include "nobion/experiment/store/record_ingest.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <map>
 #include <set>
+#include <tuple>
 #include <string>
 #include <utility>
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/core/sha256.hpp"
-#include "pychron/experiment/record/names.hpp"
-#include "pychron/persistence/blob.hpp"
-#include "pychron/reduction/fits.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/experiment/record/names.hpp"
+#include "nobion/persistence/blob.hpp"
+#include "nobion/reduction/fits.hpp"
 
-namespace pychron::experiment::store {
+namespace nobion::experiment::store {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 using nlohmann::json;
 
 namespace {
@@ -26,6 +27,9 @@ namespace {
 // than thrown at the caller: dump() with its default handler throws, and a
 // record must not be unsavable, or end the program, for a stray byte.
 std::string dump(const json& j) { return j.dump(-1, ' ', false, json::error_handler_t::replace); }
+
+// A number for JSON: null when not finite (stored as unknown).
+json finite_json(double v) { return std::isfinite(v) ? json(v) : json(nullptr); }
 
 std::optional<double> finite(double v) {
   if (!std::isfinite(v)) return std::nullopt;
@@ -82,6 +86,11 @@ Result<void> fill_identity(const record::AnalysisRecord& rec, const ps::Uuid& an
   a.roots.blanks = ps::Uuid::v5(analysis, "blanks");
   a.roots.icfactors = ps::Uuid::v5(analysis, "icfactors");
   a.roots.tags = ps::Uuid::v5(analysis, "tags");
+  // A failed run is kept, but left out as any invalid analysis is (spec 4.5).
+  if (rec.provenance.status == record::RecordStatus::Failed) {
+    a.roots.tag.name = "invalid";
+    if (!rec.provenance.failure.empty()) a.roots.tag.note = rec.provenance.failure;
+  }
   return {};
 }
 
@@ -115,6 +124,13 @@ Result<void> fill_series(const record::AnalysisRecord& rec, const ps::Uuid& anal
     if (tr.t.size() != tr.v.size() || (!tr.sigma.empty() && tr.sigma.size() != tr.t.size()))
       return fail(ErrorKind::Config, "series " + s.iso + "/" + s.det + "/" + s.kind + " has mismatched lengths");
   }
+  // Series read at several places in the plan (v3) are joined below; two
+  // read at one place no measurement makes.
+  std::set<std::tuple<std::string, std::string, std::string, std::string, int, int>> places;
+  for (const auto& s : rec.data.series)
+    if (!places.emplace(s.kind, s.iso, s.det, s.gas, s.segment, s.position).second)
+      return fail(ErrorKind::Config, "two " + s.kind + " series for " + s.iso + " on " + s.det +
+                                         " at one place in the plan: the store keeps one");
 
   std::set<Sha256Digest> seen;
   std::set<std::pair<std::string, std::string>> isotopes;
@@ -192,6 +208,37 @@ std::string outliers_json(const reduction::OutlierSpec& o) {
 
 const char* error_type_of(const reduction::FitSpec& fit) { return fit.error == reduction::ErrorType::Sd ? "SD" : "SEM"; }
 
+// A detector read at several baseline positions (v3) keeps one stored value,
+// the record's Results::baselines; every position and the baseline each
+// signal on it was corrected with go in the row's extra (plan v2, "Decided
+// here"). Nothing for a detector with one baseline position: an ordinary
+// run's rows are what they were.
+std::optional<std::string> baseline_extra(const record::Results& res, const std::string& det) {
+  json positions = json::array();
+  for (const auto& b : res.baseline_positions) {
+    if (b.detector != det) continue;
+    json p = {{"gas", b.gas},
+              {"segment", b.segment},
+              {"position", b.position},
+              {"when", b.when},
+              {"value", finite_json(b.result.value)},
+              {"error", finite_json(b.result.error)}};
+    if (b.magnet) p["magnet"] = finite_json(*b.magnet);
+    if (b.deflection) p["deflection"] = finite_json(*b.deflection);
+    positions.push_back(std::move(p));
+  }
+  if (positions.size() < 2) return std::nullopt;
+  json choices = json::object();
+  for (const auto& [key, c] : res.baseline_choices) {
+    if (!key.ends_with("@" + det)) continue;
+    choices[key] = {{"rule", c.rule},
+                    {"baselines", c.baselines},
+                    {"value", finite_json(c.value)},
+                    {"error", finite_json(c.error)}};
+  }
+  return dump(json{{"positions", std::move(positions)}, {"choices", std::move(choices)}});
+}
+
 Result<void> fill_fits(const record::Results& res, const record::Data& data, ps::AnalysisIngest& a) {
   // The record keeps an intercept under the acquisition's name; the row is
   // under the analysis' (record/names.hpp), on that isotope's detector.
@@ -217,6 +264,11 @@ Result<void> fill_fits(const record::Results& res, const record::Data& data, ps:
     row.fit = std::string(reduction::to_string(r.fit.kind));
     row.error_type = error_type_of(r.fit);
     row.filter_outliers_json = outliers_json(r.fit.outliers);
+    row.extra_json = baseline_extra(res, det);
+    if (const auto m = res.baseline_modifiers.find(det); m != res.baseline_modifiers.end()) {
+      row.modifier_value = finite(m->second.value);
+      row.modifier_error = finite(m->second.error_value);
+    }
     a.roots.baselines_rows.push_back(std::move(row));
   }
   for (const auto& [det, v] : res.icfactors) {
@@ -289,6 +341,16 @@ void fill_meta(const record::AnalysisRecord& rec, ps::AnalysisIngest& a) {
     set(meta.tripped_conditional_json, dump(arr));
   }
   if (!rec.results.whiff.empty()) set(meta.whiff_result_json, dump(json(rec.results.whiff)));
+  if (!rec.results.baseline_modifiers.empty()) {
+    json mods = json::object();
+    for (const auto& [det, m] : rec.results.baseline_modifiers)
+      mods[det] = {{"variable", m.variable},
+                   {"model", m.model},
+                   {"error", m.error},
+                   {"value", finite_json(m.value)},
+                   {"error_value", finite_json(m.error_value)}};
+    set(meta.baseline_modifiers_json, dump(mods));
+  }
 
   const auto& act = rec.extraction.actuals;
   if (!act.grain_polygons.empty()) {
@@ -352,4 +414,4 @@ Result<RunIngest> to_ingest(const record::AnalysisRecord& rec, ps::Uuid client) 
   return out;
 }
 
-}  // namespace pychron::experiment::store
+}  // namespace nobion::experiment::store

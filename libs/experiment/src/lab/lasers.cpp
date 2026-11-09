@@ -1,15 +1,15 @@
-#include "pychron/experiment/lab/lasers.hpp"
+#include "nobion/experiment/lab/lasers.hpp"
 
 #include <optional>
 #include <utility>
 
-#include "pychron/devices/extraction/interfaces.hpp"
-#include "pychron/laser/tray_camera.hpp"
-#include "pychron/sim/sim_system.hpp"
-#include "pychron/systems/extraction_line.hpp"
-#include "pychron/vision/live_feed.hpp"
+#include "nobion/devices/extraction/interfaces.hpp"
+#include "nobion/laser/tray_camera.hpp"
+#include "nobion/sim/sim_system.hpp"
+#include "nobion/systems/extraction_line.hpp"
+#include "nobion/vision/live_feed.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 Lasers::Lease& Lasers::Lease::operator=(Lease&& other) noexcept {
   if (this != &other) {
@@ -29,6 +29,8 @@ Lasers::Lasers(const Lab& lab, systems::ExtractionLine& line, std::function<bool
     if (device == nullptr) continue;
     auto system = std::make_unique<laser::LaserSystem>(name, *device, lab.trays, *lab.calibrations, &lab.patterns,
                                                        &line.clock());
+    const bool sim = simulated ? simulated(name) : line.sim() != nullptr && line.sim()->chromium(name) != nullptr;
+    if (sim) simulated_.insert(name);
     // Where holes were found before, and (if the lab gives the device a
     // camera) the means to find them again.
     system->set_corrections(*lab.corrections);
@@ -58,7 +60,6 @@ Lasers::Lasers(const Lab& lab, systems::ExtractionLine& line, std::function<bool
       if (camera->use == laser::CameraUse::View) notes_.push_back("camera of " + name + ": " + scale_trouble);
       else problems_.insert_or_assign(name, "camera of " + name + ": " + scale_trouble);
     } else if (camera != nullptr && camera->source != laser::CameraSource::Recorded) {
-      const bool sim = simulated ? simulated(name) : line.sim() != nullptr && line.sim()->chromium(name) != nullptr;
       // What a live camera that did not open says; empty when it did, and
       // for the others.
       const auto unopened = [](vision::IFrameSource& frames) {
@@ -99,7 +100,7 @@ Lasers::Lasers(const Lab& lab, systems::ExtractionLine& line, std::function<bool
         if (!usable) problems_.insert_or_assign(name, usable.error().what);
       }
     }
-    system->set_snapshot_dir(lab.paths.dir / "snapshots" / name);
+    system->set_snapshot_dir(lab.paths.state() / "snapshots" / name);
     systems_.emplace(name, std::move(system));
   }
 }
@@ -108,6 +109,8 @@ laser::LaserSystem* Lasers::find(std::string_view device) {
   const auto it = systems_.find(device);
   return it == systems_.end() ? nullptr : it->second.get();
 }
+
+bool Lasers::simulated(std::string_view device) const { return simulated_.contains(device); }
 
 std::vector<std::string> Lasers::names() const {
   std::vector<std::string> out;
@@ -170,4 +173,4 @@ std::vector<std::string> Lasers::stopped() const {
   return out;
 }
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

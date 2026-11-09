@@ -1,16 +1,16 @@
-#include "pychron/devices/gp_microion.hpp"
+#include "nobion/devices/gp_microion.hpp"
 
 #include <gtest/gtest.h>
 
 #include <atomic>
 #include <thread>
 
-#include "pychron/devices/capabilities.hpp"
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/devices/pfeiffer_maxigauge.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/devices/pfeiffer_maxigauge.hpp"
+#include "nobion/transport/sim_transport.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {
@@ -231,7 +231,7 @@ TEST(GpMicroIonRegistry, RejectsBadOptions) {
 // --- replay -----------------------------------------------------------------------
 
 TEST(GpMicroIonReplay, ReplaysCommittedTrace) {
-  auto sim = SimTransport::replay(std::string(PYCHRON_TRACE_DIR) + "/granville_phillips/microion_read_sensors.trace",
+  auto sim = SimTransport::replay(std::string(NOBION_TRACE_DIR) + "/granville_phillips/microion_read_sensors.trace",
                                   bus_options());
   ASSERT_TRUE(sim) << to_string(sim.error());
   ASSERT_TRUE((*sim)->open());

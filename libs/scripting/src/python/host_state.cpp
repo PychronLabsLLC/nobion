@@ -1,12 +1,14 @@
 // HostState: the vocabulary's C++ side for one execution. Every hardware call
 // checks for Abort, releases the GIL, and turns a failed Result into a Python
-// exception; estimate mode skips hardware and books time instead.
+// exception; estimate mode skips hardware and books time instead; rehearse
+// mode hands each such call to the IRehearsal as one step.
 
 
 #include "internal.hpp"
-#include "pychron/scripting/vocabulary.hpp"
+#include "host_call_trace.hpp"
+#include "nobion/scripting/vocabulary.hpp"
 
-namespace pychron::scripting::python {
+namespace nobion::scripting::python {
 namespace {
 
 using extraction::Capability;
@@ -41,6 +43,38 @@ py::object to_python(const Value& v) {
       v);
 }
 
+Value to_value(const py::handle& v) {
+  if (v.is_none()) return std::monostate{};
+  if (py::isinstance<py::bool_>(v)) return v.cast<bool>();
+  if (py::isinstance<py::int_>(v)) return v.cast<std::int64_t>();
+  if (py::isinstance<py::float_>(v)) return v.cast<double>();
+  return py::str(v).cast<std::string>();
+}
+
+std::string value_text(const Value& v) {
+  return std::visit(
+      [](const auto& x) -> std::string {
+        using T = std::decay_t<decltype(x)>;
+        if constexpr (std::is_same_v<T, std::monostate>) return "None";
+        else if constexpr (std::is_same_v<T, std::string>) return x;
+        else return HostCallTrace::text(x);
+      },
+      v);
+}
+
+const char* type_name(const Value& v) {
+  return std::visit(
+      [](const auto& x) -> const char* {
+        using T = std::decay_t<decltype(x)>;
+        if constexpr (std::is_same_v<T, std::monostate>) return "None";
+        else if constexpr (std::is_same_v<T, bool>) return "bool";
+        else if constexpr (std::is_same_v<T, std::int64_t>) return "int";
+        else if constexpr (std::is_same_v<T, double>) return "float";
+        else return "str";
+      },
+      v);
+}
+
 std::optional<ErrorKind> kind_from_string(std::string_view s) {
   for (auto k : {ErrorKind::Timeout, ErrorKind::Io, ErrorKind::Protocol, ErrorKind::Config,
                  ErrorKind::NotConnected, ErrorKind::Interlock, ErrorKind::Cancelled})
@@ -48,11 +82,23 @@ std::optional<ErrorKind> kind_from_string(std::string_view s) {
   return std::nullopt;
 }
 
+// A number for a call's summary.
+template <class T>
+std::string tx(const T& v) {
+  return HostCallTrace::text(v);
+}
+
 }  // namespace
 
+// First thing in a host function: one record of the call when it ends. The
+// argument pairs are built only when the script's logger is at debug.
+#define NOBION_TRACE(call, ...)                                                   \
+  HostCallTrace trace_(log_, clock(), call, [&] { return HostCallTrace::Args{__VA_ARGS__}; }, \
+                       &active_trace_)
+
 HostState::HostState(const ScriptEnvironment& env, CancelToken& token, Mode mode, ScriptKind kind,
-                     DurationAccumulator* accumulator)
-    : env_(env), token_(token), mode_(mode), kind_(kind), accumulator_(accumulator) {
+                     DurationAccumulator* accumulator, IRehearsal* rehearsal)
+    : env_(env), token_(token), mode_(mode), kind_(kind), accumulator_(accumulator), rehearsal_(rehearsal) {
   line_budget_ = mode == Mode::Estimate ? env.limits.estimate_max_lines : env.limits.max_lines;
 }
 
@@ -88,7 +134,7 @@ py::dict HostState::load(const Script& script, const ValueMap& overrides) {
 
   py::dict ns;
   ns["__builtins__"] = rt.module.attr("make_builtins")(imports, self.attr("info"));
-  ns["__name__"] = "__pychron_script__";
+  ns["__name__"] = "__nobion_script__";
   for (auto item : context) ns[item.first] = item.second;
   py::dict options;
   for (const auto& [k, v] : env_.context.options) options[py::str(k)] = to_python(v);
@@ -204,6 +250,7 @@ void HostState::raise(const Error& error) {
     exc = rt.hardware(std::string(to_string(error.kind)), error.what, error.device);
   last_error_ = error;
   last_exception_ = exc;
+  if (active_trace_) active_trace_->failed(error);
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast): CPython's own idiom: a type object is an object
   PyErr_SetObject(reinterpret_cast<PyObject*>(Py_TYPE(exc.ptr())), exc.ptr());
   throw py::error_already_set();
@@ -284,10 +331,81 @@ void HostState::add_estimate(Duration d, const std::string& command) {
   if (accumulator_) accumulator_->add(d, command, current_script_, current_line_);
 }
 
+Value HostState::step(std::string command, std::vector<Value> args, ValueMap kwargs) {
+  if (!rehearsal_) raise(Error{ErrorKind::Config, "rehearse: no rehearsal", {}});
+  StepCall call{std::move(command), std::move(args), std::move(kwargs), current_script_, current_line_, {}};
+  // The scripts that called into this one, outermost first.
+  if (script_stack_.size() > 1) call.gosubs.assign(script_stack_.begin(), script_stack_.end() - 1);
+  if (step_log_.enabled(LogLevel::Trace)) {
+    HostCallTrace::Args fields;
+    for (std::size_t i = 0; i < call.args.size(); ++i) fields.emplace_back("arg" + std::to_string(i), value_text(call.args[i]));
+    for (const auto& [k, v] : call.kwargs) fields.emplace_back(k, value_text(v));
+    step_log_.trace("step " + call.command + "(" + summarize(fields) + ")");
+  }
+  auto* rehearsal = rehearsal_;
+  const auto held_from = std::chrono::steady_clock::now();
+  auto result = nogil([&] { return rehearsal->step(call); });
+  // max_wall_time counts Python's time, not the time a step was held: move
+  // its start on by the time spent in the step.
+  started_ += std::chrono::steady_clock::now() - held_from;
+  if (!result && result.error().kind == ErrorKind::Cancelled) check_requested(call.command);
+  return unwrap(std::move(result));
+}
+
+bool HostState::step_bool(const std::string& command, const std::string& name) {
+  guard();
+  auto v = step(command, {Value(name)});
+  if (const auto* b = std::get_if<bool>(&v)) return *b;
+  raise(Error{ErrorKind::Config, "rehearse: " + command + " answered with a " + type_name(v), {}});
+}
+
+void HostState::rehearse_void(const std::string& command, std::vector<Value> args, ValueMap kwargs) {
+  guard();
+  step(command, std::move(args), std::move(kwargs));
+}
+
+bool HostState::rehearse_bool(const std::string& command, std::vector<Value> args) {
+  guard();
+  auto v = step(command, std::move(args));
+  if (const auto* b = std::get_if<bool>(&v)) return *b;
+  raise(Error{ErrorKind::Config, "rehearse: " + command + " answered with a " + type_name(v), {}});
+}
+
+std::string HostState::rehearse_string(const std::string& command, std::vector<Value> args) {
+  guard();
+  auto v = step(command, std::move(args));
+  if (const auto* str = std::get_if<std::string>(&v)) return *str;
+  if (std::holds_alternative<std::monostate>(v)) return {};
+  raise(Error{ErrorKind::Config, "rehearse: " + command + " answered with a " + type_name(v), {}});
+}
+
+double HostState::rehearse_double(const std::string& command, std::vector<Value> args) {
+  guard();
+  auto v = step(command, std::move(args));
+  if (const auto* d = std::get_if<double>(&v)) return *d;
+  if (const auto* i = std::get_if<std::int64_t>(&v)) return static_cast<double>(*i);
+  raise(Error{ErrorKind::Config, "rehearse: " + command + " answered with a " + type_name(v), {}});
+}
+
+py::object HostState::rehearse_step(const std::string& command, const py::list& args, const py::dict& kwargs,
+                                    double seconds_held) {
+  std::vector<Value> a;
+  for (auto item : args) a.push_back(to_value(item));
+  ValueMap k;
+  for (auto item : kwargs) k[py::str(item.first).cast<std::string>()] = to_value(item.second);
+  guard();
+  check_requested(command);
+  auto v = step(command, std::move(a), std::move(k));
+  rehearsed_ += seconds(seconds_held);  // seconds() clamps a negative time to zero
+  return to_python(v);
+}
+
 // ---- vocabulary --------------------------------------------------------
 
 double HostState::now() {
-  auto t = estimating() && accumulator_ ? accumulator_->now() : clock().now();
+  auto t = rehearsing()                  ? TimePoint{} + rehearsed_
+           : estimating() && accumulator_ ? accumulator_->now()
+                                          : clock().now();
   return std::chrono::duration<double>(t.time_since_epoch()).count();
 }
 
@@ -304,20 +422,46 @@ void HostState::require(const std::string& capability) {
 
 // Resolve the service with the GIL held (a missing one raises), then call it
 // without.
-#define PYCHRON_HW(fallback, service, call) \
+#define NOBION_HW(fallback, service, call) \
   if (estimating()) return fallback; \
   guard(); \
   auto& svc = service; \
-  return unwrap(nogil([&] { return svc.call; }))
+  return trace_.run([&] { return unwrap(nogil([&] { return svc.call; })); })
 
-void HostState::open(const std::string& n) { PYCHRON_HW(, valves(), open(n)); }
-void HostState::close(const std::string& n) { PYCHRON_HW(, valves(), close(n)); }
-void HostState::lock(const std::string& n) { PYCHRON_HW(, valves(), lock(n)); }
-void HostState::unlock(const std::string& n) { PYCHRON_HW(, valves(), unlock(n)); }
-bool HostState::is_open(const std::string& n) { PYCHRON_HW(false, valves(), is_open(n)); }
-bool HostState::is_closed(const std::string& n) { PYCHRON_HW(false, valves(), is_closed(n)); }
+void HostState::open(const std::string& n) {
+  NOBION_TRACE("open", {"name", n});
+  if (rehearsing()) return rehearse_void("open", {Value(n)});
+  NOBION_HW(, valves(), open(n));
+}
+void HostState::close(const std::string& n) {
+  NOBION_TRACE("close", {"name", n});
+  if (rehearsing()) return rehearse_void("close", {Value(n)});
+  NOBION_HW(, valves(), close(n));
+}
+void HostState::lock(const std::string& n) {
+  NOBION_TRACE("lock", {"name", n});
+  if (rehearsing()) return rehearse_void("lock", {Value(n)});
+  NOBION_HW(, valves(), lock(n));
+}
+void HostState::unlock(const std::string& n) {
+  NOBION_TRACE("unlock", {"name", n});
+  if (rehearsing()) return rehearse_void("unlock", {Value(n)});
+  NOBION_HW(, valves(), unlock(n));
+}
+bool HostState::is_open(const std::string& n) {
+  NOBION_TRACE("is_open", {"name", n});
+  if (rehearsing()) return step_bool("is_open", n);
+  NOBION_HW(false, valves(), is_open(n));
+}
+bool HostState::is_closed(const std::string& n) {
+  NOBION_TRACE("is_closed", {"name", n});
+  if (rehearsing()) return step_bool("is_closed", n);
+  NOBION_HW(false, valves(), is_closed(n));
+}
 
 void HostState::extract(double value, const std::string& units) {
+  NOBION_TRACE("extract", {"value", tx(value)}, {"units", units});
+  if (rehearsing()) return rehearse_void("extract", {Value(value), Value(units)});
   if (estimating()) return;
   guard();
   auto u = extraction::extract_units_from_string(units);
@@ -326,12 +470,30 @@ void HostState::extract(double value, const std::string& units) {
   unwrap(nogil([&] { return dev.extract(value, *u); }));
 }
 
-void HostState::end_extract() { PYCHRON_HW(, device(), end_extract()); }
-void HostState::enable() { PYCHRON_HW(, device(), enable()); }
-void HostState::disable() { PYCHRON_HW(, device(), disable()); }
-void HostState::prepare() { PYCHRON_HW(, device(), prepare()); }
+void HostState::end_extract() {
+  NOBION_TRACE("end_extract");
+  if (rehearsing()) return rehearse_void("end_extract", {});
+  NOBION_HW(, device(), end_extract());
+}
+void HostState::enable() {
+  NOBION_TRACE("enable");
+  if (rehearsing()) return rehearse_void("enable", {});
+  NOBION_HW(, device(), enable());
+}
+void HostState::disable() {
+  NOBION_TRACE("disable");
+  if (rehearsing()) return rehearse_void("disable", {});
+  NOBION_HW(, device(), disable());
+}
+void HostState::prepare() {
+  NOBION_TRACE("prepare");
+  if (rehearsing()) return rehearse_void("prepare", {});
+  NOBION_HW(, device(), prepare());
+}
 
 void HostState::fire_laser() {
+  NOBION_TRACE("fire_laser");
+  if (rehearsing()) return rehearse_void("fire_laser", {});
   if (estimating()) return;
   guard();
   auto* laser = device().laser();
@@ -340,6 +502,8 @@ void HostState::fire_laser() {
 }
 
 void HostState::warmup() {
+  NOBION_TRACE("warmup");
+  if (rehearsing()) return rehearse_void("warmup", {});
   if (estimating()) return;
   guard();
   auto* laser = device().laser();
@@ -348,9 +512,24 @@ void HostState::warmup() {
 }
 
 DeviceHandle HostState::get_device(const std::string& name) {
-  if (!estimating() && !name.empty() && device().device_name() != name)
+  NOBION_TRACE("get_device", {"name", name});
+  if (!estimating() && !rehearsing() && !name.empty() && device().device_name() != name)
     raise(Error{ErrorKind::Config, "no device '" + name + "' in this run", {}});
   return DeviceHandle{this};
+}
+
+bool HostState::device_is_enabled() {
+  NOBION_TRACE("is_enabled");
+  if (estimating()) return false;
+  if (rehearsing()) return rehearse_bool("is_enabled", {});
+  return trace_.run([&] { return unwrap(device().is_enabled()); });
+}
+
+double HostState::device_output() {
+  NOBION_TRACE("output");
+  if (estimating()) return 0.0;
+  if (rehearsing()) return rehearse_double("output", {});
+  return trace_.run([&] { return unwrap(device().output()); });
 }
 
 namespace {
@@ -371,6 +550,9 @@ std::function<void()> HostState::stop_stage(extraction::IStage* stage) {
 }
 
 void HostState::move_to_position(const std::string& position, bool autocenter, bool block) {
+  NOBION_TRACE("move_to_position", {"position", position}, {"autocenter", tx(autocenter)}, {"block", tx(block)});
+  if (rehearsing())
+    return rehearse_void("move_to_position", {Value(position)}, {{"autocenter", Value(autocenter)}, {"block", Value(block)}});
   if (estimating()) return;
   guard();
   check_requested("move_to_position");
@@ -393,6 +575,8 @@ void HostState::move_to_position(const std::string& position, bool autocenter, b
 }
 
 void HostState::set_axis(const std::string& axis, double value, bool block) {
+  NOBION_TRACE("set_" + axis, {"value", tx(value)}, {"block", tx(block)});
+  if (rehearsing()) return rehearse_void("set_" + axis, {Value(value)}, {{"block", Value(block)}});
   if (estimating()) return;
   guard();
   check_requested("set_" + axis);
@@ -404,6 +588,8 @@ void HostState::set_axis(const std::string& axis, double value, bool block) {
 }
 
 void HostState::set_xy(double x, double y, bool block) {
+  NOBION_TRACE("set_xy", {"x", tx(x)}, {"y", tx(y)}, {"block", tx(block)});
+  if (rehearsing()) return rehearse_void("set_xy", {Value(x), Value(y)}, {{"block", Value(block)}});
   if (estimating()) return;
   guard();
   check_requested("set_xy");
@@ -413,6 +599,8 @@ void HostState::set_xy(double x, double y, bool block) {
 }
 
 void HostState::set_tray(const std::string& tray) {
+  NOBION_TRACE("set_tray", {"tray", tray});
+  if (rehearsing()) return rehearse_void("set_tray", {Value(tray)});
   if (estimating()) return;
   guard();
   auto* stage = feature(*this, &extraction::IExtractionDevice::stage, Capability::Stage);
@@ -420,6 +608,9 @@ void HostState::set_tray(const std::string& tray) {
 }
 
 void HostState::execute_pattern(const std::string& pattern, bool block, double duration_s) {
+  NOBION_TRACE("execute_pattern", {"pattern", pattern}, {"block", tx(block)}, {"duration", tx(duration_s)});
+  if (rehearsing())
+    return rehearse_void("execute_pattern", {Value(pattern)}, {{"block", Value(block)}, {"duration", Value(duration_s)}});
   if (estimating()) return;
   guard();
   check_requested("execute_pattern");
@@ -443,6 +634,8 @@ void HostState::execute_pattern(const std::string& pattern, bool block, double d
 }
 
 void HostState::dump_sample() {
+  NOBION_TRACE("dump_sample");
+  if (rehearsing()) return rehearse_void("dump_sample", {});
   if (estimating()) return;
   guard();
   auto* f = feature(*this, &extraction::IExtractionDevice::furnace, Capability::Furnace);
@@ -450,6 +643,8 @@ void HostState::dump_sample() {
 }
 
 void HostState::drop_sample(const std::string& position) {
+  NOBION_TRACE("drop_sample", {"position", position});
+  if (rehearsing()) return rehearse_void("drop_sample", {Value(position)});
   if (estimating()) return;
   guard();
   auto* f = feature(*this, &extraction::IExtractionDevice::furnace, Capability::Furnace);
@@ -457,6 +652,8 @@ void HostState::drop_sample(const std::string& position) {
 }
 
 void HostState::set_pid_parameters(double value) {
+  NOBION_TRACE("set_pid_parameters", {"value", tx(value)});
+  if (rehearsing()) return rehearse_void("set_pid_parameters", {Value(value)});
   if (estimating()) return;
   guard();
   auto* f = feature(*this, &extraction::IExtractionDevice::furnace, Capability::Furnace);
@@ -464,6 +661,8 @@ void HostState::set_pid_parameters(double value) {
 }
 
 void HostState::load_pipette(const std::string& name) {
+  NOBION_TRACE("load_pipette", {"name", name});
+  if (rehearsing()) return rehearse_void("load_pipette", {Value(name)});
   if (estimating()) return;
   guard();
   auto* p = feature(*this, &extraction::IExtractionDevice::pipettes, Capability::Pipette);
@@ -471,6 +670,8 @@ void HostState::load_pipette(const std::string& name) {
 }
 
 void HostState::extract_pipette(const std::string& name) {
+  NOBION_TRACE("extract_pipette", {"name", name});
+  if (rehearsing()) return rehearse_void("extract_pipette", {Value(name)});
   if (estimating()) return;
   guard();
   auto* p = feature(*this, &extraction::IExtractionDevice::pipettes, Capability::Pipette);
@@ -478,6 +679,8 @@ void HostState::extract_pipette(const std::string& name) {
 }
 
 void HostState::set_motor(const std::string& name, double value, bool block) {
+  NOBION_TRACE("set_motor", {"name", name}, {"value", tx(value)}, {"block", tx(block)});
+  if (rehearsing()) return rehearse_void("set_motor", {Value(name), Value(value)}, {{"block", Value(block)}});
   if (estimating()) return;
   guard();
   auto* m = feature(*this, &extraction::IExtractionDevice::motors, Capability::Motor);
@@ -486,10 +689,12 @@ void HostState::set_motor(const std::string& name, double value, bool block) {
 }
 
 double HostState::get_value(const std::string& name) {
+  NOBION_TRACE("get_value", {"name", name});
+  if (rehearsing()) return rehearse_double("get_value", {Value(name)});
   if (estimating()) return 0.0;
   guard();
   auto* m = feature(*this, &extraction::IExtractionDevice::motors, Capability::Motor);
-  return unwrap(nogil([&] { return m->get_value(name); }));
+  return trace_.run([&] { return unwrap(nogil([&] { return m->get_value(name); })); });
 }
 
 extraction::ICryo& HostState::cryo() {
@@ -499,6 +704,8 @@ extraction::ICryo& HostState::cryo() {
 }
 
 void HostState::set_cryo(double value, bool block) {
+  NOBION_TRACE("set_cryo", {"value", tx(value)}, {"block", tx(block)});
+  if (rehearsing()) return rehearse_void("set_cryo", {Value(value)}, {{"block", Value(block)}});
   if (estimating()) return;
   guard();
   auto& c = cryo();
@@ -507,6 +714,8 @@ void HostState::set_cryo(double value, bool block) {
 }
 
 void HostState::set_cryo_named(const std::string& name, bool block) {
+  NOBION_TRACE("set_cryo", {"name", name}, {"block", tx(block)});
+  if (rehearsing()) return rehearse_void("set_cryo", {Value(name)}, {{"block", Value(block)}});
   if (estimating()) return;
   guard();
   auto& c = cryo();
@@ -515,20 +724,26 @@ void HostState::set_cryo_named(const std::string& name, bool block) {
 }
 
 double HostState::get_cryo_temp(int channel) {
+  NOBION_TRACE("get_cryo_temp", {"channel", tx(channel)});
+  if (rehearsing()) return rehearse_double("get_cryo_temp", {Value(std::int64_t{channel})});
   if (estimating()) return 0.0;
   guard();
   auto& c = cryo();
-  return unwrap(nogil([&] { return c.get_cryo_temp(channel); }));
+  return trace_.run([&] { return unwrap(nogil([&] { return c.get_cryo_temp(channel); })); });
 }
 
 std::string HostState::snapshot(const std::string& name) {
+  NOBION_TRACE("snapshot", {"name", name});
+  if (rehearsing()) return rehearse_string("snapshot", {Value(name)});
   if (estimating()) return {};
   guard();
   auto* im = feature(*this, &extraction::IExtractionDevice::imaging, Capability::Imaging);
-  return unwrap(nogil([&] { return im->snapshot(name); }));
+  return trace_.run([&] { return unwrap(nogil([&] { return im->snapshot(name); })); });
 }
 
 void HostState::video_start(const std::string& name) {
+  NOBION_TRACE("video_start", {"name", name});
+  if (rehearsing()) return rehearse_void("video_start", {Value(name)});
   if (estimating()) return;
   guard();
   auto* im = feature(*this, &extraction::IExtractionDevice::imaging, Capability::Imaging);
@@ -536,6 +751,8 @@ void HostState::video_start(const std::string& name) {
 }
 
 void HostState::video_stop() {
+  NOBION_TRACE("video_stop");
+  if (rehearsing()) return rehearse_void("video_stop", {});
   if (estimating()) return;
   guard();
   auto* im = feature(*this, &extraction::IExtractionDevice::imaging, Capability::Imaging);
@@ -543,21 +760,41 @@ void HostState::video_stop() {
 }
 
 double HostState::get_pressure(const std::string& controller, const std::string& gauge) {
-  PYCHRON_HW(0.0, pressure(), get_pressure(controller, gauge));
+  NOBION_TRACE("get_pressure", {"controller", controller}, {"gauge", gauge});
+  if (rehearsing()) return rehearse_double("get_pressure", {Value(controller), Value(gauge)});
+  NOBION_HW(0.0, pressure(), get_pressure(controller, gauge));
 }
 
 double HostState::get_manometer_pressure(const std::string& name) {
-  PYCHRON_HW(0.0, pressure(), get_manometer_pressure(name));
+  NOBION_TRACE("get_manometer_pressure", {"name", name});
+  if (rehearsing()) return rehearse_double("get_manometer_pressure", {Value(name)});
+  NOBION_HW(0.0, pressure(), get_manometer_pressure(name));
 }
 
-#undef PYCHRON_HW
+#undef NOBION_HW
 
 void HostState::sleep(double s, const std::string& command) {
+  NOBION_TRACE(command, {"seconds", tx(s)});
+  if (rehearsing()) {
+    // One step, however long: no clock wait.
+    check_requested(command);
+    step(command, {Value(s)});
+    rehearsed_ += seconds(s);
+    return;
+  }
   if (estimating()) return add_estimate(seconds(s), command);
   wait_period(seconds(s), command);
 }
 
 void HostState::pause(double s) {
+  NOBION_TRACE("pause", {"seconds", tx(s)});
+  if (rehearsing()) {
+    // With or without a duration: one step, which the operator ends.
+    check_requested("pause");
+    step("pause", {Value(s)});
+    rehearsed_ += seconds(s);
+    return;
+  }
   if (estimating()) {
     if (s > 0) return add_estimate(seconds(s), "pause");
     if (accumulator_) accumulator_->flag_unbounded("pause() without a duration");
@@ -573,6 +810,7 @@ void HostState::pause(double s) {
 }
 
 void HostState::wake() {
+  NOBION_TRACE("wake");
   if (!estimating()) token_.wake();
 }
 
@@ -584,6 +822,8 @@ void HostState::estimate_wait(const std::string& command, double timeout) {
 }
 
 void HostState::acquire(const std::string& name) {
+  NOBION_TRACE("acquire", {"name", name});
+  if (rehearsing()) return rehearse_void("acquire", {Value(name)});
   if (estimating()) return;
   guard();
   auto& res = resources();
@@ -591,6 +831,8 @@ void HostState::acquire(const std::string& name) {
 }
 
 void HostState::wait_resource(const std::string& name, double value) {
+  NOBION_TRACE("wait", {"name", name}, {"value", tx(value)});
+  if (rehearsing()) return rehearse_void("wait", {Value(name), Value(value)});
   if (estimating()) return;
   guard();
   auto& res = resources();
@@ -599,37 +841,47 @@ void HostState::wait_resource(const std::string& name, double value) {
 }
 
 void HostState::release(const std::string& name) {
+  NOBION_TRACE("release", {"name", name});
+  if (rehearsing()) return rehearse_void("release", {Value(name)});
   if (estimating()) return;
   guard();
   unwrap(resources().release(name));
 }
 
 void HostState::set_resource(const std::string& name, double value) {
+  NOBION_TRACE("set_resource", {"name", name}, {"value", tx(value)});
+  if (rehearsing()) return rehearse_void("set_resource", {Value(name), Value(value)});
   if (estimating()) return;
   guard();
   unwrap(resources().set_value(name, value));
 }
 
 double HostState::get_resource_value(const std::string& name) {
+  NOBION_TRACE("get_resource_value", {"name", name});
+  if (rehearsing()) return rehearse_double("get_resource_value", {Value(name)});
   if (estimating()) return 0.0;
   guard();
-  return unwrap(resources().get_value(name));
+  return trace_.run([&] { return unwrap(resources().get_value(name)); });
 }
 
 void HostState::gosub(const std::string& name, py::dict kwargs) {
+  // Each override is its own pair, so a secret among them is redacted by key.
+  HostCallTrace trace_(
+      log_, clock(), "gosub",
+      [&] {
+        HostCallTrace::Args args{{"name", name}};
+        for (auto item : kwargs)
+          args.emplace_back(py::str(item.first).cast<std::string>(), py::str(item.second).cast<std::string>());
+        return args;
+      },
+      &active_trace_);
   if (gosub_depth_ >= env_.limits.max_gosub_depth)
     raise(Error{ErrorKind::Config, "gosub depth limit reached at '" + name + "'", {}});
   if (!env_.resolver) raise(Error{ErrorKind::Config, "gosub '" + name + "': no resolver", {}});
   auto sub = unwrap(env_.resolver->resolve(name, kind_));
   ValueMap overrides;
   for (auto item : kwargs) {
-    auto key = py::str(item.first).cast<std::string>();
-    auto v = item.second;
-    if (v.is_none()) overrides[key] = std::monostate{};
-    else if (py::isinstance<py::bool_>(v)) overrides[key] = v.cast<bool>();
-    else if (py::isinstance<py::int_>(v)) overrides[key] = v.cast<std::int64_t>();
-    else if (py::isinstance<py::float_>(v)) overrides[key] = v.cast<double>();
-    else overrides[key] = py::str(v).cast<std::string>();
+    overrides[py::str(item.first).cast<std::string>()] = to_value(item.second);
   }
   ++gosub_depth_;
   try {
@@ -642,15 +894,19 @@ void HostState::gosub(const std::string& name, py::dict kwargs) {
 }
 
 double HostState::get_intensity(const std::string& key) {
+  NOBION_TRACE("get_intensity", {"isotope", key});
+  if (rehearsing()) return rehearse_double("get_intensity", {Value(key)});
   if (estimating()) return 0.0;
   guard();
   if (!env_.intensity) raise(not_supported("get_intensity"));
-  return unwrap(nogil([&] { return env_.intensity->intensity(key); }));
+  return trace_.run([&] { return unwrap(nogil([&] { return env_.intensity->intensity(key); })); });
 }
 
 void HostState::signal_pump_time_start() {
+  NOBION_TRACE("signal_pump_time_start");
+  if (rehearsing()) return rehearse_void("signal_pump_time_start", {});
   if (estimating()) return;
   if (env_.on_pump_time_start) env_.on_pump_time_start();
 }
 
-}  // namespace pychron::scripting::python
+}  // namespace nobion::scripting::python

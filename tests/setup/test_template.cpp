@@ -1,12 +1,12 @@
 // The setup template language: substitution, the toml filter, conditions,
 // loops over lists and table rows, tag-only lines, and its errors.
 
-#include "pychron/setup/template.hpp"
+#include "nobion/setup/template.hpp"
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-using namespace pychron::setup;
+using namespace nobion;
+using namespace nobion::setup;
 
 namespace {
 

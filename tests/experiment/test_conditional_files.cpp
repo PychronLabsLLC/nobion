@@ -12,11 +12,11 @@
 #include <unistd.h>
 #endif
 
-#include "pychron/experiment/conditionals/library.hpp"
-#include "pychron/experiment/lab/lab.hpp"
+#include "nobion/experiment/conditionals/library.hpp"
+#include "nobion/experiment/lab/lab.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 namespace fs = std::filesystem;
@@ -24,7 +24,7 @@ namespace fs = std::filesystem;
 class ConditionalFilesTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    root_ = pychron::testing::unique_temp_path("pychron-condfiles-");
+    root_ = nobion::testing::unique_temp_path("nobion-condfiles-");
     fs::create_directories(root_);
     dir_ = root_ / "conditionals";
   }
@@ -131,7 +131,7 @@ TEST_F(ConditionalFilesTest, FailedWriteLeavesNoPartial) {
 }
 
 TEST(ConditionalFilesLab, LabHasThem) {
-  const fs::path dir(PYCHRON_EXAMPLE_CONFIGS_DIR);
+  const fs::path dir(NOBION_EXAMPLE_CONFIGS_DIR);
   auto lab = lab::load_lab({dir, dir / "extraction_line.toml", dir / "spectrometer.sim-integrated.toml"});
   ASSERT_TRUE(lab.condition_files);
   auto l = lab.condition_files->list();
@@ -140,4 +140,4 @@ TEST(ConditionalFilesLab, LabHasThem) {
 }
 
 }  // namespace
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

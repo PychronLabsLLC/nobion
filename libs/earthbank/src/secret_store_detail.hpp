@@ -7,10 +7,10 @@
 #include <string>
 #include <string_view>
 
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/secret_store.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/secret_store.hpp"
 
-namespace pychron::earthbank::detail {
+namespace nobion::earthbank::detail {
 
 // An account that is not empty, and for `set` a password that is not empty
 // and has no NUL in it; a `Config` error naming `backend` otherwise. The
@@ -23,9 +23,9 @@ Result<void> check_password(std::string_view backend, std::string_view password)
 std::unique_ptr<ISecretStore> process_memory_secret_store(std::string_view service);
 
 // The system's store for `service`, defined by the one secret_store_<system>.cpp
-// that was compiled (none when PYCHRON_EARTHBANK_SECRET_STORE is "memory").
+// that was compiled (none when NOBION_EARTHBANK_SECRET_STORE is "memory").
 // Null when the store cannot be used now: no keychain, no session, no secret
 // service on the bus.
 std::unique_ptr<ISecretStore> make_system_secret_store(std::string_view service);
 
-}  // namespace pychron::earthbank::detail
+}  // namespace nobion::earthbank::detail

@@ -6,10 +6,10 @@
 #include <thread>
 #include <vector>
 
-#include "pychron/core/events.hpp"
-#include "pychron/core/signal_bus.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/signal_bus.hpp"
 
-using namespace pychron;
+using namespace nobion;
 
 TEST(SignalBus, DeliversByType) {
   SignalBus bus;

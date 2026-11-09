@@ -32,14 +32,15 @@
 #include <QTcpSocket>
 #if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
 #include <QSslServer>
-#define PYCHRON_TEST_HAS_SSL_SERVER 1
+#define NOBION_TEST_HAS_SSL_SERVER 1
 #endif
 
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/http.hpp"
-#include "pychron/earthbank/qt_http_client.hpp"
+#include "nobion/core/build_info.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/http.hpp"
+#include "nobion/earthbank/qt_http_client.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using namespace std::chrono_literals;
@@ -206,8 +207,8 @@ TEST(QtHttpClient, GetPostAndHeaders) {
   EXPECT_EQ(first.target, "/api/account?size=2&name.equals=Fish%20Canyon");
   EXPECT_EQ(first.header("Authorization"), "Bearer not-a-real-token");
   EXPECT_EQ(first.header("Accept"), "application/json");
-  EXPECT_TRUE(first.header("User-Agent").starts_with("pychron-cpp/")) << first.header("User-Agent");
-  EXPECT_GT(first.header("User-Agent").size(), std::string("pychron-cpp/").size());
+  EXPECT_TRUE(first.header("User-Agent").starts_with("nobion/")) << first.header("User-Agent");
+  EXPECT_EQ(first.header("User-Agent"), "nobion/" + nobion::build_id());
 
   HttpRequest post = request("POST", server.url("/api/authenticate"));
   post.headers = {{"Content-Type", "application/json"}};
@@ -556,15 +557,15 @@ TEST(QtHttpClient, TheApplicationItMakesLeavesNumbersInTheCLocale) {
 #endif
 }
 
-#if defined(PYCHRON_TEST_HAS_SSL_SERVER) && defined(PYCHRON_TEST_TLS_DIR)
+#if defined(NOBION_TEST_HAS_SSL_SERVER) && defined(NOBION_TEST_TLS_DIR)
 // A server that speaks TLS with a certificate made for the test (cmake, in the
 // build tree). Nobody trusts it: the client must not either.
 class TlsServer {
  public:
   TlsServer(const char* name) {
     ensure_application();
-    QFile crt(QString::fromStdString(std::string(PYCHRON_TEST_TLS_DIR) + "/" + name + ".crt"));
-    QFile key(QString::fromStdString(std::string(PYCHRON_TEST_TLS_DIR) + "/" + name + ".key"));
+    QFile crt(QString::fromStdString(std::string(NOBION_TEST_TLS_DIR) + "/" + name + ".crt"));
+    QFile key(QString::fromStdString(std::string(NOBION_TEST_TLS_DIR) + "/" + name + ".key"));
     if (!crt.open(QIODevice::ReadOnly) || !key.open(QIODevice::ReadOnly)) {
       ADD_FAILURE() << "no test certificate";
       return;
@@ -642,4 +643,4 @@ TEST(QtHttpClient, MakeHttpClientGivesOne) {
   EXPECT_NE(dynamic_cast<QtHttpClient*>(client.get()), nullptr);
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

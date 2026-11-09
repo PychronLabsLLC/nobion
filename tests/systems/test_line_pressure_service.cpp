@@ -1,17 +1,17 @@
 // LinePressureService: scripts' get_pressure over the line's gauges
 // (plan 2026-10-05, task B0).
-#include "pychron/systems/line_pressure_service.hpp"
+#include "nobion/systems/line_pressure_service.hpp"
 
 #include <gtest/gtest.h>
 
 #include <chrono>
 
-#include "pychron/core/config/loader.hpp"
+#include "nobion/core/config/loader.hpp"
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::systems;
+using namespace nobion;
+using namespace nobion::systems;
 using namespace std::chrono_literals;
 
 constexpr const char* kSystem = R"(
@@ -98,4 +98,16 @@ TEST(LinePressureService, AStaleReadingIsNeverPassedOffAsNow) {
   EXPECT_NE(stale.error().what.find("4.5 s ago"), std::string::npos) << stale.error().what;
   ASSERT_TRUE(l.line->read_gauge("IG"));  // a fresh read clears it
   EXPECT_TRUE(pressure.get_pressure("", "IG"));
+}
+
+// One rule for scripts and the canvas: three scans, never under one scan of
+// one millisecond.
+TEST(LinePressureService, StaleAfterIsThreeScans) {
+  config::SystemSection system;
+  system.scan_interval_ms = 1000;
+  EXPECT_EQ(gauge_stale_after(system), 3000ms);
+  EXPECT_EQ(gauge_stale_after(system, 5), 5000ms);
+  EXPECT_EQ(gauge_stale_after(system, 0), 1000ms);
+  system.scan_interval_ms = 0;
+  EXPECT_EQ(gauge_stale_after(system), 3ms);
 }

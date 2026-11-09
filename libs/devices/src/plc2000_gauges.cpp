@@ -1,11 +1,11 @@
-#include "pychron/devices/plc2000_gauges.hpp"
+#include "nobion/devices/plc2000_gauges.hpp"
 
 #include <algorithm>
 #include <cmath>
 
-#include "pychron/devices/modbus_ids.hpp"
+#include "nobion/devices/modbus_ids.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace mb = codec::modbus;
 
@@ -19,8 +19,8 @@ const Clock& steady_clock() {
 }  // namespace
 
 Plc2000Gauges::Plc2000Gauges(std::string name, Transport& transport, Plc2000GaugesOptions options,
-                             const Clock* clock)
-    : Device(std::move(name), DeviceOptions{clock}),
+                             const Clock* clock, Link* link)
+    : Device(std::move(name), DeviceOptions{clock, DeviceOptions{}.fault_after, link}),
       transport_(transport),
       options_(std::move(options)),
       clock_(clock != nullptr ? clock : &steady_clock()) {}
@@ -64,20 +64,21 @@ Result<std::unique_ptr<Plc2000Gauges>> Plc2000Gauges::create(const DriverArgs& a
       return fail(ErrorKind::Config, "channel " + std::to_string(ch) + " maps to register " + std::to_string(reg) +
                                          ", outside 0..65534");
   }
-  return std::make_unique<Plc2000Gauges>(args.name, args.transport, std::move(options), args.clock);
+  return std::make_unique<Plc2000Gauges>(args.name, args.transport, std::move(options), args.clock, args.link);
 }
 
 Result<double> Plc2000Gauges::read_pressure() { return read_pressure(options_.channels.front()); }
 
 Result<double> Plc2000Gauges::read_pressure(int channel) {
-  auto value = [&]() -> Result<double> {
+  const Operation op = begin("read_pressure");
+  auto value = relay<double>("read_pressure", [&](Resend resend) -> Result<double> {
     if (std::ranges::find(options_.channels, channel) == options_.channels.end())
       return fail(ErrorKind::Config, "channel " + std::to_string(channel) + " is not configured");
     const auto reg = static_cast<std::uint16_t>(channel + options_.register_offset);
     const auto tid = next_modbus_transaction_id();
     auto cmd = mb::read_holding_registers(tid, options_.unit, reg, 2);
     if (!cmd) return fail(std::move(cmd).error());
-    auto reply = transport_.exchange(cmd->tx, *cmd->reply);
+    auto reply = transport_.exchange(cmd->tx, *cmd->reply, Transport::kDefaultTimeout, resend);
     if (!reply) return fail(std::move(reply).error());
     auto regs = mb::decode_registers(tid, options_.unit, mb::Function::ReadHoldingRegisters, 2, *reply);
     if (!regs) return fail(std::move(regs).error());
@@ -85,8 +86,8 @@ Result<double> Plc2000Gauges::read_pressure(int channel) {
     if (!std::isfinite(v) || v < 0) return codec::protocol_error("plc2000: register " + std::to_string(reg) +
                                                                      " holds no pressure", *reply);
     return v;
-  }();
-  return observe(std::move(value));
+  }, Repeat::Safe);
+  return observe(op, std::move(value));
 }
 
 Result<Sample> Plc2000Gauges::sample() {
@@ -95,6 +96,6 @@ Result<Sample> Plc2000Gauges::sample() {
   return Sample{name(), clock_->now(), *p};
 }
 
-}  // namespace pychron
+}  // namespace nobion
 
-REGISTER_DRIVER("plc2000_gauges", pychron::Plc2000Gauges);
+REGISTER_DRIVER("plc2000_gauges", nobion::Plc2000Gauges);

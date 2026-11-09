@@ -1,10 +1,10 @@
-#include "pychron/core/sha1.hpp"
+#include "nobion/core/sha1.hpp"
 
 #include <cstddef>
 #include <cstring>
 #include <string>
 
-namespace pychron {
+namespace nobion {
 namespace {
 
 constexpr std::uint32_t rotl(std::uint32_t x, int n) { return (x << n) | (x >> (32 - n)); }
@@ -68,4 +68,4 @@ std::array<std::uint8_t, 20> sha1(std::string_view bytes) {
   return out;
 }
 
-}  // namespace pychron
+}  // namespace nobion

@@ -17,28 +17,31 @@
 #include <sstream>
 #include <string_view>
 #include <system_error>
+#include <utility>
 
-#include "pychron/core/env.hpp"
-#include "pychron/core/host_name.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/core/user_file.hpp"
-#include "pychron/persistence/store.hpp"
-#include "pychron/processing/flux_fit.hpp"
-#include "pychron/processing/flux_view.hpp"
-#include "pychron/processing/flux_store.hpp"
-#include "pychron/processing/report.hpp"
-#include "pychron/processing/store_source.hpp"
+#include "nobion/core/build_info.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/host_name.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/core/user_file.hpp"
+#include "nobion/persistence/store.hpp"
+#include "nobion/arar/flux_fit.hpp"
+#include "nobion/arar/flux_view.hpp"
+#include "nobion/arar/flux_store.hpp"
+#include "nobion/arar/report.hpp"
+#include "nobion/processing/store_source.hpp"
+#include "selection.hpp"
 
 namespace elctl {
 
 namespace fs = std::filesystem;
-namespace pp = pychron::processing;
-namespace ps = pychron::persistence;
-namespace r = pychron::reduction;
-using pychron::Error;
-using pychron::ErrorKind;
-using pychron::fail;
-using pychron::Result;
+namespace pp = nobion::processing;
+namespace ps = nobion::persistence;
+namespace r = nobion::reduction;
+using nobion::Error;
+using nobion::ErrorKind;
+using nobion::fail;
+using nobion::Result;
 
 namespace {
 
@@ -313,6 +316,7 @@ std::string format_flux_save(const pp::FluxSaveOutcome& outcome, std::string_vie
     out << "saved " << outcome.written << " positions (" << outcome.unchanged << " unchanged)";
     if (outcome.skipped > 0) out << ", " << outcome.skipped << " not saved";
     out << '\n';
+    if (const auto outdated = pp::flux_outdated_ages_line(outcome.outdated_ages)) out << *outdated << '\n';
   }
   return out.str();
 }
@@ -320,11 +324,7 @@ std::string format_flux_save(const pp::FluxSaveOutcome& outcome, std::string_vie
 namespace {
 
 std::string software() {
-#ifdef PYCHRON_ELCTL_VERSION
-  return std::string("pychron-cpp ") + PYCHRON_ELCTL_VERSION;
-#else
-  return "pychron-cpp";
-#endif
+  return "nobion " + nobion::build_id();
 }
 
 // The options of a level: its saved fit's, else the defaults, each flag given replacing its field.
@@ -436,16 +436,16 @@ Result<std::unique_ptr<ps::IStore>> open_flux_store(const std::string& db) {
     const fs::path file(db.substr(kSqlite.size()));
     if (!fs::is_regular_file(file, code)) return fail(ErrorKind::Config, "no database at " + file.string());
     if (fs::file_size(file, code) == 0 && !code)
-      return fail(ErrorKind::Config, file.string() + " is empty: not a pychron store");
+      return fail(ErrorKind::Config, file.string() + " is empty: not a nobion store");
   }
   return ps::open_store(ps::StoreConfig{db, false});
 }
 
 Result<ps::Actor> flux_actor(ps::IStore& store, const std::string& user_name) {
-  const std::string host = pychron::host_name();
+  const std::string host = nobion::host_name();
   auto client = store.register_client({host, "reduction", std::nullopt, "elctl"});
   if (!client) return fail(client.error());
-  const std::string user = user_name.empty() ? pychron::env_var("USER").value_or("pychron") : user_name;
+  const std::string user = user_name.empty() ? nobion::env_var("USER").value_or("nobion") : user_name;
   auto u = store.ensure_user(*client, user);
   if (!u) return fail(u.error());
   return ps::Actor{*u, *client};
@@ -499,7 +499,7 @@ class CsvFile {
   }
 
  private:
-  pychron::Unexpected<Error> could_not_write() const { return fail(ErrorKind::Io, "could not write " + destination_.string()); }
+  nobion::Unexpected<Error> could_not_write() const { return fail(ErrorKind::Io, "could not write " + destination_.string()); }
   void discard() {
     if (temporary_.empty()) return;
     std::error_code code;
@@ -510,10 +510,12 @@ class CsvFile {
   fs::path destination_, temporary_;
 };
 
-int run(const Args& a, Io io) {
+int run(const Args& a, const nobion::processing::Domain& domain, Io io) {
   auto store = open_flux_store(a.db);
   if (!store) return fatal(io, store.error().what);
-  auto source = pp::StoreSource::open(ps::StoreConfig{a.db, false}, pp::StoreSourceOptions{1, "", ""});
+  auto options = store_options(domain);
+  options.connections = 1;
+  auto source = pp::StoreSource::open(ps::StoreConfig{a.db, false}, std::move(options));
   if (!source) return fatal(io, source.error().what);
 
   // Before anything is saved: a CSV that cannot be written saves nothing.
@@ -554,7 +556,7 @@ int run(const Args& a, Io io) {
   // Only what was fitted is written: no level, no file (and an earlier one stays).
   if (!a.csv.empty() && s.any_fitted) {
     if (auto written = csv.commit(pp::flux_csv_header() + s.csv_rows); !written) return fatal(io, written.error().what);
-    pychron::mark_as_user_file(a.csv);
+    nobion::mark_as_user_file(a.csv);
     io.out << "wrote " << a.csv << '\n';
   }
   return s.code;
@@ -562,7 +564,7 @@ int run(const Args& a, Io io) {
 
 }  // namespace
 
-int flux_command(const std::vector<std::string>& args, Io io) {
+int flux_command(const std::vector<std::string>& args, const nobion::processing::Domain& domain, Io io) {
   if (args.empty() || args[0] == "help" || args[0] == "--help") {
     (args.empty() ? io.err : io.out) << kUsageText;
     return args.empty() ? kUsage : kOk;
@@ -574,6 +576,8 @@ int flux_command(const std::vector<std::string>& args, Io io) {
     io.out << kUsageText;
     return kOk;
   }
+  // Flux is the Ar-Ar irradiation's J; no other domain has it.
+  if (domain.id() != "arar") return fatal(io, "needs domain arar (this install: " + std::string(domain.id()) + ")");
   if (args[0] != "fit") {
     try {
       return flux_admin_command(args[0], rest, io);
@@ -585,7 +589,7 @@ int flux_command(const std::vector<std::string>& args, Io io) {
   if (!parsed) return usage(io, parsed.error().what);
   // No exception leaves a library, but std::filesystem and iostreams can throw.
   try {
-    return run(*parsed, io);
+    return run(*parsed, domain, io);
   } catch (const std::exception& e) {
     return fatal(io, e.what());
   }

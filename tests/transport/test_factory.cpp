@@ -1,19 +1,25 @@
-#include "pychron/transport/factory.hpp"
+#include "nobion/transport/factory.hpp"
 
 #include <gtest/gtest.h>
 
 #include <filesystem>
+#include <map>
+#include <string>
 #include <vector>
 
-#include "pychron/core/config/logging_config.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/transport/serial_transport.hpp"
-#include "pychron/transport/tcp_transport.hpp"
-#include "pychron/transport/udp_transport.hpp"
-#include "pychron/transport/trace.hpp"
-#include "pychron/transport/trace_recorder.hpp"
+#include "nobion/core/config/logging_config.hpp"
+#include "nobion/core/hang_monitor.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/transport/endpoints.hpp"
+#include "nobion/transport/listener.hpp"
+#include "nobion/transport/serial_transport.hpp"
+#include "nobion/transport/tcp_transport.hpp"
+#include "nobion/transport/udp_transport.hpp"
+#include "nobion/transport/trace.hpp"
+#include "nobion/transport/trace_recorder.hpp"
+#include "temp_path.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {
@@ -129,10 +135,11 @@ TEST(TransportFactory, TracedTransportMirrorsToWireLogger) {
   auto sub = bus.subscribe<Log>([&](const Log& e) { got.push_back(e); });
   config::LoggingConfig lc;
   lc.default_level = LogLevel::Trace;
+  lc.dock_level = LogLevel::Trace;  // the wire records are read off the bus
   auto hub = LogHub::create(lc, clock, &bus);
   ASSERT_TRUE(hub);
 
-  const auto dir = std::filesystem::temp_directory_path() / "pychron_factory_wire_test";
+  const auto dir = std::filesystem::temp_directory_path() / "nobion_factory_wire_test";
   std::filesystem::create_directories(dir);
   TransportContext ctx;
   ctx.clock = &clock;
@@ -168,12 +175,13 @@ UntracedRun run_untraced(config::LoggingConfig lc) {
   auto sub = bus.subscribe<Log>([&](const Log& e) {
     if (e.logger == "plain.wire") out.wire.push_back(e);
   });
+  lc.dock_level = LogLevel::Trace;  // the wire records are read off the bus
   auto hub = LogHub::create(lc, clock, &bus);
   EXPECT_TRUE(hub);
   if (!hub) return out;
 
-  const auto dir = std::filesystem::temp_directory_path() / "pychron_factory_untraced_test";
-  std::filesystem::remove_all(dir);
+  // Its own directory: two cases use this, and ctest runs them at once.
+  const auto dir = nobion::testing::unique_temp_path("nobion_factory_untraced_");
   std::filesystem::create_directories(dir);
   TransportContext ctx;
   ctx.clock = &clock;
@@ -197,7 +205,7 @@ UntracedRun run_untraced(config::LoggingConfig lc) {
 }  // namespace
 
 TEST(TransportFactory, UntracedTransportWireLogsWhenRuleEnablesTrace) {
-  config::LoggingConfig lc;  // default level info
+  config::LoggingConfig lc;  // default level debug
   lc.levels.emplace_back("*.wire", LogLevel::Trace);
   const auto run = run_untraced(lc);
   ASSERT_EQ(run.wire.size(), 2u);
@@ -219,4 +227,90 @@ TEST(TransportFactory, UntracedTransportWithoutHubIsNotWrapped) {
   auto t = make_transport(cfg("bare", config::TransportKind::Sim, config::SimParams{}), ctx);
   ASSERT_TRUE(t);
   EXPECT_EQ(dynamic_cast<TraceRecorder*>(t->get()), nullptr);
+}
+
+namespace {
+
+std::map<std::string, Endpoint> served(std::string name, WireProtocol protocol, std::uint16_t port) {
+  return {{std::move(name), Endpoint{"127.0.0.1", port, protocol, "agilent_switch"}}};
+}
+
+}  // namespace
+
+TEST(TransportFactory, EndpointOverridesTcp) {
+  auto listener = TcpListener::bind("127.0.0.1", 0);
+  ASSERT_TRUE(listener);
+  const auto endpoints = served("net", WireProtocol::Tcp, (*listener)->port());
+  TransportContext ctx;
+  ctx.endpoints = &endpoints;
+  // TEST-NET-1: nothing answers there, so only the endpoint can.
+  auto t = make_transport(cfg("net", config::TransportKind::Tcp, config::TcpParams{"192.0.2.1", 4001}), ctx);
+  ASSERT_TRUE(t) << t.error().what;
+  auto* tcp = dynamic_cast<TcpTransport*>(t->get());
+  ASSERT_NE(tcp, nullptr);
+  EXPECT_EQ(tcp->settings().host, "127.0.0.1");
+  EXPECT_EQ(tcp->settings().port, (*listener)->port());
+  EXPECT_TRUE((*t)->open());
+}
+
+TEST(TransportFactory, SerialBecomesTcp) {
+  const auto endpoints = served("valve_bus", WireProtocol::Tcp, 47001);
+  TransportContext ctx;
+  ctx.endpoints = &endpoints;
+  config::SerialParams sp;
+  sp.port = "/dev/null-port";
+  auto t = make_transport(cfg("valve_bus", config::TransportKind::Serial, sp), ctx);
+  ASSERT_TRUE(t) << t.error().what;
+  auto* tcp = dynamic_cast<TcpTransport*>(t->get());
+  ASSERT_NE(tcp, nullptr);
+  EXPECT_EQ(tcp->settings().port, 47001);
+}
+
+TEST(TransportFactory, UdpEntryGivesUdp) {
+  const auto endpoints = served("plc", WireProtocol::Udp, 47002);
+  TransportContext ctx;
+  ctx.endpoints = &endpoints;
+  auto t = make_transport(
+      cfg("plc", config::TransportKind::ModbusTcp, config::ModbusTcpParams{config::TcpParams{"10.0.0.9", 502}}), ctx);
+  ASSERT_TRUE(t) << t.error().what;
+  auto* udp = dynamic_cast<UdpTransport*>(t->get());
+  ASSERT_NE(udp, nullptr);
+  EXPECT_EQ(udp->settings().host, "127.0.0.1");
+  EXPECT_EQ(udp->settings().port, 47002);
+}
+
+TEST(TransportFactory, MissingEntryIsConfigError) {
+  const std::map<std::string, Endpoint> endpoints;
+  TransportContext ctx;
+  ctx.endpoints = &endpoints;
+  auto t = make_transport(cfg("net", config::TransportKind::Tcp, config::TcpParams{"10.0.0.5", 4001}), ctx);
+  ASSERT_FALSE(t);
+  EXPECT_EQ(t.error().kind, ErrorKind::Config);
+  EXPECT_NE(t.error().what.find("transport 'net' has no entry in the sim endpoints file"), std::string::npos)
+      << t.error().what;
+}
+
+TEST(TransportFactory, SimAndLinkIgnoreEndpoints) {
+  const std::map<std::string, Endpoint> endpoints;
+  TransportContext ctx;
+  ctx.endpoints = &endpoints;
+  ctx.sim_hook = [](const Bytes& tx) { return tx; };
+  auto sim = make_transport(cfg("gauges", config::TransportKind::Sim, config::SimParams{}), ctx);
+  ASSERT_TRUE(sim) << sim.error().what;
+  EXPECT_NE(dynamic_cast<SimTransport*>(sim->get()), nullptr);
+  auto link = make_transport(cfg("shared", config::TransportKind::Link, config::LinkParams{"gauges"}), ctx);
+  EXPECT_TRUE(link) << link.error().what;
+}
+
+// The context's hang monitor reaches the transport (the transport decides
+// whether to watch: never on a VirtualClock).
+TEST(TransportFactory, PassesTheHangMonitor) {
+  HangMonitor monitor;  // unattached: reports nothing
+  TransportContext ctx;
+  ctx.hang_monitor = &monitor;
+  auto t = make_transport(cfg("hm", config::TransportKind::Sim, config::SimParams{}), ctx);
+  ASSERT_TRUE(t) << t.error().what;
+  auto* queued = dynamic_cast<QueuedTransport*>(t->get());
+  ASSERT_NE(queued, nullptr);
+  EXPECT_EQ(queued->options().hang_monitor, &monitor);
 }

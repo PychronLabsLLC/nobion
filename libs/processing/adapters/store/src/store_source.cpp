@@ -1,5 +1,5 @@
-#include "pychron/processing/store_source.hpp"
-#include "pychron/core/number.hpp"
+#include "nobion/processing/store_source.hpp"
+#include "nobion/core/number.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -17,13 +17,13 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/core/env.hpp"
-#include "pychron/core/host_name.hpp"
-#include "pychron/core/sha256.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/host_name.hpp"
+#include "nobion/core/sha256.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 
 namespace {
 
@@ -265,7 +265,6 @@ ps::BrowseFilter to_store_filter(const BrowseQuery& q) {
   f.identifiers = q.identifiers;
   f.samples = q.samples;
   f.projects = q.projects;
-  f.principal_investigators = q.principal_investigators;
   f.materials = q.materials;
   f.analysis_types = q.analysis_types;
   f.mass_spectrometers = q.mass_spectrometers;
@@ -278,8 +277,62 @@ ps::BrowseFilter to_store_filter(const BrowseQuery& q) {
   if (q.to) f.to = utc(*q.to);
   f.last_hours = q.last_hours;
   f.exclude_tags = q.exclude_tags;
+  f.age_min = q.age_min;
+  f.age_max = q.age_max;
   return f;
 }
+
+namespace {
+
+Result<std::vector<ps::Uuid>> store_uuids(const std::vector<std::string>& texts) {
+  std::vector<ps::Uuid> out;
+  out.reserve(texts.size());
+  for (const auto& text : texts) {
+    auto id = parse_uuid(text);
+    if (!id) return fail(ErrorKind::Config, "browse: not a uuid: " + text);
+    out.push_back(*id);
+  }
+  return out;
+}
+
+// The keys of an irradiation tree selection on a store are uuids; a name is a
+// caller's mistake, never dropped quietly.
+Result<std::vector<ps::Uuid>> position_uuids(const std::vector<std::string>& keys) {
+  std::vector<ps::Uuid> out;
+  out.reserve(keys.size());
+  for (const auto& key : keys) {
+    auto id = ps::Uuid::parse(key);
+    if (!id) return fail(ErrorKind::Protocol, "browse: a store takes uuids as irradiation tree keys, not \"" + key + "\"");
+    out.push_back(*id);
+  }
+  return out;
+}
+
+// to_store_filter with what can be refused: the lists of uuids.
+Result<ps::BrowseFilter> checked_store_filter(const BrowseQuery& q) {
+  ps::BrowseFilter f = to_store_filter(q);
+  auto uuids = store_uuids(q.uuids);
+  if (!uuids) return fail(uuids.error());
+  f.uuids = std::move(*uuids);
+  auto pis = store_uuids(q.principal_investigators);
+  if (!pis) return fail(pis.error());
+  f.principal_investigators = std::move(*pis);
+  if (q.positions) {
+    ps::PositionFilter p;
+    p.identifiers = q.positions->identifiers;
+    p.not_irradiated = q.positions->not_irradiated;
+    auto irradiations = position_uuids(q.positions->irradiations);
+    if (!irradiations) return fail(irradiations.error());
+    p.irradiations = std::move(*irradiations);
+    auto levels = position_uuids(q.positions->levels);
+    if (!levels) return fail(levels.error());
+    p.levels = std::move(*levels);
+    f.positions = std::move(p);
+  }
+  return f;
+}
+
+}  // namespace
 
 ps::BrowseFacet to_store_facet(Facet f) noexcept {
   switch (f) {
@@ -313,6 +366,9 @@ AnalysisSummary summary_from_row(const ps::BrowseRow& r) {
   s.project = r.project;
   s.material = r.material;
   s.principal_investigator = r.principal_investigator;
+  if (r.principal_investigator_uuid) s.principal_investigator_uuid = r.principal_investigator_uuid->str();
+  if (r.irradiation_uuid) s.irradiation_uuid = r.irradiation_uuid->str();
+  if (r.level_uuid) s.level_uuid = r.level_uuid->str();
   s.extract_device = r.extract_device;
   s.load = r.load;
   s.irradiation = r.irradiation;
@@ -321,10 +377,33 @@ AnalysisSummary summary_from_row(const ps::BrowseRow& r) {
   s.tag = r.tag.empty() ? "ok" : r.tag;
   s.extract_value = r.extract_value;
   s.extract_units = r.extract_units;
+  s.age = r.age;
+  s.age_err = r.age_err;
   return s;
 }
 
-Result<Analysis> analysis_from_store(const StoreAnalysisParts& parts) {
+namespace {
+
+// The length of an isotope's signal series, for an intercept stored without
+// a count: legacy pychron writes `n` and `fn` only when a run is refitted,
+// so an imported run that never was has neither. The window's length when
+// the series is one (as series_from_blob slices it); 0 when not known.
+int signal_points(const ps::SignalRefs* signals, const std::string& key, const std::string& detector) {
+  if (signals == nullptr) return 0;
+  const auto mine = [&](const ps::SignalRefRow& r) {
+    return r.series_kind == "signal" && r.series_key == key && (r.detector.empty() || r.detector == detector);
+  };
+  const auto it = std::ranges::find_if(*signals, mine);
+  if (it == signals->end() || !it->n_points) return 0;
+  const int n = *it->n_points;
+  const int begin = std::clamp(it->start_index.value_or(0), 0, n);
+  const int end = std::clamp(it->end_index.value_or(n), begin, n);
+  return end - begin;
+}
+
+}  // namespace
+
+Result<Analysis> analysis_from_store(const StoreAnalysisParts& parts, const StoreExtensionLoader& loader) {
   const auto& d = parts.detail;
   const auto& row = d.row;
   Analysis a;
@@ -348,6 +427,7 @@ Result<Analysis> analysis_from_store(const StoreAnalysisParts& parts) {
   a.repository = row.repository;
   a.analyst = d.analyst.value_or("");
   a.tag = row.tag.empty() ? "ok" : row.tag;
+  a.input_fingerprint = parts.input_fingerprint;
   if (const auto* t = head_payload<ps::TagValue>(parts.heads, ps::Kind::Tags); t && !t->name.empty()) a.tag = t->name;
   if (const auto* n = head_payload<ps::AnnotationValue>(parts.heads, ps::Kind::Annotation)) a.comment = n->comment.value_or("");
   for (const auto& [kind, revision] : parts.head_revisions) a.heads[std::string(ps::to_string(kind))] = revision.str();
@@ -375,6 +455,7 @@ Result<Analysis> analysis_from_store(const StoreAnalysisParts& parts) {
   std::map<std::string, std::string> detector_of;
   for (const auto& iso : d.isotopes) detector_of.emplace(iso.isotope, iso.detector);
   const auto* intercepts = head_payload<ps::Intercepts>(parts.heads, ps::Kind::Intercepts);
+  const auto* signals = head_payload<ps::SignalRefs>(parts.heads, ps::Kind::Signals);
   const auto* baselines = head_payload<ps::Baselines>(parts.heads, ps::Kind::Baselines);
   const auto* blanks = head_payload<ps::Blanks>(parts.heads, ps::Kind::Blanks);
   const auto* ics = head_payload<ps::IcFactors>(parts.heads, ps::Kind::IcFactors);
@@ -389,7 +470,7 @@ Result<Analysis> analysis_from_store(const StoreAnalysisParts& parts) {
                                                      : (colon == std::string::npos ? "" : ir.isotope.substr(0, colon));
       iso.intercept = value_of(ir.value, ir.error, ir.manual);
       iso.fit = fit_spec(ir.fit, ir.error_type, ir.filter_outliers_json);
-      iso.n = ir.fn ? *ir.fn : ir.n.value_or(0);
+      iso.n = ir.fn ? *ir.fn : ir.n ? *ir.n : signal_points(signals, ir.isotope, iso.detector);
       iso.intercept_reviewed = ir.reviewed;
       if (ir.user_excluded_json) iso.user_excluded = parse_index_list(*ir.user_excluded_json);
       iso.include_baseline_error = ir.include_baseline_error.value_or(false);
@@ -442,36 +523,17 @@ Result<Analysis> analysis_from_store(const StoreAnalysisParts& parts) {
       a.monitor.name = f->monitor_name.value_or("");
       a.monitor.material = f->monitor_material.value_or("");
       if (f->monitor_age) a.monitor.age = Value{*f->monitor_age, f->monitor_age_err.value_or(0.0)};
-      // No J: no flux yet, hence no age. With a J, a NULL error is unknown
-      // (NaN), not 0, and the analysis does not reduce. The position error is
-      // an optional extra: NULL is none.
-      if (!f->j) continue;
-      constexpr double unknown = std::numeric_limits<double>::quiet_NaN();
-      reduction::Flux flux;
-      flux.j = {*f->j, f->j_err.value_or(unknown)};
-      flux.position_jerr = f->position_jerr.value_or(0.0);
-      if (f->lambda_k_total)
-        flux.lambda_k_total = reduction::Measured{*f->lambda_k_total, f->lambda_k_total_err.value_or(unknown)};
-      a.context.flux = flux;
-    } else if (const auto* p = std::get_if<ps::ProductionValue>(&ref)) {
-      a.context.reactor = p->reactor.value_or("");
-      // A production without ratios is no production (reference data the
-      // source removed), not nine ratios of zero.
-      if (p->ratios.empty()) continue;
-      std::map<std::string, reduction::Measured, std::less<>> rows;
-      for (const auto& r : p->ratios) rows[r.key] = {r.value, r.error};
-      auto ratios = reduction::production_from_rows(rows);
-      if (!ratios) return fail(ErrorKind::Config, a.runid + ": production: " + ratios.error().what);
-      a.context.production = *ratios;
-    } else if (const auto* c = std::get_if<ps::ChronologyValue>(&ref)) {
-      a.context.chronology.clear();
-      for (const auto& dose : c->doses)
-        a.context.chronology.push_back(
-            reduction::Dose{dose.power, dose.start.micros / 1'000'000, dose.end.micros / 1'000'000});
     } else if (const auto* g = std::get_if<ps::GainsValue>(&ref)) {
       // Gains used at acquisition win; the reference fills the rest.
       for (const auto& gain : g->gains) a.gains.emplace(gain.detector, gain.gain);
     }
+  }
+  // What the domain reads of the references (an Ar-Ar flux, production and
+  // chronology) is the domain's: its loader makes the extension.
+  if (loader) {
+    auto extension = loader(parts, a);
+    if (!extension) return fail(extension.error());
+    a.extension = std::move(*extension);
   }
   return a;
 }
@@ -533,8 +595,22 @@ struct StoreSource::Impl {
   std::mutex cache_mutex;
   std::map<std::string, AnalysisPtr> cache;
 
+  // The sink: tasks queued and not yet done, and what became of the ages
+  // since the last flush. A worker finishes the queue before it stops, so
+  // these outlive every task (the destructor joins before they go).
+  std::mutex derived_mutex;
+  std::condition_variable derived_cv;
+  std::size_t derived_pending = 0;
+  DerivedFlush derived_done;
+
+  void write_derived(ps::IStore& s, const std::vector<DerivedValues>& ages);
+
   // Who saves edits; registered on the first save.
   std::string user, hostname;
+  // StoreSourceOptions: the version fingerprints and derived rows are of, and
+  // what makes each loaded analysis's extension.
+  std::string reduction_version;
+  StoreExtensionLoader extension_loader;
   std::mutex actor_mutex;
   std::optional<ps::Actor> actor;
 
@@ -596,14 +672,198 @@ struct StoreSource::Impl {
   }
 };
 
+namespace {
+
+// Why a source opened without a reduction version writes no derived rows:
+// they would be under version "", a cache no other source reads.
+constexpr std::string_view kNoReductionVersion = "StoreSourceOptions::reduction_version not set";
+
+// A SHA-256 as 64 hex digits (to_hex's text) back to its bytes.
+std::optional<Sha256Digest> digest_from_hex(std::string_view hex) {
+  Sha256Digest out{};
+  if (hex.size() != 2 * out.size()) return std::nullopt;
+  const auto nibble = [](char c) -> int {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+  };
+  for (std::size_t i = 0; i < out.size(); ++i) {
+    const int hi = nibble(hex[2 * i]), lo = nibble(hex[2 * i + 1]);
+    if (hi < 0 || lo < 0) return std::nullopt;
+    out[i] = static_cast<std::uint8_t>(hi * 16 + lo);
+  }
+  return out;
+}
+
+// The rows of spec 4.1: one a value, valueless when the domain has none for
+// it (the Ar-Ar `age` of an analysis that reduces to no age says "current, and
+// there is no age").
+std::vector<ps::DerivedRow> derived_rows(const DerivedValues& d) {
+  std::vector<ps::DerivedRow> rows;
+  rows.reserve(d.values.size());
+  for (const auto& v : d.values) {
+    std::optional<std::string> units;
+    if (!v.units.empty()) units = v.units;
+    if (v.value)
+      rows.push_back({v.name, v.value->nominal(), v.value->std_dev(), std::move(units)});
+    else
+      rows.push_back({v.name, std::nullopt, std::nullopt, std::move(units)});
+  }
+  return rows;
+}
+
+}  // namespace
+
+void StoreSource::Impl::write_derived(ps::IStore& s, const std::vector<DerivedValues>& ages) {
+  DerivedFlush done;
+  // One put an analysis: the last of a batch that names one twice.
+  std::map<ps::Uuid, ps::DerivedPut> wanted;
+  if (reduction_version.empty()) {
+    // Refused whole: nothing is wanted, every age is counted failed.
+    done.failed = ages.size();
+    done.last_error = kNoReductionVersion;
+  } else {
+    for (const auto& d : ages) {
+      const auto id = parse_uuid(d.uuid);
+      const auto fingerprint = digest_from_hex(d.input_fingerprint);
+      if (!id || !fingerprint) {
+        ++done.failed;
+        done.last_error = !id ? "derived age of '" + d.uuid + "': not an analysis id"
+                              : "derived age of " + d.uuid + ": '" + d.input_fingerprint + "' is no fingerprint";
+        continue;
+      }
+      wanted.insert_or_assign(*id, ps::DerivedPut{*id, *fingerprint, derived_rows(d)});
+    }
+  }
+  if (!wanted.empty()) {
+    std::vector<ps::Uuid> ids;
+    ids.reserve(wanted.size());
+    for (const auto& [id, put] : wanted) ids.push_back(id);
+    // Not written when nothing changed: one read for the batch says which are current.
+    std::vector<ps::DerivedPut> puts;
+    if (auto cached = s.derived_fingerprints(ids); !cached) {
+      done.failed += wanted.size();
+      done.last_error = to_string(cached.error());
+    } else {
+      for (auto& [id, put] : wanted) {
+        const auto it = cached->find(id);
+        if (it != cached->end() && it->second == put.fingerprint) {
+          ++done.current;
+        } else {
+          puts.push_back(std::move(put));
+        }
+      }
+      if (!puts.empty()) {
+        if (auto wrote = s.put_derived_many(puts, reduction_version); wrote) {
+          done.written += puts.size();
+        } else {
+          done.failed += puts.size();
+          done.last_error = to_string(wrote.error());
+        }
+      }
+    }
+  }
+  {
+    std::lock_guard lock(derived_mutex);
+    derived_done.written += done.written;
+    derived_done.current += done.current;
+    derived_done.failed += done.failed;
+    if (!done.last_error.empty()) derived_done.last_error = std::move(done.last_error);
+    --derived_pending;
+  }
+  derived_cv.notify_all();
+}
+
+void StoreSource::put(std::vector<DerivedValues> ages) {
+  if (ages.empty()) return;
+  Impl* impl = impl_.get();
+  {
+    // Counted before it is queued, under both locks in this order, so a
+    // flush that follows this put waits for it.
+    std::lock_guard queue_lock(impl->queue_mutex);
+    if (impl->stopping) return;
+    {
+      std::lock_guard lock(impl->derived_mutex);
+      ++impl->derived_pending;
+    }
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks): std::function's own storage, freed with the queue
+    impl->queue.emplace_back([impl, ages = std::move(ages)](ps::IStore& s) { impl->write_derived(s, ages); });
+  }
+  impl->queue_cv.notify_one();
+}
+
+DerivedFlush StoreSource::flush_derived() {
+  std::unique_lock lock(impl_->derived_mutex);
+  impl_->derived_cv.wait(lock, [this] { return impl_->derived_pending == 0; });
+  return std::exchange(impl_->derived_done, DerivedFlush{});
+}
+
+Result<std::map<std::string, StoreSource::Fingerprints>> StoreSource::fingerprints(
+    const std::vector<std::string>& analyses) {
+  std::vector<ps::Uuid> ids;
+  ids.reserve(analyses.size());
+  for (const auto& a : analyses) {
+    auto id = parse_uuid(a);
+    if (!id) return fail(id.error());
+    ids.push_back(*id);
+  }
+  return impl_->call<std::map<std::string, Fingerprints>>(
+      [ids = std::move(ids),
+       &version = impl_->reduction_version](ps::IStore& s) -> Result<std::map<std::string, Fingerprints>> {
+        auto cached = s.derived_fingerprints(ids);
+        if (!cached) return fail(cached.error());
+        std::map<std::string, Fingerprints> out;
+        for (const auto& id : ids) {
+          Fingerprints f;
+          if (const auto it = cached->find(id); it != cached->end()) f.cached = to_hex(it->second);
+          // One that cannot be read is loaded, and the load says why.
+          if (auto now = s.input_fingerprint(id, version)) f.current = to_hex(*now);
+          out.emplace(id.str(), std::move(f));
+        }
+        return out;
+      });
+}
+
+Result<std::size_t> StoreSource::write_derived_now(const std::vector<DerivedValues>& ages) {
+  if (impl_->reduction_version.empty()) return fail(ErrorKind::Config, std::string(kNoReductionVersion));
+  std::map<ps::Uuid, ps::DerivedPut> wanted;
+  for (const auto& d : ages) {
+    const auto id = parse_uuid(d.uuid);
+    if (!id) return fail(id.error());
+    const auto fingerprint = digest_from_hex(d.input_fingerprint);
+    if (!fingerprint)
+      return fail(ErrorKind::Config, "derived age of " + d.uuid + ": '" + d.input_fingerprint + "' is no fingerprint");
+    wanted.insert_or_assign(*id, ps::DerivedPut{*id, *fingerprint, derived_rows(d)});
+  }
+  if (wanted.empty()) return std::size_t{0};
+  std::vector<ps::DerivedPut> puts;
+  puts.reserve(wanted.size());
+  for (auto& [id, put] : wanted) puts.push_back(std::move(put));
+  const std::size_t n = puts.size();
+  const std::string& version = impl_->reduction_version;
+  return impl_->call<std::size_t>([puts = std::move(puts), n, &version](ps::IStore& s) -> Result<std::size_t> {
+    if (auto wrote = s.put_derived_many(puts, version); !wrote)
+      return fail(wrote.error());
+    return n;
+  });
+}
+
+void StoreSource::drop_loaded(const std::vector<std::string>& analyses) {
+  std::lock_guard lock(impl_->cache_mutex);
+  for (const auto& a : analyses) impl_->cache.erase(a);
+}
+
 StoreSource::StoreSource(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
 StoreSource::~StoreSource() = default;
 
 Result<std::unique_ptr<StoreSource>> StoreSource::open(ps::StoreConfig config, StoreSourceOptions options) {
   auto impl = std::make_unique<Impl>();
   impl->config = std::move(config);
-  impl->user = !options.user.empty() ? options.user : env_var("USER").value_or("pychron");
+  impl->user = !options.user.empty() ? options.user : env_var("USER").value_or("nobion");
   impl->hostname = !options.hostname.empty() ? options.hostname : host_name();
+  impl->reduction_version = std::move(options.reduction_version);
+  impl->extension_loader = std::move(options.extension_loader);
   const int n = std::max(1, options.connections);
   // The first connection opens alone, so only it applies migrations.
   for (int i = 0; i < n; ++i) {
@@ -649,7 +909,9 @@ Result<void> StoreSource::refresh() {
 Result<BrowsePage> StoreSource::browse(const BrowseQuery& query) {
   if (query.limit <= 0) return fail(ErrorKind::Config, "browse: limit must be positive");
   ps::BrowseRequest req;
-  req.filter = to_store_filter(query);
+  auto filter = checked_store_filter(query);
+  if (!filter) return fail(filter.error());
+  req.filter = std::move(*filter);
   req.limit = query.limit;
   req.count_total = !query.after;  // the first page carries the total
   if (query.after) {
@@ -667,35 +929,59 @@ Result<BrowsePage> StoreSource::browse(const BrowseQuery& query) {
   return page;
 }
 
-Result<std::vector<std::string>> StoreSource::facet(Facet f, const BrowseQuery& query) {
+Result<std::vector<FacetValue>> StoreSource::facet(Facet f, const BrowseQuery& query) {
   const auto facet = to_store_facet(f);
-  auto filter = to_store_filter(query);
-  return impl_->call<std::vector<std::string>>(
-      [facet, filter = std::move(filter)](ps::IStore& s) { return s.facet(facet, filter); });
+  auto filter = checked_store_filter(query);
+  if (!filter) return fail(filter.error());
+  auto values = impl_->call<std::vector<ps::FacetValue>>(
+      [facet, filter = std::move(*filter)](ps::IStore& s) { return s.facet(facet, filter); });
+  if (!values) return fail(values.error());
+  std::vector<FacetValue> out;
+  out.reserve(values->size());
+  for (auto& v : *values) out.push_back({std::move(v.value), std::move(v.label)});
+  return out;
 }
 
-Result<AnalysisPtr> StoreSource::load(const std::string& uuid) {
-  const std::uint64_t generation = impl_->generation.load();
-  {
-    std::lock_guard lock(impl_->cache_mutex);
-    if (auto it = impl_->cache.find(uuid); it != impl_->cache.end()) return it->second;
+Result<std::vector<PositionRow>> StoreSource::positions(const BrowseQuery& query) {
+  auto filter = checked_store_filter(query);
+  if (!filter) return fail(filter.error());
+  auto listing = impl_->call<std::vector<ps::PositionListing>>(
+      [filter = std::move(*filter)](ps::IStore& s) { return s.positions(filter); });
+  if (!listing) return fail(listing.error());
+  std::vector<PositionRow> out;
+  out.reserve(listing->size());
+  for (auto& l : *listing)
+    out.push_back({l.irradiation_uuid ? l.irradiation_uuid->str() : std::string{}, std::move(l.irradiation),
+                   l.level_uuid ? l.level_uuid->str() : std::string{}, std::move(l.level), std::move(l.identifier),
+                   std::move(l.sample), std::move(l.project)});
+  return out;
+}
+
+namespace {
+
+// What one load reads of an analysis: its detail, heads and payloads (at the
+// bookmark when one is given), references and sample row.
+Result<StoreAnalysisParts> read_parts(ps::IStore& s, ps::Uuid id, const std::string& uuid,
+                                      std::optional<ps::Uuid> bookmark, const std::string& reduction_version) {
+  StoreAnalysisParts p;
+  auto detail = s.load_analysis_detail(id);
+  if (!detail) return fail(detail.error());
+  if (!*detail) return fail(ErrorKind::Config, "no analysis " + uuid + " in the store");
+  p.detail = std::move(**detail);
+  auto view = bookmark ? s.load_analysis_at(id, *bookmark) : s.load_analysis(id);
+  if (!view) return fail(view.error());
+  if (bookmark && !*view)
+    return fail(ErrorKind::Config, "bookmark " + bookmark->str() + " does not pin analysis " + uuid);
+  if (*view) {
+    p.heads = std::move((*view)->payloads);
+    for (const auto& h : (*view)->heads) p.head_revisions[h.kind] = h.revision;
   }
-  auto id = parse_uuid(uuid);
-  if (!id) return fail(id.error());
-  auto parts = impl_->call<StoreAnalysisParts>([id = *id, &uuid](ps::IStore& s) -> Result<StoreAnalysisParts> {
-    StoreAnalysisParts p;
-    auto detail = s.load_analysis_detail(id);
-    if (!detail) return fail(detail.error());
-    if (!*detail) return fail(ErrorKind::Config, "no analysis " + uuid + " in the store");
-    p.detail = std::move(**detail);
-    auto view = s.load_analysis(id);
-    if (!view) return fail(view.error());
-    if (*view) {
-      p.heads = std::move((*view)->payloads);
-      for (const auto& h : (*view)->heads) p.head_revisions[h.kind] = h.revision;
-    }
-    auto refs = s.resolve_refs(id, ps::RefPolicy{});
-    if (!refs) return fail(refs.error());
+  auto refs = bookmark ? s.resolve_refs_at(id, *bookmark) : s.resolve_refs(id, ps::RefPolicy{});
+  if (!refs) return fail(refs.error());
+    // Of what this load read: no statement of its own (age cache spec 4.3).
+    if (*view)
+      p.input_fingerprint =
+          to_hex(ps::fingerprint_of((*view)->heads, refs->refs, reduction_version));
     for (const auto& ref : refs->refs) {
       auto payload = s.load_payload(ref.revision);
       if (!payload) return fail(payload.error());
@@ -715,15 +1001,45 @@ Result<AnalysisPtr> StoreSource::load(const std::string& uuid) {
       if (!samples->empty()) p.sample = std::move(samples->front());
     }
     return p;
-  });
+}
+
+}  // namespace
+
+Result<AnalysisPtr> StoreSource::load(const std::string& uuid) {
+  const std::uint64_t generation = impl_->generation.load();
+  {
+    std::lock_guard lock(impl_->cache_mutex);
+    if (auto it = impl_->cache.find(uuid); it != impl_->cache.end()) return it->second;
+  }
+  auto id = parse_uuid(uuid);
+  if (!id) return fail(id.error());
+  auto parts = impl_->call<StoreAnalysisParts>(
+      [id = *id, &uuid, &version = impl_->reduction_version](ps::IStore& s) {
+        return read_parts(s, id, uuid, std::nullopt, version);
+      });
   if (!parts) return fail(parts.error());
-  auto analysis = analysis_from_store(*parts);
+  auto analysis = analysis_from_store(*parts, impl_->extension_loader);
   if (!analysis) return fail(analysis.error());
   auto ptr = std::make_shared<const Analysis>(std::move(*analysis));
   std::lock_guard lock(impl_->cache_mutex);
   // A refresh while loading may have made this stale: then do not cache it.
   if (impl_->generation.load() == generation) impl_->cache[uuid] = ptr;
   return AnalysisPtr(ptr);
+}
+
+Result<AnalysisPtr> StoreSource::load_at(const std::string& uuid, const std::string& bookmark) {
+  auto id = parse_uuid(uuid);
+  if (!id) return fail(id.error());
+  auto bm = parse_uuid(bookmark);
+  if (!bm) return fail(bm.error());
+  auto parts = impl_->call<StoreAnalysisParts>(
+      [id = *id, bm = *bm, &uuid, &version = impl_->reduction_version](ps::IStore& s) {
+        return read_parts(s, id, uuid, bm, version);
+      });
+  if (!parts) return fail(parts.error());
+  auto analysis = analysis_from_store(*parts, impl_->extension_loader);
+  if (!analysis) return fail(analysis.error());
+  return AnalysisPtr(std::make_shared<const Analysis>(std::move(*analysis)));
 }
 
 Result<RawData> StoreSource::load_raw(const std::string& uuid) {
@@ -962,7 +1278,7 @@ Result<ps::Actor> StoreSource::Impl::actor_for(ps::IStore& s) {
     std::lock_guard lock(actor_mutex);
     if (actor) return *actor;
   }
-  auto client = s.register_client({hostname, "reduction", std::nullopt, "pychron-ui"});
+  auto client = s.register_client({hostname, "reduction", std::nullopt, "nobion"});
   if (!client) return fail(client.error());
   auto u = s.ensure_user(*client, user);
   if (!u) return fail(u.error());
@@ -1246,4 +1562,4 @@ Result<SaveOutcome> StoreSource::restore_revision(const std::string& analysis, R
   return outcome;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

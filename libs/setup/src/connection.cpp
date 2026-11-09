@@ -1,17 +1,17 @@
-#include "pychron/setup/connection.hpp"
+#include "nobion/setup/connection.hpp"
 
 #include <chrono>
 #include <random>
 #include <system_error>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/scheduler.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/setup/install.hpp"
-#include "pychron/systems/spectrometer/bringup.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/scheduler.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/setup/install.hpp"
+#include "nobion/systems/spectrometer/bringup.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 namespace fs = std::filesystem;
 
@@ -37,10 +37,15 @@ std::string describe(const spectrometer::cfg::SpectrometerConfig& c) {
 
 // A scratch folder removed when this goes out of scope.
 struct Scratch {
-  fs::path dir;
-  Scratch() {
+  fs::path dir = unique_dir();
+  Scratch() = default;
+  Scratch(const Scratch&) = delete;
+  Scratch& operator=(const Scratch&) = delete;
+  Scratch(Scratch&&) = delete;
+  Scratch& operator=(Scratch&&) = delete;
+  static fs::path unique_dir() {
     std::random_device rd;
-    dir = fs::temp_directory_path() / ("pychron-connect-" + std::to_string(rd()) + std::to_string(rd()));
+    return fs::temp_directory_path() / ("nobion-connect-" + std::to_string(rd()) + std::to_string(rd()));
   }
   ~Scratch() {
     std::error_code ec;
@@ -79,4 +84,4 @@ Result<std::string> test_instrument_connection(const ProfileLibrary& library, co
   return connect_spectrometer(config);
 }
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

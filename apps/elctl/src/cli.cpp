@@ -21,31 +21,42 @@
 #include "earthbank.hpp"
 #include "entry.hpp"
 #include "exp.hpp"
+#include "sim_serve.hpp"
+#include "data_source.hpp"
 #include "db.hpp"
+#include "domain.hpp"
+#include "embargo.hpp"
 #include "export.hpp"
+#include "publish.hpp"
 #include "flux.hpp"
 #include "laser.hpp"
+#include "spec_table.hpp"
 #include "import.hpp"
-#include "pychron/setup/doctor.hpp"
-#include "pychron/setup/installer.hpp"
+#include "nobion/core/build_info.hpp"
+#include "nobion/setup/doctor.hpp"
+#include "nobion/setup/installer.hpp"
 #include "setup.hpp"
+#include "support_bundle_cmd.hpp"
+#include "version_cmd.hpp"
 #include "line.hpp"
-#include "pychron/core/config/loader.hpp"
-#include "pychron/devices/capabilities.hpp"
-#include "pychron/devices/channel_gauge.hpp"
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/experiment/conditionals/conditional.hpp"
-#include "pychron/experiment/conditionals/validate.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
-#include "pychron/systems/canvas/cross_validate.hpp"
-#include "pychron/systems/canvas/loader.hpp"
-#include "pychron/systems/heater_ops.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/devices/channel_gauge.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/experiment/conditionals/conditional.hpp"
+#include "nobion/experiment/conditionals/validate.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
+#include "nobion/systems/canvas/cross_validate.hpp"
+#include "nobion/systems/canvas/loader.hpp"
+#include "nobion/systems/heater_ops.hpp"
+#include "nobion/transport/endpoints.hpp"
 #include "trace_settings.hpp"
 
 namespace elctl {
 
 namespace fs = std::filesystem;
-using namespace pychron;
+using namespace nobion;
 
 namespace {
 
@@ -66,7 +77,8 @@ constexpr const char* kUsageText =
     "\n"
     "Experiments:\n"
     "  exp validate <experiment.toml> [--lab <dir>] [--spectrometer <file>]\n"
-    "                              check a queue against the lab's plans, scripts and conditionals\n"
+    "                              check a queue against the lab's plans, scripts and conditionals;\n"
+    "                              --lab default: the queue file's directory, or its parent when that is queues/\n"
     "  exp run <experiment.toml> [--lab <dir>] [--data <dir>] [--spectrometer <file>]\n"
     "          [--from <row> | --resume] [--dry-run] [--sim-speed <x>|max] [--db <url>]\n"
     "                              run a queue; Ctrl-C stops after the run, again cancels, again aborts\n"
@@ -79,6 +91,9 @@ constexpr const char* kUsageText =
     "  laser look <device> [--tray <tray>]   what the camera's finder sees; moves nothing\n"
     "  laser patterns              the lab's laser patterns\n"
     "  laser pattern <device> <name> [--dry-run]   run a pattern (laser not fired), or print its points\n"
+    "  spec table list|show|versions|diff|check|set|restore|import [--spectrometer <file>]\n"
+    "                              the spectrometer's field tables, as files; no device opened\n"
+    "                              (a write takes effect when a process next loads the table)\n"
     "\n"
     "Setup (no line needed):\n"
     "  init --list                 the setup profiles (argus, helix, ngx, data-reduction)\n"
@@ -87,6 +102,18 @@ constexpr const char* kUsageText =
     "  init --reconfigure [--set id=value]... [--yes]\n"
     "                              re-render an install with new answers; edited files are kept\n"
     "  doctor [--strict] [--probe] check an install (the default, or --install NAME)\n"
+    "  support-bundle [--install NAME] [--out FILE] [--since 72h] [--no-traces]\n"
+    "                              one zip of logs, config, state and the doctor report, to send\n"
+    "                              to support; prints its path. Secrets in config files and\n"
+    "                              passwords in addresses are masked; crash dumps are copied as\n"
+    "                              written: read it before sending. Uploads nothing\n"
+    "  version [--check]           print the version; --check asks GitHub for the latest release\n"
+    "                              (exit 10 when a newer one exists)\n"
+    "  data-source                 the install's database and data folder\n"
+    "  data-source set (--local [FILE] | --server HOST[:PORT]/DB --user USER [--password-stdin])\n"
+    "                  [--data DIR] [--no-check] [--yes]\n"
+    "                              point the install at another database or data folder;\n"
+    "                              checks it first, moves nothing\n"
     "  import-line <folder> [--out DIR] [--force]\n"
     "                              convert a legacy Pychron setupfiles extraction line and canvas\n"
     "  --install NAME              before a command: use that install's files (see doctor)\n"
@@ -100,13 +127,20 @@ constexpr const char* kUsageText =
     "                              progress, what could not be imported, and whether to trust it\n"
     "\n"
     "The store's schema:\n"
-    "  db status --db <url>        is the store's schema the one this build needs?\n"
-    "  db migrate --db <url>       bring an existing store up to date after an update of pychron\n"
+    "  db status [--db <url>]      is the store's schema the one this build needs?\n"
+    "  db migrate [--db <url>]     bring an existing store up to date after an update of nobion\n"
+    "                              (without --db: the install's database)\n"
     "\n"
     "Publication data (elctl export help lists every option):\n"
     "  export --db <url> --out <file.csv|file.json> [--sample S]... [--identifier I]... [--project P]...\n"
     "                              write a 40Ar/39Ar data report after Schaen et al. (2021): metadata,\n"
     "                              constants, one row per analysis, and plateau, mean and isochron ages\n"
+    "  publish create|build|verify|publish|withdraw|list|show|delete\n"
+    "                              a release: an immutable, citable directory of a selection's reduced\n"
+    "                              data (GeoParquet, OGC API - Records, the Schaen report, a manifest);\n"
+    "                              private by default (elctl publish help)\n"
+    "  embargo set|lift|list --db <url>\n"
+    "                              hide a project, sample or analysis from every public release\n"
     "  earthbank export-xlsx --db <url> --out <dir> [selection as export] [--overrides <file.toml>]\n"
     "                              fill EarthBank's (AusGeochem) import workbooks, one data point per\n"
     "                              sample, to import by hand on its website (elctl earthbank help)\n"
@@ -155,10 +189,17 @@ constexpr const char* kUsageText =
     "  trace [on|off [transport...]]\n"
     "                              record transport traffic to <config dir>/traces for replay\n"
     "  sim                         interactive session against simulated hardware\n"
+    "  sim serve [--bind <addr>] [--port-base <n>] [--endpoints <file>] ...\n"
+    "                              serve the line's simulated lab on sockets, one per transport,\n"
+    "                              for a client run with --sim-endpoints\n"
     "\n"
     "Options:\n"
     "  -c, --config <file>         system config (default: extraction_line.toml)\n"
-    "  --sim                       run every transport as kind = \"sim\"\n";
+    "  --sim                       run every transport as kind = \"sim\"\n"
+    "  --sim-endpoints <file>      drive a line served by 'elctl sim serve' (its endpoints file)\n"
+    "  --sim-endpoints-any         take an endpoints file that serves another copy of the line\n"
+    "  --domain <id>               the kind of data reduction to run: arar or noble_gas\n"
+    "                              (default: the install's domain, else arar)\n";
 
 constexpr const char* kActor = "elctl";
 
@@ -167,6 +208,9 @@ struct Globals {
   bool config_given = false;
   bool sim = false;
   std::optional<std::string> install;  // --install NAME (site config)
+  fs::path sim_endpoints;               // --sim-endpoints FILE; empty: none
+  bool sim_endpoints_any = false;       // --sim-endpoints-any
+  std::string domain = "arar";         // the install's domain; --domain ID over it
   ExpGlobals exp;                      // defaults --install fills in
 };
 
@@ -227,6 +271,16 @@ class Session {
  public:
   Session(Globals globals, Io io) : g_(std::move(globals)), io_(io) {}
 
+  // Registers the domains and picks g_.domain; false (reason on stderr) when
+  // there is none by that id. Called once, before execute().
+  bool choose_domain() {
+    domain_ = elctl::choose_domain(domains_, g_.domain, io_.err);
+    return domain_ != nullptr;
+  }
+
+  // The domain this invocation runs on; valid after choose_domain() succeeded.
+  const processing::Domain& domain() const { return *domain_; }
+
   int execute(const std::vector<std::string>& argv) {
     const std::string& cmd = argv.front();
     const std::vector<std::string> args(argv.begin() + 1, argv.end());
@@ -246,11 +300,14 @@ class Session {
       e.sim = g_.sim;
       return laser_command(args, e, io_);
     }
-    if (cmd == "import") return import_command(args, io_);
+    if (cmd == "spec") return spec_command(args, g_.exp, io_);
+    if (cmd == "import") return import_command(args, domain(), io_);
     if (cmd == "entry") return entry_command(args, io_);
-    if (cmd == "export") return export_command(args, io_);
-    if (cmd == "db") return db_command(args, io_);
-    if (cmd == "flux") return flux_command(args, io_);
+    if (cmd == "export") return export_command(args, domain(), io_);
+    if (cmd == "publish") return publish_command(args, io_);
+    if (cmd == "embargo") return embargo_command(args, io_);
+    if (cmd == "db") return db_command(args, g_.install, domain(), io_);
+    if (cmd == "flux") return flux_command(args, domain(), io_);
     if (cmd == "earthbank") return earthbank_command(args, io_);
     if (cmd == "list-drivers") return list_drivers();
     if (cmd == "list") return list();
@@ -262,7 +319,14 @@ class Session {
     if (cmd == "heater") return heater(args);
     if (cmd == "scan") return scan(args);
     if (cmd == "trace") return trace(args);
-    if (cmd == "sim") return repl();
+    if (cmd == "sim") {
+      if (args.empty()) return repl();
+      if (args.front() != "serve") return usage("unknown sim command '" + args.front() + "'");
+      if (in_repl_) return usage("sim serve is not run from a sim session");
+      interrupt_count() = 0;
+      return sim_serve_command(std::vector<std::string>(args.begin() + 1, args.end()), g_.config, g_.exp.canvas,
+                               g_.exp.spectrometer, io_, [] { return interrupt_count() > 0; });
+    }
     return usage("unknown command '" + cmd + "'");
   }
 
@@ -440,6 +504,11 @@ class Session {
     if (!cfg) return fail(cfg.error());
     LineOptions options;
     options.force_sim = g_.sim;
+    if (!g_.sim_endpoints.empty()) {
+      auto served = load_sim_endpoints(g_.sim_endpoints, g_.config, g_.sim_endpoints_any);
+      if (!served) return fail(served.error());
+      options.sim_endpoints = std::make_shared<const std::map<std::string, Endpoint>>(std::move(served->transports));
+    }
     options.trace = load_trace_settings(g_.config);
     options.trace_dir = trace_dir(g_.config);
     auto line = Line::build(std::move(*cfg), options);
@@ -718,6 +787,8 @@ class Session {
 
   Globals g_;
   Io io_;
+  processing::DomainRegistry domains_;
+  const processing::Domain* domain_ = nullptr;
   std::unique_ptr<Line> line_;
   bool opened_ = false;
   bool in_repl_ = false;
@@ -727,6 +798,7 @@ class Session {
 
 int run(const std::vector<std::string>& args, Io io) {
   Globals globals;
+  std::optional<std::string> domain_flag;  // --domain ID, which wins over the install's
   std::size_t i = 0;
   for (; i < args.size(); ++i) {
     const std::string& a = args[i];
@@ -743,15 +815,29 @@ int run(const std::vector<std::string>& args, Io io) {
         return kUsage;
       }
       globals.install = args[++i];
+    } else if (a == "--domain") {
+      if (i + 1 >= args.size()) {
+        io.err << "elctl: --domain needs an id\n" << kUsageLine;
+        return kUsage;
+      }
+      domain_flag = args[++i];
     } else if (a == "--sim") {
       globals.sim = true;
+    } else if (a == "--sim-endpoints") {
+      if (i + 1 >= args.size()) {
+        io.err << "elctl: --sim-endpoints needs a file\n" << kUsageLine;
+        return kUsage;
+      }
+      globals.sim_endpoints = args[++i];
+    } else if (a == "--sim-endpoints-any") {
+      globals.sim_endpoints_any = true;
     } else if (a == "-h" || a == "--help") {
       io.out << kUsageText;
       return kOk;
     } else if (a == "--version") {
       // Where the shipped profiles were found: checks an installed layout.
-      const auto r = pychron::setup::find_resources();
-      io.out << "elctl " << pychron::setup::version() << "\nprofiles: " << r.profiles.string()
+      const auto r = nobion::setup::find_resources();
+      io.out << "elctl " << nobion::build_id() << "\nprofiles: " << r.profiles.string()
              << "\nexamples: " << r.examples.string() << "\n";
       return kOk;
     } else {
@@ -770,7 +856,10 @@ int run(const std::vector<std::string>& args, Io io) {
     if (globals.install) init_args.insert(init_args.end(), {"--install", *globals.install});
     return init_command(init_args, io);
   }
+  if (command == "version") return version_command(rest, io);
   if (command == "doctor") return doctor_command(rest, globals.install, io);
+  if (command == "support-bundle") return support_bundle_command(rest, globals.install, io);
+  if (command == "data-source") return data_source_command(rest, globals.install, io);
   if (command == "import-line") return import_line_command(rest, io);
   // --install NAME (or, with no -c, the default install): its files are the defaults.
   if (globals.install || !globals.config_given) {
@@ -778,16 +867,17 @@ int run(const std::vector<std::string>& args, Io io) {
     if (install) {
       if (!globals.config_given) globals.config = install->path(install->line);
       globals.sim = globals.sim || install->simulation;
+      globals.domain = install->domain;
       globals.exp.lab = install->root;
       globals.exp.spectrometer = install->path(install->spectrometer);
       globals.exp.canvas = install->path(install->canvas);
       globals.exp.data = install->path(install->data.empty() ? "data" : install->data);
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
       // An instrument's runs go to its database; a server's password is read
       // from the install here. A failure to read it is kept for `exp run`,
       // which refuses to start (rather than write files) without --db.
       if (install->kind == "instrument" && !install->database.empty()) {
-        if (auto url = pychron::setup::database_url(*install)) {
+        if (auto url = nobion::setup::database_url(*install)) {
           globals.exp.database = *url;
         } else {
           globals.exp.database_error = url.error().what;
@@ -802,7 +892,17 @@ int run(const std::vector<std::string>& args, Io io) {
       return kFailed;
     }
   }
+  if (domain_flag) globals.domain = *domain_flag;
+  if (!globals.sim_endpoints.empty() && globals.sim) {
+    io.err << "elctl: --sim-endpoints cannot be used with --sim (or a simulation install): the one drives a "
+              "served lab over the wire, the other simulates every transport in-process\n"
+           << kUsageLine;
+    return kUsage;
+  }
+  globals.exp.sim_endpoints = globals.sim_endpoints;
+  globals.exp.sim_endpoints_any = globals.sim_endpoints_any;
   Session session(std::move(globals), io);
+  if (!session.choose_domain()) return kUsage;
   return session.execute(std::vector<std::string>(args.begin() + static_cast<std::ptrdiff_t>(i), args.end()));
 }
 

@@ -7,7 +7,7 @@
 //
 // Options:
 //   --lab <dir>             plans/, scripts/, conditionals/, identifiers.toml
-//                           (default: the queue file's directory)
+//                           (default: the queue file's directory, or its parent when that is queues/)
 //   --data <dir>            records/, spool/, executor_state.json (default: <lab>/data)
 //   --spectrometer <file>   spectrometer.toml (default: <lab>/spectrometer.toml if present)
 //   --canvas <file>         canvas.toml (default: next to the -c config, if present)
@@ -20,18 +20,34 @@
 // second cancels it, the third aborts.
 
 #include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <functional>
 #include <string>
 #include <vector>
 
+#include "nobion/core/error.hpp"
 #include "cli.hpp"
+
+namespace nobion {
+struct LinkReconnected;
+namespace experiment::executor {
+struct ExecutorHolding;
+}
+namespace experiment::measurement {
+struct MeasurementGap;
+}
+}  // namespace nobion
 
 namespace elctl {
 
 struct ExpGlobals {
   std::filesystem::path config;
   bool sim = false;
+  // --sim-endpoints: a line served by `elctl sim serve` (empty: none);
+  // --sim-endpoints-any skips the check that it serves `config`.
+  std::filesystem::path sim_endpoints;
+  bool sim_endpoints_any = false;
   // From --install: used where the corresponding exp option is not given.
   std::filesystem::path lab, spectrometer, canvas, data;
   // The install's database url, password included (empty: none, or built without the store).
@@ -41,6 +57,18 @@ struct ExpGlobals {
   // The install names a database and this build has no store to write it with: `exp run` says so.
   bool database_not_built = false;
 };
+
+// Where what elctl writes while working in `folder` (a lab, a line config's
+// folder) is kept: the folder itself, or, for the shipped examples, the
+// user's examples folder (setup::lab_state_dir). Said once in the process
+// log when it is not the folder.
+std::filesystem::path state_dir_for(const std::filesystem::path& folder);
+// Where the field tables of the spectrometer file `spectrometer` are read
+// (setup::field_table_root of its folder).
+nobion::Result<std::filesystem::path> spectrometer_table_root(const std::filesystem::path& spectrometer);
+// The line's state file for `config`: <stem>.state.toml in
+// state_dir_for(its folder).
+std::filesystem::path line_state_file(const std::filesystem::path& config);
 
 int exp_command(const std::vector<std::string>& args, const ExpGlobals& globals, Io io);
 
@@ -57,6 +85,17 @@ struct QueueRequests {
 // queue. Two that arrive together are one request to cancel: a stop asked
 // for first is honoured at once by a queue between runs, which has then
 // ended as stopped before the cancel reaches it.
+// What `exp run` prints of a link's outage (spec 4.9), one line each:
+//   holding: <reason> (<links>) until <time>     the time the hold limit ends the queue, UTC
+//   gap in <block>: <n> s                        the readings stopped for n s
+//   reconnected <transport> after <n> s          a link came back
+// (`resumed` is printed as the queue leaves a hold.) `until` is the
+// hold's end as wall time, on the line's clock.
+std::string holding_line(const nobion::experiment::executor::ExecutorHolding& hold,
+                         std::chrono::system_clock::time_point until);
+std::string gap_line(const nobion::experiment::measurement::MeasurementGap& gap);
+std::string reconnected_line(const nobion::LinkReconnected& link);
+
 void answer_interrupts(int& handled, int count, const std::function<void(const std::string&)>& say,
                        const QueueRequests& queue);
 

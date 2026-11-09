@@ -1,12 +1,12 @@
 # elctl reference
 
-`elctl` is Pychron's command-line tool. Use it to check configuration files,
+`elctl` is Nobion's command-line tool. Use it to check configuration files,
 set up and check an installation, drive the extraction line from a terminal,
 run an experiment queue without a screen, work with lasers and trays, and do
 bulk database work (legacy import, sample entry, publication export, the
 EarthBank workbooks).
 
-This page is a reference. For a first look at Pychron, start with
+This page is a reference. For a first look at Nobion, start with
 [01 Getting started](01-getting-started.md). Related pages:
 [export](../export.md), [entry](../entry.md),
 [legacy import](../legacy_import.md), [notifications](../notifications.md),
@@ -25,13 +25,13 @@ This page is a reference. For a first look at Pychron, start with
 - [Exit codes](#exit-codes)
 - [Which commands need persistence](#which-commands-need-persistence)
 - [Offline checks](#offline-checks): `validate`, `canvas-check`, `list-drivers`, `list`, `conditionals-check`
-- [Setup](#setup): `init`, `doctor`, `import-line`
+- [Setup](#setup): `init`, `doctor`, `support-bundle`, `data-source`, `import-line`, `version`
 - [Hardware and simulation](#hardware-and-simulation): `probe`, `state`, `open`, `close`, `read`, `heater`, `scan`, `trace`, `sim`
 - [Experiments](#experiments): `exp validate`, `exp run`, `exp notify`
 - [Lasers](#lasers): `laser ...`
 - [Legacy data](#legacy-data): `import ...`
-- [The store's schema](#the-stores-schema): `db status`, `db migrate`
-- [Publication data](#publication-data): `export`
+- [The store's schema](#the-stores-schema): `db status`, `db migrate`, `db derive`
+- [Publication data](#publication-data): `export`, `publish`, `embargo`
 - [EarthBank workbooks and account](#earthbank-workbooks): `earthbank export-xlsx`, `login`, `account`, `packages`, `preflight`, `upload`, `import-profiles`
 - [Sample and package entry](#sample-and-package-entry): `entry ...`
 - [Not yet implemented / unverified](#not-yet-implemented--unverified)
@@ -39,7 +39,7 @@ This page is a reference. For a first look at Pychron, start with
 ## Synopsis and global flags
 
 ```bash
-elctl [-c <extraction_line.toml> | --install <name>] [--sim] <command> [args...]
+elctl [-c <extraction_line.toml> | --install <name>] [--domain <id>] [--sim] <command> [args...]
 elctl --version
 elctl --help
 ```
@@ -51,11 +51,12 @@ is the command; everything after it belongs to the command.
 |---|---|
 | `-c FILE`, `--config FILE` | The extraction-line config to use. Default: `extraction_line.toml` in the current folder (or the install's, see below). |
 | `--install NAME` | Use the files of the install of that name (see `doctor`) as defaults: its line config, spectrometer config, canvas, lab folder and data folder. An unknown name is an error. |
+| `--domain ID` | The kind of data reduction the command runs: `arar` or `noble_gas`. Default: the `domain` of the install's entry in the site file, else `arar`. `flux` needs `arar` and refuses under any other domain. |
 | `--sim` | Run every transport as `kind = "sim"`, whatever the config says. An install that was set up for simulation implies `--sim`. |
 | `--version` | Print the version, and where the shipped `profiles` and `examples` were found. |
 | `-h`, `--help` | Print the command summary and exit 0. |
 
-`init`, `doctor` and `import-line` need no extraction line. Everything else
+`init`, `doctor`, `support-bundle`, `data-source`, `import-line` and `version` need no extraction line. Everything else
 (`validate`, `list`, `probe`, `exp`, `laser` and so on) uses the config chosen
 by `-c` / `--install`.
 
@@ -71,12 +72,13 @@ by `-c` / `--install`.
   is the install's folder, the spectrometer config is the install's, the canvas
   is the install's, and the data folder is the install's data folder (default
   `data`). A queue file named relatively is also looked for in the install's
-  folder.
-- Without an install, the **lab** folder for `exp` is the folder holding the
-  queue file (or, for `laser`, the folder holding the line config), the data
+  `queues/` folder, then in the install's folder itself.
+- Without an install, the **lab** folder for `exp` is the queue file's
+  directory, or its parent when that is `queues/` (for `laser`, the folder
+  holding the line config), the data
   folder is `<lab>/data`, and `<lab>/spectrometer.toml` is used as the
   spectrometer config if it exists. Command-line flags always win.
-- The environment variable `PYCHRON_SITE_CONFIG` overrides the path of the site
+- The environment variable `NOBION_SITE_CONFIG` overrides the path of the site
   config.
 - Durations (`scan --for`, `--interval`) are a number with an optional unit:
   `500ms`, `10s` or `10`, `2m`, `1h`. A fraction such as `1.5s` is accepted.
@@ -91,12 +93,13 @@ by `-c` / `--install`.
 
 Command-specific details are given under each command. Errors are written to
 standard error as `error: ...`; usage errors as `elctl: ...` followed by the
-usage line.
+usage line. `version --check` has its own codes (0, 10, 2), under
+[version](#version).
 
 ## Which commands need persistence
 
 Persistence means the build includes the database store (Qt 6 Core and Sql
-found, and not built with `-DPYCHRON_PERSISTENCE=OFF`). Release packages are
+found, and not built with `-DNOBION_PERSISTENCE=OFF`). Release packages are
 built with it. Check with `elctl import status --db sqlite:/tmp/x.db`: a build
 without it answers `elctl was built without persistence` and exits 2.
 
@@ -148,7 +151,7 @@ Warnings are printed as `warning: ...` and do not fail; it ends with
 elctl list-drivers
 ```
 
-Prints every driver kind that Pychron knows and the settings each one reads.
+Prints every driver kind that Nobion knows and the settings each one reads.
 Use it when writing a `[drivers.*]` table.
 
 ### list
@@ -223,7 +226,7 @@ usage error.
 ```bash
 elctl init --list
 elctl init data-reduction --yes
-elctl init argus --root ~/pychron/argus --name argus --set simulation=true --yes
+elctl init argus --root ~/nobion/argus --name argus --set simulation=true --yes
 elctl init --reconfigure --install argus --set simulation=false
 ```
 
@@ -255,6 +258,104 @@ Exit 0, or 1 if any check fails (or warns, with `--strict`), or if no install
 can be found (`nothing is installed yet`, `several installs and no default ...;
 pass --install NAME`).
 
+### support-bundle
+
+Write one zip of logs, configuration, saved state, wire traces and the
+doctor report, to send to support, and print where it is. Secrets in
+configuration files and passwords in addresses are masked; crash dumps are
+copied as written, so read the bundle before sending it.
+Uploads nothing and never touches the hardware. What it holds and leaves out:
+[Troubleshooting](10-troubleshooting.md#sending-diagnostics-to-support).
+
+```bash
+elctl support-bundle [--install NAME] [--out FILE] [--since 72h] [--no-traces]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--install NAME` | The install to collect. Default: the default install. With nothing installed the bundle is written without one. |
+| `--out FILE` | Where to write the zip. Default: `<log folder>/bundles/nobion-<computer>-<time>.zip`. |
+| `--since D` | Keep old log files written within `D` (`72h` by default; `90m`, `2h`; rounded up to whole hours). The unit is required: a bare number is refused. The current files are always in. |
+| `--no-traces` | Leave the wire traces out. |
+
+Exit 0 when written; 1 if the install named cannot be found (or there are
+several and no default) or the zip cannot be written; 2 for a usage mistake.
+
+### data-source
+
+Show, or change, where an install reads and writes its data: its database
+(a SQLite file on this computer, or the lab's PostgreSQL server) and its data
+folder (where run records are kept). The same change as Preferences > Data
+source in the application (see
+[01 Getting started](01-getting-started.md#9-preferences)).
+
+```bash
+elctl [--install NAME] data-source
+elctl [--install NAME] data-source set
+      (--local [FILE] | --server HOST[:PORT]/DB --user USER [--password-stdin])
+      [--data DIR] [--no-check] [--yes]
+```
+
+Without `set` it prints the install's database URL (never a password), its
+data folder and, for a server, whether a password is kept. Exit 0.
+
+| Flag | Meaning |
+|---|---|
+| `--install NAME` | The install (a global flag, before `data-source`). Default: the default install. |
+| `--local [FILE]` | A SQLite file. Relative to the install folder, or a full path. Without `FILE`: `data/nobion.db`. |
+| `--server HOST[:PORT]/DB` | The lab's PostgreSQL server; port 5432 when not given. Needs `--user`. |
+| `--user USER` | The server's user. |
+| `--password-stdin` | Read the server's password from one line of standard input. Needs `--yes` (standard input holds the password, so nothing is left there to answer `Write them?`); an empty line is refused. |
+| `--data DIR` | The data folder. Relative to the install folder, or a full path. |
+| `--no-check` | Write without opening the database (a server not reachable from here now). `doctor` says the rest later. |
+| `--yes`, `-y` | Do not ask `Write them?`. |
+
+Only what is given changes: `--data` alone keeps the database, `--local` or
+`--server` alone keep the data folder. `set` prints the database and data
+folder before and after, and what is not moved; nothing is ever copied or
+moved, not the old database and not the records in the old data folder. It
+asks `Write them? [Y/n]` unless `--yes`, then checks:
+
+- A local file that is not there is made, its folder too, and given the
+  current schema. An instrument install's new database is then seeded with
+  the install's `seed.toml`, as `init` does.
+- A local file that is there is opened as it is. One whose schema is behind
+  is refused with the command that brings it up to date
+  (`elctl db migrate --db <url>`): it is never migrated from here, since it
+  may be a copy that an older nobion still reads. An empty file is refused.
+- A server is opened as it is, with the password given or the one kept, and
+  never migrated. One that cannot be reached, or refuses the user, is
+  refused.
+- The data folder is made when missing, and refused when it cannot be
+  written.
+
+It then writes three files and nothing else: the password, when one was
+given, to `.nobion/credentials.toml` in the install folder (readable by you
+alone); the new source to the install record `.nobion/install.toml`, so a
+later `elctl init --reconfigure` keeps it; and the install's entry in the
+site config. It finishes with doctor's checks of the install.
+
+The password is never an argument (it would show in the process list and the
+shell's history). With `--password-stdin` it is read from standard input;
+without it, at a terminal, it is asked for without echo when the server is a
+new one or another one; otherwise the password the install keeps is kept.
+
+Exit: 0 when written, or when there is nothing to change (prints `nothing to
+change`); 1 if a check fails or you answer no (`nothing written`); 2 for a
+usage error.
+
+```bash
+elctl data-source
+# to the lab's server, the password typed at the prompt
+elctl data-source set --server db.lab.example:5432/nobion --user ar
+# from a script
+printf '%s\n' "$NOBION_DB_PASSWORD" | elctl data-source set --server db.lab.example/nobion --user ar --password-stdin --yes
+# and back to the file on this computer
+elctl data-source set --local --yes
+# another file and a data folder on a shared disk
+elctl --install argus data-source set --local /Volumes/lab/argus.db --data /Volumes/lab/runs
+```
+
 ### import-line
 
 Convert a legacy pychron `setupfiles` extraction line and canvas into
@@ -272,6 +373,37 @@ files unless you give `--force`. Exit 0; 1 if the folder cannot be read or a
 target exists; 2 for a usage error. Then run `validate` and `canvas-check` on the
 result.
 
+### version
+
+Print the running version and, only when asked, whether a newer release exists.
+
+```bash
+elctl version
+elctl version --check
+```
+
+Without `--check` it prints `elctl <version>` and sends nothing. elctl never
+checks for updates on its own. With `--check` it asks GitHub for the latest
+release and prints one more line:
+
+| Result | Output | Exit |
+|---|---|---|
+| Up to date | `latest: <x.y.z> (up to date)` | 0 |
+| No release published yet | `latest: none published` | 0 |
+| This build is newer than the latest release | `latest: <x.y.z> (this build is newer)` | 0 |
+| A newer release | `latest: <x.y.z>` and `download: <release page URL>` | 10 |
+| The check failed, or this build has no network client | `elctl version: could not check for updates: <reason>` on standard error | 2 |
+
+An unknown argument is a usage error (2). Nothing is downloaded or installed;
+the release page is for you to open.
+
+What `--check` sends: one `GET` of
+`https://api.github.com/repos/PychronLabsLLC/nobion/releases/latest`, with
+the headers `Accept: application/vnd.github+json` and
+`User-Agent: nobion/<version>`, and a 10 second timeout. Nothing else
+identifying is sent, and nothing is written to disk. A build without Qt
+Network has no client and says so (`this build has no network client`).
+
 ## Hardware and simulation
 
 These build the extraction line from the config, open its transports and talk to
@@ -283,7 +415,7 @@ link must not stop valve work.
 Simulated, these commands (`open`, `close`, `read`, `scan` and the rest, and
 the `sim` session) use `elctl`'s own stand-ins for the devices and have no gas
 model, so a gauge reads the same number whatever the valves do; `exp run` and
-`pychron-ui` do have one ([The simulated lab](../simulator.md)).
+`nobion` do have one ([The simulated lab](../simulator.md)).
 
 ### probe
 
@@ -455,7 +587,7 @@ database on a server, it writes record files and prints one line on standard
 error:
 
 ```
-note: simulated runs are written to /home/you/Pychron/argus/data/records, not to sqlite:/home/you/other.db; pass --sim-save to save them there
+note: simulated runs are written to /home/you/Nobion/argus/data/records, not to sqlite:/home/you/other.db; pass --sim-save to save them there
 ```
 
 That is not an error: the queue runs, and the exit status is the queue's.
@@ -470,7 +602,7 @@ With a database, two things stop `exp run` before anything runs, with exit 1:
 
   ```
   error: database schema is out of date (migration 1 init not applied); bring it up to date with: elctl db migrate --db <url>
-  Run: elctl db migrate --db sqlite:/home/you/Pychron/argus/data/pychron.db
+  Run: elctl db migrate --db sqlite:/home/you/Nobion/argus/data/nobion.db
   ```
 
   An install's database whose password cannot be read is the same kind of
@@ -503,7 +635,7 @@ A build without persistence refuses `--db` (`built without the DVC store`); with
 writes files. Under `--install`, when the install names a database, it says so first:
 
 ```
-warning: built without the DVC store: runs are written to /home/you/Pychron/argus/data/records, not to the installation's database
+warning: built without the DVC store: runs are written to /home/you/Nobion/argus/data/records, not to the installation's database
 ```
 
 **Ctrl-C** is staged: the first stops the queue after the current run, a second
@@ -513,7 +645,7 @@ the spool:
 
 ```
 queue completed
-5/5 run(s) succeeded; in sqlite:/home/you/Pychron/argus/data/pychron.db
+5/5 run(s) succeeded; in sqlite:/home/you/Nobion/argus/data/nobion.db
 ```
 
 A database is shown without its password. Without one the line ends
@@ -522,8 +654,8 @@ line counts those that were, and a warning gives how many are waiting and why
 the last was refused, on one line:
 
 ```
-5/5 run(s) succeeded; 0 of them in sqlite:/home/you/Pychron/argus/data/pychron.db
-warning: 5 record(s) waiting in /home/you/Pychron/argus/data/spool: <record id>: <the database's reason>
+5/5 run(s) succeeded; 0 of them in sqlite:/home/you/Nobion/argus/data/nobion.db
+warning: 5 record(s) waiting in /home/you/Nobion/argus/data/spool: <record id>: <the database's reason>
 ```
 
 Without a database the warning begins `warning: N record(s) still in the spool`.
@@ -536,15 +668,15 @@ usage error (including `--sim-speed` without `--sim`, and `--from` together with
 
 ```bash
 cd configs/examples
-elctl -c extraction_line.toml --sim exp validate experiment.toml
-elctl -c extraction_line.toml --sim exp run experiment.toml \
+elctl -c extraction_line.toml --sim exp validate queues/experiment.toml
+elctl -c extraction_line.toml --sim exp run queues/experiment.toml \
     --spectrometer spectrometer.sim-integrated.toml --sim-speed 50
-elctl -c extraction_line.toml --sim exp run experiment.toml --resume \
+elctl -c extraction_line.toml --sim exp run queues/experiment.toml --resume \
     --spectrometer spectrometer.sim-integrated.toml
 ```
 
 On an instrument install, a queue named without a folder is looked for in the
-install's folder:
+install's `queues/` folder, then in the install's folder:
 
 ```bash
 elctl --install argus --sim exp run experiment.toml --sim-speed max
@@ -618,7 +750,7 @@ elctl import <add|run|status|conflicts|verify> --db <url> [--cache <dir>] [optio
 `--db` is required. `--db` is `sqlite:/path/to/file.db` or
 `postgresql://user:password@host/db`. `--cache DIR` is where each source's
 settings (`<id>.toml`) and mirrors of remote repositories are kept (default: the
-user's cache directory, `pychron/import`). Only `add` and a real `run` create or
+user's cache directory, `nobion/import`). Only `add` and a real `run` create or
 migrate a database; the other subcommands need one that exists (a missing or
 empty SQLite file is an error).
 
@@ -713,7 +845,7 @@ your lab changed them).
 
 ## The store's schema
 
-A store's tables and indexes are its schema, and a newer pychron may need a
+A store's tables and indexes are its schema, and a newer nobion may need a
 newer one. The application, `export`, `flux` and `entry` open a store as it
 is and refuse one that is behind: they never change a schema in passing.
 After an update, this is how an existing store is brought up to date.
@@ -721,7 +853,16 @@ After an update, this is how an existing store is brought up to date.
 ```bash
 elctl db status --db sqlite:/path/to/store.db
 elctl db migrate --db sqlite:/path/to/store.db
+elctl --install argus db migrate
 ```
+
+Without `--db`, `db status`, `db migrate` and `db derive` use the database of
+the install `--install NAME` names, or of the default install, its kept
+password included: after `elctl data-source set --local` named an existing
+file that is behind, `elctl --install NAME db migrate` brings it up to date.
+An install name that is not there is an error (exit 1); no `--db` and no
+install to use is a usage error (exit 2) that says why there is none
+(nothing installed yet, or several installs and no default).
 
 ### db status
 
@@ -733,15 +874,93 @@ names the first migration it lacks). It changes nothing.
 
 Applies the migrations the store lacks, in order, and lists what it then
 has. Each migration is applied in one transaction: whole, or not at all.
-Run again it does nothing and says the store is up to date. Close pychron
+Run again it does nothing and says the store is up to date. Close nobion
 first if it has the store open.
+
+When it has migrated the store, it then lists the principal investigators
+that are persons with no given name, with their affiliation and uuid. A lab
+or a group that a former list of allowed PI names let in ("NMGRL Lab") is
+among them, carried over as a person: mark each that is an organisation in
+its PI editor. Nothing is changed for you.
 
 Neither command makes a database: a SQLite path that is not there, or an
 empty file, is an error (exit 2). To make a new store use `import add` or
 set up a data-reduction install.
 
-A copy of the file is a complete backup of a SQLite store; make one first if
-the store is the only copy of its data.
+Before it changes a store that has migrations already, it backs it up:
+
+- A SQLite store is copied beside itself, as
+  `<name>.pre-<from>-to-<to>-<UTC time>.sqlite` (for `nobion.db` going from
+  migration 7 to 8: `nobion.pre-7-to-8-20261107T120000Z.sqlite`), and the
+  copy is named on a line `backed up: <path>`. It is written under a
+  temporary name (`.partial`) and renamed only when whole, so a file with
+  the backup's name is always a complete copy. The copy is the store as it
+  was; to go back, close nobion and put it in the store's place. When the
+  copy cannot be written (no space, no permission) nothing is migrated.
+  Every program that migrates a store (`init`, `import`, `entry`, the setup
+  wizard) makes the same copy. Delete old copies when you no longer need
+  them.
+- A PostgreSQL store is not copied by nobion. `db migrate` refuses one with
+  migrations pending and prints a `pg_dump` command for it (without its
+  password: `pg_dump` asks for it, or reads `PGPASSWORD` or `~/.pgpass`).
+  The command is quoted for a POSIX shell (macOS Terminal, Linux); in
+  Windows PowerShell or cmd, adjust the quotes before running it. Back the
+  store up, then run `elctl db migrate --db <url> --backed-up`. A new, empty
+  database needs no flag.
+
+| Option | Meaning |
+|---|---|
+| `--backed-up` | A PostgreSQL store with migrations pending has been backed up: migrate it. |
+
+### db derive
+
+```bash
+elctl db derive --db <url> [--all] [--limit N] [--quiet]
+```
+
+Fills the store's cache of ages: the age the data browser shows in its
+**Age (Ma)** column and filters by (see
+[06 Data analysis](06-data-analysis.md#the-age-column-and-the-cached-age)).
+It walks every analysis of the store, newest first and invalid ones
+included, in pages of 200. An analysis whose cached age was computed from
+its inputs as they are now is passed over; any other (no cached age yet, or
+its flux, blanks, IC factors, fits or production changed since) is loaded,
+reduced with the default settings, and its age, age with the error of J,
+and K/Ca are stored, in Ma. A blank or an air is stored as having no age, so
+the next run passes over it too.
+
+Run it after an update that brings a store made before the cache, after an
+import made with `--no-derive`, and after saving a flux fit, blanks or IC
+factors (the flux window says how many cached ages a save left out of
+date). `elctl import run` runs the same pass when an import finishes. The
+application keeps the cache up to date for every analysis it reduces, so
+this is only for the ones nobody has looked at since.
+
+| Flag | Meaning |
+|---|---|
+| `--db URL` | The store (`sqlite:<file>` or `postgresql://...`). Default: the install's database (`--install NAME`, or the default install). Its schema must be up to date (`db migrate`); a store that is behind is refused, never migrated. |
+| `--all` | Reduce and store every analysis walked, current or not. |
+| `--limit N` | Walk no more than `N` analyses (the newest `N`). |
+| `--quiet` | Print only the summary line, not one line a page. |
+
+Output: one line a page, with the counts so far, then a summary, for
+example:
+
+```text
+  200 seen, 37 written (4 without an age), 163 current, 0 failed
+  ...
+derived: 8716 seen, 1210 written (95 without an age), 7506 current, 0 failed
+```
+
+An analysis that could not be loaded is named on stderr
+(`elctl db derive: <run id>: <why>`) and the walk goes on. It is safe to stop
+with Ctrl-C: what earlier pages stored stays, and the next run starts where
+there is work left. Two runs at once on one database do no harm; they write
+the same rows.
+
+Exit code: 0 when every analysis walked is current or was stored, 1 when any
+failed to load, 2 on a usage error or when the store could not be opened,
+read or written.
 
 ## Publication data
 
@@ -783,13 +1002,70 @@ elctl export --db <url> --out <file.csv|file.json> [selection] [options]
 Exit codes: 0 wrote the file; 1 no analysis matched; 2 usage or fatal error.
 
 ```bash
-elctl export --db sqlite:$HOME/pychron/data.db --out report.csv --sample FC-2 --sigma 1
-elctl export --db postgresql://user:pw@host/pychron --out report.json \
+elctl export --db sqlite:$HOME/nobion/data.db --out report.csv --sample FC-2 --sigma 1
+elctl export --db postgresql://user:pw@host/nobion --out report.json \
     --project examples --irradiation NM-300 --group-by sample --plateau mahon
 ```
 
 The file is marked as a user file after it is written so macOS Gatekeeper lets
 you open it.
+
+### publish
+
+`elctl publish` makes a *release*: an immutable, citable directory of a
+selection's reduced data (GeoParquet tables, an OGC API - Records catalogue,
+the Schaen report, a manifest of every file's hash and of the revisions
+pinned). **Needs persistence.** The directory's contents are documented in
+[release format](../release_format.md); `elctl publish help` prints every
+option. Nothing is public by default: a release is a private draft until it
+is published, and private until it is made public.
+
+```bash
+elctl publish create  --db <url> [selection] [--tag T]... [--ia NAME|--no-ia] --name <slug> --title <text>
+                      --author "<name>[|orcid|affiliation]"... [--licence <spdx>] [--description <text>]
+                      [--publisher <name>] [--embargo-until YYYY-MM-DD] [--supersedes <name|name@vN|uuid>]
+                      [reduction and report options as export]
+elctl publish build   --db <url> --release <r> --out <dir> [--private] [--with-figures] [--with-viewer]
+elctl publish verify  <dir> [--db <url>]
+elctl publish publish --db <url> --release <r> --manifest <dir>/manifest.json [--public]
+elctl publish withdraw --db <url> --release <r> --reason <text>
+elctl publish list    --db <url> [--state draft|published|withdrawn]
+elctl publish show    --db <url> --release <r>
+elctl publish delete  --db <url> --release <r>
+```
+
+`<r>` is a release name (its newest version), `name@vN`, or a uuid.
+
+| Command | Does |
+|---|---|
+| `create` | Pins the selection's heads and references (and every interpreted age whose members are all selected, or the ones named by `--ia`) in a bookmark and writes a new draft release. The selection and reduction flags are `export`'s; `--tag` keeps only analyses with those head tags (default: every tag but `invalid`). A second `create` of a name makes version 2, superseding version 1. The licence preselects `CC-BY-4.0`; the texts of CC-BY-4.0, CC-BY-SA-4.0 and CC0-1.0 ship with nobion, another id is named in `LICENSE.txt` only. Prints the release's uuid and counts; exit 1 when nothing matched. |
+| `build` | Writes `<dir>/<name>-v<N>`. Embargoed samples and analyses are left out and counted in the manifest; `--private` keeps them and marks the build private. Without Apache Arrow (`NOBION_PUBLISH`) the Parquet tables are not written and the command says so. `--with-figures` adds `figures/<sample>/` with an ideogram, a spectrum per step-heated aliquot and an inverse isochron (three or more included analyses), each as SVG and PDF (`docs/release_format.md`, Figures); `verify --db` then rebuilds with them. `--with-viewer` is accepted and ignored in this version. |
+| `verify` | Every file against `manifest.json`; with `--db`, also against a rebuild of the same release from that store (row hashes per table, bytes per non-Parquet file). Exit 1 names each difference. |
+| `publish` | Marks the draft published, recording the manifest of the build given; refuses a manifest whose pins are not this release's. Private unless `--public`. |
+| `withdraw` | A published release, with a reason; it goes private and never changes again. |
+| `list`, `show` | What releases the store has; one release's details, counts and bookmark. |
+| `delete` | A draft only. |
+
+`doi`, `igsn` and `upload` are not built yet.
+
+### embargo
+
+An embargo hides a project, a sample or an analysis from every public release
+and hosted view until a date, or until it is lifted. **Needs persistence.**
+
+```bash
+elctl embargo set  --db <url> (--project P | --sample S | --analysis A)... [--until YYYY-MM-DD] [--reason <text>]
+elctl embargo lift --db <url> (--id <uuid> | --project P | --sample S | --analysis A)...
+elctl embargo list --db <url> [--live]
+```
+
+A project is its name or uuid; a sample `name`, `name@project` or a uuid; an
+analysis a run id (`70001-01`, `70001-01A`) or a uuid. An ambiguous name
+(a sample in several projects) is refused naming the candidates. `--until`
+is an inclusive date: the embargo ends at midnight UTC after it; without it
+the embargo lasts until lifted. `lift` by scope lifts every live embargo on
+it. `list` shows each embargo's id, scope, end and reason; `--live` only the
+ones in force. Exit 2 for a usage error or an ambiguous name.
 
 ## EarthBank workbooks
 
@@ -801,7 +1077,7 @@ is sent for a sample and what each message means, is
 [Publishing to EarthBank](../earthbank.md).
 
 ```bash
-elctl earthbank export-xlsx --db <url> --out <dir> [selection] [options]
+elctl earthbank export-xlsx --db <url> --out <dir> [selection | --release <name|uuid>] [options]
 ```
 
 The command contacts nothing: it fills copies of the service's two template
@@ -820,6 +1096,15 @@ overwritten). The time in a file name is UTC:
 `--identifier`, `--project`, `--irradiation`, `--type`, `--uuid`, `--from`,
 `--to`, `--include-invalid`, `--limit`.
 
+**A release** can stand in for a selection on `export-xlsx`, `preflight` and
+`upload`: `--release <name|uuid>` (`name`, `name@v2` or its uuid) takes the
+release's members at the revisions it pins, in the release's order. Giving it
+together with any selection flag is a usage error (exit 2). The workbooks and
+the pre-flight accept a draft release. `upload --release` follows the rule of
+the Publish dialog: the release must be published and public and under no
+embargo (no member under a live embargo). Otherwise it prints why on stderr,
+sends nothing, not even a sign-in, and exits 1.
+
 **Ages** are made as `export` makes them, by the same flags: `--constants`,
 `--decay-error`, `--plateau`, `--plateau-steps`, `--plateau-gas`. A workbook is
 of samples and always at one sigma, so a sample's age and uncertainty in it are
@@ -835,7 +1120,7 @@ aliquot and reports at two sigma.
 | `--per-sample` | One Ar-Ar workbook per sample, not one for all. |
 | `--no-samples` | No Sample workbook. |
 | `--check` | Print what the export would print and write nothing. |
-| `--templates DIR` | The directory holding the service's two templates. Default: the directory the environment variable `PYCHRON_EARTHBANK_TEMPLATES` names; when it is not set, the ones installed with Pychron. |
+| `--templates DIR` | The directory holding the service's two templates. Default: the directory the environment variable `NOBION_EARTHBANK_TEMPLATES` names; when it is not set, the ones installed with Nobion. |
 | `--overrides FILE.toml` | What the analyses cannot say; see below. |
 
 **The age reported for a sample.** A sample with heating steps reports its
@@ -895,8 +1180,8 @@ Exit codes: 0 wrote the files (with `--check`: there was something to write);
 1 no analysis matched; 2 usage or fatal error.
 
 ```bash
-elctl earthbank export-xlsx --db sqlite:$HOME/pychron/data.db --check --project examples
-elctl earthbank export-xlsx --db sqlite:$HOME/pychron/data.db --out earthbank/ \
+elctl earthbank export-xlsx --db sqlite:$HOME/nobion/data.db --check --project examples
+elctl earthbank export-xlsx --db sqlite:$HOME/nobion/data.db --out earthbank/ \
     --project examples --overrides earthbank.toml --per-sample
 ```
 
@@ -913,10 +1198,10 @@ persistence.
 
 A **profile** names an account: the server, your login, and the institution
 and data package uploads go to. Profiles live in one file (the one the
-Pychron window uses, so a login made here is a login there):
-`~/Library/Application Support/Pychron/earthbank/profiles.toml` on macOS,
-`%APPDATA%\Pychron\earthbank\profiles.toml` on Windows,
-`~/.config/pychron/earthbank/profiles.toml` on Linux. Every subcommand takes
+Nobion window uses, so a login made here is a login there):
+`~/Library/Application Support/Nobion/earthbank/profiles.toml` on macOS,
+`%APPDATA%\Nobion\earthbank\profiles.toml` on Windows,
+`~/.config/nobion/earthbank/profiles.toml` on Linux. Every subcommand takes
 `--profiles FILE` for another. The file never holds a password: it is kept by
 the operating system (the login keychain on macOS, the Credential Manager on
 Windows, the secret service on Linux; where there is none, until the program
@@ -928,8 +1213,8 @@ ends, and `login` says so).
 | `earthbank account [--profile NAME]` | Signs in with the kept password (or `$EARTHBANK_PASSWORD`) and prints the profile and who the account is. |
 | `earthbank packages [--institution ID] [--profile NAME]` | Lists the data packages, of one institution when given or when the profile has one. `*` marks the one the profile uploads to. |
 | `earthbank packages --create NAME [--institution ID]` | Makes a private data package in progress and sets the profile's data package to it. |
-| `earthbank preflight --db URL [selection] [ages] [--overrides FILE] [--base-url URL]` | Builds what an upload would send for the selected analyses and asks EarthBank whether it knows every controlled term in it. Writes nothing to the service. Without a login it asks what needs none and lists the rest as not asked. |
-| `earthbank upload --db URL [selection] [ages] [--overrides FILE] --yes [--package ID] [--allow-unresolved] [--new-datapoint] [--in-doubt written:ID\|not-written] [--journal DIR]` | Sends the selected analyses to a data package: for each sample the sample itself (if the package has none of that name), a data point, its aliquots and measurements, the age calculation and the age summary. See [Uploading](#uploading) below. |
+| `earthbank preflight --db URL [selection \| --release R] [ages] [--overrides FILE] [--base-url URL]` | Builds what an upload would send for the selected analyses and asks EarthBank whether it knows every controlled term in it. Writes nothing to the service. Without a login it asks what needs none and lists the rest as not asked. |
+| `earthbank upload --db URL [selection \| --release R] [ages] [--overrides FILE] --yes [--package ID] [--allow-unresolved] [--new-datapoint] [--in-doubt written:ID\|not-written] [--journal DIR]` | Sends the selected analyses to a data package: for each sample the sample itself (if the package has none of that name), a data point, its aliquots and measurements, the age calculation and the age summary. See [Uploading](#uploading) below. |
 | `earthbank import-profiles FILE` | Takes the profiles of a legacy Pychron preferences file into the profiles file, without passwords (sign in once per profile with `login`). A profile whose name is already there is left alone. |
 
 `preflight` prints, for each sample, the terms EarthBank does not know (or
@@ -945,7 +1230,7 @@ password, a bad flag). No command prints a password or a token.
 elctl earthbank login --profile mylab --username a.user --institution 1001
 EARTHBANK_PASSWORD=... elctl earthbank account            # in a script
 elctl earthbank packages --create "Ar-Ar results 2031"
-elctl earthbank preflight --db sqlite:$HOME/pychron/data.db --project examples
+elctl earthbank preflight --db sqlite:$HOME/nobion/data.db --project examples
 ```
 
 ### Uploading
@@ -958,8 +1243,8 @@ pre-flight report. Without `--yes` it stops there and exits 2: read it, then
 run the same command with `--yes`.
 
 ```bash
-elctl earthbank upload --db sqlite:$HOME/pychron/data.db --sample MB-12 --overrides earthbank.toml
-elctl earthbank upload --db sqlite:$HOME/pychron/data.db --sample MB-12 --overrides earthbank.toml --yes
+elctl earthbank upload --db sqlite:$HOME/nobion/data.db --sample MB-12 --overrides earthbank.toml
+elctl earthbank upload --db sqlite:$HOME/nobion/data.db --sample MB-12 --overrides earthbank.toml --yes
 ```
 
 - **The data package** is `--package ID`, else the profile's (set by
@@ -1014,14 +1299,14 @@ elctl entry <what> <action> [args] --db <url> [--user <name>]
 
 `--db` is required for everything except `help` and `samples template`.
 `--user NAME` is recorded as the author of changes; default: the `USER`
-environment variable, else `pychron`. `--dry-run` (where listed) prints the row
+environment variable, else `nobion`. `--dry-run` (where listed) prints the row
 each change would make and writes nothing.
 
 | Command | What it does |
 |---|---|
-| `samples import <file.csv> [--update-existing] [--errors <out.csv>] [--dry-run]` | Add the samples in a CSV (or tab-separated) file, with their PIs, projects and materials. Rows already stored are left alone; with `--update-existing`, rows whose fields differ are updated. If any row is in error, nothing is written, and `--errors` writes the rows with their problems to a CSV. |
+| `samples import <file.csv> [--update-existing] [--errors <out.csv>] [--dry-run]` | Add the samples in a CSV (or tab-separated) file, with their PIs, projects and materials. Rows already stored are left alone; with `--update-existing`, rows whose fields differ are updated. If any row is in error, nothing is written, and `--errors` writes the rows with their problems to a CSV. A PI with namesakes also stops the import: the candidates are listed, nothing is written, and a `principal_investigator_orcid` or `principal_investigator_uuid` column says which ([sheet columns](../entry.md#principal-investigators)). |
 | `samples template <out.csv>` | Write a CSV with every column the import reads. Needs no database. |
-| `samples list [--pi NAME] [--project NAME] [--material NAME] [--text T]` | List samples, filtered. |
+| `samples list [--pi NAME] [--project NAME] [--material NAME] [--text T]` | List samples, filtered. `--pi` takes the name as shown ("J Ross"), so it matches every PI who shows that name. |
 | `package add <name> [--kind irradiation\|package] [--levels A-C \| A,B,D] [--holder NAME] [--z Z] [--reactor NAME] [--chronology FILE --tz ZONE]` | Add a package and its levels in one change. Kind `irradiation` (the default) needs a reactor (production values come from `reactors.json`) and a chronology file of `power,start,end` lines in local time (`--chronology` needs `--tz`). |
 | `package show <name> [--level L] [--csv]` | Show a package and its levels (or one level), as text or CSV. |
 | `package set-kind <name> irradiation\|package` | Change a package's kind. |
@@ -1038,11 +1323,11 @@ cannot be opened). `elctl entry` with no arguments prints the full help and exit
 
 ```bash
 elctl entry samples template samples.csv
-elctl entry samples import samples.csv --db sqlite:$HOME/pychron/data.db --dry-run
+elctl entry samples import samples.csv --db sqlite:$HOME/nobion/data.db --dry-run
 elctl entry package add NM-300 --kind irradiation --levels A-C --reactor "Triga" \
-    --chronology chron.csv --tz America/Denver --db sqlite:$HOME/pychron/data.db
-elctl entry positions import NM-300 positions.csv --db sqlite:$HOME/pychron/data.db
-elctl entry identifiers generate NM-300 --db sqlite:$HOME/pychron/data.db --dry-run
+    --chronology chron.csv --tz America/Denver --db sqlite:$HOME/nobion/data.db
+elctl entry positions import NM-300 positions.csv --db sqlite:$HOME/nobion/data.db
+elctl entry identifiers generate NM-300 --db sqlite:$HOME/nobion/data.db --dry-run
 ```
 
 ## Not yet implemented / unverified

@@ -1,9 +1,9 @@
-#include "pychron/vision/frame.hpp"
+#include "nobion/vision/frame.hpp"
 
 #include <algorithm>
 #include <cmath>
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 Frame Frame::make(int w, int h, std::uint16_t depth, std::uint16_t fill) {
   Frame f;
@@ -57,4 +57,4 @@ Rect centered_rect(const FrameView& v, int side, Vec2 offset_px) {
   return Rect{to_coord(cx - side / 2.0), to_coord(cy - side / 2.0), side, side};
 }
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

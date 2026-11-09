@@ -369,7 +369,7 @@ hold time back.
 | `Spectrometer::mutex_` (every hardware operation, a move's settle included) | `std::recursive_mutex` | `RecursiveClockMutex`, on the context clock |
 | `LaserSystem::gate_` (every driver, camera and centering call) | `std::recursive_mutex` | `RecursiveClockMutex`, on the clock given at construction (the line's; `SteadyClock` when none is given). `LaserSystem::mutex_` guards fields and stays `std::mutex` |
 | `ScanService::op_mutex_` (the engine start and stop sequences) | `std::mutex` | `ClockMutex`. The service's state mutex stays `std::mutex` |
-| `SwitchManager::actuation_` (one actuation or refresh at a time, settle included), `Reconnector::mutex_` (close, open, handshake), `QtegraLink::handshake_mutex_` | `std::mutex` | `ClockMutex`. `SwitchManager::state_` stays `std::mutex` |
+| `SwitchManager::actuation_` (one actuation or refresh at a time, settle included), `Link::mutex_` (close, open, connect step, backoff; was `Reconnector::mutex_`), `QtegraLink::handshake_mutex_` | `std::mutex` | `ClockMutex`. `SwitchManager::state_` stays `std::mutex` |
 | `ExtractionLine::lifecycle_` (`start` talking to the devices, `stop` waiting for the jobs under way; `running`) | `std::mutex` | `ClockMutex`, on the line's clock |
 | thread joins of participants (scheduler dispatcher and workers, `QueuedTransport` worker, NGX reader, `Executor` slots, `post_eq`, session) | `join()` while the thread may still wait | the thread, as its last act while still a participant, sets a done flag (or drops a live count) under the owner's mutex and notifies through the clock; the joiner waits for that with `clock.wait`, then `join()`. Never a `Detached` around the join (3.5) |
 
@@ -394,21 +394,57 @@ the only one. Tests that relied on the fallback use a `VirtualClock`.
 - the log hub (record stamps, the flusher, the crash flush); the vision live
   feed; `process.cpp` (an outside program's timeout); `asio_stream.hpp` (a
   real socket or serial port);
+- sim serve (`libs/transport` `listener.cpp`, `libs/sim` `wire_server.cpp`,
+  sim serve spec 4.4): the listeners' accept, receive and read waits, and a
+  connection's 20 ms poll for unsolicited input, are on real sockets.
+  `WireServer` refuses any clock but a `SteadyClock`; its threads are
+  participants all the same, which on that clock costs nothing;
+- TCP keepalive (kernel): `tcp_transport.cpp` turns it on (idle 10 s,
+  interval 5 s, count 3 where the platform allows); the kernel times the
+  probes, so a dead peer is found on real time;
 - the EarthBank client's waits (`libs/earthbank_qt`: a request's timeout, on a
   Qt timer; `libs/earthbank` `secret_store_linux.cpp`: the timer thread that
   cancels a secret-service call after 3 s for the probe and 120 s for a
   password call): a real network and a real desktop service;
+- the update check (`apps/pychron-ui` `update_checker.cpp`): its worker
+  thread and the request's 10 s timeout. A real socket to GitHub, not on a
+  simulated path; the worker is never a participant;
+- the flight recorder's dump worker (`libs/core` `flight_recorder_triggers.cpp`,
+  field diagnostics spec 5.3): its thread waits on its own queue (plain
+  `std::mutex` and `std::condition_variable`) and writes files; never a
+  participant. A bus handler on a participant only pushes onto that queue;
+- the hang monitor (`libs/core` `hang_monitor.cpp`, field diagnostics spec
+  6): its thread polls its beats on real time (plain `std::mutex` and
+  `std::condition_variable::wait_for`) and is never a participant, because
+  what it watches may hold the clock still. A beat's pulse is one atomic
+  store. The scheduler's and a transport's beats are registered only on a
+  `SteadyClock`: under a `VirtualClock` a simulated wait has no fixed
+  real-time length. The UI thread's beat is on a Qt timer, real time under
+  any clock;
 - the notifier (`lab/notifier.cpp`, and the `Date:` of a mail in
   `lab/notifications.cpp`): it runs programs outside, on its own thread, and
   is not a participant;
+- notification retry (`lab/notifier.cpp`, executor hardening spec 4.8): the
+  outbox's retry times (`next_attempt`) are wall times of this computer,
+  kept across restarts, and the notifier's thread waits for the next one on
+  real time (`system_clock`); tests call `deliver_due(now)` with times they
+  choose instead;
+- the script rehearsal runner (`libs/experiment` `rehearsal/runner.cpp`,
+  script rehearsal spec 5.4): its thread runs `rehearse()` on a
+  `SteadyClock` of its own and waits on the operator between steps (plain
+  `std::mutex` and `std::condition_variable` in `Rehearsal::step`), on real
+  time; it is never a participant, even when the line runs on a
+  `VirtualClock`, and makes no device or clock call;
 - `CancelToken::remove_on_cancel` waiting for a callback that is running on
   another thread: callbacks are short and do not wait;
 - `elctl exp run` waiting for the queue to end and for an interrupt: a 50 ms
   real-time poll inside a `Detached`, so that the operator is heard whatever
   simulated time is doing. The other `elctl` commands (`scan`, the laser
   commands) run on a `SteadyClock` only;
-- the UI: its timers, the bridges' worker threads and their polls and
-  settles (`laser_bridge.cpp`), the plots' autoscale. Not what it shows
+- the UI: its timers (among them canvas's 700 ms rest on a gauge chip before
+  its popup chart, `CanvasView::kGaugeRestMs`, the one operator feels; history
+  charts' 250 ms redraw throttle), the bridges' worker threads and their polls
+  and settles (`laser_bridge.cpp`), the plots' autoscale. Not what it shows
   against a stamp of the line's: a valve's "since" and "last actuated"
   (`canvas_view.cpp`), the time on an alarm's row (`alarm_dock.cpp`) and a
   transport's "ok so long ago" (`health_bar.cpp`) are told by the line's

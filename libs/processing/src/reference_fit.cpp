@@ -1,4 +1,4 @@
-#include "pychron/processing/reference_fit.hpp"
+#include "nobion/processing/reference_fit.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -10,14 +10,15 @@
 #include <set>
 #include <utility>
 
-#include "pychron/processing/units.hpp"
-#include "pychron/reduction/fits.hpp"
-#include "pychron/reduction/stats.hpp"
+#include "figure_common.hpp"
+#include "nobion/processing/units.hpp"
+#include "nobion/reduction/fits.hpp"
+#include "nobion/reduction/stats.hpp"
 #include "schema_builder.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 using namespace detail;
 
 namespace {
@@ -410,11 +411,13 @@ std::vector<std::string> fit_choices() {
 }
 
 std::vector<FieldSpec> common_fields() {
-  return {integer("nsigma", "Error bars (σ)", "Display", 1, 1, 3),
-          boolean("show_current", "Show current values", "Display", true,
-                  "The unknowns' stored values beside the predicted ones"),
-          boolean("skip_reviewed", "Keep reviewed values", "Fit", false,
-                  "Values already marked reviewed are shown but not refitted or saved")};
+  std::vector<FieldSpec> fields{integer("nsigma", "Error bars (σ)", "Display", 1, 1, 3),
+                                boolean("show_current", "Show current values", "Display", true,
+                                        "The unknowns' stored values beside the predicted ones"),
+                                boolean("skip_reviewed", "Keep reviewed values", "Fit", false,
+                                        "Values already marked reviewed are shown but not refitted or saved")};
+  for (auto& f : detail::fit_figure_fields()) fields.push_back(std::move(f));
+  return fields;
 }
 
 SchemaPtr make_blank_schema() {
@@ -733,7 +736,7 @@ Result<ReferenceFigure> build_reference_figure(ReferenceFitTarget target, const 
   g.x.min = xmin - pad;
   g.x.max = pad;
   fig.scene.graphs.push_back(std::move(g));
-  fig.scene.style.legend = true;
+  detail::apply_fit_style(o, fig.scene);
   if (references.empty()) fig.scene.warnings.emplace_back("no references");
   for (const DatasetItem* item : fitted)
     if (auto it = by_uuid.find(item->analysis->analysis->uuid); it != by_uuid.end())
@@ -746,6 +749,29 @@ Result<ReferenceFigure> build_reference_figure(ReferenceFitTarget target, const 
 std::vector<std::string> default_reference_types(ReferenceFitTarget target) {
   if (target == ReferenceFitTarget::IcFactors) return {"air"};
   return {"blank_unknown", "blank_air", "blank_cocktail", "blank"};
+}
+
+std::vector<ReferencePoint> same_run_references(const Analysis& analysis, std::string_view label,
+                                                std::string_view reference_detector) {
+  auto corrected = [](const IsotopeData& d) {
+    return Value{d.intercept.value - d.baseline.value, std::hypot(d.intercept.error, d.baseline.error)};
+  };
+  const auto is_label = [&](const IsotopeData& d) { return d.isotope == label; };
+  const auto ref = std::ranges::find_if(analysis.isotopes, [&](const IsotopeData& d) {
+    return is_label(d) && d.detector == reference_detector;
+  });
+  if (ref == analysis.isotopes.end()) return {};
+  const Value r = corrected(*ref);
+  std::vector<ReferencePoint> out;
+  for (const auto& d : analysis.isotopes) {
+    if (!is_label(d) || d.detector == reference_detector) continue;
+    const Value c = corrected(d);
+    if (!r.known() || !c.known() || c.value == 0.0 || r.value == 0.0) continue;
+    const double f = r.value / c.value;
+    const double e = std::abs(f) * std::hypot(r.error / r.value, c.error / c.value);
+    out.emplace_back(analysis.timestamp, Value{f, e}, analysis.uuid, analysis.runid, false, d.detector, d.optics);
+  }
+  return out;
 }
 
 Result<std::vector<std::string>> find_references(IAnalysisSource& source, const std::vector<AnalysisPtr>& unknowns,
@@ -836,4 +862,4 @@ std::unique_ptr<Unit> make_reference_fit_unit(ReferenceFitTarget target) {
   return std::make_unique<ReferenceFitUnit>(target);
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

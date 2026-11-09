@@ -12,6 +12,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <limits>
 #include <mutex>
 #include <optional>
@@ -19,25 +21,30 @@
 #include <thread>
 #include <vector>
 
-#include "pychron/experiment/executor/executor.hpp"
+#include "log_capture.hpp"
+#include "nobion/core/process_log.hpp"
+#include "nobion/experiment/executor/executor.hpp"
+#include "nobion/experiment/executor/links.hpp"
+#include "nobion/experiment/factory/increments.hpp"
+#include "nobion/transport/sim_transport.hpp"
 #include "run_fakes.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment;
-using namespace pychron::experiment::executor;
-using namespace pychron::experiment::fakes;
-using Seconds = pychron::experiment::Duration;
+using namespace nobion;
+using namespace nobion::experiment;
+using namespace nobion::experiment::executor;
+using namespace nobion::experiment::fakes;
+using Seconds = nobion::experiment::Duration;
 
 namespace {
 
 class FailingCheck final : public IPreRunCheck {
  public:
   std::string name() const override { return "disk"; }
-  Result<void> check(const RunSpec& run) override {
+  std::optional<CheckFailure> check(const RunSpec& run) override {
     ++calls;
-    if (run.id.identifier == fail_on) return fail(ErrorKind::Io, "disk full");
-    return {};
+    if (run.id.identifier == fail_on) return CheckFailure{CheckKind::Refuse, Error{ErrorKind::Io, "disk full", {}}, {}};
+    return std::nullopt;
   }
   std::string fail_on;
   int calls = 0;
@@ -71,7 +78,7 @@ class ExecutorTest : public ::testing::Test {
     s.spectrometer = &spec_;
     s.valves = &valves_;
     s.spectrometer_info = [] { return run::SpectrometerInfo{"hash", "argon", 1.0}; };
-    s.engine.sleep = [this](pychron::Duration d) { clock_.advance(d); };
+    s.engine.sleep = [this](nobion::Duration d) { clock_.advance(d); };
     s.plans = &plans_;
     s.conditionals = &library_;
     s.aliquots = &lab_.aliquots;
@@ -85,7 +92,7 @@ class ExecutorTest : public ::testing::Test {
   ExecutorOptions options() {
     ExecutorOptions o;
     o.state_file = lab_.dir() / "executor_state.json";
-    o.sleep = [this](Seconds d) { clock_.advance(std::chrono::duration_cast<pychron::Duration>(d)); };
+    o.sleep = [this](Seconds d) { clock_.advance(std::chrono::duration_cast<nobion::Duration>(d)); };
     return o;
   }
 
@@ -158,6 +165,25 @@ TEST_F(ExecutorTest, RunsTheQueueSeriallyWithTheDelayPolicy) {
   EXPECT_EQ(*Executor::resume_row(lab_.dir() / "executor_state.json"), 6u);
   EXPECT_EQ(check_.calls, 5);
   EXPECT_EQ(spec_.overlapping.load(), 0);
+}
+
+// The steps of one heating are one aliquot: a step heat made by the run
+// factory leaves the aliquot to run start, and steps B and C must not each
+// take the next free one.
+TEST_F(ExecutorTest, TheStepsOfAStepHeatShareOneAliquot) {
+  std::vector<RunSpec> runs;
+  for (const char* step : {"A", "B", "C"}) {
+    runs.push_back(unknown_run("12345"));
+    runs.back().id.step = step;
+  }
+  auto q = queue(std::move(runs));
+  Executor ex(context(), options());
+  auto r = ex.execute(q);
+  ASSERT_EQ(r.end, QueueEnd::Completed) << r.reason;
+  ASSERT_EQ(r.runs.size(), 3u);
+  EXPECT_EQ(r.runs[0].aliquot, 1);
+  EXPECT_EQ(r.runs[1].aliquot, 1);
+  EXPECT_EQ(r.runs[2].aliquot, 1);
 }
 
 // A run's log reaches whoever follows the queue: in its summary, and so in
@@ -485,7 +511,7 @@ TEST_F(ExecutorTest, ARowEditedDuringItsDelayIsReadAgain) {
       runs[1].skip = true;
       result = ex->edit(ex->queue_version(), runs);
     }
-    clock_.advance(std::chrono::duration_cast<pychron::Duration>(d));
+    clock_.advance(std::chrono::duration_cast<nobion::Duration>(d));
   };
   Executor executor(context(), o);
   ex = &executor;
@@ -559,6 +585,107 @@ TEST_F(ExecutorTest, ResumeStartsAfterTheLastStartedRun) {
   EXPECT_EQ(r2.end, QueueEnd::Completed) << r2.reason;
   EXPECT_EQ(states(r2), (std::vector<std::string>{"12346:success", "12347:success"}));
   EXPECT_FALSE(Executor::resume_row(lab_.dir() / "nope.json"));
+}
+
+// A heating with no fixed aliquot resumed in a new session (a new allocator,
+// as after a restart) keeps the aliquot its first step was saved at.
+TEST_F(ExecutorTest, AResumedStepHeatKeepsItsAliquot) {
+  auto step = [](const std::string& s) {
+    RunSpec r = unknown_run("12345");
+    r.id.step = s;
+    return r;
+  };
+  const RunSpec a = step("A");
+  const RunSpec b = step("B");
+  const RunSpec c = step("C");
+  {
+    // The program stopped after A: a deterministic stand-in for a crash
+    // between runs.
+    Executor ex(context(), options());
+    auto first = queue({a});
+    const auto r = ex.execute(first);
+    ASSERT_EQ(r.end, QueueEnd::Completed) << r.reason;
+  }
+  const auto from = Executor::resume_row(lab_.dir() / "executor_state.json");
+  ASSERT_TRUE(from) << from.error().what;
+  EXPECT_EQ(*from, 1u);
+
+  persist::AliquotAllocator fresh(lab_.files);
+  auto ctx = context();
+  ctx.services.aliquots = &fresh;
+  Executor again(std::move(ctx), options());
+  auto rest = queue({a, b, c});
+  const auto r = again.execute(rest, *from);
+  EXPECT_EQ(r.end, QueueEnd::Completed) << r.reason;
+  EXPECT_EQ(states(r), (std::vector<std::string>{"12345:success", "12345:success"}));
+  const auto records = lab_.dir() / "records" / "12345";
+  EXPECT_TRUE(std::filesystem::exists(records / "12345-1B.json"));
+  EXPECT_TRUE(std::filesystem::exists(records / "12345-1C.json"));
+  EXPECT_FALSE(std::filesystem::exists(records / "12345-2B.json"));
+}
+
+TEST_F(ExecutorTest, ReadStateGivesWhatWriteStateWrote) {
+  Executor ex(context(), options());
+  spec_.on_reading = [&](int n) {
+    if (n == 3) ex.abort();
+  };
+  auto q = queue({unknown_run("12345"), unknown_run("12346"), unknown_run("12347")});
+  auto r = ex.execute(q);
+  ASSERT_EQ(r.end, QueueEnd::Aborted);
+
+  const auto file = lab_.dir() / "executor_state.json";
+  auto s = Executor::read_state(file);
+  ASSERT_TRUE(s) << s.error().what;
+  EXPECT_EQ(s->queue, q.spec().name);
+  EXPECT_EQ(s->state, "finalizing");
+  auto row = Executor::resume_row(file);
+  ASSERT_TRUE(row) << row.error().what;
+  EXPECT_EQ(s->next_row, *row);
+  ASSERT_EQ(s->runs.size(), r.runs.size());
+  for (std::size_t i = 0; i < r.runs.size(); ++i) {
+    EXPECT_EQ(s->runs[i].row, r.runs[i].row) << i;
+    EXPECT_EQ(s->runs[i].identifier, r.runs[i].identifier) << i;
+    EXPECT_EQ(s->runs[i].run_id, r.runs[i].run_id) << i;
+    EXPECT_EQ(s->runs[i].state, run::to_string(r.runs[i].state)) << i;
+  }
+}
+
+namespace {
+
+std::filesystem::path write_text(const std::filesystem::path& p, const std::string& text) {
+  std::filesystem::create_directories(p.parent_path());
+  std::ofstream(p, std::ios::trunc) << text;
+  return p;
+}
+
+}  // namespace
+
+TEST_F(ExecutorTest, ReadStateOfAnOlderFileGivesItsNextRow) {
+  auto s = Executor::read_state(write_text(lab_.dir() / "old_state.json", R"({"next_row": 4})"));
+  ASSERT_TRUE(s) << s.error().what;
+  EXPECT_EQ(s->next_row, 4u);
+  EXPECT_EQ(s->queue, "");
+  EXPECT_EQ(s->state, "");
+  EXPECT_TRUE(s->runs.empty());
+}
+
+TEST_F(ExecutorTest, ReadStateRefusesWhatIsNotAStateFile) {
+  auto missing = Executor::read_state(lab_.dir() / "nope.json");
+  ASSERT_FALSE(missing);
+  EXPECT_EQ(missing.error().kind, ErrorKind::Io);
+
+  auto not_json = Executor::read_state(write_text(lab_.dir() / "a.json", "not json"));
+  ASSERT_FALSE(not_json);
+  EXPECT_EQ(not_json.error().kind, ErrorKind::Config);
+
+  auto no_row = Executor::read_state(write_text(lab_.dir() / "b.json", R"({"queue": "q"})"));
+  ASSERT_FALSE(no_row);
+  EXPECT_EQ(no_row.error().kind, ErrorKind::Config);
+  EXPECT_NE(no_row.error().what.find("no next_row"), std::string::npos) << no_row.error().what;
+
+  auto negative = Executor::read_state(write_text(lab_.dir() / "c.json", R"({"next_row": -1})"));
+  ASSERT_FALSE(negative);
+  EXPECT_EQ(negative.error().kind, ErrorKind::Config);
 }
 
 TEST_F(ExecutorTest, PauseAndScheduledStart) {
@@ -666,7 +793,14 @@ class StampingPersister final : public persist::IAnalysisPersister {
  public:
   explicit StampingPersister(persist::IAnalysisPersister& to) : to_(to) {}
   Result<int> next_aliquot(const std::string& identifier) override { return to_.next_aliquot(identifier); }
-  Result<void> begin_run(const RunIdentity& id, const QueueSpec& queue) override { return to_.begin_run(id, queue); }
+  Result<void> begin_run(const RunIdentity& id, const QueueSpec& queue) override {
+    if (fail_begins > 0) {  // a store whose link is down, before anything of the sample is spent
+      --fail_begins;
+      return fail(ErrorKind::Io, "store link down");
+    }
+    return to_.begin_run(id, queue);
+  }
+  std::atomic<int> fail_begins{0};
   Result<void> save_extraction(const record::AnalysisRecord& record) override {
     {
       std::lock_guard lock(mutex_);
@@ -693,7 +827,7 @@ class StampingPersister final : public persist::IAnalysisPersister {
 };
 
 // A script that takes `d` on the run's clock, as a script's sleep() does.
-FakeScriptHost::Body takes(pychron::Duration d) {
+FakeScriptHost::Body takes(nobion::Duration d) {
   return [d](const scripting::ScriptEnvironment& env, scripting::CancelToken& token) -> Result<void> {
     token.wait_until(*env.clock, env.clock->now() + d);
     return {};
@@ -849,7 +983,34 @@ double real_seconds_since(std::chrono::steady_clock::time_point t) {
   return std::chrono::duration<double>(std::chrono::steady_clock::now() - t).count();
 }
 
-using ExecutorVirtual = pychron::testing::VirtualTimeTest;
+using ExecutorVirtual = nobion::testing::VirtualTimeTest;
+
+// What a script writes while a run executes carries the run's thread tag and
+// the run's id (the one RunStarted gave).
+TEST_F(ExecutorVirtual, RunThreadCarriesRunScope) {
+  nobion::testing::LogCapture log;  // before the world: the run's thread ends first
+  ASSERT_TRUE(log.ok());
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  w.host.bodies["extract"] = [](const scripting::ScriptEnvironment&, scripting::CancelToken&) -> Result<void> {
+    process_logger("t").info("from the script");
+    return {};
+  };
+  auto q = w.queue({counted_run("12345", 10)}, Seconds{10}, Seconds{60});
+  Executor ex(w.context(), w.options());
+  const auto r = ex.execute(q);
+  ASSERT_EQ(r.end, QueueEnd::Completed) << r.reason;
+  ASSERT_EQ(r.runs.size(), 1u);
+  // The run's name, not its uuid: what an operator knows the run by.
+  const std::string name = format_runid("12345", r.runs[0].aliquot, r.runs[0].step);
+  EXPECT_EQ(name, "12345-01");
+
+  const auto lines = log.raw_lines();
+  const auto it = std::find_if(lines.begin(), lines.end(),
+                               [](const std::string& l) { return l.find(" t: from the script") != std::string::npos; });
+  ASSERT_NE(it, lines.end());
+  EXPECT_NE(it->find(" [run] run=" + name + " t: from the script"), std::string::npos) << *it;
+}
 
 TEST_F(ExecutorVirtual, QueueOfThreeRunsTakesNoRealTime) {
   World w({});
@@ -864,6 +1025,79 @@ TEST_F(ExecutorVirtual, QueueOfThreeRunsTakesNoRealTime) {
   EXPECT_GE(w.clock.now() - kStart, 3 * 600s);
   EXPECT_LT(w.clock.now() - kStart, 3 * 700s);  // and no more than the queue asks for
   EXPECT_LT(real, 5.0);
+  EXPECT_EQ(w.stall_reports(), std::vector<std::string>{});
+}
+
+// A store that refuses every record for its first hour (spec 4.8).
+class HourLongOutage final : public persist::IAnalysisPersister {
+ public:
+  HourLongOutage(persist::IAnalysisPersister& to, const Clock& clock) : to_(to), clock_(clock) {}
+  Result<int> next_aliquot(const std::string& identifier) override { return to_.next_aliquot(identifier); }
+  Result<void> begin_run(const RunIdentity& id, const QueueSpec& queue) override { return to_.begin_run(id, queue); }
+  Result<void> save_extraction(const record::AnalysisRecord& record) override { return to_.save_extraction(record); }
+  Result<void> save_analysis(const record::AnalysisRecord& record) override {
+    if (clock_.now() < kStart + 1h) return fail(ErrorKind::Io, "store unreachable");
+    return to_.save_analysis(record);
+  }
+  Result<void> save_artifact(const std::string& uuid, const std::string& name,
+                             const std::vector<std::uint8_t>& bytes) override {
+    return to_.save_artifact(uuid, name, bytes);
+  }
+  Result<void> flush() override { return to_.flush(); }
+  Result<std::vector<std::string>> check_queue(const QueueSpec& queue) override { return to_.check_queue(queue); }
+
+ private:
+  persist::IAnalysisPersister& to_;
+  const Clock& clock_;
+};
+
+// When each run started, from the start of the queue.
+std::vector<nobion::Duration> start_offsets(World& w) {
+  std::vector<nobion::Duration> out;
+  for (const auto& s : w.starts()) out.push_back(s.ts - kStart);
+  return out;
+}
+
+TEST_F(ExecutorVirtual, AStoreDownForAnHourHoldsNoRun) {
+  std::vector<nobion::Duration> fault_free;
+  {
+    World w({});
+    Clock::Participant me(w.clock, "test");
+    Scheduler scheduler(w.clock, &w.bus, Scheduler::Options{1});
+    scheduler.start();
+    persist::SpoolFlusher flusher(w.lab.save, scheduler, w.clock, &w.bus);
+    auto q = w.three_runs();
+    ExecutorContext c = w.context();
+    c.flusher = &flusher;
+    Executor ex(std::move(c), w.options());
+    const auto r = ex.execute(q);
+    ASSERT_EQ(r.end, QueueEnd::Completed) << r.reason;
+    fault_free = start_offsets(w);
+  }
+  ASSERT_EQ(fault_free.size(), 3u);
+
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  HourLongOutage store(w.lab.files, w.clock);
+  persist::SavePipeline save(w.lab.spool, store);
+  Scheduler scheduler(w.clock, &w.bus, Scheduler::Options{1});
+  scheduler.start();
+  persist::SpoolFlusher flusher(save, scheduler, w.clock, &w.bus);
+  auto q = w.three_runs();
+  ExecutorContext c = w.context();
+  c.services.save = &save;
+  c.flusher = &flusher;
+  Executor ex(std::move(c), w.options());
+  const auto r = ex.execute(q);
+  ASSERT_EQ(r.end, QueueEnd::Completed) << r.reason;
+  EXPECT_EQ(start_offsets(w), fault_free);
+  for (const auto& run : r.runs) EXPECT_TRUE(run.save_error) << run.identifier;
+  EXPECT_LT(w.clock.now(), kStart + 1h);  // the whole queue ran during the outage
+  EXPECT_EQ(save.pending(), 3u);
+  // Its records follow once the store is back, with no run to prompt them.
+  w.clock.sleep_for(kStart + 2h - w.clock.now());
+  EXPECT_EQ(save.pending(), 0u);
+  EXPECT_EQ(flusher.status(), persist::SpoolStatus{});
   EXPECT_EQ(w.stall_reports(), std::vector<std::string>{});
 }
 
@@ -910,6 +1144,133 @@ TEST_F(ExecutorVirtual, OverlappedRunWaitsForTheResource) {
   EXPECT_EQ(w.stall_reports(), std::vector<std::string>{});
 }
 
+// ---- during_extraction (measurement plan v2 spec 5.4) --------------------------
+
+// When each block of run `id` started and finished, by the run's thread.
+struct BlockTimes {
+  explicit BlockTimes(World& w) : w_(w) {
+    subs_.push_back(w.bus.subscribe<measurement::BlockStarted>([this](const measurement::BlockStarted& e) {
+      std::lock_guard lock(mutex_);
+      started_.push_back({e.run_id, e.block, e.segment, w_.clock.now()});
+    }));
+    subs_.push_back(w.bus.subscribe<measurement::BlockFinished>([this](const measurement::BlockFinished& e) {
+      std::lock_guard lock(mutex_);
+      finished_.push_back({e.run_id, e.block, e.segment, w_.clock.now()});
+    }));
+  }
+  struct At {
+    std::string run;
+    measurement::Block block;
+    int segment;
+    TimePoint ts;
+  };
+  std::optional<TimePoint> started(const std::string& run, measurement::Block b, int segment = -2) {
+    return find(started_, run, b, segment);
+  }
+  std::optional<TimePoint> finished(const std::string& run, measurement::Block b, int segment = -2) {
+    return find(finished_, run, b, segment);
+  }
+
+ private:
+  std::optional<TimePoint> find(const std::vector<At>& in, const std::string& run, measurement::Block b, int segment) {
+    std::lock_guard lock(mutex_);
+    for (const auto& a : in)
+      if (a.run == run && a.block == b && (segment == -2 || a.segment == segment)) return a.ts;
+    return std::nullopt;
+  }
+  World& w_;
+  std::mutex mutex_;
+  std::vector<At> started_, finished_;
+  std::vector<SignalBus::Subscription> subs_;
+};
+
+// The baseline is read while the extraction runs; an extraction shorter
+// than it waits for it, and the inlet opens after it.
+TEST_F(ExecutorVirtual, DuringExtractionBaselineEndsBeforeBeforeInlet) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  BlockTimes blocks(w);
+  w.host.bodies["extract"] = takes(30s);
+  auto q = w.queue({unknown_run("12345", "syn")}, Seconds{0}, Seconds{0});
+  Executor ex(w.context(), w.options());
+  const auto r = ex.execute(q);
+  ASSERT_EQ(r.end, QueueEnd::Completed) << r.reason;
+  EXPECT_EQ(states_of(r), (std::vector<std::string>{"12345:success"}));
+  const auto id = w.run_id("12345");
+  const auto began = blocks.started(id, measurement::Block::Segment, 0);
+  const auto ended = blocks.finished(id, measurement::Block::Segment, 0);
+  const auto extracted = w.entered(id, run::RunState::Equilibrating);
+  const auto equilibrating = blocks.started(id, measurement::Block::Equilibrate);
+  ASSERT_TRUE(began && ended && extracted && equilibrating);
+  EXPECT_GE(*ended - *began, 60s);  // all 60 readings, past the 30 s extraction
+  EXPECT_GE(*extracted, *ended);    // the run waited for it
+  EXPECT_GE(*equilibrating, *ended);
+  EXPECT_EQ(w.spec.overlapping.load(), 0);
+  EXPECT_EQ(w.stall_reports(), std::vector<std::string>{});
+}
+
+// Review Focus 3: the script fails after 10 s; the phase stops, its thread
+// is joined, the spectrometer is let go and the run fails as an extraction
+// failure does, saved.
+TEST_F(ExecutorVirtual, DuringExtractionExtractionFailureStopsTheBaselinePhase) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  BlockTimes blocks(w);
+  w.host.bodies["extract"] = [](const scripting::ScriptEnvironment& env, scripting::CancelToken& token) -> Result<void> {
+    token.wait_until(*env.clock, env.clock->now() + 10s);
+    return fail(ErrorKind::Io, "laser link down");
+  };
+  auto q = w.queue({unknown_run("12345", "syn")}, Seconds{0}, Seconds{0});
+  Executor ex(w.context(), w.options());
+  const auto r = ex.execute(q);
+  ASSERT_EQ(r.runs.size(), 1u);
+  EXPECT_EQ(states_of(r), (std::vector<std::string>{"12345:failed"}));
+  const auto id = w.run_id("12345");
+  const auto began = blocks.started(id, measurement::Block::Segment, 0);
+  const auto ended = blocks.finished(id, measurement::Block::Segment, 0);
+  ASSERT_TRUE(began && ended);
+  EXPECT_LT(*ended - *began, 15s);  // stopped with the extraction, not after its 60 readings
+  EXPECT_FALSE(blocks.started(id, measurement::Block::Equilibrate));
+  EXPECT_FALSE(w.spec.acquiring.load());
+  EXPECT_EQ(w.stall_reports(), std::vector<std::string>{});
+  // Saved, as a failed run is.
+  EXPECT_TRUE(std::filesystem::exists(w.lab.dir() / "records" / "12345" / "12345-1.json"));
+}
+
+// A run before one that measures during its extraction may overlap as ever:
+// the second's extraction waits for the spectrometer the first measures on.
+TEST_F(ExecutorVirtual, DuringExtractionPlansWithoutItStillOverlap) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  std::mutex mutex;
+  std::map<std::string, TimePoint> extraction_began;
+  w.host.bodies["extract"] = [&](const scripting::ScriptEnvironment& env, scripting::CancelToken& token) -> Result<void> {
+    {
+      std::lock_guard lock(mutex);
+      extraction_began[std::get<std::string>(env.context.globals.at("run_identifier"))] = env.clock->now();
+    }
+    token.wait_until(*env.clock, env.clock->now() + 30s);
+    return {};
+  };
+  RunSpec first = counted_run("12345", 600);
+  first.overlap.duration = Seconds{2};
+  auto q = w.queue({first, unknown_run("12346", "syn")}, Seconds{10}, Seconds{60});
+  Executor ex(w.context(), w.options());
+  const auto r = ex.execute(q);
+  ASSERT_EQ(r.end, QueueEnd::Completed) << r.reason;
+  EXPECT_EQ(states_of(r), (std::vector<std::string>{"12345:success", "12346:success"}));
+  const auto released = w.entered(w.run_id("12345"), run::RunState::PostMeasuring);
+  ASSERT_TRUE(released);
+  std::lock_guard lock(mutex);
+  ASSERT_EQ(extraction_began.size(), 2u);
+  const auto second = std::find_if(extraction_began.begin(), extraction_began.end(),
+                                   [](const auto& e) { return e.first.starts_with("12346"); });
+  ASSERT_NE(second, extraction_began.end());
+  EXPECT_GE(second->second, *released);
+  EXPECT_EQ(w.spec.overlapping.load(), 0);
+  EXPECT_EQ(w.stall_reports(), std::vector<std::string>{});
+}
+
 // The thread that cancels is outside the clock, and the queue is asleep in a
 // delay that is being paid for in real time.
 TEST_F(ExecutorVirtual, CancelFromOutsideEndsAPacedQueue) {
@@ -919,11 +1280,11 @@ TEST_F(ExecutorVirtual, CancelFromOutsideEndsAPacedQueue) {
   auto q = w.three_runs(Seconds{60});
   Executor ex(w.context(), w.options());
   QueueResult r;
-  pychron::testing::Crew crew(w.clock);
+  nobion::testing::Crew crew(w.clock);
   crew.start("queue", [&] { r = ex.execute(q); });
   // The queue is asleep in the delay before its first run, and stays there
   // for a minute of real time unless something wakes it.
-  ASSERT_TRUE(pychron::testing::await_waiters(w.clock, 1));
+  ASSERT_TRUE(nobion::testing::await_waiters(w.clock, 1));
   std::this_thread::sleep_for(50ms);
   const auto began = std::chrono::steady_clock::now();
   ex.cancel();
@@ -942,7 +1303,7 @@ TEST_F(ExecutorVirtual, AbortWhileWaitingForAResource) {
   auto q = w.overlapped_runs();
   Executor ex(w.context(), w.options());
   QueueResult r;
-  pychron::testing::Crew crew(w.clock);
+  nobion::testing::Crew crew(w.clock);
   crew.start("queue", [&] { r = ex.execute(q); });
   // By now the second run has extracted and waits for the spectrometer,
   // which the first keeps for minutes yet. The first is half way through a
@@ -985,18 +1346,18 @@ TEST_F(ExecutorVirtual, CancelFromOutsideReachesARunWaitingForAResource) {
   auto q = w.overlapped_runs();
   Executor ex(w.context(), w.options());
   QueueResult r;
-  pychron::testing::Crew crew(w.clock);
+  nobion::testing::Crew crew(w.clock);
   crew.start("queue", [&] { r = ex.execute(q); });
   // Asleep in the clock: the queue (for the second run), the first run (in
   // its reading) and the second (for the spectrometer).
-  ASSERT_TRUE(pychron::testing::eventually_real([&] { return paced.load() && w.clock.waiters() == 3; }));
+  ASSERT_TRUE(nobion::testing::eventually_real([&] { return paced.load() && w.clock.waiters() == 3; }));
   const auto first = w.run_id("12345"), second = w.run_id("12346");
   ASSERT_TRUE(w.entered(second, run::RunState::Equilibrating));
   ASSERT_FALSE(w.first_block(second));
   const auto began = std::chrono::steady_clock::now();
   ex.cancel();
   // The second run is cancelled while the first still holds the spectrometer.
-  EXPECT_TRUE(pychron::testing::eventually_real(
+  EXPECT_TRUE(nobion::testing::eventually_real(
       [&] { return w.entered(second, run::RunState::Cancelled).has_value(); }));
   EXPECT_FALSE(w.entered(first, run::RunState::Cancelled));
   EXPECT_FALSE(w.entered(first, run::RunState::PostMeasuring));
@@ -1076,7 +1437,7 @@ TEST_F(ExecutorVirtual, MinimumPumpTimeIsCountedFromThePreviousRunsPumping) {
   w.subs.push_back(w.bus.subscribe<run::RunStateChanged>([&](const run::RunStateChanged& e) {
     if (e.to != run::RunState::PostMeasuring || e.run_id != w.run_id("12345")) return;
     // The spectrometer is free and the pump time not yet said.
-    (void)pychron::testing::eventually_real([&] { return w.first_block(w.run_id("12346")).has_value(); }, 200ms);
+    (void)nobion::testing::eventually_real([&] { return w.first_block(w.run_id("12346")).has_value(); }, 200ms);
   }));
   Executor ex(w.context(), w.options());
   const auto r = ex.execute(q);
@@ -1143,3 +1504,535 @@ TEST_F(ExecutorVirtual, ScheduledStartWaitsOnTheClock) {
 }
 
 }  // namespace
+
+// ---- Holding (executor hardening, spec 4.6) -----------------------------------
+
+namespace {
+
+// A link the runs need, on the world's clock, publishing its health.
+struct Wire {
+  explicit Wire(World& w) : clock(w.clock) {
+    TransportOptions o;
+    o.name = "valve_bus";
+    o.clock = &w.clock;
+    o.bus = &w.bus;
+    transport = SimTransport::hooked([](const Bytes&) { return Bytes{}; }, o);
+    EXPECT_TRUE(transport->open());
+    link = std::make_unique<Link>(*transport, w.clock);
+    link->set_connect([this](Transport& t) -> Result<void> {
+      {
+        std::lock_guard lock(mutex);
+        probes.push_back(clock.now());
+      }
+      return t.open();
+    });
+  }
+  // Down for `d` from now (for good when not given), closed as a dropped link is.
+  void down(std::optional<nobion::Duration> d = std::nullopt) {
+    if (d) transport->down_for(*d);
+    else transport->set_down(true);
+    transport->close();
+  }
+  std::vector<TimePoint> probe_times() {
+    std::lock_guard lock(mutex);
+    return probes;
+  }
+
+  const Clock& clock;
+  std::unique_ptr<SimTransport> transport;
+  std::unique_ptr<Link> link;
+  std::mutex mutex;
+  std::vector<TimePoint> probes;
+};
+
+// What a held queue published.
+struct HoldLog {
+  explicit HoldLog(SignalBus& bus) {
+    subs.push_back(bus.subscribe<ExecutorHolding>([this](const ExecutorHolding& h) {
+      std::lock_guard lock(mutex);
+      holds.push_back(h);
+    }));
+    subs.push_back(bus.subscribe<ExecutorStateChanged>([this](const ExecutorStateChanged& e) {
+      std::lock_guard lock(mutex);
+      states.push_back(e);
+    }));
+  }
+  std::vector<ExecutorHolding> held() {
+    std::lock_guard lock(mutex);
+    return holds;
+  }
+  bool went(ExecutorState from, ExecutorState to) {
+    std::lock_guard lock(mutex);
+    return std::any_of(states.begin(), states.end(), [&](const auto& e) { return e.from == from && e.to == to; });
+  }
+  std::mutex mutex;
+  std::vector<ExecutorHolding> holds;
+  std::vector<ExecutorStateChanged> states;
+  std::vector<SignalBus::Subscription> subs;
+};
+
+// A check that asks the queue to wait while `waiting` names the run's identifier.
+class WaitFor final : public IPreRunCheck {
+ public:
+  std::string name() const override { return "test"; }
+  std::optional<CheckFailure> check(const RunSpec& run) override {
+    std::lock_guard lock(mutex);
+    if (run.id.identifier != waiting) return std::nullopt;
+    return CheckFailure{CheckKind::Wait, Error{ErrorKind::Io, "not yet", {}}, {}};
+  }
+  void set(std::string identifier) {
+    std::lock_guard lock(mutex);
+    waiting = std::move(identifier);
+  }
+  std::mutex mutex;
+  std::string waiting;
+};
+
+// The world's context, needing the wire's link (checked and probed).
+struct Held {
+  explicit Held(World& w) : wire(w), links_up([this](const RunSpec&) { return LinkSet{{wire.link.get()}}; }), log(w.bus) {}
+  ExecutorContext context(World& w) {
+    auto c = w.context();
+    c.checks = {&links_up};
+    c.links = [this](const RunSpec&) { return std::vector<Link*>{wire.link.get()}; };
+    return c;  // NOLINT(clang-analyzer-core.StackAddressEscape): by value; its pointers are into World and this
+  }
+  Wire wire;
+  LinksUp links_up;
+  HoldLog log;
+};
+
+int started_count(World& w, const std::string& identifier) {
+  int n = 0;
+  for (const auto& e : w.starts()) n += e.identifier == identifier;
+  return n;
+}
+std::optional<TimePoint> started_at(World& w, const std::string& identifier, int nth = 0) {
+  for (const auto& e : w.starts())
+    if (e.identifier == identifier && nth-- == 0) return e.ts;
+  return std::nullopt;
+}
+
+// After row 0 finishes, `act()` (the link drops, an operator acts...).
+SignalBus::Subscription after_first_run(World& w, std::function<void()> act) {
+  return w.bus.subscribe<RunFinished>([act = std::move(act)](const RunFinished& f) {
+    if (f.summary.row == 0) act();
+  });
+}
+
+}  // namespace
+
+using ExecutorHolding_ = nobion::testing::VirtualTimeTest;
+using nobion::testing::Crew;
+
+namespace {
+
+// An extraction that fails with `kind` the first `n` times, then succeeds.
+FakeScriptHost::Body fails_first(int n, ErrorKind kind, const std::string& what) {
+  auto left = std::make_shared<std::atomic<int>>(n);
+  return [left, kind, what](const scripting::ScriptEnvironment&, scripting::CancelToken&) -> Result<void> {
+    if (left->fetch_sub(1) > 0) return fail(kind, what);
+    return {};
+  };
+}
+
+}  // namespace
+
+TEST_F(ExecutorHolding_, ALinkDownBeforeARunHoldsThenStartsThatRunOnce) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  Held h(w);
+  std::optional<TimePoint> dropped;
+  auto sub = after_first_run(w, [&] {
+    dropped = w.clock.now();
+    h.wire.down(5min);
+  });
+  auto q = w.three_runs();
+  Executor ex(h.context(w), w.options());
+  const auto r = ex.execute(q);
+  ASSERT_EQ(r.end, QueueEnd::Completed) << r.reason;
+  EXPECT_EQ(states_of(r), (std::vector<std::string>{"12345:success", "12346:success", "12347:success"}));
+  EXPECT_EQ(started_count(w, "12346"), 1);
+  const auto held = h.log.held();
+  ASSERT_EQ(held.size(), 1u);
+  EXPECT_EQ(held[0].row, std::optional<std::size_t>(1));
+  EXPECT_EQ(held[0].links, std::vector<std::string>{"valve_bus"});
+  // Named once, though LinksUp and the executor's own look at the links both find it down.
+  EXPECT_NE(held[0].reason.find("valve_bus"), std::string::npos) << held[0].reason;
+  EXPECT_EQ(held[0].reason.find("valve_bus"), held[0].reason.rfind("valve_bus")) << held[0].reason;
+  EXPECT_EQ(held[0].kind, HoldReason::Link);
+  EXPECT_EQ(held[0].until - held[0].since, 2h);
+  EXPECT_TRUE(h.log.went(ExecutorState::Running, ExecutorState::Holding));
+  EXPECT_TRUE(h.log.went(ExecutorState::Holding, ExecutorState::Running));
+  // Back at 5 min, seen by a probe (every 15 s), then 30 s of settle.
+  const auto second = *started_at(w, "12346");
+  EXPECT_GE(second - *dropped, 5min + 30s);
+  EXPECT_LE(second - *dropped, 5min + 15s + 30s + 2s);
+}
+
+TEST_F(ExecutorHolding_, WaitsForTheLinkToBeStableForSettle) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  Held h(w);
+  auto options = w.options();
+  options.hold.probe_interval = 1s;  // up is seen at once
+  Crew crew(w.clock);
+  std::optional<TimePoint> t0;
+  auto sub = after_first_run(w, [&] {
+    t0 = w.clock.now();
+    h.wire.down();
+    crew.start("outage", [&] {
+      w.clock.sleep_for(60s);
+      h.wire.transport->set_down(false);  // up at 60 s
+      w.clock.sleep_for(10s);
+      h.wire.down();  // down again at 70 s
+      w.clock.sleep_for(30s);
+      h.wire.transport->set_down(false);  // up at 100 s
+    });
+  });
+  auto q = w.three_runs();
+  Executor ex(h.context(w), options);
+  const auto r = ex.execute(q);
+  crew.join();
+  ASSERT_EQ(r.end, QueueEnd::Completed) << r.reason;
+  const auto second = *started_at(w, "12346") - *t0;
+  EXPECT_GE(second, 130s);
+  EXPECT_LE(second, 132s);
+}
+
+TEST_F(ExecutorHolding_, ProbesEachLinkAtTheProbeInterval) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  Held h(w);
+  std::optional<TimePoint> t0;
+  auto sub = after_first_run(w, [&] {
+    t0 = w.clock.now();
+    h.wire.down(130s);  // the hold begins after the 60 s delay between runs
+  });
+  auto q = w.three_runs();
+  Executor ex(h.context(w), w.options());
+  ASSERT_EQ(ex.execute(q).end, QueueEnd::Completed);
+  // The probes of the hold (a probe may reconnect once more within it).
+  std::vector<TimePoint> starts;
+  for (const auto& t : h.wire.probe_times())
+    if (t >= *t0 && (starts.empty() || t - starts.back() > 5s)) starts.push_back(t);
+  ASSERT_GE(starts.size(), 4u);
+  for (std::size_t i = 1; i < starts.size(); ++i) EXPECT_EQ(starts[i] - starts[i - 1], 15s) << i;
+}
+
+TEST_F(ExecutorHolding_, ARunThatFailedForALinkHoldsThenGoesOnToTheNextRow) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  Held h(w);
+  auto q = w.three_runs();
+  w.host.bodies["extract"] = fails_first(1, ErrorKind::Io, "laser link down");
+  Executor ex(h.context(w), w.options());
+  const auto r = ex.execute(q);
+  ASSERT_EQ(r.end, QueueEnd::Completed) << r.reason;
+  EXPECT_EQ(states_of(r), (std::vector<std::string>{"12345:failed", "12346:success", "12347:success"}));
+  EXPECT_EQ(started_count(w, "12345"), 1);  // past its point of no return: never again
+  const auto held = h.log.held();
+  ASSERT_EQ(held.size(), 1u);
+  EXPECT_FALSE(held[0].row);  // held after a run that started
+  EXPECT_EQ(held[0].kind, HoldReason::RunFailed);
+  EXPECT_NE(held[0].reason.find("laser link down"), std::string::npos) << held[0].reason;
+  EXPECT_EQ(r.runs[0].status, record::RecordStatus::Failed);  // flagged in its summary
+  EXPECT_EQ(r.runs[0].failure, "laser link down");
+  // Made safe before the hold (the run did it as it failed; spec 4.7).
+  EXPECT_NE(std::find(w.valves.log.begin(), w.valves.log.end(), "close B"), w.valves.log.end());
+}
+
+TEST_F(ExecutorHolding_, AfterLinkFailureEndEndsTheQueue) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  Held h(w);
+  auto q = w.three_runs();
+  w.host.bodies["extract"] = [](const scripting::ScriptEnvironment&, scripting::CancelToken&) -> Result<void> {
+    return fail(ErrorKind::Io, "laser link down");
+  };
+  auto options = w.options();
+  options.hold.end_after_link_failure = true;
+  Executor ex(h.context(w), options);
+  const auto r = ex.execute(q);
+  EXPECT_EQ(r.end, QueueEnd::Failed);
+  EXPECT_EQ(r.runs.size(), 1u);
+  EXPECT_TRUE(h.log.held().empty());
+}
+
+TEST_F(ExecutorHolding_, TheHoldLimitEndsTheQueueAsFailedNamingTheLinks) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  Held h(w);
+  std::optional<TimePoint> dropped;
+  auto sub = after_first_run(w, [&] {
+    dropped = w.clock.now();
+    h.wire.down();
+  });
+  auto q = w.three_runs();
+  Executor ex(h.context(w), w.options());
+  const auto r = ex.execute(q);
+  EXPECT_EQ(r.end, QueueEnd::Failed);
+  EXPECT_NE(r.reason.find("hold limit"), std::string::npos) << r.reason;
+  EXPECT_NE(r.reason.find("valve_bus"), std::string::npos) << r.reason;
+  EXPECT_EQ(r.runs.size(), 1u);
+  EXPECT_GE(w.clock.now() - *dropped, 2h);
+}
+
+TEST_F(ExecutorHolding_, ResumeSkipsSettle) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  Held h(w);
+  auto options = w.options();
+  options.hold.probe_interval = 1s;
+  std::optional<TimePoint> back;
+  Executor* exec = nullptr;
+  auto health = w.bus.subscribe<TransportHealth>([&](const TransportHealth& e) {
+    if (e.connected && back == std::nullopt && exec != nullptr && exec->state() == ExecutorState::Holding) {
+      back = w.clock.now();
+      exec->resume();
+    }
+  });
+  auto sub = after_first_run(w, [&] { h.wire.down(60s); });
+  auto q = w.three_runs();
+  Executor ex(h.context(w), options);
+  exec = &ex;
+  ASSERT_EQ(ex.execute(q).end, QueueEnd::Completed);
+  ASSERT_TRUE(back);
+  EXPECT_LT(*started_at(w, "12346") - *back, 5s);  // not the 30 s of settle
+}
+
+TEST_F(ExecutorHolding_, SkipDropsTheHeldRow) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  HoldLog log(w.bus);
+  WaitFor check;
+  check.set("12346");
+  Executor* exec = nullptr;
+  std::optional<Result<void>> skipped;
+  auto sub = w.bus.subscribe<ExecutorHolding>([&](const ExecutorHolding&) { skipped = exec->skip(); });
+  auto ctx = w.context();
+  ctx.checks = {&check};
+  auto q = w.three_runs();
+  Executor ex(ctx, w.options());
+  exec = &ex;
+  const auto r = ex.execute(q);
+  ASSERT_EQ(r.end, QueueEnd::Completed) << r.reason;
+  ASSERT_TRUE(skipped && *skipped);
+  EXPECT_EQ(states_of(r), (std::vector<std::string>{"12345:success", "12347:success"}));
+  EXPECT_EQ(started_count(w, "12346"), 0);
+  // A check that names no link: counted as the spool's.
+  const auto held = log.held();
+  ASSERT_EQ(held.size(), 1u);
+  EXPECT_EQ(held[0].kind, HoldReason::Spool);
+}
+
+TEST(HoldReasonTest, NamesAreLabels) {
+  EXPECT_EQ(to_string(HoldReason::Link), "link");
+  EXPECT_EQ(to_string(HoldReason::Spool), "spool");
+  EXPECT_EQ(to_string(HoldReason::RunFailed), "run_failed");
+}
+
+TEST_F(ExecutorHolding_, SkipIsRefusedForARowThatStarted) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  Held h(w);
+  Executor* exec = nullptr;
+  std::optional<Result<void>> skipped;
+  auto sub = w.bus.subscribe<ExecutorHolding>([&](const ExecutorHolding&) { skipped = exec->skip(); });
+  auto q = w.three_runs();
+  w.host.bodies["extract"] = fails_first(1, ErrorKind::Io, "laser link down");
+  Executor ex(h.context(w), w.options());
+  exec = &ex;
+  const auto r = ex.execute(q);
+  ASSERT_TRUE(skipped);
+  ASSERT_FALSE(*skipped);
+  EXPECT_NE(skipped->error().what.find("already started"), std::string::npos);
+  EXPECT_EQ(r.runs.size(), 3u);
+}
+
+TEST_F(ExecutorHolding_, StopCancelAndAbortLeaveAHold) {
+  for (const auto how : {QueueEnd::Stopped, QueueEnd::Cancelled, QueueEnd::Aborted}) {
+    World w({});
+    Clock::Participant me(w.clock, "test");
+    Held h(w);
+    Executor* exec = nullptr;
+    auto sub = w.bus.subscribe<ExecutorHolding>([&](const ExecutorHolding&) {
+      if (how == QueueEnd::Stopped) exec->stop();
+      if (how == QueueEnd::Cancelled) exec->cancel();
+      if (how == QueueEnd::Aborted) exec->abort();
+    });
+    auto drop = after_first_run(w, [&] { h.wire.down(); });
+    auto q = w.three_runs();
+    Executor ex(h.context(w), w.options());
+    exec = &ex;
+    const TimePoint began = w.clock.now();
+    const auto r = ex.execute(q);
+    EXPECT_EQ(r.end, how) << r.reason;
+    EXPECT_EQ(r.runs.size(), 1u);
+    EXPECT_LT(w.clock.now() - began, 1h);  // not the hold limit
+  }
+}
+
+TEST_F(ExecutorHolding_, AnUnsafeRunEndsTheQueueWithoutHolding) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  Held h(w);
+  auto q = w.three_runs();
+  w.host.bodies["extract"] = [](const scripting::ScriptEnvironment&, scripting::CancelToken&) -> Result<void> {
+    return fail(ErrorKind::Io, "laser link down");
+  };
+  // The safe state cannot close the inlet: it is interlocked (definite).
+  w.valves.fault = [](const std::string& v, bool open) -> Result<void> {
+    if (!open && v == "B") return fail(ErrorKind::Interlock, "B is interlocked");
+    return {};
+  };
+  Executor ex(h.context(w), w.options());
+  const auto r = ex.execute(q);
+  EXPECT_EQ(r.end, QueueEnd::Failed);
+  EXPECT_EQ(r.code, kUnsafe);
+  EXPECT_NE(r.reason.find("close inlet B"), std::string::npos) << r.reason;
+  EXPECT_TRUE(h.log.held().empty());
+}
+
+TEST_F(ExecutorHolding_, ADefiniteFailureEndsTheQueueAsToday) {
+  for (const bool go_on : {false, true}) {
+    World w({});
+    Clock::Participant me(w.clock, "test");
+    Held h(w);
+    auto q = w.three_runs();
+    w.host.bodies["extract"] = fails_first(1, ErrorKind::Protocol, "laser fault");
+    auto options = w.options();
+    options.continue_on_failure = go_on;
+    Executor ex(h.context(w), options);
+    const auto r = ex.execute(q);
+    EXPECT_TRUE(h.log.held().empty());
+    if (go_on) {
+      EXPECT_EQ(r.end, QueueEnd::Completed) << r.reason;
+      EXPECT_EQ(r.runs.size(), 3u);
+    } else {
+      EXPECT_EQ(r.end, QueueEnd::Failed);
+      EXPECT_EQ(r.runs.size(), 1u);
+    }
+  }
+}
+
+TEST_F(ExecutorHolding_, ALinkThatDropsDuringPrepareHoldsAndStartsTheRowAgain) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  Held h(w);
+  w.persister.fail_begins = 1;  // the first run's prepare
+  std::optional<std::size_t> next_row_while_held;
+  Executor* exec = nullptr;
+  auto sub = w.bus.subscribe<ExecutorHolding>([&](const ExecutorHolding&) {
+    auto row = Executor::resume_row(w.lab.dir() / "executor_state.json");
+    if (row) next_row_while_held = *row;
+    (void)exec;
+  });
+  auto q = w.three_runs();
+  Executor ex(h.context(w), w.options());
+  exec = &ex;
+  const auto r = ex.execute(q);
+  ASSERT_EQ(r.end, QueueEnd::Completed) << r.reason;
+  ASSERT_EQ(r.runs.size(), 4u);  // the attempt, then the run
+  EXPECT_EQ(r.runs[0].state, run::RunState::Failed);
+  EXPECT_EQ(r.runs[1].identifier, "12345");
+  EXPECT_EQ(r.runs[1].state, run::RunState::Success);
+  EXPECT_EQ(r.runs[1].aliquot, r.runs[0].aliquot);  // allocated once
+  EXPECT_EQ(next_row_while_held, std::optional<std::size_t>(0));  // not consumed
+  const auto held = h.log.held();
+  ASSERT_EQ(held.size(), 1u);
+  EXPECT_EQ(held[0].row, std::optional<std::size_t>(0));
+  EXPECT_EQ(held[0].kind, HoldReason::RunFailed);  // an attempt that failed for a link, not a pre-run check
+  // A definite failure in prepare ends the queue as before.
+  World w2({});
+  Clock::Participant me2(w2.clock, "test2");
+  auto bad = w2.queue({unknown_run("12345", "no_such_plan")}, Seconds{0}, Seconds{0});
+  Executor ex2(w2.context(), w2.options());
+  EXPECT_EQ(ex2.execute(bad).end, QueueEnd::Failed);
+}
+
+TEST_F(ExecutorHolding_, TheStateFileCarriesTheHoldAndTheLastFailedRow) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  Held h(w);
+  std::string while_held;
+  auto sub = w.bus.subscribe<ExecutorHolding>([&](const ExecutorHolding&) {
+    std::ifstream in(w.lab.dir() / "executor_state.json");
+    while_held.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+  });
+  auto q = w.three_runs();
+  w.host.bodies["extract"] = fails_first(1, ErrorKind::Io, "laser link down");
+  Executor ex(h.context(w), w.options());
+  ASSERT_EQ(ex.execute(q).end, QueueEnd::Completed);
+  EXPECT_NE(while_held.find("\"holding\": {\"reason\": "), std::string::npos) << while_held;
+  EXPECT_NE(while_held.find("\"last_failed_row\": 0"), std::string::npos) << while_held;
+  // A file with the hold gives the same resume_row as one without.
+  const auto with = w.lab.dir() / "with.json";
+  const auto without = w.lab.dir() / "without.json";
+  std::ofstream(with) << while_held;
+  std::ofstream(without) << "{\n  \"queue\": \"q1\",\n  \"state\": \"running\",\n  \"next_row\": 1,\n  \"runs\": []\n}\n";
+  EXPECT_EQ(Executor::resume_row(with).value(), 1u);
+  EXPECT_EQ(Executor::resume_row(without).value(), 1u);
+}
+
+TEST_F(ExecutorHolding_, InOverlapTheRunInFlightCarriesOn) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  Held h(w);
+  std::atomic<bool> once{false};
+  auto drop = w.bus.subscribe<measurement::OverlapReady>([&](const measurement::OverlapReady&) {
+    if (!once.exchange(true)) h.wire.down(5min);
+  });
+  auto q = w.overlapped_runs();
+  Executor ex(h.context(w), w.options());
+  const auto r = ex.execute(q);
+  ASSERT_EQ(r.end, QueueEnd::Completed) << r.reason;
+  EXPECT_EQ(states_of(r), (std::vector<std::string>{"12345:success", "12346:success"}));
+  ASSERT_EQ(h.log.held().size(), 1u);
+  EXPECT_EQ(h.log.held()[0].row, std::optional<std::size_t>(1));
+}
+
+// Review of the branch: a resume while the link is still down tries, holds
+// again, and keeps the limit it had.
+TEST_F(ExecutorHolding_, AResumeWhileDownKeepsTheHoldLimit) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  Held h(w);
+  Executor* exec = nullptr;
+  int holds = 0;
+  std::optional<TimePoint> first;
+  auto sub = w.bus.subscribe<ExecutorHolding>([&](const ExecutorHolding& e) {
+    if (!first) first = e.since;
+    if (++holds <= 3) exec->resume();
+  });
+  auto drop = after_first_run(w, [&] { h.wire.down(); });
+  auto q = w.three_runs();
+  Executor ex(h.context(w), w.options());
+  exec = &ex;
+  const auto r = ex.execute(q);
+  EXPECT_EQ(r.end, QueueEnd::Failed);
+  EXPECT_GE(holds, 4);
+  ASSERT_TRUE(first);
+  EXPECT_LE(w.clock.now() - *first, 2h + 1min);
+}
+
+TEST_F(ExecutorHolding_, TheStateFileSaysWhenTheHoldBeganInWallTime) {
+  World w({});
+  Clock::Participant me(w.clock, "test");
+  Held h(w);
+  std::string while_held;
+  auto sub = w.bus.subscribe<ExecutorHolding>([&](const ExecutorHolding&) {
+    std::ifstream in(w.lab.dir() / "executor_state.json");
+    while_held.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+  });
+  auto drop = after_first_run(w, [&] { h.wire.down(2min); });
+  auto q = w.three_runs();
+  Executor ex(h.context(w), w.options());
+  ASSERT_EQ(ex.execute(q).end, QueueEnd::Completed);
+  const auto at = while_held.find("\"since\": ");
+  ASSERT_NE(at, std::string::npos) << while_held;
+  const double since = std::stod(while_held.substr(at + 9));
+  const double epoch = std::chrono::duration<double>(kEpoch.time_since_epoch()).count();
+  EXPECT_GT(since, epoch);  // the session's wall clock, not seconds of uptime
+  EXPECT_LT(since, epoch + 3600);
+}

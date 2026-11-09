@@ -1,4 +1,4 @@
-#include "pychron/reduction/stats.hpp"
+#include "nobion/reduction/stats.hpp"
 
 #include <gtest/gtest.h>
 
@@ -6,7 +6,7 @@
 #include <numbers>
 #include <vector>
 
-namespace pr = pychron::reduction;
+namespace pr = nobion::reduction;
 
 namespace {
 

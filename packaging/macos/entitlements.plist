@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   What Pychron's programs need under the hardened runtime, which notarization
-  requires (packaging/macos/sign_app.sh signs Pychron and elctl with these).
+  requires (packaging/macos/sign_app.sh signs Nobion and elctl with these).
 
   device.camera: a laser's live camera; without it the hardened runtime
     refuses the camera even with NSCameraUsageDescription in Info.plist.

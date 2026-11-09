@@ -1,13 +1,13 @@
-#include "pychron/scripting/script.hpp"
+#include "nobion/scripting/script.hpp"
 
 #include <cctype>
 #include <charconv>
 #include <string>
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 namespace {
 
-constexpr std::string_view kHeaderPrefix = "#! pychron:";
+constexpr std::string_view kHeaderPrefix = "#! nobion:";
 
 bool is_separator(char c) { return c == ',' || std::isspace(static_cast<unsigned char>(c)); }
 
@@ -51,6 +51,7 @@ std::string_view to_string(ScriptKind kind) noexcept {
     case ScriptKind::PostEquilibration: return "post_equilibration";
     case ScriptKind::PostMeasurement: return "post_measurement";
     case ScriptKind::MeasurementHook: return "measurement_hooks";
+    case ScriptKind::SafeState: return "safe_state";
   }
   return "unknown";
 }
@@ -123,4 +124,4 @@ ScriptContext make_context(ValueMap overrides, ValueMap options) {
   return ctx;
 }
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

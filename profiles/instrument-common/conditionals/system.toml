@@ -1,4 +1,4 @@
-# System-level conditionals (written by pychron setup): checked for every
+# System-level conditionals (written by nobion setup): checked for every
 # run; queue, plan and run levels add to or disable these.
 
 # Before extraction and before measurement: stop the queue if an ion counter

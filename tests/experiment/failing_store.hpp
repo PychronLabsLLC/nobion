@@ -9,7 +9,7 @@
 
 #include "../ingest/forwarding_store.hpp"
 
-namespace pychron::experiment::testing {
+namespace nobion::experiment::testing {
 
 class FailingStore final : public ingest::testing::ForwardingStore {
  public:
@@ -77,4 +77,4 @@ class FailingStore final : public ingest::testing::ForwardingStore {
   int reads_ = 0;
 };
 
-}  // namespace pychron::experiment::testing
+}  // namespace nobion::experiment::testing

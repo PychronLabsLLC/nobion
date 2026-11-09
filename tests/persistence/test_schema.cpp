@@ -3,17 +3,25 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <map>
 #include <set>
 
 #include "migrate.hpp"
+#include "nobion/core/path_text.hpp"
+#include "sql/browse.hpp"
+#include "sql/catalog.hpp"
 #include "sql/statements.hpp"
 #include "store_fixture.hpp"
+#include "store_impl.hpp"
 
-using namespace pychron;
-using namespace pychron::persistence;
-using namespace pychron::persistence::testing;
-namespace pd = pychron::persistence::detail;
+using namespace nobion;
+using namespace nobion::persistence;
+using namespace nobion::persistence::testing;
+namespace pd = nobion::persistence::detail;
 
 namespace {
 
@@ -27,7 +35,7 @@ const char* const kAppendOnly[] = {
     "chronology_dose",    "detector_gain",      "sensitivity_value", "holder_meta",
     "holder_hole",        "script_version",     "ref_document",      "signal_blob",
     "script_text",        "spectrometer_snapshot", "change_log",     "change_entity",
-    "ingest_receipt"};
+    "ingest_receipt",     "release_sample",     "release_interpreted_age"};
 
 std::unique_ptr<pd::Db> raw(const std::string& url) {
   auto db = pd::Db::open(StoreConfig{url, false});
@@ -79,8 +87,10 @@ std::set<std::string> introspect(pd::Db& db) {
     }
   } else {
     for (const auto& c : column(db,
-                                "SELECT table_name || '|' || column_name AS c FROM information_schema.columns "
-                                "WHERE table_schema = current_schema()",
+                                "SELECT c.table_name || '|' || c.column_name AS c FROM information_schema.columns c "
+                                "JOIN information_schema.tables t ON t.table_schema = c.table_schema "
+                                "AND t.table_name = c.table_name "
+                                "WHERE c.table_schema = current_schema() AND t.table_type = 'BASE TABLE'",
                                 "c"))
       out.insert(c);
     auto rows = db.select(
@@ -134,7 +144,7 @@ TEST_P(SchemaTest, MigrateIsIdempotentAndRecordsChecksums) {
     ASSERT_TRUE(store);
     auto status = store->schema_status();
     ASSERT_TRUE(status) << to_string(status.error());
-    ASSERT_EQ(status->size(), 5u);
+    ASSERT_EQ(status->size(), 8u);
     EXPECT_EQ((*status)[0].version, 1);
     EXPECT_EQ((*status)[0].description, "init");
     EXPECT_EQ((*status)[0].checksum_hex.size(), 64u);
@@ -146,6 +156,12 @@ TEST_P(SchemaTest, MigrateIsIdempotentAndRecordsChecksums) {
     EXPECT_EQ((*status)[3].description, "sample_geometry");
     EXPECT_EQ((*status)[4].version, 5);
     EXPECT_EQ((*status)[4].description, "ref_scope_indexes");
+    EXPECT_EQ((*status)[5].version, 6);
+    EXPECT_EQ((*status)[5].description, "pi_identity");
+    EXPECT_EQ((*status)[6].version, 7);
+    EXPECT_EQ((*status)[6].description, "release");
+    EXPECT_EQ((*status)[7].version, 8);
+    EXPECT_EQ((*status)[7].description, "geochron_view");
   }
   // Reopen: nothing pending, so migrate = false opens fine.
   auto again = open_store(StoreConfig{tdb.url(), false});
@@ -203,13 +219,256 @@ TEST(SchemaIndexes, TheLastAnalysisOfAnIdentifierIsASeek) {
   EXPECT_EQ(all.find("TEMP B-TREE"), std::string::npos) << all;
 }
 
+// A PI given by its ORCID (an entry sheet's principal_investigator_orcid
+// column) is found by the partial unique index on it, not by reading every PI.
+TEST(SchemaIndexes, APiIsFoundByOrcid) {
+  TestDatabase tdb("sqlite", true);
+  ASSERT_TRUE(open_or_die(tdb.url()));
+  auto db = raw(tdb.url());
+  ASSERT_TRUE(db);
+  const std::vector<std::string> plan = column(*db, QStringLiteral("EXPLAIN QUERY PLAN ") + pd::sql::kPrincipalInvestigatorByOrcid,
+                                               "detail", {QStringLiteral("0000-0002-1825-0097")});
+  ASSERT_FALSE(plan.empty());
+  std::string all;
+  for (const auto& step : plan) all += step + "\n";
+  EXPECT_NE(all.find("principal_investigator_orcid"), std::string::npos) << all;
+  EXPECT_EQ(all.find("SCAN"), std::string::npos) << all;
+}
+
+// The age sink reads the cached fingerprints of a batch before it writes:
+// each analysis is a seek on derived_value's primary key (analysis_uuid,
+// fingerprint, name), not a walk of every cached age.
+TEST(SchemaIndexes, CachedFingerprintsAreFoundByAnalysis) {
+  TestDatabase tdb("sqlite", true);
+  ASSERT_TRUE(open_or_die(tdb.url()));
+  auto db = raw(tdb.url());
+  ASSERT_TRUE(db);
+  const pd::Bindings ids{pd::qv(Uuid::v7()), pd::qv(Uuid::v7()), pd::qv(Uuid::v7())};
+  const std::vector<std::string> plan =
+      column(*db, QStringLiteral("EXPLAIN QUERY PLAN ") + pd::sql::derived_fingerprints(3), "detail", ids);
+  ASSERT_FALSE(plan.empty());
+  std::string all;
+  for (const auto& step : plan) all += step + "\n";
+  EXPECT_NE(all.find("sqlite_autoindex_derived_value_1"), std::string::npos) << all;
+  EXPECT_NE(all.find("analysis_uuid=?"), std::string::npos) << all;
+  EXPECT_EQ(all.find("derived_value_name_ix"), std::string::npos) << "found by name, across every analysis:\n" << all;
+  EXPECT_EQ(all.find("SCAN"), std::string::npos) << all;
+}
+
+// The experiment window's References dock reads, after every saved run, the
+// newest analyses of some types on the session's spectrometer since a time,
+// leaving out the invalid ones (browse.cpp composes the statement this way).
+// The index (mass_spectrometer_uuid, analysis_type, timestamp_utc) cannot give
+// time order across several types, so two shapes are good: a search on it, or
+// a walk of analysis_ts_ix that stops at the limit. A scan of analysis with no
+// index, or a sort of every match in a temp tree, is what a lab pays per run.
+namespace {
+
+BrowseFilter reference_browse(const std::vector<std::string>& types) {
+  BrowseFilter f;
+  f.analysis_types = types;
+  f.mass_spectrometers = {"jan"};
+  f.from = *UtcTime::parse("2026-10-01T00:00:00Z");
+  f.exclude_tags = {"invalid"};
+  return f;
+}
+
+std::string plan_of(pd::Db& db, const QString& sql, const pd::Bindings& bindings) {
+  std::string all;
+  for (const auto& step : column(db, QStringLiteral("EXPLAIN QUERY PLAN ") + sql, "detail", bindings)) all += step + "\n";
+  return all;
+}
+
+std::string plan_of(pd::Db& db, const Result<pd::BrowseStatement>& st) {
+  EXPECT_TRUE(st) << (st ? "" : to_string(st.error()));
+  return st ? plan_of(db, st->sql, st->bindings) : std::string{};
+}
+
+Result<pd::BrowseStatement> page_statement(pd::Db& db, const BrowseFilter& f, int limit = 200) {
+  return pd::browse_page_statement(db, Dialect::Sqlite, BrowseRequest{f, limit, std::nullopt, true});
+}
+
+// A step that reads `analysis a` whole, in no index's order.
+bool scans_analysis_without_an_index(const std::string& plan) {
+  std::size_t at = 0;
+  while ((at = plan.find("SCAN a", at)) != std::string::npos) {
+    const std::size_t end = plan.find('\n', at);
+    if (plan.substr(at, end - at).find("USING") == std::string::npos) return true;
+    at = end;
+  }
+  return false;
+}
+
+const std::vector<std::string> kBlankTypes{"blank_unknown", "blank_air", "blank_cocktail", "blank_extraction_line",
+                                           "blank_laser"};
+
+}  // namespace
+
+// The irradiation tree's clause (spec 5.1) is a subquery on the identifier,
+// found by the unique indexes of identifier, irradiation_position and level; no
+// table of the subquery is read whole, in the page, the count or a facet.
+TEST(SchemaIndexes, APositionSelectionIsFoundByIndexes) {
+  TestDatabase tdb("sqlite", true);
+  ASSERT_TRUE(open_or_die(tdb.url()));
+  auto db = raw(tdb.url());
+  ASSERT_TRUE(db);
+  BrowseFilter f;
+  f.positions = PositionFilter{{Uuid::v7()}, {Uuid::v7()}, {"77000"}, true};
+  std::vector<std::pair<std::string, std::string>> plans;
+  plans.emplace_back("page", plan_of(*db, page_statement(*db, f)));
+  plans.emplace_back("count", plan_of(*db, pd::browse_count_statement(*db, Dialect::Sqlite, f)));
+  plans.emplace_back("facet", plan_of(*db, pd::facet_statement(*db, Dialect::Sqlite, BrowseFacet::Sample, f)));
+  plans.emplace_back("listing", plan_of(*db, pd::positions_statement(*db, Dialect::Sqlite, f)));
+  for (const auto& [what, plan] : plans) {
+    ASSERT_FALSE(plan.empty()) << what;
+    for (const char* scan : {"SCAN identifier", "SCAN irradiation_position", "SCAN ip", "SCAN level", "SCAN lv", "SCAN i "})
+      EXPECT_EQ(plan.find(scan), std::string::npos) << what << " has " << scan << ":\n" << plan;
+  }
+}
+
+TEST(SchemaIndexes, TheReferenceSeriesBrowseUsesAnIndexAndDoesNotSortInATempTree) {
+  TestDatabase tdb("sqlite", true);
+  ASSERT_TRUE(open_or_die(tdb.url()));
+  auto db = raw(tdb.url());
+  ASSERT_TRUE(db);
+  for (const auto& types : {kBlankTypes, std::vector<std::string>{"air"}}) {
+    const std::string plan = plan_of(*db, page_statement(*db, reference_browse(types), 50));
+    ASSERT_FALSE(plan.empty());
+    const bool by_type = plan.find("analysis_ms_type_ts_ix") != std::string::npos;
+    const bool by_time = plan.find("analysis_ts_ix") != std::string::npos;
+    EXPECT_TRUE(by_type || by_time) << types.size() << " type(s):\n" << plan;
+    EXPECT_FALSE(scans_analysis_without_an_index(plan)) << types.size() << " type(s):\n" << plan;
+    // In time order off analysis_ts_ix nothing is sorted; found by type, only the matches are.
+    if (by_time) {
+      EXPECT_EQ(plan.find("TEMP B-TREE FOR ORDER BY"), std::string::npos) << types.size() << " type(s):\n" << plan;
+    }
+  }
+}
+
+TEST(SchemaIndexes, TheReferenceSeriesCountDoesNotScanAnalysis) {
+  TestDatabase tdb("sqlite", true);
+  ASSERT_TRUE(open_or_die(tdb.url()));
+  auto db = raw(tdb.url());
+  ASSERT_TRUE(db);
+  for (const auto& types : {kBlankTypes, std::vector<std::string>{"air"}}) {
+    const std::string plan = plan_of(*db, pd::browse_count_statement(*db, Dialect::Sqlite, reference_browse(types)));
+    ASSERT_FALSE(plan.empty());
+    EXPECT_FALSE(scans_analysis_without_an_index(plan)) << types.size() << " type(s):\n" << plan;
+  }
+}
+
+// A browse page shows each row's cached age: one probe of derived_value's
+// primary key (analysis_uuid, fingerprint, name) per row. Found by
+// derived_value_name_ix instead, every cached age of the store was read for
+// each row of the page (0.5 s a page on 8.7 thousand analyses, against 1 ms).
+TEST(SchemaIndexes, ABrowsePageFindsItsAgesByPrimaryKey) {
+  TestDatabase tdb("sqlite", true);
+  ASSERT_TRUE(open_or_die(tdb.url()));
+  auto db = raw(tdb.url());
+  ASSERT_TRUE(db);
+  BrowseFilter valid;
+  valid.exclude_tags = {"invalid"};
+  for (const auto& f : {BrowseFilter{}, valid, reference_browse(kBlankTypes)}) {
+    const std::string plan = plan_of(*db, page_statement(*db, f));
+    ASSERT_FALSE(plan.empty());
+    EXPECT_NE(plan.find("SEARCH dv USING INDEX sqlite_autoindex_derived_value_1 (analysis_uuid=?"), std::string::npos)
+        << plan;
+    EXPECT_EQ(plan.find("derived_value_name_ix"), std::string::npos) << "found by name, across every analysis:\n" << plan;
+    EXPECT_EQ(plan.find("SCAN dv"), std::string::npos) << plan;
+    EXPECT_FALSE(scans_analysis_without_an_index(plan)) << plan;
+  }
+  // An analysis's detail reads its age the same way.
+  const std::string detail = plan_of(*db,
+                                     pd::sql::kBrowseSelect.arg(QStringLiteral("a.timestamp_utc")) + pd::sql::kBrowseFrom +
+                                         pd::sql::kBrowseAgeJoin + QStringLiteral("WHERE a.uuid = ?"),
+                                     {pd::qv(Uuid::v7())});
+  EXPECT_NE(detail.find("sqlite_autoindex_derived_value_1"), std::string::npos) << detail;
+  EXPECT_EQ(detail.find("SCAN"), std::string::npos) << detail;
+}
+
+// A count or a facet runs over every analysis that matches: with no age bound
+// it does not join the cache at all, so a filter that is off costs nothing.
+TEST(SchemaIndexes, ACountWithoutAnAgeBoundLeavesTheCacheAlone) {
+  TestDatabase tdb("sqlite", true);
+  ASSERT_TRUE(open_or_die(tdb.url()));
+  auto db = raw(tdb.url());
+  ASSERT_TRUE(db);
+  for (const auto& f : {BrowseFilter{}, reference_browse(kBlankTypes)}) {
+    auto count = pd::browse_count_statement(*db, Dialect::Sqlite, f);
+    ASSERT_TRUE(count) << to_string(count.error());
+    EXPECT_FALSE(count->sql.contains(QStringLiteral("derived_value"))) << count->sql.toStdString();
+    for (BrowseFacet facet : {BrowseFacet::AnalysisType, BrowseFacet::Sample, BrowseFacet::Identifier,
+                              BrowseFacet::PrincipalInvestigator, BrowseFacet::Repository}) {
+      auto st = pd::facet_statement(*db, Dialect::Sqlite, facet, f);
+      ASSERT_TRUE(st) << to_string(st.error());
+      EXPECT_FALSE(st->sql.contains(QStringLiteral("derived_value"))) << st->sql.toStdString();
+    }
+  }
+}
+
+// PI spec 7: a filter by PI reads the project row each analysis already joins,
+// by primary key. No index on project.pi_uuid: to start from the PI would save
+// nothing on a page, which walks the analyses in time order, and the commit
+// that made this filter shows the times on a lab's store (672 projects).
+TEST(SchemaIndexes, APiFilterNeedsNoIndexOnProject) {
+  TestDatabase tdb("sqlite", true);
+  ASSERT_TRUE(open_or_die(tdb.url()));
+  auto db = raw(tdb.url());
+  ASSERT_TRUE(db);
+  BrowseFilter f;
+  f.principal_investigators = {Uuid::v7()};
+  const std::string plan = plan_of(*db, page_statement(*db, f));
+  ASSERT_FALSE(plan.empty());
+  EXPECT_NE(plan.find("SEARCH p USING INDEX sqlite_autoindex_project_1 (uuid=?)"), std::string::npos) << plan;
+  EXPECT_FALSE(scans_analysis_without_an_index(plan)) << plan;
+  auto facet = pd::facet_statement(*db, Dialect::Sqlite, BrowseFacet::PrincipalInvestigator, BrowseFilter{});
+  ASSERT_TRUE(facet) << to_string(facet.error());
+  EXPECT_FALSE(facet->sql.contains(QStringLiteral("display_name"))) << facet->sql.toStdString();
+}
+
+// Under an age bound the bound is a range on derived_value_name_ix (name,
+// value), which drives the statement; each match finds its analysis by primary
+// key. Neither table is read whole: not the count, not a facet, not the page.
+TEST(SchemaIndexes, ACountWithAnAgeBoundScansNeitherTable) {
+  TestDatabase tdb("sqlite", true);
+  ASSERT_TRUE(open_or_die(tdb.url()));
+  auto db = raw(tdb.url());
+  ASSERT_TRUE(db);
+  BrowseFilter both;
+  both.age_min = 25.0;
+  both.age_max = 30.0;
+  both.exclude_tags = {"invalid"};
+  BrowseFilter low;
+  low.age_min = 25.0;
+  BrowseFilter high;
+  high.age_max = 30.0;
+  auto scans_whole = [](const std::string& plan) {
+    return plan.find("SCAN a\n") != std::string::npos || plan.find("SCAN a ") != std::string::npos ||
+           plan.find("SCAN dv") != std::string::npos;
+  };
+  for (const auto& f : {both, low, high}) {
+    std::vector<std::pair<std::string, std::string>> plans;
+    plans.emplace_back("count", plan_of(*db, pd::browse_count_statement(*db, Dialect::Sqlite, f)));
+    plans.emplace_back("page", plan_of(*db, page_statement(*db, f)));
+    plans.emplace_back("sample facet", plan_of(*db, pd::facet_statement(*db, Dialect::Sqlite, BrowseFacet::Sample, f)));
+    for (const auto& [what, plan] : plans) {
+      ASSERT_FALSE(plan.empty()) << what;
+      EXPECT_NE(plan.find("SEARCH dv USING INDEX derived_value_name_ix (name=? AND value"), std::string::npos)
+          << what << ":\n" << plan;
+      EXPECT_NE(plan.find("SEARCH a USING INDEX sqlite_autoindex_analysis_1 (uuid=?)"), std::string::npos)
+          << what << ":\n" << plan;
+      EXPECT_FALSE(scans_whole(plan)) << what << ":\n" << plan;
+    }
+  }
+}
+
 TEST_P(SchemaTest, ChecksumMismatchIsFatal) {
   TestDatabase tdb(GetParam(), true);
   ASSERT_TRUE(open_or_die(tdb.url()));
   auto db = raw(tdb.url());
   ASSERT_TRUE(db);
   ASSERT_TRUE(db->affecting("UPDATE schema_version SET checksum = ? WHERE version = 1",
-                            {pd::qv(pychron::sha256(std::string_view{"tampered"}))}));
+                            {pd::qv(nobion::sha256(std::string_view{"tampered"}))}));
   auto store = open_store(StoreConfig{tdb.url(), true});
   ASSERT_FALSE(store);
   EXPECT_EQ(store.error().kind, ErrorKind::Config);
@@ -273,8 +532,37 @@ TEST_P(SchemaTest, AppendOnlyRowsRejectUpdateAndDelete) {
   EXPECT_FALSE(db->affecting("DELETE FROM analysis"));
 }
 
+// A release (data publishing spec 4.2) is updated only in its state columns;
+// its pins, members and metadata are frozen with the row.
+TEST_P(SchemaTest, ReleaseRowUpdatesOnlyItsStateColumns) {
+  TestDatabase tdb(GetParam(), true);
+  auto store = open_or_die(tdb.url());
+  ASSERT_TRUE(store);
+  const Lab lab = seed_lab(*store);
+  const Actor actor{lab.reducer, lab.reduction_client};
+  auto group = store->create_group(actor, "release:r@v1", {});
+  ASSERT_TRUE(group) << to_string(group.error());
+  auto bookmark = store->create_bookmark(actor, BookmarkSpec{"release r v1", std::nullopt, std::nullopt, *group});
+  ASSERT_TRUE(bookmark) << to_string(bookmark.error());
+  auto db = raw(tdb.url());
+  ASSERT_TRUE(db);
+  const pd::Bindings values{pd::qv(Uuid::v7()), pd::qv(*group), pd::qv(*bookmark), pd::qv(lab.reducer),
+                            pd::qv(lab.reduction_client), QStringLiteral("2026-10-18T00:00:00.000000Z")};
+  ASSERT_TRUE(db->affecting(
+      "INSERT INTO release (uuid, name, title, version, group_uuid, bookmark_uuid, licence, authors, options, "
+      "reduction_version, software_version, created_by_user_uuid, client_uuid, created_utc) "
+      "VALUES (?, 'r', 'Release r', 1, ?, ?, 'CC-BY-4.0', '[]', '{}', 'arar-1', 'nobion/0.4.0', ?, ?, ?)",
+      values));
+  EXPECT_FALSE(db->affecting("UPDATE release SET title = 'x'"));
+  EXPECT_FALSE(db->affecting("UPDATE release SET licence = 'CC0-1.0'"));
+  EXPECT_TRUE(db->affecting("UPDATE release SET state = 'published', visibility = 'public', "
+                            "published_utc = '2026-10-18T01:00:00.000000Z'"));
+  EXPECT_TRUE(db->affecting("UPDATE release SET doi = '10.1234/x', doi_state = 'findable'"));
+  EXPECT_FALSE(db->affecting("DELETE FROM release")) << "a published release is never deleted";
+}
+
 TEST(SchemaParity, PostgresAndSqliteHaveTheSameTablesColumnsAndKeys) {
-  if (pg_url().empty()) GTEST_SKIP() << "PYCHRON_TEST_PG_URL not set";
+  if (pg_url().empty()) GTEST_SKIP() << "NOBION_TEST_PG_URL not set";
   TestDatabase pg("pg", false), lite("sqlite", true);
   ASSERT_TRUE(open_or_die(pg.url()));
   ASSERT_TRUE(open_or_die(lite.url()));
@@ -292,3 +580,260 @@ TEST(SchemaParity, PostgresAndSqliteHaveTheSameTablesColumnsAndKeys) {
 
 INSTANTIATE_TEST_SUITE_P(Engines, SchemaTest, ::testing::ValuesIn(engines()),
                          [](const auto& p) { return p.param; });
+
+// Whether a sample or an analysis is under a live embargo is one statement
+// over the three scopes (spec 4.2), each found by the partial index.
+TEST(SchemaIndexes, EmbargoScopeLookupUsesPartialIndex) {
+  TestDatabase tdb("sqlite", true);
+  ASSERT_TRUE(open_or_die(tdb.url()));
+  auto db = raw(tdb.url());
+  ASSERT_TRUE(db);
+  const QString sql = QStringLiteral(
+      "SELECT s.uuid FROM sample s WHERE s.uuid IN (?) AND EXISTS ("
+      "SELECT 1 FROM embargo e WHERE e.lifted_utc IS NULL AND (e.until_utc IS NULL OR e.until_utc > ?) "
+      "AND e.scope_type = 'sample' AND e.scope_uuid = s.uuid "
+      "UNION ALL "
+      "SELECT 1 FROM embargo e WHERE e.lifted_utc IS NULL AND (e.until_utc IS NULL OR e.until_utc > ?) "
+      "AND e.scope_type = 'project' AND e.scope_uuid = s.project_uuid)");
+  const pd::Bindings b{pd::qv(Uuid::v7()), QStringLiteral("2026-10-18T00:00:00.000000Z"),
+                       QStringLiteral("2026-10-18T00:00:00.000000Z")};
+  const std::string plan = plan_of(*db, sql, b);
+  ASSERT_FALSE(plan.empty());
+  EXPECT_NE(plan.find("embargo_scope_ix"), std::string::npos) << plan;
+  EXPECT_EQ(plan.find("SCAN e"), std::string::npos) << plan;
+}
+
+// The releases a sample is in are found by the index on release_sample's
+// second column, not by reading every membership.
+TEST(SchemaIndexes, ReleaseSamplesOfASampleUseIndex) {
+  TestDatabase tdb("sqlite", true);
+  ASSERT_TRUE(open_or_die(tdb.url()));
+  auto db = raw(tdb.url());
+  ASSERT_TRUE(db);
+  const std::string plan = plan_of(*db, QStringLiteral("SELECT release_uuid FROM release_sample WHERE sample_uuid = ?"),
+                                   {pd::qv(Uuid::v7())});
+  ASSERT_FALSE(plan.empty());
+  EXPECT_NE(plan.find("release_sample_sample_ix"), std::string::npos) << plan;
+  EXPECT_EQ(plan.find("SCAN"), std::string::npos) << plan;
+}
+
+// ------------------------------------------------- backup before migration
+// Field diagnostics spec, section 11: a store that has migrations applied and
+// lacks one this build carries is copied with VACUUM INTO before the first
+// migration runs, so a lab whose migration goes wrong can get its data back.
+
+namespace {
+
+// A folder of its own under the temporary directory, removed with everything
+// in it (a backup is written beside the store).
+class MigrateDir {
+ public:
+  explicit MigrateDir(const std::string& name = "nobion_migrate_")
+      : dir_(std::filesystem::temp_directory_path() / (name + TestDatabase::unique_tag())) {
+    std::filesystem::create_directories(dir_);
+  }
+  ~MigrateDir() {
+    std::error_code ignored;
+    std::filesystem::remove_all(dir_, ignored);
+  }
+  MigrateDir(const MigrateDir&) = delete;
+  MigrateDir& operator=(const MigrateDir&) = delete;
+
+  const std::filesystem::path& dir() const { return dir_; }
+  std::filesystem::path store() const { return dir_ / "nobion.db"; }
+  std::string url() const { return "sqlite:" + nobion::utf8(store()); }
+
+  // Every file of the folder that is a backup of the store.
+  std::vector<std::filesystem::path> backups() const {
+    std::vector<std::filesystem::path> out;
+    for (const auto& e : std::filesystem::directory_iterator(dir_)) {
+      const std::string name = nobion::utf8(e.path().filename());
+      if (name.starts_with("nobion.pre-")) out.push_back(e.path());
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+  }
+
+ private:
+  std::filesystem::path dir_;
+};
+
+// The highest migration this build carries.
+int latest_version() {
+  auto store = open_store(StoreConfig{"sqlite::memory:", true});
+  EXPECT_TRUE(store);
+  if (!store) return 0;
+  auto status = (*store)->schema_status();
+  EXPECT_TRUE(status && !status->empty());
+  return status && !status->empty() ? status->back().version : 0;
+}
+
+// A store as the build before this one left it: every migration but the last.
+void make_store_one_behind(const std::string& url) {
+  auto db = raw(url);
+  ASSERT_TRUE(db);
+  auto migrated = pd::migrate(*db, true, latest_version() - 1);
+  ASSERT_TRUE(migrated) << to_string(migrated.error());
+}
+
+int max_applied(const std::string& url) {
+  auto db = raw(url);
+  if (!db) return -1;
+  auto rows = db->select_one(QStringLiteral("SELECT max(version) AS v FROM schema_version"));
+  EXPECT_TRUE(rows && *rows);
+  return rows && *rows ? (**rows).value("v").toInt() : -1;
+}
+
+// Every name a backup from n-1 to n of the store in `dir` could take in the
+// next minute (and the two seconds before), ending in `suffix`.
+std::vector<std::filesystem::path> backup_names_for_a_minute(const MigrateDir& dir, int n, const std::string& suffix) {
+  std::vector<std::filesystem::path> out;
+  const UtcTime now = UtcTime::now();
+  const std::string prefix = "nobion.pre-" + std::to_string(n - 1) + "-to-" + std::to_string(n) + "-";
+  for (int s = -2; s <= 60; ++s) {
+    std::string name = prefix;
+    for (const char c : UtcTime{now.micros + std::int64_t{s} * 1'000'000}.iso().substr(0, 19))
+      if (c != '-' && c != ':') name.push_back(c);
+    name += 'Z';
+    name += suffix;
+    out.push_back(dir.dir() / name);
+  }
+  return out;
+}
+
+StoreConfig migrating(const std::string& url, std::vector<std::filesystem::path>& seen) {
+  StoreConfig config{url, true};
+  config.on_backup = [&seen](const std::filesystem::path& p) { seen.push_back(p); };
+  return config;
+}
+
+}  // namespace
+
+TEST(Migrate, APendingMigrationOnAFileStoreIsBackedUpFirst) {
+  MigrateDir dir;
+  make_store_one_behind(dir.url());
+  const int n = latest_version();
+  std::vector<std::filesystem::path> seen;
+  {
+    auto store = open_store(migrating(dir.url(), seen));
+    ASSERT_TRUE(store) << to_string(store.error());
+  }
+  ASSERT_EQ(seen.size(), 1u);
+  ASSERT_EQ(dir.backups().size(), 1u);
+  // Named as SQLite names the store's file, links resolved (/var is /private/var on macOS).
+  EXPECT_TRUE(std::filesystem::equivalent(dir.backups()[0], seen[0]));
+  EXPECT_TRUE(std::filesystem::equivalent(seen[0].parent_path(), dir.dir()));
+  const std::string name = nobion::utf8(seen[0].filename());
+  const std::string prefix = "nobion.pre-" + std::to_string(n - 1) + "-to-" + std::to_string(n) + "-";
+  EXPECT_TRUE(name.starts_with(prefix)) << name;
+  EXPECT_TRUE(name.ends_with(".sqlite")) << name;
+
+  // The backup is the store as it was: it opens, one migration behind.
+  auto backup = open_store(StoreConfig{"sqlite:" + nobion::utf8(seen[0]), false});
+  ASSERT_FALSE(backup);
+  EXPECT_EQ(backup.error().kind, ErrorKind::Config);
+  EXPECT_EQ(max_applied("sqlite:" + nobion::utf8(seen[0])), n - 1);
+  EXPECT_EQ(max_applied(dir.url()), n);
+}
+
+TEST(Migrate, AFreshStoreIsNotBackedUp) {
+  MigrateDir dir;
+  std::vector<std::filesystem::path> seen;
+  auto store = open_store(migrating(dir.url(), seen));
+  ASSERT_TRUE(store) << to_string(store.error());
+  EXPECT_TRUE(seen.empty());
+  EXPECT_TRUE(dir.backups().empty());
+}
+
+TEST(Migrate, AnUpToDateStoreIsNotBackedUp) {
+  MigrateDir dir;
+  ASSERT_TRUE(open_or_die(dir.url()));
+  std::vector<std::filesystem::path> seen;
+  auto store = open_store(migrating(dir.url(), seen));
+  ASSERT_TRUE(store) << to_string(store.error());
+  EXPECT_TRUE(seen.empty());
+  EXPECT_TRUE(dir.backups().empty());
+}
+
+TEST(Migrate, AnInMemoryStoreIsNotBackedUp) {
+  auto db = raw("sqlite::memory:");
+  ASSERT_TRUE(db);
+  ASSERT_TRUE(pd::migrate(*db, true, latest_version() - 1));
+  std::vector<std::filesystem::path> seen;
+  pd::BackupPolicy policy{true, [&seen](const std::filesystem::path& p) { seen.push_back(p); }};
+  auto migrated = pd::migrate(*db, true, std::nullopt, policy);
+  ASSERT_TRUE(migrated) << to_string(migrated.error());
+  EXPECT_EQ(migrated->back().version, latest_version());
+  EXPECT_TRUE(seen.empty());
+}
+
+// Where the backup cannot be written nothing is migrated: a migration with
+// no way back is not started. A read-only folder cannot stand in for that
+// here: SQLite refuses to write a WAL store in one (SQLITE_READONLY_DIRECTORY)
+// before any backup is tried. So every name the backup could take in the
+// next minute is taken already, which the backup refuses to overwrite.
+TEST(Migrate, AFailedBackupRefusesTheMigration) {
+  MigrateDir dir;
+  make_store_one_behind(dir.url());
+  const int n = latest_version();
+  for (const auto& name : backup_names_for_a_minute(dir, n, ".sqlite")) std::ofstream(name) << "not a database";
+  const auto taken = dir.backups();
+  std::vector<std::filesystem::path> seen;
+  auto store = open_store(migrating(dir.url(), seen));
+  ASSERT_FALSE(store);
+  EXPECT_EQ(store.error().kind, ErrorKind::Io) << to_string(store.error());
+  EXPECT_NE(store.error().what.find("not migrated"), std::string::npos) << store.error().what;
+  EXPECT_TRUE(seen.empty());
+  EXPECT_EQ(dir.backups(), taken);
+  EXPECT_EQ(max_applied(dir.url()), n - 1);
+}
+
+// The copy is written aside, to "<target>.partial", and given its name only
+// when whole: a copy that fails half-way (disk full) leaves no file that looks
+// like a backup, and nothing is migrated. Here VACUUM INTO fails because a
+// folder (not the backup's to remove) sits at every name it could write to.
+TEST(Migrate, AFailedCopyLeavesNoBackupAndRefusesTheMigration) {
+  MigrateDir dir;
+  make_store_one_behind(dir.url());
+  const int n = latest_version();
+  for (const auto& name : backup_names_for_a_minute(dir, n, ".sqlite.partial")) {
+    std::filesystem::create_directory(name);
+    std::ofstream(name / "keep") << "not the backup's";
+  }
+  std::vector<std::filesystem::path> seen;
+  auto store = open_store(migrating(dir.url(), seen));
+  ASSERT_FALSE(store);
+  EXPECT_EQ(store.error().kind, ErrorKind::Io) << to_string(store.error());
+  EXPECT_NE(store.error().what.find("not migrated"), std::string::npos) << store.error().what;
+  EXPECT_TRUE(seen.empty());
+  for (const auto& p : dir.backups()) {
+    EXPECT_TRUE(std::filesystem::is_directory(p)) << p;  // only the folders the test put there
+    EXPECT_TRUE(std::filesystem::exists(p / "keep")) << p;
+  }
+  EXPECT_EQ(max_applied(dir.url()), n - 1);
+}
+
+TEST(Migrate, APathWithAQuoteIsBackedUp) {
+  MigrateDir dir("nobion_o'migrate_");
+  make_store_one_behind(dir.url());
+  std::vector<std::filesystem::path> seen;
+  {
+    auto store = open_store(migrating(dir.url(), seen));
+    ASSERT_TRUE(store) << to_string(store.error());
+  }
+  ASSERT_EQ(seen.size(), 1u);
+  EXPECT_TRUE(std::filesystem::is_regular_file(seen[0]));
+  EXPECT_EQ(max_applied("sqlite:" + nobion::utf8(seen[0])), latest_version() - 1);
+}
+
+// Off, no copy is made (a caller that has its own).
+TEST(Migrate, BackupCanBeTurnedOff) {
+  MigrateDir dir;
+  make_store_one_behind(dir.url());
+  std::vector<std::filesystem::path> seen;
+  StoreConfig config = migrating(dir.url(), seen);
+  config.backup_before_migrate = false;
+  ASSERT_TRUE(open_store(config));
+  EXPECT_TRUE(seen.empty());
+  EXPECT_TRUE(dir.backups().empty());
+}

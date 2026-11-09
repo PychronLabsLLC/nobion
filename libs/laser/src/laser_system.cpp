@@ -1,6 +1,6 @@
-#include "pychron/laser/laser_system.hpp"
+#include "nobion/laser/laser_system.hpp"
 
-#include "pychron/laser/pattern_runner.hpp"
+#include "nobion/laser/pattern_runner.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -14,11 +14,11 @@
 #include <system_error>
 #include <utility>
 
-#include "pychron/vision/finder.hpp"
-#include "pychron/vision/live_feed.hpp"
-#include "pychron/vision/png.hpp"
+#include "nobion/vision/finder.hpp"
+#include "nobion/vision/live_feed.hpp"
+#include "nobion/vision/png.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 using extraction::IStage;
 using extraction::StagePosition;
@@ -237,6 +237,7 @@ LaserSnapshot LaserSystem::snapshot() {
                  : moving_.load()            ? LaserActivity::Moving
                                              : LaserActivity::Idle;
     s.stopped = stopped_.load();
+    s.hole_room_mm = hole_room_;
   }
   std::lock_guard lock(mutex_);
   if (tray_ != nullptr) s.tray = tray_->name();
@@ -352,6 +353,23 @@ bool LaserSystem::looking() {
 Result<CameraView> LaserSystem::picture() {
   Gate gate(gate_);
   return frame_now(false);
+}
+
+std::optional<StageXY> LaserSystem::grain_px(const CameraView& seen) {
+  Gate gate(gate_);
+  auto* sim = dynamic_cast<SimTrayCamera*>(frames_.get());
+  if (sim == nullptr) return std::nullopt;
+  const auto grain = sim->observe();
+  if (!grain) return std::nullopt;
+  // The scale the simulated frame is drawn at, whatever has been measured.
+  const auto drawn = vision::CameraStageMap::from_scale(camera_->px_per_mm, camera_->flip_x, camera_->flip_y);
+  const vision::Vec2 from_beam = drawn.to_px({grain->grain_mm.x - grain->beam_mm.x, grain->grain_mm.y - grain->beam_mm.y});
+  return StageXY{seen.aim_px.x + from_beam.x, seen.aim_px.y + from_beam.y};
+}
+
+void LaserSystem::reset_simulated_grains() {
+  Gate gate(gate_);
+  if (auto* sim = dynamic_cast<SimTrayCamera*>(frames_.get())) sim->reset_grains();
 }
 
 Result<CameraView> LaserSystem::view(bool fresh, bool any_size) {
@@ -509,9 +527,36 @@ Result<void> LaserSystem::attach_camera(CameraConfig config, std::unique_ptr<vis
   finder_ = std::make_unique<vision::SimpleFinder>();
   // The same eyes for a pattern that follows the glow.
   if (runner_ != nullptr) {
-    runner_->set_vision({frames_.get(), &*camera_, clock_, [this] { return hole_room_; }});
+    runner_->set_vision({frames_.get(), &*camera_, clock_, [this] { return hole_room_; },
+                          [this](const vision::DragonflyStep& step) { report_step(step); }});
   }
   return {};
+}
+
+void LaserSystem::set_step_observer(std::function<void(const vision::DragonflyStep&)> fn) {
+  Gate gate(gate_);
+  step_observer_ = std::move(fn);
+}
+
+void LaserSystem::set_follow_fence_mm(double mm) {
+  Gate gate(gate_);
+  if (runner_ != nullptr) runner_->set_fence_mm(mm);
+}
+
+void LaserSystem::set_follow_observer(std::function<void(const FollowSample&)> fn) {
+  Gate gate(gate_);
+  follow_observer_ = std::move(fn);
+}
+
+void LaserSystem::report_step(const vision::DragonflyStep& step) {
+  // The runner's thread. The gate is recursive, and held across the observer
+  // so that clearing one (under the gate) returns only when none is inside it.
+  Gate gate(gate_);
+  if (step_observer_) step_observer_(step);
+  if (!follow_observer_) return;
+  FollowSample sample{step, std::nullopt};
+  if (auto* sim = dynamic_cast<SimTrayCamera*>(frames_.get())) sample.grain = sim->observe();
+  follow_observer_(sample);
 }
 
 Result<void> LaserSystem::attach_viewer(CameraConfig config, std::unique_ptr<vision::IFrameSource> frames,
@@ -664,7 +709,8 @@ Result<void> LaserSystem::move_to_position(std::string_view position, bool autoc
       e.what = "hole " + std::string(position) + " on " + tray + ": " + e.what;
       return fail(std::move(e));
     }
-    hole_room_ = room;
+    const double fence = hole_fence_mm(hole_radius, camera_ ? camera_->beam_mm() : 0.0);
+    hole_room_ = room > 0 ? std::min(room, fence) : fence;
     moving_.store(true);
     {
       std::lock_guard lock(mutex_);
@@ -725,7 +771,8 @@ Result<void> LaserSystem::set_xy(double x, double y, double speed_mm_s) {
   auto stage = driver_stage();
   if (!stage) return fail(stage.error());
   if (auto ok = allowed(); !ok) return ok;
-  off_the_hole();
+  // A dragonfly's own moves stay about its hole and end back on it.
+  if (runner_ == nullptr || !runner_->following()) off_the_hole();
   auto moved = (*stage)->set_xy(x, y, speed_mm_s);
   if (moved) moving_.store(true);
   return moved;
@@ -928,8 +975,12 @@ Result<void> LaserSystem::set_tray(std::string_view tray) {
   if (correction_store_ != nullptr && status.state == CalibrationState::Ok) {
     if (auto loaded = correction_store_->load(*map, name_, status.fingerprint)) corrections = std::move(*loaded);
   }
+  auto* sim = dynamic_cast<SimTrayCamera*>(frames_.get());
   std::lock_guard lock(mutex_);
-  if (tray_ != map) last_hole_.clear();  // the same tray again: the stage is where it was
+  if (tray_ != map) {
+    last_hole_.clear();  // the same tray again: the stage is where it was
+    if (sim != nullptr) sim->reset_grains();
+  }
   tray_ = map;
   status_ = std::move(status);
   corrections_ = std::move(corrections);
@@ -945,4 +996,4 @@ std::vector<std::string> LaserSystem::positions() const {
   return out;
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

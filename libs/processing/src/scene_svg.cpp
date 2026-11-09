@@ -1,0 +1,150 @@
+// A scene written as SVG (data publishing design, section 5.6).
+
+#include "nobion/processing/scene_svg.hpp"
+
+namespace nobion::processing {
+
+namespace {
+
+void append_utf8(std::string& out, char32_t c) {
+  if (c < 0x80) {
+    out.push_back(static_cast<char>(c));
+  } else if (c < 0x800) {
+    out.push_back(static_cast<char>(0xC0 | (c >> 6)));
+    out.push_back(static_cast<char>(0x80 | (c & 0x3F)));
+  } else if (c < 0x10000) {
+    out.push_back(static_cast<char>(0xE0 | (c >> 12)));
+    out.push_back(static_cast<char>(0x80 | ((c >> 6) & 0x3F)));
+    out.push_back(static_cast<char>(0x80 | (c & 0x3F)));
+  } else {
+    out.push_back(static_cast<char>(0xF0 | (c >> 18)));
+    out.push_back(static_cast<char>(0x80 | ((c >> 12) & 0x3F)));
+    out.push_back(static_cast<char>(0x80 | ((c >> 6) & 0x3F)));
+    out.push_back(static_cast<char>(0x80 | (c & 0x3F)));
+  }
+}
+
+// Text and attribute values: markup escaped; malformed UTF-8 written as
+// U+FFFD; what XML 1.0 does not allow (control characters but tab, U+FFFE,
+// U+FFFF) dropped.
+std::string escape(std::string_view s) {
+  std::string out;
+  out.reserve(s.size());
+  for (std::size_t i = 0; i < s.size();) {
+    const char32_t c = next_code_point(s, i);
+    switch (c) {
+      case U'&': out += "&amp;"; break;
+      case U'<': out += "&lt;"; break;
+      case U'>': out += "&gt;"; break;
+      case U'"': out += "&quot;"; break;
+      default:
+        if ((c < 0x20 && c != U'\t') || c == 0xFFFE || c == 0xFFFF) break;
+        append_utf8(out, c);
+    }
+  }
+  return out;
+}
+
+std::string rgb(const Color& c) { return color_hex(Color{c.r, c.g, c.b, 255}); }
+
+std::string opacity(const Color& c) { return format_coord(c.a / 255.0); }
+
+void paint(std::string& out, const char* what, const std::optional<Color>& c) {
+  out += ' ';
+  out += what;
+  if (!c) {
+    out += "=\"none\"";
+    return;
+  }
+  out += "=\"" + rgb(*c) + "\"";
+  if (c->a != 255) out += std::string(" ") + what + "-opacity=\"" + opacity(*c) + "\"";
+}
+
+void clip_attr(std::string& out, int clip) {
+  if (clip >= 0) out += " clip-path=\"url(#c" + std::to_string(clip) + ")\"";
+}
+
+void path(std::string& out, const DrawPath& p) {
+  out += "<path d=\"";
+  for (const auto& op : p.ops) {
+    switch (op.kind) {
+      case PathOp::Kind::Move:
+        out += "M" + format_coord(op.p[0].x) + " " + format_coord(op.p[0].y);
+        break;
+      case PathOp::Kind::Line:
+        out += "L" + format_coord(op.p[0].x) + " " + format_coord(op.p[0].y);
+        break;
+      case PathOp::Kind::Curve:
+        out += 'C';
+        for (std::size_t i = 0; i < 3; ++i)
+          out += (i ? " " : "") + format_coord(op.p[i].x) + " " + format_coord(op.p[i].y);
+        break;
+      case PathOp::Kind::Close:
+        out += 'Z';
+        break;
+    }
+  }
+  out += '"';
+  paint(out, "fill", p.fill);
+  if (p.stroke) {
+    paint(out, "stroke", p.stroke);
+    out += " stroke-width=\"" + format_coord(p.width) + "\"";
+    if (const auto dash = dash_pattern(p.dash); !dash.empty()) {
+      out += " stroke-dasharray=\"";
+      for (std::size_t i = 0; i < dash.size(); ++i) out += (i ? " " : "") + format_coord(dash[i]);
+      out += '"';
+    }
+  } else {
+    out += " stroke=\"none\"";
+  }
+  clip_attr(out, p.clip);
+  out += "/>\n";
+}
+
+void text(std::string& out, const DrawText& t) {
+  const std::string x = format_coord(t.at.x), y = format_coord(t.at.y);
+  out += "<text x=\"" + x + "\" y=\"" + y + "\" font-size=\"" + format_coord(t.size) + "\"";
+  if (t.bold) out += " font-weight=\"bold\"";
+  if (t.anchor == TextAnchor::Middle) out += " text-anchor=\"middle\"";
+  if (t.anchor == TextAnchor::End) out += " text-anchor=\"end\"";
+  paint(out, "fill", t.color);
+  if (t.vertical) out += " transform=\"rotate(-90 " + x + " " + y + ")\"";
+  clip_attr(out, t.clip);
+  out += ">" + escape(t.text) + "</text>\n";
+}
+
+}  // namespace
+
+std::string draw_list_svg(const DrawList& list) {
+  const std::string w = format_coord(list.width), h = format_coord(list.height);
+  const std::string family =
+      (list.font_family.empty() ? std::string() : escape(list.font_family) + ", ") + "Helvetica, Arial, sans-serif";
+  std::string out = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+  out += R"(<svg xmlns="http://www.w3.org/2000/svg" width=")" + w + R"(pt" height=")" + h + R"(pt" viewBox="0 0 )" + w +
+         " " + h + "\" font-family=\"" + family + "\" xml:space=\"preserve\">\n";
+  if (!list.clips.empty()) {
+    out += "<defs>\n";
+    for (std::size_t i = 0; i < list.clips.size(); ++i) {
+      const Box& b = list.clips[i];
+      out += "<clipPath id=\"c" + std::to_string(i) + "\"><rect x=\"" + format_coord(b.x) + "\" y=\"" +
+             format_coord(b.y) + "\" width=\"" + format_coord(b.w) + "\" height=\"" + format_coord(b.h) +
+             "\"/></clipPath>\n";
+    }
+    out += "</defs>\n";
+  }
+  out += "<rect width=\"" + w + "\" height=\"" + h + "\"";
+  paint(out, "fill", list.background);
+  out += "/>\n";
+  for (const auto& item : list.items) {
+    if (const auto* p = std::get_if<DrawPath>(&item))
+      path(out, *p);
+    else
+      text(out, std::get<DrawText>(item));
+  }
+  out += "</svg>\n";
+  return out;
+}
+
+std::string scene_svg(const Scene& scene, const FigureSize& size) { return draw_list_svg(draw_scene(scene, size)); }
+
+}  // namespace nobion::processing

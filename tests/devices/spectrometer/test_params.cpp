@@ -2,13 +2,13 @@
 
 #include <set>
 
-#include "pychron/devices/spectrometer/params.hpp"
+#include "nobion/devices/spectrometer/params.hpp"
 #include "spectrometer/fakes.hpp"
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 
 TEST(SourceParamRegistry, CoversEveryParamWithUniqueNames) {
   auto all = source_params();

@@ -4,10 +4,10 @@
 #include <fstream>
 #include <string>
 
-#include "pychron/vision/pgm.hpp"
+#include "nobion/vision/pgm.hpp"
 
-using namespace pychron;
-using namespace pychron::vision;
+using namespace nobion;
+using namespace nobion::vision;
 
 namespace {
 
@@ -18,7 +18,7 @@ struct TempDir {
     static int n = 0;
     const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
     path = std::filesystem::temp_directory_path() /
-           (std::string("pychron_vision_") + info->test_suite_name() + "_" + info->name() + "_" + std::to_string(++n));
+           (std::string("nobion_vision_") + info->test_suite_name() + "_" + info->name() + "_" + std::to_string(++n));
     std::filesystem::remove_all(path);
     std::filesystem::create_directories(path);
   }

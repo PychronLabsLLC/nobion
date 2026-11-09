@@ -6,14 +6,14 @@
 #include <gtest/gtest.h>
 
 #include "fixtures.hpp"
-#include "pychron/processing/fit_edit.hpp"
-#include "pychron/processing/recall.hpp"
-#include "pychron/processing/revisions.hpp"
+#include "nobion/processing/fit_edit.hpp"
+#include "nobion/processing/recall.hpp"
+#include "nobion/processing/revisions.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 namespace {
 
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 
 // y = 100 - 0.5 t with a small alternating wiggle, 20 points; index 7 is a
 // wild point.
@@ -86,6 +86,19 @@ TEST(FitEdits, ApplyRefitsOnACopy) {
   auto missing = apply_fit_edits(*a, raw, {FitEdit{SeriesKind::Signal, "Ar39", avg, {}}});
   ASSERT_FALSE(missing);
   EXPECT_NE(missing.error().what.find("Ar39"), std::string::npos);
+}
+
+TEST(FitEdits, AnEditedCopyHasNoFingerprint) {
+  // The fingerprint keys the age cache by what is stored; an edited copy is
+  // not what is stored, so its age must not be cached under that key.
+  Analysis stored = *test::make_air(0);
+  stored.input_fingerprint = std::string(64, 'a');
+  RawData raw;
+  raw.series.push_back(signal());
+  auto result = apply_fit_edits(stored, raw, {FitEdit{SeriesKind::Signal, "Ar40", linear(), {7}}});
+  ASSERT_TRUE(result) << result.error().what;
+  EXPECT_TRUE(result->analysis->input_fingerprint.empty());
+  EXPECT_EQ(stored.input_fingerprint, std::string(64, 'a'));  // original untouched
 }
 
 TEST(FitEdits, RefsTogglesAndMessages) {
@@ -242,4 +255,4 @@ TEST(RevisionKinds, SpellingsRoundTrip) {
 }
 
 }  // namespace
-}  // namespace pychron::processing
+}  // namespace nobion::processing

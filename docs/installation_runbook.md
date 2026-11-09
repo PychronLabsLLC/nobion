@@ -1,6 +1,6 @@
 # Installation runbook
 
-How to put pychron-cpp on a lab computer, configure it, and bring a legacy
+How to put nobion on a lab computer, configure it, and bring a legacy
 pychron lab's data across. It is written for the person doing the install.
 Each part links to the page that holds the detail; this page holds the order,
 the checks and the way back.
@@ -36,14 +36,14 @@ the checks and the way back.
 
 ## Part 1. Install the programs
 
-Two programs are installed: `pychron-ui` (the application, called Pychron on
+Two programs are installed: `nobion` (the application, `Nobion.app` on
 macOS) and `elctl` (the command line). Both come with the setup profiles and
 the example configs.
 
 ### 1.1 From a release package
 
 Packages are built by the `release` workflow on a `v*` tag and attached to the
-GitHub release (<https://github.com/PychronLabsLLC/pychron-cpp/releases>).
+GitHub release (<https://github.com/PychronLabsLLC/nobion/releases>).
 Each carries its own Python for extraction scripts. The macOS `.dmg` is signed
 with Pychron Labs' Developer ID and notarized by Apple once the repository has
 the signing secrets (section 1.4); the Windows packages are not code-signed,
@@ -53,15 +53,15 @@ A macOS package from before that (v0.3.0 and earlier), or one built without
 the secrets, is stopped by Gatekeeper on first launch. With "Apple could not
 verify ..." open it once, dismiss the warning, then click Open Anyway under
 System Settings > Privacy & Security (right-click > Open no longer does it
-on macOS 15 and later). With "Pychron is damaged and can't be opened" (v0.3.0,
+on macOS 15 and later). With "Nobion is damaged and can't be opened" (v0.3.0,
 whose signatures do not hold together) there is no Open Anyway: copy the
 application to Applications and clear its quarantine mark once, then open it:
 
 ```
-xattr -dr com.apple.quarantine /Applications/Pychron.app
+xattr -dr com.apple.quarantine /Applications/Nobion.app
 ```
 
-Such a build also leaves the files it writes quarantined; Pychron
+Such a build also leaves the files it writes quarantined; Nobion
 clears that mark from the files it writes for you (data reports, figures, CSV
 templates, level sheets), so they open without "Apple could not verify ... is
 free of malware". A file written by an older release that still shows it can
@@ -69,10 +69,10 @@ be cleared by hand: `xattr -d com.apple.quarantine <file>`.
 
 | Platform | Package | Install | Where `elctl` is |
 |---|---|---|---|
-| macOS (Apple silicon) | `Pychron-<version>-macOS-arm64.dmg` | Open it, drag Pychron to Applications | `/Applications/Pychron.app/Contents/MacOS/elctl` |
-| Ubuntu 24.04 | `pychron_<version>_amd64.deb` | `sudo apt install ./pychron_*.deb` | on `PATH` |
+| macOS (Apple silicon) | `Nobion-<version>-macOS-arm64.dmg` | Open it, drag Nobion to Applications | `/Applications/Nobion.app/Contents/MacOS/elctl` |
+| Ubuntu 24.04 | `nobion_<version>_amd64.deb` | `sudo apt install ./nobion_*.deb` | on `PATH` |
 | Linux, other | `.tar.gz` | Unpack anywhere; it is relocatable | `<dir>/bin/elctl` |
-| Windows x64 | `Pychron-<version>-windows-x64.exe` (or `.zip`) | Run the installer | on `PATH` (the installer adds it) |
+| Windows x64 | `Nobion-<version>-windows-x64.exe` (or `.zip`) | Run the installer | on `PATH` (the installer adds it) |
 
 The `.deb` uses Ubuntu's Qt and pulls in `libqt6sql6-sqlite`. For a
 PostgreSQL database also install the recommended `libqt6sql6-psql`.
@@ -80,7 +80,7 @@ PostgreSQL database also install the recommended `libqt6sql6-psql`.
 On macOS, make `elctl` reachable for the rest of this runbook:
 
 ```bash
-alias elctl=/Applications/Pychron.app/Contents/MacOS/elctl
+alias elctl=/Applications/Nobion.app/Contents/MacOS/elctl
 ```
 
 ### 1.2 From source
@@ -107,7 +107,7 @@ Homebrew's), so it runs extraction scripts only on a computer that has the
 same Python in the same place. To make a package for another computer, bundle
 Python as the release workflow does: unpack a python-build-standalone
 `install_only` archive and add
-`-DPython_ROOT_DIR=<dir> -DPYCHRON_BUNDLE_PYTHON=<dir>` to the configure line
+`-DPython_ROOT_DIR=<dir> -DNOBION_BUNDLE_PYTHON=<dir>` to the configure line
 ([dev_setup.md](dev_setup.md) section 7). Without Qt 6 (Core and Sql)
 at configure time the database library is left out: `elctl import` is missing
 and `doctor` reports the database as "not checked".
@@ -122,18 +122,18 @@ Prints the version and the `profiles:` and `examples:` directories it found.
 If those two lines are missing, the package is incomplete.
 
 ```bash
-pychron-ui --self-test
+nobion --self-test
 ```
 
 Checks the profiles, the setup wizard and the database plugin, and prints one
 `OK` line each. On macOS the program is
-`/Applications/Pychron.app/Contents/MacOS/Pychron`. On a Linux machine with no
+`/Applications/Nobion.app/Contents/MacOS/Nobion`. On a Linux machine with no
 display, prefix it with `QT_QPA_PLATFORM=offscreen`; the macOS and Windows
 packages carry only their native platform plugin, so leave it unset there.
 
 ### 1.4 Signing and notarizing the macOS package
 
-The `release` workflow signs `Pychron.app` from the inside out with the
+The `release` workflow signs `Nobion.app` from the inside out with the
 hardened runtime (`packaging/macos/sign_app.sh`, called by CPack before the
 disk image is made), then signs the `.dmg`, submits it to Apple's notary
 service and staples the ticket to it. The smoke test checks the signatures,
@@ -178,7 +178,7 @@ job with Apple's log, which names each file and why.
 
 The programs' entitlements are in `packaging/macos/entitlements.plist`: the
 camera (a laser's live camera, which the hardened runtime otherwise refuses),
-loading libraries not signed by Pychron's team (Python's extension modules, a
+loading libraries not signed by Pychron Labs' team (Python's extension modules, a
 vendor's camera SDK) and Python's `ctypes`. A new need, such as another device
 class, goes there.
 
@@ -194,23 +194,23 @@ class, goes there.
 
   | Platform | Site config |
   |---|---|
-  | macOS | `~/Library/Application Support/Pychron/site.toml` |
-  | Linux | `$XDG_CONFIG_HOME/pychron/site.toml`, else `~/.config/pychron/site.toml` |
-  | Windows | `%APPDATA%\Pychron\site.toml` |
+  | macOS | `~/Library/Application Support/Nobion/site.toml` |
+  | Linux | `$XDG_CONFIG_HOME/nobion/site.toml`, else `~/.config/nobion/site.toml` |
+  | Windows | `%APPDATA%\Nobion\site.toml` |
 
-  `PYCHRON_SITE_CONFIG` overrides the location. The file is safe to edit.
-- Each install folder holds `.pychron/install.toml`: the profile, the answers
+  `NOBION_SITE_CONFIG` overrides the location. The file is safe to edit.
+- Each install folder holds `.nobion/install.toml`: the profile, the answers
   given (no secrets) and a hash of every file setup wrote. `doctor` and
   `--reconfigure` read it.
 - Secrets (a database password, an NGX login) are written only to
   owner-readable files inside the install folder
-  (`.pychron/credentials.toml`, `spectrometer.local.toml`), never to the site
+  (`.nobion/credentials.toml`, `spectrometer.local.toml`), never to the site
   config.
 
 There are two ways to make an install, and they do the same thing:
 
-- **The wizard.** Start Pychron with nothing installed and it opens. Later:
-  `pychron-ui --setup`.
+- **The wizard.** Start Nobion with nothing installed and it opens. Later:
+  `nobion --setup`.
 - **The command line.** `elctl init <profile>` asks the same questions.
   `--yes` takes every default, `--set id=value` and `--answers file.toml`
   answer without prompting.
@@ -221,23 +221,23 @@ With a database on this computer (SQLite, created empty and migrated by
 setup):
 
 ```bash
-elctl init data-reduction --root ~/Documents/Pychron --yes
+elctl init data-reduction --root ~/Documents/Nobion --yes
 ```
 
 With the lab's PostgreSQL server:
 
 ```bash
-elctl init data-reduction --root ~/Documents/Pychron \
+elctl init data-reduction --root ~/Documents/Nobion \
   --set data_source=server --set db_host=labdb.example.org --set db_port=5432 \
-  --set db_name=pychron --set db_user=pychron
+  --set db_name=nobion --set db_user=nobion
 ```
 
 Setup asks for the password and keeps it in
-`<root>/.pychron/credentials.toml`.
+`<root>/.nobion/credentials.toml`.
 
 Setup and the application never create or migrate a **server** database. Its
 schema is made by the importer (part 3.3: `elctl import add` and
-`elctl import run` make it). After an update of pychron that needs a newer
+`elctl import run` make it). After an update of nobion that needs a newer
 schema, `elctl db migrate --db <url>` brings an existing database up to date;
 `elctl db status --db <url>` says whether it is. A server database that
 has had no import run against it has no schema, and `doctor` fails it with
@@ -249,13 +249,13 @@ Check:
 elctl doctor
 ```
 
-Expect `[OK] database: ... (schema version N)`. Then open Pychron; a
+Expect `[OK] database: ... (schema version N)`. Then open Nobion; a
 data-reduction install opens the data browser.
 
 ### 2.3 An instrument install
 
 ```bash
-elctl init argus --root ~/Pychron/argus
+elctl init argus --root ~/Nobion/argus
 ```
 
 Press Enter to accept each default. The install starts in simulation. It
@@ -282,10 +282,10 @@ Choose the extraction line with the `line_source` question:
 #### The database and what setup puts in it
 
 The last question is where the database is: a file on this computer
-(`data/pychron.db`, the default) or the lab's PostgreSQL server
+(`data/nobion.db`, the default) or the lab's PostgreSQL server
 (`--set data_source=server` and the `db_*` answers, as in part 2.2). It holds
 the catalog (samples, projects, packages) and every run the instrument
-finishes: `pychron-ui` and `elctl exp run` write each one to it, and the data
+finishes: `nobion` and `elctl exp run` write each one to it, and the data
 window reads it. A run the database cannot take at once waits in
 `<root>/data/spool` and is sent when the next queue starts
 ([04 Experiments](user/04-experiments.md#85-what-is-written-run-records)).
@@ -333,7 +333,7 @@ local database the command is `elctl entry seed "<file>" --db "<url>"`; for
 the lab's server it is `elctl init --reconfigure --install <name>`, since the
 install has the password and a url does not.
 
-An instrument install made before pychron had this is told by `doctor` that
+An instrument install made before nobion had this is told by `doctor` that
 its profile is newer; `elctl init --reconfigure --install <name>` brings the
 new files, the database and the seed.
 
@@ -352,10 +352,10 @@ blanks) to finish with a line that names the database:
 
 ```
 queue completed
-5/5 run(s) succeeded; in sqlite:/home/you/Pychron/argus/data/pychron.db
+5/5 run(s) succeeded; in sqlite:/home/you/Nobion/argus/data/nobion.db
 ```
 
-The five runs are in the database, and `pychron-ui --install argus` shows
+The five runs are in the database, and `nobion --install argus` shows
 them under View > Data. Run only one program at a time against an install's
 database.
 
@@ -383,7 +383,35 @@ CDD unprotected.
    (`ngx_host`, `ngx_port`, `ngx_user` for an NGX.) Files nobody edited are
    rewritten; an edited file is kept and the new version is left beside it as
    `<file>.new` to merge by hand.
-3. Check without and then with a connection:
+3. Rehearse the extraction line's configuration before connecting
+   anything. Serve the line's simulated lab, then drive it through the real
+   transports with the line's own config:
+
+   ```bash
+   elctl --install argus sim serve
+   ```
+
+   In a second terminal, with the endpoints file `sim serve` names:
+
+   ```bash
+   elctl --install argus --sim-endpoints <endpoints file> state
+   ```
+
+   ```bash
+   elctl --install argus --sim-endpoints <endpoints file> scan --for 30s
+   ```
+
+   and open and close each valve with `open` and `close`. Then run a queue
+   against it, spectrometer and all:
+
+   ```bash
+   elctl --install argus --sim-endpoints <endpoints file> exp run queues/<queue>.toml
+   ```
+
+   A transport `sim serve` lists as a silent wire has a driver no emulator
+   answers; a gauge or valve that does not answer has a wrong channel or
+   address. See "The simulated lab on the wire" in [simulator.md](simulator.md).
+4. Check without and then with a connection:
 
    ```bash
    elctl doctor --install argus --strict
@@ -396,18 +424,18 @@ CDD unprotected.
    `--strict` fails on warnings, so it fails while a placeholder or a
    fully simulated line remains. `--probe` opens each TCP transport and runs
    the drivers' connect step.
-4. Start the instrument on a new database. The runs made in simulation are
+5. Start the instrument on a new database. The runs made in simulation are
    in the install's database, as airs and blanks under the same identifiers
    the instrument will use (`a-01`, `ba-01`, ... as the data window shows
    them). Each is marked as simulated, but the next real air would continue
    their numbering and they would sit in the same lists as the instrument's.
-   With pychron closed, delete `<root>/data/pychron.db` (and its `-wal` and
+   With nobion closed, delete `<root>/data/nobion.db` (and its `-wal` and
    `-shm` files, and anything left in `<root>/data/spool`) and run
    `elctl init --reconfigure --install argus`, which makes and seeds a new
    one. An install whose database is on a shared server never had simulated
    runs written to it (a simulated session writes record files there unless
    it is started with `--sim-save`), so there is nothing to remove.
-5. For a Thermo instrument, follow "Running against a Thermo instrument" in
+6. For a Thermo instrument, follow "Running against a Thermo instrument" in
    [dev_setup.md](dev_setup.md) and the bring-up checklist in section 8 of
    [the Qtegra driver spec](superpowers/specs/2026-10-01-qtegra-driver-design.md).
    Turn on the wire trace for first contact.
@@ -424,7 +452,7 @@ writes its database. Three things follow:
   that is already there:
 
   ```bash
-  elctl entry seed <root>/seed.toml --db sqlite:<root>/data/pychron.db
+  elctl entry seed <root>/seed.toml --db sqlite:<root>/data/nobion.db
   ```
 
   or reconfigure the install, which brings its files up to the current
@@ -448,10 +476,11 @@ writes its database. Three things follow:
 
 | Task | How |
 |---|---|
-| Change an answer | `elctl init --reconfigure --install NAME --set id=value`, or `pychron-ui --setup` |
+| Change an answer | `elctl init --reconfigure --install NAME --set id=value`, or `nobion --setup` |
+| Change where data is read and written | Preferences > Data source, or `elctl data-source set` |
 | Edit a config by hand | Edit the TOML in the install folder, then `elctl doctor` |
-| Switch, set default or forget an install | Pychron: File > Installations. Forgetting removes the entry, never the files |
-| Use one install from the command line | `elctl --install NAME <command>`, `pychron-ui --install NAME` |
+| Switch, set default or forget an install | Nobion: File > Installations. Forgetting removes the entry, never the files |
+| Use one install from the command line | `elctl --install NAME <command>`, `nobion --install NAME` |
 | Check a line or canvas file | `elctl -c extraction_line.toml validate`, `elctl canvas-check` |
 
 ## Part 3. Migrate legacy pychron data
@@ -499,14 +528,14 @@ result can depend on where runs were stopped.
 ### 3.3 Register the sources
 
 Set the store and the cache once. For the local database of a data-reduction
-install the store is `<root>/data/pychron.db`:
+install the store is `<root>/data/nobion.db`:
 
 ```bash
-DB=sqlite:$HOME/Documents/Pychron/data/pychron.db
-CACHE=$HOME/Documents/Pychron/import-cache
+DB=sqlite:$HOME/Documents/Nobion/data/nobion.db
+CACHE=$HOME/Documents/Nobion/import-cache
 ```
 
-For a server use `DB=postgresql://pychron@labdb.example.org/pychron`, with the
+For a server use `DB=postgresql://nobion@labdb.example.org/nobion`, with the
 password supplied by a PostgreSQL password file rather than in the url. The
 first `add` creates the schema.
 
@@ -588,10 +617,10 @@ Before accepting:
 - Warnings (`imported`, `synthesized`, `late_revision_not_applied`) annotate
   data that was imported; `verify` does not fail on them.
 
-Then point the workstations at the store (part 2.2) and browse it in Pychron
+Then point the workstations at the store (part 2.2) and browse it in Nobion
 (View > Data). The legacy repositories keep changing while the old system is
 in use: run `elctl import run --all` again to pick up new commits. Once an
-item has been edited in pychron-cpp, the legacy source no longer updates it.
+item has been edited in nobion, the legacy source no longer updates it.
 
 ### 3.6 Migrate legacy configuration
 
@@ -609,11 +638,11 @@ elctl import-line ~/Pychron/setupfiles
 ```
 
 ```bash
-elctl init helix --root ~/Pychron/helix --set line_source=legacy --set legacy_folder=~/Pychron/setupfiles
+elctl init helix --root ~/Nobion/helix --set line_source=legacy --set legacy_folder=~/Pychron/setupfiles
 ```
 
 The report lists what was not carried over. Valve controllers that have no
-pychron-cpp driver yet become simulated (`sim_valves`): the line loads and
+nobion driver yet become simulated (`sim_valves`): the line loads and
 draws, but those valves do not move hardware.
 
 **Conditionals** (needs PyYAML):
@@ -631,9 +660,9 @@ result with `elctl conditionals-check conditionals/system.toml`.
 |---|---|
 | An install | File > Installations > forget it (or delete its `[[installs]]` entry in the site config), then delete the install folder. Setup never overwrites a file, so a re-run of `init` is safe |
 | A reconfigure | Files nobody edited were rewritten: `init --reconfigure` again with the old answers. Edited files were not touched; delete the `<file>.new` beside them |
-| A local import | Stop the importer, delete `<root>/data/pychron.db` (and its `-wal` and `-shm` files) and the cache directory, then `elctl init --reconfigure` to recreate an empty database |
+| A local import | Stop the importer, delete `<root>/data/nobion.db` (and its `-wal` and `-shm` files) and the cache directory, then `elctl init --reconfigure` to recreate an empty database |
 | A server import | Drop and recreate the database, and delete the cache directory. There is no command that removes one source from a store |
-| The programs | Drag Pychron to the Trash; `sudo apt remove pychron`; Windows Apps & features. Install folders and the site config are left in place |
+| The programs | Drag Nobion to the Trash; `sudo apt remove nobion`; Windows Apps & features. Install folders and the site config are left in place |
 
 The legacy system is untouched by all of this: nothing here writes to a legacy
 repository or database, so falling back is a matter of continuing to use it.
@@ -642,24 +671,32 @@ repository or database, so falling back is a matter of continuing to use it.
 
 | Symptom | Cause and fix |
 |---|---|
-| `nothing is installed yet (elctl init --list)` | No install in the site config. Make one (part 2), or check `PYCHRON_SITE_CONFIG` |
+| `nothing is installed yet (elctl init --list)` | No install in the site config. Make one (part 2), or check `NOBION_SITE_CONFIG` |
 | `several installs and no default` | Pass `--install NAME`, or set the default in File > Installations |
 | `doctor`: `database ... not checked: built without the database library` | Built without Qt Sql. Use a release package, or rebuild with Qt 6 found |
 | `doctor` fails a PostgreSQL database | Server, user or password wrong, the QPSQL plugin is missing (`libqt6sql6-psql`), or the schema was never created (part 2.2) |
 | `seed skipped: the database could not be opened` | An instrument install's database was not reachable or its schema is not current. Fix that (part 2.2), then run the command printed under it |
 | `seed skipped: ...seed.toml: ...` | The install's `seed.toml` was edited into something that does not parse. Fix the line named, then run the printed command |
-| `doctor` warns about an instrument's `database` | The database does not open. The line can still be worked, but no queue starts until it does: `elctl exp run` stops with the reason, and Pychron shows it in the data window. `elctl init --reconfigure` makes a missing local one; a schema that is behind needs `elctl db migrate --db <url>` |
+| `doctor` warns about an instrument's `database` | The database does not open. The line can still be worked, but no queue starts until it does: `elctl exp run` stops with the reason, and Nobion shows it in the data window. `elctl init --reconfigure` makes a missing local one; a schema that is behind needs `elctl db migrate --db <url>` |
 | `error: the queue cannot be saved:` and `... is not in the database` | The queue names an identifier, mass spectrometer or extract device the install's database lacks. Add it (Entry, or `seed.toml` and `elctl entry seed`; part 2.3) and start the queue again |
 | `doctor` warns `every transport is simulated` | Simulation is off but the line is still the starter. Describe the real controllers in `extraction_line.toml` |
 | `import add` refuses a time zone or flag | The source is already registered with another `--tz` or `--catalog-from-repos`; these cannot change |
 | `import run` or `verify`: `history was rewritten` | The legacy repository's history changed (for example a force-push) after it was imported. `run` and `verify` refuse it; see [legacy_import.md](legacy_import.md) section 3 |
 | A fetch fails without prompting | The importer never prompts. Set up a git credential helper |
 | Time-zone errors during import | `tzdata` is not installed (common in minimal containers) |
+| An alarm from `hang`, or a log line `hang: <name> silent for <s> s` | A thread stopped answering: `ui.main` (the window), `scheduler` (polls and scans) or `transport.<name>` (a call to a controller that has not returned). The flight recorder was written to `<log dir>/flight/` (`...-hang-<name>.log`). While it is still stuck, take the stacks of every thread before restarting, and attach them with the flight recorder file to the issue (below) |
+
+Stacks of every thread of a running program (`<pid>` from Activity Monitor,
+`pgrep nobion` or Task Manager):
+
+- macOS: `sample <pid> 10` (writes a report of 10 seconds; the path is printed)
+- Linux: `gdb -p <pid> -batch -ex "thread apply all bt"`, or `eu-stack -p <pid>`
+- Windows: `procdump -ma <pid>` (Sysinternals; writes a full dump to open in WinDbg or Visual Studio)
 
 ## Escalation
 
 Single-developer project. Open an issue at
-<https://github.com/PychronLabsLLC/pychron-cpp/issues> with the output of
+<https://github.com/PychronLabsLLC/nobion/issues> with the output of
 `elctl --version`, `elctl doctor`, and for an import `elctl import status` and
 `elctl import conflicts --json`.
 

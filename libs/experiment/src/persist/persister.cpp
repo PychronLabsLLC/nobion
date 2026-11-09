@@ -1,13 +1,20 @@
-#include "pychron/experiment/persist/persister.hpp"
+#include "nobion/experiment/persist/persister.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
+#include <limits>
+#include <string_view>
+#include <tuple>
 #include <fstream>
 #include <sstream>
 
-#include "pychron/experiment/record/serialize.hpp"
+#include "nobion/core/log_error.hpp"
+#include "nobion/experiment/factory/increments.hpp"
+#include "nobion/experiment/record/serialize.hpp"
 
-namespace pychron::experiment::persist {
+namespace nobion::experiment::persist {
 
 namespace fs = std::filesystem;
 
@@ -25,16 +32,8 @@ Result<void> write_atomic(const fs::path& path, const std::string& text) {
   std::error_code ec;
   fs::create_directories(path.parent_path(), ec);
   if (ec) return io("cannot create " + path.parent_path().string() + ": " + ec.message());
-  const fs::path tmp = path.string() + ".tmp";
-  {
-    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-    if (!out) return io("cannot write " + tmp.string());
-    out << text;
-    out.flush();
-    if (!out) return io("cannot write " + tmp.string());
-  }
-  fs::rename(tmp, path, ec);
-  if (ec) return io("cannot rename " + tmp.string() + ": " + ec.message());
+  if (auto written = write_file_atomic(path, text, Durability::Power); !written)
+    return io("cannot write " + path.string() + ": " + written.error().what);
   return {};
 }
 
@@ -46,9 +45,44 @@ Result<std::string> read_text(const fs::path& path) {
   return ss.str();
 }
 
+// The run a record file name stands for: `<prefix><aliquot><step>.` and
+// ending in `.json`, where `prefix` is `<identifier>-`, the aliquot is digits
+// and the step letters (none: step -1). Anything else is not a run.
+std::optional<LastRun> parse_run_name(std::string_view name, std::string_view prefix) {
+  if (!name.starts_with(prefix) || !name.ends_with(".json")) return std::nullopt;
+  const std::string_view rest = name.substr(prefix.size());
+  const auto digits_end = std::ranges::find_if_not(rest, [](char c) {
+    return std::isdigit(static_cast<unsigned char>(c)) != 0;
+  });
+  const auto n_digits = static_cast<std::size_t>(digits_end - rest.begin());
+  if (n_digits == 0) return std::nullopt;
+  LastRun run;
+  for (const char c : rest.substr(0, n_digits)) {
+    const int digit = c - '0';
+    if (run.aliquot > (std::numeric_limits<int>::max() - digit) / 10) return std::nullopt;
+    run.aliquot = run.aliquot * 10 + digit;
+  }
+  const std::string_view after = rest.substr(n_digits);
+  const auto letters_end = std::ranges::find_if_not(after, [](char c) {
+    return std::isalpha(static_cast<unsigned char>(c)) != 0;
+  });
+  const auto n_letters = static_cast<std::size_t>(letters_end - after.begin());
+  if (n_letters == after.size() || after[n_letters] != '.') return std::nullopt;
+  if (n_letters > 0) {
+    run.step = step_index(after.substr(0, n_letters));
+    if (run.step < 0) return std::nullopt;
+  }
+  return run;
+}
+
+// The record's file name stem (`12345-5A`). A file format: never changed.
 std::string run_name(const record::Identity& id) {
   return id.identifier + "-" + std::to_string(id.aliquot) + id.step;
 }
+
+// The run's name in log text, as the run= field and the queue spell it
+// (`12345-05A`), so one grep finds every line of a run.
+std::string log_name(const record::Identity& id) { return format_runid(id.identifier, id.aliquot, id.step); }
 
 }  // namespace
 
@@ -85,6 +119,22 @@ Result<int> FilePersister::next_aliquot(const std::string& identifier) {
   return issued;
 }
 
+Result<std::optional<LastRun>> FilePersister::last_run(const std::string& identifier) {
+  if (!safe_name(identifier)) return fail(ErrorKind::Config, "identifier '" + identifier + "' is not a plain name");
+  std::error_code ec;
+  const fs::path dir = root_ / identifier;
+  if (!fs::is_directory(dir, ec)) return std::optional<LastRun>{};
+  const std::string prefix = identifier + "-";
+  std::optional<LastRun> best;
+  for (fs::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
+    const auto run = parse_run_name(it->path().filename().string(), prefix);
+    if (!run) continue;
+    if (!best || std::tie(run->aliquot, run->step) > std::tie(best->aliquot, best->step)) best = run;
+  }
+  if (ec) return io("cannot list " + dir.string() + ": " + ec.message());
+  return best;
+}
+
 Result<void> FilePersister::begin_run(const RunIdentity& id, const QueueSpec&) {
   if (!safe_name(id.identifier)) return fail(ErrorKind::Config, "identifier '" + id.identifier + "' is not a plain name");
   std::error_code ec;
@@ -105,7 +155,19 @@ Result<void> FilePersister::save_extraction(const record::AnalysisRecord& r) {
 
 Result<void> FilePersister::save_analysis(const record::AnalysisRecord& r) {
   if (!safe_name(r.identity.identifier)) return fail(ErrorKind::Config, "bad identifier");
-  return write_atomic(analysis_path(r), record::to_json(r));
+  // As StorePersister says it: may run outside the run's scope, so the line
+  // names the run; the duration is real time (a read, never a wait).
+  const std::string attempted = "save " + log_name(r.identity);
+  const auto began = std::chrono::steady_clock::now();
+  const fs::path path = analysis_path(r);
+  auto written = write_atomic(path, record::to_json(r));
+  if (!written) {
+    log_error(log_, written.error(), attempted);
+  } else {
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - began);
+    log_.debug(attempted + ": wrote " + path.string() + " in " + std::to_string(ms.count()) + " ms");
+  }
+  return written;
 }
 
 Result<void> FilePersister::save_artifact(const std::string& uuid, const std::string& name,
@@ -118,13 +180,16 @@ Result<void> FilePersister::save_artifact(const std::string& uuid, const std::st
 
 Result<void> Spool::put(const record::AnalysisRecord& r) {
   if (!safe_name(r.identity.uuid)) return fail(ErrorKind::Config, "record uuid missing or not plain");
-  return write_atomic(dir_ / (r.identity.uuid + ".json"), record::to_json(r));
+  auto written = write_atomic(dir_ / (r.identity.uuid + ".json"), record::to_json(r));
+  if (written) log_.debug("put " + log_name(r.identity) + " (" + r.identity.uuid + ")");
+  return written;
 }
 
 Result<void> Spool::remove(const std::string& uuid) {
   std::error_code ec;
   fs::remove(dir_ / (uuid + ".json"), ec);
   if (ec) return io("cannot remove spooled " + uuid + ": " + ec.message());
+  log_.debug("remove " + uuid);
   return {};
 }
 
@@ -153,6 +218,11 @@ Result<std::vector<std::string>> Spool::pending() const {
   return out;
 }
 
+bool Spool::contains(const std::string& uuid) const {
+  std::error_code ec;
+  return fs::exists(dir_ / (uuid + ".json"), ec) && !ec;
+}
+
 Result<record::AnalysisRecord> Spool::get(const std::string& uuid) const {
   auto text = read_text(dir_ / (uuid + ".json"));
   if (!text) return fail(text.error());
@@ -161,17 +231,24 @@ Result<record::AnalysisRecord> Spool::get(const std::string& uuid) const {
 
 // ---- SavePipeline ---------------------------------------------------------------
 
-Result<void> SavePipeline::hand_off(const std::string& uuid) {
+Result<bool> SavePipeline::hand_off(const std::string& uuid) {
   auto rec = spool_.get(uuid);
+  // A record that has left the spool since it was listed was sent by a flush
+  // or a save on another thread: sending it twice would be harmless (a
+  // persister takes a record again as the same analysis), reading what is no
+  // longer there is not a failure.
+  if (!rec && !spool_.contains(uuid)) return false;
   Result<void> r = rec ? persister_.save_analysis(*rec) : Result<void>(fail(rec.error()));
   if (r) r = spool_.remove(uuid);
+  if (!r) log_handled(log_, r.error(), "hand-off " + uuid);  // the record stays in the spool
+  else log_.debug("hand-off " + uuid + ": sent");
   std::lock_guard lock(mutex_);
   if (!r) {
     last_error_ = std::make_pair(uuid, r.error().what);
-  } else if (last_error_ && last_error_->first == uuid) {
-    last_error_.reset();  // the record it spoke of has been sent
+    return fail(r.error());
   }
-  return r;
+  if (last_error_ && last_error_->first == uuid) last_error_.reset();  // the record it spoke of has been sent
+  return true;
 }
 
 Result<Saved> SavePipeline::save(const record::AnalysisRecord& record) {
@@ -188,17 +265,23 @@ Result<Saved> SavePipeline::save(const record::AnalysisRecord& record) {
 
 Result<std::size_t> SavePipeline::flush() {
   auto uuids = spool_.pending();
-  if (!uuids) return fail(uuids.error());
+  if (!uuids) {
+    log_handled(log_, uuids.error(), "flush");
+    return fail(uuids.error());
+  }
   std::size_t done = 0;
   std::optional<Error> first;
   for (const auto& u : *uuids) {
-    if (auto r = hand_off(u); r) {
+    if (auto r = hand_off(u); !r) {
+      if (!first) first = r.error();
+    } else if (*r) {
       ++done;
-    } else if (!first) {
-      first = r.error();
     }
   }
-  if (auto r = persister_.flush(); !r && !first) first = r.error();
+  if (auto r = persister_.flush(); !r) {
+    log_handled(log_, r.error(), "flush");
+    if (!first) first = r.error();
+  }
   if (done == 0 && first) return fail(*first);
   return done;
 }
@@ -214,16 +297,139 @@ std::optional<std::string> SavePipeline::last_error() const {
   return last_error_->first + ": " + last_error_->second;
 }
 
+// ---- SpoolFlusher ---------------------------------------------------------------
+
+SpoolFlusher::SpoolFlusher(SavePipeline& pipeline, Scheduler& scheduler, const Clock& clock, SignalBus* bus,
+                           Options options)
+    : pipeline_(pipeline),
+      scheduler_(scheduler),
+      clock_(clock),
+      bus_(bus),
+      options_(options),
+      delay_(options.interval) {}
+
+SpoolFlusher::~SpoolFlusher() {
+  std::vector<JobId> waiting;
+  {
+    const std::lock_guard lock(mutex_);
+    closing_ = true;
+    for (const auto& [seq, id] : jobs_) waiting.push_back(id);
+  }
+  // A job that has begun and not yet taken mutex_ is waited for here; it
+  // sees closing_ and returns.
+  for (const JobId id : waiting) (void)scheduler_.cancel_and_wait(id);
+  std::unique_lock lock(mutex_);
+  while (running_) clock_.wait(idle_, lock);
+}
+
+void SpoolFlusher::schedule_locked(nobion::Duration delay) {
+  const std::uint64_t seq = next_seq_++;
+  auto id = scheduler_.after("spool.flush", delay, [this, seq] { run(seq); });
+  if (id) jobs_.emplace(seq, *id);
+}
+
+void SpoolFlusher::flush_now() {
+  const std::lock_guard lock(mutex_);
+  if (closing_) return;
+  if (running_) {
+    again_ = true;  // the flush in progress schedules the next one at once
+    return;
+  }
+  // A timed flush still waiting is replaced by this one. One that has begun
+  // and not yet reached run()'s lock is not stopped by cancel(): it finds
+  // this one's flush running, or done, and asks for no more than again_.
+  for (const auto& [seq, id] : jobs_) (void)scheduler_.cancel(id);
+  jobs_.clear();
+  schedule_locked(nobion::Duration::zero());
+}
+
+SpoolStatus SpoolFlusher::status() const {
+  const std::lock_guard lock(mutex_);
+  return status_;
+}
+
+void SpoolFlusher::run(std::uint64_t seq) {
+  {
+    const std::lock_guard lock(mutex_);
+    jobs_.erase(seq);
+    if (closing_) return;
+    if (running_) {
+      again_ = true;
+      return;
+    }
+    running_ = true;
+    again_ = false;
+  }
+  const auto flushed = pipeline_.flush();
+  SpoolStatus now{pipeline_.pending(), pipeline_.last_error()};
+  // A failure was said where it happened (hand_off, or flush above).
+  if (flushed) log_.debug("flush: sent " + std::to_string(*flushed) + ", " + std::to_string(now.pending) + " pending");
+  if (!flushed && !now.last_error) now.last_error = flushed.error().what;  // the spool or the persister's flush
+  bool changed = false;
+  {
+    const std::lock_guard lock(mutex_);
+    if (flushed) delay_ = options_.interval;
+    const nobion::Duration next = again_ ? nobion::Duration::zero() : delay_;
+    if (!flushed) delay_ = std::min(delay_ * 2, options_.max_interval);
+    if (!closing_ && (again_ || now.pending > 0)) schedule_locked(next);
+    again_ = false;
+    changed = now != status_;
+    if (changed) status_ = now;
+  }
+  if (changed && bus_ != nullptr) bus_->publish(now);
+  // Notified under the lock: once it is released the destructor may run.
+  const std::lock_guard lock(mutex_);
+  if (again_ && !closing_) schedule_locked(nobion::Duration::zero());  // asked for while it published
+  again_ = false;
+  running_ = false;
+  clock_.notify_all(idle_);
+}
+
 // ---- AliquotAllocator -----------------------------------------------------------
 
 Result<Allocation> AliquotAllocator::allocate(const RunIdentity& id) {
+  const int step = step_index(id.step);
+  auto remember = [&](int aliquot) {
+    if (step < 0) return;
+    const std::lock_guard lock(mutex_);
+    last_[id.identifier] = Heating{aliquot, step};
+  };
   if (id.aliquot) {
     if (*id.aliquot < 1) return fail(ErrorKind::Config, "aliquot must be >= 1, got " + std::to_string(*id.aliquot));
+    remember(*id.aliquot);
     return Allocation{*id.aliquot, id.step};
   }
+  bool ask = false;
+  if (step > 0) {
+    const std::lock_guard lock(mutex_);
+    const auto it = last_.find(id.identifier);
+    if (it != last_.end() && step > it->second.step) {
+      it->second.step = step;
+      return Allocation{it->second.aliquot, id.step};
+    }
+    ask = it == last_.end() && asked_.insert(id.identifier).second;
+  }
+  if (ask) {
+    // Nothing remembered for this identifier: the persister's last saved run
+    // stands in for that memory (a heating resumed after a restart).
+    auto saved = persister_.last_run(id.identifier);
+    if (!saved) {
+      // Not asked after all: a retry asks again rather than take a new aliquot.
+      const std::lock_guard lock(mutex_);
+      asked_.erase(id.identifier);
+      return fail(saved.error());
+    }
+    if (const auto& last = *saved; last && 0 <= last->step && last->step < step) {
+      remember(last->aliquot);
+      return Allocation{last->aliquot, id.step};
+    }
+  }
+  // Runs of one identifier start one after another, so nothing can come
+  // between this lookup and remember() for the same identifier.
   auto next = persister_.next_aliquot(id.identifier);
   if (!next) return fail(next.error());
+  remember(*next);
   return Allocation{*next, id.step};
 }
 
-}  // namespace pychron::experiment::persist
+}  // namespace nobion::experiment::persist

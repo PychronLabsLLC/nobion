@@ -1,7 +1,7 @@
 // The example lab's physics, end to end (lab simulator spec section 8): a
 // scratch copy of configs/examples run on a VirtualClock at unlimited speed
 // through LabSession, with the example's own scripts, queue
-// (experiment.sim-air.toml), measurement plan and sim.toml. What a run
+// (queues/experiment.sim-air.toml), measurement plan and sim.toml. What a run
 // measured is read back from its saved record.
 //
 // What is expected is worked out from the lab's own numbers (the simulator's
@@ -34,30 +34,31 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/events.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/experiment/executor/executor.hpp"
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/experiment/lab/session.hpp"
-#include "pychron/experiment/model/queue_file.hpp"
-#include "pychron/experiment/model/run_spec.hpp"
-#include "pychron/experiment/record/serialize.hpp"
-#include "pychron/experiment/record/types.hpp"
-#include "pychron/experiment/run/run.hpp"
-#include "pychron/reduction/fits.hpp"
-#include "pychron/scripting/script_host.hpp"
-#include "pychron/sim/gas.hpp"
-#include "pychron/sim/sim_system.hpp"
-#include "pychron/sim/spectrometer/beam_model.hpp"
-#include "pychron/systems/extraction_line.hpp"
-#include "pychron/systems/spectrometer/bringup.hpp"
-#include "pychron/systems/spectrometer/spectrometer.hpp"
+#include "example_lab.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/experiment/executor/executor.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/lab/session.hpp"
+#include "nobion/experiment/model/queue_file.hpp"
+#include "nobion/experiment/model/run_spec.hpp"
+#include "nobion/experiment/record/serialize.hpp"
+#include "nobion/experiment/record/types.hpp"
+#include "nobion/experiment/run/run.hpp"
+#include "nobion/reduction/fits.hpp"
+#include "nobion/scripting/script_host.hpp"
+#include "nobion/sim/gas.hpp"
+#include "nobion/sim/sim_system.hpp"
+#include "nobion/sim/spectrometer/beam_model.hpp"
+#include "nobion/systems/extraction_line.hpp"
+#include "nobion/systems/spectrometer/bringup.hpp"
+#include "nobion/systems/spectrometer/spectrometer.hpp"
 #include "virtual_time.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 namespace {
 
 namespace fs = std::filesystem;
@@ -91,9 +92,8 @@ class ScratchLab {
  public:
   // `prepare` changes the copy before anything is loaded from it.
   explicit ScratchLab(const std::function<void(const fs::path&)>& prepare = {})
-      : dir_(pychron::testing::unique_temp_path("pychron-labsim-")) {
-    fs::copy(fs::path(PYCHRON_EXAMPLE_CONFIGS_DIR), dir_, fs::copy_options::recursive);
-    fs::remove_all(dir_ / "data");
+      : dir_(nobion::testing::unique_temp_path("nobion-labsim-")) {
+    nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_);
     if (prepare) prepare(dir_);
 
     systems::ExtractionLine::Options options;
@@ -163,7 +163,7 @@ class ScratchLab {
 
   // The example's air queue: blank, air, air, air, blank.
   QueueSpec air_queue() {
-    auto q = load_queue_file((dir_ / "experiment.sim-air.toml").string(), lab_.ids);
+    auto q = load_queue_file((dir_ / "queues" / "experiment.sim-air.toml").string(), lab_.ids);
     if (!q) {
       ADD_FAILURE() << q.error().what;
       return {};
@@ -366,12 +366,14 @@ struct LabNumbers {
   }
 };
 
-LabNumbers numbers_of(const sim::SimSettings& s) {
+// The lab's numbers for a shot from `tank` through `pipette` (the air tank
+// and its pipette unless named).
+LabNumbers numbers_of(const sim::SimSettings& s, std::string_view tank = kTank, std::string_view pipette = kPipette) {
   LabNumbers n;
   n.prep = litres(s, kPrep, s.default_volume_cc);
   n.source = litres(s, kSource, s.default_volume_cc);
-  n.tank = litres(s, kTank, s.default_volume_cc);
-  n.pipette = litres(s, kPipette, s.pipette_cc);
+  n.tank = litres(s, std::string(tank), s.default_volume_cc);
+  n.pipette = litres(s, std::string(pipette), s.pipette_cc);
   const auto own = s.conductances.find(kInlet);
   n.inlet = own == s.conductances.end() ? s.valve_conductance : own->second;
   n.sensitivity = s.source.sensitivity;
@@ -379,7 +381,7 @@ LabNumbers numbers_of(const sim::SimSettings& s) {
   // Per litre of wall, into that litre: mbar/s whatever the size.
   n.rise = s.outgassing * s.source.sensitivity + s.source.memory_fa_per_s;
   n.pumped = s.default_pressure * sim::air_ratios()[kAr40] / sim::total(sim::air_ratios()) * s.source.sensitivity;
-  const auto held = s.compositions.find(kTank);
+  const auto held = s.compositions.find(std::string(tank));
   n.tank_ar40 = held == s.compositions.end() ? s.tank_argon40 : held->second[kAr40];
   return n;
 }
@@ -394,7 +396,7 @@ void record_value(const std::string& name, double value) {
   ::testing::Test::RecordProperty(name, text.str());
 }
 
-class LabSim : public pychron::testing::VirtualTimeTest {
+class LabSim : public nobion::testing::VirtualTimeTest {
  protected:
   // The five-run queue is half a minute under a sanitizer on a machine of
   // its own, and 47 s was seen on a four-core CI runner with every core
@@ -731,6 +733,35 @@ TEST_F(LabSim, AScriptThatSkipsThePipetteMeasuresABlank) {
   EXPECT_GT(air->value(), 1e4);
 }
 
+// The second pipette carries the built-in cocktail: Ar39, which air has none
+// of, on H2 where sim_multicollect puts it. One shot is the cocktail tank's
+// pressure in one pipette spread over prep and the source, as an air shot is
+// the air tank's (first_shot); its Ar39 is that times the cocktail's 20/298.56.
+TEST_F(LabSim, ACocktailShotPutsAr39WhereThePlanSays) {
+  ScratchLab lab;
+  ASSERT_TRUE(lab.problem().empty()) << lab.problem();
+  const LabNumbers cocktail = numbers_of(lab.settings(), "cocktail_tank", "cocktail");
+  const auto ratios = sim::cocktail_ratios();
+  const double ar39_per_ar40 = ratios[sim::index(sim::Species::Ar39)] / ratios[kAr40];
+  QueueSpec queue = lab.rows({1});
+  ASSERT_EQ(queue.runs.size(), 1u);
+  ASSERT_EQ(queue.runs[0].extraction.script, "sim_air");  // row 1 is an air shot
+  queue.runs[0].extraction.script = "sim_cocktail";
+  const auto runs = lab.run(queue);
+  ASSERT_EQ(runs.size(), 1u);
+  const auto ar39 = measured(runs[0].record, "Ar39", "H2");
+  const auto ar40 = measured(runs[0].record, "Ar40", kFaraday);
+  ASSERT_TRUE(ar39);
+  ASSERT_TRUE(ar40);
+  record_value("cocktail_ar40_fA", ar40->value());
+  record_value("cocktail_ar39_fA", ar39->value());
+  record_value("cocktail_expected_ar40_fA", cocktail.first_shot());
+  EXPECT_NEAR(ar40->value(), cocktail.first_shot(), 0.01 * cocktail.first_shot());  // as the air shot
+  const double ar39_expected = cocktail.first_shot() * ar39_per_ar40;
+  EXPECT_NEAR(ar39->value(), ar39_expected, 0.03 * ar39_expected);  // H2's peak flat within 0.02, and noise
+  EXPECT_NEAR(ar40->value() / ar39->value(), 1 / ar39_per_ar40, 0.03 / ar39_per_ar40);
+}
+
 // A pipette with both its valves open is no pipette: the tank empties into
 // the line. The example interlocks the two against exactly this, so the lab
 // here has the interlock taken out and a script that makes the mistake.
@@ -949,5 +980,154 @@ TEST_F(LabSim, FiveRunsTakeNoRealTime) {
   }
 }
 
+// ---- a staged release (measurement plan v2 spec 11, plan Task 28) -------------
+
+// The example lab with its sample's noble gases frozen on the cryo trap
+// (behind Y on prep): helium let out at 35 K, neon at 75 K, the argon kept.
+void stage_the_lab(const fs::path& dir) {
+  {
+    std::ofstream sim(dir / "sim.toml", std::ios::app);
+    sim << R"(
+[compositions.staged]
+Ar36 = 1
+Ar40 = 298.56
+He4 = 500
+Ne20 = 100
+
+[volumes.cryo]
+composition = "staged"
+argon40 = 1e-6
+
+[[cryo_trap]]
+volume = "cryo"
+cryostat = "cryostat"
+release_k = { He4 = 30, Ne20 = 70, Ar36 = 150, Ar37 = 150, Ar38 = 150, Ar39 = 150, Ar40 = 150 }
+)";
+  }
+  {
+    // Where helium and neon sit on the magnet: the argon table's dispersion.
+    std::ofstream table(dir / "tables" / "argon" / "2026-09-30T000000.toml", std::ios::app);
+    for (const auto& [isotope, mass] : {std::pair{"He4", 4.0026032541}, std::pair{"Ne20", 19.9924401762}}) {
+      table << "\n[[points]]\nisotope = \"" << isotope << "\"\nmass = " << mass << "\n";
+      const double h1 = mass * (5.001 / 39.9623831237);
+      const std::vector<std::pair<const char*, double>> cups{{"H2", 1.0247}, {"H1", 1.0}, {"AX", 0.9746},
+                                                             {"L1", 0.9498}, {"L2", 0.9254}, {"CDD", 0.9008}};
+      for (const auto& [cup, f] : cups) table << cup << " = " << h1 * f << "\n";
+    }
+  }
+  {
+    std::ofstream script(dir / "scripts" / "extraction" / "cryo_release.py");
+    script << R"(# A staged release: pump prep of the last fraction, warm the trap to
+# cryo_temp and hold it there, then let what it releases into prep.
+def main():
+    info('release at {} K'.format(cryo_temp))
+    close('B')
+    open('C')
+    sleep(30)
+    close('C')
+    set_cryo(cryo_temp, True)
+    sleep(hold_s)
+    open('Y')
+    sleep(20)
+    close('Y')
+)";
+  }
+  {
+    std::ofstream plan(dir / "plans" / "sim_staged.toml");
+    plan << R"([plan]
+name = "sim_staged"
+instrument_family = "sim"
+analysis_types = ["unknown", "blank_unknown", "air", "blank_air"]
+
+[detectors]
+reference = "H1"
+
+[equilibration]
+inlet = "@valves.inlet"
+outlet = "@valves.outlet"
+time_s = "@extraction.eqtime"
+inlet_delay_s = 3
+
+[[gas]]
+name = "He"
+prepare = { script = "cryo_release", variables = { cryo_temp = 35, hold_s = 60 } }
+pump_out = { valve = "I", time_s = 60 }
+[[gas.segment]]
+kind = "signal"
+cycles = 2
+[[gas.segment.positions]]
+collect = { He4 = "H1" }
+counts = 10
+settle_s = 2
+[[gas.segment.positions]]
+collect = { Ne20 = "AX" }
+at = { label = "Ne20", detector = "AX" }
+counts = 10
+settle_s = 2
+
+[[gas]]
+name = "Ne"
+prepare = { script = "cryo_release", variables = { cryo_temp = 75, hold_s = 60 } }
+[[gas.segment]]
+kind = "signal"
+cycles = 2
+[[gas.segment.positions]]
+collect = { Ne20 = "H1" }
+counts = 10
+settle_s = 2
+)";
+  }
+}
+
+// The mean of a series of the record, by label, detector and gas.
+std::optional<double> mean_of(const record::AnalysisRecord& rec, std::string_view label, std::string_view detector,
+                              std::string_view gas) {
+  for (const auto& s : rec.data.series) {
+    if (s.kind != "signal" || s.iso != label || s.det != detector || s.gas != gas || s.trace.v.empty()) continue;
+    double sum = 0;
+    for (const float v : s.trace.v) sum += v;
+    return sum / static_cast<double>(s.trace.v.size());
+  }
+  return std::nullopt;
+}
+
+// A trap's cryostat is one of the line's Lake Shore drivers, or the line
+// does not load.
+TEST_F(LabSim, ACryoTrapOnACryostatTheLineHasNotIsRefused) {
+  ScratchLab lab([](const fs::path& dir) {
+    std::ofstream(dir / "sim.toml", std::ios::app)
+        << "\n[[cryo_trap]]\nvolume = \"cryo\"\ncryostat = \"nope\"\nrelease_k = { He4 = 30 }\n";
+  });
+  EXPECT_NE(lab.problem().find("cryostat 'nope' is not a lakeshore driver"), std::string::npos) << lab.problem();
+}
+
+TEST_F(LabSim, StagedReleaseSimEachGasAppearsOnlyAfterItsRelease) {
+  ScratchLab lab(stage_the_lab);
+  ASSERT_TRUE(lab.problem().empty()) << lab.problem();
+  QueueSpec q = lab.rows({1});  // one air run's row, its plan the staged one
+  ASSERT_EQ(q.runs.size(), 1u);
+  q.runs[0].measurement.plan = "sim_staged";
+  q.runs[0].measurement.overrides.clear();
+  q.runs[0].extraction.script = "sim_blank";
+  const auto runs = lab.run(q);
+  ASSERT_EQ(runs.size(), 1u);
+  const auto& rec = runs[0].record;
+  ASSERT_EQ(rec.data.gases.size(), 2u);
+  ASSERT_TRUE(rec.data.gases[0].prepare && rec.data.gases[1].prepare);
+  EXPECT_EQ(rec.data.gases[0].prepare->variables.at("cryo_temp"), "35");
+  EXPECT_EQ(rec.data.gases[1].prepare->variables.at("cryo_temp"), "75");
+  ASSERT_TRUE(rec.data.gases[0].pump_out);
+  const auto he = mean_of(rec, "He4", "H1", "He");
+  const auto ne_in_he = mean_of(rec, "Ne20", "AX", "He");
+  const auto ne = mean_of(rec, "Ne20", "H1", "Ne");
+  ASSERT_TRUE(he && ne_in_he && ne);
+  record_value("he4_fA", *he);
+  record_value("ne20_in_he_fA", *ne_in_he);
+  record_value("ne20_fA", *ne);
+  EXPECT_GT(*he, 1e4);              // the helium is in
+  EXPECT_LT(*ne_in_he, 0.01 * *he);  // the neon was still frozen
+  EXPECT_GT(*ne, 100 * std::max(*ne_in_he, 1.0));  // and came with its own release
+}
+
 }  // namespace
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

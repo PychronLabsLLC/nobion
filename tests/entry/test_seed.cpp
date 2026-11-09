@@ -7,14 +7,14 @@
 #include <fstream>
 #include <sstream>
 
-#include "pychron/entry/package_edit.hpp"
-#include "pychron/entry/seed.hpp"
+#include "nobion/entry/package_edit.hpp"
+#include "nobion/entry/seed.hpp"
 #include "store_fixture.hpp"
 
-using namespace pychron;
-using namespace pychron::entry;
-using namespace pychron::persistence;
-using namespace pychron::persistence::testing;
+using namespace nobion;
+using namespace nobion::entry;
+using namespace nobion::persistence;
+using namespace nobion::persistence::testing;
 
 namespace {
 
@@ -154,7 +154,7 @@ std::string read_file(const std::string& path) {
 
 // The seed an instrument install ships.
 Seed shipped() {
-  auto s = parse_seed(read_file(std::string(PYCHRON_PROFILES_DIR) + "/instrument-common/seed.toml"));
+  auto s = parse_seed(read_file(std::string(NOBION_PROFILES_DIR) + "/instrument-common/seed.toml"));
   EXPECT_TRUE(s) << (s ? "" : s.error().what);
   return s ? *s : Seed{};
 }

@@ -8,7 +8,7 @@
 #include "sql/statements.hpp"
 #include "store_impl.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 namespace {
 
 struct StagedRevision {
@@ -194,4 +194,4 @@ Result<StagedRefs*> prepare_staged(IUnitOfWork& uow, Db& db, ChangesetKind kind,
   return static_cast<StagedRefs*>(tiny);
 }
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

@@ -18,9 +18,9 @@ list of commands, one per line, with a few Python rules (indentation matters).
 ## 1. Language and host
 
 Scripts are written in **Python 3**, run by an interpreter (CPython) built into
-the program. Nothing needs to be installed: an installed pychron carries its
+the program. Nothing needs to be installed: an installed nobion carries its
 own Python; a build from source uses the Python it was built with. (A build
-made without scripting, `-DPYCHRON_SCRIPTING=OFF`, can still open and edit
+made without scripting, `-DNOBION_SCRIPTING=OFF`, can still open and edit
 queues, but every script step fails with "not supported: scripting".)
 
 Scripts are **not** ordinary Python programs. They run in a restricted space:
@@ -46,6 +46,13 @@ the `.py`; a `:` stands for a folder (`co2:degas` is `co2/degas.py`).
 | `post_measurement` | the run's `post_measurement` | after the measurement, usually to pump out | `main()` |
 | `measurement_hooks` | the plan's or run's `hook` | at points of the measurement (section 10) | any of `before_main`, `after_main`, `on_whiff_result` |
 | `lib` | `gosub('name')` only | called from another script (section 4.7) | `main()` |
+| `safe_state.py` (one file in `scripts/`, not a folder) | nothing: found by its name | after a run that failed past its extraction, once the built-in safe state is done (the device off, the inlet closed, the detectors unprotected) | `main()` |
+
+A `safe_state.py` is the lab's own sequence to isolate and pump the line.
+It works the line only: `get_intensity` and `signal_pump_time_start` are not
+available in it, and a call to either fails it. A script that fails is a
+failed step of the safe state: a critical alarm says the line may not be
+safe. Without the file, only the built-in steps run.
 
 When a script is run, the file is first loaded, then its `main()` is called.
 Put your commands inside `main()`; do not give commands at the top level.
@@ -56,7 +63,7 @@ This is `configs/examples/scripts/extraction/laser_extract.py`, the example
 laser extraction:
 
 ```python
-#! pychron: eqtime=20
+#! nobion: eqtime=20
 # Isolate the prep section, drive the stage to the run's hole, heat for the
 # run's duration (or for as long as the run's pattern takes), then let the gas settle.
 
@@ -110,7 +117,7 @@ def main():
 for any run but a blank; `sim_air.py` and `sim_blank.py` are the air shot and
 its blank on their own.)
 
-The `#! pychron:` line is a header (section 8). Lines starting with `#` are
+The `#! nobion:` line is a header (section 8). Lines starting with `#` are
 comments. Indentation (four spaces) shows what belongs to `main()` and to
 `if`.
 
@@ -428,6 +435,74 @@ a command that your device cannot do (`dump_sample()` on a laser) is **not**
 flagged in the editor, but is flagged when a run using that device begins.
 Saving a script re-checks the queue's rows that name it.
 
+### 6.1 Rehearsing a script
+
+A rehearsal runs a script one hardware command at a time so that you can
+watch what it would do to the line before a run does it for real. **Nothing
+is actuated**: no valve moves, no device is told anything, and no wait takes
+any time. The script works on a copy of the line taken when the rehearsal
+starts (every valve's state, its locks and interlocks, and the latest
+pressures), and each `open` or `close` is judged by the same interlock rule
+the line itself applies, as the script would be judged in a run.
+
+Open a rehearsal in either of two ways:
+
+* In the script editor, **Experiment > Scripts > Rehearse…** rehearses the
+  script in the current tab, exactly as it stands, unsaved edits included.
+  Measurement hooks cannot be rehearsed.
+* From any window, **Experiment > Scripts > Rehearse Script…** asks which of
+  the lab's scripts to rehearse.
+
+There is one Rehearse Script window. Opening another rehearsal brings it
+forward and, if a rehearsal is still running there, asks before replacing it.
+The status bar reminds you that no valve is actuated.
+
+The window has four parts:
+
+* **Top:** the run's values the script reads (section 3): `analysis_type`,
+  `run_identifier`, `extract_value`, `extract_units` and `duration`, with the
+  rest under **More fields**. They start at the defaults a script sees with no
+  run. Change them to rehearse the script as a particular run would see it
+  (an `analysis_type` starting with `blank`, say). Your values are kept for a
+  restart.
+* **Left:** the extraction line as the rehearsal has it. It changes only as
+  the script's commands would change it, and it cannot be clicked to move a
+  valve. A valve the last step changed is outlined.
+* **Right:** the script, with the line it stands at shaded. When the script
+  is inside a `gosub`, the script it called is shown, with the scripts that
+  led there named above it.
+* **Bottom:** the step log, one row per command: its number, where it is
+  (`script:line`), the command as written, and what it would do ("would
+  open", "would be refused: …", "sleep 2 s", "= 2.5e-09"). A refused command
+  is shown in red, and the script then fails as it would in a run.
+
+The toolbar controls the rehearsal:
+
+* **Start** takes a copy of the line and starts the script. The script is
+  checked first; if the check finds errors, they are listed in the log, in
+  red, and nothing starts.
+* **Step** (F10) lets the command the script is stopped at go ahead; the
+  script then stops at the next one.
+* **Run to End** (Shift+F10) lets every command go ahead without stopping.
+  After 1000 commands without a stop it falls back to stepping, so a script
+  caught in a loop does not run on for good.
+* **Stop** ends the rehearsal.
+* **Restart** stops the rehearsal and starts it again over a new copy of the
+  line, with the same values in the fields.
+
+Step and Run to End are available only while the script is stopped at a
+command. When the script ends, the log's last row reads "finished" and the
+line keeps the state the script left it in.
+
+**Reads that need a value.** A command that reads something (`get_pressure`,
+`get_manometer_pressure`, `get_intensity`, `get_value`, `is_enabled`, and the
+like) is answered from the copy when the copy holds a value for it, which is
+the case for a pressure gauge the line reads. Otherwise the rehearsal stops
+and the step's row holds a field: type the value the script should see and
+press Enter. For a command that answers yes or no (`is_enabled`), type a
+number: anything but 0 is yes. Such a stop waits for its value even during
+Run to End.
+
 ## 7. What the checker and the run enforce
 
 Every script is checked **statically** (read, not run) in the script editor
@@ -441,7 +516,7 @@ script check failed: extraction/laser_extract.py:9: unknown-command: unknown com
 | Code | Meaning |
 |---|---|
 | `syntax` | The text is not valid Python. |
-| `header` | A `#! pychron:` line is malformed. |
+| `header` | A `#! nobion:` line is malformed. |
 | `unknown-command` | A function that is not a command, a function you defined, or an allowed built-in (usually a typo). |
 | `unknown-name` | A variable that is not defined. |
 | `arity` | A command called with the wrong number or names of arguments (for example `sleep(1, 2, 3)`). |
@@ -471,7 +546,7 @@ command), and no `eval`, `exec`, `getattr`, `type` or `__import__`.
 A line anywhere in a script of the form
 
 ```python
-#! pychron: eqtime=20, label="two words"
+#! nobion: eqtime=20, label="two words"
 ```
 
 is a header: `key=value` pairs separated by commas or spaces, a value may be

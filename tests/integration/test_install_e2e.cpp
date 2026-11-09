@@ -29,36 +29,45 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/entry/seed.hpp"
-#include "pychron/experiment/lab/session.hpp"
-#include "pychron/experiment/model/queue_file.hpp"
-#include "pychron/experiment/record/names.hpp"
-#include "pychron/experiment/store/store_persister.hpp"
-#include "pychron/persistence/blob.hpp"
-#include "pychron/persistence/store.hpp"
-#include "pychron/processing/record_source.hpp"
-#include "pychron/processing/store_source.hpp"
-#include "pychron/scripting/script_host.hpp"
-#include "pychron/setup/doctor.hpp"
-#include "pychron/setup/install.hpp"
-#include "pychron/setup/installer.hpp"
-#include "pychron/setup/profile.hpp"
-#include "pychron/setup/site.hpp"
-#include "pychron/sim/gas.hpp"
-#include "pychron/sim/spectrometer/beam_model.hpp"
-#include "pychron/systems/extraction_line.hpp"
-#include "pychron/systems/spectrometer/bringup.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/entry/seed.hpp"
+#include "nobion/experiment/lab/session.hpp"
+#include "nobion/experiment/model/queue_file.hpp"
+#include "nobion/experiment/record/names.hpp"
+#include "nobion/experiment/store/store_persister.hpp"
+#include "nobion/persistence/blob.hpp"
+#include "nobion/persistence/store.hpp"
+#include "nobion/processing/record_source.hpp"
+#include "nobion/processing/store_source.hpp"
+#include "nobion/scripting/script_host.hpp"
+#include "nobion/setup/doctor.hpp"
+#include "nobion/setup/install.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/setup/profile.hpp"
+#include "nobion/setup/site.hpp"
+#include "nobion/sim/gas.hpp"
+#include "nobion/sim/spectrometer/beam_model.hpp"
+#include "nobion/systems/extraction_line.hpp"
+#include "nobion/systems/spectrometer/bringup.hpp"
 #include "store_fixture.hpp"
 #include "virtual_time.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 namespace fs = std::filesystem;
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 using namespace std::chrono_literals;
+
+// How the data window opens the store: under the Ar-Ar domain's reduction
+// version (this suite does not link the domain; arar::store_source_options()
+// gives the same), so a source that caches has one.
+processing::StoreSourceOptions store_source_options() {
+  processing::StoreSourceOptions options;
+  options.reduction_version = "arar-1";
+  return options;
+}
 
 // An environment variable set for the life of this object, then put back.
 class ScopedEnv {
@@ -141,17 +150,17 @@ struct Ran {
   std::size_t pending = 0;
 };
 
-class InstallE2E : public pychron::testing::VirtualTimeTest, public ::testing::WithParamInterface<std::string> {
+class InstallE2E : public nobion::testing::VirtualTimeTest, public ::testing::WithParamInterface<std::string> {
  protected:
   // The queue run twice is 24 to 27 s under AddressSanitizer on a four-core
   // CI runner, and past 30 with every core busy; ctest gives a test 120.
   InstallE2E() : VirtualTimeTest(90s) {}
 
   void SetUp() override {
-    if (!scripting::scripting_enabled()) GTEST_SKIP() << "the shipped queue's scripts need PYCHRON_SCRIPTING";
-    dir_ = pychron::testing::unique_temp_path("pychron-e2e-");
+    if (!scripting::scripting_enabled()) GTEST_SKIP() << "the shipped queue's scripts need NOBION_SCRIPTING";
+    dir_ = nobion::testing::unique_temp_path("nobion-e2e-");
     fs::create_directories(dir_);
-    site_config_.emplace("PYCHRON_SITE_CONFIG", (dir_ / "site.toml").string());
+    site_config_.emplace("NOBION_SITE_CONFIG", (dir_ / "site.toml").string());
     install();
     if (HasFatalFailure()) return;
     make_database();
@@ -163,7 +172,7 @@ class InstallE2E : public pychron::testing::VirtualTimeTest, public ::testing::W
   // and writes it.
   void install() {
     const fs::path root = dir_ / "lab";
-    auto library = setup::ProfileLibrary::load(fs::path(PYCHRON_PROFILES_DIR), fs::path(PYCHRON_EXAMPLE_CONFIGS_DIR));
+    auto library = setup::ProfileLibrary::load(fs::path(NOBION_PROFILES_DIR), fs::path(NOBION_EXAMPLE_CONFIGS_DIR));
     ASSERT_TRUE(library) << library.error().what;
     auto resolved = library->resolve("argus");
     ASSERT_TRUE(resolved) << resolved.error().what;
@@ -238,7 +247,8 @@ class InstallE2E : public pychron::testing::VirtualTimeTest, public ::testing::W
 
     lab_ = lab::load_lab({site_.root, site_.path(site_.line), site_.path(site_.spectrometer)});
     ASSERT_TRUE(lab_.problems.empty()) << lab_.problems.front();
-    auto queue = load_queue_file((site_.root / "experiment.toml").string(), lab_.ids);
+    ASSERT_TRUE(lab_.step_heats.contains("laser-12"));
+    auto queue = load_queue_file((site_.root / "queues" / "experiment.toml").string(), lab_.ids);
     ASSERT_TRUE(queue) << queue.error().what;
     queue_ = *queue;
   }
@@ -296,7 +306,7 @@ class InstallE2E : public pychron::testing::VirtualTimeTest, public ::testing::W
 
   // Run ids as the data window lists them: newest first.
   std::vector<processing::AnalysisSummary> browse() const {
-    auto source = processing::StoreSource::open(ps::StoreConfig{url_, false});
+    auto source = processing::StoreSource::open(ps::StoreConfig{url_, false}, store_source_options());
     if (!source) {
       ADD_FAILURE() << source.error().what;
       return {};
@@ -458,7 +468,7 @@ TEST_P(InstallE2E, AFreshInstallsQueueLandsInItsDatabase) {
               total_ms / static_cast<double>(ran.saved.size()), ran.saved.size());
 
   // The data window's reader, opened on this thread.
-  auto opened = processing::StoreSource::open(ps::StoreConfig{url_, false});
+  auto opened = processing::StoreSource::open(ps::StoreConfig{url_, false}, store_source_options());
   ASSERT_TRUE(opened) << opened.error().what;
   processing::StoreSource& source = **opened;
   auto page = source.browse({});
@@ -576,7 +586,7 @@ TEST_P(InstallE2E, EveryShippedPlanIsStoredAndReadsAsItsRecord) {
                            "positions = { Ar36 = \"CDD\" }\nposition = { detector = \"CDD\" }\n\n");
   std::ofstream(site_.root / "plans" / "hop_baseline.toml") << hop_plan;
 
-  std::string text = "[queue]\nname = \"every-plan\"\nmass_spectrometer = \"argus\"\nusername = \"pychron\"\n";
+  std::string text = "[queue]\nname = \"every-plan\"\nmass_spectrometer = \"argus\"\nusername = \"nobion\"\n";
   auto plans = shipped;
   plans.emplace_back("hop_baseline");
   for (const auto& plan : plans) {
@@ -602,7 +612,7 @@ TEST_P(InstallE2E, EveryShippedPlanIsStoredAndReadsAsItsRecord) {
   EXPECT_EQ(ran.pending, 0u);
   ASSERT_EQ(ran.saved.size(), plans.size());
 
-  auto opened = processing::StoreSource::open(ps::StoreConfig{url_, false});
+  auto opened = processing::StoreSource::open(ps::StoreConfig{url_, false}, store_source_options());
   ASSERT_TRUE(opened) << opened.error().what;
   processing::StoreSource& source = **opened;
   auto store = ps::open_store(ps::StoreConfig{url_, false});
@@ -642,8 +652,8 @@ TEST_P(InstallE2E, EveryShippedPlanIsStoredAndReadsAsItsRecord) {
       }
       std::sort(keys.begin(), keys.end());
       EXPECT_EQ(keys, (std::vector<std::string>{"AX:Ar40", "H1:Ar40", "L1:Ar40", "L2:Ar40"}));
-      // The record itself keeps the acquisition's names.
-      EXPECT_TRUE(rec.results.intercepts.contains("Ar40:H1"));
+      // The record keeps the acquisition's names, read in v3 terms.
+      EXPECT_TRUE(rec.results.intercepts.contains("Ar40@H1"));
     }
     if (plans[i] == "hop_baseline") {
       std::size_t in_record = 0, points = 0;
@@ -668,4 +678,4 @@ TEST_P(InstallE2E, EveryShippedPlanIsStoredAndReadsAsItsRecord) {
 INSTANTIATE_TEST_SUITE_P(Engines, InstallE2E, ::testing::ValuesIn(ps::testing::engines()));
 
 }  // namespace
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

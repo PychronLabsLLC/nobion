@@ -1,6 +1,6 @@
 // ProXR relay driver over scripted, replayed and hooked SimTransports.
 
-#include "pychron/devices/proxr_relay.hpp"
+#include "nobion/devices/proxr_relay.hpp"
 
 #include <gtest/gtest.h>
 
@@ -10,12 +10,12 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/devices/capabilities.hpp"
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/devices/proxr_board_sim.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/devices/proxr_board_sim.hpp"
+#include "nobion/transport/sim_transport.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {
@@ -168,7 +168,7 @@ TEST(ProxrRelay, ClosedTransportIsNotConnected) {
 }
 
 TEST(ProxrRelay, ReplaysTrace) {
-  auto t = SimTransport::replay(PYCHRON_TRACES_DIR "/proxr/open_read_close_read.trace", opts());
+  auto t = SimTransport::replay(NOBION_TRACES_DIR "/proxr/open_read_close_read.trace", opts());
   ASSERT_TRUE(t) << t.error().what;
   ASSERT_TRUE((*t)->open());
   ProxrRelay relay("actuator1", **t);

@@ -3,24 +3,26 @@
 
 #include "export.hpp"
 
+#include <algorithm>
 #include <filesystem>
 #include <optional>
 #include <ostream>
 #include <string_view>
 
-#include "pychron/core/error.hpp"
-#include "pychron/processing/report.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/core/build_info.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/arar/report.hpp"
+#include "nobion/processing/units.hpp"
 #include "selection.hpp"
 
 namespace elctl {
 
 namespace fs = std::filesystem;
-namespace pp = pychron::processing;
-using pychron::Error;
-using pychron::ErrorKind;
-using pychron::fail;
-using pychron::Result;
+namespace pp = nobion::processing;
+using nobion::Error;
+using nobion::ErrorKind;
+using nobion::fail;
+using nobion::Result;
 
 namespace {
 
@@ -133,11 +135,15 @@ bool any_step(const pp::Dataset& d) {
   return false;
 }
 
-int run(const Args& a, Io io) {
-  auto source = open_source(a.db);
+int run(const Args& a, const pp::Domain& domain, Io io) {
+  // The report is the Ar-Ar one: a domain without that exporter has no report to write.
+  const auto exporters = domain.exporters();
+  if (std::none_of(exporters.begin(), exporters.end(), [](const pp::Exporter& e) { return e.id == "schaen"; }))
+    return fatal(io, "needs domain arar (this install: " + std::string(domain.id()) + ")");
+  auto source = open_source(a.db, store_options(domain));
   if (!source) return fatal(io, source.error());
 
-  const auto& reg = pp::UnitRegistry::builtin();
+  const auto& reg = domain.units();
   pp::Pipeline pipeline;
   pipeline.name = "export";
   if (auto selected = add_select(pipeline, reg, a.selection); !selected) return fatal(io, selected.error());
@@ -146,12 +152,13 @@ int run(const Args& a, Io io) {
     if (!ok) return ok.error();
     return std::nullopt;
   };
-  auto& reduce = pipeline.add(reg, "reduce", "reduce", {"select"});
+  pipeline.add(reg, "reduce", "reduce", {"select"});
+  auto& reduce = pipeline.add(reg, "arar_reduce", "arar_reduce", {"reduce"});
   if (auto e = set(reduce, "constants", a.ages.constants)) return fatal(io, *e);
   if (auto e = set(reduce, "include_decay_error", a.ages.decay_error)) return fatal(io, *e);
 
-  pp::Runner runner(reg, source->get());
-  auto reduced = runner.run(pipeline, "reduce");
+  pp::Runner runner(reg, source->get(), &domain);
+  auto reduced = runner.run(pipeline, "arar_reduce");
   if (!reduced) return fatal(io, reduced.error());
   const auto& before_grouping = std::get<pp::DatasetPtr>(reduced->at(0));
   if (before_grouping->empty()) {
@@ -160,7 +167,7 @@ int run(const Args& a, Io io) {
   }
   std::string key = a.group_by;
   if (key == "auto") key = any_step(*before_grouping) ? "aliquot" : "identifier";
-  auto& group = pipeline.add(reg, "group", "group", {"reduce"});
+  auto& group = pipeline.add(reg, "group", "group", {"arar_reduce"});
   if (auto e = set(group, "key", key)) return fatal(io, *e);
   auto grouped = runner.run(pipeline, "group");
   if (!grouped) return fatal(io, grouped.error());
@@ -171,9 +178,7 @@ int run(const Args& a, Io io) {
   options.nsigma = a.sigma;
   options.laboratory = a.lab;
   options.notes = a.notes;
-#ifdef PYCHRON_ELCTL_VERSION
-  options.software = std::string("pychron-cpp ") + PYCHRON_ELCTL_VERSION;
-#endif
+  options.software = "nobion " + nobion::build_id();
   options.plateau = a.ages.criteria();
   const pp::Report report = pp::make_report(*dataset, options);
   for (const auto& w : report.warnings) io.err << "warning: " << w << '\n';
@@ -185,7 +190,7 @@ int run(const Args& a, Io io) {
 
 }  // namespace
 
-int export_command(const std::vector<std::string>& args, Io io) {
+int export_command(const std::vector<std::string>& args, const pp::Domain& domain, Io io) {
   if (!args.empty() && (args[0] == "help" || args[0] == "--help")) {
     io.out << kUsageText;
     return kOk;
@@ -195,7 +200,7 @@ int export_command(const std::vector<std::string>& args, Io io) {
   // No exception leaves a library, but std::filesystem can throw: a fatal
   // error like any other.
   try {
-    return run(*parsed, io);
+    return run(*parsed, domain, io);
   } catch (const std::exception& e) {
     return fatal(io, e.what());
   }

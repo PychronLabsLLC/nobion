@@ -13,13 +13,18 @@
 
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <set>
+#include <map>
 #include <memory>
+#include <ostream>
 #include <vector>
 #include <string>
 #include <string_view>
@@ -27,34 +32,47 @@
 #include <system_error>
 
 #include "virtual_time.hpp"
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/systems/jobs/job_runner.hpp"
-#include "pychron/core/config/loader.hpp"
-#include "pychron/experiment/conditionals/library.hpp"
-#include "pychron/experiment/executor/executor.hpp"
-#include "pychron/experiment/plan/plan_library.hpp"
-#include "pychron/scripting/script_host.hpp"
-#include "pychron/experiment/measurement/adapters.hpp"
-#include "pychron/experiment/measurement/engine.hpp"
-#include "pychron/experiment/measurement/results.hpp"
-#include "pychron/experiment/record/serialize.hpp"
-#include "pychron/experiment/plan/plan_loader.hpp"
-#include "pychron/sim/spectrometer/beam_model.hpp"
-#include "pychron/systems/canvas/loader.hpp"
-#include "pychron/systems/spectrometer/assembler.hpp"
-#include "pychron/systems/spectrometer/config_loader.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/systems/jobs/job_runner.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/experiment/conditionals/library.hpp"
+#include "nobion/experiment/executor/executor.hpp"
+#include "nobion/experiment/plan/plan_library.hpp"
+#include "nobion/scripting/script_host.hpp"
+#include "nobion/experiment/measurement/adapters.hpp"
+#include "nobion/experiment/measurement/engine.hpp"
+#include "nobion/experiment/measurement/results.hpp"
+#include "nobion/experiment/record/serialize.hpp"
+#include "nobion/experiment/plan/plan_loader.hpp"
+#include "nobion/sim/spectrometer/beam_model.hpp"
+#include "nobion/systems/canvas/loader.hpp"
+#include "nobion/systems/spectrometer/assembler.hpp"
+#include "nobion/systems/spectrometer/config_loader.hpp"
 #include "temp_path.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment;
-using namespace pychron::experiment::measurement;
+using namespace nobion;
+using namespace nobion::experiment;
+using namespace nobion::experiment::measurement;
 using namespace std::chrono_literals;
-using collect::SeriesKind;
+using collect::merged_series;
 
 namespace {
 
-const std::filesystem::path kDir(PYCHRON_EXAMPLE_CONFIGS_DIR);
-const std::filesystem::path kPlans(PYCHRON_PLAN_FIXTURES_DIR);
+// The intercept of a label measured on one detector: the result keyed
+// "<label>@<detector>"; nullptr when there is none, or several.
+const record::InterceptResult* intercept_of(const FitOutput& fits, std::string_view label) {
+  const record::InterceptResult* found = nullptr;
+  const std::string prefix = std::string(label) + "@";
+  for (const auto& [key, ir] : fits.results.intercepts) {
+    if (!key.starts_with(prefix)) continue;
+    if (found != nullptr) return nullptr;
+    found = &ir;
+  }
+  return found;
+}
+
+const std::filesystem::path kDir(NOBION_EXAMPLE_CONFIGS_DIR);
+const std::filesystem::path kPlans(NOBION_PLAN_FIXTURES_DIR);
 
 std::string read_file(const std::filesystem::path& p) {
   std::ifstream in(p);
@@ -122,13 +140,22 @@ baseline = { default = "average" }
 expose = ["main.cycles"]
 )";
 
-class MeasurementSim : public pychron::testing::VirtualTimeTest {
+class MeasurementSim : public nobion::testing::VirtualTimeTest {
  protected:
+  explicit MeasurementSim(std::chrono::seconds dead_man = std::chrono::seconds(30)) : VirtualTimeTest(dead_man) {}
+
   void SetUp() override {
     // Extraction line: settle times zeroed so valve moves do not wait.
     auto cfg = config::load_system_config(kDir / "extraction_line.toml");
     ASSERT_TRUE(cfg) << cfg.error().what;
     for (auto& v : cfg->valves) v.settle_ms = 0;
+    if (const auto scan = line_scan_interval_ms()) cfg->system.scan_interval_ms = *scan;
+    for (const auto& [key, valve] : extra_aliases()) {
+      config::AliasConfig alias;
+      alias.key = key;
+      alias.value = valve;
+      cfg->aliases[key] = alias;
+    }
     aliases_ = std::make_unique<SystemConfigAliases>(*cfg);
     auto canvas = canvas::load_canvas(kDir / "canvas.toml");
     ASSERT_TRUE(canvas) << canvas.error().what;
@@ -144,9 +171,10 @@ class MeasurementSim : public pychron::testing::VirtualTimeTest {
     });
 
     // Spectrometer on one BeamModel whose peaks follow the config's table.
-    auto data = spectrometer::cfg::load_spectrometer(kDir / "spectrometer.sim-integrated.toml");
+    auto data = spectrometer::cfg::load_spectrometer(spectrometer_config());
     ASSERT_TRUE(data) << data.error().what;
-    catalog_ = std::make_unique<SpectrometerCatalog>(data->config);
+    reference_ = data->config.system.reference_detector;
+    catalog_ = std::make_unique<SpectrometerCatalog>(data->config, data->weights, table_names(*data));
     auto table = spectrometer::to_field_table(data->tables.at(data->config.magnet.field_table));
     sim::BeamSettings settings;
     settings.nominal_hv = *data->config.source.nominal_hv;
@@ -156,8 +184,12 @@ class MeasurementSim : public pychron::testing::VirtualTimeTest {
     };
     beam_ = std::make_shared<sim::BeamModel>(clock_, settings);
     sim::BeamModelRegistry::global().set("default", beam_);
+    // Peak center saves its table update under the data root: a scratch
+    // directory, not the shipped examples.
+    spectrometer::SpectrometerAssembler::Options assembler;
+    assembler.spectrometer.data_root = data_root_;
     auto spec = spectrometer::SpectrometerAssembler::assemble(
-        std::move(*data), spectrometer::SpectrometerContext{clock_, scheduler_, bus_});
+        std::move(*data), spectrometer::SpectrometerContext{clock_, scheduler_, bus_}, std::move(assembler));
     ASSERT_TRUE(spec) << spec.error().what;
     spec_ = std::move(*spec);
     scheduler_.start();
@@ -168,9 +200,20 @@ class MeasurementSim : public pychron::testing::VirtualTimeTest {
     spec_.reset();
     line_.reset();
     sim::BeamModelRegistry::global().clear();
+    std::error_code ec;
+    std::filesystem::remove_all(data_root_, ec);
   }
 
   plan::PlanResolvers resolvers() const { return plan::PlanResolvers{aliases_.get(), catalog_.get()}; }
+
+  std::filesystem::path data_root_ = nobion::testing::unique_temp_path("measurement_sim_data_");
+  // The ARGUS-like integrated simulator of configs/examples; a suite on
+  // another spectrometer names its own.
+  virtual std::filesystem::path spectrometer_config() const { return kDir / "spectrometer.sim-integrated.toml"; }
+  // The line's scan interval when not the config's.
+  virtual std::optional<std::int64_t> line_scan_interval_ms() const { return std::nullopt; }
+  // [aliases] the example line does not have (key -> value), added to it.
+  virtual std::map<std::string, std::string> extra_aliases() const { return {}; }
 
   VirtualClock clock_;  // before everything that is given a reference to it
   // Time moves only while the test waits in the clock (a measurement, a job).
@@ -182,6 +225,7 @@ class MeasurementSim : public pychron::testing::VirtualTimeTest {
   std::unique_ptr<SpectrometerCatalog> catalog_;
   std::shared_ptr<sim::BeamModel> beam_;
   std::unique_ptr<spectrometer::Spectrometer> spec_;
+  std::string reference_;  // spectrometer.toml's reference_detector
   SignalBus::Subscription valve_sub_;
   std::mutex mutex_;
   std::vector<std::string> valve_events_;
@@ -195,7 +239,12 @@ TEST_F(MeasurementSim, ShippedConfigsResolveTheExamplePlan) {
   EXPECT_EQ(loaded->plan.equilibration.inlet, "B");
   EXPECT_EQ(loaded->plan.equilibration.outlet, "C");
   EXPECT_DOUBLE_EQ(loaded->plan.equilibration.time_s, 20);
-  EXPECT_EQ(loaded->plan.sniff.counts, 20);
+  ASSERT_EQ(loaded->plan.gases.size(), 1u);
+  const auto& segs = loaded->plan.gases.front().segments;
+  const auto sniff = std::find_if(segs.begin(), segs.end(),
+                                  [](const plan::Segment& s) { return s.kind == plan::SegmentKind::Sniff; });
+  ASSERT_NE(sniff, segs.end());
+  EXPECT_EQ(sniff->positions.at(0).counts, 20);
 
   // A detector the spectrometer does not have is caught by the catalog.
   auto text = read_file(kPlans / "multicollect.toml");
@@ -236,18 +285,18 @@ TEST_F(MeasurementSim, MeasuresThroughTheRealFacades) {
   EXPECT_NEAR(*r.data.timing.inlet_close - *r.data.timing.inlet_open, 20.0, 1.5);
 
   // Series: two cycles of each hop.
-  EXPECT_EQ(r.data.series.at({"Ar40", "H1", SeriesKind::Signal}).v.size(), 30u);
-  EXPECT_EQ(r.data.series.at({"Ar39", "H2", SeriesKind::Signal}).v.size(), 30u);
-  EXPECT_EQ(r.data.series.at({"Ar36", "CDD", SeriesKind::Signal}).v.size(), 30u);
-  EXPECT_EQ(r.data.series.at({"Ar40", "H1", SeriesKind::Sniff}).v.size(), 10u);
+  EXPECT_EQ(merged_series(r.data, "Ar40", "H1", collect::kSignal).value().v.size(), 30u);
+  EXPECT_EQ(merged_series(r.data, "Ar39", "H2", collect::kSignal).value().v.size(), 30u);
+  EXPECT_EQ(merged_series(r.data, "Ar36", "CDD", collect::kSignal).value().v.size(), 30u);
+  EXPECT_EQ(merged_series(r.data, "Ar40", "H1", collect::kSniff).value().v.size(), 10u);
   EXPECT_EQ(r.data.counts.at("baseline.after"), 10);
 
   // Intercepts recover the BeamModel's gas (default argon abundances).
-  auto fits = fit_results(r.data, loaded->plan.fits);
+  auto fits = fit_results(r.data, loaded->plan);
   ASSERT_TRUE(fits.errors.empty()) << fits.errors.front();
-  const double ar40 = fits.results.intercepts.at("Ar40").intercept.value;
-  const double ar39 = fits.results.intercepts.at("Ar39").intercept.value;
-  const double ar36 = fits.results.intercepts.at("Ar36").intercept.value;
+  const double ar40 = intercept_of(fits, "Ar40")->intercept.value;
+  const double ar39 = intercept_of(fits, "Ar39")->intercept.value;
+  const double ar36 = intercept_of(fits, "Ar36")->intercept.value;
   EXPECT_NEAR(ar40, 1e6, 1e6 * 0.01);
   EXPECT_NEAR(ar39, 1e4, 1e4 * 0.01);
   EXPECT_NEAR(ar40 / ar39, 100.0, 1.5);
@@ -303,9 +352,9 @@ TEST_F(MeasurementSim, InstrumentMetricsAnswerConditionals) {
   EXPECT_TRUE(check("L1.inactive and not H1.inactive"));
   EXPECT_TRUE(check("gauge.IG1.pressure > 0"));
   EXPECT_TRUE(check("device.chiller < 15"));
-  EXPECT_FALSE(metrics.scalar(MetricRef{MetricRef::Kind::Device, "pump", "", ""}));
-  EXPECT_FALSE(metrics.scalar(MetricRef{MetricRef::Kind::Gauge, "nope", "", "pressure"}));
-  EXPECT_FALSE(metrics.scalar(MetricRef{MetricRef::Kind::Isotope, "Ar40", "", ""}));
+  EXPECT_FALSE(metrics.scalar(MetricRef{MetricRef::Kind::Device, "pump", "", "", "", ""}));
+  EXPECT_FALSE(metrics.scalar(MetricRef{MetricRef::Kind::Gauge, "nope", "", "pressure", "", ""}));
+  EXPECT_FALSE(metrics.scalar(MetricRef{MetricRef::Kind::Isotope, "Ar40", "", "", "", ""}));
 }
 
 TEST_F(MeasurementSim, LabConditionalsActOnLiveData) {
@@ -343,7 +392,7 @@ TEST_F(MeasurementSim, LabConditionalsActOnLiveData) {
   ASSERT_EQ(r.data.trips.size(), 1u);
   EXPECT_EQ(r.data.trips[0].name, "plan.truncation[0]");
   EXPECT_EQ(r.data.trips[0].reading, 4);
-  EXPECT_EQ(r.data.series.at({"Ar40", "H1", SeriesKind::Signal}).v.size(), 4u);
+  EXPECT_EQ(merged_series(r.data, "Ar40", "H1", collect::kSignal).value().v.size(), 4u);
   // The vacuum check read the live gauge through InstrumentMetrics without errors.
   for (const auto& e : r.conditional_errors) EXPECT_NE(e.name, "vacuum_excursion") << e.message;
   const auto rec = to_record_conditionals(r.installed, r.data.trips, r.conditional_errors);
@@ -359,7 +408,7 @@ TEST_F(MeasurementSim, ExecutorRunsAQueueOnTheSimLab) {
   plans.add(*tmpl);
   DirectoryConditionalSource source(kDir / "conditionals");
   ConditionalLibrary library(source);
-  const auto scratch = pychron::testing::unique_temp_path("executor_sim_");
+  const auto scratch = nobion::testing::unique_temp_path("executor_sim_");
   persist::FilePersister files(scratch / "records");
   persist::Spool spool(scratch / "spool");
   persist::SavePipeline save(spool, files);
@@ -434,7 +483,7 @@ TEST_F(MeasurementSim, ExecutorRunsAQueueOnTheSimLab) {
     const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     auto rec = record::from_json(text);
     ASSERT_TRUE(rec) << rec.error().what;
-    EXPECT_NEAR(rec->results.intercepts.at("Ar40").intercept.value, 1e6, 1e4);
+    EXPECT_NEAR(rec->results.intercepts.at("Ar40@H1").intercept.value, 1e6, 1e4);  // read in v3 terms
     EXPECT_FALSE(rec->spectrometer.state_hash.empty());
     EXPECT_FALSE(rec->conditionals.installed.empty());
     if (host->available()) {
@@ -487,11 +536,59 @@ TEST_F(MeasurementSim, PeakCenterFindsAnOffsetPeakAndTheNextRunMeasuresOnIt) {
     EXPECT_TRUE(pc.table_updated);
     EXPECT_NEAR(*pc.center, table_before + 0.025, 0.004);
     // Measured on the peak: the full Ar40 signal.
-    auto fits = fit_results(r.data, loaded->plan.fits);
-    EXPECT_NEAR(fits.results.intercepts.at("Ar40").intercept.value, 1e6, 1e4);
+    auto fits = fit_results(r.data, loaded->plan);
+    EXPECT_NEAR(intercept_of(fits, "Ar40")->intercept.value, 1e6, 1e4);
   }
   ASSERT_TRUE(peak_center.last());
   EXPECT_FALSE(peak_center.last()->tries.empty());
+}
+
+// A peak center step's write_table (plan Task 16): the center goes into the
+// run's own copy of the current table, which a later position selects; the
+// current table is untouched, and nothing is left behind after the run.
+TEST_F(MeasurementSim, WriteTableIsUsedByLaterPositions) {
+  sim::BeamDetector ax;
+  ax.name = "AX";
+  ax.offset = 0.02;
+  beam_->add_detector(ax);
+  jobs::PeakCenterConfig wide;
+  wide.name = "wide";
+  wide.window = 0.08;
+  wide.step = 0.002;
+  wide.integration = std::chrono::seconds(1);
+  SpectrometerPeakCenter peak_center(*spec_, {{"wide", wide}});
+  const auto current = spec_->field_table();
+  const std::string current_name = spec_->active_table();
+
+  PeakCenterRequest request;
+  request.isotope = "Ar40";
+  request.detector = "AX";
+  request.config = "wide";
+  request.write_table = "ic_run";
+  scripting::CancelToken token;
+  auto report = peak_center.peak_center(request, token);
+  ASSERT_TRUE(report) << report.error().what;
+  ASSERT_TRUE(report->ok) << report->message;
+  ASSERT_TRUE(report->table_value);
+  EXPECT_EQ(spec_->field_table(), current);  // the current table is as it was
+  EXPECT_EQ(spec_->active_table(), current_name);
+  ASSERT_TRUE(spec_->is_run_table("ic_run"));
+
+  // A later position on the run's table goes to the center found.
+  SpectrometerPort port(*spec_);
+  ASSERT_TRUE(port.with_table("ic_run"));
+  const auto table = spec_->field_table();
+  const auto row = std::find_if(table.points().begin(), table.points().end(),
+                                [](const spectrometer::ControlPoint& p) { return p.isotope == "Ar40"; });
+  ASSERT_NE(row, table.points().end());
+  EXPECT_DOUBLE_EQ(row->values.at("AX"), *report->table_value);
+  ASSERT_TRUE(port.position(plan::AtLabel{"Ar40", "AX"}));
+  EXPECT_NEAR(*spec_->magnet_native(), *report->center, 1e-6);
+  ASSERT_TRUE(port.with_table(""));
+
+  peak_center.drop_run_tables();
+  EXPECT_FALSE(spec_->is_run_table("ic_run"));
+  EXPECT_FALSE(spec_->with_table("ic_run"));
 }
 
 // ---- SpectrometerPeakCenter and the run's token ------------------------------
@@ -522,7 +619,7 @@ class SpectrometerPeakCenterSim : public MeasurementSim {
   Result<PeakCenterReport> cancel_part_way(SpectrometerPeakCenter& peak_center, scripting::CancelToken& token) {
     std::atomic<bool> gave_up{false};
     const auto started = clock_.now();
-    pychron::testing::Crew crew(clock_);
+    nobion::testing::Crew crew(clock_);
     crew.start("canceller", [&] {
       while (!spec_->acquisition().running() && clock_.now() - started < 60s) clock_.sleep_for(100ms);
       gave_up = !spec_->acquisition().running();
@@ -657,7 +754,7 @@ TEST_F(SpectrometerPeakCenterSim, ARunAlreadyCancelledDoesNotRunTheJob) {
 // The same spectrometer with nothing but the scheduler's dispatcher (no
 // workers): it runs the acquisition polls and the test's thread, a
 // participant, runs the job. A stall is reported to the test.
-class SpectrometerPeakCenterVirtual : public pychron::testing::VirtualTimeTest {
+class SpectrometerPeakCenterVirtual : public nobion::testing::VirtualTimeTest {
  protected:
   static VirtualClock::Options options(SpectrometerPeakCenterVirtual* self) {
     VirtualClock::Options o;
@@ -682,8 +779,12 @@ class SpectrometerPeakCenterVirtual : public pychron::testing::VirtualTimeTest {
     };
     beam_ = std::make_shared<sim::BeamModel>(clock_, settings);
     sim::BeamModelRegistry::global().set("default", beam_);
+    // Peak center saves its table update under the data root: a scratch
+    // directory, not the shipped examples.
+    spectrometer::SpectrometerAssembler::Options assembler;
+    assembler.spectrometer.data_root = data_root_;
     auto spec = spectrometer::SpectrometerAssembler::assemble(
-        std::move(*data), spectrometer::SpectrometerContext{clock_, scheduler_, bus_});
+        std::move(*data), spectrometer::SpectrometerContext{clock_, scheduler_, bus_}, std::move(assembler));
     ASSERT_TRUE(spec) << spec.error().what;
     spec_ = std::move(*spec);
     scheduler_.start();
@@ -693,6 +794,8 @@ class SpectrometerPeakCenterVirtual : public pychron::testing::VirtualTimeTest {
     scheduler_.stop();
     spec_.reset();
     sim::BeamModelRegistry::global().clear();
+    std::error_code ec;
+    std::filesystem::remove_all(data_root_, ec);
   }
 
   std::vector<std::string> stalls() {
@@ -702,6 +805,7 @@ class SpectrometerPeakCenterVirtual : public pychron::testing::VirtualTimeTest {
 
   std::mutex mutex_;
   std::vector<std::string> stalls_;
+  std::filesystem::path data_root_ = nobion::testing::unique_temp_path("measurement_sim_data_");
   VirtualClock clock_{options(this)};  // before everything that is given a reference to it
   Clock::Participant test_{clock_, "test"};
   SignalBus bus_;
@@ -734,5 +838,382 @@ TEST_F(SpectrometerPeakCenterVirtual, CompletesOnAVirtualClockWithoutAStall) {
   // Nothing kept time standing.
   EXPECT_TRUE(stalls().empty()) << stalls().front();
 }
+
+// The spectrometer port's per-position calls on the real facade and the
+// simulated drivers (plan v2, spec 5.3).
+class SpectrometerPortSim : public MeasurementSim {};
+
+TEST_F(SpectrometerPortSim, DacAndHvPositioning) {
+  SpectrometerPort port(*spec_);
+  ASSERT_TRUE(port.position(plan::AtDac{6.25}));
+  auto native = spec_->magnet_native();
+  ASSERT_TRUE(native) << native.error().what;
+  EXPECT_NEAR(*native, 6.25, 1e-9);
+
+  ASSERT_TRUE(port.position(plan::AtHv{4400, "H1"}));
+  clock_.sleep_for(5s);  // the simulated supply ramps
+  auto hv = spec_->read_hv();
+  ASSERT_TRUE(hv) << hv.error().what;
+  EXPECT_NEAR(*hv, 4400, 1e-6);
+
+  // A label goes through the field table: the magnet moves off the raw value.
+  ASSERT_TRUE(port.position(plan::AtLabel{"Ar40", "H1"}));
+  native = spec_->magnet_native();
+  ASSERT_TRUE(native);
+  EXPECT_GT(std::abs(*native - 6.25), 1e-3);
+}
+
+TEST_F(SpectrometerPortSim, DeflectionReachesTheBeam) {
+  SpectrometerPort port(*spec_);
+  ASSERT_TRUE(port.position(plan::AtLabel{"Ar36", "CDD"}));
+  auto before = port.deflection("CDD");
+  ASSERT_TRUE(before) << before.error().what;
+  auto center = beam_->peak_center("CDD", "Ar36");
+  ASSERT_TRUE(center) << center.error().what;
+  auto on_peak = beam_->intensity("CDD");
+  ASSERT_TRUE(on_peak) << on_peak.error().what;
+
+  auto set = port.set_deflection("CDD", 110);
+  ASSERT_TRUE(set) << set.error().what;
+  EXPECT_DOUBLE_EQ(*set, 110);
+  auto now = port.deflection("CDD");
+  ASSERT_TRUE(now);
+  EXPECT_DOUBLE_EQ(*now, 110);
+
+  // The peak moved away from the magnet, which did not move.
+  auto shifted = beam_->peak_center("CDD", "Ar36");
+  ASSERT_TRUE(shifted);
+  EXPECT_GT(std::abs(*shifted - *center), 0.05);
+  auto off_peak = beam_->intensity("CDD");
+  ASSERT_TRUE(off_peak);
+  EXPECT_LT(off_peak->value, 0.5 * on_peak->value) << "on peak " << on_peak->value;
+
+  // Restoring the deflection puts the peak back on the magnet.
+  ASSERT_TRUE(port.set_deflection("CDD", *before));
+  auto back = beam_->peak_center("CDD", "Ar36");
+  ASSERT_TRUE(back);
+  EXPECT_NEAR(*back, *center, 1e-9);
+}
+
+TEST_F(SpectrometerPortSim, SettingsReachTheFacade) {
+  SpectrometerPort port(*spec_);
+  ASSERT_TRUE(port.set_gain("H1", 1.02));
+  auto h1 = spec_->detector_state("H1");
+  ASSERT_TRUE(h1);
+  ASSERT_TRUE(h1->gain);
+  EXPECT_DOUBLE_EQ(*h1->gain, 1.02);
+
+  ASSERT_TRUE(port.set_cdd_voltage(1300));
+  auto cdd = spec_->detector_state("CDD");
+  ASSERT_TRUE(cdd);
+  ASSERT_TRUE(cdd->cdd_voltage);
+  EXPECT_DOUBLE_EQ(*cdd->cdd_voltage, 1300);
+
+  ASSERT_TRUE(port.set_param("trap_current", 150));
+  EXPECT_FALSE(port.set_param("no_such_parameter", 1));
+
+  ASSERT_TRUE(port.blank_beam(true));
+  EXPECT_TRUE(beam_->blanked());
+  ASSERT_TRUE(port.blank_beam(false));
+  EXPECT_FALSE(beam_->blanked());
+
+  // A table the spectrometer has is selected until the next call; an empty
+  // name goes back to the configured one.
+  const std::string configured = spec_->active_table();
+  ASSERT_TRUE(port.with_table("argon_hv"));
+  EXPECT_EQ(spec_->active_table(), "argon_hv");
+  ASSERT_TRUE(port.with_table(""));
+  EXPECT_EQ(spec_->active_table(), configured);
+  EXPECT_FALSE(port.with_table("no_such_table"));
+  EXPECT_EQ(spec_->active_table(), configured);
+
+  // The example config has no presets and no driver with the "optics" role.
+  auto optics = port.apply_optics("zoom");
+  ASSERT_FALSE(optics);
+  EXPECT_EQ(optics.error().kind, ErrorKind::Config);
+  EXPECT_NE(optics.error().what.find("unknown optics 'zoom'"), std::string::npos) << optics.error().what;
+  auto output = port.set_source_output(true);
+  ASSERT_FALSE(output);
+  EXPECT_EQ(output.error().kind, ErrorKind::Config);
+  EXPECT_NE(output.error().what.find("not supported by this spectrometer"), std::string::npos);
+}
+
+TEST_F(SpectrometerPortSim, TheTableScopeEndsWithThePort) {
+  const std::string configured = spec_->active_table();
+  {
+    SpectrometerPort port(*spec_);
+    ASSERT_TRUE(port.with_table("argon_hv"));
+    EXPECT_EQ(spec_->active_table(), "argon_hv");
+  }
+  EXPECT_EQ(spec_->active_table(), configured);
+}
+
+// Worked plans of the measurement plan v2 spec (section 7) run through the
+// real facades on the simulated drivers, in simulated time.
+class MeasurementSimV2 : public MeasurementSim {
+ protected:
+  // Worked plan 7.2 is some 1200 simulated seconds, twelve times
+  // MeasuresThroughTheRealFacades: its dead-man has room for that under ASan
+  // on a busy runner, below the target's ctest TIMEOUT (180 s).
+  MeasurementSimV2() : MeasurementSim(std::chrono::seconds(90)) {}
+
+  // A worked plan runs for some twenty simulated minutes, and every line scan
+  // wakes the whole simulated lab (about 20 ms of real time a simulated
+  // second, four fifths of this suite's cost). Nothing here reads a gauge.
+  std::optional<std::int64_t> line_scan_interval_ms() const override { return 60000; }
+
+  // Loads a plan fixture against this suite's spectrometer and measures it:
+  // its during_extraction phase first, as a run does while it extracts.
+  void measure(const std::string& file, plan::MeasurementPlan& plan, MeasurementResult& out) {
+    auto tmpl = plan::parse_plan_template(read_file(kPlans / file), file);
+    ASSERT_TRUE(tmpl) << tmpl.error().what;
+    auto loaded = plan::load_plan(*tmpl, {}, resolvers());
+    ASSERT_TRUE(loaded) << loaded.error().what;
+    plan = loaded->plan;
+    SpectrometerPort port(*spec_);
+    ExtractionLineValves valves(*line_);
+    SpectrometerPeakCenter peak_center(*spec_);
+    EngineContext ctx{port, clock_, &valves, &peak_center, nullptr, &bus_, nullptr};
+    ctx.reference = reference_;
+    MeasurementEngine engine(ctx, inputs(plan, file));
+    scripting::CancelToken token;
+    if (engine.has_phase(plan::When::DuringExtraction)) {
+      auto phase = engine.run_phase(plan::When::DuringExtraction, token);
+      ASSERT_TRUE(phase) << phase.error().what;
+    }
+    out = engine.run(token);
+    ASSERT_EQ(out.outcome, MeasurementOutcome::Completed) << (out.error ? out.error->what : "");
+  }
+
+  static std::vector<std::string> what_of(const std::vector<TraceEntry>& trace) {
+    std::vector<std::string> out;
+    out.reserve(trace.size());
+    for (const auto& e : trace) out.push_back(e.what + " " + e.detail);
+    return out;
+  }
+};
+
+// Worked plan 7.2 on the ARGUS-like simulator: the plan names no reference,
+// so the spectrometer's (H1) positions the first position and the first
+// entry of each position that does not collect on H1 positions that one.
+TEST_F(MeasurementSimV2, WorkedPlan72) {
+  plan::MeasurementPlan plan;
+  MeasurementResult r;
+  measure("v2_72_argus_hop_fifth.toml", plan, r);
+  if (HasFatalFailure()) return;
+
+  const auto what = what_of(r.trace);
+  ASSERT_GE(what.size(), 15u);
+  const std::vector<std::string> cycle1{"deflect CDD=110", "move Ar40@H1",      "settle 6", "collect 15",
+                                        "deflect CDD=0",   "move Ar39@CDD",     "settle 5", "collect 15",
+                                        "move mass 35@CDD", "settle 3",         "collect 8"};
+  EXPECT_EQ(std::vector<std::string>(what.begin(), what.begin() + 11), cycle1);
+  EXPECT_EQ(std::vector<std::string>(what.begin() + 11, what.begin() + 15),
+            (std::vector<std::string>{"deflect CDD=110", "move Ar40@H1", "settle 6", "collect 15"}));
+  EXPECT_EQ(std::count(what.begin(), what.end(), "deflect CDD=110"), 20);
+  EXPECT_EQ(std::count(what.begin(), what.end(), "deflect CDD=0"), 20);
+  EXPECT_EQ(std::vector<std::string>(what.end() - 3, what.end()),
+            (std::vector<std::string>{"move mass 34.2@H1", "settle 20", "collect 120"}));
+
+  // Ar36, Ar39 and the Cl monitor are all on CDD, each once.
+  EXPECT_EQ(merged_series(r.data, "Ar36", "CDD", collect::kSignal).value().v.size(), 20u * 15u);
+  EXPECT_EQ(merged_series(r.data, "Ar39", "CDD", collect::kSignal).value().v.size(), 20u * 15u);
+  EXPECT_EQ(merged_series(r.data, "mass35", "CDD", collect::kSignal).value().v.size(), 20u * 8u);
+  const auto fits = fit_results(r.data, plan);
+  ASSERT_TRUE(fits.errors.empty()) << fits.errors.front();
+  for (const char* key : {"Ar40", "Ar41", "Ar38", "Ar37", "Ar36", "Ar39", "mass35"})
+    EXPECT_NE(intercept_of(fits, key), nullptr) << key;
+  // Ar39 was hopped onto CDD: the beam model's Ar39 is there.
+  EXPECT_NEAR(intercept_of(fits, "Ar39")->intercept.value, 1e4, 1e4 * 0.05);
+
+  // The deflection did not outlive its segment; nothing is left protected.
+  auto cdd = spec_->detector_state("CDD");
+  ASSERT_TRUE(cdd);
+  ASSERT_TRUE(cdd->deflection);
+  EXPECT_DOUBLE_EQ(*cdd->deflection, 0);
+  for (const auto& d : spec_->detectors().states()) EXPECT_FALSE(d.protected_) << d.detector;
+}
+
+const std::filesystem::path kHelix = std::filesystem::path(NOBION_INTEGRATION_FIXTURES_DIR) / "helix_v2";
+
+// A Helix whose collectors each have a Faraday and a CDD mode (spec 3.6).
+class MeasurementSimHelix : public MeasurementSimV2 {
+ protected:
+  std::filesystem::path spectrometer_config() const override { return kHelix / "spectrometer.toml"; }
+};
+
+// Worked plan 7.4: hydride and HCl monitors, and an inactive cup kept
+// protected and deflected while position 2 collects.
+TEST_F(MeasurementSimHelix, WorkedPlan74) {
+  // What the simulated H1(CDD) is deflected by whenever Ar39 is read on it.
+  std::vector<double> h1_cdd;
+  auto sub = bus_.subscribe<collect::SeriesUpdated>([&](const collect::SeriesUpdated& e) {
+    for (const auto& [key, v] : e.values) {
+      if (key.label != "Ar39" || key.detector != "H1(CDD)") continue;
+      auto det = beam_->detector("H1(CDD)");
+      h1_cdd.push_back(det ? det->deflection : -1);
+    }
+  });
+  plan::MeasurementPlan plan;
+  MeasurementResult r;
+  measure("v2_74_helix_hydride_hcl.toml", plan, r);
+  if (HasFatalFailure()) return;
+
+  EXPECT_EQ(merged_series(r.data, "Ar40", "H2", collect::kSignal).value().v.size(), 10u * 10u);
+  EXPECT_EQ(merged_series(r.data, "Ar40H", "H2(CDD)", collect::kSignal).value().v.size(), 10u * 5u);
+  EXPECT_EQ(merged_series(r.data, "HCl", "L2(CDD)", collect::kSignal).value().v.size(), 10u * 5u);
+  // The inactive entry is deflected and protected, never read.
+  EXPECT_FALSE(merged_series(r.data, "Ar40", "H2(CDD)", collect::kSignal).has_value());
+
+  ASSERT_EQ(h1_cdd.size(), 10u * 10u);
+  EXPECT_TRUE(std::all_of(h1_cdd.begin(), h1_cdd.end(), [](double d) { return d == 200; }))
+      << "first " << h1_cdd.front();
+  // Restored once the segment is done.
+  auto det = beam_->detector("H1(CDD)");
+  ASSERT_TRUE(det) << det.error().what;
+  EXPECT_DOUBLE_EQ(det->deflection, 0);
+  for (const auto& d : spec_->detectors().states()) EXPECT_FALSE(d.protected_) << d.detector;
+}
+
+
+// ---- Every worked plan of the spec, each on a simulator of its family -------
+
+const std::filesystem::path kFixtures(NOBION_INTEGRATION_FIXTURES_DIR);
+
+std::size_t count_of(const std::vector<std::string>& what, std::string_view entry) {
+  return static_cast<std::size_t>(std::count(what.begin(), what.end(), entry));
+}
+
+// The number of readings of `label` on `detector` of `kind`; 0 when none.
+std::size_t readings(const collect::RunData& data, std::string_view label, std::string_view detector,
+                     std::string_view kind = collect::kSignal) {
+  const auto s = merged_series(data, label, detector, kind);
+  return s ? s->v.size() : 0;
+}
+
+struct WorkedCase {
+  std::string name;  // test name suffix
+  std::string plan;  // file under tests/experiment/fixtures/plans/valid
+  std::filesystem::path spectrometer;
+  std::map<std::string, std::string> aliases;
+};
+
+void PrintTo(const WorkedCase& c, std::ostream* os) { *os << c.plan; }
+
+class MeasurementSimV2Worked : public MeasurementSimV2, public ::testing::WithParamInterface<WorkedCase> {
+ protected:
+  std::filesystem::path spectrometer_config() const override { return GetParam().spectrometer; }
+  std::map<std::string, std::string> extra_aliases() const override { return GetParam().aliases; }
+};
+
+// Each of the seven worked plans (spec section 7) as written, through the
+// real facades: the trace's positions, deflections, optics, settles and
+// counts, and the series the record keeps, each under its label@detector.
+TEST_P(MeasurementSimV2Worked, EveryWorkedPlanRunsWithItsTrace) {
+  plan::MeasurementPlan plan;
+  MeasurementResult r;
+  measure(GetParam().plan, plan, r);
+  if (HasFatalFailure()) return;
+  const auto what = what_of(r.trace);
+  ASSERT_FALSE(what.empty());
+  const auto& name = GetParam().name;
+
+  if (name == "argus_syn_baseline") {  // 7.1
+    // The baseline was read while the sample was extracted, before anything else.
+    EXPECT_EQ(std::vector<std::string>(what.begin(), what.begin() + 3),
+              (std::vector<std::string>{"move mass 34.2@H1", "settle 20", "collect 120"}));
+    for (const char* det : {"H1", "AX", "L1", "L2", "CDD"})
+      EXPECT_EQ(readings(r.data, "", det, collect::kBaseline), 120u) << det;
+    EXPECT_EQ(readings(r.data, "Ar40", "H1"), 400u);
+    EXPECT_EQ(readings(r.data, "Ar36", "CDD"), 400u);
+    EXPECT_EQ(count_of(what, "collect 400"), 1u);
+    EXPECT_EQ(what.back(), "step peak_center Ar40@H1");
+  } else if (name == "argus_hop_fifth") {  // 7.2
+    EXPECT_EQ(count_of(what, "deflect CDD=110"), 20u);
+    EXPECT_EQ(count_of(what, "move mass 35@CDD"), 20u);
+    EXPECT_EQ(readings(r.data, "mass35", "CDD"), 20u * 8u);
+    EXPECT_EQ(readings(r.data, "", "H1", collect::kBaseline), 120u);
+  } else if (name == "argus_ic_table") {  // 7.3
+    // Before the inlet: the deflection (2000 V, the example CDD's `max`: a
+    // value past it is refused, never run as the max), then one peak-center step
+    // centring on H1, AX and L2 in turn (one trace entry each) into the run's
+    // table, which the signal segment then selects.
+    ASSERT_GE(what.size(), 6u);
+    EXPECT_EQ(std::vector<std::string>(what.begin(), what.begin() + 6),
+              (std::vector<std::string>{"step set", "deflect CDD=2000", "step peak_center Ar40@H1",
+                                        "step peak_center Ar40@AX", "step peak_center Ar40@L2", "table ic_run"}));
+    for (const auto& note : r.notes) EXPECT_FALSE(note.starts_with("table ic_run not written")) << note;
+    for (const char* det : {"H2", "H1", "AX", "L1", "L2"}) {
+      EXPECT_EQ(readings(r.data, "Ar40", det), 6u * 10u) << det;
+      EXPECT_EQ(readings(r.data, "", det, collect::kBaseline), 60u) << det;
+    }
+    EXPECT_EQ(count_of(what, "settle 20"), 6u * 2u + 1u);  // H2 and L1 each cycle, and the baseline
+    // The baseline last, then the standing deflection goes back.
+    EXPECT_EQ(std::vector<std::string>(what.end() - 4, what.end()),
+              (std::vector<std::string>{"move mass 39.5@H1", "settle 20", "collect 60", "deflect CDD=0"}));
+    EXPECT_EQ(std::count_if(what.begin(), what.end(), [](const std::string& w) { return w.starts_with("step time_zero"); }),
+              1);
+    // One intercept a detector: the record keeps Ar40@H2, Ar40@H1, ... apart.
+    const auto fits = fit_results(r.data, plan, reference_);
+    ASSERT_TRUE(fits.errors.empty()) << fits.errors.front();
+    for (const char* key : {"Ar40@H2", "Ar40@H1", "Ar40@AX", "Ar40@L1", "Ar40@L2"})
+      EXPECT_TRUE(fits.results.intercepts.contains(key)) << key;
+  } else if (name == "helix_hydride_hcl") {  // 7.4
+    EXPECT_EQ(readings(r.data, "Ar40", "H2"), 10u * 10u);
+    EXPECT_EQ(readings(r.data, "Ar38", "AX(CDD)"), 10u * 10u);
+    EXPECT_EQ(readings(r.data, "HCl", "L2(CDD)"), 10u * 5u);
+    EXPECT_EQ(count_of(what, "move PHHCl@L2(CDD)"), 10u);
+    EXPECT_FALSE(merged_series(r.data, "Ar40", "H2(CDD)", collect::kSignal).has_value());
+  } else if (name == "noblesse_optics") {  // 7.5
+    EXPECT_EQ(count_of(what, "optics ar_config_a"), 15u);
+    EXPECT_EQ(count_of(what, "optics ar_config_b"), 15u);
+    EXPECT_EQ(count_of(what, "integration 2"), 15u);
+    EXPECT_EQ(readings(r.data, "Ar40", "F0"), 15u * 10u);
+    EXPECT_EQ(readings(r.data, "Ar36", "IC2"), 15u * 10u);
+    EXPECT_EQ(readings(r.data, "Ar39", "IC0"), 15u * 10u);
+    EXPECT_EQ(readings(r.data, "Ar37", "IC1"), 15u * 10u);
+    EXPECT_EQ(beam_->optics(), "ar_config_b");  // the last preset applied
+  } else if (name == "helix_sft_he_ne_ar") {  // 7.6
+    EXPECT_EQ(readings(r.data, "He4", "Faraday"), 200u);
+    EXPECT_EQ(readings(r.data, "He3", "SEM"), 200u);
+    EXPECT_EQ(readings(r.data, "", "SEM", collect::kBaseline), 30u);
+    EXPECT_EQ(readings(r.data, "Ne21", "SEM"), 10u * 8u);
+    EXPECT_EQ(readings(r.data, "CO2", "SEM"), 10u * 3u);
+    // Ar40 on the SEM in the neon gas and on the Faraday in the argon gas: two series.
+    EXPECT_EQ(readings(r.data, "Ar40", "SEM"), 10u * 3u);
+    EXPECT_EQ(readings(r.data, "Ar40", "Faraday"), 8u * 5u);
+    EXPECT_EQ(readings(r.data, "Ar36", "SEM"), 8u * 8u);
+    std::set<std::string> gases;
+    for (const auto& e : r.trace) gases.insert(e.gas);
+    EXPECT_EQ(gases, (std::set<std::string>{"He", "Ne", "Ar"}));
+  } else if (name == "helix_xenon") {  // 7.7
+    EXPECT_EQ(std::vector<std::string>(what.begin(), what.begin() + 3),
+              (std::vector<std::string>{"move mass 133.5@AX", "settle 0", "collect 30"}));
+    EXPECT_EQ(count_of(what, "settle 8"), 12u * 3u);
+    // Xe132 on AX at position 1 and on H2 at position 2: apart.
+    EXPECT_EQ(readings(r.data, "Xe132", "AX"), 12u * 5u);
+    EXPECT_EQ(readings(r.data, "Xe132", "H2"), 12u * 5u);
+    EXPECT_EQ(readings(r.data, "Xe124", "L2"), 12u * 8u);
+  } else {
+    ADD_FAILURE() << "no expectations for " << name;
+  }
+  for (const auto& d : spec_->detectors().states()) EXPECT_FALSE(d.protected_) << d.detector;
+}
+
+const std::map<std::string, std::string> kGasInlets{
+    {"valves.he_inlet", "B"}, {"valves.ne_inlet", "B"}, {"valves.ar_inlet", "B"}};
+
+INSTANTIATE_TEST_SUITE_P(
+    Worked, MeasurementSimV2Worked,
+    ::testing::Values(
+        WorkedCase{"argus_syn_baseline", "v2_71_argus_syn_baseline.toml", kDir / "spectrometer.sim-integrated.toml", {}},
+        WorkedCase{"argus_hop_fifth", "v2_72_argus_hop_fifth.toml", kDir / "spectrometer.sim-integrated.toml", {}},
+        WorkedCase{"argus_ic_table", "v2_73_argus_ic_table.toml", kDir / "spectrometer.sim-integrated.toml", {}},
+        WorkedCase{"helix_hydride_hcl", "v2_74_helix_hydride_hcl.toml", kFixtures / "helix_v2" / "spectrometer.toml", {}},
+        WorkedCase{"noblesse_optics", "v2_75_noblesse_optics.toml", kFixtures / "optics_v2" / "spectrometer.toml", {}},
+        WorkedCase{"helix_sft_he_ne_ar", "v2_76_helix_sft_he_ne_ar.toml",
+                   kFixtures / "helix_sft_v2" / "spectrometer.toml", kGasInlets},
+        WorkedCase{"helix_xenon", "v2_77_helix_xenon.toml", kFixtures / "helix_xe_v2" / "spectrometer.toml", {}}),
+    [](const ::testing::TestParamInfo<WorkedCase>& p) { return p.param.name; });
 
 }  // namespace

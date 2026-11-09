@@ -1,11 +1,11 @@
-# {{ instrument }} (written by pychron setup). See CALIBRATE.md.
+# {{ instrument }} (written by nobion setup). See CALIBRATE.md.
 {% if simulation %}
 # SIMULATION: a simulated spectrometer stands in for the instrument. To
 # connect: elctl init --reconfigure --install {{ install_name }} --set simulation=no
 {% else %}
 # Thermo Qtegra RemoteControlServer at {{ qtegra_host }}:{{ qtegra_port }}.
 # The thermo_qtegra driver has not yet been run against an instrument: read
-# "Running against a Thermo instrument" in the pychron docs first.
+# "Running against a Thermo instrument" in the nobion docs first.
 {% endif %}
 #
 # SIMULATION PLACEHOLDERS: the field tables, deflections, nominal_hv and

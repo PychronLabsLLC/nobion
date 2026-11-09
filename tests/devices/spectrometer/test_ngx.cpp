@@ -12,23 +12,30 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/devices/spectrometer/ngx.hpp"
-#include "pychron/devices/spectrometer/ngx_sim.hpp"
-#include "pychron/transport/link_transport.hpp"
+#include "nobion/core/config/logging_config.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/devices/spectrometer/ngx.hpp"
+#include "nobion/devices/spectrometer/ngx_sim.hpp"
+#include "nobion/transport/link_transport.hpp"
+#include "nobion/transport/trace_recorder.hpp"
+#include "temp_path.hpp"
 #include "valve_conformance.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace std::chrono_literals;
 
 namespace {
@@ -54,10 +61,16 @@ class FlakyTransport final : public Transport {
     return inner_.open();
   }
   void close() override { inner_.close(); }
-  Result<Bytes> exchange(Bytes tx, ReadSpec rs, Duration timeout) override { return inner_.exchange(tx, rs, timeout); }
+  Result<Bytes> exchange(Bytes tx, ReadSpec rs, Duration timeout, Resend resend) override {
+    return inner_.exchange(tx, rs, timeout, resend);
+  }
   Result<void> write(Bytes tx) override {
     if (before_write) before_write(std::string(tx.begin(), tx.end()));
     return inner_.write(std::move(tx));
+  }
+  Result<void> write_secret(Bytes tx) override {
+    if (before_write) before_write(std::string(tx.begin(), tx.end()));
+    return inner_.write_secret(std::move(tx));
   }
   Result<Bytes> read(ReadSpec rs, Duration timeout) override {
     if (drop_next.exchange(false)) {
@@ -80,14 +93,27 @@ class FlakyTransport final : public Transport {
   std::shared_ptr<NgxSimModel> model_;
 };
 
-using pychron::testing::Crew;
+using nobion::testing::Crew;
+
+// "73 33 63 72 65 74": the wire log's spelling of `text`.
+std::string to_hex_upper_spaced(std::string_view text) {
+  static constexpr std::string_view kHex = "0123456789ABCDEF";
+  std::string out;
+  for (const char c : text) {
+    const auto v = static_cast<unsigned char>(c);
+    if (!out.empty()) out += ' ';
+    out += kHex[v >> 4U];
+    out += kHex[v & 0xFU];
+  }
+  return out;
+}
 
 std::string uniq(const char* base) {
   static std::atomic<int> n{0};
   return std::string(base) + std::to_string(++n);
 }
 
-struct Ngx : pychron::testing::VirtualTimeTest {
+struct Ngx : nobion::testing::VirtualTimeTest {
   VirtualClock clock;
   // The test's thread takes part: time moves only while it waits in the clock
   // (clock.sleep_for, a command, next()), and stands still otherwise.
@@ -160,6 +186,51 @@ TEST_F(Ngx, TheSessionLogsInAndNeverShowsThePassword) {
   clock.sleep_for(100ms);
   EXPECT_EQ(sim->health().state, HealthState::Connected);
   EXPECT_EQ(sim->health().consecutive_failures, 0u);
+}
+
+// The login reaches the instrument, but neither the flight recorder's ring
+// (the "<name>.wire" logger at Trace, as shipped) nor a trace file holds its
+// password: the link sends it as a secret.
+TEST_F(Ngx, ThePasswordIsInNoWireRecord) {
+  const auto dir = nobion::testing::unique_temp_path("nobion-ngx-wire-");
+  std::filesystem::create_directories(dir);
+  config::LoggingConfig cfg;
+  cfg.dir = dir;
+  cfg.recorder.size_mb = 4;
+  SteadyClock hub_clock;
+  auto hub = LogHub::create(cfg, hub_clock);
+  ASSERT_TRUE(hub) << hub.error().what;
+  TransportOptions o;
+  o.name = "ngx";
+  o.clock = &clock;
+  auto inner = SimTransport::hooked(ngx_sim_hook(model), o, ngx_sim_events(model));
+  ASSERT_TRUE(inner->open());
+  const auto trace = dir / "ngx.trace";
+  auto recorder = TraceRecorder::to_file(std::move(inner), trace.string(), clock, (*hub)->logger("ngx.wire"));
+  ASSERT_TRUE(recorder);
+  {
+    auto s = make(**recorder);
+    ASSERT_TRUE(s);
+    ASSERT_TRUE(s->connect());
+    {
+      std::lock_guard lock(model->mutex);
+      EXPECT_EQ(model->password, "s3cret");
+    }
+    clock.sleep_for(50ms);
+  }
+  const std::string ring = (*hub)->recorder_snapshot();
+  EXPECT_NE(ring.find("StopAcq"), std::string::npos) << ring;  // the wire is recorded
+  EXPECT_EQ(ring.find("s3cret"), std::string::npos) << ring;
+  EXPECT_EQ(ring.find(to_hex(to_bytes("s3cret"))), std::string::npos);
+  EXPECT_EQ(ring.find(to_hex_upper_spaced("s3cret")), std::string::npos);
+  recorder->reset();
+  std::ifstream in(trace);
+  const std::string file{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+  EXPECT_NE(file.find("tx withheld"), std::string::npos) << file;
+  EXPECT_EQ(file.find(to_hex(to_bytes("s3cret"))), std::string::npos) << file;
+  hub->reset();
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
 }
 
 TEST_F(Ngx, ARefusedLoginFailsTheConnect) {
@@ -256,11 +327,21 @@ TEST_F(Ngx, ALateReplyIsNeverHandedToTheNextCommand) {
     model->params["IE"] = 4500;
     model->hold_replies = 1;  // the GSO reply comes late
   }
+  // The late reply arrives while GSO, Safe, waits to be sent again.
+  Crew crew(clock);
+  crew.start("late", [&] {
+    clock.sleep_for(1s);
+    {
+      std::lock_guard lock(model->mutex);
+      model->params["IE"] = 4400;  // what the repeat is answered
+    }
+    model->release_held();
+  });
+  // The repeat waits out the owed reply; it gets its own answer, not "4500,4500".
   auto hv = s->read_hv();
-  ASSERT_FALSE(hv);
-  EXPECT_EQ(hv.error().kind, ErrorKind::Timeout);
-  model->release_held();
-  // GETMASS waits out the owed reply; it gets its own answer, not "4500,4500".
+  crew.join();
+  ASSERT_TRUE(hv) << hv.error().what;
+  EXPECT_DOUBLE_EQ(*hv, 4400);
   auto m = s->read();
   ASSERT_TRUE(m) << m.error().what;
   EXPECT_DOUBLE_EQ(*m, 39.96);
@@ -366,14 +447,14 @@ TEST_F(Ngx, ValvesPassTheValveConformanceSuite) {
   const toml::table none;
   auto v = NgxValves::create(DriverArgs{"valves", borrowed, none, &clock});
   ASSERT_TRUE(v) << v.error().what;
-  struct Rig final : pychron::test::ValveRig {
+  struct Rig final : nobion::test::ValveRig {
     IValveActuator* valves = nullptr;
     IValveActuator& actuator() override { return *valves; }
     ValveAddress first() override { return {"3"}; }
     ValveAddress second() override { return {"7"}; }
   } rig;
   rig.valves = v->get();
-  pychron::test::expect_valve_conformance(rig);
+  nobion::test::expect_valve_conformance(rig);
 }
 
 TEST_F(Ngx, AValveActuationDuringAnIntegrationLeavesItAlone) {
@@ -557,12 +638,12 @@ TEST_F(Ngx, ConcurrentAcquisitionValvesAndMovesStayConsistent) {
 
 namespace {
 
-using pychron::testing::await_waiters;
+using nobion::testing::await_waiters;
 
 // The link over a peer that never says anything: no banner, no reply, no
 // event. A read of it does not wait (it has no event source), so the only
 // clock time that passes is what the link itself waits for.
-struct NgxLinkVirtual : pychron::testing::VirtualTimeTest {
+struct NgxLinkVirtual : nobion::testing::VirtualTimeTest {
   VirtualClock clock;
   Clock::Participant main{clock, "test"};
   std::unique_ptr<SimTransport> silent = [this] {
@@ -608,8 +689,8 @@ TEST_F(NgxLinkVirtual, ReconnectBackoffIsClockTime) {
   };
   NgxLinkOptions o;
   o.command_timeout = 60s;  // how long connect() waits for a link that is coming back
-  o.reconnect_min = 2s;
-  o.reconnect_max = 60s;
+  o.policy.backoff_min = 2s;
+  o.policy.backoff_max = 60s;
   NgxLink link(flaky, o, clock);
   ASSERT_TRUE(link.connect());
   const TimePoint kStart = clock.now();
@@ -642,7 +723,7 @@ namespace {
 
 // The hardware configuration: a SteadyClock. The timeouts are real and short;
 // what is checked is that they are kept and that nothing hangs.
-struct NgxLinkSteady : pychron::testing::VirtualTimeTest {
+struct NgxLinkSteady : nobion::testing::VirtualTimeTest {
   SteadyClock clock;
   std::shared_ptr<NgxSimModel> model = [this] {
     auto m = std::make_shared<NgxSimModel>();
@@ -723,4 +804,39 @@ TEST_F(NgxLinkSteady, TeardownWithAReplyOutstandingReturns) {
   link.reset();
 
   EXPECT_LT(std::chrono::steady_clock::now() - real_start, 5s);
+}
+
+TEST(NgxSim, ValuesAtFeedsAcqLines) {
+  ManualClock clock;
+  auto model = std::make_shared<NgxSimModel>();
+  model->clock = &clock;
+  model->banner_pending = false;
+  model->values = {9.0, 9.0};
+  model->values_at = [](TimePoint) { return std::vector<double>{1.0, 2.0}; };
+  auto hook = ngx_sim_hook(model);
+  auto events = ngx_sim_events(model);
+  hook(to_bytes("StartAcq 1,run\r"));
+  clock.advance(std::chrono::seconds(1));
+  const std::string lines = to_string(events());
+  const auto acq = lines.find("#EVENT:ACQ,");
+  ASSERT_NE(acq, std::string::npos) << lines;
+  const auto end = lines.find('#', acq + 1);
+  // The instrument's order: reversed.
+  const std::string tail = "," + codec::ngx::format_float(2.0) + "," + codec::ngx::format_float(1.0);
+  EXPECT_EQ(lines.substr(end - tail.size(), tail.size()), tail) << lines;
+}
+
+TEST(NgxSim, OnCommandSeesSetMass) {
+  auto model = std::make_shared<NgxSimModel>();
+  std::string verb, args;
+  // A raw pointer: the model holding a hook that holds the model leaks both.
+  model->on_command = [&, m = model.get()](const std::string& v, const std::string& a) {
+    const std::lock_guard lock(m->mutex);  // not held by the hook here
+    verb = v;
+    args = a;
+  };
+  auto hook = ngx_sim_hook(model);
+  hook(to_bytes("SetMass 39.96\r"));
+  EXPECT_EQ(verb, "SetMass");
+  EXPECT_EQ(args, "39.96");
 }

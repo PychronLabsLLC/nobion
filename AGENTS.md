@@ -6,8 +6,9 @@ Single developer. Two long-lived branches:
 
 - `develop`: integration branch. All work lands here first.
 - `main`: released or about to be. No pushes: changes only by pull request.
-  GitHub does not enforce yet (branch protection needs paid plan for private
-  repository), so rule kept by hand.
+  GitHub does not enforce yet (repository public, so branch protection free;
+  not switched on), so rule kept by hand. Repository stays public: update
+  check (`2026-10-21-update-check-design.md`) reads releases without token.
 
 Day to day:
 
@@ -33,6 +34,13 @@ Day to day:
 - Branch landed: remove its worktree (`git worktree remove <path>`), then the
   branch. Each worktree holds its own build tree, 2 to 16 GB (October 2026:
   33 landed worktrees, 181 GB). Never one this session did not make.
+  Exception: the nightly run names its worktrees
+  `.claude/worktrees/nightly-<topic>` and never lands them itself, so a
+  later nightly run removes one, and its branch, when every commit of the
+  branch is on `origin/develop` and the worktree has no uncommitted change;
+  never with `--force` or `-D`. A nightly run deletes the build tree of its
+  worktree whose row is closed or whose plan is done; one whose row goes on
+  keeps it for the next night.
 - Never skip or disable failing test; find root cause.
 - Never push to `main`. Do not open a pull request into `main` or merge one
   unless asked to release.
@@ -58,11 +66,16 @@ reaches `develop` through step 5.
 Anything larger than small fix starts from written spec, not code:
 
 1. Spec: `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`. What is built
-   and why, interfaces, rules that must hold, what is out of scope. Agreed
-   with developer before anything else is written.
+   and why, interfaces, rules that must hold, what is out of scope. Ends with
+   `## Open questions`: one item per question only developer can answer, or
+   `None.`. Settle what code, old implementation and this file settle; list
+   only rest. Spec that lists questions is agreed with developer before
+   anything else is written. Spec whose section says `None.` needs no
+   agreement: plan follows.
 2. Plan: `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`. Spec cut into tasks
    small enough to test and commit one at a time, each naming its files and
-   tests.
+   tests. Same `## Open questions` rule: none listed, build starts without
+   review.
 3. Implement plan task by task, test first. When code has to depart from
    spec, spec is changed in same branch: the two never disagree on `develop`.
 
@@ -107,22 +120,25 @@ component under `tests/`, run with `ctest`.
 Inner loop (keep waits short):
 
 - Build only target being changed:
-  `cmake --build --preset dev --target pychron_<component>_tests`.
+  `cmake --build --preset dev --target nobion_<component>_tests`.
 - Run that binary direct, filtered, not `ctest`: one process, not one per
-  case. `build/dev/tests/<component>/pychron_<component>_tests
+  case. `build/dev/tests/<component>/nobion_<component>_tests
   --gtest_filter='<Suite>.*'`.
 - Wider check while working: `ctest --preset dev-quick` (parallel, skips
   importer suites `Engines/ProjectImportTest`, `Engines/MetaImportTest`,
-  `ImportCmd*`: about half of serial test time).
+  `ImportCmd*` and outage suites `Outage.*`, `Links/LinkOutage.*`: 89 s, `dev`
+  330 s, on 18 cores). A skip regex matches ctest's full name: check with
+  `ctest --preset dev-quick -N`.
 - Before merge into `develop`: full `cmake --build --preset dev` and
   `ctest --preset dev`. Never `dev-quick` as final run.
-- `dev` and `dev-quick` test presets run on every core (`CTEST_PARALLEL_LEVEL`
-  empty); `dev-ui` runs 2 at a time, as CI. A test that fails only in parallel
-  is a bug (shared file, port, settings): fix it, do not serialize suite.
-- Use `dev-ui` only when change touches `apps/pychron-ui` or `tests/ui`. It
+- `dev`, `dev-quick` and `dev-ui` test presets run on every core
+  (`CTEST_PARALLEL_LEVEL` empty; `dev-ui` 5.3 min, at 2 jobs 13.3 min, on 18
+  cores). CI gives `--parallel` itself. A test that fails only in parallel is
+  a bug (shared file, port, settings): fix it, do not serialize suite.
+- Use `dev-ui` only when change touches `apps/nobion` or `tests/ui`. It
   builds and runs everything `dev` does and the UI tests: one run of it
   covers both.
-- ccache used when installed (`cmake/PychronCcache.cmake`); base_dir is
+- ccache used when installed (`cmake/NobionCcache.cmake`); base_dir is
   source tree, so new worktree reuses objects other checkouts built. First
   build in new worktree still configures and fetches dependencies.
 - `gtest_discover_tests` lists cases when ctest runs (`PRE_TEST`), not after
@@ -134,7 +150,13 @@ Inner loop (keep waits short):
   at its first error. After changing C++, with the static analysis:
   `python3 tools/compiler_sweep.py` (every source through Homebrew's `g++`,
   `-fsyntax-only`, all warnings at once; needs `brew install gcc` and a
-  configured build directory). Nearest thing to CI a Mac has, not CI: gcc 16
+  configured build directory; the pre-push hook runs it on `build/dev`, so a
+  change under `apps/nobion` or `tests/ui` is swept by hand with
+  `--build-dir build/dev-ui`). While working, `--changed`: only sources the
+  branch's changes reach (own file, or header read when last built, from
+  Ninja's dependency log; unknown → swept; changed CMake file → whole tree).
+  One edited source: seconds, not minutes. Whole tree once before push (the
+  hook). Nearest thing to CI a Mac has, not CI: gcc 16
   does not give every gcc 14 warning. Met in CI and not locally, October
   2026:
   - gcc: `EXPECT_*` under an unbraced `if` (`-Wdangling-else`); a local or a
@@ -162,26 +184,68 @@ Inner loop (keep waits short):
   float the same under MSVC as under gcc and clang, so a record has one sha.
   Never removed; a new writer of a stored format is checked on Windows CI
   against a fixture written elsewhere.
-- `-DPYCHRON_SANITIZE=address,undefined` enables ASan/UBSan, and with them
+- `-DNOBION_SANITIZE=address,undefined` enables ASan/UBSan, and with them
   standard library's own checks (empty optional dereferenced, index past the
   end): static analysis does not look for those here, this does.
 - gcc 13 (Ubuntu 24.04 default `g++`) warns where CI compilers do not; build
-  it with `-DPYCHRON_WARNINGS_AS_ERRORS=OFF`.
-- `-DPYCHRON_SCRIPTING=OFF` drops embedded CPython dependency.
-- `-DPYCHRON_VISION_OPENCV=AUTO|ON|OFF` (default `AUTO`) controls optional
+  it with `-DNOBION_WARNINGS_AS_ERRORS=OFF`.
+- `-DNOBION_SCRIPTING=OFF` drops embedded CPython dependency.
+- `-DNOBION_VISION_OPENCV=AUTO|ON|OFF` (default `AUTO`) controls optional
   OpenCV in `libs/vision` (`LegacyFinder`, `OpenCvSource`); without it those
   two files compile to stubs. OpenCV headers appear only in those two `.cpp`
   files. Only macOS `ui` CI job installs OpenCV (Homebrew's brings TBB, which
   crashes at exit under sanitizers).
+- `-DNOBION_PUBLISH=AUTO|ON|OFF` (default `AUTO`) controls optional Apache
+  Arrow (with Parquet) in `libs/publish`: the GeoParquet tables of a release.
+  Without it `make_parquet_writer()` is null and a build writes everything
+  but `data/*.parquet`. Arrow headers appear only in
+  `libs/publish/src/parquet_writer.cpp` (and the test that reads back). Only
+  macOS `ui` CI job installs it (`brew install apache-arrow`); the others run
+  the stub and the row-hash fixture test (`tests/publish/fixtures`).
 - `libs/persistence` (DVC store, TinyORM on QtSql) builds only when Qt6 Core
-  and Sql are found; `-DPYCHRON_PERSISTENCE=OFF` skips it. On Ubuntu:
+  and Sql are found; `-DNOBION_PERSISTENCE=OFF` skips it. On Ubuntu:
   `apt install qt6-base-dev libqt6sql6-sqlite libqt6sql6-psql`. Qt must not
-  appear in its public headers or in any other `libs/` library.
+  appear in its public headers or in any other `libs/` library but
+  `libs/earthbank_qt`, HTTPS adapter of `libs/earthbank`.
+- Cache of derived values (`derived_value`; specs
+  `docs/superpowers/specs/2026-10-09-age-cache-filter-design.md`,
+  `2026-10-22-domain-seam-design.md` §4, §5.2): rows are what
+  `Domain::derive()` gives (Ar-Ar: `age`, `age_w_j`, `kca`), written only
+  through it: by `arar_reduce` in a run, by derive pass (`derive_ages`,
+  domain's `reduction_chain()` at default options), never by core `reduce`.
+  First entry of `Domain::derived()` is marker row: written for every derived
+  analysis, valueless when there is no value, and the name fingerprint
+  lookups use (Ar-Ar: `age`). Browser's Age column and age filter read it,
+  nothing calculates with it. Three rules:
+  - Cache write uses fingerprint analysis was loaded with
+    (`Analysis::input_fingerprint`, set by `StoreSource::load`), never one
+    computed at write time.
+  - At most one fingerprint per analysis after any write (`put_derived_many`
+    deletes other fingerprints' rows first).
+  - Count and facet statements join `derived_value` only when an age bound is
+    set; page statement always joins, by primary key (`dv.name || '' = 'age'`
+    without a bound).
+- Sim serve (spec `docs/superpowers/specs/2026-10-09-sim-serve-design.md`;
+  `elctl sim serve`, `--sim-endpoints`): simulated lab behind real sockets.
+  With an endpoints file, a transport that is not `kind = "sim"` or `link`
+  and has no entry fails the load (`make_transport`): nothing reaches a
+  configured address in a rehearsal. Real time only: `WireServer` refuses any
+  clock but `SteadyClock`; `--sim-endpoints` with `--sim` or `--sim-speed`
+  refused. How an emulator cuts one request from a stream
+  (`WireSim::request`) comes from driver's codec (same constant or function
+  encoder uses, e.g. `codec::proxr::request_length`), never second copy in
+  `libs/sim`. Spectrometer PC (Qtegra, NGX) served as one emulator for every
+  transport reaching it (same address, or line `link` transport); lock order
+  emulator model, then `BeamModel`, then `SimSystem`; beam never calls an
+  emulator.
+- `libs/ingest`, `libs/dvc`, `libs/experiment` do not reduce and gain no
+  dependency on `reduction` or `processing`; import's derive pass is in
+  `apps/elctl`, after walk ends.
 - A file the application writes for the user to open elsewhere (report,
-  figure, template, sheet) goes through `pychron::mark_as_user_file`
+  figure, template, sheet) goes through `nobion::mark_as_user_file`
   (`libs/core` `user_file.hpp`) after it is written: downloaded, unsigned
   macOS application quarantines what it writes, and Gatekeeper then refuses
-  the file. Files pychron reads back itself (configs, stores) do not.
+  the file. Files nobion reads back itself (configs, stores) do not.
 - Ubuntu 24.04's cmake 3.28 too old for this tree (`pip install cmake`).
 
 Compilers disagree about undefined behaviour: test that passes under clang can
@@ -198,15 +262,42 @@ given it when it reads a file there; any other agent opens it itself).
 |---|---|
 | `libs/persistence`, `tests/persistence`, a migration, any query against the store | `libs/persistence/AGENTS.md` (has "Schema and queries": a migration costs every lab a step, a query is paid once per analysis) |
 | `libs/ingest`, `libs/dvc`, `tests/dvc`, `elctl import` | `libs/ingest/AGENTS.md` |
-| `libs/processing`, `tests/processing`: publication report, flux fitting, `elctl export`, `elctl flux`, flux window | `libs/processing/AGENTS.md` |
+| `libs/arar`, `tests/arar`, `apps/nobion/src/arar`; publication report, flux fitting, `elctl export`, `elctl flux`, flux window | `libs/arar/AGENTS.md` |
 | `libs/entry`, `tests/entry`, an install's `seed.toml` | `libs/entry/AGENTS.md` |
 | `libs/earthbank`, `libs/earthbank_qt`, `tests/earthbank`, `elctl earthbank`, EarthBank page and Publish dialog | `libs/earthbank/AGENTS.md` |
-| `libs/experiment` record, store adapter, `tests/experiment`, how a run is saved | `libs/experiment/AGENTS.md` |
+| `libs/experiment` record, store adapter, `tests/experiment`, how a run is saved, executor hold, safe state, gap rule | `libs/experiment/AGENTS.md` |
 | `profiles/`, `configs/examples`, shipped plans, queue, field tables, `tests/setup`, `tests/integration/test_install_e2e.cpp` | `libs/setup/AGENTS.md` |
+| `libs/devices`, `tests/devices`, a driver's command or wire call | `libs/devices/AGENTS.md` (which command may be sent twice; a new command has a row in `test_repeat_tables.cpp`) |
 | `libs/sim`, `sim.toml`, simulator noise or gas | `libs/sim/AGENTS.md` |
 | `libs/metrics`, an exporter, a dashboard | `libs/metrics/AGENTS.md` |
-| `apps/pychron-ui` Preferences, the line's local override file | `apps/pychron-ui/AGENTS.md` |
+| `apps/nobion` Preferences, the line's local override file | `apps/nobion/AGENTS.md` |
+| `libs/processing`, `libs/reduction`, `domain.hpp`, data windows of `apps/nobion` (browser, figure, recall), `elctl` export and flux | No file: domain seam rules below the table. |
 | `packaging/`, signing, entitlements | `packaging/AGENTS.md` |
+
+Domain seam (`docs/superpowers/specs/2026-10-22-domain-seam-design.md` §10),
+every change keeps:
+
+- `libs/processing`; `libs/reduction` outside files Ar-Ar by design
+  (`arar.hpp`, `arar.cpp`, `arar_live.hpp`, `detail/arar_kernels.hpp`:
+  `compute_arar`, live conditionals, `libs/experiment` links them, below
+  `processing`); `apps/nobion` outside `src/arar/`; `elctl` outside
+  `flux`: no Ar-Ar reduction logic (age, J, flux, production, decay or
+  interference stage) and no literal only Ar-Ar understands in a window,
+  unit, exporter or quantity. What has one lives in `libs/arar` (or, from
+  spec step 4, Ar-Ar's `DomainUi` under `apps/nobion/src/arar`). Neutral
+  data that happens to list argon stays: isotope mass table
+  (`isotope_classifier.cpp`), detector-discrimination text
+  (`reference_fit.hpp`); comments naming age or J as examples. Exceptions
+  for now: `Ar40`/`Ar36` factory time-series presets (`time_series.cpp`;
+  spec step 3: a domain supplies its factory presets), derive pass's name
+  `derive_ages` (step 3). UI and `elctl` parts hold from step 4. CMake keeps
+  direction: `nobion_processing` links no `arar` target; apps link
+  `libs/arar`.
+- A new figure, exporter, derived quantity or recall section is a `Domain`
+  entry, never a literal in a window.
+- `UnitRegistry::core(default_quantity)` holds core units only; a domain's
+  registry is `Domain::units()`. A pipeline is built from the registry it
+  runs on.
 
 A rule that is one component's goes in that file; one that every change must
 keep stays here. A new component with rules easy to break gets its own file,
@@ -228,12 +319,16 @@ configured build directory; setup in `docs/dev_setup.md`, "Static analysis".
   change through.
 - `--fix` applies clang-tidy's fix-its; read the diff it makes and rebuild.
 - A push is refused while it reports anything: `tools/githooks/pre-push` runs
-  it. Hook is switched on once per clone with
+  it, then `tools/compiler_sweep.py` on `build/dev` when the branch changes
+  C++ and the machine has Homebrew's `g++-NN` and that build directory
+  (about a minute; left out without either). Hook is switched on once per
+  clone with
   `git config core.hooksPath tools/githooks` (every worktree of the clone then
   has it); check `git config --get core.hooksPath` in a fresh clone and set it
-  if empty. Do not push with `--no-verify` to get past a finding.
+  if empty. Do not push with `--no-verify` to get past a finding or a
+  warning.
 - Not in CI, and does not replace building with
-  `-DPYCHRON_SANITIZE=address,undefined` and running the tests.
+  `-DNOBION_SANITIZE=address,undefined` and running the tests.
 - Tree is not at zero: about 670 findings of the performance and C-array
   checks are left in old code
   (`docs/superpowers/plans/2026-10-08-static-analysis-backlog.md`, Phase 3).
@@ -245,7 +340,7 @@ configured build directory; setup in `docs/dev_setup.md`, "Static analysis".
 C++20 (`CMAKE_CXX_STANDARD` in top-level `CMakeLists.txt`); do not set a
 standard per target. Follow C++ Core Guidelines where this file is silent.
 
-- Errors are values: a function that can fail returns `pychron::Result<T>`
+- Errors are values: a function that can fail returns `nobion::Result<T>`
   (`libs/core` `error.hpp`). `libs/` throws only for a mistake in the calling
   code (`Scheduler::stop()` from a job on its own dispatcher) and, in
   `libs/scripting`, to hand a Python error back to pybind11.
@@ -266,8 +361,15 @@ standard per target. Follow C++ Core Guidelines where this file is silent.
   same thing more plainly; not when it does not.
 - Headers use `#pragma once`.
 - Code that adds a thread, or shares state with one, is run under
-  `-DPYCHRON_SANITIZE=thread` before it lands: CI runs ASan and UBSan only.
-  TSan and ASan cannot be combined in one build.
+  `-DNOBION_SANITIZE=thread` before it lands: CI runs ASan and UBSan only.
+  TSan and ASan cannot be combined in one build. Qt here not built with
+  TSan: hand-off inside QtCore invisible to it, so data captured in a queued
+  functor (`invokeMethod` lambda) and read on other thread is reported as
+  race, some runs only. Hand data over under own mutex, queued call carries
+  nothing (`SpectrometerBridge` Gate). No TSan suppressions file: a frame
+  match would hide real races in everything run on that thread. Allowed:
+  narrow `AnnotateIgnoreReadsBegin`/`End` in test code around deliberate
+  lock-free copy (`test_byte_ring.cpp`); never in production code.
 - A change made for speed comes with a measurement, before and after.
 
 ## Lifetime rules
@@ -285,7 +387,7 @@ it did, ASan on Linux read a destroyed runner.
 
 ## Time
 
-Time is injected (`pychron::Clock`, `libs/core` `clock.hpp`). On hardware it
+Time is injected (`nobion::Clock`, `libs/core` `clock.hpp`). On hardware it
 is a `SteadyClock`. A simulated run uses a `VirtualClock`, which stands still
 while any thread taking part in it has work to do and jumps to the next
 deadline when all of them are waiting, so a simulated hour costs its CPU time
@@ -336,7 +438,7 @@ and time stops; a thread woken any other way is not heard. Hence:
   `max_wall_time`, the notifier, the UI's own threads) is listed in the spec,
   sections 4.4 and 4.5; add to that list rather than to the code.
 
-Tests (`tests/support/virtual_time.hpp`, namespace `pychron::testing`):
+Tests (`tests/support/virtual_time.hpp`, namespace `nobion::testing`):
 
 - A test in simulated time derives from `VirtualTimeTest`, declares the
   `VirtualClock` first, makes its own thread a `Clock::Participant` and moves
@@ -373,11 +475,11 @@ Tests (`tests/support/virtual_time.hpp`, namespace `pychron::testing`):
   in it (start looking there: a raw wait, a plain mutex, a bare join). With
   no timed waiter (everybody waiting untimed, say for a notify that never
   comes) there is no such report, only the abort.
-- `ManualClock` remains for single-threaded unit tests that step time by
+- `ManualClock` is for single-threaded unit tests that step time by
   hand. Nothing advances it for a waiting thread: `advance()` wakes no
   untimed waiter, and a thread waiting on one that nobody advances waits for
   good.
 
 Apps: `--sim` alone keeps real time. `elctl exp run --sim-speed N|max` and
-`pychron-ui --sim --sim-speed N` run on a `VirtualClock` at N simulated
+`nobion --sim --sim-speed N` run on a `VirtualClock` at N simulated
 seconds a second (`max`, `elctl` only: no waiting at all).

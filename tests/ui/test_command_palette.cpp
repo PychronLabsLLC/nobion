@@ -18,20 +18,20 @@
 #include "shortcuts.hpp"
 #include "ui_fixture.hpp"
 
-using pychron::ui::CommandPalette;
-using pychron::ui::fuzzy_score;
-using pychron::ui::MenuHub;
+using nobion::ui::CommandPalette;
+using nobion::ui::fuzzy_score;
+using nobion::ui::MenuHub;
 
 namespace {
 
-QAction* palette_action(pychron::ui::MainWindow& main) {
+QAction* palette_action(nobion::ui::MainWindow& main) {
   for (QMenu* m : MenuHub::instance().menus(MenuHub::instance().bar_for(&main)))
     for (QAction* a : m->actions())
       if (a->text() == QStringLiteral("Command Palette…")) return a;
   return nullptr;
 }
 
-CommandPalette* open(pychron::ui::MainWindow& main) {
+CommandPalette* open(nobion::ui::MainWindow& main) {
   palette_action(main)->trigger();
   auto* palette = main.findChild<CommandPalette*>();
   return palette != nullptr && palette->isVisible() ? palette : nullptr;
@@ -68,16 +68,16 @@ class TestCommandPalette : public QObject {
   }
 
   void it_offers_what_can_run_now() {
-    auto line = pychron::ui::test::make_example_line();
-    pychron::ui::MainWindow main(*line);
+    auto line = nobion::ui::test::make_example_line();
+    nobion::ui::MainWindow main(*line);
     main.show();
-    QCOMPARE(palette_action(main)->shortcut(), pychron::ui::key(pychron::ui::Shortcut::CommandPalette));
+    QCOMPARE(palette_action(main)->shortcut(), nobion::ui::key(nobion::ui::Shortcut::CommandPalette));
     CommandPalette* palette = open(main);
     QVERIFY(palette != nullptr);
     const QStringList shown = palette->shown();
     QVERIFY(shown.contains(QStringLiteral("View › Extraction Line")));
     QVERIFY(shown.contains(QStringLiteral("File › Preferences")));
-    QVERIFY(shown.contains(QStringLiteral("Help › About pychron")));
+    QVERIFY(shown.contains(QStringLiteral("Help › About Nobion")));
     QVERIFY(!shown.contains(QStringLiteral("View › Spectrometer")));      // disabled: none loaded
     QVERIFY(!shown.contains(QStringLiteral("File › Installations")));       // hidden
     QVERIFY(!shown.contains(QStringLiteral("Help › Command Palette")));     // not itself
@@ -90,8 +90,8 @@ class TestCommandPalette : public QObject {
   }
 
   void enter_runs_the_highlighted_command_and_escape_runs_none() {
-    auto line = pychron::ui::test::make_example_line();
-    pychron::ui::MainWindow main(*line);
+    auto line = nobion::ui::test::make_example_line();
+    nobion::ui::MainWindow main(*line);
     main.show();
     CommandPalette* palette = open(main);
     QVERIFY(palette != nullptr);
@@ -100,7 +100,7 @@ class TestCommandPalette : public QObject {
     QTest::keyClick(palette->filter(), Qt::Key_Escape);
     QVERIFY(!palette->isVisible());
     QCoreApplication::processEvents();
-    QVERIFY(main.findChild<pychron::ui::ShortcutsDialog*>() == nullptr);
+    QVERIFY(main.findChild<nobion::ui::ShortcutsDialog*>() == nullptr);
 
     palette = open(main);
     QVERIFY(palette != nullptr);
@@ -108,12 +108,12 @@ class TestCommandPalette : public QObject {
     palette->filter()->setText(QStringLiteral("keyboard"));
     QTest::keyClick(palette->filter(), Qt::Key_Return);
     QVERIFY(!palette->isVisible());
-    QTRY_VERIFY(main.findChild<pychron::ui::ShortcutsDialog*>() != nullptr);
+    QTRY_VERIFY(main.findChild<nobion::ui::ShortcutsDialog*>() != nullptr);
   }
 
   void the_arrow_keys_move_the_highlight() {
-    auto line = pychron::ui::test::make_example_line();
-    pychron::ui::MainWindow main(*line);
+    auto line = nobion::ui::test::make_example_line();
+    nobion::ui::MainWindow main(*line);
     main.show();
     CommandPalette* palette = open(main);
     QVERIFY(palette != nullptr);
@@ -134,8 +134,8 @@ class TestCommandPalette : public QObject {
   // Opened over a window, the palette offers that window's own commands and
   // they still run: the palette does not take the window's place as active.
   void a_windows_own_commands_stay_live_under_the_palette() {
-    auto line = pychron::ui::test::make_example_line();
-    pychron::ui::MainWindow main(*line);
+    auto line = nobion::ui::test::make_example_line();
+    nobion::ui::MainWindow main(*line);
     QMainWindow experiment;
     auto* revalidate = new QAction(QStringLiteral("&Revalidate"), &experiment);
     int ran = 0;

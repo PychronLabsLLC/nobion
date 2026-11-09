@@ -1,4 +1,4 @@
-#include "pychron/sim/sim_system.hpp"
+#include "nobion/sim/sim_system.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -13,23 +13,33 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/sim/gas.hpp"
-#include "pychron/sim/gas_network.hpp"
-#include "pychron/sim/keyed_noise.hpp"
+#include "nobion/sim/gas.hpp"
+#include "nobion/sim/gas_network.hpp"
+#include "nobion/core/keyed_noise.hpp"
 
-#include "pychron/devices/gp_microion.hpp"
-#include "pychron/devices/pfeiffer_maxigauge.hpp"
-#include "pychron/devices/varian_xgs600.hpp"
-#include "pychron/devices/lakeshore.hpp"
-#include "pychron/devices/modbus_device_sim.hpp"
-#include "pychron/devices/plc2000_heater.hpp"
-#include "pychron/devices/plc2000_valves.hpp"
-#include "pychron/codecs/modbus.hpp"
-#include "pychron/devices/spectrometer/ngx_sim.hpp"
-#include "pychron/devices/spectrometer/thermo_qtegra_sim.hpp"
-#include "pychron/devices/types.hpp"
+#include "nobion/devices/gp_microion.hpp"
+#include "nobion/devices/pfeiffer_maxigauge.hpp"
+#include "nobion/devices/varian_xgs600.hpp"
+#include "nobion/devices/lakeshore.hpp"
+#include "nobion/devices/modbus_device_sim.hpp"
+#include "nobion/devices/plc2000_heater.hpp"
+#include "nobion/devices/plc2000_valves.hpp"
+#include "nobion/codecs/agilent.hpp"
+#include "nobion/codecs/chromium.hpp"
+#include "nobion/codecs/isotopx_ngx.hpp"
+#include "nobion/codecs/lakeshore.hpp"
+#include "nobion/codecs/maxigauge.hpp"
+#include "nobion/codecs/microion.hpp"
+#include "nobion/codecs/modbus.hpp"
+#include "nobion/codecs/proxr.hpp"
+#include "nobion/codecs/pychron_tx.hpp"
+#include "nobion/codecs/thermo_qtegra.hpp"
+#include "nobion/codecs/varian_xgs600.hpp"
+#include "nobion/devices/spectrometer/ngx_sim.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra_sim.hpp"
+#include "nobion/devices/types.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 
 namespace {
 
@@ -37,6 +47,29 @@ double seconds(Duration d) { return std::chrono::duration<double>(d).count(); }
 
 bool is_plc_kind(std::string_view kind) {
   return kind == "plc2000_valves" || kind == "plc2000_gauges" || kind == "plc2000_heater";
+}
+
+// How a simulated `driver` cuts one request from what its driver writes:
+// the driver's codec's framing. Empty for a kind with no emulator.
+RequestFramer request_framer(const config::DriverConfig& driver) {
+  const std::string& kind = driver.kind;
+  if (kind == "proxr_relay") return codec::proxr::request_length;
+  if (kind == "pfeiffer_maxigauge") return codec::maxigauge::request_length;
+  if (kind == "qtegra_valves" || kind == "qtegra_gauges") return framer(codec::qtegra::request_spec());
+  if (kind == "agilent_switch") return framer(ReadSpec::until(codec::agilent::kTerminator));
+  if (kind == "pychron_valves") return framer(ReadSpec::until(codec::pychron_tx::kTerminator));
+  if (kind == "ngx_valves") {
+    // The driver's own `send_terminator`, as NgxLink appends it.
+    const auto terminator =
+        driver.options["send_terminator"].value_or(std::string(codec::ngx::kDefaultSendTerminator));
+    return framer(ReadSpec::until(terminator.empty() ? std::string(codec::ngx::kDefaultSendTerminator) : terminator));
+  }
+  if (kind == "varian_xgs600") return framer(ReadSpec::until(codec::varian_xgs600::kTerminator));
+  if (kind == "gp_microion") return framer(ReadSpec::until(codec::microion::kTerminator));
+  if (kind == "lakeshore") return framer(ReadSpec::until(codec::lakeshore::kTerminator));
+  if (kind == "chromium") return framer(ReadSpec::until(codec::chromium::kCommandTerminator));
+  if (is_plc_kind(kind)) return framer(ReadSpec::modbus_tcp());
+  return {};
 }
 
 // The canvas gives cc and the network holds litres: the one place they meet.
@@ -90,9 +123,10 @@ GasVolume volume_of(const std::string& name, double cc, SimRole role, bool walls
     for (std::size_t s = 0; s < kSpeciesCount; ++s) volume.source_per_s[s] += air[s];
   }
   if (role == SimRole::Spectrometer) {
-    // The ion source uses each argon at the same rate, and its memory comes
-    // back as Ar40: fA/s over fA/mbar is mbar/s, of this volume.
-    for (const Species s : {Species::Ar36, Species::Ar37, Species::Ar38, Species::Ar39, Species::Ar40}) {
+    // The ion source uses each noble gas at the same rate, and its memory
+    // comes back as Ar40: fA/s over fA/mbar is mbar/s, of this volume.
+    for (const Species s : {Species::Ar36, Species::Ar37, Species::Ar38, Species::Ar39, Species::Ar40, Species::He4,
+                            Species::Ne20}) {
       volume.loss_per_s[index(s)] = settings.source.consumption;
     }
     volume.source_per_s[index(Species::Ar40)] +=
@@ -218,13 +252,11 @@ std::vector<BeamGas> SimSystem::beam_gas_at(TimePoint t) const {
   // To the instant of the reading: not past the clock, which is as far as
   // anything else has moved this line, and not back.
   const TimePoint to = std::min(t, clock_.now());
-  if (to > last_) {
-    network_.advance(seconds(to - last_));
-    last_ = to;
-  }
+  move_to_locked(to);
   const auto held = network_.partial_pressures(*spectrometer_);
   if (!held) return {};
-  // The beam's own argon, for its masses: a peak is where it was.
+  // The beam's own argon, for its masses: a peak is where it was. Helium
+  // and neon at their own masses, once there is any.
   std::vector<BeamGas> gas = default_argon_gas();
   for (auto& g : gas) {
     g.abundance = 0.0;
@@ -232,6 +264,12 @@ std::vector<BeamGas> SimSystem::beam_gas_at(TimePoint t) const {
     for (std::size_t s = 0; s < kSpeciesCount; ++s) {
       if (kSpeciesName[s] == g.isotope) g.abundance = (*held)[s] * settings_.source.sensitivity;
     }
+  }
+  for (const Species s : {Species::He4, Species::Ne20}) {
+    const double p = (*held)[index(s)];
+    if (p > 0.0)
+      gas.push_back(BeamGas{std::string(kSpeciesName[index(s)]), kSpeciesMass[index(s)],
+                            p * settings_.source.sensitivity, 0.0});
   }
   return gas;
 }
@@ -254,12 +292,42 @@ void SimSystem::add_gauge_volume_locked(const std::string& name) {
   }
 }
 
+void SimSystem::apply_traps_locked(TimePoint t) const {
+  for (const auto& trap : settings_.cryo_traps) {
+    const auto unit = cryostat_of_.find(trap.cryostat);
+    if (unit == cryostat_of_.end() || !network_.has_volume(trap.volume)) continue;  // no such cryostat: no trap
+    const double kelvin = unit->second->temperature_at(trap.input, t);
+    GasNetwork::Held held{};
+    for (std::size_t s = 0; s < kSpeciesCount; ++s) {
+      const auto release = trap.release_k.find(std::string(kSpeciesName[s]));
+      held[s] = release != trap.release_k.end() && kelvin < release->second;
+    }
+    (void)network_.set_held(trap.volume, held);  // the volume is there: cannot be refused
+  }
+}
+
+void SimSystem::move_to_locked(TimePoint to) const {
+  if (!(to > last_)) return;
+  if (settings_.cryo_traps.empty() || cryostat_of_.empty()) {
+    network_.advance(seconds(to - last_));
+    last_ = to;
+    return;
+  }
+  constexpr Duration kStep = std::chrono::seconds(1);
+  while (last_ < to) {
+    // The next whole second of the clock after last_, or `to`.
+    const auto since = last_.time_since_epoch();
+    const TimePoint grid = TimePoint{} + (since / kStep + 1) * kStep;
+    const TimePoint next = std::min(grid, to);
+    apply_traps_locked(last_);
+    network_.advance(seconds(next - last_));
+    last_ = next;
+  }
+}
+
 TimePoint SimSystem::advance_locked() const {
   const TimePoint now = clock_.now();
-  if (now > last_) {
-    network_.advance(seconds(now - last_));
-    last_ = now;
-  }
+  move_to_locked(now);
   return now;
 }
 
@@ -424,23 +492,48 @@ std::optional<ModbusDeviceSim> SimSystem::plc_device(const config::DriverConfig&
 }
 
 SimTransport::Hook SimSystem::hook_for_transport(std::string_view transport, const config::SystemConfig& system) {
+  return wire_for_transport(transport, system).hook;
+}
+
+WireSim SimSystem::wire_for_transport(std::string_view transport, const config::SystemConfig& system) {
+  WireSim wire;
+  wire.request = framer(ReadSpec::until_any("\r\n"));
   std::vector<const config::DriverConfig*> drivers;
   for (const auto& [name, d] : system.drivers)
     if (d.transport == transport) drivers.push_back(&d);
-  if (drivers.empty()) return {};
+  if (drivers.empty()) return wire;
   if (drivers.size() > 1) {
     // One PLC serving several drivers answers for all of them.
     std::vector<ModbusDeviceSim> parts;
+    std::vector<std::string> kinds;
     for (const auto* d : drivers) {
       if (!is_plc_kind(d->kind)) {
         parts.clear();
         break;
       }
       if (auto part = plc_device(*d, system)) parts.push_back(std::move(*part));
+      if (std::ranges::find(kinds, d->kind) == kinds.end()) kinds.push_back(d->kind);
     }
-    if (!parts.empty()) return modbus_bus_hook(std::move(parts));
+    if (!parts.empty()) {
+      wire.hook = modbus_bus_hook(std::move(parts));
+      wire.request = framer(ReadSpec::modbus_tcp());
+      for (const auto& kind : kinds) wire.emulator += (wire.emulator.empty() ? "" : "+") + kind;
+      return wire;
+    }
   }
-  return hook_for(*drivers.front(), system);
+  const config::DriverConfig& driver = *drivers.front();
+  wire.hook = hook_for(driver, system);
+  if (!wire.hook) {
+    // A heater whose options do not parse: nothing answers.
+    wire.hook = [](const Bytes&) { return Bytes{}; };
+    return wire;
+  }
+  if (auto request = request_framer(driver)) {
+    wire.request = std::move(request);
+    wire.emulator = driver.kind;
+  }
+  wire.close_after_reply = driver.kind == "pychron_valves";
+  return wire;
 }
 
 SimTransport::Hook SimSystem::hook_for(const config::DriverConfig& driver, const config::SystemConfig& system) {
@@ -509,47 +602,12 @@ SimTransport::Hook SimSystem::hook_for(const config::DriverConfig& driver, const
     return hook;
   }
 
-  if (driver.kind == "qtegra_gauges") {
-    // A Qtegra whose parameters[n-1] reads the gauge on channel n.
-    std::vector<std::string> parameters;
-    if (const auto* array = driver.options["parameters"].as_array())
-      for (const auto& p : *array) parameters.push_back(p.value_or(std::string{}));
-    std::map<std::string, std::string> by_parameter;
-    {
-      std::lock_guard lock(mutex_);
-      advance_locked();
-      for (const auto& g : system.gauges) {
-        if (g.driver != driver.name || g.channel < 1 || std::cmp_greater(g.channel, parameters.size()))
-          continue;
-        by_parameter[parameters[static_cast<std::size_t>(g.channel - 1)]] = g.name;
-        add_gauge_volume_locked(g.name);
-      }
-    }
+  if (driver.kind == "qtegra_gauges" || driver.kind == "qtegra_valves") {
+    // A Qtegra answering this driver's commands only. On a kind = "link"
+    // transport the spectrometer's simulator answers instead, and the line's
+    // model does not follow (sim serve joins the two: join_qtegra).
     auto model = std::make_shared<spectrometer::QtegraSimModel>();
-    model->parameter_source = [this, by_parameter = std::move(by_parameter)](
-                                  const std::string& name) -> std::optional<double> {
-      auto it = by_parameter.find(name);
-      if (it == by_parameter.end()) return std::nullopt;
-      auto p = gauge_reading(it->second);
-      return p ? std::optional<double>(*p) : std::nullopt;
-    };
-    return spectrometer::qtegra_sim_hook(std::move(model));
-  }
-
-  if (driver.kind == "qtegra_valves") {
-    // A Qtegra RemoteControl answering valve commands only; its Open/Close
-    // move the line's valves (by Qtegra name). On a kind = "link" transport
-    // the spectrometer's simulator answers instead, and the line's model
-    // does not follow.
-    std::map<std::string, std::pair<std::string, bool>> by_name;  // valve, inverted
-    for (const auto& v : system.valves)
-      if (v.actuator == driver.name) by_name[v.address] = {v.name, v.inverted};
-    for (const auto& s : system.switches)
-      if (s.actuator == driver.name) by_name[s.address] = {s.name, s.inverted};
-    auto model = std::make_shared<spectrometer::QtegraSimModel>();
-    model->on_valve = [this, by_name = std::move(by_name)](const std::string& name, bool open) {
-      if (auto it = by_name.find(name); it != by_name.end()) set_valve(it->second.first, open != it->second.second);
-    };
+    join_qtegra(*model, driver, system);
     return spectrometer::qtegra_sim_hook(std::move(model));
   }
 
@@ -564,25 +622,10 @@ SimTransport::Hook SimSystem::hook_for(const config::DriverConfig& driver, const
   if (driver.kind == "ngx_valves") {
     // The NGX simulator answers (Login, SAB, valves); actuations move the
     // simulated line's valves.
-    std::map<std::string, std::pair<std::string, bool>> by_address;  // name, inverted
-    for (const auto& v : system.valves)
-      if (v.actuator == driver.name) by_address[v.address] = {v.name, v.inverted};
-    for (const auto& s : system.switches)
-      if (s.actuator == driver.name) by_address[s.address] = {s.name, s.inverted};
     auto model = std::make_shared<spectrometer::NgxSimModel>();
     model->banner_pending = false;  // no event source on a line transport
-    auto inner = spectrometer::ngx_sim_hook(model);
-    return [this, model, inner = std::move(inner), by_address = std::move(by_address)](const Bytes& tx) {
-      Bytes reply = inner(tx);
-      std::string cmd = to_string(tx);
-      while (!cmd.empty() && (cmd.back() == '\r' || cmd.back() == '\n' || cmd.back() == '#')) cmd.pop_back();
-      for (const auto* verb : {"OpenValve ", "CloseValve "}) {
-        if (!cmd.starts_with(verb)) continue;
-        if (auto it = by_address.find(cmd.substr(std::string(verb).size())); it != by_address.end())
-          set_valve(it->second.first, cmd.starts_with("OpenValve ") != it->second.second);
-      }
-      return reply;
-    };
+    join_ngx(*model, driver, system);
+    return spectrometer::ngx_sim_hook(std::move(model));
   }
 
   if (driver.kind == "pfeiffer_maxigauge") {
@@ -610,10 +653,19 @@ SimTransport::Hook SimSystem::hook_for(const config::DriverConfig& driver, const
     // A cryostat on this system's clock: room temperature at start, each
     // input following its output's setpoint while that heater is on.
     auto unit = std::make_unique<LakeshoreSim>(clock_, "MODEL" + driver.options["model"].value_or(std::string("335")));
-    auto hook = unit->hook();
+    auto inner = unit->hook();
     std::lock_guard lock(mutex_);
+    cryostat_of_[driver.name] = unit.get();
     cryostats_.push_back(std::move(unit));
-    return hook;
+    // A command changes what the trap does from its instant: the line is
+    // moved to it first, under the trap as it was.
+    return [this, inner = std::move(inner)](const Bytes& tx) {
+      {
+        std::lock_guard moved(mutex_);
+        advance_locked();
+      }
+      return inner(tx);
+    };
   }
 
   if (driver.kind == "plc2000_heater") {
@@ -675,10 +727,76 @@ SimTransport::Hook SimSystem::hook_for(const config::DriverConfig& driver, const
   return [](const Bytes&) { return Bytes{}; };
 }
 
+void SimSystem::join_qtegra(spectrometer::QtegraSimModel& model, const config::DriverConfig& driver,
+                            const config::SystemConfig& system) {
+  if (driver.kind == "qtegra_gauges") {
+    // parameters[n-1] reads the gauge on channel n.
+    std::vector<std::string> parameters;
+    if (const auto* array = driver.options["parameters"].as_array())
+      for (const auto& p : *array) parameters.push_back(p.value_or(std::string{}));
+    std::map<std::string, std::string> by_parameter;
+    {
+      std::lock_guard lock(mutex_);
+      advance_locked();
+      for (const auto& g : system.gauges) {
+        if (g.driver != driver.name || g.channel < 1 || std::cmp_greater(g.channel, parameters.size()))
+          continue;
+        by_parameter[parameters[static_cast<std::size_t>(g.channel - 1)]] = g.name;
+        add_gauge_volume_locked(g.name);
+      }
+    }
+    model.parameter_source = [this, before = std::move(model.parameter_source),
+                              by_parameter = std::move(by_parameter)](const std::string& name) -> std::optional<double> {
+      if (auto it = by_parameter.find(name); it != by_parameter.end()) {
+        auto p = gauge_reading(it->second);
+        return p ? std::optional<double>(*p) : std::nullopt;
+      }
+      return before ? before(name) : std::nullopt;
+    };
+    return;
+  }
+  if (driver.kind == "qtegra_valves") {
+    // Open/Close of a valve's Qtegra name move the line's valve.
+    std::map<std::string, std::pair<std::string, bool>> by_name;  // valve, inverted
+    for (const auto& v : system.valves)
+      if (v.actuator == driver.name) by_name[v.address] = {v.name, v.inverted};
+    for (const auto& s : system.switches)
+      if (s.actuator == driver.name) by_name[s.address] = {s.name, s.inverted};
+    model.on_valve = [this, before = std::move(model.on_valve), by_name = std::move(by_name)](const std::string& name,
+                                                                                               bool open) {
+      if (before) before(name, open);
+      if (auto it = by_name.find(name); it != by_name.end()) set_valve(it->second.first, open != it->second.second);
+    };
+  }
+}
+
+void SimSystem::join_ngx(spectrometer::NgxSimModel& model, const config::DriverConfig& driver,
+                         const config::SystemConfig& system) {
+  if (driver.kind != "ngx_valves") return;
+  std::map<std::string, std::pair<std::string, bool>> by_address;  // name, inverted
+  for (const auto& v : system.valves)
+    if (v.actuator == driver.name) by_address[v.address] = {v.name, v.inverted};
+  for (const auto& s : system.switches)
+    if (s.actuator == driver.name) by_address[s.address] = {s.name, s.inverted};
+  model.on_command = [this, before = std::move(model.on_command), by_address = std::move(by_address)](
+                         const std::string& verb, const std::string& args) {
+    if (before) before(verb, args);
+    if (verb != "OpenValve" && verb != "CloseValve") return;
+    if (auto it = by_address.find(args); it != by_address.end())
+      set_valve(it->second.first, (verb == "OpenValve") != it->second.second);
+  };
+}
+
 extraction::ChromiumSim* SimSystem::chromium(std::string_view driver) const {
   std::lock_guard lock(mutex_);
   const auto it = lasers_.find(driver);
   return it == lasers_.end() ? nullptr : it->second.get();
+}
+
+LakeshoreSim* SimSystem::cryostat(std::string_view driver) const {
+  std::lock_guard lock(mutex_);
+  const auto it = cryostat_of_.find(driver);
+  return it == cryostat_of_.end() ? nullptr : it->second;
 }
 
 Plc2000HeaterSim* SimSystem::heater(std::string_view driver) const {
@@ -687,4 +805,4 @@ Plc2000HeaterSim* SimSystem::heater(std::string_view driver) const {
   return it == heaters_.end() ? nullptr : it->second.get();
 }
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

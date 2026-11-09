@@ -1,7 +1,7 @@
 // The memory store, the choice between it and the system's, and the name a
 // profile's password is kept under.
 
-#include "pychron/earthbank/secret_store.hpp"
+#include "nobion/earthbank/secret_store.hpp"
 
 #include <cctype>
 #include <map>
@@ -12,11 +12,11 @@
 #include <string_view>
 #include <utility>
 
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/profiles.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/profiles.hpp"
 #include "secret_store_detail.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 // The passwords of one service, by account.
@@ -125,10 +125,10 @@ std::unique_ptr<ISecretStore> make_memory_secret_store() {
   return std::make_unique<MemorySecretStore>(std::make_shared<Shelf>());
 }
 
-std::string_view built_in_secret_store() { return PYCHRON_EARTHBANK_SECRET_STORE; }
+std::string_view built_in_secret_store() { return NOBION_EARTHBANK_SECRET_STORE; }
 
 std::unique_ptr<ISecretStore> make_secret_store(std::string_view service) {
-#if PYCHRON_EARTHBANK_HAS_SYSTEM_SECRET_STORE
+#if NOBION_EARTHBANK_HAS_SYSTEM_SECRET_STORE
   if (auto store = detail::make_system_secret_store(service)) return store;
 #endif
   return detail::process_memory_secret_store(service);
@@ -136,4 +136,4 @@ std::unique_ptr<ISecretStore> make_secret_store(std::string_view service) {
 
 std::string secret_account(const Profile& profile) { return profile.name + "@" + host_of(profile.base_url); }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

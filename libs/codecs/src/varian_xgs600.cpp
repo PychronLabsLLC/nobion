@@ -1,9 +1,9 @@
-#include "pychron/codecs/varian_xgs600.hpp"
+#include "nobion/codecs/varian_xgs600.hpp"
 
 #include <cctype>
 #include <cstdio>
 
-namespace pychron::codec::varian_xgs600 {
+namespace nobion::codec::varian_xgs600 {
 
 namespace {
 
@@ -73,4 +73,4 @@ Bytes encode_pressure(double value) {
 Bytes encode_off() { return to_bytes(">OFF\r"); }
 Bytes encode_rejected() { return to_bytes("?FF\r"); }
 
-}  // namespace pychron::codec::varian_xgs600
+}  // namespace nobion::codec::varian_xgs600

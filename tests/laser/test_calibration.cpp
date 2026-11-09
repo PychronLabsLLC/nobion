@@ -1,7 +1,7 @@
 // Stage calibration from (hole, stage position) points (laser system design,
 // section 3.2).
 
-#include "pychron/laser/calibration.hpp"
+#include "nobion/laser/calibration.hpp"
 
 #include <cmath>
 #include <filesystem>
@@ -12,8 +12,8 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-using namespace pychron::laser;
+using namespace nobion;
+using namespace nobion::laser;
 
 namespace {
 
@@ -21,7 +21,7 @@ constexpr double kDeg = std::numbers::pi / 180.0;
 
 // Holes 1 (0,0), 2 (0,5), 3 (5,0), 4 (0,-5), 5 (-5,0), and four more.
 TrayMap small() {
-  auto map = TrayMap::load(std::filesystem::path(PYCHRON_TEST_DATA_DIR) / "tray_maps" / "small.txt");
+  auto map = TrayMap::load(std::filesystem::path(NOBION_TEST_DATA_DIR) / "tray_maps" / "small.txt");
   EXPECT_TRUE(map);
   return *map;
 }

@@ -7,7 +7,7 @@
 #include "sql/statements.hpp"
 #include "store_impl.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 namespace {
 
 ResolvedRef candidate(const Row& r) {
@@ -72,6 +72,31 @@ Result<RefResolution> resolve_refs(Db& db, Uuid analysis, const RefPolicy& polic
   return out;
 }
 
+// The references as of a bookmark: the ones it pins, at the pinned revision.
+// A reference object the bookmark does not name (one made after the release
+// was created, or a production its level named later) is dropped: the
+// release's values must not depend on it (data publishing spec R3).
+Result<RefResolution> resolve_refs_at(Db& db, Uuid analysis, Uuid bookmark) {
+  auto now = resolve_refs(db, analysis, RefPolicy{false});
+  if (!now) return fail(now.error());
+  if (now->refs.empty()) return now;
+  Bindings b{qv(bookmark)};
+  for (const auto& ref : now->refs) b.push_back(qv(ref.ref_object));
+  auto rows = db.select(sql::bookmark_value_entries(static_cast<qsizetype>(now->refs.size())), b);
+  if (!rows) return fail(rows.error());
+  std::map<Uuid, Uuid> pinned;
+  for (const auto& r : *rows) pinned[to_uuid(r.value("subject_uuid"))] = to_uuid(r.value("revision_uuid"));
+  RefResolution out;
+  for (auto ref : now->refs) {
+    const auto it = pinned.find(ref.ref_object);
+    if (it == pinned.end()) continue;
+    ref.revision = it->second;
+    ref.pinned = true;
+    out.refs.push_back(ref);
+  }
+  return out;
+}
+
 // Canonical text, one fact per line, hashed with SHA-256:
 //   pychron-derived-fingerprint/1
 //   head <kind> <revision>          for every head of the analysis, by kind name
@@ -82,32 +107,37 @@ Result<Sha256Digest> input_fingerprint(Db& db, Uuid analysis, const std::string&
   if (!heads) return fail(heads.error());
   auto refs = resolve_refs(db, analysis, RefPolicy{});
   if (!refs) return fail(refs.error());
-  std::map<std::string, Uuid> by_kind;
-  for (const auto& h : *heads) by_kind[std::string(to_string(h.kind))] = h.revision;
-  std::string text = "pychron-derived-fingerprint/1\n";
-  for (const auto& [kind, rev] : by_kind) text += "head " + kind + " " + rev.str() + "\n";
-  for (const auto& r : refs->refs) text += "ref " + r.ref_object.str() + " " + r.revision.str() + "\n";
-  text += "reduction_version " + reduction_version + "\n";
-  return sha256(std::string_view{text});
+  return fingerprint_of(*heads, refs->refs, reduction_version);
 }
 
 Result<void> put_derived(Db& db, Uuid analysis, const Sha256Digest& fingerprint, const std::string& reduction_version,
                          const std::vector<DerivedRow>& rows) {
+  const DerivedPut put{analysis, fingerprint, rows};
+  return put_derived_many(db, std::span<const DerivedPut>(&put, 1), reduction_version);
+}
+
+Result<void> put_derived_many(Db& db, std::span<const DerivedPut> puts, const std::string& reduction_version) {
   // A cache, not a record: no revision and no change_log entry (section 4.3).
   WriteTx tx(db);
   if (auto r = tx.begin(); !r) return fail(r.error());
   const UtcTime now = UtcTime::now();
-  for (const auto& d : rows) {
-    Row r;
-    r["analysis_uuid"] = qv(analysis);
-    r["fingerprint"] = qv(fingerprint);
-    r["name"] = qv(d.name);
-    r["value"] = qv(d.value);
-    r["error"] = qv(d.error);
-    r["units"] = qv(d.units);
-    r["reduction_version"] = qv(reduction_version);
-    r["computed_utc"] = qv(now);
-    if (auto ins = db.insert_or_ignore("derived_value", r); !ins) return fail(ins.error());
+  for (const auto& put : puts) {
+    // One fingerprint per analysis (age cache spec 4.2): what was computed
+    // from other inputs goes before this is filed.
+    if (auto gone = db.affecting(sql::kDeleteOtherDerived, {qv(put.analysis), qv(put.fingerprint)}); !gone)
+      return fail(gone.error());
+    for (const auto& d : put.rows) {
+      Row r;
+      r["analysis_uuid"] = qv(put.analysis);
+      r["fingerprint"] = qv(put.fingerprint);
+      r["name"] = qv(d.name);
+      r["value"] = qv(d.value);
+      r["error"] = qv(d.error);
+      r["units"] = qv(d.units);
+      r["reduction_version"] = qv(reduction_version);
+      r["computed_utc"] = qv(now);
+      if (auto ins = db.insert_or_ignore("derived_value", r); !ins) return fail(ins.error());
+    }
   }
   return tx.commit();
 }
@@ -126,6 +156,21 @@ Result<std::optional<std::vector<DerivedRow>>> get_derived(Db& db, Uuid analysis
   return std::optional<std::vector<DerivedRow>>{std::move(out)};
 }
 
+Result<std::map<Uuid, Sha256Digest>> derived_fingerprints(Db& db, std::span<const Uuid> analyses) {
+  // In parts: a statement takes a bounded number of values (999 on an older SQLite).
+  constexpr std::size_t kPart = 500;
+  std::map<Uuid, Sha256Digest> out;
+  for (std::size_t at = 0; at < analyses.size(); at += kPart) {
+    const auto part = analyses.subspan(at, std::min(kPart, analyses.size() - at));
+    Bindings ids;
+    for (const Uuid& id : part) ids << qv(id);
+    auto rows = db.select(sql::derived_fingerprints(static_cast<qsizetype>(part.size())), ids);
+    if (!rows) return fail(rows.error());
+    for (const auto& r : *rows) out.insert_or_assign(to_uuid(r.value("analysis_uuid")), to_digest(r.value("fingerprint")));
+  }
+  return out;
+}
+
 Result<int> prune_derived(Db& db, Uuid analysis) {
   auto versions = db.select(sql::kDerivedVersions, {qv(analysis)});
   if (!versions) return fail(versions.error());
@@ -141,4 +186,20 @@ Result<int> prune_derived(Db& db, Uuid analysis) {
   return removed;
 }
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail
+
+namespace nobion::persistence {
+
+// The text is input_fingerprint's (detail, above).
+Sha256Digest fingerprint_of(const std::vector<HeadInfo>& heads, const std::vector<ResolvedRef>& refs,
+                            const std::string& reduction_version) {
+  std::map<std::string, Uuid> by_kind;
+  for (const auto& h : heads) by_kind[std::string(to_string(h.kind))] = h.revision;
+  std::string text = "pychron-derived-fingerprint/1\n";
+  for (const auto& [kind, rev] : by_kind) text += "head " + kind + " " + rev.str() + "\n";
+  for (const auto& r : refs) text += "ref " + r.ref_object.str() + " " + r.revision.str() + "\n";
+  text += "reduction_version " + reduction_version + "\n";
+  return sha256(std::string_view{text});
+}
+
+}  // namespace nobion::persistence

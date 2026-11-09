@@ -1,4 +1,4 @@
-#! pychron: eqtime=30
+#! nobion: eqtime=30
 def main():
     set_pid_parameters(extract_value)
     begin_heating_interval(duration)

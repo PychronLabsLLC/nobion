@@ -15,15 +15,15 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/error.hpp"
-#include "pychron/persistence/ids.hpp"
-#include "pychron/persistence/store.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/persistence/ids.hpp"
+#include "nobion/persistence/store.hpp"
 
 namespace Orm {
 class DatabaseConnection;
 }
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 
 using Row = QVariantMap;
 using Bindings = QList<QVariant>;
@@ -135,4 +135,4 @@ std::optional<Uuid> opt_uuid(const QVariant& v);
 UtcTime to_time(const QVariant& v);
 Sha256Digest to_digest(const QVariant& v);
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

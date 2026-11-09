@@ -11,11 +11,11 @@
 #include <future>
 #include <mutex>
 
-#include "pychron/systems/spectrometer/data_dir.hpp"
-#include "pychron/systems/spectrometer/spectrometer.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
+#include "nobion/systems/spectrometer/spectrometer.hpp"
 #include "spectrometer_fakes.hpp"
 
-namespace pychron::spectrometer::testing {
+namespace nobion::spectrometer::testing {
 
 struct BeamAcquirer : IIntensityAcquirer {
   using Signal = std::function<double(const ChannelId&)>;
@@ -76,8 +76,9 @@ struct JobRig {
   std::vector<Duration> sleeps;  // Sweep settle waits
   std::unique_ptr<Spectrometer> spec;
 
-  JobRig() {
-    const auto path = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "spectrometer.sim-integrated.toml";
+  // `data_root` empty: no table store (save_table fails with a Config error).
+  explicit JobRig(std::filesystem::path data_root = {}) {
+    const auto path = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "spectrometer.sim-integrated.toml";
     auto d = cfg::load_spectrometer(path);
     EXPECT_TRUE(d.has_value()) << (d ? "" : d.error().what);
     if (!d) return;
@@ -91,6 +92,7 @@ struct JobRig {
     roles.beam_blank = &blank;
     Spectrometer::Options options;
     options.sleep = [this](Duration dt) { clock.advance(dt); };
+    options.data_root = std::move(data_root);
     auto made = Spectrometer::create(d->config, MolecularWeights(d->weights), std::move(tables), std::move(roles),
                                      SpectrometerContext{clock, scheduler, bus}, options);
     EXPECT_TRUE(made.has_value()) << (made ? "" : made.error().what);
@@ -120,4 +122,4 @@ struct JobRig {
   }
 };
 
-}  // namespace pychron::spectrometer::testing
+}  // namespace nobion::spectrometer::testing

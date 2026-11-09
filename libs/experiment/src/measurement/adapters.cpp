@@ -1,38 +1,113 @@
-#include "pychron/experiment/measurement/adapters.hpp"
+#include "nobion/experiment/measurement/adapters.hpp"
 
+#include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <memory>
+#include <type_traits>
 #include <optional>
 #include <utility>
 #include <variant>
 #include <vector>
 
-namespace pychron::experiment::measurement {
+namespace nobion::experiment::measurement {
 
-Result<void> SpectrometerPort::position(const plan::HopTarget& target) {
-  spectrometer::PositionTarget t;
-  if (target.mass) {
-    t.target = spectrometer::Mass{*target.mass};
-  } else {
-    t.target = spectrometer::Isotope{target.isotope};
-  }
-  t.on = target.detector;
+namespace {
+
+spectrometer::PositionOptions no_settle() {
   spectrometer::PositionOptions options;
-  options.settle = pychron::Duration::zero();
-  auto r = spec_.position(t, options);
-  if (!r) return fail(r.error());
-  return {};
+  options.settle = nobion::Duration::zero();
+  return options;
+}
+
+}  // namespace
+
+Result<void> SpectrometerPort::position(const plan::At& target) {
+  return std::visit(
+      [&](const auto& at) -> Result<void> {
+        using T = std::decay_t<decltype(at)>;
+        if constexpr (std::is_same_v<T, plan::AtLabel>) {
+          auto r = spec_.position(spectrometer::PositionTarget{spectrometer::Isotope{at.label}, at.detector}, no_settle());
+          if (!r) return fail(r.error());
+        } else if constexpr (std::is_same_v<T, plan::AtMass>) {
+          auto r = spec_.position(spectrometer::PositionTarget{spectrometer::Mass{at.mass}, at.detector}, no_settle());
+          if (!r) return fail(r.error());
+        } else if constexpr (std::is_same_v<T, plan::AtDac>) {
+          auto r = spec_.move_native(at.dac, no_settle());
+          if (!r) return fail(r.error());
+        } else {
+          auto r = spec_.position_hv(spectrometer::PositionTarget{spectrometer::NativeUnits{at.hv}, at.detector},
+                                     no_settle());
+          if (!r) return fail(r.error());
+        }
+        return {};
+      },
+      target);
 }
 
 Result<void> SpectrometerPort::protect(const std::string& detector, bool on) { return spec_.protect(detector, on); }
 
-Result<void> SpectrometerPort::start_acquisition(pychron::Duration integration) {
+Result<double> SpectrometerPort::set_deflection(const std::string& detector, double value) {
+  return spec_.set_deflection(detector, value);
+}
+
+Result<double> SpectrometerPort::deflection(const std::string& detector) { return spec_.read_deflection(detector); }
+
+Result<void> SpectrometerPort::with_table(const std::string& name) {
+  table_.reset();  // back to the table that was current before the last call
+  if (name.empty()) return {};
+  auto scope = spec_.with_table(name);
+  if (!scope) return fail(scope.error());
+  table_.emplace(std::move(*scope));
+  return {};
+}
+
+Result<void> SpectrometerPort::set_gain(const std::string& detector, double gain) {
+  return spec_.set_gain(detector, gain);
+}
+
+Result<void> SpectrometerPort::set_hv(double volts) { return spec_.set_hv(volts); }
+
+Result<void> SpectrometerPort::set_cdd_voltage(double volts) {
+  bool any = false;
+  for (const auto& d : spec_.config().detectors) {
+    if (d.kind != spectrometer::cfg::DetectorKind::Cdd) continue;
+    any = true;
+    if (auto r = spec_.set_cdd_voltage(d.name, volts); !r) return r;
+  }
+  if (!any) return fail(ErrorKind::Config, "cdd_voltage: the spectrometer has no CDD");
+  return {};
+}
+
+Result<void> SpectrometerPort::set_param(const std::string& name, double value) {
+  auto id = spectrometer::parse_param_id(name);
+  if (!id) {
+    // Not a registry name: the source's own (vendor) name for one.
+    auto specs = spec_.source_params();
+    if (!specs) return fail(specs.error());
+    const auto* spec = spectrometer::find_vendor(*specs, name);
+    if (spec == nullptr) return fail(id.error());
+    id = spec->id;
+  }
+  return spec_.set_param(*id, value);
+}
+
+Result<void> SpectrometerPort::blank_beam(bool on) { return spec_.blank_beam(on); }
+
+Result<void> SpectrometerPort::apply_optics(const std::string& name) {
+  if (name.empty()) return {};  // none asked: the preset in effect stays
+  return spec_.apply_optics(name);
+}
+
+Result<void> SpectrometerPort::set_source_output(bool on) { return spec_.set_source_output(on); }
+
+Result<void> SpectrometerPort::start_acquisition(nobion::Duration integration) {
   auto& engine = spec_.acquisition();
   if (engine.running()) engine.stop();
   return engine.start(integration);
 }
 
-Result<std::optional<spectrometer::Reading>> SpectrometerPort::next_reading(pychron::Duration timeout) {
+Result<std::optional<spectrometer::Reading>> SpectrometerPort::next_reading(nobion::Duration timeout) {
   return spec_.acquisition().stream()->next(timeout);
 }
 
@@ -67,22 +142,95 @@ std::optional<ParamValue> SystemConfigAliases::resolve_alias(std::string_view ke
   return it->second;
 }
 
-SpectrometerCatalog::SpectrometerCatalog(const spectrometer::cfg::SpectrometerConfig& config) {
-  for (const auto& d : config.detectors) detectors_.insert(d.name);
+SpectrometerCatalog::SpectrometerCatalog(const spectrometer::cfg::SpectrometerConfig& config,
+                                         spectrometer::cfg::MolecularWeights weights,
+                                         std::vector<std::string> table_names)
+    : weights_(std::move(weights)),
+      tables_(std::make_move_iterator(table_names.begin()), std::make_move_iterator(table_names.end())),
+      // A raw value goes to the positioner only when its native axis is a DAC;
+      // an HV position needs a source to set it on.
+      by_dac_(!config.magnet.positioner.empty() && config.magnet.native_axis == spectrometer::cfg::Axis::Dac),
+      by_hv_(!config.source.driver.empty()) {
+  for (const auto& d : config.detectors) {
+    detectors_.emplace(d.name, d.isotope);
+    if (d.deflection && d.deflection->control) deflectable_.insert(d.name);
+    if (d.deflection && d.deflection->max) deflection_max_.emplace(d.name, *d.deflection->max);
+  }
+  for (const auto& [name, dc] : config.drivers) optics_control_ |= dc.has_role(spectrometer::cfg::Role::Optics);
+  for (const auto& [name, preset] : config.optics) optics_.insert(name);
+}
+
+std::map<std::string, DetectorTiming> detector_timing(const spectrometer::cfg::SpectrometerConfig& config) {
+  std::map<std::string, DetectorTiming> out;
+  for (const auto& d : config.detectors)
+    out.emplace(d.name, DetectorTiming{d.large_beam_threshold, d.settle_after_large_beam_s, d.collector, d.mode_switch_s});
+  return out;
 }
 
 bool SpectrometerCatalog::has_detector(std::string_view name) const { return detectors_.contains(name); }
 
+std::optional<std::string> SpectrometerCatalog::isotope_of(std::string_view detector) const {
+  const auto it = detectors_.find(detector);
+  if (it == detectors_.end() || it->second.empty()) return std::nullopt;
+  return it->second;
+}
+
+std::optional<double> SpectrometerCatalog::mass_of(std::string_view label) const {
+  const auto it = weights_.find(label);
+  if (it == weights_.end()) return std::nullopt;
+  return it->second;
+}
+
+bool SpectrometerCatalog::supports_deflection(std::string_view detector) const {
+  return deflectable_.contains(detector);
+}
+
+std::optional<double> SpectrometerCatalog::deflection_max(std::string_view detector) const {
+  const auto it = deflection_max_.find(detector);
+  if (it == deflection_max_.end()) return std::nullopt;
+  return it->second;
+}
+
+bool SpectrometerCatalog::has_optics(std::string_view name) const {
+  return optics_control_ && optics_.contains(name);
+}
+
+bool SpectrometerCatalog::has_table(std::string_view name) const { return tables_.contains(name); }
+
+bool SpectrometerCatalog::positions_by_dac() const { return by_dac_; }
+
+bool SpectrometerCatalog::positions_by_hv() const { return by_hv_; }
+
+std::vector<std::string> table_names(const spectrometer::cfg::SpectrometerData& data) {
+  std::vector<std::string> out;
+  out.reserve(data.tables.size());
+  for (const auto& kv : data.tables) out.push_back(kv.first);
+  return out;
+}
+
 Result<jobs::PeakCenterConfig> SpectrometerPeakCenter::config_for(const PeakCenterRequest& request) const {
   const std::string name = request.config.empty() ? "default" : request.config;
   jobs::PeakCenterConfig cfg;
-  if (auto it = configs_.find(name); it != configs_.end()) {
-    cfg = it->second;
-  } else if (name != "default") {
-    return fail(ErrorKind::Config, "unknown peak center config '" + name + "'");
+  {
+    std::lock_guard lock(mutex_);
+    if (auto it = configs_.find(name); it != configs_.end()) {
+      cfg = it->second;
+    } else if (name != "default") {
+      return fail(ErrorKind::Config, "unknown peak center config '" + name + "'");
+    }
   }
   if (!request.isotope.empty()) cfg.isotope = request.isotope;
   if (!request.detector.empty()) cfg.detector = request.detector;
+  for (const auto& d : request.extra_detectors)
+    if (std::find(cfg.additional_detectors.begin(), cfg.additional_detectors.end(), d) == cfg.additional_detectors.end())
+      cfg.additional_detectors.push_back(d);
+  if (!request.write_table.empty()) {
+    // The run's own table: this detector's column only, never saved
+    // (legacy generate_ic_mftable).
+    cfg.update_table = true;
+    cfg.propagate = false;
+    cfg.save_table = false;
+  }
   return cfg;
 }
 
@@ -90,6 +238,24 @@ Result<PeakCenterReport> SpectrometerPeakCenter::peak_center(const PeakCenterReq
                                                             scripting::CancelToken& token) {
   auto cfg = config_for(request);
   if (!cfg) return fail(cfg.error());
+  // write_table: the job updates the run's own copy of the current table,
+  // selected for as long as it runs.
+  std::optional<spectrometer::Spectrometer::TableScope> run_table;
+  if (!request.write_table.empty()) {
+    bool fresh = false;
+    {
+      std::lock_guard lock(mutex_);
+      fresh = !run_tables_.contains(request.write_table);
+    }
+    if (fresh) {
+      if (auto added = spec_.add_run_table(request.write_table, spec_.field_table()); !added) return fail(added.error());
+      std::lock_guard lock(mutex_);
+      run_tables_.insert(request.write_table);
+    }
+    auto scope = spec_.with_table(request.write_table);
+    if (!scope) return fail(scope.error());
+    run_table.emplace(std::move(*scope));
+  }
 
   // Bridge the run's token to the job's: a cancel of the run is made on the
   // job by the thread that requests it, for as long as the job runs. Shared:
@@ -142,6 +308,20 @@ Result<PeakCenterReport> SpectrometerPeakCenter::peak_center(const PeakCenterReq
   return report;
 }
 
+void SpectrometerPeakCenter::set_configs(std::map<std::string, jobs::PeakCenterConfig> configs) {
+  std::lock_guard lock(mutex_);
+  configs_ = std::move(configs);
+}
+
+void SpectrometerPeakCenter::drop_run_tables() {
+  std::set<std::string> names;
+  {
+    std::lock_guard lock(mutex_);
+    names.swap(run_tables_);
+  }
+  for (const auto& name : names) spec_.drop_run_table(name);
+}
+
 std::optional<jobs::PeakCenterResult> SpectrometerPeakCenter::last() const {
   std::lock_guard lock(mutex_);
   return last_;
@@ -180,4 +360,4 @@ std::optional<double> InstrumentMetrics::scalar(const MetricRef& m) const {
   }
 }
 
-}  // namespace pychron::experiment::measurement
+}  // namespace nobion::experiment::measurement

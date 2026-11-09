@@ -1,0 +1,37 @@
+# Example laser queue for the simulated lab: two unknowns on holes 3 and 7 of
+# the example-9 tray (the second with the beam moved along patterns/hexagon.toml), heated with the simulated Chromium CO2 laser ("co2" in
+# extraction_line.toml).
+#   elctl -c extraction_line.toml --sim exp run queues/experiment.laser.toml \
+#         --spectrometer spectrometer.sim-integrated.toml
+# The tray map is tray_maps/example-9.txt; where it sits on the stage is
+# stage_calibrations/co2.example-9.toml (see `elctl laser`).
+#
+# The simulated grain gives no gas off under the laser, so the extraction
+# script (laser_extract.py) lets in one pipette of the air tank's air in its
+# place. The unknowns here therefore read like air shots: about 9.5e4 fA of
+# Ar40 at the 40/36 of air.
+
+[queue]
+name = "sim-laser-example"
+mass_spectrometer = "sim"
+extract_device = "co2"
+tray = "example-9"
+username = "example"
+
+[queue.delays]
+before_analyses = 5
+between_analyses = 10
+
+[[runs]]
+identifier = "66001"
+extraction = { script = "laser_extract", position = "3", value = 20, units = "percent", duration = 10 }
+measurement = { plan = "sim_multicollect", overrides = { "main.cycles" = 1 } }
+post_measurement = "sim_pump"
+sample = { sample = "FC-2", material = "sanidine", project = "examples" }
+
+[[runs]]
+identifier = "66001"
+extraction = { script = "laser_extract", position = "7", value = 20, units = "percent", duration = 10, pattern = "hexagon" }
+measurement = { plan = "sim_multicollect", overrides = { "main.cycles" = 1 } }
+post_measurement = "sim_pump"
+sample = { sample = "FC-2", material = "sanidine", project = "examples" }

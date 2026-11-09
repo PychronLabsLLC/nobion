@@ -1,11 +1,11 @@
-# Installs the "pychron" component into PREFIX and runs the installed elctl.
+# Installs the "nobion" component into PREFIX and runs the installed elctl.
 file(REMOVE_RECURSE "${PREFIX}")
 set(config_args)
 if(CONFIG)
   set(config_args --config "${CONFIG}")
 endif()
 execute_process(
-  COMMAND "${CMAKE_COMMAND}" --install "${BUILD_DIR}" --component pychron --prefix "${PREFIX}" ${config_args}
+  COMMAND "${CMAKE_COMMAND}" --install "${BUILD_DIR}" --component nobion --prefix "${PREFIX}" ${config_args}
   RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE out)
 if(NOT rc EQUAL 0)
   message(FATAL_ERROR "install failed (${rc}):\n${out}")
@@ -19,8 +19,8 @@ endif()
 list(GET candidates 0 elctl)
 
 # The source tree's profiles must not be what it finds.
-set(ENV{PYCHRON_PROFILES_DIR} "")
-set(ENV{PYCHRON_EXAMPLES_DIR} "")
+set(ENV{NOBION_PROFILES_DIR} "")
+set(ENV{NOBION_EXAMPLES_DIR} "")
 execute_process(COMMAND "${elctl}" --version RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
 if(NOT rc EQUAL 0)
   message(FATAL_ERROR "${elctl} --version failed (${rc}):\n${out}${err}")

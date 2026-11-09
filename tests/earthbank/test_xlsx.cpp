@@ -1,5 +1,5 @@
 // Submissions written into the vendor's two workbooks
-// (pychron/earthbank/xlsx.hpp): every value under the column that is its
+// (nobion/earthbank/xlsx.hpp): every value under the column that is its
 // own, the rows of a data point tied together by its name, and everything
 // that is not a data row left as the template has it.
 //
@@ -37,15 +37,15 @@
 
 #include "analyses.hpp"
 #include "ooxml.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/mapping.hpp"
-#include "pychron/earthbank/model.hpp"
-#include "pychron/earthbank/xlsx.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/mapping.hpp"
+#include "nobion/earthbank/model.hpp"
+#include "nobion/earthbank/xlsx.hpp"
 #include "records_support.hpp"
 #include "xlsx_detail.hpp"
 #include "zip_support.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 namespace fs = std::filesystem;
@@ -56,7 +56,7 @@ const char* const kArAr = "ArArDataPoint_Template2026.xlsx";
 const char* const kSample = "Sample_Template_v2025-04-16.xlsx";
 const char* const kStamp = "20261007-010203";
 
-fs::path template_dir() { return fs::path(PYCHRON_EARTHBANK_TEMPLATE_DIR); }
+fs::path template_dir() { return fs::path(NOBION_EARTHBANK_TEMPLATE_DIR); }
 
 // ---- The census -------------------------------------------------------------
 
@@ -405,22 +405,22 @@ struct Distinct {
   void fill(std::optional<std::int64_t>& field) { field = 1000 + next++; }
   void fill(std::optional<bool>& field) { field = true; }
 
-#define PYCHRON_EARTHBANK_DISTINCT(kind, name) fill(record.name);
-#define PYCHRON_EARTHBANK_ALL_DISTINCT(Record, FIELDS) \
+#define NOBION_EARTHBANK_DISTINCT(kind, name) fill(record.name);
+#define NOBION_EARTHBANK_ALL_DISTINCT(Record, FIELDS) \
   Record all(const Record&) {                          \
     Record record;                                     \
-    FIELDS(PYCHRON_EARTHBANK_DISTINCT)                 \
+    FIELDS(NOBION_EARTHBANK_DISTINCT)                 \
     return record;                                     \
   }
-  PYCHRON_EARTHBANK_ALL_DISTINCT(Sample, PYCHRON_EARTHBANK_SAMPLE_FIELDS)
-  PYCHRON_EARTHBANK_ALL_DISTINCT(Location, PYCHRON_EARTHBANK_LOCATION_FIELDS)
-  PYCHRON_EARTHBANK_ALL_DISTINCT(DataPoint, PYCHRON_EARTHBANK_DATA_POINT_FIELDS)
-  PYCHRON_EARTHBANK_ALL_DISTINCT(Aliquot, PYCHRON_EARTHBANK_ALIQUOT_FIELDS)
-  PYCHRON_EARTHBANK_ALL_DISTINCT(Measurement, PYCHRON_EARTHBANK_MEASUREMENT_FIELDS)
-  PYCHRON_EARTHBANK_ALL_DISTINCT(AgeCalc, PYCHRON_EARTHBANK_AGE_CALC_FIELDS)
-  PYCHRON_EARTHBANK_ALL_DISTINCT(AgeSummary, PYCHRON_EARTHBANK_AGE_SUMMARY_FIELDS)
-#undef PYCHRON_EARTHBANK_ALL_DISTINCT
-#undef PYCHRON_EARTHBANK_DISTINCT
+  NOBION_EARTHBANK_ALL_DISTINCT(Sample, NOBION_EARTHBANK_SAMPLE_FIELDS)
+  NOBION_EARTHBANK_ALL_DISTINCT(Location, NOBION_EARTHBANK_LOCATION_FIELDS)
+  NOBION_EARTHBANK_ALL_DISTINCT(DataPoint, NOBION_EARTHBANK_DATA_POINT_FIELDS)
+  NOBION_EARTHBANK_ALL_DISTINCT(Aliquot, NOBION_EARTHBANK_ALIQUOT_FIELDS)
+  NOBION_EARTHBANK_ALL_DISTINCT(Measurement, NOBION_EARTHBANK_MEASUREMENT_FIELDS)
+  NOBION_EARTHBANK_ALL_DISTINCT(AgeCalc, NOBION_EARTHBANK_AGE_CALC_FIELDS)
+  NOBION_EARTHBANK_ALL_DISTINCT(AgeSummary, NOBION_EARTHBANK_AGE_SUMMARY_FIELDS)
+#undef NOBION_EARTHBANK_ALL_DISTINCT
+#undef NOBION_EARTHBANK_DISTINCT
 };
 
 class Xlsx : public ::testing::Test {
@@ -429,7 +429,7 @@ class Xlsx : public ::testing::Test {
     const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
     // Per process as well as per test: two build trees may run at once.
     dir_ = fs::temp_directory_path() /
-           (std::string("pychron_xlsx_") + info->name() + "_" + std::to_string(process_id()));
+           (std::string("nobion_xlsx_") + info->name() + "_" + std::to_string(process_id()));
     fs::remove_all(dir_);
     fs::create_directories(dir_);
     out_ = dir_ / "out";
@@ -658,7 +658,7 @@ TEST_F(Xlsx, EveryRecordLandsInItsSheetUnderItsColumn) {
   EXPECT_EQ(std::stod(samples[1].at("longitude")), -106.9);
   EXPECT_EQ(std::stod(samples[1].at("elevationGround")), 2850.0);
   EXPECT_EQ(samples[1].at("unitName"), "Fish Canyon Tuff");
-  EXPECT_EQ(samples[1].at("sampleComment"), "Uploaded from pychron-cpp");
+  EXPECT_EQ(samples[1].at("sampleComment"), "Uploaded from nobion");
   // The fusion sample has no place: its columns stay empty.
   EXPECT_FALSE(samples[0].contains("latitude"));
 }
@@ -1147,20 +1147,20 @@ TEST_F(Xlsx, ATemplateWithoutASheetIsRefused) {
 
 TEST_F(Xlsx, DefaultTemplateDir) {
   // A development build: no installed templates beside the test program.
-  set_env("PYCHRON_EARTHBANK_TEMPLATES", "");
+  set_env("NOBION_EARTHBANK_TEMPLATES", "");
   EXPECT_TRUE(fs::equivalent(default_template_dir(), template_dir())) << default_template_dir();
   options_.template_dir.clear();
   EXPECT_EQ(exported(fixtures()).files.size(), 2u);
   EXPECT_TRUE(xlsx_columns().has_value());
 
-  // Installed: beside the program, as cmake/PychronInstall.cmake lays it out.
+  // Installed: beside the program, as cmake/NobionInstall.cmake lays it out.
   const fs::path prefix = dir_ / "prefix";
-  const fs::path share = prefix / "share" / "pychron" / "earthbank" / "templates";
+  const fs::path share = prefix / "share" / "nobion" / "earthbank" / "templates";
   fs::create_directories(prefix / "bin");
   EXPECT_TRUE(fs::equivalent(default_template_dir(prefix / "bin"), template_dir()));  // nothing installed there yet
   fs::create_directories(share);
   EXPECT_EQ(default_template_dir(prefix / "bin"), fs::weakly_canonical(share));
-  const fs::path bundle = dir_ / "Pychron.app" / "Contents";
+  const fs::path bundle = dir_ / "Nobion.app" / "Contents";
   fs::create_directories(bundle / "MacOS");
   fs::create_directories(bundle / "Resources" / "earthbank" / "templates");
   EXPECT_EQ(default_template_dir(bundle / "MacOS"),
@@ -1169,12 +1169,12 @@ TEST_F(Xlsx, DefaultTemplateDir) {
 
   // The environment comes first.
   const fs::path named = dir_ / "named";
-  set_env("PYCHRON_EARTHBANK_TEMPLATES", named.string().c_str());
+  set_env("NOBION_EARTHBANK_TEMPLATES", named.string().c_str());
   EXPECT_EQ(default_template_dir(), named);
   EXPECT_EQ(default_template_dir(prefix / "bin"), named);
   out_ = dir_ / "from-env";
   const auto result = export_xlsx(fixtures(), out_, options_);
-  set_env("PYCHRON_EARTHBANK_TEMPLATES", "");
+  set_env("NOBION_EARTHBANK_TEMPLATES", "");
   ASSERT_FALSE(result.has_value());
   EXPECT_NE(result.error().what.find((named / kArAr).string()), std::string::npos) << result.error().what;
 }
@@ -1818,7 +1818,7 @@ TEST_F(Xlsx, AFailedSaveTakesBackWhatWasWritten) {
 TEST_F(Xlsx, TemplatesThatAreNowhereAreSaidWithEveryPlaceLooked) {
   const fs::path bin = dir_ / "prefix" / "bin";
   fs::create_directories(bin);
-  const fs::path share = dir_ / "prefix" / "share" / "pychron" / "earthbank" / "templates";
+  const fs::path share = dir_ / "prefix" / "share" / "nobion" / "earthbank" / "templates";
   const fs::path bundle = dir_ / "prefix" / "Resources" / "earthbank" / "templates";
   const fs::path source = dir_ / "build-machine" / "src" / "libs" / "earthbank" / "templates";
 
@@ -1827,7 +1827,7 @@ TEST_F(Xlsx, TemplatesThatAreNowhereAreSaidWithEveryPlaceLooked) {
   detail::TemplateSearch search = detail::find_templates(std::nullopt, bin, source);
   EXPECT_TRUE(search.found.empty());
   EXPECT_EQ(search.tried,
-            (std::vector<std::string>{"the directory PYCHRON_EARTHBANK_TEMPLATES names (it is not set)",
+            (std::vector<std::string>{"the directory NOBION_EARTHBANK_TEMPLATES names (it is not set)",
                                       fs::weakly_canonical(share).string(), fs::weakly_canonical(bundle).string(),
                                       "the source tree this program was built from (it is not on this machine)"}));
   const std::string message = detail::templates_not_found(search);
@@ -1840,7 +1840,7 @@ TEST_F(Xlsx, TemplatesThatAreNowhereAreSaidWithEveryPlaceLooked) {
   search = detail::find_templates(std::nullopt, {}, source);
   EXPECT_TRUE(search.found.empty());
   EXPECT_EQ(search.tried,
-            (std::vector<std::string>{"the directory PYCHRON_EARTHBANK_TEMPLATES names (it is not set)",
+            (std::vector<std::string>{"the directory NOBION_EARTHBANK_TEMPLATES names (it is not set)",
                                       "beside the program (where it runs from is not known)",
                                       "the source tree this program was built from (it is not on this machine)"}));
 
@@ -1859,9 +1859,9 @@ TEST_F(Xlsx, TemplatesThatAreNowhereAreSaidWithEveryPlaceLooked) {
   // A named directory is taken at the user's word, there or not.
   search = detail::find_templates((dir_ / "named").string(), bin, source);
   EXPECT_EQ(search.found, dir_ / "named");
-  EXPECT_EQ(search.tried, std::vector<std::string>{"the directory PYCHRON_EARTHBANK_TEMPLATES names (" +
+  EXPECT_EQ(search.tried, std::vector<std::string>{"the directory NOBION_EARTHBANK_TEMPLATES names (" +
                                                    (dir_ / "named").string() + ")"});
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

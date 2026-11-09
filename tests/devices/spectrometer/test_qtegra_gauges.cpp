@@ -1,15 +1,15 @@
 // qtegra_gauges: gauge readbacks through Qtegra (plan 2026-10-05, task B2).
-#include "pychron/devices/spectrometer/qtegra_gauges.hpp"
+#include "nobion/devices/spectrometer/qtegra_gauges.hpp"
 
 #include <gtest/gtest.h>
 
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/devices/spectrometer/thermo_qtegra_sim.hpp"
-#include "pychron/transport/link_transport.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra_sim.hpp"
+#include "nobion/transport/link_transport.hpp"
 #include "spectrometer/legacy/sim_util.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 
 namespace {
 

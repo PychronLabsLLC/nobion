@@ -1,10 +1,11 @@
-#include "pychron/experiment/conditionals/library.hpp"
+#include "nobion/experiment/conditionals/library.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
 #include <fstream>
 #include <sstream>
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 namespace {
 
@@ -92,22 +93,8 @@ Result<void> ConditionalFiles::write(std::string_view name, std::string_view tex
   fs::create_directories(dir_, ec);
   if (ec) return fail(ErrorKind::Io, "cannot create " + dir_.string() + ": " + ec.message());
   const auto target = path(name);
-  const auto tmp = dir_ / ("." + std::string(name) + ".toml.tmp");
-  {
-    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-    out.write(text.data(), static_cast<std::streamsize>(text.size()));
-    out.flush();
-    if (!out) {
-      fs::remove(tmp, ec);
-      return fail(ErrorKind::Io, "cannot write " + target.string());
-    }
-  }
-  fs::rename(tmp, target, ec);
-  if (ec) {
-    const std::string why = ec.message();
-    fs::remove(tmp, ec);
-    return fail(ErrorKind::Io, "cannot write " + target.string() + ": " + why);
-  }
+  if (auto written = write_file_atomic(target, text, Durability::Power); !written)
+    return fail(ErrorKind::Io, "cannot write " + target.string() + ": " + written.error().what);
   return {};
 }
 
@@ -229,4 +216,4 @@ Result<std::optional<PostRunOutcome>> RunChecks::post_run(const RunSpec& run, co
   return std::optional<PostRunOutcome>(std::move(out));
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

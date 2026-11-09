@@ -1,11 +1,11 @@
-#include "pychron/codecs/chromium.hpp"
+#include "nobion/codecs/chromium.hpp"
 
 #include <array>
 #include <cctype>
 #include <charconv>
 #include <cmath>
 
-namespace pychron::codec::chromium {
+namespace nobion::codec::chromium {
 
 namespace {
 
@@ -201,4 +201,4 @@ Result<std::string> decode_id(const Bytes& reply) {
   return *text;
 }
 
-}  // namespace pychron::codec::chromium
+}  // namespace nobion::codec::chromium

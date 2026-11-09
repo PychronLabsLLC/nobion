@@ -1,4 +1,4 @@
-#include "pychron/setup/legacy_line.hpp"
+#include "nobion/setup/legacy_line.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -14,12 +14,12 @@
 #include <utility>
 
 #include "legacy/lite.hpp"
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/number.hpp"
-#include "pychron/systems/canvas/cross_validate.hpp"
-#include "pychron/systems/canvas/loader.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/number.hpp"
+#include "nobion/systems/canvas/cross_validate.hpp"
+#include "nobion/systems/canvas/loader.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 namespace fs = std::filesystem;
 using namespace legacy;
@@ -535,8 +535,8 @@ Actuator resolve_actuator(const std::string& name, const std::optional<fs::path>
   }
   a.kind = "sim_valves";
   a.comment = "legacy " + what + (a.endpoint.empty() ? "" : " at " + a.endpoint) +
-              ": pychron-cpp has no driver for it yet; simulated";
-  notes.push_back("actuator " + name + " (" + what + "): no pychron-cpp driver yet; simulated by sim_valves");
+              ": nobion has no driver for it yet; simulated";
+  notes.push_back("actuator " + name + " (" + what + "): no nobion driver yet; simulated by sim_valves");
   return a;
 }
 
@@ -927,4 +927,4 @@ Result<LegacyLine> import_legacy_line(const fs::path& folder) {
   return out;
 }
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

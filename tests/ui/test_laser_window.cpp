@@ -1,6 +1,9 @@
 // LaserWindow on the example lab's simulated laser (laser window design,
 // sections 1 and 6).
 
+#include <functional>
+#include <string_view>
+
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDoubleSpinBox>
@@ -12,15 +15,16 @@
 #include <QtTest/QtTest>
 
 #include "camera_view.hpp"
+#include "follow_plot_view.hpp"
 #include "laser_fixture.hpp"
 #include "laser_window.hpp"
 #include "main_window.hpp"
 #include "pattern_maker_window.hpp"
 #include "tray_view.hpp"
 
-using namespace pychron;
-using namespace pychron::ui;
-using pychron::experiment::lab::Lasers;
+using namespace nobion;
+using namespace nobion::ui;
+using nobion::experiment::lab::Lasers;
 
 class LaserWindowTest : public QObject {
   Q_OBJECT
@@ -230,6 +234,29 @@ class LaserWindowTest : public QObject {
     QCOMPARE(lab_->sim().output(), 8.0);
   }
 
+  // The picture is taken only while the window is on screen: shown, it is a
+  // viewer of the bridge and frames come; hidden, closed or destroyed, it is
+  // not, and the bridge's video thread waits.
+  void showing_the_window_makes_frames_flow_and_hiding_it_stops_them() {
+    int views = 0;
+    QObject::connect(bridge_.get(), &LaserBridge::view, [&views](const laser::CameraView&) { ++views; });
+    QCOMPARE(bridge_->viewers(), 1);
+    QTRY_VERIFY(views >= 3);
+    window_->hide();
+    QCOMPARE(bridge_->viewers(), 0);
+    window_->show();
+    QVERIFY(QTest::qWaitForWindowExposed(window_.get()));
+    QCOMPARE(bridge_->viewers(), 1);  // shown once, counted once
+    views = 0;
+    QTRY_VERIFY(views >= 3);
+    window_->close();
+    QCOMPARE(bridge_->viewers(), 0);
+    window_->show();
+    QCOMPARE(bridge_->viewers(), 1);
+    window_.reset();  // destroyed while shown
+    QCOMPARE(bridge_->viewers(), 0);
+  }
+
   // A window closed with the beam on closes the beam: there is then nothing
   // on screen to close it with.
   void closing_the_window_closes_the_beam() {
@@ -336,6 +363,97 @@ class LaserWindowTest : public QObject {
     QTRY_COMPARE(points->rowCount(), 1);
   }
 
+ private:
+  // Follow (simulated): the dragonfly grain simulator design, section 8.
+  void build_to_follow(const std::function<bool(std::string_view)>& simulated = {}) {
+    cleanup();
+    lab_ = std::make_unique<test::SimLaserLab>(50, test::add_long_dragonfly, simulated);
+    bridge_ = std::make_unique<LaserBridge>(lab_->deps());
+    window_ = std::make_unique<LaserWindow>(*bridge_, true);
+    window_->resize(1000, 700);
+    window_->show();
+    QVERIFY(QTest::qWaitForWindowExposed(window_.get()));
+  }
+  // A spiral from the stage's corner would leave its travel at once.
+  void on_a_hole() {
+    choose_tray(QStringLiteral("example-9"));
+    bridge_->go_to(QStringLiteral("5"), false);
+    settle();
+  }
+  void choose_pattern(const QString& name) {
+    auto* list = the<QTableWidget>("pattern_list");
+    for (int row = 0; row < list->rowCount(); ++row) {
+      if (list->item(row, 0)->text() == name) {
+        list->selectRow(row);
+        return;
+      }
+    }
+    QFAIL("no such pattern");
+  }
+  bool laser_is_off() {
+    return !lab_->sim().firing() && !lab_->sim().enabled() && lab_->sim().output() == 0.0;
+  }
+  QPushButton* follow_button() { return window_->findChild<QPushButton*>(QStringLiteral("pattern_follow")); }
+
+ private slots:
+  void a_real_laser_has_no_follow_button() {
+    build_to_follow([](std::string_view) { return false; });
+    QVERIFY(follow_button() == nullptr);
+  }
+
+  void follow_is_live_for_a_dragonfly_with_an_output() {
+    build_to_follow();
+    QVERIFY(follow_button() != nullptr);
+    QVERIFY(!follow_button()->isEnabled());  // nothing chosen
+    choose_pattern(QStringLiteral("hexagon"));
+    the<QDoubleSpinBox>("output")->setValue(20);
+    QVERIFY(!follow_button()->isEnabled());  // not a dragonfly
+    choose_pattern(QStringLiteral("follow"));
+    QVERIFY(follow_button()->isEnabled());
+    the<QDoubleSpinBox>("output")->setValue(0);
+    QVERIFY(!follow_button()->isEnabled());  // no glow to follow
+  }
+
+  void following_fires_at_the_output_and_stop_turns_it_off() {
+    build_to_follow();
+    on_a_hole();
+    choose_pattern(QStringLiteral("watch"));
+    the<QDoubleSpinBox>("output")->setValue(20);
+    follow_button()->click();
+    QVERIFY(!follow_button()->isEnabled());  // at once: a second click would fire again
+    QTRY_VERIFY(lab_->sim().firing());
+    QCOMPARE(lab_->sim().output(), 20.0);
+    QTRY_VERIFY(text("beam").startsWith(QStringLiteral("FIRING")));
+    btn("pattern_stop")->click();
+    settle();
+    QVERIFY(laser_is_off());
+    QVERIFY2(text("status").contains(QStringLiteral("stop")), qPrintable(text("status")));
+    QTRY_VERIFY(follow_button()->isEnabled());
+  }
+
+  void a_follow_that_fails_says_so_and_is_off() {
+    build_to_follow();
+    on_a_hole();
+    choose_pattern(QStringLiteral("watch"));
+    the<QDoubleSpinBox>("output")->setValue(20);
+    for (int i = 0; i < 8; ++i) lab_->sim().fail_next("Stage.MoveTo", 4);  // the line's transport tries again
+    follow_button()->click();
+    settle();
+    QVERIFY(laser_is_off());
+    QTRY_VERIFY2(text("status").contains(QStringLiteral("pattern watch")), qPrintable(text("status")));
+  }
+
+  void a_window_closed_while_it_follows_leaves_the_laser_off() {
+    build_to_follow();
+    on_a_hole();
+    choose_pattern(QStringLiteral("watch"));
+    the<QDoubleSpinBox>("output")->setValue(20);
+    follow_button()->click();  // closed before any snapshot has said it fires
+    window_->close();
+    settle();
+    QVERIFY(laser_is_off());
+  }
+
   void patterns_are_listed_with_length_and_time() {
     auto* list = the<QTableWidget>("pattern_list");
     QCOMPARE(list->rowCount(), 3);
@@ -393,6 +511,88 @@ class LaserWindowTest : public QObject {
     QVERIFY(queue.has_value());
     QTRY_VERIFY(!btn("measure_scale")->isEnabled());
     QVERIFY(btn("snapshot")->isEnabled());  // looking is always allowed
+  }
+
+  void plots_button_opens_the_view() {
+    auto* view = window_->findChild<FollowPlotView*>();
+    QVERIFY(view != nullptr);
+    QVERIFY(!view->isVisible());
+    QVERIFY(btn("pattern_plots")->isEnabled());
+    btn("pattern_plots")->click();
+    QVERIFY(view->isVisible());
+    QCOMPARE(view->windowTitle(), QStringLiteral("Follow plots"));
+  }
+
+  void the_fence_starts_at_the_patterns_perimeter() {
+    build_to_follow();
+    on_a_hole();
+    choose_pattern(QStringLiteral("follow"));
+    auto* fence = window_->findChild<QDoubleSpinBox*>(QStringLiteral("pattern_fence"));
+    QVERIFY(fence != nullptr);
+    QCOMPARE(fence->value(), bridge_->patterns().find("follow")->perimeter_radius);
+    QTRY_VERIFY(fence->isEnabled());
+    QTRY_VERIFY2(text("pattern_fence_note").contains(QStringLiteral("allows")), qPrintable(text("pattern_fence_note")));
+  }
+
+  void a_real_laser_has_no_fence_box() {
+    build_to_follow([](std::string_view) { return false; });
+    QVERIFY(window_->findChild<QDoubleSpinBox*>(QStringLiteral("pattern_fence")) == nullptr);
+  }
+
+  void reset_simulation_clears_the_plots() {
+    build_to_follow();
+    auto* reset = window_->findChild<QPushButton*>(QStringLiteral("pattern_reset_sim"));
+    QVERIFY(reset != nullptr);
+    auto* view = window_->findChild<FollowPlotView*>();
+    std::vector<laser::FollowSample> rows(3);
+    for (std::size_t i = 0; i < rows.size(); ++i) {
+      rows[i].step.elapsed_s = static_cast<double>(i);
+      rows[i].step.stage_mm = {1.0, 2.0};
+    }
+    emit bridge_->followSamples(rows);
+    btn("pattern_plots")->click();
+    QCOMPARE(view->point_count(FollowLine::StageX), 3);
+    QTRY_VERIFY(reset->isEnabled());
+    reset->click();
+    settle();
+    QTRY_COMPARE(view->point_count(FollowLine::StageX), 0);
+  }
+
+  void a_real_laser_has_no_reset_button() {
+    build_to_follow([](std::string_view) { return false; });
+    QVERIFY(window_->findChild<QPushButton*>(QStringLiteral("pattern_reset_sim")) == nullptr);
+  }
+
+  void the_camera_keeps_its_size_on_every_tab() {
+    build_to_follow();
+    window_->resize(1200, 800);
+    auto* tabs = window_->findChild<QTabWidget*>(QStringLiteral("tabs"));
+    auto* camera = window_->findChild<CameraView*>();
+    QVERIFY(tabs != nullptr && camera != nullptr);
+    QTest::qWait(50);
+    const QSize first = camera->size();
+    for (int round = 0; round < 2; ++round) {
+      for (int i = 0; i < tabs->count(); ++i) {
+        tabs->setCurrentIndex(i);
+        QTest::qWait(20);
+        QCOMPARE(camera->size(), first);
+        QVERIFY(tabs->currentWidget()->height() >= tabs->currentWidget()->minimumSizeHint().height());
+      }
+    }
+  }
+
+  void a_run_before_opening_shows() {
+    auto* view = window_->findChild<FollowPlotView*>();
+    QVERIFY(view != nullptr);
+    std::vector<laser::FollowSample> rows(3);
+    for (std::size_t i = 0; i < rows.size(); ++i) {
+      rows[i].step.elapsed_s = static_cast<double>(i);
+      rows[i].step.stage_mm = {1.0, 2.0};
+    }
+    emit bridge_->followSamples(rows);
+    QVERIFY(!view->isVisible());
+    btn("pattern_plots")->click();
+    QCOMPARE(view->point_count(FollowLine::StageX), 3);
   }
 
   void the_pattern_maker_button_is_offered_when_there_is_one() {

@@ -6,15 +6,15 @@
 #include <map>
 #include <utility>
 
-#include "pychron/processing/arar_figures.hpp"
-#include "pychron/processing/isotope_evolution_fit.hpp"
-#include "pychron/processing/quantity.hpp"
-#include "pychron/processing/reference_fit.hpp"
-#include "pychron/processing/time_series.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/isotope_evolution_fit.hpp"
+#include "nobion/processing/quantity.hpp"
+#include "nobion/processing/reference_fit.hpp"
+#include "nobion/processing/time_series.hpp"
+#include "nobion/processing/units.hpp"
 #include "schema_builder.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
@@ -82,7 +82,7 @@ class SelectUnit final : public Unit {
       q.last_hours = o.get_optional_double("last_hours");
       q.exclude_tags = remove_tags;
       const auto limit = static_cast<std::size_t>(o.get_int("limit"));
-      q.limit = 500;
+      q.limit = static_cast<int>(std::min<std::size_t>(limit, 500));  // a page; no more rows than asked for
       while (uuids.size() < limit) {
         auto page = ctx.source->browse(q);
         if (!page) return fail(page.error());
@@ -127,11 +127,7 @@ class SelectUnit final : public Unit {
 
 class ReduceUnit final : public Unit {
  public:
-  ReduceUnit()
-      : schema_(make_schema("unit.reduce", "Reduce",
-                            {choice("constants", "Constants", "Reduction", {"default", "legacy", "legacy_preferences"}),
-                             boolean("include_decay_error", "Include decay constant error", "Reduction", false),
-                             boolean("use_irradiation_endtime", "Decay from the irradiation end", "Reduction", false)})) {}
+  ReduceUnit() : schema_(make_schema("unit.reduce", "Reduce", {})) {}
 
   std::string_view kind() const override { return "reduce"; }
   std::string_view title() const override { return "Reduce"; }
@@ -139,25 +135,17 @@ class ReduceUnit final : public Unit {
   std::vector<PortSpec> inputs() const override { return {{"analyses", PortType::Dataset}}; }
   std::vector<PortSpec> outputs() const override { return {{"reduced", PortType::Dataset}}; }
 
-  Result<std::vector<PortValue>> execute(const std::vector<PortValue>& in, const Options& o,
+  // The core stages of every isotope. A domain's reduction runs after this
+  // unit (Domain::reduction_chain) and writes what it derives: this one
+  // derives nothing and caches nothing.
+  Result<std::vector<PortValue>> execute(const std::vector<PortValue>& in, const Options& /*o*/,
                                          RunContext& ctx) const override {
-    ReductionSettings s;
-    const std::string c = o.get_string("constants");
-    s.preset = c == "legacy"               ? reduction::ConstantsPreset::Legacy
-               : c == "legacy_preferences" ? reduction::ConstantsPreset::LegacyPreferences
-                                           : reduction::ConstantsPreset::Default;
-    s.include_decay_error = o.get_bool("include_decay_error");
-    s.use_irradiation_endtime = o.get_bool("use_irradiation_endtime");
     Dataset d = *dataset_in(in);
-    std::size_t failed = 0;
     for (auto& item : d.mutable_items()) {
       if (ctx.cancelled()) return fail(ErrorKind::Cancelled, "reduce: cancelled");
-      item.analysis = reduce_analysis(item.analysis->analysis, s);
-      if (!item.analysis->reduction_error.empty()) ++failed;
+      item.analysis = reduce_analysis(item.analysis->analysis);
     }
-    if (failed) ctx.diagnostics.push_back(std::to_string(failed) + " analyses did not reduce");
-    d.reduction_tag = std::string(reduction::kReductionVersion) + "/" + c + "/" + (s.include_decay_error ? "d1" : "d0") +
-                      (s.use_irradiation_endtime ? "e1" : "e0");
+    d.reduction_tag = ctx.domain ? std::string(ctx.domain->reduction_version()) : std::string("core");
     return one(make_dataset(std::move(d)));
   }
 
@@ -167,24 +155,23 @@ class ReduceUnit final : public Unit {
 
 // ---------------------------------------------------------------- filter
 
-SchemaPtr filter_rule_schema() {
-  static const SchemaPtr s = make_schema(
+SchemaPtr filter_rule_schema(const std::string& default_quantity) {
+  return make_schema(
       "unit.filter.rule", "Rule",
-      {quantity("quantity", "Quantity", "Rule", "age"),
+      {quantity("quantity", "Quantity", "Rule", default_quantity),
        choice("comparator", "Comparator", "Rule", {"<", "<=", ">", ">=", "==", "!=", "between", "outside"}, ">"),
        number("value", "Value", "Rule", 0.0, -1e300, 1e300), optional_number("value2", "Second value", "Rule"),
        choice("chain", "Combine with previous", "Rule", {"and", "or"})});
-  return s;
 }
 
 class FilterUnit final : public Unit {
  public:
-  FilterUnit() {
+  explicit FilterUnit(const std::string& default_quantity) {
     ListSpec rules;
     rules.key = "rules";
     rules.label = "Rules";
     rules.section = "Filter";
-    rules.row = filter_rule_schema();
+    rules.row = filter_rule_schema(default_quantity);
     rules.max_rows = 16;
     schema_ = make_schema("unit.filter", "Filter",
                           {choice("mode", "Analyses failing the rules are", "Filter", {"omitted", "removed"}),
@@ -199,7 +186,7 @@ class FilterUnit final : public Unit {
   std::vector<PortSpec> outputs() const override { return {{"filtered", PortType::Dataset}}; }
 
   Result<std::vector<PortValue>> execute(const std::vector<PortValue>& in, const Options& o,
-                                         RunContext&) const override {
+                                         RunContext& ctx) const override {
     struct Rule {
       Quantity q;
       std::string cmp;
@@ -209,7 +196,7 @@ class FilterUnit final : public Unit {
     };
     std::vector<Rule> rules;
     for (const auto& r : o.rows("rules")) {
-      auto q = Quantity::parse(r.get_string("quantity"));
+      auto q = Quantity::parse(r.get_string("quantity"), ctx.domain);
       if (!q) return fail(q.error());
       rules.push_back({*q, r.get_string("comparator"), r.get_double("value"), r.get_optional_double("value2"),
                        r.get_string("chain") == "or"});
@@ -383,9 +370,9 @@ class EditsUnit final : public Unit {
 
 class GroupStatsUnit final : public Unit {
  public:
-  GroupStatsUnit()
+  explicit GroupStatsUnit(const std::string& default_quantity)
       : schema_(make_schema("unit.group_stats", "Group statistics",
-                            {quantity("quantity", "Quantity", "Statistics", "age"),
+                            {quantity("quantity", "Quantity", "Statistics", default_quantity),
                              choice("mean", "Mean", "Statistics", {"weighted", "arithmetic"}),
                              choice("error_kind", "Error", "Statistics", {"msem", "sem", "sd"})})) {}
 
@@ -396,8 +383,8 @@ class GroupStatsUnit final : public Unit {
   std::vector<PortSpec> outputs() const override { return {{"results", PortType::GroupResults}}; }
 
   Result<std::vector<PortValue>> execute(const std::vector<PortValue>& in, const Options& o,
-                                         RunContext&) const override {
-    auto q = Quantity::parse(o.get_string("quantity"));
+                                         RunContext& ctx) const override {
+    auto q = Quantity::parse(o.get_string("quantity"), ctx.domain);
     if (!q) return fail(q.error());
     const auto kind = reduction::parse_mean_error_kind(o.get_string("error_kind")).value_or(reduction::MeanErrorKind::Msem);
     const bool weighted = o.get_string("mean") == "weighted";
@@ -437,26 +424,19 @@ class GroupStatsUnit final : public Unit {
 
 }  // namespace
 
-const UnitRegistry& UnitRegistry::builtin() {
-  static const UnitRegistry registry = [] {
-    UnitRegistry r;
-    r.add(std::make_unique<SelectUnit>());
-    r.add(std::make_unique<ReduceUnit>());
-    r.add(std::make_unique<FilterUnit>());
-    r.add(std::make_unique<GroupUnit>());
-    r.add(std::make_unique<EditsUnit>());
-    r.add(std::make_unique<GroupStatsUnit>());
-    r.add(make_time_series_unit());
-    r.add(make_ideogram_unit());
-    r.add(make_spectrum_unit());
-    r.add(make_isochron_unit());
-    r.add(make_spectrum_isochron_unit());
-    r.add(make_reference_fit_unit(ReferenceFitTarget::Blanks));
-    r.add(make_reference_fit_unit(ReferenceFitTarget::IcFactors));
-    r.add(make_isotope_evolution_fit_unit());
-    return r;
-  }();
-  return registry;
+UnitRegistry UnitRegistry::core(const std::string& default_quantity) {
+  UnitRegistry r;
+  r.add(std::make_unique<SelectUnit>());
+  r.add(std::make_unique<ReduceUnit>());
+  r.add(std::make_unique<FilterUnit>(default_quantity));
+  r.add(std::make_unique<GroupUnit>());
+  r.add(std::make_unique<EditsUnit>());
+  r.add(std::make_unique<GroupStatsUnit>(default_quantity));
+  r.add(make_time_series_unit());
+  r.add(make_reference_fit_unit(ReferenceFitTarget::Blanks));
+  r.add(make_reference_fit_unit(ReferenceFitTarget::IcFactors));
+  r.add(make_isotope_evolution_fit_unit());
+  return r;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

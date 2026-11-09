@@ -3,7 +3,7 @@
 // survey found (docs/superpowers/specs/2026-10-03-legacy-extraction-line-
 // survey.md). No lab file is used.
 
-#include "pychron/setup/legacy_line.hpp"
+#include "nobion/setup/legacy_line.hpp"
 
 #include <gtest/gtest.h>
 
@@ -16,18 +16,18 @@
 #include <vector>
 
 #include "legacy/lite.hpp"
-#include "pychron/core/config/loader.hpp"
-#include "pychron/systems/canvas/loader.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/systems/canvas/loader.hpp"
 #include "temp_path.hpp"
 
-using namespace pychron;
-using namespace pychron::setup;
+using namespace nobion;
+using namespace nobion::setup;
 namespace fs = std::filesystem;
 
 namespace {
 
 struct Tmp {
-  fs::path dir = pychron::testing::unique_temp_path("pychron-legacy-");
+  fs::path dir = nobion::testing::unique_temp_path("nobion-legacy-");
   Tmp() { fs::create_directories(dir); }
   ~Tmp() { fs::remove_all(dir); }
   void write(const fs::path& rel, const std::string& text) const {
@@ -379,7 +379,7 @@ TEST_F(YamlLine, AnAgilentUnitOnSerialKeepsItsPortAndInvert) {
   EXPECT_EQ(sp.parity, config::Parity::None);
   EXPECT_TRUE(has_note(*made, "serial port usbserial-FTXYZ written as /dev/tty.usbserial-FTXYZ")) << all_notes(*made);
   EXPECT_FALSE(has_note(*made, "switch_controller: invert=True not carried over")) << all_notes(*made);
-  EXPECT_FALSE(has_note(*made, "AgilentGPActuator): no pychron-cpp driver yet")) << all_notes(*made);
+  EXPECT_FALSE(has_note(*made, "AgilentGPActuator): no nobion driver yet")) << all_notes(*made);
 }
 
 TEST_F(YamlLine, AnAgilentUnitOnTheLanUsesItsScpiSocket) {

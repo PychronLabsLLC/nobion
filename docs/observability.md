@@ -1,28 +1,28 @@
 # Observability
 
 How to see an instrument on the lab's monitoring box: its pressures and
-valves, what the queue is doing, and whether pychron itself is healthy.
+valves, what the queue is doing, and whether nobion itself is healthy.
 Written for the lab manager. You need a text editor, a terminal on the box
 and about half an hour.
 
 ## What you get
 
 Each lab has one monitoring box from PychronLabs, on the lab network, running
-Prometheus (which collects numbers) and Grafana (which draws them). Pychron
+Prometheus (which collects numbers) and Grafana (which draws them). Nobion
 publishes its numbers on the instrument computer; the box fetches them every
 fifteen seconds.
 
 | Dashboard | For | Shows |
 |---|---|---|
 | Instrument health | lab staff | pressures, cryostat temperatures, heaters, valve states, how fresh each reading is, alarms |
-| Run operations | the lab manager | whether a queue is running and how far it is, how runs end, how long each phase takes, conditionals that tripped, notifications sent |
-| Application health | whoever supports the lab | the version running, transports, warnings and errors in the log, the scheduler, how long saving takes |
+| Run operations | the lab manager | whether a queue is running and how far it is, how runs end, how long each phase takes, conditionals that tripped, notifications sent, when and why the queue held, gaps in the readings, records and notifications waiting to be sent |
+| Application health | whoever supports the lab | the version running, transports and how often their links reconnected, warnings and errors in the log, the scheduler, how long saving takes |
 
-And one alert: pychron stopped while a queue was running. Pychron's own alarms
+And one alert: nobion stopped while a queue was running. Nobion's own alarms
 and [notifications](notifications.md) tell you about everything else; this is
 the one thing it cannot tell you itself.
 
-The numbers exist only while pychron is running. Close it and the dashboards
+The numbers exist only while nobion is running. Close it and the dashboards
 show a gap.
 
 ## 1. Turn metrics on
@@ -47,7 +47,7 @@ metrics for the lab's monitoring box**, choose **Every address of this
 computer**, press OK. That writes the same three settings into the line's
 local file (`extraction_line.local.toml`), for this computer only.
 
-Restart pychron. The log says:
+Restart nobion. The log says:
 
 ```
 metrics: listening on 0.0.0.0:9464
@@ -59,12 +59,12 @@ Check it from the box (use the instrument computer's address):
 curl http://INSTRUMENT_PC:9464/metrics
 ```
 
-You should see several dozen lines that begin `pychron_`, among them one
-`pychron_pressure` line for each gauge. If instead:
+You should see several dozen lines that begin `nobion_`, among them one
+`nobion_pressure` line for each gauge. If instead:
 
 - **the log says `metrics endpoint is off`** (there is an alarm too): the
-  port is taken, usually by a second pychron on the same computer, or `bind`
-  is not one of this computer's addresses. Pychron runs normally without the
+  port is taken, usually by a second nobion on the same computer, or `bind`
+  is not one of this computer's addresses. Nobion runs normally without the
   endpoint. Close the other copy, or choose another `port`, and restart.
 - **`curl` cannot connect**: a firewall on the instrument computer is closing
   the port. Allow incoming TCP on 9464 from the box's address.
@@ -74,13 +74,13 @@ You should see several dozen lines that begin `pychron_`, among them one
 ## 2. Tell the box where to look
 
 On the box, add the job in
-[`packaging/observability/prometheus/pychron.scrape.yml`](../packaging/observability/prometheus/pychron.scrape.yml)
+[`packaging/observability/prometheus/nobion.scrape.yml`](../packaging/observability/prometheus/nobion.scrape.yml)
 under `scrape_configs:` in `prometheus.yml` (usually
 `/etc/prometheus/prometheus.yml`), with your values:
 
 ```yaml
 scrape_configs:
-  - job_name: pychron
+  - job_name: nobion
     scrape_interval: 15s
     static_configs:
       - targets: ["192.168.1.20:9464"]
@@ -91,12 +91,12 @@ scrape_configs:
 - `targets` is the instrument computer's address and the port from step 1.
 - `instrument` is the name the dashboards show. Choose it once: changing it
   later starts a new history.
-- Leave `job_name` as `pychron`. The alert looks for that name.
+- Leave `job_name` as `nobion`. The alert looks for that name.
 - A second instrument is a second entry under `static_configs`, with its own
   `targets` and `instrument`.
 
 Reload Prometheus (`sudo systemctl reload prometheus`), then open
-`http://BOX:9090/targets`. The `pychron` job should say **UP** within half a
+`http://BOX:9090/targets`. The `nobion` job should say **UP** within half a
 minute. **DOWN** with "connection refused" or a timeout is the firewall or
 `bind` from step 1.
 
@@ -105,45 +105,45 @@ minute. **DOWN** with "connection refused" or a timeout is the firewall or
 On the box, from a copy of `packaging/observability/grafana/`:
 
 ```bash
-sudo mkdir -p /var/lib/grafana/dashboards/pychron
-sudo cp dashboards/*.json /var/lib/grafana/dashboards/pychron/
-sudo cp provisioning/dashboards/pychron.yml /etc/grafana/provisioning/dashboards/
+sudo mkdir -p /var/lib/grafana/dashboards/nobion
+sudo cp dashboards/*.json /var/lib/grafana/dashboards/nobion/
+sudo cp provisioning/dashboards/nobion.yml /etc/grafana/provisioning/dashboards/
 sudo systemctl restart grafana-server
 ```
 
-In Grafana, open **Dashboards**, then the **Pychron** folder. Each dashboard
+In Grafana, open **Dashboards**, then the **Nobion** folder. Each dashboard
 has two menus at the top: **Data source** (the box's Prometheus) and
 **Instrument** (the name from step 2).
 
 These paths are those of the Debian and Ubuntu packages. If the box runs
 Grafana in a container, the two directories are wherever its configuration
 mounts `/etc/grafana/provisioning` and the dashboards path named in
-`pychron.yml`.
+`nobion.yml`.
 
 If a dashboard opens with every panel empty: the **Instrument** menu is
-empty too, which means Prometheus has no `pychron` data yet (go back to
+empty too, which means Prometheus has no `nobion` data yet (go back to
 step 2), or the scrape job has no `instrument` label.
 
 ## 4. The alert
 
 Two rules, in
-[`provisioning/alerting/pychron-deadman.yml`](../packaging/observability/grafana/provisioning/alerting/pychron-deadman.yml):
+[`provisioning/alerting/nobion-deadman.yml`](../packaging/observability/grafana/provisioning/alerting/nobion-deadman.yml):
 
 | Rule | Fires when |
 |---|---|
-| `PychronGone` | the box cannot reach pychron, and a queue was running the last time it could: pychron crashed or froze, the computer is off or asleep, the network is down |
-| `PychronStuck` | pychron answers, a queue is running, and its scheduler has done nothing for a minute |
+| `NobionGone` | the box cannot reach nobion, and a queue was running the last time it could: nobion crashed or froze, the computer is off or asleep, the network is down |
+| `NobionStuck` | nobion answers, a queue is running, and its scheduler has done nothing for a minute |
 
 Each waits two minutes before firing, so a restart does not page anyone.
-Quitting pychron with no queue running fires nothing.
+Quitting nobion with no queue running fires nothing.
 
 **What they do not catch:** a queue that hangs inside one run while the rest
-of pychron keeps working. The *Since the last run finished* panel on the Run
+of nobion keeps working. The *Since the last run finished* panel on the Run
 operations dashboard is where to look for that.
 
-**One false alarm to know:** if pychron is quit within a few seconds of a
+**One false alarm to know:** if nobion is quit within a few seconds of a
 queue ending, the box's last reading still says a queue was running, and
-`PychronGone` fires until pychron is started again (or for a day).
+`NobionGone` fires until nobion is started again (or for a day).
 
 The clocks of the box and the instrument computer do not have to agree. Every
 "how long ago" on the dashboards and in the alert is measured on the
@@ -154,17 +154,17 @@ To install:
 1. Find the data source's identifier. In Grafana, **Connections > Data
    sources**, click the Prometheus one. The address in the browser ends
    `/datasources/edit/XXXXXXXX`: that last part is the identifier.
-2. Give it to Grafana as `PYCHRON_PROM_UID`. With the Debian and Ubuntu
+2. Give it to Grafana as `NOBION_PROM_UID`. With the Debian and Ubuntu
    packages, add a line to `/etc/default/grafana-server`:
 
    ```
-   PYCHRON_PROM_UID=XXXXXXXX
+   NOBION_PROM_UID=XXXXXXXX
    ```
 
 3. Copy the rules and restart:
 
    ```bash
-   sudo cp provisioning/alerting/pychron-deadman.yml /etc/grafana/provisioning/alerting/
+   sudo cp provisioning/alerting/nobion-deadman.yml /etc/grafana/provisioning/alerting/
    sudo systemctl restart grafana-server
    ```
 
@@ -174,14 +174,30 @@ To install:
    (`[smtp]` in `grafana.ini`); the mail service you set up for
    [notifications](notifications.md) will do.
 5. Test it. Start a simulated queue (`--sim`), wait until the Run operations
-   dashboard says the queue is running, then quit pychron. Within about three
-   minutes **Alerting > Alert rules** shows `PychronGone` firing and the
+   dashboard says the queue is running, then quit nobion. Within about three
+   minutes **Alerting > Alert rules** shows `NobionGone` firing and the
    contact point receives it. Read the message: it should name the
-   instrument. Start pychron again and it clears.
+   instrument. Start nobion again and it clears.
 
 Menu names are those of Grafana 12, as of October 2026. The dashboards and
 both rules were loaded and the rules seen to fire on Grafana 12.1 with
 Prometheus 3.5.
+
+### A box set up with the old names
+
+Up to version 0.4, the job was called `pychron`, the folder Pychron and
+the alerts `PychronGone` and `PychronStuck`, and every metric name began
+`pychron_` (now `nobion_`: dashboards and alert rules from then find no
+data until replaced with the ones shipped now). On such a box:
+
+1. In the box's `prometheus.yml`, rename the job to `nobion` and reload
+   Prometheus. Until then the alert finds no data.
+2. Delete `pychron.yml` from `/etc/grafana/provisioning/dashboards/` and
+   `pychron-deadman.yml` from `/etc/grafana/provisioning/alerting/`, and
+   the folder `/var/lib/grafana/dashboards/pychron`. Then do parts 3 and 4
+   again with the new files.
+3. Delete the old **Pychron** folder in Grafana. Bookmarks to the old
+   dashboards stop working: the dashboards have new uids.
 
 ## Try it without a box
 
@@ -201,13 +217,13 @@ check a changed dashboard or alert before it goes to a lab. It needs Docker
    ```
 
    (`docker-compose up -d` with the older, separate program.)
-3. Start pychron on that line, simulated: `--sim`.
-4. Open <http://localhost:3000>: no sign-in, dashboards under **Pychron**,
+3. Start nobion on that line, simulated: `--sim`.
+4. Open <http://localhost:3000>: no sign-in, dashboards under **Nobion**,
    **Instrument** set to `sim`. <http://localhost:9090/targets> shows the
    scrape; **UP** within half a minute.
 5. When done: `docker compose down`. Add `-v` to throw its history away too.
 
-What it scrapes is in `box/targets.yml`, by default a pychron on this
+What it scrapes is in `box/targets.yml`, by default a nobion on this
 computer at port 9464. Change the address there to point it at another
 computer; Prometheus reads the file again within half a minute.
 
@@ -220,7 +236,7 @@ Grafana here lets anyone who can reach it change anything, so both programs
 listen on this computer only. It is for trying things, not for a lab.
 
 To try the alert: start a queue, wait for the Run operations dashboard to
-say it is running, quit pychron. `PychronGone` fires within about three
+say it is running, quit nobion. `NobionGone` fires within about three
 minutes (**Alerting > Alert rules**). No contact point is set up here, so
 nothing is sent; the rule's state is what to look at.
 
@@ -239,44 +255,49 @@ turn it on.
 
 ## What is published
 
-Every name begins `pychron_`. Prometheus adds `instrument` (from step 2) to
+Every name begins `nobion_`. Prometheus adds `instrument` (from step 2) to
 each.
 
 ### The instrument
 
 | Metric | Labels | Meaning |
 |---|---|---|
-| `pychron_pressure` | `gauge`, `unit` | a gauge's last reading, in the unit it is configured with |
-| `pychron_temperature_kelvin` | `source`, `input` | a temperature controller's input |
-| `pychron_heater_readback`, `pychron_heater_setpoint` | `heater` | in the heater's configured unit; absent when the heater does not report it |
-| `pychron_heater_enabled` | `heater` | 1 while the output is on |
-| `pychron_valve_state` | `valve`, `state` (`open`, `closed`, `unknown`) | 1 for the state the valve is in |
-| `pychron_valve_transitions_total` | `valve` | times the valve changed state |
-| `pychron_actuation_failures_total` | `valve` | actuations that failed; `unknown` for a switch the line does not have |
-| `pychron_last_sample_age_seconds` | `kind`, `source` | seconds since the source was last read; a reading is only as fresh as this |
-| `pychron_alarms_total` | `source`, `severity` | alarms raised |
+| `nobion_pressure` | `gauge`, `unit` | a gauge's last reading, in the unit it is configured with |
+| `nobion_temperature_kelvin` | `source`, `input` | a temperature controller's input |
+| `nobion_heater_readback`, `nobion_heater_setpoint` | `heater` | in the heater's configured unit; absent when the heater does not report it |
+| `nobion_heater_enabled` | `heater` | 1 while the output is on |
+| `nobion_valve_state` | `valve`, `state` (`open`, `closed`, `unknown`) | 1 for the state the valve is in |
+| `nobion_valve_transitions_total` | `valve` | times the valve changed state |
+| `nobion_actuation_failures_total` | `valve` | actuations that failed; `unknown` for a switch the line does not have |
+| `nobion_last_sample_age_seconds` | `kind`, `source` | seconds since the source was last read; a reading is only as fresh as this |
+| `nobion_alarms_total` | `source`, `severity` | alarms raised |
 
 ### Runs and queues
 
 | Metric | Labels | Meaning |
 |---|---|---|
-| `pychron_queue_active` | | 1 while a queue is running |
-| `pychron_executor_state` | `state` (`idle`, `preparing`, `running`, `stopping`, `cancelling`, `aborting`, `finalizing`) | 1 for the state the executor is in |
-| `pychron_queue_runs` | `status` (`total`, `done`) | the running queue's size and progress |
-| `pychron_queues_ended_total` | `end` | queues ended, by how |
-| `pychron_runs_started_total` | | |
-| `pychron_runs_finished_total` | `state`, `truncated` | runs ended, by their last state |
-| `pychron_run_save_errors_total` | | runs whose record could not be saved |
-| `pychron_run_state_duration_seconds` | `state` | a histogram of the time runs spend in each state; `saving` is the cost of writing the record |
-| `pychron_measurement_blocks_total` | `block`, `ok` | measurement blocks finished |
-| `pychron_conditional_trips_total` | `kind`, `level` | conditionals that tripped |
-| `pychron_executor_waits_total` | `reason` | times the executor waited, by what for |
-| `pychron_last_run_finished_age_seconds` | | seconds since a run last finished; absent until one has |
-| `pychron_notifications_total` | `channel`, `event`, `ok` | notifications handed to a channel |
-| `pychron_spectrometer_jobs_total` | `kind` (`sweep`, `peak_center`), `state` (`succeeded`, `failed`, `cancelled`) | spectrometer jobs ended, whether a run or the operator asked for them |
-| `pychron_spectrometer_job_active` | | 1 while a spectrometer job is running |
-| `pychron_spectrometer_job_progress_ratio` | | how far the running job is, 0 to 1; 0 when none is running |
-| `pychron_spectrometer_job_duration_seconds` | `kind` | a histogram of how long jobs that ran took |
+| `nobion_queue_active` | | 1 while a queue is running |
+| `nobion_executor_state` | `state` (`idle`, `preparing`, `running`, `holding`, `stopping`, `cancelling`, `aborting`, `finalizing`) | 1 for the state the executor is in |
+| `nobion_queue_runs` | `status` (`total`, `done`) | the running queue's size and progress |
+| `nobion_queues_ended_total` | `end` | queues ended, by how |
+| `nobion_runs_started_total` | | |
+| `nobion_runs_finished_total` | `state`, `truncated` | runs ended, by their last state |
+| `nobion_run_save_errors_total` | | runs whose record could not be saved |
+| `nobion_run_state_duration_seconds` | `state` | a histogram of the time runs spend in each state; `saving` is the cost of writing the record |
+| `nobion_measurement_blocks_total` | `block`, `ok` | measurement blocks finished |
+| `nobion_conditional_trips_total` | `kind`, `level` | conditionals that tripped |
+| `nobion_executor_waits_total` | `reason` | times the executor waited, by what for |
+| `nobion_executor_holding` | | 1 while the queue holds: it waits for a link the next run needs, or for the spool, before it starts that run |
+| `nobion_executor_holds_total` | `reason` (`link`, `spool`, `run_failed`) | times the queue held: a link the next run needs was down, the spool asked to wait (its disk nearly full, or too many records not yet sent), or the run before failed for a link |
+| `nobion_measurement_gaps_total` | | silences of the spectrometer during a measurement, waited out or ending the run |
+| `nobion_spool_pending` | | records the store has not taken yet; they are sent again on their own |
+| `nobion_last_run_finished_age_seconds` | | seconds since a run last finished; absent until one has |
+| `nobion_notifications_total` | `channel`, `event`, `ok` | notifications handed to a channel |
+| `nobion_notifications_outbox` | | notifications waiting in the outbox: not yet taken, or given up, by every channel they are for |
+| `nobion_spectrometer_jobs_total` | `kind` (`sweep`, `peak_center`), `state` (`succeeded`, `failed`, `cancelled`) | spectrometer jobs ended, whether a run or the operator asked for them |
+| `nobion_spectrometer_job_active` | | 1 while a spectrometer job is running |
+| `nobion_spectrometer_job_progress_ratio` | | how far the running job is, 0 to 1; 0 when none is running |
+| `nobion_spectrometer_job_duration_seconds` | `kind` | a histogram of how long jobs that ran took |
 
 Durations are measured on the line's clock: in a simulation run faster than
 real time they are simulated seconds.
@@ -285,22 +306,27 @@ real time they are simulated seconds.
 
 | Metric | Labels | Meaning |
 |---|---|---|
-| `pychron_build_info` | `version`, `os`, `compiler` | always 1; the labels say what is running |
-| `pychron_process_uptime_seconds` | | seconds since pychron started |
-| `pychron_log_records_total` | `level`, `component` | log records; `component` is the first part of the logger's name |
-| `pychron_bus_handler_failures_total` | `event` | parts of pychron that failed while handling an event, by the event. It should stay at zero: anything else is a bug, and the log (`bus`) has what was said |
-| `pychron_transport_connected` | `transport` | 1 while the transport is up, 0 while it is down |
-| `pychron_transport_outages_total` | `transport` | times the transport went down. Single errors are not counted: the log has them |
-| `pychron_scheduler_job_runs_total`, `_failures_total`, `_skipped_overlaps_total` | `job` | each periodic job's counts |
-| `pychron_scheduler_heartbeat_age_seconds` | | seconds since the scheduler last ran its heartbeat job |
-| `pychron_metrics_scrape_duration_seconds` | | how long the last scrape took to answer |
-| `pychron_metrics_bad_requests_total` | | connections to the endpoint that were dropped |
-| `pychron_metrics_dropped_series_total` | | series refused (more than 1000 in one metric: a configuration with a great many devices, or a bug) |
+| `nobion_build_info` | `version`, `git_sha`, `os`, `compiler` | always 1; the labels say what is running |
+| `nobion_process_uptime_seconds` | | seconds since nobion started |
+| `nobion_log_records_total` | `level`, `component` | log records; `component` is the first part of the logger's name |
+| `nobion_bus_handler_failures_total` | `event` | parts of nobion that failed while handling an event, by the event. It should stay at zero: anything else is a bug, and the log (`bus`) has what was said |
+| `nobion_transport_connected` | `transport` | 1 while the transport is up, 0 while it is down |
+| `nobion_transport_outages_total` | `transport` | times the transport went down. Single errors are not counted: the log has them |
+| `nobion_link_reconnects_total` | `transport` | times the transport's link reconnected after a failure: each is an outage the line rode out |
+| `nobion_link_repeats_total` | `transport` | commands the link sent a second time after a failure, being safe to send twice (a read, an absolute target) |
+| `nobion_device_state` | `device`, `transport` | a device's health: 0 unknown (never used), 1 ok, 2 degraded (1 to `fault_after` minus 1 failures in a row), 3 faulted (its driver's `fault_after` failures in a row). Appears when the device first changes state |
+| `nobion_device_consecutive_failures` | `device`, `transport` | the device's failed operations in a row at the last state change of its health, not updated between changes (a device faulted at 3 shows 3 while it goes on failing); the log (`trace.DeviceHealthChanged`, `device.<name>`) has what each said |
+| `nobion_scheduler_job_runs_total`, `_failures_total`, `_skipped_overlaps_total` | `job` | each periodic job's counts |
+| `nobion_scheduler_heartbeat_age_seconds` | | seconds since the scheduler last ran its heartbeat job |
+| `nobion_metrics_scrape_duration_seconds` | | how long the last scrape took to answer |
+| `nobion_metrics_bad_requests_total` | | connections to the endpoint that were dropped |
+| `nobion_metrics_dropped_series_total` | | series refused (more than 1000 in one metric: a configuration with a great many devices, or a bug) |
 
-Counters start again from zero when pychron restarts. The dashboards show
+Counters start again from zero when nobion restarts. The dashboards show
 increases over a time range, which is unaffected.
 
-A counter appears when pychron first hears of what it counts: a valve, a
+A counter appears when nobion first hears of what it counts: a valve, a
 gauge, a transport, a notification channel. The first alarm from a source
 that has never been read (the line itself, say) is therefore not drawn as an
-increase; every later one is.
+increase; every later one is. A link's counters are there from the start,
+for every transport the line and the spectrometer have.

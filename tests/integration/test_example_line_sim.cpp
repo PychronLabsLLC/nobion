@@ -4,13 +4,15 @@
 // with interlocks enforced and gauges scan, with SimSystem standing in for
 // the physical lab.
 //
-// Example plumbing (canvas.toml):
-//   bone --A-- prep --B-- spec
-//               |   |
-//              P1   C --+-- turbo --+-- M1 -- rough
-//                       |           |
-//                      IG1         PG1
-// A and C interlock each other; IG1 has alarm_high = 1e-4.
+// Example plumbing (canvas.toml; the whole drawing is at its head):
+//   laser --L-- stage1 --A-- prep --B-- spec --I-- ion
+//                 |              |   |
+//                 D             P1   C --+-- turbo --+-- R1 -- M1 -- rough
+//                 |                      |           |
+//               turbo2                  IG1         PG1
+// A and C, and A and D, interlock each other, as do the pipettes' valves;
+// IG1 has alarm_high = 1e-4. Every valve but the ones these tests open
+// starts closed.
 
 #include <atomic>
 #include <chrono>
@@ -26,25 +28,25 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/sim/sim_system.hpp"
-#include "pychron/systems/canvas/loader.hpp"
-#include "pychron/systems/extraction_line.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/sim/sim_system.hpp"
+#include "nobion/systems/canvas/loader.hpp"
+#include "nobion/systems/extraction_line.hpp"
 #include "virtual_time.hpp"
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::systems;
+using namespace nobion;
+using namespace nobion::systems;
 using namespace std::chrono_literals;
 
-const std::filesystem::path kDir = PYCHRON_EXAMPLE_CONFIGS_DIR;
+const std::filesystem::path kDir = NOBION_EXAMPLE_CONFIGS_DIR;
 
 sim::SimSettings lab() {
   sim::SimSettings s;
   s.default_pressure = 1e-8;
-  s.initial_pressures = {{"bone", 1e-3}};  // gas released into the furnace
+  s.initial_pressures = {{"stage1", 1e-3}};  // gas released into the furnace
   s.pumps = {{"turbo", {1e-9, 5s}}};
   s.noise = 0.0;
   // These tests are about valves, interlocks, scans and alarms, and state
@@ -151,10 +153,12 @@ class ExampleLineSim : public ::testing::Test {
 
 TEST_F(ExampleLineSim, StartsClosedAndQuiet) {
   const auto snap = line->snapshot();
-  for (const char* v : {"A", "B", "C", "P1", "P2", "pump_power"}) {
+  for (const char* v : {"A", "B", "C", "P1", "P2", "L", "D", "G1", "G2", "Y", "I", "Q1", "Q2", "R1", "R2",
+                        "pump_power"}) {
     EXPECT_EQ(snap.valves.at(v), ValveState::Closed) << v;
   }
   EXPECT_EQ(snap.valves.at("M1"), ValveState::Unknown);
+  EXPECT_EQ(snap.valves.at("M2"), ValveState::Unknown);
   EXPECT_NEAR(snap.pressures.at("IG1"), 1e-8, 1e-12);
   EXPECT_NEAR(snap.pressures.at("PG1"), 1e-8, 1e-12);
 
@@ -165,10 +169,11 @@ TEST_F(ExampleLineSim, StartsClosedAndQuiet) {
 }
 
 TEST_F(ExampleLineSim, GasFlowsThroughOpenValvesAndInterlocksHold) {
-  // Expand furnace gas into prep: bone (12.5 cc) + prep (1 cc).
+  // Expand furnace gas into prep: stage1 (12.5 cc) and its gauge IG2 (1 cc,
+  // joined to it with no valve) + prep (1 cc).
   ASSERT_TRUE(line->actuate("A", SwitchOp::Open, "test"));
   clock.advance(100us);  // long for the valve, nothing to the pump
-  const double expanded = (12.5 * 1e-3 + 1e-8) / 13.5;
+  const double expanded = (12.5 * 1e-3 + 2 * 1e-8) / 14.5;
   EXPECT_NEAR(*line->sim()->pressure("prep"), expanded, expanded * 1e-9);
   EXPECT_TRUE(line->sim()->valve_open("A"));
 
@@ -205,7 +210,7 @@ TEST_F(ExampleLineSim, GasFlowsThroughOpenValvesAndInterlocksHold) {
   scan_after(240s);
   EXPECT_LT(latest("IG1"), 1e-8);
   // Isolated behind A at the expanded pressure.
-  EXPECT_NEAR(*line->sim()->pressure("bone"), expanded, expanded * 1e-9);
+  EXPECT_NEAR(*line->sim()->pressure("stage1"), expanded, expanded * 1e-9);
 
   std::vector<std::string> changed;
   for (const auto& e : events->valves) changed.push_back(e.valve);
@@ -229,10 +234,36 @@ TEST_F(ExampleLineSim, PipetteValvesNeverOpenTogether) {
   EXPECT_FALSE(line->sim()->valve_open("P2"));
 }
 
+TEST_F(ExampleLineSim, CocktailPipetteValvesNeverOpenTogether) {
+  ASSERT_TRUE(line->actuate("Q1", SwitchOp::Open, "test"));
+  auto second = line->actuate("Q2", SwitchOp::Open, "test");
+  ASSERT_FALSE(second);
+  EXPECT_EQ(second.error().kind, ErrorKind::Interlock);
+  EXPECT_FALSE(line->sim()->valve_open("Q2"));
+  EXPECT_EQ(line->snapshot().valves.at("Q2"), ValveState::Closed);
+}
+
+// D would expose stage 1 to the second turbo while A joins it to prep: each
+// is refused while the other is open, as C is with A.
+TEST_F(ExampleLineSim, DAndANeverOpenTogether) {
+  ASSERT_TRUE(line->actuate("A", SwitchOp::Open, "test"));
+  auto d = line->actuate("D", SwitchOp::Open, "test");
+  ASSERT_FALSE(d);
+  EXPECT_EQ(d.error().kind, ErrorKind::Interlock);
+  EXPECT_FALSE(line->sim()->valve_open("D"));
+
+  ASSERT_TRUE(line->actuate("A", SwitchOp::Close, "test"));
+  ASSERT_TRUE(line->actuate("D", SwitchOp::Open, "test"));
+  auto a = line->actuate("A", SwitchOp::Open, "test");
+  ASSERT_FALSE(a);
+  EXPECT_EQ(a.error().kind, ErrorKind::Interlock);
+  EXPECT_FALSE(line->sim()->valve_open("A"));
+}
+
 // The scheduler's own threads and the example files exactly as committed
 // (including A's 500 ms settle), in simulated time: the test's thread takes
 // part in a VirtualClock, and time moves only while it waits there.
-using ExampleLineSimThreaded = pychron::testing::VirtualTimeTest;
+using ExampleLineSimThreaded = nobion::testing::VirtualTimeTest;
 
 TEST_F(ExampleLineSimThreaded, ScansAndActuatesOnSchedulerThreads) {
   VirtualClock clock;
@@ -243,7 +274,7 @@ TEST_F(ExampleLineSimThreaded, ScansAndActuatesOnSchedulerThreads) {
   options.sim_file = std::filesystem::path{};  // lab()'s numbers, not the example sim.toml's
   // Valve states and locks persist beside the config by default: keep the
   // test out of the repo and independent of earlier runs.
-  options.state_file = std::filesystem::temp_directory_path() / "pychron-test-example-line.state.toml";
+  options.state_file = std::filesystem::temp_directory_path() / "nobion-test-example-line.state.toml";
   std::filesystem::remove(options.state_file);
   auto made = ExtractionLine::load(kDir / "extraction_line.toml", kDir / "canvas.toml", options);
   ASSERT_TRUE(made) << made.error().what;
@@ -283,7 +314,7 @@ TEST_F(ExampleLineSimThreaded, AskingWhetherItRunsDuringAStopDoesNotStallTime) {
   options.clock = &clock;
   options.sim = lab();
   options.sim_file = std::filesystem::path{};  // lab()'s numbers, not the example sim.toml's
-  options.state_file = std::filesystem::temp_directory_path() / "pychron-test-example-line-stop.state.toml";
+  options.state_file = std::filesystem::temp_directory_path() / "nobion-test-example-line-stop.state.toml";
   std::filesystem::remove(options.state_file);
   auto made = ExtractionLine::load(kDir / "extraction_line.toml", kDir / "canvas.toml", options);
   ASSERT_TRUE(made) << made.error().what;
@@ -299,14 +330,14 @@ TEST_F(ExampleLineSimThreaded, AskingWhetherItRunsDuringAStopDoesNotStallTime) {
   ASSERT_EQ(slow_runs.load(), 1) << "the job is under way, asleep until start + 11 s";
 
   TimePoint stopped{};
-  pychron::testing::Crew crew(clock);
+  nobion::testing::Crew crew(clock);
   crew.start("stopper", [&] {
     line.stop();
     stopped = clock.now();
   });
   // stop() has the mutex by the time it has stopped the dispatcher, and keeps
   // it while it waits for the job. This thread is runnable, so time stands.
-  ASSERT_TRUE(pychron::testing::eventually_real([&] { return !line.scheduler().started(); }));
+  ASSERT_TRUE(nobion::testing::eventually_real([&] { return !line.scheduler().started(); }));
   EXPECT_FALSE(line.running());
   EXPECT_EQ(clock.now(), start + 11s) << "the asker waited, in the clock, for the stop to finish";
   crew.join();
@@ -320,7 +351,7 @@ TEST(ExampleLineSteady, ActuatesAndScansInRealTime) {
   ExtractionLine::Options options;  // no clock given: the line's own SteadyClock
   options.sim = lab();
   options.sim_file = std::filesystem::path{};  // lab()'s numbers, not the example sim.toml's
-  options.state_file = std::filesystem::temp_directory_path() / "pychron-test-example-line-steady.state.toml";
+  options.state_file = std::filesystem::temp_directory_path() / "nobion-test-example-line-steady.state.toml";
   std::filesystem::remove(options.state_file);
   auto made = ExtractionLine::load(kDir / "extraction_line.toml", kDir / "canvas.toml", options);
   ASSERT_TRUE(made) << made.error().what;
@@ -336,7 +367,7 @@ TEST(ExampleLineSteady, ActuatesAndScansInRealTime) {
 
   // The gauges are scanned once a second, on a worker.
   const auto scanned = events.samples_of("IG1");
-  EXPECT_TRUE(pychron::testing::eventually_real([&] { return events.samples_of("IG1") > scanned; }, 10s))
+  EXPECT_TRUE(nobion::testing::eventually_real([&] { return events.samples_of("IG1") > scanned; }, 10s))
       << "IG1 was not scanned in 10 s";
   const auto pressure = line.read_gauge("IG1");
   ASSERT_TRUE(pressure) << pressure.error().what;

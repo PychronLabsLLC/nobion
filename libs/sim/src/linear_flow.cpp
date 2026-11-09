@@ -1,4 +1,4 @@
-#include "pychron/sim/linear_flow.hpp"
+#include "nobion/sim/linear_flow.hpp"
 
 #include <algorithm>
 #include <array>
@@ -8,9 +8,9 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/error.hpp"
+#include "nobion/core/error.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 namespace {
 
 // Volumes whose modes fit on the stack in `advance`.
@@ -343,4 +343,4 @@ void LinearFlow::advance(std::vector<double>& n, double dt) const {
   }
 }
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

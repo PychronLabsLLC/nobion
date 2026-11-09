@@ -1,11 +1,14 @@
 // IScriptHost over embedded CPython: static check, estimate, run, hooks.
 
+#include <array>
+#include <cstdio>
 #include <set>
 
 #include "internal.hpp"
-#include "pychron/scripting/vocabulary.hpp"
+#include "nobion/core/process_log.hpp"
+#include "nobion/scripting/vocabulary.hpp"
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 namespace {
 
 using python::HostState;
@@ -144,6 +147,17 @@ class PythonScriptHost final : public IScriptHost {
     return execute(script, env, token, [&](HostState& state) { state.run_main(script); });
   }
 
+  Result<ScriptResult> rehearse(const Script& script, const ScriptEnvironment& env, IRehearsal& rehearsal,
+                                CancelToken& token) override {
+    if (script.kind == ScriptKind::MeasurementHook)
+      return fail(ErrorKind::Config, "rehearse: measurement hooks are not rehearsed");
+    if (auto field = rehearsal_refusal(env))
+      return fail(ErrorKind::Config, "rehearse: environment carries live service '" + *field + "'");
+    return execute(
+        script, env, token, [&](HostState& state) { state.run_main(script); }, HostState::Mode::Rehearse,
+        &rehearsal);
+  }
+
   Result<ScriptResult> call_hook(const Script& script, std::string_view entry,
                                  const ValueMap& args, const ScriptEnvironment& env,
                                  CancelToken& token) override {
@@ -171,7 +185,8 @@ class PythonScriptHost final : public IScriptHost {
 
  private:
   Result<ScriptResult> execute(const Script& script, const ScriptEnvironment& env,
-                               CancelToken& token, const std::function<void(HostState&)>& body) {
+                               CancelToken& token, const std::function<void(HostState&)>& body,
+                               HostState::Mode mode = HostState::Mode::Run, IRehearsal* rehearsal = nullptr) {
     auto header = parse_header(script.text);
     if (!header) return fail(header.error());
     auto report = check(script, env);
@@ -179,17 +194,58 @@ class PythonScriptHost final : public IScriptHost {
     if (!report->ok()) return fail(check_failed(*report));
 
     ScriptResult out{sha256_hex(script.text), std::move(*header), {}};
+
+    // Only a real run is logged: an estimate or a rehearsal touches no hardware.
+    const bool logged = mode == HostState::Mode::Run;
+    const bool rehearsing = mode == HostState::Mode::Rehearse;
+    Logger log = logged || rehearsing ? process_logger("script." + script.name) : Logger::disabled("script");
+    const SteadyClock fallback;
+    const Clock& clock = env.clock ? *env.clock : fallback;
+    const auto began = clock.now();
+    // The script's own name stands for its path: a Script carries no other.
+    if (logged && log.enabled(LogLevel::Debug))
+      log.debug("start " + script.name + " path=" + script.name + " sha=" + out.sha +
+                " kind=" + std::string(to_string(script.kind)));
+    auto finish = [&](const Error* error, std::string_view outcome) {
+      if (!logged) return;
+      const bool bad = error && error->kind != ErrorKind::Cancelled;
+      // A failure is a warn and is wanted at warn; the rest is debug.
+      if (!log.enabled(bad ? LogLevel::Warn : LogLevel::Debug)) return;
+      std::array<char, 32> took{};
+      std::snprintf(took.data(), took.size(), "%.2f",
+                    std::chrono::duration<double>(clock.now() - began).count());
+      log.log(bad ? LogLevel::Warn : LogLevel::Debug,
+              "end " + script.name + " " + std::string(outcome) + " in " + took.data() + " s");
+    };
+
     Result<void> r;
     {
       py::gil_scoped_acquire gil;
-      HostState state(env, token, HostState::Mode::Run, script.kind, nullptr);
+      HostState state(env, token, mode, script.kind, nullptr, rehearsal);
+      if (logged) state.set_log(log);
+      if (rehearsing) state.set_step_log(log);  // steps at trace, nothing else
       r = state.guarded([&] { body(state); });
       out.messages = state.messages();
     }
-    if (!r) return fail(r.error());
-    if (token.mode() == CancelMode::Abort) return fail(ErrorKind::Cancelled, "aborted: " + script.name);
-    if (token.mode() == CancelMode::Cancel)
+    if (!r) {
+      const Error& e = r.error();
+      finish(&e, e.kind == ErrorKind::Cancelled
+                     ? e.what
+                     : "error: " + std::string(to_string(e.kind)) + ": " + e.what +
+                           (e.device.empty() ? "" : " (" + e.device + ")"));
+      return fail(r.error());
+    }
+    if (token.mode() == CancelMode::Abort) {
+      auto e = Error{ErrorKind::Cancelled, "aborted: " + script.name, {}};
+      finish(&e, "aborted");
+      return fail(ErrorKind::Cancelled, "aborted: " + script.name);
+    }
+    if (token.mode() == CancelMode::Cancel) {
+      auto e = Error{ErrorKind::Cancelled, "cancelled: " + script.name, {}};
+      finish(&e, "cancelled");
       return fail(ErrorKind::Cancelled, "cancelled: " + script.name);
+    }
+    finish(nullptr, "completed");
     return out;
   }
 };
@@ -213,4 +269,4 @@ std::vector<std::string> bound_commands() {
   return out;
 }
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

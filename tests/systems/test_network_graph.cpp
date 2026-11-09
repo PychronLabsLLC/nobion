@@ -4,10 +4,10 @@
 #include <set>
 #include <string>
 
-#include "pychron/systems/canvas/loader.hpp"
-#include "pychron/systems/network_graph.hpp"
+#include "nobion/systems/canvas/loader.hpp"
+#include "nobion/systems/network_graph.hpp"
 
-namespace pychron::systems {
+namespace nobion::systems {
 namespace {
 
 using Names = std::set<std::string>;
@@ -50,7 +50,7 @@ TEST(NetworkGraph, OpenValveJoinsVolumes) {
   auto g = line();
   const auto regions = g.connected_volumes({{"A", ValveState::Open}, {"B", ValveState::Closed}, {"C", ValveState::Closed}});
   ASSERT_EQ(regions.size(), 3u);
-  const auto* r = pychron::systems::NetworkGraph::region_of("bone", regions);
+  const auto* r = nobion::systems::NetworkGraph::region_of("bone", regions);
   ASSERT_NE(r, nullptr);
   EXPECT_EQ(r->volumes, (Names{"bone", "prep"}));
   EXPECT_EQ(r->valves, (Names{"A"}));
@@ -187,4 +187,4 @@ end = "spec"
 }
 
 }  // namespace
-}  // namespace pychron::systems
+}  // namespace nobion::systems

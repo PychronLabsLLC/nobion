@@ -1,4 +1,4 @@
-#include "pychron/processing/time_series.hpp"
+#include "nobion/processing/time_series.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -7,19 +7,19 @@
 #include <ctime>
 #include <map>
 
-#include "pychron/processing/quantity.hpp"
-#include "pychron/processing/units.hpp"
-#include "pychron/reduction/fits.hpp"
-#include "pychron/reduction/stats.hpp"
+#include "nobion/processing/quantity.hpp"
+#include "nobion/processing/units.hpp"
+#include "nobion/reduction/fits.hpp"
+#include "nobion/reduction/stats.hpp"
 #include "figure_common.hpp"
 #include "schema_builder.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
 using namespace detail;
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 
 const std::vector<std::string> kMarkers{"circle", "square", "diamond", "triangle", "cross", "plus", "star"};
 const std::vector<std::string> kFits{"none", "average", "weighted_mean", "linear", "parabolic", "cubic", "exponential"};
@@ -36,7 +36,7 @@ SchemaPtr panel_schema() {
        optional_number("y_max", "Y max", "Panel"),
        choice("marker", "Marker", "Panel", kMarkers),
        number("marker_size", "Marker size", "Panel", 5.0, 1.0, 30.0, 0.5),
-       optional_color("marker_color", "Marker colour", "Panel"),
+       optional_color("marker_color", "Marker color", "Panel"),
        boolean("show_errors", "Error bars", "Panel", true),
        choice("fit", "Fit", "Panel", kFits),
        when(choice("fit_error", "Fit error", "Panel", {"sem", "sd", "msem"}), "fit != none"),
@@ -90,6 +90,10 @@ SchemaPtr build_schema() {
       {"Spectrometer",
        "[[panels]]\nquantity = \"Ar40.baseline\"\n[[panels]]\nquantity = \"Ar40.intercept\"\n"
        "[[panels]]\nquantity = \"extract_value\"\nshow_errors = false\n"},
+      {"Presentation",
+       "font.title = 18\nfont.axis = 16\nfont.tick = 14\nfont.annotation = 14\n"
+       "[[panels]]\nquantity = \"Ar40\"\nmarker_size = 7\n"
+       "[[panels]]\nquantity = \"Ar40/Ar36\"\nfit = \"weighted_mean\"\nmarker_size = 7\n"},
   };
   return s;
 }
@@ -216,7 +220,7 @@ const SchemaPtr& time_series_schema() {
   return s;
 }
 
-Result<Scene> build_time_series(const Dataset& d, const Options& o, double now) {
+Result<Scene> build_time_series(const Dataset& d, const Options& o, double now, const Domain* domain) {
   Scene scene;
   scene.kind = "time_series";
   apply_common_style(o, scene);
@@ -240,7 +244,7 @@ Result<Scene> build_time_series(const Dataset& d, const Options& o, double now) 
     for (const auto& row : o.rows("panels")) {
       const std::size_t idx = i++;
       if (!row.get_bool("enabled")) continue;
-      auto q = Quantity::parse(row.get_string("quantity"));
+      auto q = Quantity::parse(row.get_string("quantity"), domain);
       if (!q) {
         scene.warnings.push_back("panel " + std::to_string(idx + 1) + ": " + q.error().what);
         continue;
@@ -453,10 +457,15 @@ class TimeSeriesUnit final : public Unit {
   std::vector<PortSpec> inputs() const override { return {{"analyses", PortType::Dataset}}; }
   std::vector<PortSpec> outputs() const override { return {{"figure", PortType::Scene}}; }
 
+  bool uses_time(const Options& o) const override {
+    return o.get_string("x.kind") == "relative" && o.get_string("x.origin") == "now";
+  }
+
   Result<std::vector<PortValue>> execute(const std::vector<PortValue>& in, const Options& o,
-                                         RunContext&) const override {
-    const double now = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
-    auto scene = build_time_series(*std::get<DatasetPtr>(in.at(0)), o, now);
+                                         RunContext& ctx) const override {
+    const double now = ctx.now.value_or(
+        std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count());
+    auto scene = build_time_series(*std::get<DatasetPtr>(in.at(0)), o, now, ctx.domain);
     if (!scene) return fail(scene.error());
     return std::vector<PortValue>{PortValue(std::make_shared<const Scene>(std::move(*scene)))};
   }
@@ -466,4 +475,4 @@ class TimeSeriesUnit final : public Unit {
 
 std::unique_ptr<Unit> make_time_series_unit() { return std::make_unique<TimeSeriesUnit>(); }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

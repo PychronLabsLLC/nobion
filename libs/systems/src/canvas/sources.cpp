@@ -1,8 +1,8 @@
-#include "pychron/systems/canvas/canvas.hpp"
+#include "nobion/systems/canvas/canvas.hpp"
 
 #include <set>
 
-namespace pychron::canvas {
+namespace nobion::canvas {
 
 int default_precedence(SourceKind kind) noexcept {
   switch (kind) {
@@ -22,11 +22,13 @@ SourceKind source_kind(const StageElement& stage) noexcept {
   if (stage.kind) return *stage.kind;
   switch (stage.symbol) {
     case StageSymbol::Turbo:
-    case StageSymbol::IonPump: return SourceKind::Pump;
+    case StageSymbol::IonPump:
+    case StageSymbol::RoughingPump: return SourceKind::Pump;
     case StageSymbol::Laser: return SourceKind::Laser;
     case StageSymbol::Spectrometer:
     case StageSymbol::Quadrupole: return SourceKind::Spectrometer;
     case StageSymbol::Getter: return SourceKind::Getter;
+    case StageSymbol::Cryo:
     case StageSymbol::None: return SourceKind::None;
   }
   return SourceKind::None;
@@ -85,20 +87,24 @@ std::map<std::string, Source, std::less<>> sources(const Canvas& canvas) {
   return out;
 }
 
+bool outranks(const Source& a, const Source& b) noexcept {
+  if (a.precedence != b.precedence) return a.precedence > b.precedence;
+  if (a.kind != b.kind) return a.kind < b.kind;
+  return a.name < b.name;
+}
+
 const Source* dominant(const std::map<std::string, Source, std::less<>>& sources,
                        const std::set<std::string>& volumes) {
   const Source* best = nullptr;
-  // `volumes` is sorted, so among equals the first name stays.
   for (const auto& volume : volumes) {
     const auto it = sources.find(volume);
     if (it == sources.end()) continue;
     const Source& s = it->second;
-    if (best == nullptr || s.precedence > best->precedence ||
-        (s.precedence == best->precedence && s.kind < best->kind)) {
+    if (best == nullptr || outranks(s, *best)) {
       best = &s;
     }
   }
   return best;
 }
 
-}  // namespace pychron::canvas
+}  // namespace nobion::canvas

@@ -7,7 +7,7 @@
 // the application's settings are then a file in a temporary directory, and
 // cleanupTestCase requires that nothing was written there:
 //
-//     pychron::ui::test::ApplicationSettingsGuard app_settings_;
+//     nobion::ui::test::ApplicationSettingsGuard app_settings_;
 //     ...
 //     void cleanupTestCase() { QCOMPARE(app_settings_.keys(), QStringList()); }
 //
@@ -18,7 +18,7 @@
 #include <QStringList>
 #include <QTemporaryDir>
 
-namespace pychron::ui::test {
+namespace nobion::ui::test {
 
 class ApplicationSettingsGuard {
  public:
@@ -38,4 +38,4 @@ class ApplicationSettingsGuard {
   QTemporaryDir dir_;
 };
 
-}  // namespace pychron::ui::test
+}  // namespace nobion::ui::test

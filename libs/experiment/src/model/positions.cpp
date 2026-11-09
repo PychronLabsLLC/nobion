@@ -1,9 +1,9 @@
-#include "pychron/experiment/model/positions.hpp"
+#include "nobion/experiment/model/positions.hpp"
 
 #include <charconv>
 #include <cstdlib>
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 constexpr std::size_t kMaxHoles = 10000;
@@ -78,4 +78,4 @@ Result<Position> increment_position(const Position& p, int step) {
   return out;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

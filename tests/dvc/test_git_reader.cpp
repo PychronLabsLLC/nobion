@@ -10,6 +10,7 @@
 #include <optional>
 #include <ranges>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -19,10 +20,10 @@
 #include <gtest/gtest.h>
 
 #include "git_fixture.hpp"
-#include "pychron/core/env.hpp"
-#include "pychron/dvc/git_reader.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/dvc/git_reader.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 namespace {
 
 using testing::GitFixture;
@@ -140,6 +141,70 @@ TEST(GitFixture, IgnoresInheritedGitEnvironment) {
   EXPECT_EQ(decoy.git({"ls-files"}), "d.json\n");
 }
 
+// head() reads the fixture's own git directory, so a fixture commit costs no
+// process for its sha. It must say what git says however HEAD is kept.
+TEST(GitFixture, HeadIsWhatGitSays) {
+  SKIP_WITHOUT_GIT();
+  GitFixture repo;
+  repo.init();
+  const auto rev_parse = [&repo] {
+    std::string out = repo.git({"rev-parse", "HEAD"});
+    while (!out.empty() && (out.back() == '\n' || out.back() == '\r')) out.pop_back();
+    return out;
+  };
+
+  repo.write("a.json", "a");
+  const std::string first = repo.commit("first", "2016-03-04T05:06:07+00:00");
+  EXPECT_EQ(first, rev_parse());
+
+  repo.branch("side");
+  repo.checkout("side");
+  repo.write("b.json", "b");
+  const std::string side = repo.commit("side", "2016-03-05T05:06:07+00:00");
+  EXPECT_EQ(side, rev_parse());
+  repo.checkout("main");
+  EXPECT_EQ(repo.head(), first);
+
+  const std::string merged = repo.merge("side", "merge side", "2016-03-06T05:06:07+00:00");
+  EXPECT_EQ(merged, rev_parse());
+
+  repo.checkout(first);  // detached: HEAD holds the sha itself
+  EXPECT_EQ(repo.head(), first);
+  EXPECT_EQ(repo.head(), rev_parse());
+  repo.checkout("main");
+
+  repo.git({"pack-refs", "--all"});  // no loose file for the branch any more
+  ASSERT_FALSE(std::filesystem::exists(repo.path() / ".git" / "refs" / "heads" / "main"));
+  EXPECT_EQ(repo.head(), merged);
+  EXPECT_EQ(repo.head(), rev_parse());
+
+  repo.write("c.json", "c");  // a loose ref written after packing wins over the packed one
+  const std::string after_packing = repo.commit("after packing", "2016-03-07T05:06:07+00:00");
+  EXPECT_NE(after_packing, merged);
+  EXPECT_EQ(after_packing, rev_parse());
+}
+
+TEST(GitFixture, HeadStartsNoProcess) {
+  SKIP_WITHOUT_GIT();
+  GitFixture repo;
+  repo.init();
+  repo.write("a.json", "a");
+  const std::string sha = repo.commit("first", "2016-03-04T05:06:07+00:00");
+  const std::filesystem::path no_git = repo.temp("no-git");
+  std::filesystem::create_directories(no_git);
+  ScopedEnv env;
+  env.set("PATH", no_git.string());
+  EXPECT_EQ(repo.head(), sha);
+}
+
+// No commit yet: git's refusal, as before.
+TEST(GitFixture, HeadOfAnUnbornBranchFails) {
+  SKIP_WITHOUT_GIT();
+  GitFixture repo;
+  repo.init();
+  EXPECT_THROW(repo.head(), std::runtime_error);
+}
+
 TEST(GitReader, IgnoresInheritedGitEnvironment) {
   SKIP_WITHOUT_GIT();
   GitFixture repo;
@@ -172,6 +237,10 @@ TEST(GitReader, IgnoresInheritedGitEnvironment) {
     const auto changes = reader->changes(*order);
     ASSERT_OK(changes);
     ASSERT_EQ(changes->size(), 2u);
+    const auto both = reader->commits_and_changes(*order);
+    ASSERT_OK(both);
+    EXPECT_EQ(both->commits.size(), 2u);
+    EXPECT_EQ(both->changes.size(), 2u);
     ASSERT_OK(reader->fetch_blobs(std::vector<std::string>{(*changes)[1].blob_sha}));
     EXPECT_EQ(*reader->blob((*changes)[1].blob_sha), "two");
     const auto tags = reader->tags();
@@ -590,6 +659,116 @@ TEST(GitReader, MergeEqualToItsFirstParentHasNoChanges) {
   EXPECT_TRUE(changes->empty());
 }
 
+// commits_and_changes() is commits() and changes() from one git process:
+// field by field, the same answer.
+void expect_same_as_commits_plus_changes(const GitReader& reader, const std::vector<std::string>& shas) {
+  const auto commits = reader.commits(shas);
+  ASSERT_OK(commits);
+  const auto changes = reader.changes(shas);
+  ASSERT_OK(changes);
+  const auto both = reader.commits_and_changes(shas);
+  ASSERT_OK(both);
+
+  ASSERT_EQ(both->commits.size(), commits->size());
+  for (std::size_t i = 0; i < commits->size(); ++i) {
+    const GitCommit& want = (*commits)[i];
+    const GitCommit& got = both->commits[i];
+    SCOPED_TRACE("commit " + want.sha);
+    EXPECT_EQ(got.sha, want.sha);
+    EXPECT_EQ(got.parents, want.parents);
+    EXPECT_EQ(got.author.name, want.author.name);
+    EXPECT_EQ(got.author.email, want.author.email);
+    EXPECT_EQ(got.author.utc, want.author.utc);
+    EXPECT_EQ(got.message, want.message);
+  }
+  ASSERT_EQ(both->changes.size(), changes->size());
+  for (std::size_t i = 0; i < changes->size(); ++i) {
+    const GitChange& want = (*changes)[i];
+    const GitChange& got = both->changes[i];
+    SCOPED_TRACE("change " + want.commit + " " + want.path);
+    EXPECT_EQ(got.commit, want.commit);
+    EXPECT_EQ(got.path, want.path);
+    EXPECT_EQ(got.status, want.status);
+    EXPECT_EQ(got.blob_sha, want.blob_sha);
+    EXPECT_EQ(got.old_blob_sha, want.old_blob_sha);
+  }
+}
+
+TEST(GitReader, CommitsAndChangesFromOneLogMatchCommitsPlusChanges) {
+  SKIP_WITHOUT_GIT();
+  GitFixture repo;
+  repo.init();
+  const std::string root_empty = repo.commit("an empty root", "2016-03-04T00:00:00+00:00");
+  repo.write("660/a.json", "a");
+  repo.write("660/b.json", "b");
+  repo.write("tool.sh", "#!/bin/sh\n");
+  const std::string files = repo.commit("files\n\nwith a body\n:000000 100644 not a change\n",
+                                        "2016-03-05T00:00:00-07:00");
+  const std::string empty = repo.commit("nothing", "2016-03-06T00:00:00+00:00");
+  repo.write("661/52-01E \xc3\xa9.json", "non-ascii");
+  repo.remove("660/b.json");
+  std::filesystem::permissions(repo.path() / "tool.sh", std::filesystem::perms::owner_exec,
+                               std::filesystem::perm_options::add);
+  repo.write("660/a.json", "a again");
+  const std::string mixed = repo.commit("add, delete, modify, mode", "2016-03-07T00:00:00+00:00");
+  repo.branch("side");
+  repo.write("main.json", "main");
+  repo.commit("main work", "2016-03-08T00:00:00+00:00");
+  repo.checkout("side");
+  repo.write("side.json", "side");
+  repo.commit("side work", "2016-03-09T00:00:00+00:00");
+  repo.checkout("main");
+  const std::string merge = repo.merge("side", "merge side", "2016-03-10T00:00:00+00:00");
+  repo.branch("ours");
+  repo.checkout("ours");
+  repo.write("ours.json", "ours");
+  repo.commit("ours work", "2016-03-11T00:00:00+00:00");
+  repo.checkout("main");
+  repo.git({"merge", "--quiet", "--no-ff", "-s", "ours", "-m", "keep ours", "ours"}, "2016-03-12T00:00:00+00:00");
+  const std::string merge_same = repo.head();
+
+  auto reader = GitReader::open(config_for(repo));
+  ASSERT_OK(reader);
+  const auto order = reader->rev_list(std::nullopt);
+  ASSERT_OK(order);
+  ASSERT_EQ(order->size(), 9u);
+  expect_same_as_commits_plus_changes(*reader, *order);
+
+  // A slice in another order, a slice of one, and nothing.
+  expect_same_as_commits_plus_changes(*reader, {merge_same, mixed, root_empty, merge, files, empty});
+  expect_same_as_commits_plus_changes(*reader, {mixed});
+  expect_same_as_commits_plus_changes(*reader, {});
+
+  const auto both = reader->commits_and_changes(*order);
+  ASSERT_OK(both);
+  EXPECT_TRUE(both->commits[1].message.starts_with("files\n\nwith a body\n:000000 100644 not a change"));
+  EXPECT_EQ(paths_of(both->changes, mixed),
+            (std::vector<std::string>{"660/a.json", "660/b.json", "661/52-01E \xc3\xa9.json", "tool.sh"}));
+  EXPECT_EQ(find_change(both->changes, mixed, "660/b.json")->status, 'D');
+  EXPECT_EQ(find_change(both->changes, mixed, "tool.sh")->status, 'M');
+  EXPECT_EQ(paths_of(both->changes, merge), (std::vector<std::string>{"side.json"}));
+  EXPECT_TRUE(paths_of(both->changes, merge_same).empty());
+  EXPECT_TRUE(paths_of(both->changes, empty).empty());
+  EXPECT_EQ(scratch_files(repo), 0u);
+}
+
+TEST(GitReader, CommitsAndChangesRejectsWhatIsNotASha) {
+  SKIP_WITHOUT_GIT();
+  GitFixture repo;
+  repo.init();
+  repo.write("a.json", "1");
+  repo.commit("one", "2016-03-04T05:06:07+00:00");
+  auto reader = GitReader::open(config_for(repo));
+  ASSERT_OK(reader);
+  const auto bad = reader->commits_and_changes(std::vector<std::string>{"--all"});
+  ASSERT_FALSE(bad.has_value());
+  EXPECT_NE(bad.error().what.find("not a commit sha: '--all'"), std::string::npos) << bad.error().what;
+  const std::string absent(40, 'a');
+  const auto missing = reader->commits_and_changes(std::vector<std::string>{absent});
+  ASSERT_FALSE(missing.has_value());
+  EXPECT_NE(missing.error().what.find("git log failed"), std::string::npos) << missing.error().what;
+}
+
 TEST(GitReader, DiffBetweenTwoCommits) {
   SKIP_WITHOUT_GIT();
   GitFixture repo;
@@ -922,6 +1101,56 @@ TEST(GitReader, OpenRejectsShallowClone) {
   GitConfig config = config_for(repo);
   config.repo = shallow;
   expect_open_fails(config, "shallow");
+  // The branch being missing as well does not change the reason.
+  config.branch = "develop";
+  expect_open_fails(config, "shallow");
+}
+
+// git's version is read once per process; every open still checks the rest.
+TEST(GitReader, OpensTwiceInOneProcess) {
+  SKIP_WITHOUT_GIT();
+  GitFixture repo;
+  repo.init();
+  repo.write("a.json", "1");
+  const std::string c1 = repo.commit("one", "2016-03-04T05:06:07+00:00");
+  auto first = GitReader::open(config_for(repo));
+  ASSERT_OK(first);
+  auto second = GitReader::open(config_for(repo));
+  ASSERT_OK(second);
+  EXPECT_EQ(first->head(), c1);
+  EXPECT_EQ(second->head(), c1);
+  GitConfig missing = config_for(repo);
+  missing.branch = "develop";
+  expect_open_fails(missing, "branch 'develop' not found");
+  EXPECT_EQ(scratch_files(repo), 0u);
+}
+
+// No refs/heads/<branch>: the name as given is tried next, as before.
+TEST(GitReader, OpensABranchGivenByAnotherName) {
+  SKIP_WITHOUT_GIT();
+  GitFixture repo;
+  repo.init();
+  repo.write("a.json", "1");
+  const std::string c1 = repo.commit("one", "2016-03-04T05:06:07+00:00");
+  repo.tag("v1");
+  repo.write("a.json", "2");
+  const std::string c2 = repo.commit("two", "2016-03-05T05:06:07+00:00");
+
+  GitConfig config = config_for(repo);
+  config.branch = "refs/heads/main";
+  auto by_ref = GitReader::open(config);
+  ASSERT_OK(by_ref);
+  EXPECT_EQ(by_ref->head(), c2);
+
+  config.branch = "v1";
+  auto by_tag = GitReader::open(config);
+  ASSERT_OK(by_tag);
+  EXPECT_EQ(by_tag->head(), c1);
+
+  config.branch = c1;
+  auto by_sha = GitReader::open(config);
+  ASSERT_OK(by_sha);
+  EXPECT_EQ(by_sha->head(), c1);
 }
 
 TEST(GitReader, ReadsABareMirrorAndUpdatesIt) {
@@ -1100,4 +1329,4 @@ TEST(GitReader, MirrorAllowsOnlyOrdinaryTransports) {
 #endif
 
 }  // namespace
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

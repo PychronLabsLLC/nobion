@@ -1,6 +1,7 @@
 // CoreBridge: bus events reach the main thread and the snapshot; actuate()
 // never blocks the caller and reports its Result back on the main thread.
 
+#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <thread>
@@ -8,12 +9,13 @@
 #include <QtTest/QtTest>
 
 #include "core_bridge.hpp"
-#include "pychron/sim/sim_system.hpp"
+#include "log_capture.hpp"
+#include "nobion/sim/sim_system.hpp"
 #include "ui_fixture.hpp"
 
-using namespace pychron;
-using pychron::systems::SwitchOp;
-using pychron::ui::CoreBridge;
+using namespace nobion;
+using nobion::systems::SwitchOp;
+using nobion::ui::CoreBridge;
 
 class TestCoreBridge : public QObject {
   Q_OBJECT
@@ -36,7 +38,7 @@ class TestCoreBridge : public QObject {
     QVERIFY(line_->start().has_value());
     QTRY_COMPARE(snapshots, 1);
     const auto& state = bridge_->state();
-    QCOMPARE(state.valves.size(), std::size_t{7});  // 5 valves, M1, pump_power
+    QCOMPARE(state.valves.size(), std::size_t{18});  // 13 valves, 2 rough, M1, M2, pump_power
     QVERIFY(state.valves.count("A") == 1);
     QVERIFY(state.pressures.count("IG1") == 1);
     QVERIFY(state.switches.count("A") == 1);
@@ -87,6 +89,26 @@ class TestCoreBridge : public QObject {
     QVERIFY(finished->has_value());
     QVERIFY(!bridge_->pending("B"));
     QTRY_COMPARE(bridge_->state().valves.at("B"), ValveState::Open);
+  }
+
+  // The operator's valve command is on ui.action at info: verb, kind, name.
+  void actuateIsLoggedAsAction() {
+    const nobion::testing::LogCapture capture;
+    QVERIFY(capture.ok());
+    QVERIFY(line_->start().has_value());
+    QTRY_VERIFY(bridge_->state().switches.contains("B"));  // the snapshot says what B is
+    std::vector<Result<void>> finished;
+    connect(bridge_.get(), &CoreBridge::actuationFinished, this,
+            [&](const QString&, const Result<void>& r) { finished.push_back(r); });
+    bridge_->actuate("B", SwitchOp::Open);
+    // A second click while the first is pending is refused, not sent: not an action.
+    bridge_->actuate("B", SwitchOp::Open);
+    QTRY_COMPARE(finished.size(), std::size_t{2});
+    QCOMPARE(finished[0].error().kind, ErrorKind::Cancelled);
+    const auto lines = capture.lines();
+    std::string all;
+    for (const auto& l : lines) all.append(l).push_back('\n');
+    QVERIFY2(std::ranges::count(lines, std::string("[info] ui.action: open valve B")) == 1, all.c_str());
   }
 
   void interlockRejectionIsReported() {

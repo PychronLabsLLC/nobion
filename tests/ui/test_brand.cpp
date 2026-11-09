@@ -12,14 +12,17 @@
 #include "brand.hpp"
 #include "data_main_window.hpp"
 #include "main_window.hpp"
+#include "nobion/arar/domain.hpp"
+#include "nobion/core/build_info.hpp"
+#include "nobion/processing/domain.hpp"
 #include "theme.hpp"
 #include "ui_fixture.hpp"
 
-using pychron::ui::AboutDialog;
-using pychron::ui::SplashScreen;
-using pychron::ui::theme;
-namespace brand = pychron::ui::brand;
-namespace style = pychron::ui::style;
+using nobion::ui::AboutDialog;
+using nobion::ui::SplashScreen;
+using nobion::ui::theme;
+namespace brand = nobion::ui::brand;
+namespace style = nobion::ui::style;
 
 namespace {
 
@@ -46,11 +49,18 @@ class TestBrand : public QObject {
   void initTestCase() { style::apply(*qobject_cast<QApplication*>(QCoreApplication::instance())); }
 
   void the_version_comes_from_the_build() {
-    QVERIFY(!pychron::ui::app_version().isEmpty());
-    const QString info = pychron::ui::build_info();
-    QVERIFY(info.startsWith(QStringLiteral("pychron: ") + pychron::ui::app_version()));
+    QVERIFY(!nobion::ui::app_version().isEmpty());
+    const QString info = nobion::ui::build_info();
+    QVERIFY(info.startsWith(QStringLiteral("nobion: ") + nobion::ui::app_version()));
     QVERIFY(info.contains(QStringLiteral("Qt: ") + QString::fromLatin1(qVersion())));
     QVERIFY(info.contains(QStringLiteral("compiler: ")));
+  }
+
+  void buildInfoNamesShaAndFeatures() {
+    const QString info = nobion::ui::build_info();
+    const auto& b = nobion::build_info();
+    QVERIFY(info.contains(QString::fromUtf8(b.git_sha.data(), static_cast<qsizetype>(b.git_sha.size()))));
+    QVERIFY(info.contains(QStringLiteral("features: ")));
   }
 
   void the_banner_draws_the_peaks_in_the_signal_colour() {
@@ -111,17 +121,17 @@ class TestBrand : public QObject {
     const QString text = about.text();
     QVERIFY(text.contains(QStringLiteral("GNU General Public License v3")));
     QVERIFY(text.contains(QStringLiteral("In development.")));
-    QVERIFY(text.contains(pychron::ui::build_info()));
+    QVERIFY(text.contains(nobion::ui::build_info()));
     QApplication::clipboard()->clear();
     QTest::mouseClick(about.copy_button(), Qt::LeftButton);
     if (QApplication::clipboard()->supportsSelection() || !QApplication::clipboard()->text().isEmpty())
-      QCOMPARE(QApplication::clipboard()->text(), pychron::ui::build_info());
+      QCOMPARE(QApplication::clipboard()->text(), nobion::ui::build_info());
     QCOMPARE(about.copy_button()->text(), QStringLiteral("Copied"));
   }
 
   void help_about_opens_one_dialog() {
-    auto line = pychron::ui::test::make_example_line();
-    pychron::ui::MainWindow window(*line);
+    auto line = nobion::ui::test::make_example_line();
+    nobion::ui::MainWindow window(*line);
     QVERIFY(!window.windowIcon().isNull());
     QVERIFY(window.about_dialog() == nullptr);
     QCOMPARE(window.about_action()->menuRole(), QAction::AboutRole);
@@ -137,9 +147,10 @@ class TestBrand : public QObject {
 
   void a_data_reduction_install_has_help_about_too() {
     QTemporaryDir dir;
-    pychron::processing::MemorySource source;
-    pychron::processing::PresetStore presets(dir.path().toStdString());
-    pychron::ui::DataMainWindow window(source, presets, QStringLiteral("reduction"));
+    nobion::processing::MemorySource source;
+    nobion::processing::PresetStore presets(dir.path().toStdString());
+    const auto domain = nobion::arar::make_domain();
+    nobion::ui::DataMainWindow window(source, presets, *domain, QStringLiteral("reduction"));
     QVERIFY(!window.windowIcon().isNull());
     QCOMPARE(window.about_action()->menuRole(), QAction::AboutRole);
     window.about_action()->trigger();

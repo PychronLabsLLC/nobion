@@ -2,46 +2,85 @@
 
 #include <chrono>
 #include <cstddef>
+#include <filesystem>
+#include <fstream>
+#include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <utility>
 #include <vector>
 
 #include <QAction>
+#include <QComboBox>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QMenu>
+#include <QMenuBar>
 #include <QSettings>
 #include <QTemporaryDir>
 #include <QTimeZone>
 #include <QtTest/QtTest>
 
+#include "canvas_items.hpp"
+#include "gauge_popup.hpp"
+#include "gauge_window.hpp"
+#include "history_chart.hpp"
+#include "log_capture.hpp"
+#include "field_table_editor_window.hpp"
 #include "main_window.hpp"
-#include "pychron/core/virtual_clock.hpp"
+#include "menu_hub.hpp"
+#include "peak_center_panel.hpp"
+#include "peak_center_window.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/config/logging_config.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/logger.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "spectrometer_window.hpp"
 #include "spectrometer_fixture.hpp"
 #include "settings_guard.hpp"
 #include "ui_fixture.hpp"
 
-using namespace pychron;
-using pychron::systems::SwitchOp;
+using namespace nobion;
+using nobion::systems::SwitchOp;
 using namespace std::chrono_literals;
-using pychron::ui::AlarmDock;
-using pychron::ui::HealthBar;
-using pychron::ui::LogDock;
-using pychron::ui::LogModel;
-using pychron::ui::LogRecord;
+using nobion::ui::AlarmDock;
+using nobion::ui::HealthBar;
+using nobion::ui::LogDock;
+using nobion::ui::LogModel;
+using nobion::ui::LogRecord;
+
+namespace {
+
+// The error lines a LogCapture holds, in order.
+std::vector<std::string> error_lines(const nobion::testing::LogCapture& capture) {
+  std::vector<std::string> out;
+  for (auto& l : capture.lines())
+    if (l.starts_with("[error]")) out.push_back(std::move(l));
+  return out;
+}
+
+}  // namespace
 
 class TestDocks : public QObject {
   Q_OBJECT
 
  private:
-  pychron::ui::test::ApplicationSettingsGuard app_settings_;
+  nobion::ui::test::ApplicationSettingsGuard app_settings_;
   // Log, Alarms, then the cryostat's and the heaters' when the line has them.
   static QList<QDockWidget*> main_docks(const ui::MainWindow& window) {
     QList<QDockWidget*> docks{window.log_dock(), window.alarm_dock()};
     if (window.cryo_dock() != nullptr) docks.append(window.cryo_dock());
     if (window.heater_dock() != nullptr) docks.append(window.heater_dock());
     return docks;
+  }
+  // QSettings on a file in `dir`, made afresh for each read and write.
+  static std::function<std::unique_ptr<QSettings>()> settings_on(const QTemporaryDir& dir) {
+    const QString path = dir.filePath(QStringLiteral("settings.ini"));
+    return [path] { return std::make_unique<QSettings>(path, QSettings::IniFormat); };
   }
 
  private slots:
@@ -118,6 +157,71 @@ class TestDocks : public QObject {
     QVERIFY(dock.text().contains(QStringLiteral("ERROR [ui] A rejected: busy")));
   }
 
+  // An error shown on the dock is in the log file too: written once, shown once.
+  // The hub publishes on the bus the dock is fed from: the row comes back that way.
+  void dockErrorOnTheFedBusIsWrittenAndShownOnce() {
+    const nobion::testing::LogCapture capture;
+    QVERIFY(capture.ok());
+    SignalBus bus;
+    auto attached = capture.hub().attach_bus(bus);
+    LogDock dock;
+    dock.set_fed_by(&bus);
+    std::vector<Log> relayed;  // what CoreBridge::logLine would hand the dock
+    auto sub = bus.subscribe<Log>([&](const Log& l) { relayed.push_back(l); });
+    dock.append_line(QStringLiteral("ERROR [x] boom"));
+    QTRY_COMPARE(relayed.size(), std::size_t{1});
+    for (const auto& l : relayed) dock.append_log(l);
+    dock.flush_pending();
+    QCOMPARE(dock.line_count(), 1);
+    // the relayed record, with the thread the hub stamped
+    QVERIFY2(dock.text().contains(QStringLiteral(" ERROR ")) && dock.text().contains(QStringLiteral("[ui.x] boom")),
+             qPrintable(dock.text()));
+    QCOMPARE(error_lines(capture), std::vector<std::string>{"[error] ui.x: boom"});
+  }
+
+  // The hub on another bus: the dock shows the line itself, the file has it once.
+  void dockErrorWithTheHubOnAnotherBusIsWrittenAndShownOnce() {
+    const nobion::testing::LogCapture capture;
+    QVERIFY(capture.ok());
+    SignalBus hub_bus;
+    SignalBus dock_bus;
+    auto attached = capture.hub().attach_bus(hub_bus);
+    LogDock dock;
+    dock.set_fed_by(&dock_bus);
+    dock.append_error("line", QStringLiteral("A rejected"), QStringLiteral("interlock"));
+    dock.flush_pending();
+    QCOMPARE(dock.line_count(), 1);
+    QVERIFY2(dock.text().contains(QStringLiteral("ERROR [ui.line] A rejected: interlock")), qPrintable(dock.text()));
+    QCOMPARE(error_lines(capture), std::vector<std::string>{"[error] ui.line: A rejected: interlock"});
+  }
+
+  // No process hub (most tests): the dock shows it, nothing else happens.
+  void dockErrorWithoutAHubIsShown() {
+    LogDock dock;
+    SignalBus bus;
+    dock.set_fed_by(&bus);
+    dock.append_line(QStringLiteral("ERROR [x] boom"));
+    dock.append_error("line", QStringLiteral("A rejected"), QStringLiteral("busy"));
+    dock.flush_pending();
+    QCOMPARE(dock.line_count(), 2);
+  }
+
+  // The source of an ERROR line names the logger: ui.<source>, unless it is ui already.
+  void dockErrorSourceMapsToAUiLogger() {
+    const nobion::testing::LogCapture capture;
+    QVERIFY(capture.ok());
+    LogDock dock;
+    dock.append_line(QStringLiteral("ERROR [cryo] a"));
+    dock.append_line(QStringLiteral("ERROR [ui] b"));
+    dock.append_line(QStringLiteral("ERROR [ui.data] c"));
+    dock.append_line(QStringLiteral("ERROR [laser L2] d"));
+    dock.append_line(QStringLiteral("WARN [cryo] not an error"));
+    QCOMPARE(error_lines(capture), (std::vector<std::string>{"[error] ui.cryo: a", "[error] ui: b",
+                                                             "[error] ui.data: c", "[error] ui.laser.L2: d"}));
+    dock.flush_pending();
+    QCOMPARE(dock.line_count(), 5);
+  }
+
   void ringEvictsAtCapacity() {
     LogDock dock;
     QCOMPARE(LogDock::kMaxLines, LogModel::kCapacity);
@@ -187,8 +291,9 @@ class TestDocks : public QObject {
     QVERIFY(dock.level_action() != nullptr);
     QVERIFY(!dock.level_action()->isVisible());
     std::vector<std::pair<std::string, LogLevel>> calls;
-    dock.set_level_callback([&calls](std::string pattern, LogLevel level) {
+    dock.set_level_callback([&calls](std::string pattern, LogLevel level) -> std::optional<LogLevel> {
       calls.emplace_back(std::move(pattern), level);
+      return std::nullopt;
     });
     QVERIFY(dock.level_action()->isVisible());
     dock.apply_level(QStringLiteral("transport.serial.*"), LogLevel::Trace);
@@ -200,16 +305,114 @@ class TestDocks : public QObject {
   void levelActionRejectsEmptyPattern() {
     LogDock dock;
     int calls = 0;
-    dock.set_level_callback([&calls](std::string, LogLevel) { ++calls; });
+    dock.set_level_callback([&calls](const std::string&, LogLevel) -> std::optional<LogLevel> {
+      ++calls;
+      return std::nullopt;
+    });
     dock.apply_level(QString{}, LogLevel::Debug);
     dock.apply_level(QStringLiteral("   "), LogLevel::Debug);
     QCOMPARE(calls, 0);
   }
 
+  // "Set logger level..." below the hub's dock level: the records asked for
+  // would reach the file and never the panel, so the dock level comes down
+  // with it (and the panel's own filter), and the panel says so.
+  void levelBelowTheDockLevelLowersIt() {
+    SteadyClock clock;
+    SignalBus bus;
+    config::LoggingConfig cfg;  // no file
+    cfg.dock_level = LogLevel::Info;
+    auto created = LogHub::create(cfg, clock, &bus);
+    QVERIFY(created.has_value());
+    const std::shared_ptr<LogHub>& hub = *created;
+
+    LogDock dock;
+    auto sub = bus.subscribe<Log>([&dock](const Log& e) { dock.append_log(e); });
+    dock.set_level_callback(nobion::ui::hub_level_callback(hub));
+    dock.set_min_level(LogLevel::Warn);
+    dock.apply_level(QStringLiteral("*.wire"), LogLevel::Trace);
+    QCOMPARE(hub->dock_level(), LogLevel::Trace);
+    hub->logger("gnet.wire").trace("-> 0x01");
+    dock.flush_pending();
+    QVERIFY2(dock.text().contains(QStringLiteral("[gnet.wire] -> 0x01")), qPrintable(dock.text()));
+    QVERIFY2(dock.text().contains(QStringLiteral("the Log panel now shows TRACE and up")), qPrintable(dock.text()));
+    QCOMPARE(hub->logger("x").enabled(LogLevel::Trace), false);  // only the pattern's loggers
+
+    // At or above the dock level: nothing more to say, nothing moved.
+    dock.clear();
+    dock.apply_level(QStringLiteral("scheduler"), LogLevel::Debug);
+    QCOMPARE(hub->dock_level(), LogLevel::Trace);
+    QVERIFY(!dock.text().contains(QStringLiteral("now shows")));
+  }
+
+  // Save and Copy carry the thread and run, where the file line has them;
+  // the text filter finds them.
+  void rowsCarryThreadAndRun() {
+    LogDock dock;
+    dock.append_log(Log{LogLevel::Info, "experiment.run", "start", {}, "executor", "12345-01A"});
+    dock.append_log(Log{LogLevel::Info, "scanner", "tick", {}, "t3", ""});
+    dock.append_log(Log{LogLevel::Info, "ui", "plain", {}});
+    dock.flush_pending();
+    const QString text = dock.text();
+    QVERIFY2(text.contains(QStringLiteral("INFO [executor] run=12345-01A [experiment.run] start")), qPrintable(text));
+    QVERIFY2(text.contains(QStringLiteral("INFO [t3] [scanner] tick")), qPrintable(text));
+    QVERIFY2(text.contains(QStringLiteral("INFO [ui] plain")), qPrintable(text));
+
+    dock.set_text_filter(QStringLiteral("12345-01"));
+    QCOMPARE(dock.line_count(), 1);
+    dock.set_text_filter(QStringLiteral("EXECUTOR"));
+    QCOMPARE(dock.line_count(), 1);
+    dock.set_text_filter(QStringLiteral("t3"));
+    QCOMPARE(dock.line_count(), 1);
+    dock.set_text_filter({});
+    QCOMPARE(dock.line_count(), 3);
+  }
+
+  // History is what the panel would have shown: lines below the dock level
+  // are left in the file, and the last lines at the level are what is loaded.
+  void historyLeavesOutLinesBelowTheMinimumLevel() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("nobion.log"));
+    {
+      QFile f(path);
+      QVERIFY(f.open(QIODevice::WriteOnly));
+      f.write("not a log line\n");
+      f.write("2026-10-22T14:03:22.481Z [debug] [t1] a: quiet\n");
+      f.write("  continuation of quiet\n");
+      f.write("2026-10-22T14:03:22.482Z [info] [t1] a: said\n");
+      f.write("2026-10-22T14:03:22.483Z [warn] [t1] a: loud\n");
+      f.write("  continuation of loud\n");
+      f.write("2026-10-22T14:03:22.484Z [trace] [t1] a.wire: bytes\n");
+    }
+    LogDock dock;
+    QCOMPARE(dock.load_history(path.toStdString(), 1000, LogLevel::Info), 4);
+    const LogModel* m = dock.model();
+    QCOMPARE(m->record(0).message, QStringLiteral("not a log line"));
+    QCOMPARE(m->record(1).message, QStringLiteral("said"));
+    QCOMPARE(m->record(2).message, QStringLiteral("loud"));
+    QCOMPARE(m->record(3).message, QStringLiteral("  continuation of loud"));
+
+    // Fifty info lines under two thousand debug ones: the ten last info lines.
+    const QString busy = dir.filePath(QStringLiteral("busy.log"));
+    {
+      QFile f(busy);
+      QVERIFY(f.open(QIODevice::WriteOnly));
+      for (int i = 0; i < 50; ++i)
+        f.write(QStringLiteral("2026-10-22T14:03:22.481Z [info] [t1] a: info %1\n").arg(i).toUtf8());
+      for (int i = 0; i < 2000; ++i)
+        f.write(QStringLiteral("2026-10-22T14:03:23.481Z [debug] [t1] a.wire: debug %1\n").arg(i).toUtf8());
+    }
+    LogDock dock2;
+    QCOMPARE(dock2.load_history(busy.toStdString(), 10, LogLevel::Info), 10);
+    QCOMPARE(dock2.model()->record(0).message, QStringLiteral("info 40"));
+    QCOMPARE(dock2.model()->record(9).message, QStringLiteral("info 49"));
+  }
+
   void loadHistoryReadsTailAsHistory() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    const QString path = dir.filePath(QStringLiteral("pychron.log"));
+    const QString path = dir.filePath(QStringLiteral("nobion.log"));
     {
       QFile f(path);
       QVERIFY(f.open(QIODevice::WriteOnly));
@@ -227,7 +430,7 @@ class TestDocks : public QObject {
     QCOMPARE(last.logger, QStringLiteral("transport.serial.ig1"));
     QCOMPARE(last.message, QStringLiteral("line 1499"));
     // UTC in the file, shown as the same instant in local wall time.
-    QCOMPARE(pychron::ui::log_wall_time(last.ts).toUTC(),
+    QCOMPARE(nobion::ui::log_wall_time(last.ts).toUTC(),
              QDateTime(QDate(2026, 10, 1), QTime(14, 3, 22, 481), QTimeZone::utc()));
     const QModelIndex idx = dock.model()->index(999, LogModel::MessageCol);
     QVERIFY(dock.model()->data(idx, Qt::ForegroundRole).isValid());
@@ -238,7 +441,7 @@ class TestDocks : public QObject {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     LogDock dock;
-    QCOMPARE(dock.load_history((dir.path() + QStringLiteral("/nope/pychron.log")).toStdString()), 0);
+    QCOMPARE(dock.load_history((dir.path() + QStringLiteral("/nope/nobion.log")).toStdString()), 0);
     QCOMPARE(dock.load_history(dir.path().toStdString()), 0);  // a directory
     QCOMPARE(dock.load_history({}), 0);
     QCOMPARE(dock.line_count(), 0);
@@ -247,7 +450,7 @@ class TestDocks : public QObject {
   void loadHistoryHandlesUnparseableAndLongLines() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    const QString path = dir.filePath(QStringLiteral("pychron.log"));
+    const QString path = dir.filePath(QStringLiteral("nobion.log"));
     const QByteArray long_msg(20000, 'x');
     {
       QFile f(path);
@@ -255,10 +458,12 @@ class TestDocks : public QObject {
       f.write("2026-10-01T14:03:22.481Z [error] a.b: first\n");
       f.write("garbage without format\r\n");
       f.write("2026-10-01T14:03:22.482Z [debug] long: " + long_msg + "\n");
-      f.write("2026-10-01T14:03:22.483Z [info] tail: no trailing newline");
+      f.write("2026-10-01T14:03:22.483Z [warn] [executor] run=12345-01A experiment.run: tagged\n");
+      f.write("2026-10-01T14:03:22.484Z [debug] [t3] untagged.thread: numbered\n");
+      f.write("2026-10-01T14:03:22.485Z [info] tail: no trailing newline");
     }
     LogDock dock;
-    QCOMPARE(dock.load_history(path.toStdString()), 4);
+    QCOMPARE(dock.load_history(path.toStdString()), 6);
     const LogModel* m = dock.model();
     QCOMPARE(m->record(0).level, LogLevel::Error);
     QCOMPARE(m->record(0).message, QStringLiteral("first"));
@@ -268,8 +473,14 @@ class TestDocks : public QObject {
     QVERIFY(m->record(1).history);
     QVERIFY(m->record(2).message.size() < 4096);
     QVERIFY(m->record(2).message.startsWith(QStringLiteral("xxxx")));
-    QCOMPARE(m->record(3).logger, QStringLiteral("tail"));
-    QCOMPARE(m->record(3).message, QStringLiteral("no trailing newline"));
+    QCOMPARE(m->record(3).level, LogLevel::Warn);
+    QCOMPARE(m->record(3).logger, QStringLiteral("experiment.run"));
+    QCOMPARE(m->record(3).message, QStringLiteral("tagged"));
+    QCOMPARE(m->record(4).level, LogLevel::Debug);
+    QCOMPARE(m->record(4).logger, QStringLiteral("untagged.thread"));
+    QCOMPARE(m->record(4).message, QStringLiteral("numbered"));
+    QCOMPARE(m->record(5).logger, QStringLiteral("tail"));
+    QCOMPARE(m->record(5).message, QStringLiteral("no trailing newline"));
 
     // A single line longer than the whole scan budget: bounded, not loaded.
     const QString huge = dir.filePath(QStringLiteral("huge.log"));
@@ -282,6 +493,35 @@ class TestDocks : public QObject {
     LogDock dock2;
     QCOMPARE(dock2.load_history(huge.toStdString(), 2), 1);
     QCOMPARE(dock2.model()->record(0).message, QStringLiteral("end"));
+  }
+
+  void historyParsesNewAndOldFormat() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("nobion.log"));
+    {
+      QFile f(path);
+      QVERIFY(f.open(QIODevice::WriteOnly));
+      f.write("2026-10-22T14:03:22.481Z [debug] [executor] run=12345-01A experiment.run: new with run\n");
+      f.write("2026-10-22T14:03:22.482Z [warn] [t3] transport.serial: new without run\n");
+      f.write("2026-10-01T14:03:22.483Z [error] scheduler: old format\n");
+    }
+    LogDock dock;
+    QCOMPARE(dock.load_history(path.toStdString()), 3);
+    const LogModel* m = dock.model();
+    QCOMPARE(m->record(0).level, LogLevel::Debug);
+    QCOMPARE(m->record(0).logger, QStringLiteral("experiment.run"));
+    QCOMPARE(m->record(0).message, QStringLiteral("new with run"));
+    QCOMPARE(m->record(0).thread, QStringLiteral("executor"));
+    QCOMPARE(m->record(0).run, QStringLiteral("12345-01A"));
+    QCOMPARE(m->record(1).level, LogLevel::Warn);
+    QCOMPARE(m->record(1).thread, QStringLiteral("t3"));
+    QCOMPARE(m->record(1).run, QString());
+    QCOMPARE(m->record(2).level, LogLevel::Error);
+    QCOMPARE(m->record(2).logger, QStringLiteral("scheduler"));
+    QCOMPARE(m->record(2).message, QStringLiteral("old format"));
+    QCOMPARE(m->record(2).thread, QString());
+    QCOMPARE(m->record(2).run, QString());
   }
 
   void alarmDockKeepsOneRowPerSourceAndAcks() {
@@ -413,6 +653,33 @@ class TestDocks : public QObject {
     for (QDockWidget* dock : docks.mid(1)) QCOMPARE(window.dockWidgetArea(dock), Qt::RightDockWidgetArea);
   }
 
+  void theExampleLinesWindowFitsItsInstalledSize() {
+    auto line = ui::test::make_example_line();
+    ui::MainWindow window(*line);
+    QVERIFY(window.cryo_dock() != nullptr);
+    QVERIFY(window.heater_dock() != nullptr);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QVERIFY2(window.minimumSizeHint().height() <= 850,
+             qPrintable(QStringLiteral("%1").arg(window.minimumSizeHint().height())));
+    QCOMPARE(window.size(), QSize(1200, 850));
+  }
+
+  void mainWindowTabsTheCryostatAndHeatersTogether() {
+    auto line = ui::test::make_example_line();
+    ui::MainWindow window(*line);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QVERIFY(window.cryo_dock() != nullptr);
+    QVERIFY(window.heater_dock() != nullptr);
+    QVERIFY(window.tabifiedDockWidgets(window.cryo_dock()).contains(window.heater_dock()));
+    QVERIFY(!window.cryo_dock()->visibleRegion().isEmpty());  // the cryostat's tab is the one in front
+
+    window.heater_dock()->setFloating(true);
+    window.dock_layouts()->reset();
+    QVERIFY(window.tabifiedDockWidgets(window.cryo_dock()).contains(window.heater_dock()));
+  }
+
   void mainWindowKeepsItsLayoutAcrossInstances() {
     QTemporaryDir dir;
     const QString file = dir.filePath(QStringLiteral("s.ini"));
@@ -438,7 +705,7 @@ class TestDocks : public QObject {
   }
 
   void mainWindowResetGivesThePanelsTheirSizesBack() {
-    auto line = ui::test::make_example_line();
+    auto line = ui::test::make_example_line_without_docks();
     ui::MainWindow window(*line);
     window.show();
     QVERIFY(QTest::qWaitForWindowExposed(&window));
@@ -461,7 +728,7 @@ class TestDocks : public QObject {
   void mainWindowHasItsSizeAndKeepsTheOneItWasClosedWith() {
     QTemporaryDir dir;
     const QString file = dir.filePath(QStringLiteral("s.ini"));
-    auto line = ui::test::make_example_line();
+    auto line = ui::test::make_example_line_without_docks();
     {
       ui::MainWindow window(*line, std::make_unique<QSettings>(file, QSettings::IniFormat));
       QCOMPARE(window.size(), QSize(1200, 850));  // as installed
@@ -520,22 +787,97 @@ class TestDocks : public QObject {
   }
 
   void spectrometerActionDisabledWithoutSpectrometer() {
-    auto line = pychron::ui::test::make_example_line();
-    pychron::ui::MainWindow window(*line);
+    auto line = nobion::ui::test::make_example_line();
+    nobion::ui::MainWindow window(*line);
     QVERIFY(!window.spectrometer_action()->isEnabled());
     QCOMPARE(window.spectrometer_action()->text(), QStringLiteral("Spectrometer"));
     QCOMPARE(window.spectrometer_action()->shortcut(), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
     QVERIFY(window.spectrometer_window() == nullptr);
   }
 
-  void spectrometerActionOpensWindowOnce() {
-    auto line = pychron::ui::test::make_example_line();
-    auto sim = pychron::ui::test::make_sim_spectrometer();
+  // ---- Spectrometer > Field Table… (field table editor plan, task 16) ----
+  void fieldTableMenuDisabledWithoutSpectrometer() {
+    auto line = nobion::ui::test::make_example_line();
+    nobion::ui::MainWindow window(*line);
+    QAction* action = window.field_table_action();
+    QVERIFY(action != nullptr);
+    QCOMPARE(action->text(), QStringLiteral("Field Table…"));
+    QVERIFY(!action->isEnabled());
+    QCOMPARE(action->toolTip(), QStringLiteral("no spectrometer configured"));
+    action->trigger();
+    QVERIFY(window.field_table_window() == nullptr);
+  }
+
+  void fieldTableMenuOpensOneEditor() {
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
+    {
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
+      window.set_spectrometer(&bridge, true);
+      QAction* action = window.field_table_action();
+      QVERIFY(action->isEnabled());
+      QVERIFY(action->toolTip() != QStringLiteral("no spectrometer configured"));
+      action->trigger();
+      auto* first = window.field_table_window();
+      QVERIFY(first != nullptr);
+      QVERIFY(first->isVisible());
+      QCOMPARE(first->open_name(), bridge.active_table());
+      first->hide();
+      action->trigger();
+      QCOMPARE(window.field_table_window(), first);
+      QVERIFY(first->isVisible());
+      // Clearing the spectrometer takes the editor (it holds the bridge).
+      window.set_spectrometer(nullptr, false);
+      QVERIFY(window.field_table_window() == nullptr);
+      QVERIFY(!action->isEnabled());
+      QCOMPARE(action->toolTip(), QStringLiteral("no spectrometer configured"));
+    }
+  }
+
+  void spectrometerWindowMenuOpensTheSameEditor() {
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
     QTemporaryDir dir;
     const QString path = dir.filePath(QStringLiteral("settings.ini"));
     {
-      pychron::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
-      pychron::ui::MainWindow window(*line);
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
+      window.set_spectrometer(&bridge, true,
+                              [path] { return std::make_unique<QSettings>(path, QSettings::IniFormat); });
+      window.field_table_action()->trigger();
+      auto* editor = window.field_table_window();
+      QVERIFY(editor != nullptr);
+      window.spectrometer_action()->trigger();
+      auto* spectrometer = window.spectrometer_window();
+      QVERIFY(spectrometer != nullptr);
+      // The spectrometer window's bar has Spectrometer > Field Table…
+      QMenuBar* bar = nobion::ui::MenuHub::instance().install(spectrometer);
+      if (bar == nullptr) bar = nobion::ui::MenuHub::instance().bar_for(spectrometer);
+      QVERIFY(bar != nullptr);
+      QAction* item = nullptr;
+      for (QAction* m : bar->actions()) {
+        if (m->menu() == nullptr || m->text().remove(QLatin1Char('&')) != QStringLiteral("Spectrometer")) continue;
+        for (QAction* a : m->menu()->actions())
+          if (a->text() == QStringLiteral("Field Table…")) item = a;
+      }
+      QVERIFY(item != nullptr);
+      QVERIFY(item->isEnabled());
+      editor->hide();
+      item->trigger();
+      QCOMPARE(window.field_table_window(), editor);
+      QVERIFY(editor->isVisible());
+    }
+  }
+
+  void spectrometerActionOpensWindowOnce() {
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
+    QTemporaryDir dir;
+    const QString path = dir.filePath(QStringLiteral("settings.ini"));
+    {
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
       window.set_spectrometer(&bridge, true,
                               [path] { return std::make_unique<QSettings>(path, QSettings::IniFormat); });
       QVERIFY(window.spectrometer_action()->isEnabled());
@@ -551,14 +893,143 @@ class TestDocks : public QObject {
     }
   }
 
+  // ---- Spectrometer > Peak Center… (peak center window) ----
+  void peakCenterMenuDisabledWithoutSpectrometer() {
+    auto line = nobion::ui::test::make_example_line();
+    nobion::ui::MainWindow window(*line);
+    QAction* action = window.peak_center_action();
+    QVERIFY(action != nullptr);
+    QCOMPARE(action->text(), QStringLiteral("Peak Center…"));
+    QVERIFY(!action->isEnabled());
+    QCOMPARE(action->toolTip(), QStringLiteral("no spectrometer configured"));
+    action->trigger();
+    QVERIFY(window.peak_center_window() == nullptr);
+  }
+
+  void peakCenterMenuOpensOneWindowBesideFieldTable() {
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
+    QTemporaryDir dir;
+    {
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
+      window.set_spectrometer(&bridge, true, settings_on(dir));
+      QAction* action = window.peak_center_action();
+      QVERIFY(action->isEnabled());
+      QVERIFY(action->toolTip() != QStringLiteral("no spectrometer configured"));
+      // In the Spectrometer menu, after Field Table…
+      QMenuBar* bar = nobion::ui::MenuHub::instance().install(&window);
+      if (bar == nullptr) bar = nobion::ui::MenuHub::instance().bar_for(&window);
+      QVERIFY(bar != nullptr);
+      QStringList items;
+      for (QAction* m : bar->actions()) {
+        if (m->menu() == nullptr || m->text().remove(QLatin1Char('&')) != QStringLiteral("Spectrometer")) continue;
+        for (QAction* a : m->menu()->actions()) items << a->text();
+      }
+      const auto at = items.indexOf(QStringLiteral("Field Table…"));
+      QVERIFY2(at >= 0 && items.value(at + 1) == QStringLiteral("Peak Center…"), qPrintable(items.join(u',')));
+
+      action->trigger();
+      auto* first = window.peak_center_window();
+      QVERIFY(first != nullptr);
+      QVERIFY(first->isVisible());
+      QVERIFY(!first->testAttribute(Qt::WA_DeleteOnClose));
+      QVERIFY(first->close());
+      action->trigger();
+      QCOMPARE(window.peak_center_window(), first);
+      QVERIFY(first->isVisible());
+      // Clearing the spectrometer takes the window (it holds the bridge).
+      window.set_spectrometer(nullptr, false);
+      QVERIFY(window.peak_center_window() == nullptr);
+      QVERIFY(!action->isEnabled());
+      QCOMPARE(action->toolTip(), QStringLiteral("no spectrometer configured"));
+    }
+  }
+
+  void peakCenterWindowGetsThePeakCenterFile() {
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
+    QTemporaryDir dir;
+    const std::filesystem::path file = std::filesystem::path(dir.path().toStdString()) / "peak_center.toml";
+    {
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
+      window.set_peak_center_file(file);
+      window.set_spectrometer(&bridge, true, settings_on(dir));
+      window.peak_center_action()->trigger();
+      QVERIFY(window.peak_center_window() != nullptr);
+      QCOMPARE(window.peak_center_window()->peak_center_panel()->file(), file);
+    }
+  }
+
+  void replacingTheSpectrometerCancelsAPeakCenterWithoutAsking() {
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
+    QTemporaryDir dir;
+    const std::filesystem::path file = std::filesystem::path(dir.path().toStdString()) / "peak_center.toml";
+    std::ofstream(file) << "[default]\nisotope = \"Ar40\"\nwindow = 0.06\nstep = 0.0005\nintegration_s = 0.1\n"
+                           "settle_s = 0.1\n";
+    {
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
+      window.set_peak_center_file(file);
+      window.set_spectrometer(&bridge, true, settings_on(dir));
+      window.spectrometer_action()->trigger();
+      window.peak_center_action()->trigger();
+      int asked = 0;
+      window.peak_center_window()->set_ask([&](const QString&) {
+        ++asked;
+        return false;
+      });
+      QTest::mouseClick(window.peak_center_window()->findChild<QPushButton*>(QStringLiteral("peakCenterStart")),
+                        Qt::LeftButton);
+      QVERIFY(bridge.peak_center_running());
+      QVERIFY(!window.spectrometer_window()->apply_enabled());  // the spectrometer window heard the start
+      window.set_spectrometer(nullptr, false);
+      QVERIFY(window.peak_center_window() == nullptr);
+      QVERIFY(window.spectrometer_window() == nullptr);
+      QVERIFY(!bridge.peak_center_running());
+      QCOMPARE(asked, 0);
+    }
+  }
+
+  void quittingCancelsAPeakCenterWithoutAsking() {
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
+    QTemporaryDir dir;
+    const std::filesystem::path file = std::filesystem::path(dir.path().toStdString()) / "peak_center.toml";
+    std::ofstream(file) << "[default]\nisotope = \"Ar40\"\nwindow = 0.06\nstep = 0.0005\nintegration_s = 0.1\n"
+                           "settle_s = 0.1\n";
+    {
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
+      window.set_peak_center_file(file);
+      window.set_spectrometer(&bridge, true, settings_on(dir));
+      window.show();
+      window.peak_center_action()->trigger();
+      int asked = 0;
+      window.peak_center_window()->set_ask([&](const QString&) {
+        ++asked;
+        return false;
+      });
+      QTest::mouseClick(window.peak_center_window()->findChild<QPushButton*>(QStringLiteral("peakCenterStart")),
+                        Qt::LeftButton);
+      QVERIFY(bridge.peak_center_running());
+      QVERIFY(window.close());
+      QVERIFY(!bridge.peak_center_running());
+      QVERIFY(!window.peak_center_window()->isVisible());
+      QCOMPARE(asked, 0);
+    }
+  }
+
   void closingMainWindowClosesSpectrometerWindowAndStopsScan() {
-    auto line = pychron::ui::test::make_example_line();
-    auto sim = pychron::ui::test::make_sim_spectrometer();
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
     QTemporaryDir dir;
     const QString path = dir.filePath(QStringLiteral("settings.ini"));
     {
-      pychron::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
-      pychron::ui::MainWindow window(*line);
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
       window.set_spectrometer(&bridge, true,
                               [path] { return std::make_unique<QSettings>(path, QSettings::IniFormat); });
       window.show();
@@ -572,13 +1043,13 @@ class TestDocks : public QObject {
     }
   }
   void clearingSpectrometerSavesSettingsAndDisablesAction() {
-    auto line = pychron::ui::test::make_example_line();
-    auto sim = pychron::ui::test::make_sim_spectrometer();
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
     QTemporaryDir dir;
     const QString path = dir.filePath(QStringLiteral("settings.ini"));
     {
-      pychron::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
-      pychron::ui::MainWindow window(*line);
+      nobion::ui::SpectrometerBridge bridge(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
       window.set_spectrometer(&bridge, true,
                               [path] { return std::make_unique<QSettings>(path, QSettings::IniFormat); });
       window.spectrometer_action()->trigger();
@@ -598,13 +1069,13 @@ class TestDocks : public QObject {
   // The app-quit path: the spectrometer is cleared and the bridge destroyed
   // while a magnet move is still on the bridge's executor.
   void clearingSpectrometerWithMoveInFlightStopsScan() {
-    auto line = pychron::ui::test::make_example_line();
-    auto sim = pychron::ui::test::make_sim_spectrometer();
+    auto line = nobion::ui::test::make_example_line();
+    auto sim = nobion::ui::test::make_sim_spectrometer();
     QTemporaryDir dir;
     const QString path = dir.filePath(QStringLiteral("settings.ini"));
     {
-      auto bridge = std::make_unique<pychron::ui::SpectrometerBridge>(*sim->spec, *sim->scan, sim->bus);
-      pychron::ui::MainWindow window(*line);
+      auto bridge = std::make_unique<nobion::ui::SpectrometerBridge>(*sim->spec, *sim->scan, sim->bus);
+      nobion::ui::MainWindow window(*line);
       window.set_spectrometer(bridge.get(), true,
                               [path] { return std::make_unique<QSettings>(path, QSettings::IniFormat); });
       window.spectrometer_action()->trigger();
@@ -623,6 +1094,262 @@ class TestDocks : public QObject {
       QVERIFY(!sim->scan->running());
     }
   }
+  // ---- a gauge's history (gauge history design, plan task 6) ----
+
+  // Readings the bus carries go into the window's history, for the gauges
+  // the line defines only.
+  void readingsGoIntoTheHistory() {
+    auto line = ui::test::make_example_line();
+    QTemporaryDir dir;
+    {
+      ui::MainWindow window(*line);
+      window.set_gauge_settings(settings_on(dir));
+      QVERIFY(line->start().has_value());
+      // The line's gauges are kept, any other name is not; a start's
+      // snapshot puts nothing in (its values have no time).
+      const ui::ReadingHistory& history = window.reading_history();
+      QVERIFY(history.has("IG1"));
+      QVERIFY(history.has("PG1"));
+      QVERIFY(!history.has("XX9"));
+      QTRY_VERIFY(window.bridge().state().started);
+      QVERIFY(!history.oldest("IG1").has_value());
+      const TimePoint t0 = window.bridge().now();
+      line->bus().publish(PressureSample{"XX9", 1e-8, "torr", t0});
+      line->bus().publish(PressureSample{"IG1", 1e-8, "torr", t0});
+      QTRY_VERIFY(history.oldest("IG1") == std::optional<TimePoint>(t0));
+      QCOMPARE(history.revision("XX9"), 0U);
+      QVERIFY(!history.oldest("XX9").has_value());
+      line->stop();
+    }
+  }
+
+  // A click on a gauge opens a window of its own for it, with its alarm
+  // limits as guides; a second click brings back the same window.
+  void clickingAGaugeOpensItsWindow() {
+    auto line = ui::test::make_example_line();
+    QTemporaryDir dir;
+    {
+      ui::MainWindow window(*line);
+      window.set_gauge_settings(settings_on(dir));
+      QVERIFY(line->start().has_value());
+      const TimePoint t0 = window.bridge().now();
+      // Around IG1's alarm_high of 1e-4, so the guide is inside the view.
+      line->bus().publish(PressureSample{"IG1", 5e-5, "torr", t0});
+      line->bus().publish(PressureSample{"IG1", 2e-4, "torr", t0 + 1s});
+      line->bus().publish(PressureSample{"PG1", 1e-3, "torr", t0});
+      line->bus().publish(PressureSample{"PG1", 2e-3, "torr", t0 + 1s});
+      QTRY_VERIFY(window.reading_history().revision("PG1") >= 2);
+      QVERIFY(window.gauge_window(QStringLiteral("IG1")) == nullptr);
+
+      emit window.canvas_view()->gauge_clicked(QStringLiteral("IG1"));
+      ui::GaugeWindow* ig = window.gauge_window(QStringLiteral("IG1"));
+      QVERIFY(ig != nullptr);
+      QVERIFY(ig->isVisible());
+      QVERIFY(ig->isWindow());
+      QCOMPARE(ig->windowTitle(), QStringLiteral("IG1"));
+      QCOMPARE(ig->chart()->guide_count(), 1);
+      QCOMPARE(ig->chart()->point_count(), 2);
+
+      ig->close();
+      QVERIFY(!ig->isVisible());
+      emit window.canvas_view()->gauge_clicked(QStringLiteral("IG1"));
+      QCOMPARE(window.gauge_window(QStringLiteral("IG1")), ig);
+      QVERIFY(ig->isVisible());
+
+      emit window.canvas_view()->gauge_clicked(QStringLiteral("PG1"));
+      ui::GaugeWindow* pg = window.gauge_window(QStringLiteral("PG1"));
+      QVERIFY(pg != nullptr);
+      QVERIFY(pg != ig);
+      QCOMPARE(pg->windowTitle(), QStringLiteral("PG1"));
+      QCOMPARE(pg->chart()->guide_count(), 0);
+
+      // A name the line does not define opens nothing.
+      emit window.canvas_view()->gauge_clicked(QStringLiteral("XX9"));
+      QVERIFY(window.gauge_window(QStringLiteral("XX9")) == nullptr);
+      line->stop();
+    }
+  }
+
+  // Readings published from another thread, as the line's scan does, are
+  // drawn in the window that is open.
+  void aGaugeWindowFollowsNewReadings() {
+    auto line = ui::test::make_example_line();
+    QTemporaryDir dir;
+    {
+      ui::MainWindow window(*line);
+      window.set_gauge_settings(settings_on(dir));
+      QVERIFY(line->start().has_value());
+      emit window.canvas_view()->gauge_clicked(QStringLiteral("IG1"));
+      ui::GaugeWindow* ig = window.gauge_window(QStringLiteral("IG1"));
+      QVERIFY(ig != nullptr);
+      QCOMPARE(ig->chart()->point_count(), 0);
+      const TimePoint t0 = window.bridge().now();
+      std::thread([&line, t0] {
+        for (int i = 0; i < 5; ++i) line->bus().publish(PressureSample{"IG1", 1e-8 * (i + 1), "torr", t0 + i * 1s});
+      }).join();
+      QTRY_COMPARE(ig->chart()->point_count(), 5);
+      std::thread([&line, t0] { line->bus().publish(PressureSample{"IG1", 7e-8, "torr", t0 + 5s}); }).join();
+      QTRY_COMPARE(ig->chart()->point_count(), 6);
+      line->stop();
+    }
+  }
+
+  // Resting the pointer on a gauge shows the popup of its last ten minutes;
+  // moving off hides it; a click hides it and opens the gauge's window.
+  void restingOnAGaugeShowsThePopupAndLeavingHidesIt() {
+    auto line = ui::test::make_example_line();
+    QTemporaryDir dir;
+    {
+      ui::MainWindow window(*line);
+      window.set_gauge_settings(settings_on(dir));
+      QVERIFY(line->start().has_value());
+      const TimePoint t0 = window.bridge().now();
+      line->bus().publish(PressureSample{"IG1", 1e-8, "torr", t0 - 2s});
+      line->bus().publish(PressureSample{"IG1", 2e-8, "torr", t0});
+      QTRY_VERIFY(window.reading_history().revision("IG1") >= 2);
+
+      ui::CanvasView* canvas = window.canvas_view();
+      canvas->set_gauge_rest_ms(0);
+      window.show();
+      QVERIFY(QTest::qWaitForWindowExposed(&window));
+      const ui::GaugeLabelItem* ig = canvas->gauge("IG1");
+      QVERIFY(ig != nullptr);
+      const QPoint on = canvas->mapFromScene(ig->mapToScene(ig->chip_rect().center()));
+      const QRectF chip = ig->mapRectToScene(ig->chip_rect());
+      const QPoint off = canvas->mapFromScene(QPointF(chip.center().x(), chip.bottom() + 40));
+      ui::GaugePopup* popup = window.gauge_popup();
+      QVERIFY(popup != nullptr);
+      QVERIFY(!popup->isVisible());
+
+      QTest::mouseMove(canvas->viewport(), off);
+      QTest::mouseMove(canvas->viewport(), on);
+      QTRY_VERIFY(popup->isVisible());
+      QCOMPARE(popup->gauge(), QStringLiteral("IG1"));
+      QCOMPARE(popup->chart()->point_count(), 2);
+      // Kept current while shown.
+      line->bus().publish(PressureSample{"IG1", 3e-8, "torr", t0 + 1s});
+      QTRY_COMPARE(popup->chart()->point_count(), 3);
+
+      QTest::mouseMove(canvas->viewport(), off);
+      QTRY_VERIFY(!popup->isVisible());
+
+      QTest::mouseMove(canvas->viewport(), on);
+      QTRY_VERIFY(popup->isVisible());
+      QTest::mouseClick(canvas->viewport(), Qt::LeftButton, {}, on);
+      QTRY_VERIFY(!popup->isVisible());
+      QVERIFY(window.gauge_window(QStringLiteral("IG1")) != nullptr);
+      QVERIFY(window.gauge_window(QStringLiteral("IG1"))->isVisible());
+      line->stop();
+    }
+  }
+
+  // On a simulated line the window's times are the line's clock's, not today's.
+  void wallTimesAreTheLines() {
+    VirtualClock clock(VirtualClock::Options{});  // outlives the line; its wall time is not today
+    auto line = ui::test::make_example_line({}, &clock);
+    QTemporaryDir dir;
+    {
+      ui::MainWindow window(*line);
+      window.set_gauge_settings(settings_on(dir));
+      QVERIFY(line->start().has_value());
+      const TimePoint now = clock.now();
+      line->bus().publish(PressureSample{"IG1", 1e-8, "torr", now - 20min});
+      line->bus().publish(PressureSample{"IG1", 2e-8, "torr", now - 10min});
+      line->bus().publish(PressureSample{"IG1", 3e-8, "torr", now});
+      QTRY_VERIFY(window.reading_history().revision("IG1") >= 3);
+
+      emit window.canvas_view()->gauge_clicked(QStringLiteral("IG1"));
+      ui::GaugeWindow* ig = window.gauge_window(QStringLiteral("IG1"));
+      QVERIFY(ig != nullptr);
+      ig->range_box()->setCurrentIndex(ig->range_box()->findData(qlonglong{3600}));
+      QCOMPARE(ig->range(), std::chrono::seconds(3600));
+
+      const qint64 wall_ms =
+          std::chrono::duration_cast<std::chrono::milliseconds>(clock.wall_now().time_since_epoch()).count();
+      const QDateTime oldest = QDateTime::fromMSecsSinceEpoch(wall_ms).addSecs(-20 * 60);
+      QVERIFY(oldest.date() != QDate::currentDate());
+      QVERIFY2(ig->header().endsWith(QStringLiteral("since ") + oldest.toString(QStringLiteral("hh:mm"))),
+               qPrintable(ig->header()));
+      const QStringList copied = ig->copy_text().split('\n', Qt::SkipEmptyParts);
+      QCOMPARE(copied.size(), 4);
+      QVERIFY2(copied.at(1).startsWith(oldest.toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")) + '\t'),
+               qPrintable(copied.at(1)));
+      line->stop();
+    }
+  }
+
+  // Closing the main window closes the gauge windows; destroying it with one
+  // open and the popup shown leaves nothing behind (ASan).
+  void closingTheMainWindowClosesGaugeWindows() {
+    auto line = ui::test::make_example_line();
+    QTemporaryDir dir;
+    {
+      ui::MainWindow window(*line);
+      window.set_gauge_settings(settings_on(dir));
+      QVERIFY(line->start().has_value());
+      window.show();
+      QVERIFY(QTest::qWaitForWindowExposed(&window));
+      emit window.canvas_view()->gauge_clicked(QStringLiteral("IG1"));
+      emit window.canvas_view()->gauge_clicked(QStringLiteral("PG1"));
+      QVERIFY(window.gauge_window(QStringLiteral("IG1"))->isVisible());
+      QVERIFY(window.close());
+      QVERIFY(!window.gauge_window(QStringLiteral("IG1"))->isVisible());
+      QVERIFY(!window.gauge_window(QStringLiteral("PG1"))->isVisible());
+      line->stop();
+    }
+    {
+      ui::MainWindow window(*line);
+      window.set_gauge_settings(settings_on(dir));
+      QVERIFY(line->start().has_value());
+      const TimePoint t0 = window.bridge().now();
+      line->bus().publish(PressureSample{"IG1", 1e-8, "torr", t0 - 1s});
+      line->bus().publish(PressureSample{"IG1", 2e-8, "torr", t0});
+      window.show();
+      QVERIFY(QTest::qWaitForWindowExposed(&window));
+      emit window.canvas_view()->gauge_clicked(QStringLiteral("IG1"));
+      const ui::GaugeLabelItem* ig = window.canvas_view()->gauge("IG1");
+      const QRect local =
+          window.canvas_view()->mapFromScene(ig->mapRectToScene(ig->chip_rect())).boundingRect();
+      emit window.canvas_view()->gauge_rested(
+          QStringLiteral("IG1"), QRect(window.canvas_view()->viewport()->mapToGlobal(local.topLeft()), local.size()));
+      QVERIFY(window.gauge_popup()->isVisible());
+      QVERIFY(window.gauge_window(QStringLiteral("IG1"))->isVisible());
+      // Readings still on their way to the window when it goes.
+      line->bus().publish(PressureSample{"IG1", 3e-8, "torr", t0 + 1s});
+      line->stop();
+    }
+    QCoreApplication::processEvents();
+  }
+
+  // A gauge window's range is kept in the settings the main window was
+  // given, and the next session's window opens on it.
+  void gaugeWindowsKeepTheirRangeAcrossASession() {
+    auto line = ui::test::make_example_line();
+    QTemporaryDir dir;
+    {
+      ui::MainWindow window(*line);
+      window.set_gauge_settings(settings_on(dir));
+      emit window.canvas_view()->gauge_clicked(QStringLiteral("IG1"));
+      ui::GaugeWindow* ig = window.gauge_window(QStringLiteral("IG1"));
+      QCOMPARE(ig->range(), ui::GaugeWindow::kDefaultRange);
+      ig->range_box()->setCurrentIndex(ig->range_box()->findData(qlonglong{3600}));
+      QCOMPARE(ig->range(), std::chrono::seconds(3600));
+    }
+    {
+      ui::MainWindow window(*line);
+      window.set_gauge_settings(settings_on(dir));
+      emit window.canvas_view()->gauge_clicked(QStringLiteral("IG1"));
+      QCOMPARE(window.gauge_window(QStringLiteral("IG1"))->range(), std::chrono::seconds(3600));
+      emit window.canvas_view()->gauge_clicked(QStringLiteral("PG1"));
+      QCOMPARE(window.gauge_window(QStringLiteral("PG1"))->range(), ui::GaugeWindow::kDefaultRange);
+    }
+    const QSettings saved(dir.filePath(QStringLiteral("settings.ini")), QSettings::IniFormat);
+    QCOMPARE(saved.value(QStringLiteral("gauge_window/%1/IG1/range_s")
+                             .arg(QString::fromStdString(line->config().system.name)))
+                 .toLongLong(),
+             qlonglong{3600});
+  }
+
   // Every window here was given its settings: none fell back to the application's.
   void cleanupTestCase() { QCOMPARE(app_settings_.keys(), QStringList()); }
 };

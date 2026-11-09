@@ -11,7 +11,7 @@
 #include <sstream>
 #include <string>
 
-namespace pychron::experiment::detail {
+namespace nobion::experiment::detail {
 
 // The shortest of %.15g / %.16g / %.17g that reads back as the same double,
 // with '.' as the decimal point.
@@ -41,4 +41,4 @@ inline bool parse_number(const std::string& s, double& out) {
   return true;
 }
 
-}  // namespace pychron::experiment::detail
+}  // namespace nobion::experiment::detail

@@ -1,4 +1,4 @@
-#include "pychron/earthbank/vocab.hpp"
+#include "nobion/earthbank/vocab.hpp"
 
 #include <algorithm>
 #include <array>
@@ -17,7 +17,7 @@
 
 #include "text_detail.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using namespace std::string_view_literals;
@@ -75,7 +75,7 @@ struct NamedValue {
 };
 
 // Total 40K decay constants, per year. The service lists a fourth, `Carter
-// et al. 2025`, which no preset of pychron-cpp uses; it is reached by name
+// et al. 2025`, which no preset of nobion uses; it is reached by name
 // (PublishOptions), not by value.
 constexpr std::array kDecayConstants = {
     NamedValue{5.543e-10, "Steiger and Jager, 1977"},
@@ -668,4 +668,4 @@ std::string_view age_type_name(AgeKind kind) {
   return "";
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

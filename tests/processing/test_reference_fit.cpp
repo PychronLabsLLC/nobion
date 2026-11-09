@@ -7,11 +7,11 @@
 #include <cmath>
 
 #include "fixtures.hpp"
-#include "pychron/processing/reference_fit.hpp"
-#include "pychron/processing/units.hpp"
-#include "pychron/reduction/stats.hpp"
+#include "nobion/processing/reference_fit.hpp"
+#include "nobion/processing/units.hpp"
+#include "nobion/reduction/stats.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 namespace {
 
 std::vector<ReferencePoint> points() {
@@ -166,7 +166,7 @@ Dataset blanks_dataset(bool exclude_first = false) {
   Dataset d;
   for (int i : {0, 4}) {
     auto a = test::make_air(i, 295.5 + i, "blank_unknown", "bu");
-    DatasetItem item{reduce_analysis(a, {}), {}, {}};
+    DatasetItem item{reduce_analysis(a), {}, {}};
     if (i == 0 && exclude_first) item.exclusion.user = true;
     d.mutable_items().push_back(item);
   }
@@ -179,7 +179,7 @@ Dataset unknowns_dataset() {
     auto a = test::make_unknown(i);
     a->heads = {{"blanks", "bk-" + a->uuid}, {"icfactors", "ic-" + a->uuid}};
     a->isotopes[0].blank = {0.5, 0.05};
-    d.mutable_items().push_back(DatasetItem{reduce_analysis(a, {}), {}, {}});
+    d.mutable_items().push_back(DatasetItem{reduce_analysis(a), {}, {}});
   }
   d.mutable_items()[2].exclusion.user = true;  // not fitted
   return d;
@@ -257,7 +257,7 @@ TEST(ReferenceFigure, IcFactorsFromAirRatios) {
   Dataset airs;
   for (int i : {0, 4}) {
     auto a = test::make_air(i, i == 0 ? 295.5 : 300.0);
-    airs.mutable_items().push_back(DatasetItem{reduce_analysis(a, {}), {}, {}});
+    airs.mutable_items().push_back(DatasetItem{reduce_analysis(a), {}, {}});
   }
   Options o(icfactor_fit_schema());
   auto fig = build_reference_figure(ReferenceFitTarget::IcFactors, unknowns_dataset(), airs, o);
@@ -286,7 +286,7 @@ TEST(ReferenceFigure, SourceCorrectionGivesIcFactorsByMass) {
   Dataset airs;
   for (int i : {0, 4}) {
     auto a = test::make_air(i, i == 0 ? 295.5 : 300.0);
-    airs.mutable_items().push_back(DatasetItem{reduce_analysis(a, {}), {}, {}});
+    airs.mutable_items().push_back(DatasetItem{reduce_analysis(a), {}, {}});
   }
   Options o(icfactor_fit_schema());
   auto rows = o.rows("ratios");
@@ -314,7 +314,7 @@ TEST(ReferenceFigure, SkipReviewedKeepsReviewedValues) {
   Dataset unknowns = unknowns_dataset();
   auto reviewed = std::make_shared<Analysis>(*unknowns.items()[0].analysis->analysis);
   reviewed->isotopes[0].blank_reviewed = true;  // Ar40
-  unknowns.mutable_items()[0].analysis = reduce_analysis(reviewed, {});
+  unknowns.mutable_items()[0].analysis = reduce_analysis(reviewed);
   Options o(blank_fit_schema());
   auto all = build_reference_figure(ReferenceFitTarget::Blanks, unknowns, blanks_dataset(), o);
   ASSERT_TRUE(all);
@@ -345,7 +345,7 @@ TEST(ReferenceFitUnits, RunInAPipeline) {
     ref_ids.push_back(a->uuid);
     src.add(a);
   }
-  const auto& reg = UnitRegistry::builtin();
+  const UnitRegistry reg = UnitRegistry::core("");
   Pipeline p;
   auto& u = p.add(reg, "unknowns", "select");
   ASSERT_TRUE(u.options.set("uuids", unknown_ids));
@@ -402,5 +402,152 @@ TEST(FindReferences, WindowsTypesSpectrometersAndTags) {
   EXPECT_TRUE(find_references(src, {}, q)->empty());
 }
 
+// The style fields the fit figures share with the other figures
+// (figure_common.hpp, fit_figure_fields).
+void set_a_style(Options& o) {
+  ASSERT_TRUE(o.set("background", std::string("#101010")));
+  ASSERT_TRUE(o.set("plot_background", std::string("#202020")));
+  ASSERT_TRUE(o.set("show_grid", false));
+  ASSERT_TRUE(o.set("show_legend", false));
+  ASSERT_TRUE(o.set("legend_location", std::string("bottom_left")));
+  ASSERT_TRUE(o.set("font.family", std::string("Courier")));
+  ASSERT_TRUE(o.set("font.title", 20.0));
+  ASSERT_TRUE(o.set("font.axis", 18.0));
+  ASSERT_TRUE(o.set("font.tick", 16.0));
+  ASSERT_TRUE(o.set("font.annotation", 14.0));
+  ASSERT_TRUE(o.set("panel_spacing", std::int64_t{0}));
+}
+
+void expect_that_style(const SceneStyle& s) {
+  EXPECT_EQ(s.background, (Color{0x10, 0x10, 0x10, 255}));
+  EXPECT_EQ(s.plot_background, (Color{0x20, 0x20, 0x20, 255}));
+  EXPECT_FALSE(s.grid);
+  EXPECT_FALSE(s.legend);
+  EXPECT_EQ(s.legend_corner, Corner::BottomLeft);
+  EXPECT_EQ(s.fonts.family, "Courier");
+  EXPECT_EQ(s.fonts.title, 20.0);
+  EXPECT_EQ(s.fonts.axis_title, 18.0);
+  EXPECT_EQ(s.fonts.tick, 16.0);
+  EXPECT_EQ(s.fonts.annotation, 14.0);
+  EXPECT_EQ(s.panel_spacing, 0);
+}
+
+void expect_the_default_style(const SceneStyle& s) {
+  const SceneStyle d;
+  EXPECT_EQ(s.background, d.background);
+  EXPECT_EQ(s.plot_background, d.plot_background);
+  EXPECT_EQ(s.grid, d.grid);
+  EXPECT_EQ(s.legend, d.legend);
+  EXPECT_EQ(s.legend_corner, d.legend_corner);
+  EXPECT_EQ(s.fonts.family, d.fonts.family);
+  EXPECT_EQ(s.fonts.title, d.fonts.title);
+  EXPECT_EQ(s.fonts.axis_title, d.fonts.axis_title);
+  EXPECT_EQ(s.fonts.tick, d.fonts.tick);
+  EXPECT_EQ(s.fonts.annotation, d.fonts.annotation);
+  EXPECT_EQ(s.panel_spacing, d.panel_spacing);
+}
+
+// Airs with Ar40/Ar36 = 295.5 and 300.0, as IcFactorsFromAirRatios has them.
+Dataset airs_dataset() {
+  Dataset airs;
+  for (int i : {0, 4}) {
+    auto a = test::make_air(i, i == 0 ? 295.5 : 300.0);
+    airs.mutable_items().push_back(DatasetItem{reduce_analysis(a), {}, {}});
+  }
+  return airs;
+}
+
+TEST(ReferenceFigure, TheSharedStyleOptionsReachTheScene) {
+  for (const auto target : {ReferenceFitTarget::Blanks, ReferenceFitTarget::IcFactors}) {
+    const bool blanks = target == ReferenceFitTarget::Blanks;
+    Options o(blanks ? blank_fit_schema() : icfactor_fit_schema());
+    set_a_style(o);
+    auto fig = build_reference_figure(target, unknowns_dataset(), blanks ? blanks_dataset() : airs_dataset(), o);
+    ASSERT_TRUE(fig) << fig.error().what;
+    expect_that_style(fig->scene.style);
+  }
+}
+
+TEST(ReferenceFigure, WithNoStyleSetTheSceneIsStyledAsItWas) {
+  for (const auto target : {ReferenceFitTarget::Blanks, ReferenceFitTarget::IcFactors}) {
+    const bool blanks = target == ReferenceFitTarget::Blanks;
+    const Options o(blanks ? blank_fit_schema() : icfactor_fit_schema());
+    auto fig = build_reference_figure(target, unknowns_dataset(), blanks ? blanks_dataset() : airs_dataset(), o);
+    ASSERT_TRUE(fig) << fig.error().what;
+    expect_the_default_style(fig->scene.style);
+  }
+}
+
+// A preset written before the style fields existed has none of their keys.
+TEST(ReferenceFigure, APresetSavedBeforeTheStyleFieldsStillLoads) {
+  for (const auto& schema : {blank_fit_schema(), icfactor_fit_schema()}) {
+    auto loaded = options_from_toml(schema, "nsigma = 2\nshow_current = false\n");
+    ASSERT_TRUE(loaded) << loaded.error().what;
+    EXPECT_TRUE(loaded->warnings.empty());
+    EXPECT_EQ(loaded->options.get_int("nsigma"), 2);
+    EXPECT_FALSE(loaded->options.get_bool("show_current"));
+    EXPECT_TRUE(loaded->options.get_bool("show_grid"));
+    EXPECT_EQ(loaded->options.get_string("legend_location"), "top_right");
+  }
+}
+
+
+// Measurement plan v2, worked plans 7.3 and 7.7: one label measured on
+// several detectors in one run gives that run's IC factors.
+Analysis two_detector_run() {
+  Analysis a;
+  a.uuid = "u-ic";
+  a.runid = "ic-01";
+  a.timestamp = 1000;
+  IsotopeData h1;
+  h1.key = "H1:Ar40";
+  h1.isotope = "Ar40";
+  h1.detector = "H1";
+  h1.intercept = {101, 0.3};
+  h1.baseline = {1, 0.4};
+  h1.optics = "ar_config_a";
+  IsotopeData ax = h1;
+  ax.key = "AX:Ar40";
+  ax.detector = "AX";
+  ax.intercept = {100, 0.6};
+  ax.baseline = {2, 0.8};
+  ax.optics = "ar_config_b";
+  IsotopeData ar36;
+  ar36.key = "Ar36";
+  ar36.isotope = "Ar36";
+  ar36.detector = "CDD";
+  ar36.intercept = {1, 0.01};
+  a.isotopes = {h1, ax, ar36};
+  return a;
+}
+
+TEST(ReferenceFit, SameRunIcFactorFromTwoDetectors) {
+  const auto pts = same_run_references(two_detector_run(), "Ar40", "H1");
+  ASSERT_EQ(pts.size(), 1u);
+  const auto& p = pts.front();
+  EXPECT_EQ(p.detector, "AX");
+  EXPECT_DOUBLE_EQ(p.value.value, 100.0 / 98.0);
+  // Corrected H1 100 +- 0.5, AX 98 +- 1.0; relative errors add in quadrature.
+  EXPECT_NEAR(p.value.error, 100.0 / 98.0 * std::hypot(0.5 / 100.0, 1.0 / 98.0), 1e-12);
+  EXPECT_DOUBLE_EQ(p.t, 1000);
+  EXPECT_EQ(p.uuid, "u-ic");
+  EXPECT_EQ(p.runid, "ic-01");
+  EXPECT_FALSE(p.excluded);
+
+  EXPECT_TRUE(same_run_references(two_detector_run(), "Ar40", "L2").empty());  // reference not measured
+  EXPECT_TRUE(same_run_references(two_detector_run(), "Ar36", "CDD").empty());  // one detector only
+}
+
+TEST(ReferenceFit, SameRunIcFactorKeepsOptics) {
+  const auto pts = same_run_references(two_detector_run(), "Ar40", "H1");
+  ASSERT_EQ(pts.size(), 1u);
+  EXPECT_EQ(pts.front().optics, "ar_config_b");  // the state the AX series was measured under
+
+  // A model through such points keeps them, optics and all.
+  auto m = ReferenceModel::make(pts, ReferenceFitKind::Average, ReferenceErrorKind::Sem);
+  ASSERT_TRUE(m) << m.error().what;
+  EXPECT_EQ(m->included().front().optics, "ar_config_b");
+}
+
 }  // namespace
-}  // namespace pychron::processing
+}  // namespace nobion::processing

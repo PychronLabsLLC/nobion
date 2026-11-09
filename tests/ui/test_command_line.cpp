@@ -1,4 +1,4 @@
-// pychron-ui argument parsing: positional files, --sim, --spectrometer and the
+// nobion argument parsing: positional files, --sim, --spectrometer and the
 // experiment options.
 
 #include <cstddef>
@@ -8,7 +8,7 @@
 
 #include "command_line.hpp"
 
-using pychron::ui::parse_command_line;
+using nobion::ui::parse_command_line;
 using Path = std::filesystem::path;
 
 class TestCommandLine : public QObject {
@@ -24,15 +24,38 @@ class TestCommandLine : public QObject {
   }
 
   void dbTakesAUrl() {
-    auto cli = parse_command_line({QStringLiteral("--db"), QStringLiteral("postgresql://me@db/pychron"),
+    auto cli = parse_command_line({QStringLiteral("--db"), QStringLiteral("postgresql://me@db/nobion"),
                                    QStringLiteral("--sim")});
     QVERIFY(cli.has_value());
-    QCOMPARE(QString::fromStdString(cli->db.value_or("")), QStringLiteral("postgresql://me@db/pychron"));
+    QCOMPARE(QString::fromStdString(cli->db.value_or("")), QStringLiteral("postgresql://me@db/nobion"));
     QVERIFY(cli->sim);
     QVERIFY(!parse_command_line({}).value().db.has_value());
     auto bare = parse_command_line({QStringLiteral("--db"), QStringLiteral("--sim")});
     QVERIFY(!bare.has_value());
     QCOMPARE(QString::fromStdString(bare.error().what), QStringLiteral("--db needs a database url"));
+  }
+
+  void simEndpointsParsed() {
+    auto cli = parse_command_line({QStringLiteral("--sim-endpoints"), QStringLiteral("lab/sim-endpoints.toml"),
+                                   QStringLiteral("--sim-endpoints-any")});
+    QVERIFY(cli.has_value());
+    QCOMPARE(cli->sim_endpoints.value_or(Path()), Path("lab/sim-endpoints.toml"));
+    QVERIFY(cli->sim_endpoints_any);
+    QVERIFY(!parse_command_line({}).value().sim_endpoints.has_value());
+    QVERIFY(!parse_command_line({QStringLiteral("--sim-endpoints")}).has_value());
+  }
+
+  void simEndpointsWithSimRefused() {
+    auto cli = parse_command_line({QStringLiteral("--sim"), QStringLiteral("--sim-endpoints"), QStringLiteral("e.toml")});
+    QVERIFY(!cli.has_value());
+    QVERIFY(QString::fromStdString(cli.error().what).contains(QStringLiteral("cannot be used with --sim")));
+  }
+
+  void simEndpointsWithSimSpeedRefused() {
+    auto cli = parse_command_line(
+        {QStringLiteral("--sim-endpoints"), QStringLiteral("e.toml"), QStringLiteral("--sim-speed"), QStringLiteral("10")});
+    QVERIFY(!cli.has_value());
+    QVERIFY(QString::fromStdString(cli.error().what).contains(QStringLiteral("--sim-speed is refused")));
   }
 
   void bareSpectrometerIsUsageError() {
@@ -44,7 +67,7 @@ class TestCommandLine : public QObject {
   void spectrometerFollowedByFlagIsUsageError() {
     auto cli = parse_command_line({QStringLiteral("--spectrometer"), QStringLiteral("--sim")});
     QVERIFY(!cli.has_value());
-    QCOMPARE(cli.error().kind, pychron::ErrorKind::Config);
+    QCOMPARE(cli.error().kind, nobion::ErrorKind::Config);
   }
 
   void spectrometerFileThenSim() {

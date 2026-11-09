@@ -1,14 +1,15 @@
-#include "pychron/experiment/factory/form.hpp"
+#include "nobion/experiment/factory/form.hpp"
 
 #include <algorithm>
 #include <charconv>
 #include <cmath>
+#include <iterator>
 
-#include "pychron/experiment/model/positions.hpp"
-#include "pychron/experiment/model/rules.hpp"
-#include "pychron/core/number.hpp"
+#include "nobion/experiment/model/positions.hpp"
+#include "nobion/experiment/model/rules.hpp"
+#include "nobion/core/number.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 namespace {
 
@@ -107,31 +108,81 @@ Result<RunSpec> template_run(const FactoryForm& form, const IdentifierRules& ids
 
 }  // namespace
 
-Result<std::vector<RunSpec>> build_runs(const FactoryForm& form, const IdentifierRules& ids) {
+Result<std::vector<RunSpec>> build_runs(const FactoryForm& form, const IdentifierRules& ids,
+                                        const StepHeatLibrary& step_heats) {
   auto tmpl = template_run(form, ids);
   if (!tmpl) return fail(tmpl.error());
   const FieldRules rules = rules_for(tmpl->id.type);
+  // Template checks come before the text is parsed: a template with any text,
+  // even text that does not parse, is the "not both" error.
+  const StepHeatTemplate* named = nullptr;
+  if (const std::string name = trim(form.step_heat_template); !name.empty()) {
+    if (!trim(form.step_heat).empty()) return form_error("choose a step heat template or type step values, not both");
+    const auto found = step_heats.find(name);
+    if (found == step_heats.end()) return form_error("unknown step heat template '" + name + "'");
+    named = &found->second;
+  }
   auto values = parse_step_values(form.step_heat);
   if (!values) return fail(values.error());
   strip_for_type(*tmpl);
 
+  const bool heats = named != nullptr || !values->empty();
+  if (heats && !rules.heating)
+    return form_error("a step heat needs an analysis type that heats ('" + std::string(to_string(tmpl->id.type)) + "' does not)");
+
+  // One run per hole: the form's run for each hole, identifier stepped when asked.
+  auto per_hole = [&]() -> Result<std::vector<RunSpec>> {
+    if (form.identifier_step != 0 && !ids.is_special(tmpl->id.identifier))
+      return expand_positions(*tmpl, *tmpl->extraction.position, form.identifier_step);
+    return expand_positions(*tmpl, *tmpl->extraction.position);
+  };
+  const bool splits = form.one_run_per_hole && tmpl->extraction.position && tmpl->extraction.position->holes.size() > 1;
+
   std::vector<RunSpec> runs;
-  if (!values->empty()) {
-    if (!rules.heating)
-      return form_error("a step heat needs an analysis type that heats ('" + std::string(to_string(tmpl->id.type)) + "' does not)");
-    runs = make_step_heat(*tmpl, *values);
-  } else if (form.one_run_per_hole && tmpl->extraction.position && tmpl->extraction.position->holes.size() > 1) {
-    if (form.identifier_step != 0 && !ids.is_special(tmpl->id.identifier)) {
-      auto expanded = expand_positions(*tmpl, *tmpl->extraction.position, form.identifier_step);
-      if (!expanded) return fail(expanded.error());
-      runs = std::move(*expanded);
+  if (named != nullptr) {
+    if (splits) {
+      auto holes = per_hole();
+      if (!holes) return fail(holes.error());
+      for (const auto& hole : *holes) {
+        auto steps = make_step_heat(hole, *named);
+        runs.insert(runs.end(), std::make_move_iterator(steps.begin()), std::make_move_iterator(steps.end()));
+      }
     } else {
-      runs = expand_positions(*tmpl, *tmpl->extraction.position);
+      runs = make_step_heat(*tmpl, *named);
     }
+  } else if (!values->empty()) {
+    runs = make_step_heat(*tmpl, template_from_values(*values, form));
+  } else if (splits) {
+    auto holes = per_hole();
+    if (!holes) return fail(holes.error());
+    runs = std::move(*holes);
   } else {
     runs.push_back(std::move(*tmpl));
   }
   return runs;
+}
+
+StepHeatTemplate template_from_values(const std::vector<double>& values, const FactoryForm& form) {
+  StepHeatTemplate t;
+  t.units = form.units;
+  t.duration = Duration(form.duration_s);
+  t.cleanup = Duration(form.cleanup_s);
+  t.steps.reserve(values.size());
+  for (const double v : values) {
+    StepHeatStep s;
+    s.value = v;
+    t.steps.push_back(s);
+  }
+  return t;
+}
+
+ExtractionSpec extraction_of(const FactoryForm& form) {
+  ExtractionSpec e;
+  e.value = form.value;
+  e.units = form.units;
+  e.duration = Duration(form.duration_s);
+  e.cleanup = Duration(form.cleanup_s);
+  return e;
 }
 
 FactoryForm form_from_run(const RunSpec& run) {
@@ -174,8 +225,9 @@ std::optional<FactoryForm> with_lab_defaults(const FactoryForm& form, const Iden
   return out;
 }
 
-Result<FactoryForm> next_form(const FactoryForm& form, const IncrementOptions& inc, const IdentifierRules& ids) {
-  auto runs = build_runs(form, ids);
+Result<FactoryForm> next_form(const FactoryForm& form, const IncrementOptions& inc, const IdentifierRules& ids,
+                              const StepHeatLibrary& step_heats) {
+  auto runs = build_runs(form, ids, step_heats);
   if (!runs) return fail(runs.error());
   const RunSpec& last = runs->back();
   FactoryForm next = form;
@@ -204,4 +256,4 @@ Result<FactoryForm> next_form(const FactoryForm& form, const IncrementOptions& i
   return next;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

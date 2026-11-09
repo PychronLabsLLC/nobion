@@ -3,9 +3,9 @@
 #include <cmath>
 #include <limits>
 
-#include "pychron/core/time_series_ring.hpp"
+#include "nobion/core/time_series_ring.hpp"
 
-using namespace pychron;
+using namespace nobion;
 
 TEST(TimeSeriesRing, KeepsPointsWithinSpan) {
   TimeSeriesRing ring(10.0);

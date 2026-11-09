@@ -1,0 +1,112 @@
+#pragma once
+
+// ExperimentBridge (experiment-window design 5.1): the QObject between a
+// LabSession and the experiment window. Same rules as CoreBridge and
+// SpectrometerBridge.
+//
+// State out: executor, run, measurement and peak-center events, whatever
+// thread published them, are marshalled to the bridge's (main) thread with a
+// queued call and re-emitted as signals of the same name. SeriesUpdated and
+// FitsUpdated arrive once per reading, so they are queued under a mutex and
+// delivered as in-order batches per queued call.
+//
+// Commands in: start/stop/cancel/abort/truncate/resume/skip forward to the session, which
+// never blocks (the executor has its own thread). check() validates a queue
+// against the lab on the calling thread (LabSession::check_queue: the
+// peak_center.toml start() would read); it touches no hardware.
+//
+// No core object ever holds a QObject*: the bus handlers reach the bridge only
+// through a shared Gate the destructor closes before the bridge goes away.
+
+#include <cstdint>
+#include <memory>
+#include <vector>
+
+#include <QObject>
+
+#include "nobion/core/error.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/experiment/collect/collector.hpp"
+#include "nobion/experiment/executor/executor.hpp"
+#include "nobion/experiment/lab/session.hpp"
+#include "nobion/experiment/measurement/engine.hpp"
+#include "nobion/experiment/run/state.hpp"
+#include "nobion/systems/jobs/peak_center.hpp"
+
+namespace nobion::ui {
+
+class ExperimentBridge : public QObject {
+  Q_OBJECT
+
+ public:
+  // `session` and `bus` (the session's line bus) must outlive the bridge.
+  ExperimentBridge(experiment::lab::LabSession& session, SignalBus& bus, QObject* parent = nullptr);
+  ~ExperimentBridge() override;
+  ExperimentBridge(const ExperimentBridge&) = delete;
+  ExperimentBridge& operator=(const ExperimentBridge&) = delete;
+
+  const experiment::lab::Lab& lab() const noexcept { return session_.lab(); }
+  experiment::lab::LabSession& session() noexcept { return session_; }
+
+  experiment::lab::LabCheck check(const experiment::QueueSpec& queue) const;
+
+  // Non-blocking. start() fails at once (Config) when a queue is running or
+  // `queue` does not check.
+  Result<void> start(const experiment::QueueSpec& queue, std::size_t from_row);
+  // LabSession::edit: the running queue's rows after those the executor has
+  // reached; returns the new queue version.
+  Result<std::uint64_t> edit(std::uint64_t base, const experiment::QueueSpec& queue);
+  void stop();
+  void cancel();
+  void abort();
+  void truncate(bool quick = false);
+  // While the queue holds (LabSession::resume, LabSession::skip).
+  void resume();
+  Result<void> skip();
+  bool running() const;
+
+  // Whether the session's runs go to a database (a store persister) rather
+  // than to files: the executor pane words what is still to be saved by it.
+  void set_saves_to_database(bool on) noexcept { saves_to_database_ = on; }
+  bool saves_to_database() const noexcept { return saves_to_database_; }
+
+ signals:
+  void executorStateChanged(const nobion::experiment::executor::ExecutorStateChanged& event);
+  void runStarted(const nobion::experiment::executor::RunStarted& event);
+  void runFinished(const nobion::experiment::executor::RunFinished& event);
+  void executorWaiting(const nobion::experiment::executor::ExecutorWaiting& event);
+  void executorHolding(const nobion::experiment::executor::ExecutorHolding& event);
+  void queueEdited(const nobion::experiment::executor::QueueEdited& event);
+  void queueFrontier(const nobion::experiment::executor::QueueFrontier& event);
+  void notificationSent(const nobion::experiment::lab::NotificationSent& event);
+  void queueStarted(const nobion::experiment::lab::QueueStarted& event);
+  void queueEnded(const nobion::experiment::lab::QueueEnded& event);
+  void runStateChanged(const nobion::experiment::run::RunStateChanged& event);
+  void runNote(const nobion::experiment::run::RunNote& event);
+  void blockStarted(const nobion::experiment::measurement::BlockStarted& event);
+  void blockFinished(const nobion::experiment::measurement::BlockFinished& event);
+  void countsProgress(const nobion::experiment::measurement::CountsProgress& event);
+  void measurementGap(const nobion::experiment::measurement::MeasurementGap& event);
+  void conditionalTripped(const nobion::experiment::measurement::ConditionalTripped& event);
+  void peakCenterDone(const nobion::jobs::PeakCenterDone& event);
+  void peakCenterTryStarted(const nobion::jobs::PeakCenterTryStarted& event);
+  void peakCenterPoint(const nobion::jobs::PeakCenterPoint& event);
+  void seriesUpdated(const std::vector<nobion::experiment::collect::SeriesUpdated>& batch);
+  // Live fits, coalesced like seriesUpdated and delivered right after it.
+  void fitsUpdated(const std::vector<nobion::experiment::collect::FitsUpdated>& batch);
+
+ private:
+  struct Gate;
+
+  template <class E>
+  void relay(void (ExperimentBridge::*signal)(const E&));
+  void flush_series();
+
+  experiment::lab::LabSession& session_;
+  SignalBus& bus_;
+  bool saves_to_database_ = false;
+  std::shared_ptr<Gate> gate_;
+  std::vector<SignalBus::Subscription> subscriptions_;
+};
+
+}  // namespace nobion::ui

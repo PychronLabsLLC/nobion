@@ -1,0 +1,198 @@
+#include "logging_page.hpp"
+
+#include <map>
+#include <string>
+
+#include <QCheckBox>
+#include <QComboBox>
+#include <QFileDialog>
+#include <QFormLayout>
+#include <QGroupBox>
+#include <QHBoxLayout>
+#include <QHeaderView>
+#include <QLabel>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QSpinBox>
+#include <QTableWidget>
+#include <QVBoxLayout>
+
+#include "preferences_dialog.hpp"
+
+namespace nobion::ui {
+
+namespace {
+
+constexpr LogLevel kLevels[] = {LogLevel::Trace, LogLevel::Debug, LogLevel::Info, LogLevel::Warn, LogLevel::Error};
+constexpr const char* kLevelNames[] = {"trace", "debug", "info", "warn", "error"};
+
+QComboBox* level_box(LogLevel level) {
+  auto* box = new QComboBox;
+  for (const char* name : kLevelNames) box->addItem(QString::fromLatin1(name));
+  box->setCurrentIndex(static_cast<int>(level));
+  return box;
+}
+
+LogLevel level_in(const QComboBox* box) {
+  const int i = box != nullptr ? box->currentIndex() : -1;
+  return i >= 0 && i < 5 ? kLevels[i] : LogLevel::Info;
+}
+
+}  // namespace
+
+LoggingPage::LoggingPage(QWidget* parent)
+    : QWidget(parent),
+      default_level_(level_box(LogLevel::Debug)),
+      dock_level_(level_box(LogLevel::Info)),
+      levels_(new QTableWidget(0, 2)),
+      add_(new QPushButton(tr("Add"))),
+      remove_(new QPushButton(tr("Remove"))),
+      folder_(new QLineEdit),
+      max_size_(new QSpinBox),
+      max_files_(new QSpinBox),
+      echo_(new QCheckBox(tr("Also print to the terminal"))),
+      no_file_(new QCheckBox(tr("No log file"))),
+      problem_(new QLabel) {
+  problem_->setWordWrap(true);
+  problem_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  problem_->setVisible(false);
+  levels_->setHorizontalHeaderLabels({tr("Logger"), tr("Level")});
+  levels_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+  levels_->verticalHeader()->hide();
+  levels_->setSelectionBehavior(QAbstractItemView::SelectRows);
+  levels_->setSelectionMode(QAbstractItemView::SingleSelection);
+  levels_->setMinimumHeight(150);
+  remove_->setEnabled(false);
+  connect(add_, &QPushButton::clicked, this, [this] {
+    add_row({}, LogLevel::Debug);
+    levels_->setCurrentCell(levels_->rowCount() - 1, 0);
+    levels_->editItem(levels_->item(levels_->rowCount() - 1, 0));
+  });
+  connect(remove_, &QPushButton::clicked, this, [this] {
+    if (levels_->currentRow() >= 0) levels_->removeRow(levels_->currentRow());
+  });
+  connect(levels_, &QTableWidget::itemSelectionChanged, this,
+          [this] { remove_->setEnabled(!levels_->selectedItems().isEmpty()); });
+
+  auto* now = new QGroupBox(tr("Levels"));
+  auto* now_form = new QFormLayout(now);
+  now_form->addRow(tr("Everything else:"), default_level_);
+  now_form->addRow(tr("Shown in the Log panel:"), dock_level_);
+  auto* row_buttons = new QVBoxLayout;
+  row_buttons->addWidget(add_);
+  row_buttons->addWidget(remove_);
+  row_buttons->addStretch(1);
+  auto* table_row = new QHBoxLayout;
+  table_row->addWidget(levels_, 1);
+  table_row->addLayout(row_buttons);
+  now_form->addRow(table_row);
+  now_form->addRow(preferences_note(
+      tr("A logger is named like transport.serial or scheduler; * stands for any part. \"*.wire\" at trace shows "
+         "every byte sent and received. Levels change as soon as they are applied.")));
+
+  folder_->setPlaceholderText(tr("Default folder"));
+  connect(no_file_, &QCheckBox::toggled, this, [this](bool off) { folder_->setEnabled(!off); });
+  folder_->setClearButtonEnabled(true);
+  auto* browse = new QPushButton(tr("Browse…"));
+  connect(browse, &QPushButton::clicked, this, [this] {
+    const QString dir = QFileDialog::getExistingDirectory(this, tr("Folder for log files"), folder_->text());
+    if (!dir.isEmpty()) folder_->setText(dir);
+  });
+  auto* folder_row = new QHBoxLayout;
+  folder_row->addWidget(folder_, 1);
+  folder_row->addWidget(browse);
+  max_size_->setRange(1, 10000);
+  max_size_->setSuffix(tr(" MB"));
+  max_files_->setRange(1, 1000);
+
+  auto* file = new QGroupBox(tr("Log file"));
+  auto* file_form = new QFormLayout(file);
+  file_form->addRow(no_file_);
+  file_form->addRow(tr("Folder:"), folder_row);
+  file_form->addRow(tr("Start a new file at:"), max_size_);
+  file_form->addRow(tr("Files kept:"), max_files_);
+  file_form->addRow(echo_);
+  file_form->addRow(preferences_note(
+      tr("These take effect the next time nobion starts. To go back to the default folder after a folder was set "
+         "in logging.toml, remove \"dir\" from that file.")));
+
+  auto* layout = new QVBoxLayout(this);
+  layout->addWidget(problem_);
+  layout->addWidget(now, 1);  // the table takes what room there is
+  layout->addWidget(file);
+}
+
+void LoggingPage::set_problem(const QString& problem, bool saved) {
+  if (problem.isEmpty()) {
+    problem_->clear();
+    problem_->setVisible(false);
+    return;
+  }
+  QString text = tr("Not read: %1. Logging runs on the built-in defaults, shown here.").arg(problem);
+  if (!saved) text += tr(" Changes here are not saved until that file is mended or removed.");
+  problem_->setText(text);
+  problem_->setVisible(true);
+}
+
+QComboBox* LoggingPage::level_at(int row) const { return qobject_cast<QComboBox*>(levels_->cellWidget(row, 1)); }
+
+void LoggingPage::add_row(const QString& pattern, LogLevel level) {
+  const int row = levels_->rowCount();
+  levels_->insertRow(row);
+  levels_->setItem(row, 0, new QTableWidgetItem(pattern));
+  levels_->setCellWidget(row, 1, level_box(level));
+}
+
+void LoggingPage::set(const config::LoggingConfig& logging) {
+  base_ = logging;
+  default_level_->setCurrentIndex(static_cast<int>(logging.default_level));
+  dock_level_->setCurrentIndex(static_cast<int>(logging.dock_level));
+  levels_->setRowCount(0);
+  // By name, so the table reads the same however the file listed them.
+  const std::map<std::string, LogLevel> sorted(logging.levels.begin(), logging.levels.end());
+  for (const auto& [pattern, level] : sorted) add_row(QString::fromStdString(pattern), level);
+  // An empty path is "no file"; unset is the application's default folder.
+  const bool off = logging.dir && logging.dir->empty();
+  no_file_->setChecked(off);
+  folder_->setText(logging.dir && !off ? QString::fromStdString(logging.dir->string()) : QString());
+  max_size_->setValue(static_cast<int>(logging.max_size_mb));
+  max_files_->setValue(static_cast<int>(logging.max_files));
+  echo_->setChecked(logging.echo_stderr);
+}
+
+config::LoggingConfig LoggingPage::value() const {
+  config::LoggingConfig out = base_;
+  out.default_level = level_in(default_level_);
+  out.dock_level = level_in(dock_level_);
+  out.levels.clear();
+  for (int row = 0; row < levels_->rowCount(); ++row) {
+    const QTableWidgetItem* item = levels_->item(row, 0);
+    const std::string pattern = item != nullptr ? item->text().trimmed().toStdString() : std::string();
+    if (pattern.empty()) continue;
+    const LogLevel level = level_in(level_at(row));
+    bool replaced = false;
+    for (auto& existing : out.levels) {
+      if (existing.first == pattern) {
+        existing.second = level;
+        replaced = true;
+      }
+    }
+    if (!replaced) out.levels.emplace_back(pattern, level);
+  }
+  // "No log file" is an empty path; an empty field is the app's default folder,
+  // what set() showed for an unset dir.
+  const std::string folder = folder_->text().trimmed().toStdString();
+  if (no_file_->isChecked()) {
+    out.dir = std::filesystem::path{};
+  } else if (folder.empty()) {
+    out.dir = std::nullopt;
+  } else {
+    out.dir = folder;
+  }
+  out.max_size_mb = max_size_->value();
+  out.max_files = max_files_->value();
+  out.echo_stderr = echo_->isChecked();
+  return out;
+}
+
+}  // namespace nobion::ui

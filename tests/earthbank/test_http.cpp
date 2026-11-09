@@ -2,16 +2,22 @@
 #include <initializer_list>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/http.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/core/http.hpp"
+#include "nobion/earthbank/http.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using namespace std::string_view_literals;
+
+static_assert(std::is_same_v<IHttpClient, nobion::http::IHttpClient>);
+static_assert(std::is_same_v<HttpRequest, nobion::http::HttpRequest>);
+static_assert(std::is_same_v<HttpResponse, nobion::http::HttpResponse>);
 
 TEST(Http, UrlEncode) {
   EXPECT_EQ(url_encode(""), "");
@@ -125,4 +131,4 @@ TEST(Http, AnErrorSaysWhetherTheRequestMayHaveArrived) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

@@ -1,12 +1,12 @@
 #include <gtest/gtest.h>
 
-#include "pychron/entry/settings.hpp"
+#include "nobion/entry/settings.hpp"
 #include "store_fixture.hpp"
 
-using namespace pychron;
-using namespace pychron::entry;
-using namespace pychron::persistence;
-using namespace pychron::persistence::testing;
+using namespace nobion;
+using namespace nobion::entry;
+using namespace nobion::persistence;
+using namespace nobion::persistence::testing;
 
 TEST(Settings, DefaultsUnknownKeysAndTypes) {
   auto s = parse_settings("{}");
@@ -16,7 +16,6 @@ TEST(Settings, DefaultsUnknownKeysAndTypes) {
   ASSERT_TRUE(s);
   EXPECT_EQ(s->package_prefix, "P-");
   EXPECT_EQ(s->j_multiplier, 2e-4);
-  EXPECT_EQ(s->pi_names_allowed, (std::vector<std::string>{"NMGRL"}));
   auto again = parse_settings(to_json(*s));
   ASSERT_TRUE(again);
   EXPECT_EQ(*again, *s);  // the unknown key survives a round trip
@@ -24,6 +23,22 @@ TEST(Settings, DefaultsUnknownKeysAndTypes) {
   EXPECT_FALSE(parse_settings(R"({"package_prefix": 3})"));
   EXPECT_FALSE(parse_settings(R"({"default_package_kind": "argon"})"));
   EXPECT_FALSE(parse_settings("[]"));
+}
+
+// The allowed-names list is gone (PI spec 6.1): an organisation is a kind of
+// PI. A list a former version saved is kept as an unknown key, unread, and
+// written back as it was.
+TEST(Settings, AFormerAllowedNamesListIsKeptUnread) {
+  auto s = parse_settings(R"({"pi_names_allowed": ["NMGRL", "Lab 7"]})");
+  ASSERT_TRUE(s);
+  EXPECT_NE(s->other_json.find("pi_names_allowed"), std::string::npos) << s->other_json;
+  EXPECT_NE(to_json(*s).find(R"("Lab 7")"), std::string::npos);
+  EntrySettings without_it = *s;
+  without_it.other_json = "{}";
+  EXPECT_EQ(without_it, EntrySettings{});  // nothing else read from it
+  // Of any type: it is not checked.
+  EXPECT_TRUE(parse_settings(R"({"pi_names_allowed": 3})"));
+  EXPECT_EQ(to_json(EntrySettings{}).find("pi_names_allowed"), std::string::npos);
 }
 
 namespace {

@@ -1,12 +1,12 @@
-#include "pychron/devices/capabilities.hpp"
+#include "nobion/devices/capabilities.hpp"
 
 #include <gtest/gtest.h>
 
 #include <map>
 
-#include "pychron/devices/device.hpp"
+#include "nobion/devices/device.hpp"
 
-using namespace pychron;
+using namespace nobion;
 
 namespace {
 
@@ -15,7 +15,10 @@ class FakeLine : public Device, public IPressureGauge, public IValveActuator, pu
  public:
   explicit FakeLine(std::string name) : Device(std::move(name)) {}
 
-  Result<double> read_pressure() override { return observe(Result<double>(1e-8)); }
+  Result<double> read_pressure() override {
+    const Operation op = begin("read_pressure");
+    return observe(op, Result<double>(1e-8));
+  }
 
   Result<void> open(const ValveAddress& a) override {
     states_[a] = ValveState::Open;

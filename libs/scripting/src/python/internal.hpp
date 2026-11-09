@@ -11,9 +11,10 @@
 #include <string>
 #include <vector>
 
-#include "pychron/scripting/script_host.hpp"
+#include "nobion/core/logger.hpp"
+#include "nobion/scripting/script_host.hpp"
 
-namespace pychron::scripting::python {
+namespace nobion::scripting::python {
 
 namespace py = pybind11;
 
@@ -21,13 +22,13 @@ namespace py = pybind11;
 // builtins, static checker) and of the per-execution vocabulary prelude.
 extern const char* const kRuntimeSource;
 extern const char* const kPreludeSource;
-inline constexpr const char* kPreludeFilename = "<pychron-prelude>";
-inline constexpr const char* kRuntimeFilename = "<pychron-runtime>";
+inline constexpr const char* kPreludeFilename = "<nobion-prelude>";
+inline constexpr const char* kRuntimeFilename = "<nobion-runtime>";
 
 // Process-wide interpreter state, created on first use and never finalized.
 // Access with the GIL held.
 struct Runtime {
-  py::object module;        // _pychron_runtime
+  py::object module;        // _nobion_runtime
   py::object prelude_code;  // compiled kPreludeSource
   py::dict reference;       // a prelude namespace for signatures (no host)
   py::object cancelled, aborted, limit, budget, hardware, not_supported;
@@ -40,6 +41,7 @@ void ensure_interpreter();
 Runtime& runtime();
 
 class HostState;
+class HostCallTrace;
 
 // Measurement-hook `api` and get_device() handles; both hold the state that
 // created them.
@@ -54,10 +56,11 @@ struct DeviceHandle {
 // `_h` in the prelude. Construct and use with the GIL held.
 class HostState {
  public:
-  enum class Mode { Run, Estimate };
+  // Rehearse: every hardware call and wait is a step of `rehearsal`.
+  enum class Mode { Run, Estimate, Rehearse };
 
   HostState(const ScriptEnvironment& env, CancelToken& token, Mode mode, ScriptKind kind,
-            DurationAccumulator* accumulator);
+            DurationAccumulator* accumulator, IRehearsal* rehearsal = nullptr);
   ~HostState();
   HostState(const HostState&) = delete;
   HostState& operator=(const HostState&) = delete;
@@ -69,11 +72,23 @@ class HostState {
   // Runs `body` under the line tracer; converts Python exceptions.
   Result<void> guarded(const std::function<void()>& body);
 
+  // Where this execution's host calls are logged (`script.<name>`); the
+  // default writes nothing.
+  void set_log(const Logger& log) { log_ = log; }
+  // Rehearse: where each step is logged, at trace.
+  void set_step_log(const Logger& log) { step_log_ = log; }
+
   const std::vector<std::string>& messages() const noexcept { return messages_; }
   py::object hook_api();
 
   // ---- bound to `_h` --------------------------------------------------
   bool estimating() const noexcept { return mode_ == Mode::Estimate; }
+  bool rehearsing() const noexcept { return mode_ == Mode::Rehearse; }
+  // Rehearse, for the prelude's own multi-step commands (ramp, waitfor,
+  // begin_heating_interval): one step; `seconds_held` is the time it stands
+  // for. Returns the step's value.
+  py::object rehearse_step(const std::string& command, const py::list& args, const py::dict& kwargs,
+                           double seconds_held);
   double now();
   void info(const std::string& message);
   void require(const std::string& capability);
@@ -93,6 +108,9 @@ class HostState {
   void fire_laser();
   void warmup();
   DeviceHandle get_device(const std::string& name);
+  // DeviceHandle reads; a step in Rehearse.
+  bool device_is_enabled();
+  double device_output();
 
   void move_to_position(const std::string& position, bool autocenter, bool block);
   void set_axis(const std::string& axis, double value, bool block);
@@ -164,13 +182,30 @@ class HostState {
                   const std::function<void()>& stop = {});
   Error convert(py::error_already_set& e);
   void add_estimate(Duration d, const std::string& command);
+  // Rehearse: hands the call to the rehearsal without the GIL, at the line
+  // the trace last saw; its error is raised as the real call's would be.
+  Value step(std::string command, std::vector<Value> args, ValueMap kwargs = {});
+  // Rehearse: a step of a call that answers nothing / a double / a string
+  // (guard() first). A double read accepts an integer; any other type is a
+  // Config error naming the command.
+  void rehearse_void(const std::string& command, std::vector<Value> args, ValueMap kwargs = {});
+  double rehearse_double(const std::string& command, std::vector<Value> args);
+  bool rehearse_bool(const std::string& command, std::vector<Value> args);
+  std::string rehearse_string(const std::string& command, std::vector<Value> args);
+  // Rehearse: a read's answer as a bool; Config error for any other type.
+  bool step_bool(const std::string& command, const std::string& name);
 
   const ScriptEnvironment& env_;
   CancelToken& token_;
   Mode mode_;
   ScriptKind kind_;
   DurationAccumulator* accumulator_;
+  IRehearsal* rehearsal_;
+  Duration rehearsed_{};  // Rehearse: stepped waits so far (what now() reports)
   SteadyClock steady_;
+  Logger log_ = Logger::disabled("script");
+  Logger step_log_ = Logger::disabled("script");
+  HostCallTrace* active_trace_ = nullptr;  // the host call being made, for raise()
 
   std::vector<std::string> messages_;
   std::vector<py::dict> namespaces_;  // cleared on destruction to drop `_h`
@@ -192,4 +227,4 @@ class HostState {
   py::object last_exception_;
 };
 
-}  // namespace pychron::scripting::python
+}  // namespace nobion::scripting::python

@@ -1,4 +1,4 @@
-#include "pychron/systems/canvas/loader.hpp"
+#include "nobion/systems/canvas/loader.hpp"
 
 #include <array>
 #include <fstream>
@@ -8,7 +8,7 @@
 #include <sstream>
 #include <utility>
 
-namespace pychron::canvas {
+namespace nobion::canvas {
 namespace {
 
 using config::Diagnostic;
@@ -61,11 +61,18 @@ constexpr std::array kStageSymbols{
     std::pair<std::string_view, StageSymbol>{"turbo", StageSymbol::Turbo},
     std::pair<std::string_view, StageSymbol>{"getter", StageSymbol::Getter},
     std::pair<std::string_view, StageSymbol>{"ion_pump", StageSymbol::IonPump},
+    std::pair<std::string_view, StageSymbol>{"cryo", StageSymbol::Cryo},
+    std::pair<std::string_view, StageSymbol>{"roughing_pump", StageSymbol::RoughingPump},
 };
 
 constexpr std::array kOpenValveColors{
     std::pair<std::string_view, OpenValveColor>{"green", OpenValveColor::Green},
     std::pair<std::string_view, OpenValveColor>{"inherit", OpenValveColor::Inherit},
+};
+
+constexpr std::array kValveStyles{
+    std::pair<std::string_view, ValveStyle>{"hmi", ValveStyle::Hmi},
+    std::pair<std::string_view, ValveStyle>{"redgreen", ValveStyle::Redgreen},
 };
 
 constexpr std::array kValveSections{
@@ -323,11 +330,12 @@ class CanvasBuilder {
 
   void parse_canvas_section(const toml::table& t, CanvasSection& s) {
     begin(s, t, "canvas");
-    reject_unknown(t, s, Keys{"origin", "size", "connection_width", "open_valve_color"});
+    reject_unknown(t, s, Keys{"origin", "size", "connection_width", "open_valve_color", "valve_style"});
     read(t, s, "origin", s.origin, false);
     read(t, s, "size", s.size);
     read(t, s, "connection_width", s.connection_width, 1);
     read_enum(t, s, "open_valve_color", s.open_valve_color, kOpenValveColors);
+    read_enum(t, s, "valve_style", s.valve_style, kValveStyles);
   }
 
   void parse_colors(const toml::table& t, std::map<std::string, std::string>& colors) {
@@ -578,4 +586,4 @@ Result<Canvas> load_canvas(const std::filesystem::path& path) {
   return std::move(*report.canvas);
 }
 
-}  // namespace pychron::canvas
+}  // namespace nobion::canvas

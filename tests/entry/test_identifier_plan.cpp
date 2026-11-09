@@ -3,12 +3,12 @@
 #include <random>
 
 #include "catalog_fixture.hpp"
-#include "pychron/entry/identifier_plan.hpp"
+#include "nobion/entry/identifier_plan.hpp"
 
-using namespace pychron;
-using namespace pychron::entry;
-using namespace pychron::persistence;
-using namespace pychron::persistence::testing;
+using namespace nobion;
+using namespace nobion::entry;
+using namespace nobion::persistence;
+using namespace nobion::persistence::testing;
 
 namespace {
 

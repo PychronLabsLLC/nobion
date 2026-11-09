@@ -1,4 +1,4 @@
-#include "pychron/sim/gas_network.hpp"
+#include "nobion/sim/gas_network.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -15,13 +15,13 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/error.hpp"
-#include "pychron/sim/gas.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/sim/gas.hpp"
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::sim;
+using namespace nobion;
+using namespace nobion::sim;
 
 constexpr std::size_t kAr36 = index(Species::Ar36);
 constexpr std::size_t kAr40 = index(Species::Ar40);

@@ -1,26 +1,70 @@
-#include "pychron/experiment/measurement/engine.hpp"
+#include "nobion/experiment/measurement/engine.hpp"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <numeric>
+#include <type_traits>
 #include <utility>
+#include <variant>
 
-#include "pychron/core/events.hpp"
-#include "pychron/experiment/conditionals/library.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/log_error.hpp"
+#include "nobion/devices/link.hpp"
+#include "nobion/experiment/conditionals/library.hpp"
+#include "nobion/reduction/fits.hpp"
 
-namespace pychron::experiment::measurement {
+namespace nobion::experiment::measurement {
 
 namespace {
 
-pychron::Duration seconds_to(double s) {
-  return std::chrono::duration_cast<pychron::Duration>(std::chrono::duration<double>(std::max(s, 0.0)));
+nobion::Duration seconds_to(double s) {
+  return std::chrono::duration_cast<nobion::Duration>(std::chrono::duration<double>(std::max(s, 0.0)));
 }
 
-std::vector<collect::Channel> channels_of(const plan::MeasurementPlan& plan, const plan::Hop& hop) {
+// A number as a person writes it: 500, 0.05, 1.2e-05.
+std::string plain(double v) {
+  std::array<char, 32> buf{};
+  std::snprintf(buf.data(), buf.size(), "%g", v);
+  return buf.data();
+}
+
+// What a position's active entries collect, under their labels.
+std::vector<collect::Channel> channels_of(const plan::Position& pos) {
   std::vector<collect::Channel> out;
-  for (const auto& a : plan::active_detectors(plan, hop)) out.push_back({a.isotope, a.detector});
+  for (const auto& e : plan::collecting(pos)) out.push_back({e.label, e.detector});
   return out;
 }
+
+// A baseline segment collects per detector, with no label, each detector once.
+std::vector<collect::Channel> baseline_channels(const plan::Position& pos) {
+  std::vector<collect::Channel> out;
+  for (const auto& e : plan::collecting(pos)) {
+    const auto same = [&](const collect::Channel& c) { return c.detector == e.detector; };
+    if (std::none_of(out.begin(), out.end(), same)) out.push_back({"", e.detector});
+  }
+  return out;
+}
+
+// "Ar40@H1", "mass 34.2@H1", "dac 1.234", "hv 4500@H1".
+std::string describe(const plan::At& at) {
+  return std::visit(
+      [](const auto& a) -> std::string {
+        using T = std::decay_t<decltype(a)>;
+        if constexpr (std::is_same_v<T, plan::AtLabel>) return a.label + "@" + a.detector;
+        else if constexpr (std::is_same_v<T, plan::AtMass>) return "mass " + plain(a.mass) + "@" + a.detector;
+        else if constexpr (std::is_same_v<T, plan::AtDac>) return "dac " + plain(a.dac);
+        else return "hv " + plain(a.hv) + "@" + a.detector;
+      },
+      at);
+}
+
+bool is_sniff(const plan::Segment& s) {
+  return s.kind == plan::SegmentKind::Sniff && s.when == plan::When::DuringEquilibration;
+}
+bool is_whiff(const plan::Segment& s) { return s.kind == plan::SegmentKind::Whiff && s.when == plan::When::AfterInlet; }
 
 }  // namespace
 
@@ -33,6 +77,10 @@ std::string_view to_string(Block block) noexcept {
     case Block::Main: return "main";
     case Block::BaselineAfter: return "baseline.after";
     case Block::PeakCenterAfter: return "peak_center.after";
+    case Block::Segment: return "segment";
+    case Block::Step: return "step";
+    case Block::Prepare: return "prepare";
+    case Block::PumpOut: return "pump_out";
   }
   return "main";
 }
@@ -58,16 +106,24 @@ class MeasurementEngine::Api final : public scripting::IMeasurementApi {
   explicit Api(MeasurementEngine& e) : e_(e) {}
 
   Result<void> position(std::string_view isotope, std::string_view detector) override {
-    return e_.move_to(plan::HopTarget{std::string(isotope), std::nullopt, std::string(detector)}, 0, {});
+    return e_.position_magnet(plan::AtLabel{std::string(isotope), std::string(detector)}, 0, {}, -1, -1);
   }
 
   Result<void> acquire(int counts, double integration_time_s) override {
     if (e_.collecting_) return fail(ErrorKind::Config, "acquire() is not allowed inside a collection");
     if (counts <= 0 || integration_time_s <= 0) return fail(ErrorKind::Config, "acquire() needs counts > 0 and integration > 0");
-    auto channels = e_.last_channels_.empty() ? channels_of(e_.in_.plan, e_.in_.plan.main.hops.front())
-                                              : e_.last_channels_;
-    auto r = e_.collect(Block::Main, {collect::SeriesKind::Signal, counts, std::move(channels), "hook"},
-                        integration_time_s, {});
+    auto channels = e_.last_channels_;
+    if (channels.empty() && e_.gas_ != nullptr)
+      channels = channels_of(e_.gas_->segments[e_.main_].positions.front());
+    collect::CollectionSpec spec;
+    spec.counts = counts;
+    spec.channels = std::move(channels);
+    spec.label = "hook";
+    if (e_.gas_ != nullptr) {
+      spec.gas = e_.gas_->name;
+      spec.segment = static_cast<int>(e_.main_);
+    }
+    auto r = e_.collect(Block::Main, std::move(spec), integration_time_s, {});
     if (!r) return fail(r.error());
     return {};
   }
@@ -114,6 +170,51 @@ class MeasurementEngine::Api final : public scripting::IMeasurementApi {
     e_.publish_log(LogLevel::Info, std::string(message));
   }
 
+  // As the plan's steps do (spec 5.5).
+  Result<void> peak_center(std::string_view label, std::string_view detector, std::string_view write_table) override {
+    if (e_.collecting_) return fail(ErrorKind::Config, "peak_center() is not allowed inside a collection");
+    if (e_.ctx_.peak_center == nullptr) return fail(ErrorKind::Config, "no peak center service");
+    PeakCenterRequest req;
+    req.isotope = std::string(label);
+    req.detector = std::string(detector);
+    req.write_table = std::string(write_table);
+    e_.trace(-1, -1, "step", "peak_center " + req.isotope + "@" + req.detector + " (hook)");
+    return e_.peak_center_on(std::move(req), 0);
+  }
+
+  // Stands until the run ends, as a set step's.
+  Result<void> set_deflection(std::string_view detector, double value) override {
+    return e_.set_standing_deflection(std::string(detector), value, -1);
+  }
+
+  Result<void> set_integration(double seconds) override {
+    if (!(seconds > 0)) return fail(ErrorKind::Config, "set_integration() needs seconds > 0");
+    e_.trace(-1, -1, "integration", plain(seconds));
+    e_.step_integration_ = seconds;
+    return {};
+  }
+
+  // Holds until a position selects its own.
+  Result<void> with_table(std::string_view name) override {
+    if (e_.collecting_) return fail(ErrorKind::Config, "with_table() is not allowed inside a collection");
+    auto r = e_.ctx_.spectrometer.with_table(std::string(name));
+    e_.trace(-1, -1, "table", name.empty() ? "(current)" : std::string(name));
+    if (!r) return r;
+    e_.table_ = std::string(name);
+    e_.position_.reset();
+    return {};
+  }
+
+  Result<void> apply_optics(std::string_view name) override {
+    if (e_.collecting_) return fail(ErrorKind::Config, "apply_optics() is not allowed inside a collection");
+    auto r = e_.ctx_.spectrometer.apply_optics(std::string(name));
+    e_.trace(-1, -1, "optics", std::string(name));
+    if (!r) return r;
+    e_.optics_ = std::string(name);
+    e_.position_.reset();
+    return {};
+  }
+
  private:
   MeasurementEngine& e_;
 };
@@ -130,14 +231,35 @@ MeasurementEngine::~MeasurementEngine() = default;
 Result<void> MeasurementEngine::validate() const {
   const auto& p = in_.plan;
   std::vector<std::string> problems;
-  if (p.main.hops.empty()) problems.emplace_back("plan has no hops");
-  for (std::size_t i = 0; i < p.main.hops.size(); ++i) {
-    if (!plan::hop_target(p, p.main.hops[i]))
-      problems.push_back("main.hops[" + std::to_string(i) + "]: no magnet position (reference detector not in hop)");
+  if (p.gases.empty()) problems.emplace_back("plan has no gas");
+  bool valved = false, centers = false;
+  for (std::size_t g = 0; g < p.gases.size(); ++g) {
+    const auto& gas = p.gases[g];
+    const std::string where = gas.implicit ? std::string() : "gas '" + gas.name + "': ";
+    const plan::Segment* main = plan::main_segment(gas);
+    if (main == nullptr) problems.push_back(where + "plan has no after_inlet signal segment");
+    else if (main->positions.empty()) problems.push_back(where + "plan has no hops");
+    for (std::size_t s = 0; s < gas.segments.size(); ++s) {
+      const auto& seg = gas.segments[s];
+      if (seg.kind != plan::SegmentKind::Signal || p.detectors.reference.empty()) continue;
+      for (std::size_t j = 0; j < seg.positions.size(); ++j) {
+        if (!plan::position_target(p, seg.positions[j]))
+          problems.push_back(where + "segment[" + std::to_string(s) + "].positions[" + std::to_string(j) +
+                             "]: no magnet position (reference detector not in position)");
+      }
+    }
+    valved |= !gas.equilibration.inlet.empty() || !gas.equilibration.outlet.empty();
+    centers |= std::any_of(gas.segments.begin(), gas.segments.end(),
+                           [](const plan::Segment& seg) { return seg.kind == plan::SegmentKind::PeakCenter; });
   }
-  if ((!p.equilibration.inlet.empty() || !p.equilibration.outlet.empty()) && ctx_.valves == nullptr)
+  for (const auto& gas : p.gases) {
+    valved |= gas.pump_out.has_value();
+    if (gas.prepare && ctx_.prepare == nullptr)
+      problems.push_back("gas '" + gas.name + "' has a prepare script but no prepare service is configured");
+  }
+  if (valved && ctx_.valves == nullptr)
     problems.emplace_back("plan equilibrates through valves but no valve service is configured");
-  if ((p.peak_center.before || p.peak_center.after) && ctx_.peak_center == nullptr)
+  if (centers && ctx_.peak_center == nullptr)
     problems.emplace_back("plan enables peak centering but no peak-center service is configured");
   if (p.hook && ctx_.hook == nullptr) problems.push_back("plan names hook '" + *p.hook + "' but no hook runner is configured");
   if (problems.empty()) return {};
@@ -150,26 +272,100 @@ void MeasurementEngine::rebuild_conditionals() {
   conditionals_ = std::make_unique<ConditionalEngine>(in_.conditionals, in_.analysis_type);
 }
 
-MeasurementResult MeasurementEngine::run(scripting::CancelToken& token) {
-  token_ = &token;
+void MeasurementEngine::begin() {
+  begun_ = true;
+  extraction_phase_ran_ = false;
   result_ = MeasurementResult{};
+  gas_ = nullptr;
+  main_ = 0;
+  time_zero_ = {};
+  block_ = Block::Main;
   position_.reset();
+  table_.clear();
+  unwritten_tables_.clear();
+  standing_.clear();
+  step_integration_.reset();
+  time_zero_by_step_ = false;
+  blanked_ = false;
+  dark_ = false;
+  optics_.clear();
+  deflected_.clear();
+  settle_due_ = false;
+  integration_.reset();
   protected_.clear();
   last_channels_.clear();
   inlet_open_ = false;
   close_inlet_now_ = false;
+  close_inlet_at_.reset();
+  inlet_done_ = false;
   main_count_ = 0;
   stop_ = Stop::None;
   main_truncated_ = false;
   break_main_ = false;
+  gap_from_.reset();
+  silence_error_.clear();
+  main_gap_ = false;
+  main_cut_ = false;
   // A truncate requested before run() (e.g. during extraction) is kept.
-  collector_.start(ctx_.clock.now());
+  started_ = ctx_.clock.now();
+  collector_.start(started_);
   collector_.set_fallback(ctx_.metrics);
-  collector_.set_fits(in_.plan.fits);
+  collector_.set_plan(in_.plan);
   collector_.set_icfactors(in_.icfactors);
   collector_.set_arar(in_.arar);
   rebuild_conditionals();
   for (const auto* c : conditionals_->installed()) result_.installed.push_back(*c);
+
+}
+
+bool MeasurementEngine::has_phase(plan::When when) const {
+  return !in_.plan.gases.empty() && !plan::segments_at(in_.plan.gases.front(), when).empty();
+}
+
+void MeasurementEngine::select_gas(std::size_t g) {
+  gas_ = &in_.plan.gases[g];
+  // What is the gas's own: its inlet, its time zero, its main, its set step's integration.
+  inlet_done_ = false;
+  close_inlet_at_.reset();
+  close_inlet_now_ = false;
+  time_zero_by_step_ = false;
+  step_integration_.reset();
+  main_count_ = 0;
+  main_cycles_ = 0;
+  main_gap_ = false;
+  main_cut_ = false;
+  const auto& segs = gas_->segments;
+  main_ = static_cast<std::size_t>(plan::main_segment(*gas_) - segs.data());
+  const auto& main = segs[main_];
+  time_zero_ = main.time_zero ? *main.time_zero : gas_->time_zero.value_or(plan::TimeZero{});
+}
+
+Result<void> MeasurementEngine::run_phase(plan::When when, scripting::CancelToken& token) {
+  token_ = &token;
+  if (!begun_) begin();
+  if (auto v = validate(); !v) return v;
+  select_gas(0);
+  auto r = run_when(when);
+  if (when == plan::When::DuringExtraction) extraction_phase_ran_ = true;
+  // What a collection or a move left on goes off; deflections went back at
+  // each segment's end. The rest (a standing deflection, the run's tables)
+  // is the measurement's to undo.
+  if (acquiring_) {
+    ctx_.spectrometer.stop_acquisition();
+    acquiring_ = false;
+  }
+  for (const auto& d : std::set<std::string>(protected_)) {
+    if (auto u = ctx_.spectrometer.protect(d, false); u) protected_.erase(d);
+    else publish_log(LogLevel::Error, "could not unprotect " + d + ": " + u.error().what);
+  }
+  token_ = nullptr;
+  return r;
+}
+
+MeasurementResult MeasurementEngine::run(scripting::CancelToken& token) {
+  token_ = &token;
+  if (!begun_) begin();
+  begun_ = false;  // a second run() starts afresh
 
   Result<void> r = validate();
   if (r) r = run_blocks();
@@ -197,90 +393,402 @@ MeasurementResult MeasurementEngine::run(scripting::CancelToken& token) {
   return std::move(result_);
 }
 
-Result<void> MeasurementEngine::run_blocks() {
-  const auto& p = in_.plan;
-  auto step = [&](Block b, auto&& fn) -> Result<void> {
-    if (stopping()) return {};
-    if (options_.on_block_started) options_.on_block_started(b);
-    if (ctx_.bus != nullptr) ctx_.bus->publish(BlockStarted{in_.run_id, b});
-    result_.blocks.push_back(b);
-    Result<void> r = fn();
-    if (ctx_.bus != nullptr) ctx_.bus->publish(BlockFinished{in_.run_id, b, r.has_value()});
-    return r;
+Block MeasurementEngine::block_of(std::size_t segment) const {
+  using plan::SegmentKind;
+  using plan::When;
+  if (segment == main_) return Block::Main;
+  const auto& segs = gas_->segments;
+  const auto& seg = segs[segment];
+  // The first segment of a v1 kind and placement takes the v1 block's name.
+  const auto first_of = [&](SegmentKind kind, When when) {
+    if (seg.kind != kind || seg.when != when) return false;
+    const auto it = std::find_if(segs.begin(), segs.end(),
+                                 [&](const plan::Segment& s) { return s.kind == kind && s.when == when; });
+    return it - segs.begin() == static_cast<std::ptrdiff_t>(segment);
   };
+  if (first_of(SegmentKind::PeakCenter, When::BeforeInlet)) return Block::PeakCenterBefore;
+  if (first_of(SegmentKind::PeakCenter, When::AfterRun)) return Block::PeakCenterAfter;
+  if (first_of(SegmentKind::Baseline, When::BeforeInlet)) return Block::BaselineBefore;
+  if (first_of(SegmentKind::Baseline, When::AfterMain)) return Block::BaselineAfter;
+  return plan::is_step(seg.kind) ? Block::Step : Block::Segment;
+}
 
-  if (p.peak_center.before) {
-    if (auto r = step(Block::PeakCenterBefore, [&] { return peak_center(Block::PeakCenterBefore); }); !r) return r;
+std::string MeasurementEngine::collection_label(std::size_t segment, Block block) const {
+  // A named gas's collections are counted apart: "<gas>.main", ...
+  const std::string gas = gas_->implicit || gas_->name.empty() ? std::string() : gas_->name + ".";
+  switch (block) {
+    case Block::Main:
+    case Block::BaselineBefore:
+    case Block::BaselineAfter: return gas + std::string(to_string(block));
+    default: break;
   }
-  if (p.baseline.before) {
-    if (auto r = step(Block::BaselineBefore, [&] { return baseline(Block::BaselineBefore); }); !r) return r;
+  const auto& seg = gas_->segments[segment];
+  if (seg.kind == plan::SegmentKind::Sniff) return gas + "sniff";
+  if (seg.kind == plan::SegmentKind::Whiff) return gas + "whiff";
+  return gas + "segment[" + std::to_string(segment) + "]";
+}
+
+void MeasurementEngine::trace(int segment, int position, std::string what, std::string detail) {
+  result_.trace.push_back(TraceEntry{gas_ != nullptr ? gas_->name : std::string(), segment, position, std::move(what),
+                                     std::move(detail), collector_.seconds(ctx_.clock.now())});
+}
+
+const plan::Equilibration& MeasurementEngine::equilibration() const {
+  return gas_ != nullptr ? gas_->equilibration : in_.plan.equilibration;
+}
+
+// Each gas in file order (spec 3.4): its before_inlet after the previous
+// gas's after_main; after_run of every gas once, after the last.
+Result<void> MeasurementEngine::run_blocks() {
+  const auto& gases = in_.plan.gases;
+  // A during_extraction phase nobody ran beside an extraction (a measurement
+  // run on its own) runs first, so the plan runs as written.
+  if (!extraction_phase_ran_ && has_phase(plan::When::DuringExtraction)) {
+    select_gas(0);
+    if (auto r = run_when(plan::When::DuringExtraction); !r) return r;
+    extraction_phase_ran_ = true;
   }
-  if (auto r = step(Block::PositionFirstHop, [&] {
-        const auto& hop = p.main.hops.front();
-        return move_to(plan::hop_target(p, hop), hop.settle_s, hop.protect);
-      });
-      !r)
-    return r;
-  if (auto r = step(Block::Equilibrate, [&] { return equilibrate(); }); !r) return r;
-  if (!stopping()) {
-    if (auto r = call_hook("before_main"); !r) return r;
+  for (std::size_t g = 0; g < gases.size(); ++g) {
+    if (stopping()) return {};
+    select_gas(g);
+    // A staged release (spec 11): the gas's prepare after the previous gas's
+    // pump-out, its pump-out after its last segment.
+    if (gas_->prepare) {
+      if (auto r = block(Block::Prepare, -1, [&] { return prepare_gas(); }); !r) return r;
+      if (stopping()) return {};
+    }
+    if (auto r = run_gas(); !r) return r;
+    if (gas_->pump_out && !stopping()) {
+      if (auto r = block(Block::PumpOut, -1, [&] { return pump_out_gas(); }); !r) return r;
+    }
   }
-  if (auto r = step(Block::Main, [&] { return main(); }); !r) return r;
-  if (!stopping()) {
-    if (auto r = call_hook("after_main"); !r) return r;
-  }
-  if (p.baseline.after) {
-    if (auto r = step(Block::BaselineAfter, [&] { return baseline(Block::BaselineAfter); }); !r) return r;
-  }
-  if (p.peak_center.after) {
-    if (auto r = step(Block::PeakCenterAfter, [&] { return peak_center(Block::PeakCenterAfter); }); !r) return r;
+  for (const auto& gas : gases) {
+    if (stopping()) return {};
+    gas_ = &gas;
+    if (auto r = run_when(plan::When::AfterRun); !r) return r;
   }
   return {};
 }
 
-Result<void> MeasurementEngine::peak_center(Block block) {
+Result<void> MeasurementEngine::block(Block b, int segment, const std::function<Result<void>()>& fn) {
+  if (stopping()) return {};
+  block_ = b;
+  if (options_.on_block_started) options_.on_block_started(b);
+  if (ctx_.bus != nullptr) ctx_.bus->publish(BlockStarted{in_.run_id, b, gas_->name, segment});
+  result_.blocks.push_back(b);
+  Result<void> r = fn();
+  if (ctx_.bus != nullptr) ctx_.bus->publish(BlockFinished{in_.run_id, b, r.has_value(), gas_->name, segment});
+  return r;
+}
+
+Result<void> MeasurementEngine::run_when(plan::When when) {
+  for (const auto s : plan::segments_at(*gas_, when))
+    if (auto r = block(block_of(s), static_cast<int>(s), [&] { return run_segment(s); }); !r) return r;
+  return {};
+}
+
+// One gas, in the spec 5.1 order: before_inlet, inlet open,
+// during_equilibration, inlet close / time zero, after_inlet (the whiff
+// already taken at the inlet's opening), after_main.
+Result<void> MeasurementEngine::run_gas() {
+  const auto& segs = gas_->segments;
+  const auto& main = segs[main_];
+  if (auto r = run_when(plan::When::BeforeInlet); !r) return r;
+  const auto position_first = [&] {
+    return enter_position(main, main.positions.front(), static_cast<int>(main_), 0);
+  };
+  if (auto r = block(Block::PositionFirstHop, -1, position_first); !r) return r;
+  const auto equilibrated = [&] {
+    log_.debug("equilibrate start: gas " + gas_->name);
+    const TimePoint began = ctx_.clock.now();
+    auto r = equilibrate();
+    std::array<char, 32> took{};
+    std::snprintf(took.data(), took.size(), "%.1f s", std::chrono::duration<double>(ctx_.clock.now() - began).count());
+    if (r) log_.debug("equilibrate end: gas " + gas_->name + " (" + took.data() + ")");
+    else log_error(log_, r.error(), "equilibrate gas " + gas_->name);
+    return r;
+  };
+  if (auto r = block(Block::Equilibrate, -1, equilibrated); !r) return r;
+  if (!stopping()) {
+    if (auto r = call_hook("before_main"); !r) return r;
+  }
+  for (const auto s : plan::segments_at(*gas_, plan::When::AfterInlet)) {
+    if (is_whiff(segs[s])) continue;  // taken as the inlet opened
+    if (s == main_) {
+      const auto run_main = [&] {
+        if (auto m = run_segment(main_); !m) return m;
+        return check_main_counts();
+      };
+      if (auto r = block(Block::Main, static_cast<int>(main_), run_main); !r) return r;
+      continue;
+    }
+    if (auto r = block(block_of(s), static_cast<int>(s), [&] { return run_segment(s); }); !r) return r;
+  }
+  if (!stopping()) {
+    if (auto r = call_hook("after_main"); !r) return r;
+  }
+  return run_when(plan::When::AfterMain);
+}
+
+Result<void> MeasurementEngine::prepare_gas() {
+  const auto& prep = *gas_->prepare;
+  trace(-1, -1, "prepare", gas_->name + " " + prep.script);
+  auto rep = ctx_.prepare->run(PrepareRequest{gas_->name, prep.script, prep.variables}, *token_);
+  if (!rep) {
+    if (token_->requested()) return {};  // cancelled or aborted: the outcome says so
+    Error e = rep.error();
+    e.what = "prepare for gas '" + gas_->name + "': " + e.what;
+    return fail(std::move(e));
+  }
+  result_.gases.push_back(GasOutcome{gas_->name, *rep, std::nullopt});
+  return {};
+}
+
+Result<void> MeasurementEngine::pump_out_gas() {
+  const auto& po = *gas_->pump_out;
+  trace(-1, -1, "pump_out", gas_->name + " " + po.valve + " " + plain(po.time_s));
+  // Closed whatever happened (an open that failed, a stop in the wait), as
+  // the inlet is.
+  const auto close = [&] { return critical("close " + po.valve, [&] { return ctx_.valves->close(po.valve); }); };
+  if (auto r = ctx_.valves->open(po.valve); !r) {
+    (void)close();  // an open whose answer was lost may have opened it
+    return r;
+  }
+  const bool waited = wait(po.time_s);
+  if (auto r = close(); !r) return r;
+  if (!waited) return {};  // stopped: not a pump-out done, the outcome says why
+  auto it = std::find_if(result_.gases.begin(), result_.gases.end(),
+                         [&](const GasOutcome& o) { return o.name == gas_->name; });
+  if (it == result_.gases.end()) it = result_.gases.insert(result_.gases.end(), GasOutcome{gas_->name, {}, {}});
+  it->pump_out = po;
+  return {};
+}
+
+Result<void> MeasurementEngine::run_segment(std::size_t segment) {
+  const auto& seg = gas_->segments[segment];
+  if (plan::is_step(seg.kind)) return run_step(segment);
+  const bool is_main = segment == main_;
+  {
+    std::lock_guard lock(cycles_mutex_);
+    segment_running_ = true;
+    cycle_ = 0;
+    cycles_override_.reset();
+  }
+  // The segment's cycles, or what a live edit made them; notes the cycle in progress.
+  const auto more = [&](int cycle) {
+    std::lock_guard lock(cycles_mutex_);
+    cycle_ = cycle;
+    return cycle < cycles_override_.value_or(seg.cycles);
+  };
+  const auto run_cycles = [&]() -> Result<void> {
+    for (int cycle = 0; more(cycle); ++cycle) {
+      for (std::size_t j = 0; j < seg.positions.size(); ++j) {
+        if (stopping()) return {};
+        if (auto due = inlet_due(); !due) return due;
+        const auto& pos = seg.positions[j];
+        // Main collects as planned; what runs after it scales by a truncation.
+        const int counts = is_main ? pos.counts : scaled(pos.counts);
+        auto r = run_position(*gas_, segment, j, pos, counts);
+        if (!r) return fail(r.error());
+        if (is_main && (*r == collect::CollectStatus::Truncated || main_cut_)) return {};
+      }
+    }
+    return {};
+  };
+  Result<void> r = run_cycles();
+  {
+    std::lock_guard lock(cycles_mutex_);
+    segment_running_ = false;
+    if (is_main) main_cycles_ = cycles_override_.value_or(seg.cycles);
+  }
+  if (!r) return r;  // cleanup restores what is left
+  // A deflection does not outlive its segment (legacy peak_hop_collector reset).
+  return restore_deflections(nullptr, static_cast<int>(segment), -1);
+}
+
+void MeasurementEngine::set_cycles(int cycles) {
+  std::lock_guard lock(cycles_mutex_);
+  if (!segment_running_) return;
+  cycles_override_ = std::max(cycles, cycle_ + 1);
+}
+
+Result<void> MeasurementEngine::run_step(std::size_t segment) {
+  const auto& seg = gas_->segments[segment];
+  if (seg.kind == plan::SegmentKind::PeakCenter && seg.peak_center)
+    return peak_center(*seg.peak_center, static_cast<int>(segment));
+  const int si = static_cast<int>(segment);
+  switch (seg.kind) {
+    case plan::SegmentKind::Set:
+      if (seg.set) return set_step(*seg.set, si);
+      return {};
+    case plan::SegmentKind::BlankBeam: {
+      const bool on = seg.blank_beam.value_or(true);
+      trace(si, -1, "step", std::string("blank_beam ") + (on ? "on" : "off"));
+      if (auto r = ctx_.spectrometer.blank_beam(on); !r) return r;
+      blanked_ = on;
+      return {};
+    }
+    case plan::SegmentKind::Park: {
+      if (!seg.park) return {};
+      const auto& park = *seg.park;
+      plan::At target = park.mass ? plan::At{plan::AtMass{*park.mass, park.detector}}
+                                  : plan::At{plan::AtLabel{park.label, park.detector}};
+      trace(si, -1, "step", "park " + describe(target));
+      if (position_ && *position_ == target) return {};
+      auto r = ctx_.spectrometer.position(target);
+      if (r) position_ = target;
+      else position_.reset();
+      return r;
+    }
+    case plan::SegmentKind::Delay: {
+      const double d = seg.delay_s.value_or(0);
+      trace(si, -1, "step", "delay " + plain(d));
+      wait(d);
+      return {};
+    }
+    case plan::SegmentKind::TimeZero: {
+      const auto tz = seg.time_zero.value_or(plan::TimeZero{plan::TimeZeroKind::Now, 0});
+      const double at = collector_.seconds(ctx_.clock.now()) + (tz.kind == plan::TimeZeroKind::Offset ? tz.offset_s : 0.0);
+      trace(si, -1, "step", "time_zero " + plain(at));
+      collector_.set_time_zero(gas_->name, at);
+      time_zero_by_step_ = true;  // the gas's policy does not set it again
+      return {};
+    }
+    default: break;
+  }
+  return fail(ErrorKind::Config, std::string(plan::to_string(seg.kind)) + " step: not run by this build yet");
+}
+
+Result<void> MeasurementEngine::set_standing_deflection(const std::string& det, double value, int segment) {
+  double original = 0;
+  if (const auto it = standing_.find(det); it != standing_.end()) {
+    original = it->second.original;
+  } else if (auto now = ctx_.spectrometer.deflection(det)) {
+    original = *now;
+  } else {
+    return fail(now.error());
+  }
+  standing_[det] = Deflected{value, original};  // before the call: a failed set is still restored
+  auto r = ctx_.spectrometer.set_deflection(det, value);
+  if (!r) return fail(r.error());
+  trace(segment, -1, "deflect", det + "=" + plain(*r));
+  settle_due_ = true;
+  return {};
+}
+
+// Each sub-key one port call, in this order: deflection (by detector),
+// gain, source, hv, cdd_voltage, integration_s. A deflection stands until
+// the run ends (a position's own deflection of that detector goes back to
+// it); integration_s holds for the gas's later collections whose position
+// does not set its own.
+Result<void> MeasurementEngine::set_step(const plan::SetStep& set, int segment) {
+  trace(segment, -1, "step", "set");
+  for (const auto& [det, value] : set.deflection)
+    if (auto r = set_standing_deflection(det, value, segment); !r) return r;
+  for (const auto& [det, gain] : set.gain) {
+    trace(segment, -1, "gain", det + "=" + plain(gain));
+    if (auto r = ctx_.spectrometer.set_gain(det, gain); !r) return r;
+  }
+  for (const auto& [name, value] : set.source) {
+    trace(segment, -1, "source", name + "=" + plain(value));
+    if (auto r = ctx_.spectrometer.set_param(name, value); !r) return r;
+    settle_due_ = true;
+  }
+  if (set.hv) {
+    trace(segment, -1, "hv", plain(*set.hv));
+    if (auto r = ctx_.spectrometer.set_hv(*set.hv); !r) return r;
+    position_.reset();  // HV moves every mass
+  }
+  if (set.cdd_voltage) {
+    trace(segment, -1, "cdd_voltage", plain(*set.cdd_voltage));
+    if (auto r = ctx_.spectrometer.set_cdd_voltage(*set.cdd_voltage); !r) return r;
+  }
+  if (set.integration_s) {
+    trace(segment, -1, "integration", plain(*set.integration_s));
+    step_integration_ = *set.integration_s;
+  }
+  return {};
+}
+
+Result<void> MeasurementEngine::peak_center(const plan::PeakCenterStep& step, int segment) {
   const auto& p = in_.plan;
-  PeakCenterRequest req{p.peak_center.isotope,
-                        p.peak_center.detector.empty() ? p.detectors.reference : p.peak_center.detector,
-                        p.peak_center.config};
+  std::vector<std::string> detectors = step.detectors;
+  if (detectors.empty()) detectors.push_back(p.detectors.reference);
+  // With several detectors the job runs once on each, in order (worked plan
+  // 7.3), and each run has its own trace entry naming its detector.
+  for (const auto& det : detectors) {
+    if (stopping()) return {};
+    trace(segment, -1, "step", "peak_center " + step.label + "@" + det);
+    PeakCenterRequest req;
+    req.isotope = step.label;
+    req.detector = det;
+    req.config = step.config;
+    req.extra_detectors = step.extra_detectors;
+    req.write_table = step.write_table;
+    if (auto r = peak_center_on(std::move(req), step.min_signal); !r) return r;
+  }
+  return {};
+}
+
+Result<void> MeasurementEngine::peak_center_on(PeakCenterRequest req, double min_signal) {
+  const Block block = block_;
+  const std::string target = req.isotope + "@" + req.detector;
+  // A small peak (after a blank) still fits, and its centre would go into the
+  // field table. Only signal readings say how much signal there is: with
+  // none (before the gas is in) the step runs.
+  if (min_signal > 0) {
+    const auto series = collector_.series_of(req.isotope + "@" + req.detector, collect::kSignal);
+    if (series && !series->v.empty()) {
+      const auto n = std::min(series->v.size(), plan::kPeakCenterSignalReadings);
+      const double mean = std::accumulate(series->v.end() - static_cast<std::ptrdiff_t>(n), series->v.end(), 0.0) /
+                          static_cast<double>(n);
+      if (mean < min_signal) {
+        PeakCenterReport skipped;
+        skipped.request = std::move(req);
+        skipped.skipped = true;
+        skipped.message = "signal " + plain(mean) + " below min_signal " + plain(min_signal);
+        skipped.finished = ctx_.clock.now();
+        publish_log(LogLevel::Info, std::string(to_string(block)) + " skipped: " + skipped.message);
+        result_.peak_centers.push_back(std::move(skipped));
+        return {};
+      }
+    }
+  }
+  log_.debug("peak center start: " + target + " (" + req.config + ")");
   auto rep = ctx_.peak_center->peak_center(req, *token_);
   position_.reset();  // the job leaves the magnet wherever it ended
   if (!rep) {
     if (token_->requested()) return {};
+    log_error(log_, rep.error(), "peak center " + target);
     return fail(rep.error());
   }
-  if (!rep->ok)
+  if (rep->ok && rep->center) log_.debug("peak center done: " + target + ": center " + plain(*rep->center));
+  else if (rep->ok) log_.debug("peak center done: " + target);
+  if (!rep->ok) {
     publish_log(LogLevel::Warn, std::string(to_string(block)) + " failed: " + rep->message + "; continuing");
+    // The IC data is still worth having (legacy generate_ic_mftable): what
+    // names the table runs on the current one, and the run says so.
+    if (!req.write_table.empty() && unwritten_tables_.insert(req.write_table).second)
+      result_.notes.push_back("table " + req.write_table + " not written: " + rep->message);
+  }
   rep->finished = ctx_.clock.now();
   result_.peak_centers.push_back(*rep);
   return {};
 }
 
-std::vector<collect::Channel> MeasurementEngine::baseline_channels() const {
-  std::vector<collect::Channel> out;
-  for (const auto& hop : in_.plan.main.hops) {
-    for (const auto& a : plan::active_detectors(in_.plan, hop)) {
-      auto same = [&](const collect::Channel& c) { return c.detector == a.detector; };
-      if (std::none_of(out.begin(), out.end(), same)) out.push_back({"", a.detector});
-    }
-  }
-  return out;
-}
-
-Result<void> MeasurementEngine::baseline(Block block) {
-  const auto& b = in_.plan.baseline;
-  if (auto r = move_to(plan::baseline_target(in_.plan), b.settle_s, {}); !r) return r;
-  const int counts = block == Block::BaselineAfter ? scaled(b.counts) : b.counts;
-  auto r = collect(block, {collect::SeriesKind::Baseline, counts, baseline_channels(), std::string(to_string(block))},
-                   b.integration_s, {});
-  if (!r) return fail(r.error());
-  return {};
-}
-
 Result<void> MeasurementEngine::equilibrate() {
-  const auto& p = in_.plan;
-  const auto& eq = p.equilibration;
+  const auto& segs = gas_->segments;
+  const auto& eq = gas_->equilibration;
   const auto now_s = [&] { return collector_.seconds(ctx_.clock.now()); };
+  const auto sniff_at = std::find_if(segs.begin(), segs.end(), is_sniff);
+  const plan::Segment* sniff = sniff_at == segs.end() ? nullptr : &*sniff_at;
+  const auto whiff_at = std::find_if(segs.begin(), segs.end(), is_whiff);
+  // The phase's other segments (a baseline while the gas equilibrates),
+  // run once the inlet is open; the inlet closes on time between and during
+  // their readings.
+  std::vector<std::size_t> during;
+  for (const auto i : plan::segments_at(*gas_, plan::When::DuringEquilibration))
+    if (!is_sniff(segs[i])) during.push_back(i);
 
   if (!eq.outlet.empty()) {
     if (auto r = ctx_.valves->close(eq.outlet); !r) return r;
@@ -288,8 +796,9 @@ Result<void> MeasurementEngine::equilibrate() {
 
   bool sniffing = false;
   int sniffed = 0;
-  const auto sniff_integration = seconds_to(p.sniff.integration_s);
-  const auto timeout = std::chrono::duration_cast<pychron::Duration>(sniff_integration * options_.timeout_factor) +
+  const int sniff_counts = sniff != nullptr ? sniff->positions.front().counts : 0;
+  const auto sniff_integration = seconds_to(sniff != nullptr ? sniff->integration_s : 1);
+  const auto timeout = std::chrono::duration_cast<nobion::Duration>(sniff_integration * options_.timeout_factor) +
                        options_.timeout_slack;
   auto stop_sniff = [&] {
     if (!sniffing) return;
@@ -300,19 +809,32 @@ Result<void> MeasurementEngine::equilibrate() {
     acquiring_ = false;
   };
   auto start_sniff = [&]() -> Result<void> {
-    if (!p.sniff.enabled || p.sniff.counts <= 0) return {};
-    auto channels = channels_of(p, p.main.hops.front());
+    if (sniff == nullptr || sniff_counts <= 0) return {};
+    auto channels = channels_of(sniff->positions.front());
     last_channels_ = channels;
-    if (auto r = ctx_.spectrometer.start_acquisition(sniff_integration); !r) return r;
+    if (auto r = start_acquisition(sniff_integration); !r) {
+      if (!is_transient(r.error().kind)) return r;
+      publish_log(LogLevel::Warn, "sniff not started: " + r.error().what);  // the equilibration goes on
+      return {};
+    }
     acquiring_ = true;
-    collector_.begin({collect::SeriesKind::Sniff, p.sniff.counts, std::move(channels), "sniff"},
-                     [this](int, double) { return sniff_reading(); });
+    last_reading_ = ctx_.clock.now();
+    trace(static_cast<int>(sniff_at - segs.begin()), 0, "collect", std::to_string(sniff_counts));
+    collect::CollectionSpec spec;
+    spec.kind = std::string(collect::kSniff);
+    spec.counts = sniff_counts;
+    spec.channels = std::move(channels);
+    spec.label = collection_label(static_cast<std::size_t>(sniff_at - segs.begin()), Block::Equilibrate);
+    spec.gas = gas_->name;
+    spec.segment = static_cast<int>(sniff_at - segs.begin());
+    collector_.begin(std::move(spec), [this](int, double) { return sniff_reading(); });
     collecting_ = true;
     sniffing = true;
     return {};
   };
-  // With a whiff, sniffing starts once the whiff has decided.
-  if (!p.whiff.enabled) {
+  // With a whiff, sniffing starts once the whiff has decided; with other
+  // segments in the phase, once they are done.
+  if (whiff_at == segs.end() && during.empty()) {
     if (auto r = start_sniff(); !r) return r;
   }
 
@@ -322,6 +844,15 @@ Result<void> MeasurementEngine::equilibrate() {
   while (!stopping()) {
     const double now = now_s();
     if (!close_at && now >= open_at) {
+      // The source held dark while the gas is let in, on at time zero (spec 3.4).
+      if (gas_->source_dark_phase && !dark_) {
+        if (auto r = ctx_.spectrometer.set_source_output(false); !r) {
+          out = r;
+          break;
+        }
+        dark_ = true;
+        trace(-1, -1, "source", "off");
+      }
       if (!eq.inlet.empty()) {
         if (auto r = ctx_.valves->open(eq.inlet); !r) {
           out = r;
@@ -331,70 +862,87 @@ Result<void> MeasurementEngine::equilibrate() {
       }
       collector_.set_inlet_open(now);
       close_at = now + eq.time_s;
-      if (p.main.time_zero.kind == plan::TimeZeroKind::Offset) collector_.set_time_zero(now + p.main.time_zero.offset_s);
-      if (p.whiff.enabled) {
-        if (auto r = whiff(); !r) {
-          out = r;
-          break;
+      if (time_zero_.kind == plan::TimeZeroKind::Offset && !time_zero_by_step_)
+        collector_.set_time_zero(gas_->name, now + time_zero_.offset_s);
+      if (whiff_at != segs.end() || !during.empty()) {
+        if (whiff_at != segs.end()) {
+          if (auto r = whiff(static_cast<std::size_t>(whiff_at - segs.begin())); !r) {
+            out = r;
+            break;
+          }
+          if (stopping()) break;
         }
-        if (stopping()) break;
+        close_inlet_at_ = close_at;
+        for (const auto i : during) {
+          out = block(block_of(i), static_cast<int>(i), [&] { return run_segment(i); });
+          if (!out || stopping()) break;
+        }
+        block_ = Block::Equilibrate;
+        close_inlet_at_.reset();
+        if (!out || stopping() || inlet_done_) break;
         if (auto r = start_sniff(); !r) {
           out = r;
           break;
         }
-        continue;  // the whiff took time: re-read the clock
+        continue;  // that took time: re-read the clock
       }
     }
     if (close_at && (now >= *close_at || close_inlet_now_)) {
-      if (eq.close_inlet) {
-        if (!eq.inlet.empty()) {
-          if (auto r = ctx_.valves->close(eq.inlet); !r) {
-            out = r;
-            break;
-          }
-          inlet_open_ = false;
-        }
-        collector_.set_inlet_close(now);
-        if (ctx_.bus != nullptr) ctx_.bus->publish(OverlapReady{in_.run_id});
-        if (options_.on_inlet_closed) options_.on_inlet_closed();
-      }
-      if (p.main.time_zero.kind == plan::TimeZeroKind::OnInletClose) collector_.set_time_zero(now);
+      out = finish_inlet(now);
       break;
     }
     if (sniffing) {
       auto r = ctx_.spectrometer.next_reading(timeout);
-      if (!r) {
+      if (!r && !is_transient(r.error().kind)) {
         out = fail(r.error());
         break;
       }
-      if (!*r) {
-        out = fail(ErrorKind::Timeout, "sniff: no reading within the timeout");
-        break;
+      std::optional<spectrometer::Reading> reading;
+      if (r && *r) {
+        reading = std::move(**r);
+      } else {
+        // A silence: waited out up to the inlet's next move, which is made on time.
+        if (!r) silence_error_ = r.error().what;
+        const TimePoint cap = started_ + seconds_to(close_at ? *close_at : open_at);
+        auto w = wait_out_gap(Block::Equilibrate, sniff_integration, timeout, cap);
+        if (!w) {
+          out = fail(w.error());
+          break;
+        }
+        if (w->end == GapEnd::Cap) continue;
+        if (w->end == GapEnd::NotResumed) {
+          stop_sniff();
+          continue;
+        }
+        reading = std::move(w->reading);
       }
-      const auto status = collector_.add(**r);
+      last_reading_ = ctx_.clock.now();
+      note_beams(collect::kSniff, *reading);
+      const auto status = collector_.add(*reading);
       ++sniffed;
-      if (ctx_.bus != nullptr) ctx_.bus->publish(CountsProgress{in_.run_id, Block::Equilibrate, sniffed, p.sniff.counts});
+      if (ctx_.bus != nullptr) ctx_.bus->publish(CountsProgress{in_.run_id, Block::Equilibrate, sniffed, sniff_counts});
       if (status != collect::CollectStatus::Running) stop_sniff();
     } else if (!wait((close_at ? *close_at : open_at) - now)) {
       break;
     }
   }
   stop_sniff();
+  if (gap_from_) close_gap(Block::Equilibrate, ctx_.clock.now(), false);  // silent until the inlet closed
   return out;
 }
 
-Result<void> MeasurementEngine::whiff() {
-  const auto& p = in_.plan;
+Result<void> MeasurementEngine::whiff(std::size_t segment) {
+  const auto& seg = gas_->segments[segment];
+  const auto& pos = seg.positions.front();
   Whiff w;
-  w.sniff = p.whiff.counts;
-  for (const auto& c : p.whiff.checks) {
+  w.sniff = pos.counts;
+  for (const auto& c : seg.checks) {
     auto expr = parse_expression(c.check);
     auto action = parse_whiff_action(c.action);
     if (!expr || !action) return fail(ErrorKind::Config, "whiff check '" + c.check + "' is invalid");
     w.checks.push_back({c.check, std::shared_ptr<const Expr>(std::move(*expr)), *action});
   }
-  auto r = collect(Block::Equilibrate, {collect::SeriesKind::Whiff, p.whiff.counts, channels_of(p, p.main.hops.front()), "whiff"},
-                   p.whiff.integration_s, {});
+  auto r = run_position(*gas_, segment, 0, pos, pos.counts);
   if (!r) return fail(r.error());
   if (stopping()) return {};
   const auto action = evaluate_whiff(w, collector_.metrics(), in_.variables).value_or(WhiffCheck::Action::RunRemainder);
@@ -404,11 +952,8 @@ Result<void> MeasurementEngine::whiff() {
   switch (action) {
     case WhiffCheck::Action::RunRemainder: break;
     case WhiffCheck::Action::Pump: {
-      const auto& eq = p.equilibration;
-      if (!eq.inlet.empty()) {
-        if (auto c = ctx_.valves->close(eq.inlet); !c) return c;
-        inlet_open_ = false;
-      }
+      const auto& eq = gas_->equilibration;
+      if (auto c = close_inlet(); !c) return c;
       if (!eq.outlet.empty()) {
         if (auto o = ctx_.valves->open(eq.outlet); !o) return o;
       }
@@ -416,27 +961,6 @@ Result<void> MeasurementEngine::whiff() {
       break;
     }
     case WhiffCheck::Action::Abort: stop_ = Stop::Abort; break;
-  }
-  return {};
-}
-
-Result<void> MeasurementEngine::main() {
-  const auto& p = in_.plan;
-  for (int cycle = 0; cycle < p.main.cycles; ++cycle) {
-    for (const auto& hop : p.main.hops) {
-      if (stopping()) return {};
-      if (auto r = move_to(plan::hop_target(p, hop), hop.settle_s, hop.protect); !r) return r;
-      auto channels = channels_of(p, hop);
-      last_channels_ = channels;
-      collect::ReadingHook hook;
-      if (!hop.baseline) hook = [this](int count, double t) { return main_reading(count, t); };
-      auto r = collect(Block::Main,
-                       {hop.baseline ? collect::SeriesKind::Baseline : collect::SeriesKind::Signal, hop.counts,
-                        std::move(channels), "main"},
-                       p.main.integration_s, std::move(hook));
-      if (!r) return fail(r.error());
-      if (*r == collect::CollectStatus::Truncated) return {};
-    }
   }
   return {};
 }
@@ -449,24 +973,235 @@ Result<void> MeasurementEngine::call_hook(std::string_view entry, const scriptin
   return r;
 }
 
-Result<void> MeasurementEngine::move_to(const std::optional<plan::HopTarget>& target, double settle_s,
-                                        const std::vector<std::string>& protect) {
+Result<collect::CollectStatus> MeasurementEngine::run_position(const plan::Gas& gas, std::size_t segment,
+                                                               std::size_t position, const plan::Position& pos,
+                                                               int counts) {
+  const auto& seg = gas.segments[segment];
+  const int si = static_cast<int>(segment);
+  const int pi = static_cast<int>(position);
+  // A sniff or whiff reads where the magnet is (as the plan's duration counts it).
+  const bool in_place = seg.kind == plan::SegmentKind::Sniff || seg.kind == plan::SegmentKind::Whiff;
+  if (!in_place) {
+    if (auto r = enter_position(seg, pos, si, pi); !r) return fail(r.error());
+  }
+
+  std::string_view kind = collect::kSignal;
+  switch (seg.kind) {
+    case plan::SegmentKind::Baseline: kind = collect::kBaseline; break;
+    case plan::SegmentKind::Sniff: kind = collect::kSniff; break;
+    case plan::SegmentKind::Whiff: kind = collect::kWhiff; break;
+    default:
+      if (pos.kind == plan::PositionKind::Baseline) kind = collect::kBaseline;
+      break;
+  }
+  auto channels = seg.kind == plan::SegmentKind::Baseline ? baseline_channels(pos) : channels_of(pos);
+  collect::ReadingHook hook;
+  if (seg.kind == plan::SegmentKind::Signal) {
+    last_channels_ = channels;
+    if (kind == collect::kSignal) hook = [this](int count, double t) { return main_reading(count, t); };
+  }
+  const double integration_s = pos.integration_s.value_or(step_integration_.value_or(seg.integration_s));
+  if (counts > 0) {
+    // Acquisition starts again for every collection; a new integration is traced.
+    if (integration_ && *integration_ != seconds_to(integration_s)) trace(si, pi, "integration", plain(integration_s));
+    trace(si, pi, "collect", std::to_string(counts));
+  }
+  // The state it is read in, once a place.
+  if (counts > 0) {
+    PositionState state;
+    for (const auto& [det, d] : standing_) state.deflections[det] = d.wanted;
+    for (const auto& [det, d] : deflected_) state.deflections[det] = d.wanted;
+    state.integration_s = integration_s;
+    state.optics = optics_;
+    state.table = table_;
+    result_.states.try_emplace(Place{gas.name, si, pi}, std::move(state));
+  }
+  collect::CollectionSpec spec;
+  spec.kind = std::string(kind);
+  spec.counts = counts;
+  spec.channels = std::move(channels);
+  spec.label = collection_label(segment, block_);
+  spec.gas = gas.name;
+  spec.segment = si;
+  spec.position = pi;
+  auto status = collect(block_, std::move(spec), integration_s, std::move(hook));
+  if (!status || in_place) return status;
+  // What this position deflected and the next one (cyclically) does not set goes back.
+  const auto& next = seg.positions[(position + 1) % seg.positions.size()];
+  if (auto r = restore_deflections(&next, si, pi); !r) return fail(r.error());
+  return status;
+}
+
+Result<void> MeasurementEngine::enter_position(const plan::Segment& seg, const plan::Position& pos, int segment,
+                                               int position) {
+  const auto target = plan::position_target(in_.plan, pos, ctx_.reference);
+  const std::string& named = pos.table.empty() ? seg.table : pos.table;
+  // A table a failed peak center did not write: the current one.
+  const std::string table = unwritten_tables_.contains(named) ? std::string() : named;
+  std::map<std::string, double> wanted;
+  for (const auto& e : pos.collect)
+    if (e.deflection) wanted[e.detector] = *e.deflection;
+  std::map<std::string, double> current;
+  for (const auto& [det, d] : deflected_) current[det] = d.wanted;
+  const bool optics_same = pos.optics.empty() || pos.optics == optics_;
+  const bool there = !target || (position_ && *position_ == *target);
+  const Settle settle = settle_for(pos);
+  note_modes(pos);
+  if (there && optics_same && table == table_ && wanted == current && !settle_due_ && !settle.mode_change) return {};
+
+  // Another table or other optics put a label elsewhere: the move is made again.
+  if (table != table_) {
+    position_.reset();
+    auto r = ctx_.spectrometer.with_table(table);
+    trace(segment, position, "table", table.empty() ? "(current)" : table);
+    if (!r) return r;
+    table_ = table;
+  }
+  if (!optics_same) {
+    position_.reset();
+    auto r = ctx_.spectrometer.apply_optics(pos.optics);
+    trace(segment, position, "optics", pos.optics);
+    if (!r) return r;
+    optics_ = pos.optics;
+  }
+
+  std::vector<std::string> protect;
+  for (const auto& e : pos.collect)
+    if (e.protect) protect.push_back(e.detector);
+  for (const auto& d : protect) {
+    if (auto r = ctx_.spectrometer.protect(d, true); !r) return r;
+    protected_.insert(d);
+    trace(segment, position, "protect", d + " on");
+  }
+  Result<void> r;
+  for (const auto& e : pos.collect) {
+    if (!e.deflection) continue;
+    const auto it = deflected_.find(e.detector);
+    if (it != deflected_.end() && it->second.wanted == *e.deflection) continue;
+    double original = 0;
+    if (it != deflected_.end()) {
+      original = it->second.original;
+    } else if (auto now = ctx_.spectrometer.deflection(e.detector)) {
+      original = *now;
+    } else {
+      r = fail(now.error());
+      break;
+    }
+    // Recorded before the call, so that a failed set is still restored.
+    deflected_[e.detector] = Deflected{*e.deflection, original};
+    auto set = ctx_.spectrometer.set_deflection(e.detector, *e.deflection);
+    if (!set) {
+      r = fail(set.error());
+      break;
+    }
+    trace(segment, position, "deflect", e.detector + "=" + plain(*set));
+  }
+  if (r && target && !(position_ && *position_ == *target)) {
+    r = ctx_.spectrometer.position(*target);
+    trace(segment, position, "move", describe(*target));
+    if (r) position_ = *target;
+    else position_.reset();
+  }
+  if (r) {
+    settle_due_ = false;
+    trace(segment, position, "settle", plain(settle.s));
+    wait(settle.s);
+  }
+  for (const auto& d : protect) {
+    auto u = critical("unprotect " + d, [&] { return ctx_.spectrometer.protect(d, false); });
+    if (u) {
+      protected_.erase(d);
+      trace(segment, position, "protect", d + " off");
+    }
+    if (!u && r) r = u;
+  }
+  return r;
+}
+
+MeasurementEngine::Settle MeasurementEngine::settle_for(const plan::Position& pos) const {
+  Settle out{pos.settle_s, false};
+  const auto timing = [&](const std::string& det) -> const DetectorTiming* {
+    const auto it = ctx_.timing.find(det);
+    return it == ctx_.timing.end() ? nullptr : &it->second;
+  };
+  for (const auto& e : pos.collect) {
+    const auto* t = timing(e.detector);
+    if (t != nullptr && large_beam_.contains(e.detector)) out.s = std::max(out.s, t->settle_after_large_beam_s);
+    const std::string& collector = t != nullptr && !t->collector.empty() ? t->collector : e.detector;
+    const auto mode = modes_.find(collector);
+    if (mode == modes_.end() || mode->second == e.detector) continue;
+    // Either mode's switch time: going into CDD and coming back out both wait.
+    out.mode_change = true;
+    const auto* before = timing(mode->second);
+    out.s = std::max({out.s, t != nullptr ? t->mode_switch_s : 0.0, before != nullptr ? before->mode_switch_s : 0.0});
+  }
+  return out;
+}
+
+void MeasurementEngine::note_modes(const plan::Position& pos) {
+  for (const auto& e : pos.collect) {
+    const auto it = ctx_.timing.find(e.detector);
+    const bool own = it == ctx_.timing.end() || it->second.collector.empty();
+    modes_[own ? e.detector : it->second.collector] = e.detector;
+  }
+}
+
+void MeasurementEngine::note_beams(std::string_view kind, const spectrometer::Reading& reading) {
+  if (kind == collect::kBaseline) return;  // owner, 2026-10-15: a baseline does not clear it
+  for (const auto& [det, value] : reading.values) {
+    const auto it = ctx_.timing.find(det);
+    if (it == ctx_.timing.end() || !it->second.large_beam_threshold || !value) continue;
+    if (value->mean > *it->second.large_beam_threshold) large_beam_.insert(det);
+    else large_beam_.erase(det);
+  }
+}
+
+Result<void> MeasurementEngine::restore_deflections(const plan::Position* keep, int segment, int position) {
+  Result<void> out;
+  for (auto it = deflected_.begin(); it != deflected_.end();) {
+    const auto& det = it->first;
+    const auto sets = [&](const plan::CollectEntry& e) { return e.detector == det && e.deflection; };
+    if (keep != nullptr && std::any_of(keep->collect.begin(), keep->collect.end(), sets)) {
+      ++it;
+      continue;
+    }
+    auto r = ctx_.spectrometer.set_deflection(det, it->second.original);
+    if (!r) {
+      if (out) out = fail(r.error());
+      ++it;
+      continue;
+    }
+    trace(segment, position, "deflect", det + "=" + plain(*r));
+    settle_due_ = true;  // the beam moved on that detector
+    it = deflected_.erase(it);
+  }
+  return out;
+}
+
+Result<void> MeasurementEngine::position_magnet(const std::optional<plan::At>& target, double settle_s,
+                                                const std::vector<std::string>& protect, int segment, int position) {
   if (!target) return {};  // collect wherever the magnet is
   if (position_ && *position_ == *target) return {};
   for (const auto& d : protect) {
     if (auto r = ctx_.spectrometer.protect(d, true); !r) return r;
     protected_.insert(d);
+    trace(segment, position, "protect", d + " on");
   }
   Result<void> r = ctx_.spectrometer.position(*target);
+  trace(segment, position, "move", describe(*target));
   if (r) {
     position_ = *target;
+    trace(segment, position, "settle", plain(settle_s));
     wait(settle_s);
   } else {
     position_.reset();
   }
   for (const auto& d : protect) {
-    auto u = ctx_.spectrometer.protect(d, false);
-    if (u) protected_.erase(d);
+    auto u = critical("unprotect " + d, [&] { return ctx_.spectrometer.protect(d, false); });
+    if (u) {
+      protected_.erase(d);
+      trace(segment, position, "protect", d + " off");
+    }
     if (!u && r) r = u;
   }
   return r;
@@ -477,13 +1212,28 @@ Result<collect::CollectStatus> MeasurementEngine::collect(Block block, collect::
   if (spec.counts <= 0) return collect::CollectStatus::Complete;
   const auto integration = seconds_to(integration_s);
   const auto timeout =
-      std::chrono::duration_cast<pychron::Duration>(integration * options_.timeout_factor) + options_.timeout_slack;
-  if (auto r = ctx_.spectrometer.start_acquisition(integration); !r) return fail(r.error());
+      std::chrono::duration_cast<nobion::Duration>(integration * options_.timeout_factor) + options_.timeout_slack;
+  if (auto r = start_acquisition(integration); !r) {
+    if (!is_transient(r.error().kind)) return fail(r.error());
+    // Not started, and not again (spec 4.4): the collection ends without data.
+    silence_error_ = r.error().what;
+    gap_from_ = ctx_.clock.now();
+    close_gap(block, ctx_.clock.now(), false);
+    if (block == Block::Main) main_cut_ = true;
+    return collect::CollectStatus::Complete;
+  }
   acquiring_ = true;
+  // A collection's planned end: after a gap it ends then, not at its count,
+  // so that its end and time zero do not move (spec 4.4).
+  const TimePoint planned_end = ctx_.clock.now() + integration * spec.counts;
+  const auto kind = spec.kind;
+  last_reading_ = ctx_.clock.now();
   collector_.begin(std::move(spec), std::move(hook));
   collecting_ = true;
 
   std::optional<Error> error;
+  bool had_gap = false;
+  bool ended_by_gap = false;
   auto status = collect::CollectStatus::Running;
   while (status == collect::CollectStatus::Running && !stopping()) {
     {
@@ -491,17 +1241,43 @@ Result<collect::CollectStatus> MeasurementEngine::collect(Block block, collect::
       if (truncate_request_ && block != Block::Equilibrate) collector_.truncate();
     }
     auto r = ctx_.spectrometer.next_reading(timeout);
-    if (!r) {
+    if (!r && !is_transient(r.error().kind)) {
       error = r.error();
       break;
     }
-    if (!*r) {
-      error = Error{ErrorKind::Timeout, std::string(to_string(block)) + ": no reading within the timeout", {}};
-      break;
+    std::optional<spectrometer::Reading> reading;
+    if (r && *r) {
+      reading = std::move(**r);
+    } else {
+      if (!r) silence_error_ = r.error().what;
+      auto w = wait_out_gap(block, integration, timeout, planned_end);
+      if (!w) {
+        error = w.error();
+        break;
+      }
+      if (block == Block::Main) main_gap_ = true;
+      if (w->end != GapEnd::Resumed) {
+        if (gap_from_) close_gap(block, ctx_.clock.now(), false);
+        if (w->end == GapEnd::NotResumed && block == Block::Main) main_cut_ = true;
+        ended_by_gap = !stopping();
+        break;
+      }
+      reading = std::move(w->reading);
+      had_gap = true;
     }
-    status = collector_.add(**r);
+    last_reading_ = ctx_.clock.now();
+    note_beams(kind, *reading);
+    status = collector_.add(*reading);
     if (ctx_.bus != nullptr)
       ctx_.bus->publish(CountsProgress{in_.run_id, block, collector_.count(), collector_.target()});
+    if (auto due = inlet_due(); !due) {
+      error = due.error();
+      break;
+    }
+    if (had_gap && status == collect::CollectStatus::Running && ctx_.clock.now() >= planned_end) {
+      ended_by_gap = true;
+      break;
+    }
   }
   collecting_ = false;
   collector_.finish();
@@ -521,14 +1297,186 @@ Result<collect::CollectStatus> MeasurementEngine::collect(Block block, collect::
     }
     if (block == Block::Main) break_main_ = false;  // a non-resuming action ended main
   }
+  if (ended_by_gap && status == collect::CollectStatus::Running) status = collect::CollectStatus::Complete;
   return status;
+}
+
+std::string describe(const MeasurementGap& gap) {
+  std::array<char, 160> text{};
+  std::snprintf(text.data(), text.size(), "%s: no readings from %.1f s to %.1f s; %s",
+                std::string(to_string(gap.block)).c_str(), gap.from, gap.to,
+                gap.resumed ? "they resumed" : "they did not resume");
+  return text.data();
+}
+
+Result<MeasurementEngine::GapWait> MeasurementEngine::wait_out_gap(Block block, nobion::Duration integration,
+                                                                 nobion::Duration timeout, TimePoint cap) {
+  const auto& clock = ctx_.clock;
+  if (!gap_from_) {
+    gap_from_ = last_reading_;
+    publish_log(LogLevel::Warn, std::string(to_string(block)) + ": no readings; waiting for them" +
+                                    (silence_error_.empty() ? "" : " (" + silence_error_ + ")"));
+  }
+  const TimePoint max_end = *gap_from_ + options_.max_gap;
+  const TimePoint deadline = std::min(max_end, cap);
+  // Nothing else is done while waiting: no valve, no detector, no safe state.
+  while (!stopping()) {
+    const TimePoint now = clock.now();
+    if (now >= deadline) break;
+    const auto left = std::chrono::duration_cast<nobion::Duration>(deadline - now);
+    auto r = ctx_.spectrometer.next_reading(std::min(timeout, left));
+    if (r && *r) {
+      close_gap(block, (*r)->ts, true);
+      return GapWait{GapEnd::Resumed, std::move(**r)};
+    }
+    if (!r) {
+      if (!is_transient(r.error().kind)) {
+        close_gap(block, clock.now(), false);
+        return fail(r.error());
+      }
+      silence_error_ = r.error().what;
+    }
+    // A port that answered sooner than an integration (its link is down) is
+    // asked again after one, so the wait is on the clock, not a spin.
+    const nobion::Duration step = integration > nobion::Duration::zero() ? integration : std::chrono::seconds(1);
+    const auto pause = std::min(step, left) - (clock.now() - now);
+    if (pause > nobion::Duration::zero() && !wait(std::chrono::duration<double>(pause).count())) break;
+  }
+  if (stopping() || clock.now() < max_end) return GapWait{GapEnd::Cap, std::nullopt};
+  // max_gap has passed: the acquisition is started again once, if the link is back.
+  publish_log(LogLevel::Warn, std::string(to_string(block)) + ": no readings for " +
+                                  std::to_string(std::chrono::duration_cast<std::chrono::seconds>(options_.max_gap).count()) +
+                                  " s; starting the acquisition again");
+  ctx_.spectrometer.stop_acquisition();
+  if (auto s = start_acquisition(integration); s) {
+    // No further than the cap: the planned end, or the inlet's next move.
+    const auto left = std::chrono::duration_cast<nobion::Duration>(cap - clock.now());
+    if (left > nobion::Duration::zero()) {
+      auto r = ctx_.spectrometer.next_reading(std::min(timeout, left));
+      if (r && *r) {
+        close_gap(block, (*r)->ts, true);
+        return GapWait{GapEnd::Resumed, std::move(**r)};
+      }
+      if (!r) silence_error_ = r.error().what;
+    }
+  } else {
+    silence_error_ = s.error().what;
+  }
+  close_gap(block, clock.now(), false);
+  return GapWait{GapEnd::NotResumed, std::nullopt};
+}
+
+void MeasurementEngine::close_gap(Block block, TimePoint to, bool resumed) {
+  if (!gap_from_) return;
+  MeasurementGap gap{in_.run_id, block, collector_.seconds(*gap_from_), collector_.seconds(to), resumed,
+                     ctx_.clock.now()};
+  gap_from_.reset();
+  publish_log(resumed ? LogLevel::Info : LogLevel::Warn, describe(gap));
+  if (resumed) collector_.mark_gap(gap.to);  // windowed conditionals start again here
+  result_.gaps.push_back(gap);
+  if (ctx_.bus != nullptr) ctx_.bus->publish(gap);
+}
+
+Result<void> MeasurementEngine::start_acquisition(nobion::Duration integration) {
+  auto r = ctx_.spectrometer.start_acquisition(integration);
+  if (!r && r.error().code == kOutcomeUnknown) {
+    // It may or may not have started (spec 4.4): stopped and started again, once.
+    publish_log(LogLevel::Warn, "acquisition start of unknown outcome: starting it again (" + r.error().what + ")");
+    ctx_.spectrometer.stop_acquisition();
+    r = ctx_.spectrometer.start_acquisition(integration);
+    if (!r) ctx_.spectrometer.stop_acquisition();  // it may have started after all
+  }
+  if (r) integration_ = integration;
+  return r;
+}
+
+Result<void> MeasurementEngine::critical(const std::string& what, const std::function<Result<void>()>& op) {
+  const KeepTrying how{ctx_.clock,
+                       ctx_.bus,
+                       "measurement",
+                       [this](nobion::Duration d) { return wait(std::chrono::duration<double>(d).count()); },
+                       [this](const std::string& message) { publish_log(LogLevel::Warn, message); },
+                       options_.critical_window,
+                       options_.critical_alarm_after};
+  return keep_trying(how, what, op);
+}
+
+// The inlet's close (when the plan closes it), OverlapReady, and time zero
+// on inlet close: once a gas.
+Result<void> MeasurementEngine::finish_inlet(double now) {
+  close_inlet_at_.reset();
+  inlet_done_ = true;
+  if (dark_) {
+    if (auto r = ctx_.spectrometer.set_source_output(true); !r) return r;
+    dark_ = false;
+    trace(-1, -1, "source", "on");
+  }
+  if (equilibration().close_inlet) {
+    if (auto r = close_inlet(); !r) return r;
+    collector_.set_inlet_close(now);
+    // The next run may start once the last gas is in (spec 3.4).
+    if (gas_ == &in_.plan.gases.back()) {
+      if (ctx_.bus != nullptr) ctx_.bus->publish(OverlapReady{in_.run_id});
+      if (options_.on_inlet_closed) options_.on_inlet_closed();
+    }
+  }
+  if (time_zero_.kind == plan::TimeZeroKind::OnInletClose && !time_zero_by_step_) collector_.set_time_zero(gas_->name, now);
+  return {};
+}
+
+// Closes the inlet if a segment run during the equilibration has reached its
+// time (checked between positions and after each reading).
+Result<void> MeasurementEngine::inlet_due() {
+  if (!close_inlet_at_) return {};
+  const double now = collector_.seconds(ctx_.clock.now());
+  if (now < *close_inlet_at_ && !close_inlet_now_) return {};
+  return finish_inlet(now);
+}
+
+Result<void> MeasurementEngine::close_inlet() {
+  const auto& inlet = equilibration().inlet;
+  if (inlet.empty()) return {};
+  if (auto r = critical("close inlet " + inlet, [&] { return ctx_.valves->close(inlet); }); !r) return r;
+  inlet_open_ = false;
+  return {};
+}
+
+Result<void> MeasurementEngine::check_main_counts() {
+  if ((!main_gap_ && !main_cut_) || stopping()) return {};  // a stop is its own outcome
+  const auto& main = gas_->segments[main_];
+  int planned = 0;
+  for (const auto& pos : main.positions)
+    if (pos.kind == plan::PositionKind::Signal) planned += scaled(pos.counts);  // after a truncation, what it left
+  planned *= main_cycles_ > 0 ? main_cycles_ : main.cycles;  // as a live edit left them
+  std::size_t fit_minimum = 0;
+  for (const auto& [key, kind] : in_.plan.fits.signal) {
+    reduction::FitSpec f;
+    f.kind = kind;
+    fit_minimum = std::max(fit_minimum, reduction::parameter_count(f));
+  }
+  const int minimum = std::max(static_cast<int>(std::ceil(options_.min_counts_fraction * planned)),
+                               static_cast<int>(fit_minimum));
+  if (main_count_ < minimum)
+    return fail(ErrorKind::Io, "main: " + std::to_string(main_count_) + " of " + std::to_string(planned) +
+                                   " counts when the spectrometer went silent, at least " + std::to_string(minimum) +
+                                   " needed" + (silence_error_.empty() ? "" : ": " + silence_error_));
+  if (main_cut_) {
+    main_truncated_ = true;
+    result_.truncated_by_link = true;
+    publish_log(LogLevel::Warn, "main truncated by the spectrometer link: " + std::to_string(main_count_) + " of " +
+                                    std::to_string(planned) + " counts");
+  }
+  return {};
 }
 
 bool MeasurementEngine::main_reading(int /*count*/, double t) {
   ++main_count_;
-  if (in_.plan.main.time_zero.kind == plan::TimeZeroKind::OnFirstCount && !collector_.time_zero())
-    collector_.set_time_zero(t);
-  if (auto trip = conditionals_->evaluate(kMeasurementOrder, collector_.metrics(), in_.variables, main_count_, t)) {
+  if (time_zero_.kind == plan::TimeZeroKind::OnFirstCount && !collector_.time_zero(gas_->name) && !time_zero_by_step_)
+    collector_.set_time_zero(gas_->name, t);
+  const auto trip = conditionals_->evaluate(kMeasurementOrder, collector_.metrics(), in_.variables, main_count_, t);
+  if (log_.enabled(LogLevel::Trace))
+    log_.trace("evaluate main reading " + std::to_string(main_count_) + ": " + (trip ? "tripped '" + trip->name + "'" : "none tripped"));
+  if (trip) {
     collector_.add_trips({*trip});
     handle_trip(*trip);
   }
@@ -537,8 +1485,11 @@ bool MeasurementEngine::main_reading(int /*count*/, double t) {
 
 bool MeasurementEngine::sniff_reading() {
   const double t = collector_.seconds(ctx_.clock.now());
-  if (auto trip = conditionals_->evaluate(ConditionalKind::Equilibration, collector_.metrics(), in_.variables,
-                                          collector_.count(), t)) {
+  const auto trip = conditionals_->evaluate(ConditionalKind::Equilibration, collector_.metrics(), in_.variables,
+                                            collector_.count(), t);
+  if (log_.enabled(LogLevel::Trace))
+    log_.trace("evaluate sniff reading " + std::to_string(collector_.count()) + ": " + (trip ? "tripped '" + trip->name + "'" : "none tripped"));
+  if (trip) {
     collector_.add_trips({*trip});
     handle_trip(*trip);
   }
@@ -593,6 +1544,7 @@ void MeasurementEngine::handle_trip(const Trip& trip) {
 void MeasurementEngine::truncate(bool quick) { request_truncate(quick ? 0.25 : 1.0); }
 
 void MeasurementEngine::request_truncate(double ratio) {
+  log_.info("truncate: ratio " + plain(ratio));
   std::lock_guard lock(truncate_mutex_);
   truncate_request_ = ratio;
   if (collecting_) collector_.truncate();
@@ -613,7 +1565,7 @@ bool MeasurementEngine::wait(double seconds) {
 bool MeasurementEngine::stopping() const { return token_->requested() || stop_ != Stop::None; }
 
 void MeasurementEngine::publish_log(LogLevel level, std::string message) {
-  if (ctx_.bus != nullptr) ctx_.bus->publish(Log{level, "measurement", std::move(message), ctx_.clock.now()});
+  log_and_publish(measurement_log_, ctx_.bus, "measurement", level, std::move(message), ctx_.clock.now());
 }
 
 int MeasurementEngine::scaled(int counts) const {
@@ -633,13 +1585,44 @@ void MeasurementEngine::cleanup(bool abnormal) {
       publish_log(LogLevel::Error, "could not unprotect " + d + ": " + r.error().what);
     }
   }
+  if (auto r = restore_deflections(nullptr, -1, -1); !r)
+    publish_log(LogLevel::Error, "could not restore a deflection: " + r.error().what);
+  // A source the engine darkened is switched on again on every exit.
+  if (dark_) {
+    if (auto r = ctx_.spectrometer.set_source_output(true); r) dark_ = false;
+    else publish_log(LogLevel::Error, "could not switch the source on: " + r.error().what);
+  }
+  // What a set step left standing goes back, and a beam it blanked is let
+  // through again.
+  for (auto it = standing_.begin(); it != standing_.end();) {
+    if (auto r = ctx_.spectrometer.set_deflection(it->first, it->second.original); r) {
+      trace(-1, -1, "deflect", it->first + "=" + plain(*r));
+      it = standing_.erase(it);
+    } else {
+      publish_log(LogLevel::Error, "could not restore the deflection of " + it->first + ": " + r.error().what);
+      ++it;
+    }
+  }
+  if (blanked_) {
+    if (auto r = ctx_.spectrometer.blank_beam(false); r) blanked_ = false;
+    else publish_log(LogLevel::Error, "could not unblank the beam: " + r.error().what);
+  }
+  // The run's tables (a peak center's write_table) end with it, after the
+  // table they may be selected as is let go.
+  if (!table_.empty()) {
+    if (auto r = ctx_.spectrometer.with_table(""); !r)
+      publish_log(LogLevel::Error, "could not go back to the current table: " + r.error().what);
+    table_.clear();
+  }
+  if (ctx_.peak_center != nullptr) ctx_.peak_center->drop_run_tables();
   if (abnormal && inlet_open_ && ctx_.valves != nullptr) {
-    if (auto r = ctx_.valves->close(in_.plan.equilibration.inlet); r) {
+    const auto& inlet = equilibration().inlet;
+    if (auto r = ctx_.valves->close(inlet); r) {
       inlet_open_ = false;
     } else {
-      publish_log(LogLevel::Error, "could not close inlet " + in_.plan.equilibration.inlet + ": " + r.error().what);
+      publish_log(LogLevel::Error, "could not close inlet " + inlet + ": " + r.error().what);
     }
   }
 }
 
-}  // namespace pychron::experiment::measurement
+}  // namespace nobion::experiment::measurement

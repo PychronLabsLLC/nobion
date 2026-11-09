@@ -2,17 +2,17 @@
 
 How to get a 40Ar/39Ar data report that follows Schaen et al. (2021),
 "Interpreting and reporting 40Ar/39Ar geochronologic data" (GSA Bulletin,
-v. 133, p. 461-487, doi:10.1130/B35560.1), out of pychron in one step, from
-`pychron-ui` or `elctl export`. The code is `libs/processing`
+v. 133, p. 461-487, doi:10.1130/B35560.1), out of nobion in one step, from
+`nobion` or `elctl export`. The code is `libs/arar`
 (`report.hpp`); the standard's own text is the authority on what a paper
 must carry, this page says what the export puts where.
 
 ## One click
 
-- **Data browser** (View > Data): filter or select analyses and press
-  **Export**. A file dialog asks where; the name ends in `.csv` or `.json`
-  and decides the format. The selected rows are exported, or every row shown
-  when nothing is selected. The analyses are reduced on the processing
+- **Data browser** (View > Data): add analyses to the Selected list and
+  press **Export**. A file dialog asks where; the name ends in `.csv` or `.json`
+  and decides the format. The analyses in Selected are exported (the button
+  is disabled while it is empty). The analyses are reduced on the processing
   thread and the status line says what was written.
 - **Figure window** (an ideogram, spectrum or isochron): **Export table...**
   on the toolbar writes the figure's analyses with the figure's grouping and
@@ -78,3 +78,11 @@ material and age are the position's flux record; the reactor is the level's
 production record. What the store does not have is left empty rather than
 guessed, so a report from a freshly imported legacy database may have empty
 location columns until the samples are filled in.
+
+## Releases
+
+A report is one file of one moment. To publish a selection as a citable,
+verifiable directory (this report per sample and for the whole, GeoParquet
+tables, an OGC API - Records catalogue, a manifest of every file's hash and
+of the revisions pinned), use `elctl publish` ([elctl reference](user/08-elctl-reference.md#publish));
+the directory's format is in [release format](release_format.md).

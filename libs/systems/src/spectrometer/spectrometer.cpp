@@ -1,19 +1,34 @@
-#include "pychron/systems/spectrometer/spectrometer.hpp"
+#include "nobion/systems/spectrometer/spectrometer.hpp"
 
 #include <algorithm>
+#include <array>
 #include <bit>
+#include <charconv>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
+#include <string>
+#include <system_error>
+#include <utility>
+#include <vector>
 
-#include "pychron/systems/spectrometer/field_table_store.hpp"
+#include "nobion/systems/spectrometer/field_table_check.hpp"
+#include "nobion/systems/spectrometer/field_table_store.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace {
 
 constexpr const char* kDevice = "spectrometer";
 
 Unexpected<Error> config_error(std::string what) { return fail(ErrorKind::Config, std::move(what), kDevice); }
+
+// Shortest text that reads back as `v` ("2000", "-800.5"), for messages.
+std::string number_text(double v) {
+  std::array<char, 32> buf{};
+  const auto [end, ec] = std::to_chars(buf.data(), buf.data() + buf.size(), v);
+  return ec == std::errc{} ? std::string(buf.data(), end) : std::to_string(v);
+}
 
 // Presents an acquirer's channels as "<driver>:<channel>", the form detector
 // `channel` keys use, so two drivers may reuse a channel name.
@@ -204,6 +219,7 @@ Spectrometer::~Spectrometer() {
   for (auto& t : roles_.transports) t->close();
   adapters_.clear();
   roles_.devices.clear();
+  roles_.links.clear();
   roles_.transports.clear();
 }
 
@@ -545,10 +561,181 @@ Result<void> Spectrometer::update_table(const DetectorId& det, const std::string
 }
 
 Result<std::string> Spectrometer::save_table(std::chrono::system_clock::time_point when) {
+  FieldTableChanged event;
+  {
+    std::scoped_lock lock(mutex_);
+    if (run_tables_.contains(active_table_))
+      return config_error("table '" + active_table_ + "' is a run's own and is not saved");
+    if (options_.data_root.empty()) return config_error("save_table needs a data directory");
+    FieldTableStore store(options_.data_root / "tables", active_table_);
+    auto saved = store.save(table_locked(), when);
+    if (!saved) return saved;
+    event = FieldTableChanged{active_table_, *saved};
+  }
+  // Outside mutex_: a handler may read the table back without waiting behind
+  // a move another thread starts meanwhile.
+  context_.bus.publish(event);
+  return event.version;
+}
+
+Result<void> Spectrometer::add_run_table(const std::string& name, FieldTable table) {
   std::scoped_lock lock(mutex_);
-  if (options_.data_root.empty()) return config_error("save_table needs a data directory");
-  FieldTableStore store(options_.data_root / "tables", active_table_);
-  return store.save(table_locked(), when);
+  if (name.empty()) return config_error("a run table needs a name");
+  if (run_tables_.contains(name)) return config_error("table '" + name + "' is a run table already");
+  if (tables_.contains(name)) return config_error("table '" + name + "' is loaded: a run table needs a new name");
+  if (!options_.data_root.empty() && FieldTableStore(options_.data_root / "tables", name).current_version())
+    return config_error("table '" + name + "' is in the store: a run table needs a new name");
+  if (table.axis() != to_table_axis(axis_))
+    return config_error("table '" + name + "' is in " + std::string(to_string(table.axis())) +
+                        " units, positioner is " + std::string(to_string(axis_)));
+  tables_.emplace(name, std::move(table));
+  run_tables_.insert(name);
+  return {};
+}
+
+void Spectrometer::drop_run_table(const std::string& name) {
+  std::scoped_lock lock(mutex_);
+  if (run_tables_.erase(name) == 0) return;
+  tables_.erase(name);
+  if (active_table_ == name) active_table_ = config_.magnet.field_table;
+}
+
+bool Spectrometer::is_run_table(const std::string& name) const {
+  std::scoped_lock lock(mutex_);
+  return run_tables_.contains(name);
+}
+
+Result<std::string> Spectrometer::table_version(const std::string& name) const {
+  if (options_.data_root.empty()) return config_error("table_version needs a data directory");
+  return FieldTableStore(options_.data_root / "tables", name).current_version();
+}
+
+namespace {
+
+Unexpected<Error> coded(std::string code, std::string what) {
+  Error e{ErrorKind::Config, std::move(what), kDevice};
+  e.code = std::move(code);
+  return fail(std::move(e));
+}
+
+// "table_invalid" listing every error of `diagnostics`, or nothing.
+Result<void> refuse_if_invalid(const TableDiagnostics& diagnostics) {
+  if (!has_error(diagnostics)) return {};
+  std::string what;
+  for (const auto& d : diagnostics) {
+    if (d.severity != TableSeverity::Error) continue;
+    if (!what.empty()) what += '\n';
+    what += to_string(d);
+  }
+  return coded("table_invalid", std::move(what));
+}
+
+}  // namespace
+
+Result<void> Spectrometer::refuse_if_held() const {
+  if (auto holder = table_held()) return coded("table_held", "table is held by " + *holder);
+  return {};
+}
+
+Result<std::string> Spectrometer::replace_table(const std::string& name, FieldTable table,
+                                                std::string_view base_version,
+                                                std::chrono::system_clock::time_point when) {
+  FieldTableChanged event;
+  {
+    // mutex_ first, then holds_mutex_ (inside refuse_if_held): a move in
+    // progress holds mutex_, so it sees the old table or the new, never half.
+    std::scoped_lock lock(mutex_);
+    if (auto held = refuse_if_held(); !held) return fail(held.error());
+    if (table.axis() != to_table_axis(axis_)) {
+      return coded("table_axis", "table '" + name + "' is in " + std::string(to_string(table.axis())) +
+                                     " units, positioner is " + std::string(to_string(axis_)));
+    }
+    if (auto valid = refuse_if_invalid(check_field_table(table, config_, weights_, name)); !valid) {
+      return fail(valid.error());
+    }
+    if (options_.data_root.empty()) return config_error("replace_table needs a data directory");
+    FieldTableStore store(options_.data_root / "tables", name);
+    if (!base_version.empty()) {
+      auto current = store.current_version();
+      const std::string now = current ? *current : std::string("none");
+      if (now != base_version) {
+        return coded("table_conflict", "table '" + name + "' changed since version " + std::string(base_version) +
+                                           " (now " + now + ")");
+      }
+    }
+    auto saved = store.save(table, when);
+    if (!saved) return saved;
+    if (auto it = tables_.find(name); it != tables_.end()) it->second = std::move(table);
+    event = FieldTableChanged{name, *saved};
+  }
+  // Outside mutex_, as save_table.
+  context_.bus.publish(event);
+  return event.version;
+}
+
+Result<void> Spectrometer::restore_table_version(const std::string& name, const std::string& version) {
+  FieldTableChanged event;
+  {
+    std::scoped_lock lock(mutex_);
+    if (auto held = refuse_if_held(); !held) return fail(held.error());
+    if (options_.data_root.empty()) return config_error("restore_table_version needs a data directory");
+    FieldTableStore store(options_.data_root / "tables", name);
+    auto loaded = store.load(version);
+    if (!loaded) {
+      // A file that is there but does not parse is an invalid table; a bad
+      // version name or a missing version keeps the store's error.
+      std::error_code ec;
+      const bool exists = !version.empty() && std::filesystem::exists(store.directory() / (version + ".toml"), ec);
+      if (!exists) return fail(loaded.error());
+      return coded("table_invalid", loaded.error().what);
+    }
+    if (auto valid = refuse_if_invalid(check_field_table(*loaded, config_, weights_, name)); !valid) {
+      return fail(valid.error());
+    }
+    if (auto restored = store.restore(version); !restored) return restored;
+    if (auto it = tables_.find(name); it != tables_.end()) it->second = std::move(*loaded);
+    event = FieldTableChanged{name, version};
+  }
+  context_.bus.publish(event);
+  return {};
+}
+
+Spectrometer::TableHold Spectrometer::hold_table(std::string holder) {
+  std::scoped_lock lock(holds_mutex_);
+  const std::uint64_t id = next_hold_id_++;
+  holds_.emplace_back(id, std::move(holder));
+  return TableHold(this, id);
+}
+
+std::optional<std::string> Spectrometer::table_held() const {
+  std::scoped_lock lock(holds_mutex_);
+  if (holds_.empty()) return std::nullopt;
+  return holds_.front().second;
+}
+
+void Spectrometer::release_hold(std::uint64_t id) {
+  std::scoped_lock lock(holds_mutex_);
+  std::erase_if(holds_, [id](const auto& h) { return h.first == id; });
+}
+
+Spectrometer::TableHold::TableHold(TableHold&& other) noexcept
+    : owner_(std::exchange(other.owner_, nullptr)), id_(std::exchange(other.id_, 0)) {}
+
+Spectrometer::TableHold& Spectrometer::TableHold::operator=(TableHold&& other) noexcept {
+  if (this != &other) {
+    release();
+    owner_ = std::exchange(other.owner_, nullptr);
+    id_ = std::exchange(other.id_, 0);
+  }
+  return *this;
+}
+
+Spectrometer::TableHold::~TableHold() { release(); }
+
+void Spectrometer::TableHold::release() {
+  if (owner_ != nullptr) owner_->release_hold(id_);
+  owner_ = nullptr;
+  id_ = 0;
 }
 
 Result<Spectrometer::TableScope> Spectrometer::with_table(const std::string& name) {
@@ -626,11 +813,26 @@ Result<double> Spectrometer::set_deflection(const DetectorId& det, double value)
   auto ch = control_channel(det);
   if (!ch) return fail(ch.error());
   if (!detector_caps().has(DetectorCap::Deflection)) return fail(unsupported(DetectorCap::Deflection));
+  // Past the configured max is refused, as a magnet target outside its limits
+  // is: run as the max, it would measure something the caller did not ask for.
   const auto* cfg = detectors_->find(det);
-  if (cfg->deflection) value = cfg->deflection->clamp(value);
+  if (cfg->deflection && cfg->deflection->max && std::abs(value) > *cfg->deflection->max)
+    return config_error("deflection " + number_text(value) + " of detector '" + det + "' is past its max " +
+                        number_text(*cfg->deflection->max));
   if (auto r = roles_.detector_control->set_deflection(*ch, value); !r) return fail(r.error());
   if (auto r = detectors_->record_deflection(det, value); !r) return fail(r.error());
   return value;
+}
+
+Result<double> Spectrometer::read_deflection(const DetectorId& det) {
+  std::scoped_lock lock(mutex_);
+  auto ch = control_channel(det);
+  if (!ch) return fail(ch.error());
+  if (!detector_caps().has(DetectorCap::Deflection)) return fail(unsupported(DetectorCap::Deflection));
+  auto value = roles_.detector_control->read_deflection(*ch);
+  if (!value) return fail(value.error());
+  if (auto r = detectors_->record_deflection(det, *value); !r) return fail(r.error());
+  return *value;
 }
 
 Result<void> Spectrometer::set_gain(const DetectorId& det, double value) {
@@ -649,6 +851,26 @@ Result<void> Spectrometer::set_cdd_voltage(const DetectorId& det, double volts) 
   if (!detector_caps().has(DetectorCap::CddVoltage)) return fail(unsupported(DetectorCap::CddVoltage));
   if (auto r = roles_.detector_control->set_cdd_voltage(*ch, volts); !r) return r;
   return detectors_->record_cdd_voltage(det, volts);
+}
+
+Result<void> Spectrometer::blank_beam(bool on) {
+  std::scoped_lock lock(mutex_);
+  if (roles_.beam_blank == nullptr) return config_error("no beam blank bound");
+  return roles_.beam_blank->blank(on);
+}
+
+Result<void> Spectrometer::apply_optics(const std::string& name) {
+  std::scoped_lock lock(mutex_);
+  const auto it = config_.optics.find(name);
+  if (it == config_.optics.end()) return config_error("unknown optics '" + name + "'");
+  if (roles_.optics == nullptr) return config_error("optics: not supported by this spectrometer");
+  return roles_.optics->apply_optics(name, it->second.params);
+}
+
+Result<void> Spectrometer::set_source_output(bool on) {
+  std::scoped_lock lock(mutex_);
+  if (roles_.optics == nullptr) return config_error("source output: not supported by this spectrometer");
+  return roles_.optics->set_source_output(on);
 }
 
 // ---- source -----------------------------------------------------------------
@@ -724,4 +946,4 @@ SpectrometerState Spectrometer::snapshot() {
   return s;
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

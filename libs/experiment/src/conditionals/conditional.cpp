@@ -1,4 +1,4 @@
-#include "pychron/experiment/conditionals/conditional.hpp"
+#include "nobion/experiment/conditionals/conditional.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -9,9 +9,9 @@
 #include <toml++/toml.hpp>
 
 #include "number.hpp"
-#include "pychron/experiment/record/sha256.hpp"
+#include "nobion/experiment/record/sha256.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 namespace {
 
 struct KindName {
@@ -333,7 +333,7 @@ std::optional<Trip> ConditionalEngine::step(size_t i, const MetricContext& ctx, 
   State& st = states_[i];
   auto r = evaluate_check(*c.expr, ctx, vars);
   if (!r) {
-    record_error(c, r.error().what);
+    if (r.error().code != kNotYet) record_error(c, r.error().what);
     st.consecutive = 0;
     return std::nullopt;
   }
@@ -668,4 +668,4 @@ Result<Whiff> parse_whiff(std::string_view text, std::string_view file) {
   return out;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

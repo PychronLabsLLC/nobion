@@ -4,10 +4,10 @@ Part of the agent guide: root `AGENTS.md` applies in full, this adds what is
 only this component's. Kept compressed, as that file is.
 
 - Finished runs reach the store through `libs/experiment/adapters/store`
-  (`pychron::experiment_store`, namespace `pychron::experiment::store`),
+  (`nobion::experiment_store`, namespace `nobion::experiment::store`),
   built only with persistence, like `libs/ingest`; `libs/experiment` itself
   never links `libs/persistence` and sees only `IAnalysisPersister`. Tests:
-  `tests/experiment/` (`pychron_experiment_store_tests`). Spec:
+  `tests/experiment/` (`nobion_experiment_store_tests`). Spec:
   `docs/superpowers/specs/2026-10-10-e2e-sim-experiment-design.md`. Rules
   easy to break:
   - `to_ingest` (`record_ingest.hpp`) is pure: no clock, no random id, no
@@ -52,6 +52,17 @@ only this component's. Kept compressed, as that file is.
     before the run (a step that is not letters) is refused there too.
   - A record leaves the spool only after the store has acknowledged it, and
     the store is written before `RunFinished` is published.
+  - Spool flushed off control path (executor hardening spec 4.8):
+    `persist::SpoolFlusher`, one-shot scheduler jobs, never a thread of its
+    own, never on executor's thread. Flush at queue start and after every
+    run (`ExecutorContext::flusher`); while pending > 0 every 5 min, wait
+    doubling to 30 min while flushes fail, back to 5 min after one that
+    succeeds; nothing scheduled with nothing pending. `SpoolStatus` published
+    on change only. No run waits on it.
+  - Aliquots, constraint on a later store-backed allocator (spec 4.8; not
+    built): it answers offline from last known highest aliquot per
+    identifier, and reconciles with store on flush. A conflict found there is
+    flagged to operator; a record is never renumbered silently.
   - A store handle works only on the thread that opened it. Programs use
     `store::Acquisition` (`open_acquisition`, called from main thread),
     which owns that thread. It is declared before the session that saves
@@ -70,7 +81,55 @@ only this component's. Kept compressed, as that file is.
     `sqlite:` database when not given with `--db`, or anywhere with
     `--sim-save`; otherwise record files and one line saying so. Neither
     rule is restated in a program.
+  - How run ended: `provenance.status` (`complete`, `truncated`, `failed`)
+    and `provenance.failure`, each written only when not default (not
+    `complete`, not empty), so complete record keeps bytes and sha; absent:
+    `complete`. Version stays 2. `failed` record stored as any run, tag
+    `invalid`, failure text its note (`RecordIngest`); records path reads
+    it `invalid` too (`analysis_from_record`). `truncated` stored as any run,
+    tag `ok`. Spec: `docs/superpowers/specs/2026-10-09-executor-hardening-design.md`
+    4.5.
+  - Record v3 (measurement plan v2 spec 6.1): gases, series location,
+    baseline positions, choices, modifiers. v2 record read keeps
+    `schema_version = 2` and is written back in v2 layout (sha unchanged);
+    builder finalizes as v2 whatever v2 can say all of (`record::as_v2`).
+    In memory both read in v3 terms: intercepts `label@detector`.
   - A database url is shown only through `store::without_password`; an
     error text of an `Acquisition` already has url and password taken out.
     The acquisition worker's `try` is the library's one catch (thread
     boundary).
+
+## Links that drop (executor, run, measurement)
+
+Spec: `docs/superpowers/specs/2026-10-09-executor-hardening-design.md`.
+
+- Point of no return: start of extraction script (`RunResult::past_no_return`,
+  set after resource wait). Before it nothing of sample spent: failure for
+  link leaves row unconsumed, run started again after hold with aliquot and
+  step it was given. After it: run never started again by executor, whatever
+  failed; failed run is saved (`save(error)` before `Fail`, record in spool
+  before `RunFinished`), flagged `failed`, never rerun or re-inserted,
+  reference run included. Aliquot of such run spent.
+- Safe state (`Run::make_safe`) idempotent by construction: every built-in
+  step sets absolute target (device ended and disabled, inlet closed,
+  detectors unprotected), lab's `safe_state.py` documented to do same. May
+  run twice for one failure; never add a toggle or relative step. Every step
+  attempted even when one before it failed; failed step ->
+  `unsafe_steps`, critical `Alarm`, queue ends `code = "unsafe"`, no hold.
+  Safe state never started by a measurement gap: only once run has ended.
+- Spectrometer link drop mid-measurement moves nothing on line (no valve, no
+  protect, no safe state): gap rule waits `max_gap`, then truncates or fails.
+- Every wait added to executor, run or measurement engine is a clock wait
+  (`clock.wait*`, cv notified with `clock.notify_all`), mutex held across one
+  a `ClockMutex` (root `AGENTS.md`, "Time"). Executor's hold waits on `cv_`
+  through clock; anything that ends a hold (`resume`, `skip`, stop family,
+  `TransportHealth`) notifies through clock. Only notifier's retry is on real
+  time (virtual clock spec 4.4).
+- Executor never ends queue for transient failure without holding first,
+  except `after_link_failure = "end"`. `continue_on_failure` concerns
+  definite failures only.
+- No run waits on network service: spool flush, notification outbox off
+  control path (see spool rule above, `docs/notifications.md`).
+- `Outage.*` (`tests/integration/test_outage.cpp`, not in `dev-quick`) holds
+  spec section 5 across whole queue: a change to executor, run or engine
+  timing runs it before landing.

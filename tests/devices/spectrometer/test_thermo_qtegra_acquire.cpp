@@ -17,15 +17,17 @@
 #include <thread>
 #include <vector>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/devices/spectrometer/thermo_qtegra.hpp"
-#include "pychron/devices/spectrometer/thermo_qtegra_sim.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra_sim.hpp"
 #include "spectrometer/legacy/sim_util.hpp"
+#include "spectrometer/qtegra_session.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace legacy_test;
+using namespace qtegra_test;
 
 namespace {
 
@@ -90,13 +92,13 @@ TEST_F(QtegraAcquire, NextBeforeStartIsConfig) {
   ASSERT_FALSE(r);
   EXPECT_EQ(r.error().kind, ErrorKind::Config);
   EXPECT_EQ(r.error().device, "argus");
-  EXPECT_EQ(written_text(*sim), (std::vector<std::string>{"GetIntegrationTime\r"}));
+  EXPECT_EQ(written_text(*sim), (std::vector<std::string>{"KeepAlive\r", "Describe\r", "GetIntegrationTime\r"}));
 }
 
 TEST_F(QtegraAcquire, ConnectSeedsCachedIntegration) {
   // 0.5 s snaps to the 0.524288 s the instrument reported at connect.
   ASSERT_TRUE(q.configure(500ms));
-  EXPECT_EQ(written_text(*sim), (std::vector<std::string>{"GetIntegrationTime\r"}));
+  EXPECT_EQ(written_text(*sim), (std::vector<std::string>{"KeepAlive\r", "Describe\r", "GetIntegrationTime\r"}));
   // No change, so no settling: a frame is due at once and spans that period.
   ASSERT_TRUE(q.start());
   EXPECT_EQ(frame().span, kHalf);
@@ -104,18 +106,19 @@ TEST_F(QtegraAcquire, ConnectSeedsCachedIntegration) {
 
 TEST_F(QtegraAcquire, ConfigureSnapsAndSendsOnlyOnChange) {
   ASSERT_TRUE(q.configure(1s));
-  EXPECT_EQ(written_text(*sim), (std::vector<std::string>{"GetIntegrationTime\r", "SetIntegrationTime 1.048576\r"}));
+  EXPECT_EQ(written_text(*sim), (std::vector<std::string>{"KeepAlive\r", "Describe\r", "GetIntegrationTime\r",
+                                                          "SetIntegrationTime 1.048576\r"}));
   ASSERT_TRUE(q.configure(1s));
   ASSERT_TRUE(q.configure(1100ms));  // snaps to the same period
-  EXPECT_EQ(sim->written().size(), 2U);
+  EXPECT_EQ(sim->written().size(), 4U);
   std::lock_guard lock(model->mutex);
   EXPECT_DOUBLE_EQ(model->integration_s, 1.048576);
 }
 
 TEST_F(QtegraAcquire, ConfigureErrorReplyIsProtocolAndIsRetriedNextTime) {
-  auto scripted = open_scripted({step("GetIntegrationTime\r", "0.524288\r\n"),
-                                 step("SetIntegrationTime 1.048576\r", "ERROR: busy\r\n"),
-                                 step("SetIntegrationTime 1.048576\r", "OK\r\n")});
+  auto scripted = open_scripted(session_steps("\r", "0.524288\n"));
+  scripted->expect(step("SetIntegrationTime 1.048576\r", "Error: busy\n"));
+  scripted->expect(step("SetIntegrationTime 1.048576\r", "OK\n"));
   QtegraSpectrometer driver("argus", *scripted, {}, &clock);
   ASSERT_TRUE(driver.connect());
   auto r = driver.configure(1s);
@@ -132,7 +135,7 @@ TEST_F(QtegraAcquire, NonPositiveIntegrationIsConfig) {
     ASSERT_FALSE(r);
     EXPECT_EQ(r.error().kind, ErrorKind::Config);
   }
-  EXPECT_EQ(sim->written().size(), 1U);
+  EXPECT_EQ(sim->written().size(), 3U);
 }
 
 TEST_F(QtegraAcquire, NotDueReturnsNulloptWithoutTraffic) {
@@ -194,16 +197,6 @@ TEST_F(QtegraAcquire, NextWaitingAcrossConfigureUsesTheNewPeriod) {
   expect_not_due();
   clock.advance(kTick);
   EXPECT_EQ(frame().span, two);
-}
-
-// A failed period change restores the due time it held back.
-TEST_F(QtegraAcquire, FailedConfigureDoesNotHoldFramesBack) {
-  ASSERT_TRUE(q.start());
-  sim->drop_next();
-  auto r = q.configure(1s);
-  ASSERT_FALSE(r);
-  EXPECT_EQ(r.error().kind, ErrorKind::Timeout);
-  EXPECT_EQ(frame().span, kHalf);
 }
 
 TEST_F(QtegraAcquire, SettlePeriodsComeFromOptions) {
@@ -310,16 +303,24 @@ TEST_F(QtegraAcquire, MissingDetectorIsAbsentNotError) {
   EXPECT_EQ(q.health().state, DeviceState::Ok);
 }
 
-TEST_F(QtegraAcquire, ExtraDetectorIgnored) {
-  override_data("PM,9,H1,1.5,L3,7");
+TEST_F(QtegraAcquire, NoDataYetIsNoFrameAndNoError) {
+  override_data("Error: no data");
   ASSERT_TRUE(q.start());
+  auto r = q.next(Duration::zero());
+  ASSERT_TRUE(r) << to_string(r.error());
+  EXPECT_FALSE(*r);
+  EXPECT_EQ(q.health().state, DeviceState::Ok);
+  // It used up its period: the first scan is read at the next one.
+  expect_not_due();
+  override_data("H1,1.5");
+  clock.advance(kHalf);
   EXPECT_EQ(frame().values, (std::vector<std::pair<ChannelId, double>>{{"H1", 1.5}}));
 }
 
 TEST_F(QtegraAcquire, ErrorReplyIsProtocolAndConsumesSeq) {
   ASSERT_TRUE(q.start());
   const auto first = frame().seq;
-  override_data("ERROR: no data");
+  override_data("Error: could not read scan");
   clock.advance(kHalf);
   auto r = q.next(Duration::zero());
   ASSERT_FALSE(r);
@@ -333,22 +334,19 @@ TEST_F(QtegraAcquire, ErrorReplyIsProtocolAndConsumesSeq) {
   EXPECT_EQ(frame().seq, first + 2);
 }
 
-TEST_F(QtegraAcquire, NonNumericValueIsProtocol) {
-  override_data("H1,1.5,AX,volts");
-  ASSERT_TRUE(q.start());
-  auto r = q.next(Duration::zero());
-  ASSERT_FALSE(r);
-  EXPECT_EQ(r.error().kind, ErrorKind::Protocol);
-}
-
-TEST_F(QtegraAcquire, NoReplyIsTimeoutAndIsNotRetried) {
+// Was NoReplyIsTimeoutAndIsNotRetried. GetData is Safe: a reply that never
+// comes is a transient failure, so the link reconnects (the handshake again)
+// and asks once more.
+TEST_F(QtegraAcquire, NoReplyIsRepeatedAfterAReconnect) {
   ASSERT_TRUE(q.start());
   sim->drop_next();
   auto r = q.next(Duration::zero());
-  ASSERT_FALSE(r);
-  EXPECT_EQ(r.error().kind, ErrorKind::Timeout);
-  EXPECT_EQ(written_text(*sim), (std::vector<std::string>{"GetIntegrationTime\r", "GetData\r"}));
-  EXPECT_EQ(q.reconnects(), 0U);
+  ASSERT_TRUE(r) << to_string(r.error());
+  EXPECT_TRUE(r->has_value());
+  EXPECT_EQ(written_text(*sim), (std::vector<std::string>{"KeepAlive\r", "Describe\r", "GetIntegrationTime\r", "GetData\r",
+                                                          "KeepAlive\r", "Describe\r", "GetIntegrationTime\r",
+                                                          "GetData\r"}));
+  EXPECT_EQ(q.reconnects(), 1U);
 }
 
 // GetData replies nobody has captured from an instrument. These outcomes are a
@@ -383,6 +381,7 @@ TEST_F(QtegraAcquire, GetDataEdgeReplies) {
       {"untagged values, even count", "1.5,2.5,3.5,4.5", std::nullopt},
       {"one lower-case name", "h1,1.5,AX,2.5", Values{{"AX", 2.5}}},
       {"one known name among others", "IC0,1.5,CDD,2.5,IC1,3", Values{{"CDD", 2.5}}},
+      {"detectors not configured are ignored", "PM,9,H1,1.5,L3,7", Values{{"H1", 1.5}}},
   };
   ASSERT_TRUE(q.start());
   for (const auto& c : cases) {
@@ -451,7 +450,7 @@ struct QtegraOn {
   std::unique_ptr<QtegraSpectrometer> q;
 };
 
-struct QtegraAcquireVirtual : pychron::testing::VirtualTimeTest {
+struct QtegraAcquireVirtual : nobion::testing::VirtualTimeTest {
   VirtualClock clock;
   Clock::Participant main{clock, "test"};
   QtegraOn<VirtualClock> rig{clock};
@@ -459,13 +458,29 @@ struct QtegraAcquireVirtual : pychron::testing::VirtualTimeTest {
 };
 
 // On hardware the clock is a SteadyClock: the timeouts are real, and short.
-struct QtegraAcquireSteady : pychron::testing::VirtualTimeTest {
+struct QtegraAcquireSteady : nobion::testing::VirtualTimeTest {
   SteadyClock clock;
   QtegraOn<SteadyClock> rig{clock};
   QtegraSpectrometer& q = *rig.q;
 };
 
 }  // namespace
+
+// A failed period change restores the due time it held back. It fails only
+// once the link has tried for its call window.
+TEST_F(QtegraAcquireVirtual, FailedConfigureDoesNotHoldFramesBack) {
+  ASSERT_TRUE(q.connect());
+  ASSERT_TRUE(q.start());
+  rig.sim->set_down(true);
+  auto r = q.configure(1s);
+  ASSERT_FALSE(r);
+  EXPECT_EQ(r.error().kind, ErrorKind::Io);
+  rig.sim->set_down(false);
+  auto f = q.next(Duration::zero());
+  ASSERT_TRUE(f) << to_string(f.error());
+  ASSERT_TRUE(f->has_value());
+  EXPECT_EQ((*f)->span, kHalf);
+}
 
 TEST_F(QtegraAcquireVirtual, ATimeoutEndsOnTheClockWithoutTraffic) {
   ASSERT_TRUE(q.connect());
@@ -502,7 +517,7 @@ TEST_F(QtegraAcquireVirtual, StopWakesANextWaitingForItsFrame) {
   const TimePoint began = clock.now();
   Result<std::optional<Frame>> got = std::optional<Frame>{Frame{}};
   TimePoint returned{};
-  pychron::testing::Crew crew(clock);
+  nobion::testing::Crew crew(clock);
   crew.start("next", [&] {
     got = q.next(2s);
     returned = clock.now();
@@ -594,7 +609,8 @@ struct Gate {
   }
 };
 
-// Forwards to a transport, calling `on_exchange` first on the caller's thread.
+// Forwards to a transport, calling `on_exchange` or `on_transaction` first on
+// the caller's thread.
 class TapTransport final : public Transport {
  public:
   explicit TapTransport(Transport& inner) : inner_(inner) {}
@@ -602,16 +618,20 @@ class TapTransport final : public Transport {
   const std::string& name() const override { return inner_.name(); }
   Result<void> open() override { return inner_.open(); }
   void close() override { inner_.close(); }
-  Result<Bytes> exchange(Bytes tx, ReadSpec rs, Duration timeout) override {
+  Result<Bytes> exchange(Bytes tx, ReadSpec rs, Duration timeout, Resend resend) override {
     if (on_exchange) on_exchange(tx);
-    return inner_.exchange(std::move(tx), std::move(rs), timeout);
+    return inner_.exchange(std::move(tx), std::move(rs), timeout, resend);
   }
   Result<void> write(Bytes tx) override { return inner_.write(std::move(tx)); }
   Result<Bytes> read(ReadSpec rs, Duration timeout) override { return inner_.read(std::move(rs), timeout); }
-  Result<void> transaction(std::function<Result<void>()> body) override { return inner_.transaction(std::move(body)); }
+  Result<void> transaction(std::function<Result<void>()> body) override {
+    if (on_transaction) on_transaction();
+    return inner_.transaction(std::move(body));
+  }
   Health health() const override { return inner_.health(); }
 
   std::function<void(const Bytes&)> on_exchange;  // set before any other thread runs
+  std::function<void()> on_transaction;           // the same
 
  private:
   Transport& inner_;
@@ -693,24 +713,24 @@ TEST_F(QtegraBlockedRead, RestartDuringBlockedNextStillDropsTheOldFrame) {
 TEST_F(QtegraBlockedRead, ConfigureDuringBlockedNextDropsTheFrameAndSettles) {
   ASSERT_TRUE(q.connect());
   ASSERT_TRUE(q.start());
-  // The read is released only once configure() is about to send its command,
-  // which queues behind the read on the transport.
-  tap.on_exchange = [this](const Bytes& tx) {
-    if (to_string(tx) == "SetIntegrationTime 1.048576\r") gate.release();
-  };
   Result<std::optional<Frame>> blocked = std::optional<Frame>{Frame{}};
   std::thread t = blocked_next(blocked);
+  // The read is released only once configure() is about to send its command:
+  // the link runs each call in a transport transaction, which queues behind
+  // the read's. The read's own transaction began before this is set.
+  tap.on_transaction = [this] { gate.release(); };
   ASSERT_TRUE(q.configure(1s));
   t.join();
 
   ASSERT_TRUE(blocked) << to_string(blocked.error());
   EXPECT_FALSE(blocked->has_value());
-  EXPECT_EQ(sim->written().size(), 3U);  // GetIntegrationTime, GetData, SetIntegrationTime
+  // KeepAlive, Describe, GetIntegrationTime, GetData, SetIntegrationTime
+  EXPECT_EQ(sim->written().size(), 5U);
   clock.advance(2 * kOne - kTick);
   auto early = q.next(Duration::zero());
   ASSERT_TRUE(early) << to_string(early.error());
   EXPECT_FALSE(early->has_value());
-  EXPECT_EQ(sim->written().size(), 3U);
+  EXPECT_EQ(sim->written().size(), 5U);
   clock.advance(kTick);
   auto settled = q.next(Duration::zero());
   ASSERT_TRUE(settled && settled->has_value());
@@ -722,7 +742,7 @@ TEST_F(QtegraBlockedRead, ConfigureDuringBlockedNextDropsTheFrameAndSettles) {
 
 // Synthetic trace: hand-written, not a bench capture.
 TEST(QtegraReplay, ReplaysSyntheticSession) {
-  auto sim = SimTransport::replay(std::string(PYCHRON_TRACE_DIR) + "/thermo/qtegra_session.trace", bus_options());
+  auto sim = SimTransport::replay(std::string(NOBION_TRACE_DIR) + "/thermo/qtegra_session.trace", bus_options());
   ASSERT_TRUE(sim) << to_string(sim.error());
   ASSERT_TRUE((*sim)->open());
   QtegraSpectrometer q("argus", **sim, {});

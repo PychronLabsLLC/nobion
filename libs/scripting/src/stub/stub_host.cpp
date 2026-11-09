@@ -1,14 +1,14 @@
-// The host installed when PYCHRON_SCRIPTING is off: rejects every scripted
+// The host installed when NOBION_SCRIPTING is off: rejects every scripted
 // run so a build without Python still links and fails loudly, not silently.
 
-#include "pychron/devices/extraction/capability.hpp"
-#include "pychron/scripting/script_host.hpp"
+#include "nobion/devices/extraction/capability.hpp"
+#include "nobion/scripting/script_host.hpp"
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 namespace {
 
 Error disabled() {
-  return extraction::not_supported("scripting (built without PYCHRON_SCRIPTING)");
+  return extraction::not_supported("scripting (built without NOBION_SCRIPTING)");
 }
 
 class StubScriptHost final : public IScriptHost {
@@ -23,6 +23,9 @@ class StubScriptHost final : public IScriptHost {
                                  const ScriptEnvironment&, CancelToken&) override {
     return fail(disabled());
   }
+  Result<ScriptResult> rehearse(const Script&, const ScriptEnvironment&, IRehearsal&, CancelToken&) override {
+    return fail(extraction::not_supported("rehearse"));
+  }
 };
 
 }  // namespace
@@ -31,4 +34,4 @@ std::unique_ptr<IScriptHost> make_script_host() { return std::make_unique<StubSc
 bool scripting_enabled() noexcept { return false; }
 std::vector<std::string> bound_commands() { return {}; }
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

@@ -11,10 +11,11 @@
 #include <string>
 #include <vector>
 
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/experiment/model/queue_file.hpp"
+#include "example_lab.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/model/queue_file.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 namespace {
 
 namespace fs = std::filesystem;
@@ -25,9 +26,8 @@ class LabExtractionTest : public ::testing::Test {
  protected:
   void SetUp() override {
     std::random_device rd;
-    dir_ = fs::temp_directory_path() / ("pychron-lab-laser-" + std::to_string(rd()) + std::to_string(rd()));
-    fs::copy(fs::path(PYCHRON_EXAMPLE_CONFIGS_DIR), dir_, fs::copy_options::recursive);
-    fs::remove_all(dir_ / "data");
+    dir_ = fs::temp_directory_path() / ("nobion-lab-laser-" + std::to_string(rd()) + std::to_string(rd()));
+    nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_);
     fs::remove_all(dir_ / "tray_maps");
     fs::remove_all(dir_ / "stage_calibrations");
     // The line config with exactly one extraction device, whatever the
@@ -55,7 +55,7 @@ class LabExtractionTest : public ::testing::Test {
   }
   // The example queue on co2 and the small tray; run 1 (the unknown) on hole 3.
   QueueSpec queue(const Lab& lab) const {
-    auto q = load_queue_file((dir_ / "experiment.toml").string(), lab.ids);
+    auto q = load_queue_file((dir_ / "queues" / "experiment.toml").string(), lab.ids);
     EXPECT_TRUE(q) << q.error().what;
     QueueSpec out = q ? *q : QueueSpec{};
     out.extract_device = "co2";
@@ -253,6 +253,16 @@ TEST_F(LabExtractionTest, LoadsCamerasAndHasACorrectionStore) {
   EXPECT_TRUE(l.problems.empty());
 }
 
+TEST_F(LabExtractionTest, WhatRunsWriteGoesToTheStateFolder) {
+  LabPaths paths{dir_, dir_ / "line.toml", dir_ / "spectrometer.sim-integrated.toml"};
+  paths.state_dir = dir_ / "elsewhere";
+  const Lab l = load_lab(paths);
+  EXPECT_EQ(l.corrections->dir(), dir_ / "elsewhere" / "stage_corrections");
+  EXPECT_EQ(l.camera_scales->file("co2").parent_path(), dir_ / "elsewhere" / "camera_scales");
+  // What the lab ships is read where it is.
+  EXPECT_EQ(l.calibrations->dir(), dir_ / "stage_calibrations");
+}
+
 // A camera table that does not load stops the runs on its device, with the
 // table's own problem; a device that simply has no camera is fine.
 TEST_F(LabExtractionTest, ACameraThatDidNotLoadStopsRunsOnItsDevice) {
@@ -398,4 +408,4 @@ TEST_F(LabExtractionTest, ALabWithoutDevicesChecksAsBefore) {
 }
 
 }  // namespace
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

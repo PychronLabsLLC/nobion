@@ -1,8 +1,9 @@
-#include "pychron/codecs/proxr.hpp"
+#include "nobion/codecs/proxr.hpp"
 
+#include <algorithm>
 #include <string>
 
-namespace pychron::codec::proxr {
+namespace nobion::codec::proxr {
 
 namespace {
 
@@ -36,6 +37,18 @@ Result<Command> select_bank(int bank) {
   return Command{Bytes{kPrefix, kSelectBank, static_cast<std::uint8_t>(bank)}, ReadSpec::fixed(1)};
 }
 
+std::optional<std::size_t> request_length(const Bytes& buffer) {
+  if (buffer.empty()) return std::nullopt;
+  if (buffer.front() != kPrefix) {
+    const auto prefix = std::find(buffer.begin(), buffer.end(), kPrefix);
+    return static_cast<std::size_t>(prefix - buffer.begin());
+  }
+  if (buffer.size() < 2) return std::nullopt;
+  const std::size_t length = buffer[1] == kSelectBank ? 3 : 2;
+  if (buffer.size() < length) return std::nullopt;
+  return length;
+}
+
 Result<Command> relay_on(int relay) { return relay_command(kRelayOnBase, relay); }
 Result<Command> relay_off(int relay) { return relay_command(kRelayOffBase, relay); }
 Result<Command> read_relay(int relay) { return relay_command(kRelayStatusBase, relay); }
@@ -50,4 +63,4 @@ Result<bool> decode_relay_state(const Bytes& reply) {
   return reply[0] == 1;
 }
 
-}  // namespace pychron::codec::proxr
+}  // namespace nobion::codec::proxr

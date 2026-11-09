@@ -1,12 +1,14 @@
-#include "pychron/experiment/record/names.hpp"
+#include "nobion/experiment/record/names.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <limits>
 #include <map>
 #include <set>
+#include <tuple>
 #include <utility>
 
-namespace pychron::experiment::record {
+namespace nobion::experiment::record {
 
 namespace {
 
@@ -48,6 +50,22 @@ void append(Trace& to, const Trace& more) {
   }
 }
 
+// Puts a trace's points in time order (stable: points of one time keep
+// their order).
+void sort_by_time(Trace& tr) {
+  if (std::is_sorted(tr.t.begin(), tr.t.end())) return;
+  std::vector<std::size_t> idx(tr.t.size());
+  for (std::size_t i = 0; i < idx.size(); ++i) idx[i] = i;
+  std::stable_sort(idx.begin(), idx.end(), [&](std::size_t a, std::size_t b) { return tr.t[a] < tr.t[b]; });
+  Trace out;
+  for (auto i : idx) {
+    out.t.push_back(tr.t[i]);
+    out.v.push_back(tr.v[i]);
+    if (!tr.sigma.empty()) out.sigma.push_back(tr.sigma[i]);
+  }
+  tr = std::move(out);
+}
+
 }  // namespace
 
 std::string detector_isotope_key(std::string_view detector, std::string_view isotope) {
@@ -62,6 +80,33 @@ std::string acquisition_isotope_key(std::string_view isotope, std::string_view d
   key += ':';
   key += detector;
   return key;
+}
+
+std::string qualified_key(std::string_view label, std::string_view detector) {
+  std::string key(label);
+  key += '@';
+  key += detector;
+  return key;
+}
+
+std::string v3_intercept_key(const Data& data, std::string_view v2_key) {
+  const auto named = intercept_name(data, v2_key);
+  if (!named) return std::string(v2_key);
+  return qualified_key(named->isotope, named->detector);
+}
+
+std::string v2_intercept_key(const Data& data, std::string_view v3_key) {
+  const auto at = v3_key.find('@');
+  if (at == std::string_view::npos) return std::string(v3_key);
+  const auto label = v3_key.substr(0, at);
+  const auto detector = v3_key.substr(at + 1);
+  if (on_several(detectors_of(data), kSignal, label)) return acquisition_isotope_key(label, detector);
+  return std::string(label);
+}
+
+std::string analysis_name(const Data& data, std::string_view result_key) {
+  const auto named = intercept_name(data, result_key);
+  return named ? named->key : std::string(result_key);
 }
 
 std::vector<std::string> intercept_keys(const Data& data) {
@@ -83,25 +128,42 @@ std::vector<NamedSeries> named_series(const Data& data) {
   const Detectors detectors = detectors_of(data);
   std::vector<NamedSeries> out;
   out.reserve(data.series.size());
-  std::map<std::string, std::size_t, std::less<>> baseline_at;  // detector -> its series in `out`
+  // (kind, key, detector) -> its series in `out`: the series of one isotope
+  // on one detector read at several places in the plan (v3) are one.
+  std::map<std::tuple<std::string, std::string, std::string>, std::size_t> at_of;
   for (const auto& s : data.series) {
-    if (s.kind == kBaseline) {
-      const auto [at, first] = baseline_at.try_emplace(s.det, out.size());
-      if (first) {
-        out.push_back({s.kind, s.det, s.det, s.trace});
-      } else {
-        append(out[at->second].trace, s.trace);
-      }
-      continue;
+    std::string key = s.det;
+    if (s.kind != kBaseline) {
+      const bool qualified = on_several(detectors, kSignal, s.iso) || on_several(detectors, s.kind, s.iso);
+      key = qualified ? detector_isotope_key(s.det, s.iso) : s.iso;
     }
-    const bool qualified = on_several(detectors, kSignal, s.iso) || on_several(detectors, s.kind, s.iso);
-    out.push_back({s.kind, qualified ? detector_isotope_key(s.det, s.iso) : s.iso, s.det, s.trace});
+    const auto [at, first] = at_of.try_emplace({s.kind, key, s.det}, out.size());
+    if (first) {
+      out.push_back({s.kind, std::move(key), s.det, s.trace});
+    } else {
+      append(out[at->second].trace, s.trace);
+    }
   }
+  // A detector's baseline series stay in the record's order (the order they
+  // were fitted in, before v3); the others are put in time order.
+  for (auto& n : out)
+    if (n.kind != kBaseline) sort_by_time(n.trace);
   return out;
 }
 
 std::optional<InterceptName> intercept_name(const Data& data, std::string_view result_key) {
   const Detectors detectors = detectors_of(data);
+  if (const auto at = result_key.find('@'); at != std::string_view::npos) {
+    const auto label = result_key.substr(0, at);
+    const auto detector = result_key.substr(at + 1);
+    const bool measured = std::any_of(data.series.begin(), data.series.end(), [&](const DataSeries& s) {
+      return s.kind != kBaseline && s.iso == label && s.det == detector;
+    });
+    if (!measured) return std::nullopt;
+    const bool qualified = on_several(detectors, kSignal, label);
+    return InterceptName{qualified ? detector_isotope_key(detector, label) : std::string(label), std::string(label),
+                         std::string(detector)};
+  }
   // The acquisition's name of one detector's share of an isotope on several.
   for (const auto& s : data.series) {
     if (s.kind != kSignal || !on_several(detectors, kSignal, s.iso)) continue;
@@ -118,4 +180,4 @@ std::optional<InterceptName> intercept_name(const Data& data, std::string_view r
   return InterceptName{std::string(result_key), std::string(result_key), *lowest};
 }
 
-}  // namespace pychron::experiment::record
+}  // namespace nobion::experiment::record

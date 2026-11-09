@@ -7,7 +7,7 @@
 #include "sql/statements.hpp"
 #include "store_impl.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 namespace {
 
 QString qstr(std::string_view s) { return QString::fromUtf8(s.data(), static_cast<qsizetype>(s.size())); }
@@ -101,8 +101,9 @@ Result<Uuid> create_bookmark(Db& db, const Actor& actor, const BookmarkSpec& spe
     if (*stored) return *spec.uuid;
   }
   // Read the heads inside the write transaction so the capture is consistent.
-  auto heads = spec.repository ? heads_of(db, sql::kHeadsInRepository, *spec.repository)
-                               : heads_of(db, sql::kHeadsInGroup, *spec.group);
+  auto heads = spec.entries ? Result<std::vector<HeadInfo>>(*spec.entries)
+               : spec.repository ? heads_of(db, sql::kHeadsInRepository, *spec.repository)
+                                 : heads_of(db, sql::kHeadsInGroup, *spec.group);
   if (!heads) return fail(heads.error());
   const Uuid uuid = spec.uuid.value_or(Uuid::v7());
   Row b;
@@ -191,4 +192,4 @@ Result<CommitOutcome> rollback_to_collection(Db& db, const Actor& actor, Uuid an
   return commit_moves(db, actor, ChangesetKind::Rollback, std::move(message), moves, MoveReason::CollectionRestore);
 }
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

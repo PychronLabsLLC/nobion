@@ -9,9 +9,9 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/experiment/record/builder.hpp"
+#include "nobion/experiment/record/builder.hpp"
 
-namespace pychron::experiment::testing {
+namespace nobion::experiment::testing {
 
 inline constexpr const char* kSampleUuid = "0190a5e0-7c3b-4d5e-8f10-2a4b6c8d0e12";
 
@@ -71,4 +71,4 @@ inline record::AnalysisRecord sample_record(std::string identifier = "66573", in
   return r.value();
 }
 
-}  // namespace pychron::experiment::testing
+}  // namespace nobion::experiment::testing

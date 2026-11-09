@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 
-#include "pychron/experiment/model/identifiers.hpp"
+#include "nobion/experiment/model/identifiers.hpp"
 
-using namespace pychron::experiment;
+using namespace nobion::experiment;
 
 TEST(Identifiers, DefaultsClassifyPychronPrefixes) {
   auto ids = IdentifierRules::defaults();
@@ -66,13 +66,13 @@ TEST(Identifiers, TypeNamesRoundTrip) {
 
 // A type may have more than one special identifier ("bu" and legacy pychron's bare "b").
 TEST(IdentifierRules, ATypeMayHaveSeveralPrefixes) {
-  auto r = pychron::experiment::IdentifierRules::from_toml("[prefixes]\nblank_unknown = [\"bu\", \"b\"]\nair = \"a\"\n");
+  auto r = nobion::experiment::IdentifierRules::from_toml("[prefixes]\nblank_unknown = [\"bu\", \"b\"]\nair = \"a\"\n");
   ASSERT_TRUE(r) << r.error().what;
-  using pychron::experiment::AnalysisType;
+  using nobion::experiment::AnalysisType;
   EXPECT_EQ(r->classify("b"), AnalysisType::BlankUnknown);
   EXPECT_EQ(r->classify("BU"), AnalysisType::BlankUnknown);
   EXPECT_EQ(r->prefix_for(AnalysisType::BlankUnknown), "bu");
-  EXPECT_FALSE(pychron::experiment::IdentifierRules::from_toml("[prefixes]\nair = [\"a\", 3]\n"));
-  EXPECT_FALSE(pychron::experiment::IdentifierRules::from_toml("[prefixes]\nair = []\n"));
-  EXPECT_FALSE(pychron::experiment::IdentifierRules::from_toml("[prefixes]\nair = [\"a\"]\ncocktail = [\"a\"]\n"));
+  EXPECT_FALSE(nobion::experiment::IdentifierRules::from_toml("[prefixes]\nair = [\"a\", 3]\n"));
+  EXPECT_FALSE(nobion::experiment::IdentifierRules::from_toml("[prefixes]\nair = []\n"));
+  EXPECT_FALSE(nobion::experiment::IdentifierRules::from_toml("[prefixes]\nair = [\"a\"]\ncocktail = [\"a\"]\n"));
 }

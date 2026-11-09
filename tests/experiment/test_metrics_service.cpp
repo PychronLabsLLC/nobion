@@ -1,5 +1,5 @@
 // MetricsService: what the application builds from `[metrics]`.
-#include "pychron/experiment/metrics/service.hpp"
+#include "nobion/experiment/metrics/service.hpp"
 
 #include <gtest/gtest.h>
 
@@ -10,14 +10,14 @@
 
 #include "http_client.hpp"
 #include "metrics_text.hpp"
-#include "pychron/core/clock.hpp"
-#include "pychron/core/config/metrics_config.hpp"
-#include "pychron/core/events.hpp"
-#include "pychron/core/scheduler.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/metrics/server.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/config/metrics_config.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/scheduler.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/metrics/server.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 using experiment::metrics::MetricsService;
 using metrics_text::has;
@@ -84,13 +84,13 @@ TEST_F(MetricsServiceTest, EnabledServesWhatTheBusSays) {
   bus.publish(PressureSample{"IG1", 3e-9, "torr", {}});
 
   const std::string body = http_client::body(http_client::get(service->port(), "/metrics"));
-  EXPECT_DOUBLE_EQ(value(body, "pychron_pressure{gauge=\"IG1\",unit=\"torr\"}"), 3e-9);
-  EXPECT_NE(body.find("pychron_build_info{"), std::string::npos);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_pressure{gauge=\"IG1\",unit=\"torr\"}"), 3e-9);
+  EXPECT_NE(body.find("nobion_build_info{"), std::string::npos);
   EXPECT_NE(body.find("version=\"9.9.9\""), std::string::npos);
   // Each of the exporters is there: the experiment's, the scheduler's, the server's own.
-  EXPECT_DOUBLE_EQ(value(body, "pychron_executor_state{state=\"idle\"}"), 1.0);
-  EXPECT_TRUE(has(body, "pychron_scheduler_heartbeat_age_seconds"));
-  EXPECT_TRUE(has(body, "pychron_metrics_bad_requests_total"));
+  EXPECT_DOUBLE_EQ(value(body, "nobion_executor_state{state=\"idle\"}"), 1.0);
+  EXPECT_TRUE(has(body, "nobion_scheduler_heartbeat_age_seconds"));
+  EXPECT_TRUE(has(body, "nobion_metrics_bad_requests_total"));
   EXPECT_TRUE(alarms.empty());
 }
 
@@ -101,11 +101,11 @@ TEST_F(MetricsServiceTest, SaysWhereItListens) {
 }
 
 TEST_F(MetricsServiceTest, APortInUseLeavesTheApplicationRunning) {
-  pychron::metrics::Registry other;
-  pychron::metrics::MetricsServer::Options o;
+  nobion::metrics::Registry other;
+  nobion::metrics::MetricsServer::Options o;
   o.bind = "127.0.0.1";
   o.port = 0;
-  auto holder = pychron::metrics::MetricsServer::start(other, o);
+  auto holder = nobion::metrics::MetricsServer::start(other, o);
   ASSERT_TRUE(holder.has_value());
 
   config::MetricsConfig c = enabled();
@@ -126,7 +126,7 @@ TEST_F(MetricsServiceTest, APortInUseLeavesTheApplicationRunning) {
   EXPECT_TRUE(logged(LogLevel::Error, "metrics endpoint is off"));
   // The rest of the application is untouched, and the registry still follows the bus.
   bus.publish(PressureSample{"IG1", 1e-9, "torr", {}});
-  EXPECT_DOUBLE_EQ(value(service->registry().render(), "pychron_pressure{gauge=\"IG1\",unit=\"torr\"}"), 1e-9);
+  EXPECT_DOUBLE_EQ(value(service->registry().render(), "nobion_pressure{gauge=\"IG1\",unit=\"torr\"}"), 1e-9);
 }
 
 TEST_F(MetricsServiceTest, ABindThatIsNotThisMachinesIsAnAlarmNotACrash) {
@@ -142,13 +142,13 @@ TEST_F(MetricsServiceTest, ABindThatIsNotThisMachinesIsAnAlarmNotACrash) {
 TEST_F(MetricsServiceTest, AFullFamilyIsLoggedOnce) {
   auto service = start(enabled());
   ASSERT_NE(service, nullptr);
-  for (std::size_t i = 0; i < pychron::metrics::Registry::kMaxSeriesPerFamily + 3; ++i) {
+  for (std::size_t i = 0; i < nobion::metrics::Registry::kMaxSeriesPerFamily + 3; ++i) {
     bus.publish(PressureSample{"IG" + std::to_string(i), 1e-9, "torr", {}});
   }
   std::lock_guard lock(m);
   int said = 0;
   for (const Log& l : logs) {
-    if (l.level == LogLevel::Warn && l.message.find("pychron_pressure") != std::string::npos) ++said;
+    if (l.level == LogLevel::Warn && l.message.find("nobion_pressure") != std::string::npos) ++said;
   }
   EXPECT_EQ(said, 1);
 }

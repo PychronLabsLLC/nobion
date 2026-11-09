@@ -1,6 +1,6 @@
-#include "pychron/devices/proxr_relay.hpp"
+#include "nobion/devices/proxr_relay.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace proxr = codec::proxr;
 
@@ -14,58 +14,78 @@ DriverSchema ProxrRelay::schema() {
 Result<std::unique_ptr<ProxrRelay>> ProxrRelay::create(const DriverArgs& args) {
   DeviceOptions options;
   options.clock = args.clock;
+  options.link = args.link;
   return std::make_unique<ProxrRelay>(args.name, args.transport, options);
 }
 
-Result<void> ProxrRelay::open(const ValveAddress& address) { return observe(actuate(address, true)); }
+Result<void> ProxrRelay::open(const ValveAddress& address) {
+  const Operation op = begin("open");
+  return observe(op, actuate(address, true));
+}
 
-Result<void> ProxrRelay::close(const ValveAddress& address) { return observe(actuate(address, false)); }
+Result<void> ProxrRelay::close(const ValveAddress& address) {
+  const Operation op = begin("close");
+  return observe(op, actuate(address, false));
+}
 
-Result<ValveState> ProxrRelay::read(const ValveAddress& address) { return observe(query(address)); }
+Result<ValveState> ProxrRelay::read(const ValveAddress& address) {
+  const Operation op = begin("read");
+  return observe(op, query(address));
+}
 
 Result<void> ProxrRelay::actuate(const ValveAddress& address, bool energize) {
-  return transact(transport_, [&]() -> Result<void> {
-    auto relay = select(address);
-    if (!relay) return fail(relay.error());
-    auto cmd = energize ? proxr::relay_on(*relay) : proxr::relay_off(*relay);
-    if (!cmd) return fail(cmd.error());
-    auto reply = send(*cmd);
-    if (!reply) return fail(reply.error());
-    return proxr::decode_ack(*reply);
-  });
+  // Bank select and relay command are one transaction, repeated whole.
+  return relay<void>("actuate",
+      [&](Resend resend) {
+        return transact(transport_, [&]() -> Result<void> {
+          auto which = select(address, resend);
+          if (!which) return fail(which.error());
+          auto cmd = energize ? proxr::relay_on(*which) : proxr::relay_off(*which);
+          if (!cmd) return fail(cmd.error());
+          auto reply = send(*cmd, resend);
+          if (!reply) return fail(reply.error());
+          return proxr::decode_ack(*reply);
+        });
+      },
+      Repeat::Safe);
 }
 
 Result<ValveState> ProxrRelay::query(const ValveAddress& address) {
-  return transact(transport_, [&]() -> Result<ValveState> {
-    auto relay = select(address);
-    if (!relay) return fail(relay.error());
-    auto cmd = proxr::read_relay(*relay);
-    if (!cmd) return fail(cmd.error());
-    auto reply = send(*cmd);
-    if (!reply) return fail(reply.error());
-    auto on = proxr::decode_relay_state(*reply);
-    if (!on) return fail(on.error());
-    return *on ? ValveState::Open : ValveState::Closed;
-  });
+  return relay<ValveState>("query",
+      [&](Resend resend) {
+        return transact(transport_, [&]() -> Result<ValveState> {
+          auto which = select(address, resend);
+          if (!which) return fail(which.error());
+          auto cmd = proxr::read_relay(*which);
+          if (!cmd) return fail(cmd.error());
+          auto reply = send(*cmd, resend);
+          if (!reply) return fail(reply.error());
+          auto on = proxr::decode_relay_state(*reply);
+          if (!on) return fail(on.error());
+          return *on ? ValveState::Open : ValveState::Closed;
+        });
+      },
+      Repeat::Safe);
 }
 
-Result<int> ProxrRelay::select(const ValveAddress& address) {
+Result<int> ProxrRelay::select(const ValveAddress& address, Resend resend) {
   auto index = address.as_index();
   if (!index) return fail(index.error());
   auto where = proxr::relay_address(*index);
   if (!where) return fail(where.error());
   auto cmd = proxr::select_bank(where->bank);
   if (!cmd) return fail(cmd.error());
-  auto reply = send(*cmd);
+  auto reply = send(*cmd, resend);
   if (!reply) return fail(reply.error());
   if (auto ok = proxr::decode_ack(*reply); !ok) return fail(ok.error());
   return where->relay;
 }
 
-Result<Bytes> ProxrRelay::send(const codec::Command& command) {
-  return transport_.exchange(command.tx, *command.reply);
+Result<Bytes> ProxrRelay::send(const codec::Command& command, Resend resend) {
+  // Every ProXR command sets an absolute state or reads one: it may arrive twice.
+  return transport_.exchange(command.tx, *command.reply, Transport::kDefaultTimeout, resend);
 }
 
-}  // namespace pychron
+}  // namespace nobion
 
-REGISTER_DRIVER("proxr_relay", pychron::ProxrRelay);
+REGISTER_DRIVER("proxr_relay", nobion::ProxrRelay);

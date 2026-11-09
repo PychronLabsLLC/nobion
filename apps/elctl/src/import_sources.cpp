@@ -10,21 +10,18 @@
 #include <toml++/toml.hpp>
 
 #include "import_impl.hpp"
-#include "pychron/core/env.hpp"
-#include "pychron/dvc/catalog_adapter.hpp"
-#include "pychron/dvc/git_reader.hpp"
-#include "pychron/dvc/meta_adapter.hpp"
-#include "pychron/dvc/project_adapter.hpp"
-#include "pychron/ingest/ids.hpp"
-
-#ifndef PYCHRON_ELCTL_VERSION
-#define PYCHRON_ELCTL_VERSION "0"
-#endif
+#include "nobion/core/build_info.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/dvc/catalog_adapter.hpp"
+#include "nobion/dvc/git_reader.hpp"
+#include "nobion/dvc/meta_adapter.hpp"
+#include "nobion/dvc/project_adapter.hpp"
+#include "nobion/ingest/ids.hpp"
 
 namespace elctl::import_detail {
 
-namespace dvc = pychron::dvc;
-namespace ingest = pychron::ingest;
+namespace dvc = nobion::dvc;
+namespace ingest = nobion::ingest;
 
 namespace {
 
@@ -145,7 +142,7 @@ Result<std::map<std::string, std::string>> read_author_map(const fs::path& file)
 }
 
 fs::path default_cache_dir() {
-  using pychron::env_var;
+  using nobion::env_var;
   const auto set = [](const char* name) -> std::optional<fs::path> {
     auto value = env_var(name);
     if (!value || value->empty()) return std::nullopt;
@@ -166,7 +163,7 @@ fs::path default_cache_dir() {
     base = fs::temp_directory_path(code);
     if (code) base = fs::path(".");
   }
-  return *base / "pychron" / "import";
+  return *base / "nobion" / "import";
 }
 
 bool is_url(std::string_view source) {
@@ -228,16 +225,16 @@ Result<std::vector<Source>> select_sources(Context& ctx, const std::optional<std
 }
 
 Result<P::Uuid> importer_client(P::IStore& store) {
-  using pychron::env_var;
+  using nobion::env_var;
   std::string host = env_var("HOSTNAME").value_or("");
   if (host.empty()) host = env_var("COMPUTERNAME").value_or("");
   if (host.empty()) host = "localhost";
-  return store.register_client({host, "importer", std::nullopt, "elctl " PYCHRON_ELCTL_VERSION});
+  return store.register_client({host, "importer", std::nullopt, "elctl " + nobion::build_id()});
 }
 
 ingest::WriterConfig writer_config(const SourceSettings& settings) {
   ingest::WriterConfig config;
-  config.importer_version = "elctl " PYCHRON_ELCTL_VERSION;
+  config.importer_version = "elctl " + nobion::build_id();
   config.lab_time_zone = settings.tz;
   config.author_map = settings.author_map;
   return config;

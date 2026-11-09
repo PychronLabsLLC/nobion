@@ -1,6 +1,6 @@
-#include "pychron/experiment/conditionals/validate.hpp"
+#include "nobion/experiment/conditionals/validate.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 namespace {
 
@@ -60,4 +60,4 @@ std::vector<ConditionalDiagnostic> validate_conditionals(const ConditionalSet& s
   return out;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

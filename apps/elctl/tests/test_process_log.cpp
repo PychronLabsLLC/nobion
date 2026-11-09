@@ -1,0 +1,244 @@
+#include <gtest/gtest.h>
+
+#include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <sstream>
+
+#include "elctl_fixture.hpp"
+#include "nobion/core/clock.hpp"
+#include "line.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/log_dir.hpp"
+#include "nobion/core/process_log.hpp"
+#include "nobion/setup/site.hpp"
+#include "process_log.hpp"
+
+namespace elctl::testing {
+namespace {
+
+namespace fs = std::filesystem;
+
+std::string slurp(const fs::path& p) {
+  std::ifstream f(p);
+  return {std::istreambuf_iterator<char>(f), {}};
+}
+
+class ProcessLog : public ElctlTest {
+ protected:
+  // A site config naming one install "lab" rooted in the scratch folder.
+  fs::path make_install() {
+    const fs::path root = path("lab");
+    fs::create_directories(root);
+    nobion::setup::SiteConfig site;
+    nobion::setup::SiteInstall install;
+    install.name = "lab";
+    install.kind = "instrument";
+    install.profile = "argus";
+    install.root = root;
+    install.line = "extraction_line.toml";
+    site.default_install = "lab";
+    site.installs.push_back(install);
+    EXPECT_TRUE(nobion::setup::save_site(site, path("site.toml")));
+    return root;
+  }
+
+  nobion::EnvLookup home_env() const {
+    const std::string home = path("home").string();
+    return [home](std::string_view name) -> std::optional<std::string> {
+      if (name == "HOME") return home;
+      return std::nullopt;
+    };
+  }
+
+  nobion::SteadyClock clock_;
+  std::shared_ptr<nobion::LogHub> hub_;
+
+  // A hub writing <scratch>/plogs/elctl.log, as main() would make.
+  void config_hub() {
+    nobion::config::LoggingConfig lc;
+    lc.dir = path("plogs");
+    lc.file_name = "elctl.log";
+    auto made = nobion::LogHub::create(lc, clock_);
+    ASSERT_TRUE(made);
+    hub_ = *made;
+  }
+};
+
+TEST_F(ProcessLog, NoInstallWritesToOsFolder) {
+  std::ostringstream err;
+  fs::path file;
+  {
+    auto hub = open_process_log({"version"}, clock_, nobion::HostOs::Mac, home_env(), err);
+    ASSERT_NE(hub, nullptr) << err.str();
+    file = hub->file_path();
+  }
+  EXPECT_EQ(file, path("home") / "Library" / "Logs" / "nobion" / "elctl.log");
+  ASSERT_TRUE(fs::exists(file));
+  EXPECT_TRUE(contains(slurp(file), "app=elctl")) << slurp(file);
+}
+
+// A sentinel nobody holds is a session that ended without a clean exit: one
+// line on err (spec 2026-11-06-field-diagnostics, 3.3).
+TEST_F(ProcessLog, AnUncleanPreviousSessionIsSaidOnErr) {
+  const auto dir = path("home") / "Library" / "Logs" / "nobion";
+  fs::create_directories(dir);
+  {
+    std::ofstream out(dir / "elctl.session");
+    out << "pid=99999\nbuild=abc123\nstarted=2026-11-06T14:03:22Z\n";
+  }
+  std::ostringstream err;
+  auto hub = open_process_log({"version"}, clock_, nobion::HostOs::Mac, home_env(), err);
+  ASSERT_NE(hub, nullptr) << err.str();
+  EXPECT_TRUE(contains(err.str(),
+                       "elctl: previous elctl session abc123 started 2026-11-06T14:03:22Z ended without a clean exit"))
+      << err.str();
+  EXPECT_TRUE(hub->previous_session());
+}
+
+TEST_F(ProcessLog, InstallWritesToRootLogs) {
+  const auto root = make_install();
+  std::ostringstream err;
+  {
+    auto hub = open_process_log({"--install", "lab", "version"}, clock_, nobion::HostOs::Mac, home_env(), err);
+    ASSERT_NE(hub, nullptr) << err.str();
+  }
+  const auto file = root / "logs" / "elctl.log";
+  ASSERT_TRUE(fs::exists(file)) << err.str();
+  EXPECT_TRUE(contains(slurp(file), "profiles=argus")) << slurp(file);
+  EXPECT_FALSE(fs::exists(path("home")));
+}
+
+// The config notes are on logger `logging` (spec 1.1), as the lock notice is.
+TEST_F(ProcessLog, ConfigNotesAreOnLoggerLogging) {
+  const auto root = make_install();  // its extraction_line.toml is not there: a warn note says so
+  std::ostringstream err;
+  {
+    auto hub = open_process_log({"--install", "lab", "version"}, clock_, nobion::HostOs::Mac, home_env(), err);
+    ASSERT_NE(hub, nullptr) << err.str();
+  }
+  const std::string text = slurp(root / "logs" / "elctl.log");
+  EXPECT_TRUE(contains(text, "] logging: the [logging] table of")) << text;
+}
+
+// A logging.toml that does not load leaves the built-in defaults in force, in
+// the install's folder, and the first error in the file says why.
+TEST_F(ProcessLog, BadLoggingTomlFallsBackToDefaults) {
+  const auto root = make_install();
+  write("lab/logging.toml", "colour = 1\n");
+  std::ostringstream err;
+  {
+    auto hub = open_process_log({"--install", "lab", "version"}, clock_, nobion::HostOs::Mac, home_env(), err);
+    ASSERT_NE(hub, nullptr) << err.str();
+    EXPECT_EQ(hub->file_path(), root / "logs" / "elctl.log");
+  }
+  EXPECT_TRUE(contains(err.str(), "colour")) << err.str();
+  const std::string text = slurp(root / "logs" / "elctl.log");
+  const auto error_at = text.find("[error]");
+  ASSERT_NE(error_at, std::string::npos) << text;
+  const std::string first_error = text.substr(error_at, text.find('\n', error_at) - error_at);
+  EXPECT_TRUE(contains(first_error, "] logging: ")) << first_error;
+  EXPECT_TRUE(contains(first_error, "logging.toml")) << first_error;
+  EXPECT_TRUE(contains(first_error, "colour")) << first_error;
+  EXPECT_TRUE(contains(text, "default_level=debug")) << text;
+}
+
+TEST_F(ProcessLog, BadLoggingLocalTomlFallsBackToDefaults) {
+  const auto root = make_install();
+  write("lab/logging.toml", "default_level = \"warn\"\n");
+  write("lab/logging.local.toml", "default_level = 3\n");
+  std::ostringstream err;
+  {
+    auto hub = open_process_log({"--install", "lab", "version"}, clock_, nobion::HostOs::Mac, home_env(), err);
+    ASSERT_NE(hub, nullptr) << err.str();
+  }
+  const std::string text = slurp(root / "logs" / "elctl.log");
+  EXPECT_TRUE(contains(text, "logging.local.toml")) << text;
+  EXPECT_TRUE(contains(text, "default_level=debug")) << text;  // the defaults, not logging.toml's warn
+}
+
+// No HOME: nowhere for the OS folder. Said once, and the command goes on.
+TEST_F(ProcessLog, NoHomeSaysThereIsNoLogFolder) {
+  const nobion::EnvLookup none = [](std::string_view) -> std::optional<std::string> { return std::nullopt; };
+  std::ostringstream err;
+  auto hub = open_process_log({"version"}, clock_, nobion::HostOs::Linux, none, err);
+  ASSERT_NE(hub, nullptr) << err.str();
+  EXPECT_TRUE(hub->file_path().empty());
+  EXPECT_TRUE(contains(err.str(), "no log folder: HOME is not set")) << err.str();
+
+  std::ostringstream werr;
+  auto whub = open_process_log({"version"}, clock_, nobion::HostOs::Windows, none, werr);
+  ASSERT_NE(whub, nullptr) << werr.str();
+  EXPECT_TRUE(contains(werr.str(), "no log folder: LOCALAPPDATA is not set")) << werr.str();
+}
+
+// "No log file" asked for is not a missing folder.
+TEST_F(ProcessLog, NoFileAskedForSaysNothing) {
+  make_install();
+  write("lab/logging.toml", "dir = \"\"\n");
+  std::ostringstream err;
+  auto hub = open_process_log({"--install", "lab", "version"}, clock_, nobion::HostOs::Mac, home_env(), err);
+  ASSERT_NE(hub, nullptr) << err.str();
+  EXPECT_FALSE(contains(err.str(), "no log folder")) << err.str();
+}
+
+TEST_F(ProcessLog, UnwritableInstallLogsDegrades) {
+  make_install();
+  write("lab/logs", "a file, not a folder");
+  std::ostringstream err;
+  auto hub = open_process_log({"--install", "lab", "version"}, clock_, nobion::HostOs::Mac, home_env(), err);
+  ASSERT_NE(hub, nullptr);
+  EXPECT_TRUE(hub->file_path().empty());
+  EXPECT_TRUE(contains(err.str(), "file logging disabled")) << err.str();
+  const std::string text = err.str();
+  EXPECT_EQ(std::count(text.begin(), text.end(), '\n'), 1) << text;
+}
+
+TEST_F(ProcessLog, LoggingTomlDirOff) {
+  const auto root = make_install();
+  write("lab/logging.toml", "dir = \"\"\n");
+  std::ostringstream err;
+  {
+    auto hub = open_process_log({"--install", "lab", "version"}, clock_, nobion::HostOs::Mac, home_env(), err);
+    ASSERT_NE(hub, nullptr) << err.str();
+    EXPECT_TRUE(hub->file_path().empty());
+  }
+  EXPECT_FALSE(fs::exists(root / "logs"));
+}
+
+TEST_F(ProcessLog, AnUnknownInstallFallsBackToTheOsFolder) {
+  std::ostringstream err;
+  auto hub = open_process_log({"--install", "nope", "version"}, clock_, nobion::HostOs::Mac, home_env(), err);
+  ASSERT_NE(hub, nullptr) << err.str();
+  EXPECT_EQ(hub->file_path(), path("home") / "Library" / "Logs" / "nobion" / "elctl.log");
+}
+
+TEST_F(ProcessLog, GlobalOptionsAreSeenInAnyOrder) {
+  const auto root = make_install();
+  std::ostringstream err;
+  for (const std::vector<std::string>& args :
+       {std::vector<std::string>{"--sim", "--install", "lab", "version"},
+        std::vector<std::string>{"-c", config(), "--install", "lab", "version"},
+        std::vector<std::string>{"--install", "lab", "--sim", "-c", config(), "version"}}) {
+    auto hub = open_process_log(args, clock_, nobion::HostOs::Mac, home_env(), err);
+    ASSERT_NE(hub, nullptr) << err.str();
+    EXPECT_EQ(hub->file_path(), root / "logs" / "elctl.log");
+  }
+}
+
+TEST_F(ProcessLog, LineBuildUsesTheProcessHub) {
+  config_hub();
+  auto cfg = nobion::config::load_system_config(config());
+  ASSERT_TRUE(cfg) << cfg.error().what;
+  const nobion::ProcessLogScope scope(hub_);
+  auto line = Line::build(std::move(*cfg), LineOptions{});
+  ASSERT_TRUE(line) << line.error().what;
+  EXPECT_EQ(hub_->bus(), &(*line)->bus());
+  hub_->logger("probe").warn("a line record");
+  hub_->flush();
+  EXPECT_TRUE(contains(slurp(path("plogs") / "elctl.log"), "a line record"));
+}
+
+}  // namespace
+}  // namespace elctl::testing

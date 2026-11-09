@@ -1,4 +1,4 @@
-#! pychron: eqtime=20
+#! nobion: eqtime=20
 # A blank for the simulated lab: sim_air.py with the pipette left alone. The
 # prep section is static for exactly as long as an air shot's, so what the
 # measurement sees is what the walls gave off in that time and nothing else.

@@ -1,11 +1,11 @@
-#include "pychron/vision/kernel.hpp"
+#include "nobion/vision/kernel.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 namespace {
 
@@ -323,4 +323,4 @@ CircleFit fit_circle(std::span<const Vec2> pts) {
   return CircleFit{{mx + a, my + b}, r, std::sqrt(ss / n)};
 }
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

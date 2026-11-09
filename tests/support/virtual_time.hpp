@@ -24,9 +24,10 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/core/virtual_clock.hpp"
+#include "nobion/core/signal_stack.hpp"
+#include "nobion/core/virtual_clock.hpp"
 
-namespace pychron::testing {
+namespace nobion::testing {
 
 // Alive for longer than `limit` of real time, it says `what` did not finish
 // and aborts the process, well inside the ctest timeout.
@@ -121,6 +122,7 @@ class Crew {
       ++live_;
     }
     threads_.emplace_back([this, hold, name = std::move(name), body = std::move(body)]() mutable {
+      install_signal_stack();
       Clock::Participant participant(clock_, name);
       hold.reset();
       // Said while this thread is still a participant.
@@ -153,4 +155,4 @@ class Crew {
   std::vector<std::thread> threads_;
 };
 
-}  // namespace pychron::testing
+}  // namespace nobion::testing

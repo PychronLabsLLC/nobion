@@ -19,7 +19,7 @@ copying. Question types: string, host, port, int, float, bool, choice, path
 
 Templates use `{{ name }}`, `{{ name | toml }}`, `{% if %}`/`{% else %}`/
 `{% endif %}` and `{% for x in list %}`/`{% endfor %}` (see
-`libs/setup/include/pychron/setup/template.hpp`). Every profile is tested:
+`libs/setup/include/nobion/setup/template.hpp`). Every profile is tested:
 it renders with its defaults, the result loads, and doctor passes.
 
 `instrument-common/seed.toml` is what setup puts in a new instrument

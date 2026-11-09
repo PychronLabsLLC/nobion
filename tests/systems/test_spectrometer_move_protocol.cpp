@@ -4,12 +4,12 @@
 #include <chrono>
 #include <random>
 
-#include "pychron/systems/spectrometer/move_protocol.hpp"
+#include "nobion/systems/spectrometer/move_protocol.hpp"
 #include "spectrometer_fakes.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
-using namespace pychron::spectrometer::testing;
+using namespace nobion;
+using namespace nobion::spectrometer;
+using namespace nobion::spectrometer::testing;
 using namespace std::chrono_literals;
 
 namespace {

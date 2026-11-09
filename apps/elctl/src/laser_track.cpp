@@ -1,0 +1,29 @@
+// elctl laser track: the tracking bench (grain simulator design, section 7).
+
+#include <string>
+
+#include "laser.hpp"
+#include "nobion/laser/track_bench.hpp"
+
+namespace elctl {
+
+int laser_track(const std::vector<std::string>& words, const nobion::laser::TrackOptions& options, Io io) {
+  const auto scenario = nobion::laser::load_track_scenario(words.at(1));
+  if (!scenario) {
+    io.err << "elctl laser track: " << scenario.error().what << '\n';
+    return kFailed;
+  }
+  const auto combos = nobion::laser::run_track(*scenario, options);
+  if (!combos) {
+    io.err << "elctl laser track: " << combos.error().what << '\n';
+    return kFailed;
+  }
+  if (options.check_only) {
+    io.out << words.at(1) << ": ok\n";
+    return kOk;
+  }
+  io.out << nobion::laser::track_table(*combos);
+  return kOk;
+}
+
+}  // namespace elctl

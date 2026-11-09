@@ -1,13 +1,13 @@
 // codec::modbus. Frames are the Modbus Application Protocol spec's own
 // examples (V1.1b3, section 6) in an MBAP header.
-#include "pychron/codecs/modbus.hpp"
+#include "nobion/codecs/modbus.hpp"
 
 #include <gtest/gtest.h>
 
 #include <cmath>
 
-using namespace pychron;
-namespace mb = pychron::codec::modbus;
+using namespace nobion;
+namespace mb = nobion::codec::modbus;
 using mb::Function;
 using mb::WordOrder;
 

@@ -8,13 +8,13 @@
 #include <cmath>
 
 #include "fixtures.hpp"
-#include "pychron/processing/isotope_evolution_fit.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/processing/isotope_evolution_fit.hpp"
+#include "nobion/processing/units.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 namespace {
 
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 
 // Signals of every isotope: v = 2 x intercept - 0.5 t (rising when
 // `rising`), a small wiggle, and a wild point at index 7.
@@ -52,7 +52,7 @@ Fixture make(int n, bool rising = false) {
     auto a = test::make_air(i);
     a->heads = {{"intercepts", "int-" + a->uuid}};
     f.raw[a->uuid] = raw_for(*a, rising);
-    f.dataset.mutable_items().push_back(DatasetItem{reduce_analysis(a, {}), {}, {}});
+    f.dataset.mutable_items().push_back(DatasetItem{reduce_analysis(a), {}, {}});
   }
   return f;
 }
@@ -102,7 +102,7 @@ TEST(IsotopeEvolutionFits, KeepsLeftOutPointsUnlessToldNot) {
   auto f = make(1);
   auto a = std::make_shared<Analysis>(*f.dataset.items()[0].analysis->analysis);
   a->isotopes[0].user_excluded = {7};  // the wild point
-  f.dataset.mutable_items()[0].analysis = reduce_analysis(a, {});
+  f.dataset.mutable_items()[0].analysis = reduce_analysis(a);
   Options o = with_row([](Options& row) { (void)row.set("isotope", std::string("Ar40")); });
   auto kept = build_isotope_evolution_fits(f.dataset, o, f.loader());
   ASSERT_TRUE(kept);
@@ -153,7 +153,7 @@ TEST(IsotopeEvolutionFits, ReviewedMissingAndCancelled) {
   auto f = make(2);
   auto a = std::make_shared<Analysis>(*f.dataset.items()[0].analysis->analysis);
   a->isotopes[0].intercept_reviewed = true;
-  f.dataset.mutable_items()[0].analysis = reduce_analysis(a, {});
+  f.dataset.mutable_items()[0].analysis = reduce_analysis(a);
   Options o(isotope_evolution_fit_schema());
   ASSERT_TRUE(o.set("skip_reviewed", true));
   auto fig = build_isotope_evolution_fits(f.dataset, o, f.loader());
@@ -183,7 +183,7 @@ TEST(IsotopeEvolutionFits, KeysAndNames) {
   RawData raw = f.raw.begin()->second;
   raw.series[1].key = "AX:Ar39";
   f.raw.begin()->second = raw;
-  f.dataset.mutable_items()[0].analysis = reduce_analysis(a, {});
+  f.dataset.mutable_items()[0].analysis = reduce_analysis(a);
   auto by_name = build_isotope_evolution_fits(
       f.dataset, with_row([](Options& row) { (void)row.set("isotope", std::string("Ar39")); }), f.loader());
   ASSERT_TRUE(by_name);
@@ -267,7 +267,7 @@ TEST(IsotopeEvolutionGoodness, RemainingChecks) {
   a->isotopes[0].baseline = {0.01, 100.0};  // a baseline error of ~1.7% of the signal
   a->isotopes[0].blank = {600.0, 1.0};      // ~10% of the signal
   Dataset d;
-  d.mutable_items().push_back(DatasetItem{reduce_analysis(a, {}), {}, {}});
+  d.mutable_items().push_back(DatasetItem{reduce_analysis(a), {}, {}});
   EXPECT_EQ(flagged(
                 [](Options& r) {
                   (void)r.set("signal_to_baseline", 1.0);
@@ -291,7 +291,7 @@ TEST(IsotopeEvolutionFits, BaselineRowsRefitTheDetectorsBaseline) {
   auto a = std::make_shared<Analysis>(*f.dataset.items()[0].analysis->analysis);
   a->isotopes[2].detector = "H1";  // Ar38 shares Ar40's detector
   a->isotopes[0].baseline_user_excluded = {3};
-  f.dataset.mutable_items()[0].analysis = reduce_analysis(a, {});
+  f.dataset.mutable_items()[0].analysis = reduce_analysis(a);
   RawSeries bs;
   bs.kind = SeriesKind::Baseline;
   bs.key = "H1";
@@ -325,7 +325,7 @@ TEST(IsotopeEvolutionFits, BaselineRowsRefitTheDetectorsBaseline) {
 
   // Reviewed baselines are kept; an unknown detector refits nothing.
   a->isotopes[0].baseline_reviewed = true;
-  f.dataset.mutable_items()[0].analysis = reduce_analysis(a, {});
+  f.dataset.mutable_items()[0].analysis = reduce_analysis(a);
   ASSERT_TRUE(o.set("skip_reviewed", true));
   auto kept = build_isotope_evolution_fits(f.dataset, o, f.loader());
   ASSERT_TRUE(kept);
@@ -348,7 +348,7 @@ TEST(IsotopeEvolutionFits, UnitReadsRawFromTheSource) {
     ids.push_back(a->uuid);
     src.add(a, raw_for(*a));
   }
-  const auto& reg = UnitRegistry::builtin();
+  const UnitRegistry reg = UnitRegistry::core("");
   Pipeline p;
   auto& sel = p.add(reg, "select", "select");
   ASSERT_TRUE(sel.options.set("uuids", ids));
@@ -363,5 +363,77 @@ TEST(IsotopeEvolutionFits, UnitReadsRawFromTheSource) {
   EXPECT_EQ(to_string(PortType::IsotopeFits), "isotope_fits");
 }
 
+// The style fields the fit figures share with the other figures
+// (figure_common.hpp, fit_figure_fields).
+void set_a_style(Options& o) {
+  ASSERT_TRUE(o.set("background", std::string("#101010")));
+  ASSERT_TRUE(o.set("plot_background", std::string("#202020")));
+  ASSERT_TRUE(o.set("show_grid", false));
+  ASSERT_TRUE(o.set("show_legend", false));
+  ASSERT_TRUE(o.set("legend_location", std::string("bottom_left")));
+  ASSERT_TRUE(o.set("font.family", std::string("Courier")));
+  ASSERT_TRUE(o.set("font.title", 20.0));
+  ASSERT_TRUE(o.set("font.axis", 18.0));
+  ASSERT_TRUE(o.set("font.tick", 16.0));
+  ASSERT_TRUE(o.set("font.annotation", 14.0));
+  ASSERT_TRUE(o.set("panel_spacing", std::int64_t{0}));
+}
+
+void expect_that_style(const SceneStyle& s) {
+  EXPECT_EQ(s.background, (Color{0x10, 0x10, 0x10, 255}));
+  EXPECT_EQ(s.plot_background, (Color{0x20, 0x20, 0x20, 255}));
+  EXPECT_FALSE(s.grid);
+  EXPECT_FALSE(s.legend);
+  EXPECT_EQ(s.legend_corner, Corner::BottomLeft);
+  EXPECT_EQ(s.fonts.family, "Courier");
+  EXPECT_EQ(s.fonts.title, 20.0);
+  EXPECT_EQ(s.fonts.axis_title, 18.0);
+  EXPECT_EQ(s.fonts.tick, 16.0);
+  EXPECT_EQ(s.fonts.annotation, 14.0);
+  EXPECT_EQ(s.panel_spacing, 0);
+}
+
+void expect_the_default_style(const SceneStyle& s) {
+  const SceneStyle d;
+  EXPECT_EQ(s.background, d.background);
+  EXPECT_EQ(s.plot_background, d.plot_background);
+  EXPECT_EQ(s.grid, d.grid);
+  EXPECT_EQ(s.legend, d.legend);
+  EXPECT_EQ(s.legend_corner, d.legend_corner);
+  EXPECT_EQ(s.fonts.family, d.fonts.family);
+  EXPECT_EQ(s.fonts.title, d.fonts.title);
+  EXPECT_EQ(s.fonts.axis_title, d.fonts.axis_title);
+  EXPECT_EQ(s.fonts.tick, d.fonts.tick);
+  EXPECT_EQ(s.fonts.annotation, d.fonts.annotation);
+  EXPECT_EQ(s.panel_spacing, d.panel_spacing);
+}
+
+TEST(IsotopeEvolutionFits, TheSharedStyleOptionsReachTheScene) {
+  auto f = make(2);
+  Options o(isotope_evolution_fit_schema());
+  set_a_style(o);
+  auto fig = build_isotope_evolution_fits(f.dataset, o, f.loader());
+  ASSERT_TRUE(fig) << fig.error().what;
+  expect_that_style(fig->scene.style);
+}
+
+TEST(IsotopeEvolutionFits, WithNoStyleSetTheSceneIsStyledAsItWas) {
+  auto f = make(2);
+  auto fig = build_isotope_evolution_fits(f.dataset, Options(isotope_evolution_fit_schema()), f.loader());
+  ASSERT_TRUE(fig) << fig.error().what;
+  expect_the_default_style(fig->scene.style);
+}
+
+// A preset written before the style fields existed has none of their keys.
+TEST(IsotopeEvolutionFits, APresetSavedBeforeTheStyleFieldsStillLoads) {
+  auto loaded = options_from_toml(isotope_evolution_fit_schema(), "nsigma = 2\nkeep_user_excluded = false\n");
+  ASSERT_TRUE(loaded) << loaded.error().what;
+  EXPECT_TRUE(loaded->warnings.empty());
+  EXPECT_EQ(loaded->options.get_int("nsigma"), 2);
+  EXPECT_FALSE(loaded->options.get_bool("keep_user_excluded"));
+  EXPECT_TRUE(loaded->options.get_bool("show_legend"));
+  EXPECT_EQ(loaded->options.get_double("font.tick"), 9.0);
+}
+
 }  // namespace
-}  // namespace pychron::processing
+}  // namespace nobion::processing

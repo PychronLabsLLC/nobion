@@ -1,6 +1,6 @@
-#include "pychron/devices/sim_valves.hpp"
+#include "nobion/devices/sim_valves.hpp"
 
-namespace pychron {
+namespace nobion {
 
 SimValves::SimValves(std::string name, DeviceOptions options) : Device(std::move(name), options) {}
 
@@ -15,23 +15,26 @@ Result<std::unique_ptr<SimValves>> SimValves::create(const DriverArgs& args) {
 }
 
 Result<void> SimValves::open(const ValveAddress& address) {
+  const Operation op = begin("open");
   std::lock_guard lock(mutex_);
   open_[address.value] = true;
-  return observe(Result<void>{});
+  return observe(op, Result<void>{});
 }
 
 Result<void> SimValves::close(const ValveAddress& address) {
+  const Operation op = begin("close");
   std::lock_guard lock(mutex_);
   open_[address.value] = false;
-  return observe(Result<void>{});
+  return observe(op, Result<void>{});
 }
 
 Result<ValveState> SimValves::read(const ValveAddress& address) {
+  const Operation op = begin("read");
   std::lock_guard lock(mutex_);
   auto it = open_.find(address.value);
-  return observe(Result<ValveState>(it != open_.end() && it->second ? ValveState::Open : ValveState::Closed));
+  return observe(op, Result<ValveState>(it != open_.end() && it->second ? ValveState::Open : ValveState::Closed));
 }
 
-}  // namespace pychron
+}  // namespace nobion
 
-REGISTER_DRIVER("sim_valves", pychron::SimValves);
+REGISTER_DRIVER("sim_valves", nobion::SimValves);

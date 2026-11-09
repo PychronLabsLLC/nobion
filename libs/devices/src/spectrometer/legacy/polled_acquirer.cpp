@@ -1,10 +1,10 @@
-#include "pychron/devices/spectrometer/legacy/polled_acquirer.hpp"
+#include "nobion/devices/spectrometer/legacy/polled_acquirer.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <set>
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace {
 
@@ -16,15 +16,16 @@ const Clock& steady_clock() {
 }  // namespace
 
 PolledAcquirer::PolledAcquirer(std::string name, std::vector<ChannelId> channels, double sample_hz,
-                               const Clock* clock)
-    : Device(std::move(name), DeviceOptions{clock}),
+                               const Clock* clock, Link* link)
+    : Device(std::move(name), DeviceOptions{clock, DeviceOptions{}.fault_after, link}),
       channels_(std::move(channels)),
       period_(std::chrono::duration_cast<Duration>(std::chrono::duration<double>(1.0 / sample_hz))),
       clock_(clock != nullptr ? *clock : steady_clock()) {}
 
 Result<void> PolledAcquirer::configure(Duration integration) {
+  const Operation op = begin("configure");
   if (integration <= Duration::zero()) {
-    return observe(Result<void>(fail(ErrorKind::Config, "integration time must be positive")));
+    return observe(op, Result<void>(fail(ErrorKind::Config, "integration time must be positive")));
   }
   std::lock_guard lock(mutex_);
   integration_ = integration;
@@ -37,7 +38,8 @@ Duration PolledAcquirer::integration() const {
 }
 
 Result<void> PolledAcquirer::start() {
-  if (auto primed = prime(); !primed) return observe(std::move(primed));
+  const Operation op = begin("start");
+  if (auto primed = prime(); !primed) return observe(op, std::move(primed));
   {
     std::lock_guard lock(mutex_);
     running_ = true;
@@ -57,10 +59,11 @@ Result<void> PolledAcquirer::stop() {
 }
 
 Result<std::optional<Frame>> PolledAcquirer::next(Duration timeout) {
+  const Operation op = begin("next");
   std::uint64_t seq = 0;
   {
     std::unique_lock lock(mutex_);
-    if (!running_) return observe(Result<std::optional<Frame>>(fail(ErrorKind::Config, "acquirer not started")));
+    if (!running_) return observe(op, Result<std::optional<Frame>>(fail(ErrorKind::Config, "acquirer not started")));
     // Bounded by the clock's time alone; stop() notifies.
     const TimePoint deadline = clock_.now() + timeout;
     while (running_ && clock_.now() < due_) {
@@ -78,17 +81,17 @@ Result<std::optional<Frame>> PolledAcquirer::next(Duration timeout) {
   frame.integrated = false;
   frame.span = period_;
   auto values = sample();
-  if (!values) return observe(Result<std::optional<Frame>>(fail(std::move(values).error())));
+  if (!values) return observe(op, Result<std::optional<Frame>>(fail(std::move(values).error())));
   if (values->size() != channels_.size()) {
-    return observe(Result<std::optional<Frame>>(fail(ErrorKind::Protocol, "sample has " +
-                                                                              std::to_string(values->size()) +
-                                                                              " values for " +
-                                                                              std::to_string(channels_.size()) +
-                                                                              " channels")));
+    return observe(op, Result<std::optional<Frame>>(fail(ErrorKind::Protocol, "sample has " +
+                                                                                  std::to_string(values->size()) +
+                                                                                  " values for " +
+                                                                                  std::to_string(channels_.size()) +
+                                                                                  " channels")));
   }
   frame.values.reserve(channels_.size());
   for (std::size_t i = 0; i < channels_.size(); ++i) frame.values.emplace_back(channels_[i], (*values)[i]);
-  return observe(Result<std::optional<Frame>>(std::optional<Frame>{std::move(frame)}));
+  return observe(op, Result<std::optional<Frame>>(std::optional<Frame>{std::move(frame)}));
 }
 
 namespace legacy {
@@ -117,4 +120,4 @@ Result<double> parse_sample_hz(const DriverArgs& args, double fallback) {
 
 }  // namespace legacy
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

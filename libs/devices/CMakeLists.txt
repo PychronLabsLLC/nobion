@@ -1,6 +1,6 @@
 # Device base, capability interfaces, DriverRegistry and (later) the vendor
 # drivers that compose a Transport with a codec.
-add_library(pychron_devices STATIC
+add_library(nobion_devices STATIC
   src/agilent_switch.cpp
   src/agilent_unit_sim.cpp
   src/device.cpp
@@ -15,7 +15,7 @@ add_library(pychron_devices STATIC
   src/driver_registry.cpp
   src/modbus_ids.cpp
   src/modbus_device_sim.cpp
-  src/reconnect.cpp
+  src/link.cpp
   src/pfeiffer_maxigauge.cpp
   src/gp_microion.cpp
   src/proxr_relay.cpp
@@ -44,28 +44,28 @@ add_library(pychron_devices STATIC
   src/extraction/chromium_sim.cpp
 )
 
-target_include_directories(pychron_devices PUBLIC
+target_include_directories(nobion_devices PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
 
-target_compile_features(pychron_devices PUBLIC cxx_std_20)
-target_link_libraries(pychron_devices PUBLIC pychron::codecs pychron::transport pychron::core)
+target_compile_features(nobion_devices PUBLIC cxx_std_20)
+target_link_libraries(nobion_devices PUBLIC nobion::codecs nobion::transport nobion::core)
 
-pychron_set_warnings(pychron_devices)
+nobion_set_warnings(nobion_devices)
 
-# pychron_link_drivers(<consumer> <driver-lib>...)
+# nobion_link_drivers(<consumer> <driver-lib>...)
 # Drivers register themselves from static initializers (REGISTER_DRIVER) that
 # nothing references by symbol, so a plain static link may drop them. Link
 # driver libraries whole-archive instead.
-function(pychron_link_drivers consumer)
+function(nobion_link_drivers consumer)
   foreach(lib IN LISTS ARGN)
     target_link_libraries(${consumer} PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,${lib}>")
   endforeach()
 endfunction()
 
-# pychron::devices links the library whole-archive so drivers built into it
+# nobion::devices links the library whole-archive so drivers built into it
 # are always registered.
-add_library(pychron_devices_whole INTERFACE)
-target_link_libraries(pychron_devices_whole INTERFACE "$<LINK_LIBRARY:WHOLE_ARCHIVE,pychron_devices>")
-add_library(pychron::devices ALIAS pychron_devices_whole)
+add_library(nobion_devices_whole INTERFACE)
+target_link_libraries(nobion_devices_whole INTERFACE "$<LINK_LIBRARY:WHOLE_ARCHIVE,nobion_devices>")
+add_library(nobion::devices ALIAS nobion_devices_whole)

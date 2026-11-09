@@ -3,7 +3,7 @@
 // Shared set-up for the experiment UI suites: a scratch copy of the example
 // lab (configs/examples) on a VirtualClock paced at 400x, the line with its
 // own scheduler threads, the sim spectrometer and a LabSession, as
-// `pychron-ui --sim --sim-speed 400` builds them. The Qt thread does not take
+// `nobion --sim --sim-speed 400` builds them. The Qt thread does not take
 // part in the clock: simulated time goes on while a test looks, and a test
 // waits for what it expects in real time (QTRY_*, QSignalSpy::wait).
 
@@ -16,23 +16,23 @@
 
 #include <QtTest/QtTest>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/experiment/lab/session.hpp"
-#include "pychron/experiment/model/queue_file.hpp"
-#include "pychron/scripting/script_host.hpp"
-#include "pychron/sim/spectrometer/beam_model.hpp"
-#include "pychron/systems/extraction_line.hpp"
-#include "pychron/systems/spectrometer/bringup.hpp"
-#include "pychron/systems/spectrometer/scan_service.hpp"
+#include "example_lab.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/experiment/lab/session.hpp"
+#include "nobion/experiment/model/queue_file.hpp"
+#include "nobion/scripting/script_host.hpp"
+#include "nobion/sim/spectrometer/beam_model.hpp"
+#include "nobion/systems/extraction_line.hpp"
+#include "nobion/systems/spectrometer/bringup.hpp"
+#include "nobion/systems/spectrometer/scan_service.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::ui::test {
+namespace nobion::ui::test {
 
 inline std::filesystem::path scratch_lab() {
   namespace fs = std::filesystem;
-  const fs::path dir = pychron::testing::unique_temp_path("pychron-ui-lab-");
-  fs::copy(fs::path(PYCHRON_EXAMPLE_CONFIGS_DIR), dir, fs::copy_options::recursive);
-  fs::remove_all(dir / "data");
+  const fs::path dir = nobion::testing::unique_temp_path("nobion-lab-");
+  nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir);
   return dir;
 }
 
@@ -42,7 +42,7 @@ inline experiment::lab::LabPaths lab_paths(const std::filesystem::path& dir) {
 
 // The example queue; without embedded Python its scripts are dropped.
 inline experiment::QueueSpec example_queue(const std::filesystem::path& dir, const experiment::IdentifierRules& ids) {
-  auto q = experiment::load_queue_file((dir / "experiment.toml").string(), ids);
+  auto q = experiment::load_queue_file((dir / "queues" / "experiment.toml").string(), ids);
   if (!q) qFatal("cannot load the example queue: %s", q.error().what.c_str());
   if (!scripting::make_script_host()->available()) {
     for (auto& r : q->runs) {
@@ -53,10 +53,19 @@ inline experiment::QueueSpec example_queue(const std::filesystem::path& dir, con
   return *q;
 }
 
+// A virtual clock's options with only the speed set (simulated seconds per
+// real second). Not a designated initializer: one that leaves fields out is
+// a warning under clang 18 and gcc.
+inline VirtualClock::Options at_speed(double speed) {
+  VirtualClock::Options options;
+  options.speed = speed;
+  return options;
+}
+
 // Destroy any bridge or window built on this before the fixture itself.
 struct SimLab {
   std::filesystem::path dir = scratch_lab();
-  VirtualClock clock{VirtualClock::Options{.speed = 400}};  // outlives everything below
+  VirtualClock clock{at_speed(400)};  // outlives everything below
   std::unique_ptr<systems::ExtractionLine> line;
   std::unique_ptr<spectrometer::Spectrometer> spec;
   std::unique_ptr<spectrometer::ScanService> scan;
@@ -107,4 +116,4 @@ struct SimLab {
   experiment::QueueSpec queue() const { return example_queue(dir, lab.ids); }
 };
 
-}  // namespace pychron::ui::test
+}  // namespace nobion::ui::test

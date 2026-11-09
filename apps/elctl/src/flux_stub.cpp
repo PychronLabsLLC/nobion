@@ -1,4 +1,4 @@
-// elctl flux without the DVC store (PYCHRON_PERSISTENCE=OFF, or Qt not
+// elctl flux without the DVC store (NOBION_PERSISTENCE=OFF, or Qt not
 // found): the command exists and says why it does nothing.
 
 #include <ostream>
@@ -7,7 +7,7 @@
 
 namespace elctl {
 
-int flux_command(const std::vector<std::string>&, Io io) {
+int flux_command(const std::vector<std::string>&, const nobion::processing::Domain&, Io io) {
   io.err << "elctl was built without persistence\n";
   return kUsage;
 }

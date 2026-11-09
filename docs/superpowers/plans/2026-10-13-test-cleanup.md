@@ -1,0 +1,189 @@
+# Test Cleanup Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** The library test suites take less time and fewer lines to read, with the same protection: coverage of `libs/` never drops, and nothing a rule of the spec keeps is removed.
+
+**Architecture:** Measure first (a per-test timing report from ctest, a local clang coverage build), then make the slow importer tests cheaper where the time actually is, then fold one-literal copies into tables, trim `elctl` import tests to command paths, and only last remove tests, one suite per commit with the test that still covers each one named.
+
+**Tech Stack:** C++20, GoogleTest, CMake presets, ctest JUnit output, clang source-based coverage (`llvm-profdata`, `llvm-cov`), Python 3 tools.
+
+**Spec:** `docs/superpowers/specs/2026-10-13-test-cleanup-design.md`, agreed 2026-10-13 (its section 7). Read it first; section numbers below are its. Section 4 gained, on this branch, the measurement below: it changes what Task 3 does first.
+
+## What the code says
+
+Read from `develop` `0f17653d`.
+
+- Importer suites: `Engines/ProjectImportTest` (`tests/dvc/test_project_import.cpp:319`, 82 `TEST_P`) and `Engines/MetaImportTest` (`tests/dvc/test_meta_import.cpp:299`, 26) are both in `pychron_dvc_tests` (`tests/dvc/CMakeLists.txt:10`, ctest `TIMEOUT 600` at `:24`). Each test makes its own `World` (defined in each file: `test_project_import.cpp:63`, `test_meta_import.cpp:53`): a file-backed `TestDatabase` (`tests/persistence/store_fixture.hpp:39`–`97`: a temp SQLite file, or a fresh PostgreSQL schema when `PYCHRON_TEST_PG_URL` is set), `open_or_die` (migrations run on every open, `:99`–`106`), and for the project suite three catalog rows. `GitFixture::init()` (`tests/dvc/git_fixture.hpp:112`) is one `git init`, no commit. No `SetUpTestSuite` anywhere.
+- `ImportCmd` (`apps/elctl/tests/test_import_cmd.cpp:82`, 37 `TEST_F`) and `ImportCmdParity` (`:1002`, 13) are in `pychron_elctl_tests` (`TIMEOUT 300`, `apps/elctl/tests/CMakeLists.txt:35`); SQLite only; `ImportCmdParity::build` (`:1018`) builds two repositories and imports them through `elctl` in every test.
+- Measured 2026-10-13 (Debug, SQLite, one process): `ProjectImportTest` 125 s, median 0.49 s, fastest 0.17 s; `MetaImportTest` 34 s, median 0.28 s, fastest 0.13 s. `SetUp` is at most the fastest test: about 10% of a suite. Three bodies are 52 s of the first and 27 s of the second (spec section 4, measured).
+- `OneHistoryOneResult` (`test_project_import.cpp:2564`, and the meta suite's) is required by `libs/ingest/AGENTS.md`: it holds one history with everything that has gone wrong at a batch boundary. It is made cheaper, never split or cut.
+- `CMakePresets.json`: configure presets `dev` (`:87`, Debug) and `dev-ui` (`:96`), binary dir `build/<preset>`; test presets `dev` (`:165`), `dev-quick` (`:176`, excludes the importer suites), `dev-ui` (`:186`). No coverage option, preset or module (`cmake/` has `PychronSanitizers.cmake`, `PychronWarnings.cmake`, …). `xcrun --find llvm-cov` and `llvm-profdata` resolve on this Mac (Command Line Tools).
+- No timing hook in the tests; environment variables used by tests: `PYCHRON_TEST_PG_URL`, `PYCHRON_TEST_SECRET_STORE`, `PYCHRON_TEST_CAMERA`, `PYCHRON_TEST_DATA_DIR`; benches use `PYCHRON_BENCH_*`.
+- S2 candidates named by the spec: `tests/devices/spectrometer/test_thermo_qtegra_acquire.cpp:88`–`146`, `tests/devices/spectrometer/legacy/test_acquirers.cpp:176`–`207`. S4: `ImportCmdParity` against `InterpretedAgeBecomesARevision` (`tests/dvc/test_project_import.cpp:1857`).
+
+## Global Constraints
+
+- Root `AGENTS.md` stands: no test skipped or disabled; one failing only in parallel is fixed, not serialized; `*Steady` tests, `VirtualClock` pacing tests and `AnInterruptStopsAPacedQueueInRealTime` are kept.
+- Spec section 2: a test that once caught a bug stays (commit history or comment); file-format tests and fixtures from another platform stay; PostgreSQL instances of `TEST_P` stay.
+- `tests/ui` is out of scope.
+- Every task that changes or removes a test: coverage report of `libs/` before and after (Task 2's tool), both summaries in the commit message, lines and branches not lower. Times before and after (Task 1's tool) in the commit message.
+- A shared world is never written by a test; a test that writes gets its own copy.
+- One suite per commit for removals and merges; the commit names each test dropped and the test that still covers it.
+- Each task is one commit (Conventional Commits: `test(<component>)` for test changes, `build:` for presets, `chore(tools):` for tools). Before each: `python3 tools/quality_check.py` (exit 0), the changed test target built and run filtered. Before the branch lands: full `cmake --build --preset dev`, `ctest --preset dev`, `python3 tools/compiler_sweep.py`.
+- `libs/ingest/AGENTS.md` rules hold for any change under `tests/dvc` or `apps/elctl/tests/test_import_cmd.cpp`: no test runs git against this repository; `GitFixture` keeps the user's git configuration off.
+
+## File Structure
+
+| File | Responsibility |
+|---|---|
+| `tools/test_times.py` (new) | Run ctest with JUnit output (or read one), print slowest tests and suites, compare two runs. |
+| `cmake/PychronCoverage.cmake` (new) | `PYCHRON_COVERAGE` option: clang `-fprofile-instr-generate -fcoverage-mapping`; refused with gcc or MSVC. |
+| `CMakePresets.json` | `coverage` configure and test preset (`build/coverage`, `LLVM_PROFILE_FILE` per process). |
+| `tools/coverage_report.py` (new) | Merge profiles, `llvm-cov report` over `libs/` only, write a summary; compare two summaries. |
+| `libs/dvc/src/git_reader.cpp`, `libs/dvc/include/pychron/dvc/git_reader.hpp`, `libs/dvc/src/commit_walk.cpp`, `tests/dvc/test_git_reader.cpp` | Task 4: fewer git processes per import run. |
+| `tests/dvc/git_fixture.hpp` and its test | Task 5: fewer git processes per fixture commit. |
+| `tests/devices/spectrometer/test_thermo_qtegra_acquire.cpp`, `tests/devices/spectrometer/legacy/test_acquirers.cpp` | S2 folds. |
+| `apps/elctl/tests/test_import_cmd.cpp` | S4 trim. |
+| `docs/dev_setup.md` | How to run the two tools. |
+
+---
+
+### Task 1: Per-test time report
+
+**Files:** create `tools/test_times.py`; modify `docs/dev_setup.md` (a "Test times" paragraph).
+
+- [x] Step 1: Write `tools/test_times.py`:
+  - `run --preset dev [--tests-regex R] --out times.xml`: runs `ctest --preset <p> -j1 --output-junit <out>` (one at a time, so a time is the test's own), exit status of ctest passed through.
+  - `show times.xml [--top N] [--by suite|test]`: reads the JUnit (`testcase` `name`, `time`), groups by the part before the first `.` (gtest suite; `Engines/ProjectImportTest` kept whole), prints count, sum, median, min, max per suite and the top N tests.
+  - `compare before.xml after.xml`: per suite, sum before and after and the difference; tests present in one only listed.
+  - Standard library only; `--help` for each.
+- [x] Step 2: Test it by hand on `ctest --preset dev --tests-regex 'ProjectImportTest'` and check its numbers against gtest's own output (`pychron_dvc_tests --gtest_filter='Engines/ProjectImportTest.*'`): sums within 10%.
+- [x] Step 3: `docs/dev_setup.md`: when and how to run it; a full `-j1` run takes about 15 min.
+- [x] Step 4: Record a baseline of the whole tree in the commit message (top 15 suites by sum). Commit `chore(tools): a per-test time report from ctest`.
+  - Tool committed by the nightly run of 2026-10-16 with a `ProjectImportTest` baseline only: a nightly unit may not build the whole tree or run the whole of `ctest --preset dev`. The whole-tree baseline is still owed: `python3 tools/test_times.py run --preset dev --out baseline.xml` after a full build, then `show baseline.xml --top 15`, recorded in the commit message of the first later task that changes a test.
+  - Done 2026-11-02 on `497e24e2`, Debug, SQLite, 18 cores, other builds running (load average 30 to 40): 6454 tests, 100% passed, 11 skipped by their own conditions, 32:18 wall, 1907.6 s summed. Top suites: `Links/LinkOutage` 761.9 s, `Engines/ProjectImportTest` 154.4 s, `Engines/MetaImportTest` 55.8 s, `LabSim` 45.8 s, `LaserCmd` 38.3 s, `VirtualClockTest` 36.4 s, `ElctlExpTest` 34.5 s, `ImportCmd` 33.8 s, `Dragonfly` 31.0 s, `TrackBench` 29.4 s, `LaserCameraCmd` 26.0 s, `LabSessionTest` 22.6 s, `ElctlSetupTest` 20.0 s, `FluxCmd` 19.2 s, `CrescentHole` 19.1 s. In Task 5's commit message.
+
+### Task 2: Local coverage build and report
+
+**Files:** create `cmake/PychronCoverage.cmake`, `tools/coverage_report.py`; modify top-level `CMakeLists.txt` (include the module), `CMakePresets.json`, `docs/dev_setup.md`.
+
+- [x] Step 1: `cmake/PychronCoverage.cmake`: `option(PYCHRON_COVERAGE "clang source-based coverage" OFF)`; when ON and the compiler is not Clang or AppleClang, `FATAL_ERROR` naming the compiler; else add the two flags to compile and link options for every target (as `PychronSanitizers.cmake` adds its flags). Not combined with `PYCHRON_SANITIZE` (refused with a message).
+  - Also `-fcoverage-compilation-dir=${CMAKE_BINARY_DIR}`: ccache's base_dir hands the compiler relative paths, and an object reused from another worktree's coverage build would name that worktree's directory.
+- [x] Step 2: `CMakePresets.json`: configure preset `coverage` (inherits `dev`, `PYCHRON_COVERAGE=ON`, `PYCHRON_WARNINGS_AS_ERRORS=ON`), test preset `coverage` (inherits `dev`'s environment, adds `LLVM_PROFILE_FILE=${sourceDir}/build/coverage/profiles/%4m.profraw`), excluding nothing.
+  - `%4m` (a pool of four files per binary, merged online) instead of `%p-%m`: one raw profile per test process is several MB per process for the large binaries, tens of GB for the whole tree. Build preset `coverage` added too.
+- [x] Step 3: `tools/coverage_report.py`:
+  - `report --build-dir build/coverage --out summary.json`: `llvm-profdata merge -sparse` of `profiles/*.profraw`; `llvm-cov export -summary-only` (machine-readable form of `llvm-cov report`) with every executable under `build/coverage/tests` and `build/coverage/apps` (so `apps/elctl/tests` and `elctl` itself) as `-object`, restricted to `libs/` by passing `<source>/libs` as the source filter (llvm-cov's regex has no negative match, so `--ignore-filename-regex` cannot keep only one directory) and again when summarizing; writes per-file and total line and branch counts and percentages as JSON and prints the totals. Finds the tools with `xcrun --find` on macOS, `PATH` elsewhere; exit 2 with the reason when they are missing.
+  - `compare before.json after.json`: totals and every file whose lines or branches covered went down; exit 1 when any did.
+  - `clean --build-dir build/coverage` empties `profiles/` before a run (a subcommand rather than a `--clean` flag: it runs before ctest, not with the report).
+  - Tested by `tools/tests/test_coverage_report.py` (ctest `tools.coverage_report`).
+- [x] Step 4: Run it once on the whole tree (`cmake --preset coverage`, build, `ctest --preset coverage`, report). Note the time it took and the totals in `docs/dev_setup.md`'s new "Coverage" paragraph and in the commit message.
+  - Nightly run of 2026-10-16 ran it on `pychron_core_tests` only (numbers in `docs/dev_setup.md` and the commit message): a nightly unit may not build the whole tree. The whole-tree run is still owed, and is the baseline the first later task that changes a test compares against: `cmake --build --preset coverage --parallel`, `coverage_report.py clean`, `ctest --preset coverage`, `coverage_report.py report --out baseline.json`; record its time and totals in `docs/dev_setup.md` and in that task's commit message.
+  - Done 2026-11-02 on `497e24e2`: configure 43 s, build 7:47 (no coverage objects in ccache), `ctest --preset coverage` 6:01, report 2 s; `libs/` (637 files) lines 95.33% (88300/92622), branches 82.31% (46708/56744). In `docs/dev_setup.md` and Task 5's commit message.
+- [x] Step 5: `ctest --preset dev` still passes (the option is OFF there). Commit `build: a local clang coverage preset and report`.
+  - Committed by the nightly run of 2026-10-16. `dev` was reconfigured (coverage stays off) and `ctest --preset dev -R 'tools\.'` run: `tools.coverage_report` passes; `tools.export_patterns` fails only because `build/dev/apps/elctl/elctl` is not built in this worktree. The full `ctest --preset dev` is left to the plan's last unit.
+  - Full `ctest --preset dev` run 2026-11-02 with Task 1's baseline: 100% of 6454 passed; `tools.export_patterns` passes with `elctl` built.
+
+### Task 3: Where the importer suites' time goes
+
+A measuring task: it writes findings, not fixes. Its result decides Tasks 4 and 5.
+
+**Files:** modify `docs/superpowers/specs/2026-10-13-test-cleanup-design.md` section 4 (findings), this plan (Tasks 4 and 5 written from them).
+
+- [x] Step 1: Profile the six slowest bodies (spec section 4's list) with `sample` on macOS while each runs alone (`--gtest_filter`, `--gtest_repeat=3` for `sample` to catch it): time in `git` subprocesses (`GitFixture`, `LegacyRepoBuilder` commits), in `run_import` (reader, writer, store), in `fresh_world` (migrations), in assertions (`snapshot_of`, history reads).
+- [x] Step 2: Count, for `OneHistoryOneResult` in both suites, the git commits it makes, the imports it runs and the worlds it opens; same for `ReadableRecordAfterAnUnreadableFirstRecordStartsTheCollection` and `VerifyAfterImportIsOk`.
+- [x] Step 3: Time `SetUp` alone: a `TEST_P` with an empty body under `--gtest_repeat=20` in a scratch build, not committed. Confirm the 10% bound or correct it.
+  - Done by the nightly run of 2026-10-16 (findings in spec section 4). Steps 1 and 2 were run on the whole of both suites as well as on the six bodies (seven: `UnreadableVersionIsSupersededByAReadableOneOrADeletion` of the project suite is as slow as the meta one), and git processes were counted with a logging `git` placed first on `PATH`. `SetUp` is about 2% of a suite: the bound holds. About 85% of both suites is waiting on git children; the two largest causes are `GitReader`'s processes per import run and verify walk (about 70%) and the fixture's commits (13 to 15%).
+- [x] Step 4: Write the findings into spec section 4 (numbers, where the time is) and replace Tasks 4 and 5 below with concrete steps for the two largest causes. Commit `docs: where the importer tests spend their time`.
+
+### Moved to its own row (T097): fewer git processes per import run (`GitReader`), was Task 4
+
+Owner, 2026-10-18: this production change in `libs/dvc` is its own row, T097, not part of T036. It is kept here as T097's design; T036 does not build it.
+
+Spec section 4, cause 1: every import run and every verify walk opens a new `GitReader`, which starts 4 git processes to open (`git --version`, then three `rev-parse`), and each batch starts 3 more (`log` for `commits`, `diff-tree` for `changes`, `cat-file --batch` for `fetch_blobs`). The importer tests drive hundreds of short runs on purpose, so these fixed costs are about 70% of both suites (14 056 git processes for one `ProjectImportTest` run, about 7 ms each). This task makes the reader start fewer processes for the same output; the tests are not changed. It changes production code in `libs/dvc` for speed, so it waits for the owner (Open questions) and comes with a measurement.
+
+**Files:** modify `libs/dvc/src/git_reader.cpp` (`open` at `:388`, `commits` at `:537`, `changes` at `:586`), `libs/dvc/include/pychron/dvc/git_reader.hpp` (one new member), `libs/dvc/src/commit_walk.cpp` (`:116`–`120`); test `tests/dvc/test_git_reader.cpp`. Read `libs/ingest/AGENTS.md` first.
+
+- [x] Step 1: Baseline. Build `pychron_dvc_tests` and `pychron_elctl_tests`; record `python3 tools/test_times.py run --preset dev --tests-regex 'ProjectImportTest|MetaImportTest|ImportCmd' --out before.xml`, and the git processes of one `Engines/ProjectImportTest.*` run (a logging `git` first on `PATH`, in `$TMPDIR`, as Task 3 did). Note the machine's load average: Task 3's numbers were taken at 8 to 10.
+  - Done 2026-10-19 on `develop` `e76218f9`, Debug, SQLite, git 2.50.1 (Apple Git-155), 18 cores, load average 30 to 48 (other sessions; Task 3's was 8 to 10). `tools/test_times.py` is on T036's branch, not yet on `develop`: run from a scratch copy. ctest `-j1`: `Engines/ProjectImportTest` 255.2 s, `Engines/MetaImportTest` 50.5 s, `ImportCmd` 21.8 s, `ImportCmdParity` 15.5 s, 160 tests 346.0 s summed. Git processes (logging `git` first on `PATH`): `Engines/ProjectImportTest` 14 056 (2 702 `diff-tree`, 2 663 `rev-parse`, 2 600 `log`, 772 `--version`), `Engines/MetaImportTest` 3 720, `ImportCmd*` 2 850.
+- [x] Step 2: `git --version` once per process. In `GitReader::open`, keep the version check's result (version, or the error) in a function-local static guarded by `std::once_flag`, keyed by nothing: the git on `PATH` does not change under a running process. Test first in `tests/dvc/test_git_reader.cpp`: two `open` calls on one `GitFixture` both succeed; the too-old-version path stays covered by the existing test of `parse_git_version`. Commit `perf(dvc): git's version is read once per process`.
+  - Done: kept under a mutex in a function-local `std::optional`, not a `std::once_flag`, so that a failed read (git missing, a timeout) is asked again by the next open rather than kept; a version read is kept. Commit `perf(dvc): git's version is read once per process`.
+- [x] Step 3: one `rev-parse` to open. Replace the three calls at `:427`–`444` by one: `git rev-parse --git-dir --is-shallow-repository --verify --quiet --end-of-options refs/heads/<branch>^{commit}` (checked on git 2.50: prints the git dir, `false`, the sha, exit 0; exit 1 with the first two lines when the branch is missing). On exit 1, fall back to today's code for the bare name and the error messages (not a repository, shallow, no commits, branch not found), so every error text stays as it is. Tests first: open on a repository, on a shallow clone (`GitFixture::clone_bare` with `--depth=1`), on a missing branch, on a branch named only by its bare name, outside a repository: each gives today's result and message. Confirm `--end-of-options` with these options on git 2.32 (minimum, `kMinimumGitVersion`) from git's release notes or a run on the Ubuntu CI image (git 2.43); if 2.32 refuses it, keep the separate calls for older versions. Commit `perf(dvc): a repository is opened with one rev-parse`.
+  - Done: the fast path returns only on exit 0 with three lines (git dir, `false`, a sha); anything else falls through to the old calls unchanged. `rev-parse --end-of-options` is in git 2.30 and was already used here, so no version split. Tests: `OpensTwiceInOneProcess`, `OpensABranchGivenByAnotherName` (by ref, tag, sha), `OpenRejectsShallowClone` with a missing branch as well; the existing open tests (not a repository, a directory inside one, empty repository, missing branch) unchanged and passing.
+- [x] Step 4: one `git log` for a batch's commits and changes. Add `GitReader::commits_and_changes(std::span<const std::string>)` returning both, from `git log --no-walk=unsorted --stdin -z --no-show-signature --format=<today's> --raw --root --diff-merges=first-parent --no-renames --no-abbrev`; `commits` and `changes` stay as they are (other callers: `project_map.cpp:277`). Test first: on fixture histories with a root commit, an empty commit, a merge, a deletion, a mode change, a non-ASCII path and a message holding a newline, the new call returns exactly what `commits` plus `changes` return. Then `commit_walk.cpp:116`–`120` uses it. Commit `perf(dvc): a batch's commits and changes come from one git log`.
+  - Done: `commits_and_changes` also passes `-r`, `--no-relative`, `--no-color`, `--no-ext-diff` and an empty order file (`-O` null device), so `git log`'s own configuration (`diff.relative`, `diff.orderFile`) cannot make it differ from `diff-tree`. The test also covers an empty root commit, a merge equal to its first parent, a message line that looks like a change, another order, one commit and none (`CommitsAndChangesFromOneLogMatchCommitsPlusChanges`, `CommitsAndChangesRejectsWhatIsNotASha`).
+- [x] Step 5: After. Same runs as Step 1 into `after.xml`; `python3 tools/test_times.py compare before.xml after.xml`; git process count after. Coverage of `libs/` before and after (Task 2's tool, as Global Constraints ask): lines and branches not lower. `python3 tools/quality_check.py`, `python3 tools/compiler_sweep.py --changed`, `pychron_dvc_tests` and `pychron_elctl_tests --gtest_filter='ImportCmd*'` run whole, and the importer suites under `PYCHRON_TEST_PG_URL` too. Times, process counts and coverage go into the last commit's message (or a `docs:` commit that updates spec section 4 with them).
+  - Done 2026-10-19, same machine and load as Step 1. ctest `-j1` (`test_times.py compare`): `Engines/ProjectImportTest` 255.2 -> 191.6 s, `Engines/MetaImportTest` 50.5 -> 51.5 s, `ImportCmd` 21.8 -> 33.9 s, `ImportCmdParity` 15.5 -> 22.4 s, total 346.0 -> 302.0 s; at this load a single run is noise for the small suites, so both builds were also run three times interleaved, one process each: both importer suites 346.7 -> 258.2 s wall, 242.8 -> 177.1 s user+sys (-27%); `ImportCmd*` 61.1 -> 56.2 s wall, 44.3 -> 34.1 s user+sys (-23%). Git processes: `Engines/ProjectImportTest` 14 056 -> 9 458 (`diff-tree` 2 702 -> 170, `rev-parse` 2 663 -> 1 286, `--version` 772 -> 83, the rest from `SKIP_WITHOUT_GIT`), `Engines/MetaImportTest` 3 720 -> 2 463, `ImportCmd*` 2 850 -> 2 187.
+  - Coverage of `libs/` not measured: Task 2's tool is not on `develop` yet. No test removed; four added, and two (`IgnoresInheritedGitEnvironment`, `OpenRejectsShallowClone`) gained assertions; the old open path is still reached by every open-failure test.
+  - `quality_check.py` 0 findings, `compiler_sweep.py --changed` 0 warnings, full `ctest --preset dev` 5661 passed, importer suites under `PYCHRON_TEST_PG_URL` 220 passed.
+
+### Task 5: Fewer git processes per fixture commit (`GitFixture`)
+
+Spec section 4, cause 2: fixture commits are 13 to 15% of both suites and about 19% of the verify tests. `GitFixture::commit` (`tests/dvc/git_fixture.hpp:140`) starts 3 processes: `add -A`, `commit`, and `rev-parse HEAD` for the sha (`merge` starts 2, the second also `rev-parse HEAD`). Test-only change; does not depend on Task 4 and may land first.
+
+**Files:** modify `tests/dvc/git_fixture.hpp`; test `tests/dvc/test_git_reader.cpp` (where `GitFixture` is used against `GitReader` and `parse_git_version` is tested).
+
+- [x] Step 1: Baseline as Task 4 Step 1 (if Task 4 has landed, its after is this baseline).
+  - Task 1's whole-tree run, and git processes counted on `497e24e2`: `Engines/ProjectImportTest` 9 458, `Engines/MetaImportTest` 2 463, `ImportCmd*` 2 187, the same as T097's after.
+- [x] Step 2: `head()` reads the sha from the fixture's own git directory: `<path()>/.git/HEAD`; when it is `ref: <name>`, the file `<path()>/.git/<name>`; when that file is missing (a packed ref), `packed-refs`, and only when that fails too, today's `git rev-parse HEAD`. The file is read, never written, and only inside the fixture's root, so `libs/ingest/AGENTS.md`'s rule (no git against this repository) holds. Test first: `head()` equals `git rev-parse HEAD` after a commit, after a merge, on a detached HEAD after `checkout <sha>`, and after `git pack-refs --all`.
+  - Done. `HeadIsWhatGitSays` holds those four cases and a commit made after packing (the loose ref wins); `HeadStartsNoProcess` runs `head()` with no git on `PATH` and was the failing test first; `HeadOfAnUnbornBranchFails` keeps git's refusal through the fallback. What is neither a sha nor a `ref: ` line goes to `rev-parse`, so another ref storage (reftable) still works.
+- [x] Step 3: Times after (`test_times.py compare`), git process count after (expected: about 590 fewer per `ProjectImportTest` run), coverage of `libs/` unchanged. `quality_check.py`, `compiler_sweep.py --changed`, `pychron_dvc_tests` and `pychron_elctl_tests --gtest_filter='ImportCmd*'` (it uses `GitFixture` too). Commit `test(dvc): a fixture commit reads its sha from the ref, not from git rev-parse`, with the numbers in its message.
+  - Git processes: `Engines/ProjectImportTest` 9 458 -> 8 867 (591 fewer), `Engines/MetaImportTest` 2 463 -> 2 327, `ImportCmd*` 2 187 -> 1 925. ctest `-j1`, load average 30 to 50 on both sides, so the process count is the measure and these are noise-bound: `Engines/ProjectImportTest` 154.4 -> 126.5 s, `Engines/MetaImportTest` 55.8 -> 52.1 s, `ImportCmd` 33.8 -> 18.1 s, `ImportCmdParity` 17.9 -> 15.0 s.
+  - Coverage of `libs/`: lines 95.33% (88300/92622) -> 95.34% (88305), branches 82.31% (46708/56744) -> 82.33% (46719). `compare` lists nine small dips (one to four counts), all in files this change cannot reach (`maxigauge`, `scheduler`, `ngx_link`, `serialize`, `store`, `host_state`, `live_feed`): timing of threaded tests between runs, and `Rehearse.PythonTimeBeforeAStepStillCountsAgainstWallTime`, which failed once in that run under load (not this change: see the end of this plan). No file under `libs/dvc` or `libs/ingest` went down.
+
+### Task 6: S2 folds in the Qtegra acquire tests
+
+**Files:** modify `tests/devices/spectrometer/test_thermo_qtegra_acquire.cpp` (lines 88–146).
+
+- [x] Step 1: Read the tests in that range; list the ones whose bodies differ only in a value and an expectation. Any that differ in setup or in what they assert stay as they are.
+  - Stale range: the file has moved on, and the tests now at about lines 90–145 (`NextBeforeStartIsConfig` to `NotDueReturnsNulloptWithoutTraffic`) differ in setup or in what they assert, so all stay. `GetDataEdgeReplies` was added since and is the table the spec asked for. Two tests outside the range are one-literal copies of it: `NonNumericValueIsProtocol` (the same reply and expectation as its row "non-numeric value") and `ExtraDetectorIgnored` (a reply and a value set, as its rows are). `MissingDetectorIsAbsentNotError` also asserts `Frame::value` and health, so it stays. Neither of the two came with a bug fix: both date from the first commit of the driver, `7b535dd8`.
+- [x] Step 2: Fold that list into one table test (a `struct Case` vector, loop with `SCOPED_TRACE(case.name)`), or a `TEST_P` with `INSTANTIATE_TEST_SUITE_P` naming each case, keeping every case's value and expectation. `QtegraAcquireSteady` cases are not touched.
+  - `ExtraDetectorIgnored` is a new row of `GetDataEdgeReplies`; `NonNumericValueIsProtocol` needed no row, its own is there.
+- [x] Step 3: Build `pychron_devices_tests` (`tests/devices/CMakeLists.txt:6`), run the file's suite; coverage before and after (Task 2) for `libs/devices`; commit `test(devices): one table for the Qtegra acquire cases that differ by a value`.
+  - Commit `test(devices): the Qtegra GetData table holds the replies that differ by a value` (it joins an existing table). Tests 6457 -> 6455, all passing. Lines and branches of every Qtegra file (`libs/codecs/src/thermo_qtegra.cpp`, `libs/devices/src/spectrometer/thermo_qtegra.cpp`, `thermo_qtegra_sim.cpp`, `qtegra_link.cpp`) are identical before and after.
+  - The whole-tree total is not a gate to the last count: two runs of the same tree differ by 3 lines and 2 branches, all in threaded or timed code, and four runs on this branch span lines 88296 to 88305 and branches 46697 to 46719. Task 6's totals (88299/92622 and 46699/56744, two runs: 88296 and 46697) lie in that band. The gate that holds is: no file the change can reach goes down.
+
+### Task 7: S2 folds in the legacy acquirers tests
+
+As Task 6 for `tests/devices/spectrometer/legacy/test_acquirers.cpp` lines 176–207. Commit `test(devices): one table for the legacy acquirer cases that differ by a value`.
+
+### Task 8: S4, `ImportCmdParity` to command paths
+
+**Files:** modify `apps/elctl/tests/test_import_cmd.cpp` (`:1002` onward); possibly `tests/dvc/test_project_import.cpp` (an assertion moved to the engine test).
+
+- [x] Step 1: For each of the 13 tests, list its assertions; mark each as command path (argument parsing, exit status, output text, the store being the one named) or engine result (what the import wrote).
+  - What the plan took for granted does not hold: the parity tests re-prove the import very little. What they mostly prove is the age function, `AgeAsOf` (`apps/elctl/src/import_age.cpp`, reached through `make_age_fn`, spec 10.6, 10.30, 10.32, ruling 52): which revisions are reduced, reference data as of the age, and each not-comparable reason. It lives in `apps/elctl`, so no test in `tests/dvc` or `tests/ingest` can reach it; `VerifierTest` and the importer suites use a scripted `AgeFn`. These tests are its only tests.
+  - By test: `TheLegacyAgeIsReproduced` (the one check of a real legacy age to 5e-9, with the output text), `TheLargestPassingResidualIsPrinted` (text, `--json`, `--tolerance`), `OtherConstantsDoNotReproduceIt` (`--constants`, text, `--json`, a bad preset) are command paths around the age function. `AnAgeSavedAfterAnEditIsReducedFromTheEditedRevision`, `AParentlessRevisionMadeLaterIsNotTheStateAsOfTheAge`, `ReferenceDataRevisedAfterTheAgeIsTakenAsOfTheAge`, `LevelProductionChangedAfterTheAgeIsTakenAsOfTheAge`, `ProductionNamedAtTheAgeButDefinedLaterIsNotComparable`, `ReferenceDataNotYetDefinedAtTheAgeIsNotComparable`, `FluxRemovedAsOfTheAgeIsNotComparable`, `ProductionRemovedAsOfTheAgeIsNotComparable`, `ChronologyRemovedAsOfTheAgeIsNotComparable`, `NoAgeIsInventedWithoutReferenceData` hold the as-of rule of the age function, seen through the `verify` line.
+- [x] Step 2: Every engine-result assertion: find the engine test that already makes it (`InterpretedAgeBecomesARevision` `:1857` and its neighbours); one that has none is moved there first, as its own commit, with the engine test passing.
+  - Held by an engine test, so removed: the three `conflicts --json` detail checks of `OtherConstantsDoNotReproduceIt` (`basis`, `error_compared`, `legacy`: `VerifierTest` from `:1332`, `ParityPassFailNotComparable`); a pass writing no conflict (`ParityPassFailNotComparable`, "the conflict is all verify wrote").
+  - Kept after review: a passing verify superseding the conflict in `OtherConstantsDoNotReproduceIt`. `PassingReverifySupersedesTheParityConflict` scripts the age, so only this test runs the command's own `AgeFn` from a failure to a pass.
+  - Not held, so kept: every as-of and not-comparable result above. They cannot move: `make_age_fn` is in `apps/elctl`, and `libs/ingest` does not reduce (root `AGENTS.md`).
+  - Kept as well: the `history` and `resolve_refs` block of `ReferenceDataRevisedAfterTheAgeIsTakenAsOfTheAge` and the blanks block of `AParentlessRevisionMadeLaterIsNotTheStateAsOfTheAge`. They are not the import re-proved: they show the scenario is the one the test needs (the heads are the later values). Without them a test of the as-of rule could pass with nothing to tell apart.
+- [x] Step 3: Remove engine-result assertions from the parity tests; a parity test left with no command-path assertion is removed, named in the commit with its engine cover. One `build()` shared by what is left, if the remaining tests only read.
+  - No test removed: all 13 keep what only they prove. `expect_not_comparable` no longer repeats a `verify --json` in five tests; that path is asserted once, in `ReferenceDataNotYetDefinedAtTheAgeIsNotComparable`.
+  - No shared `build()`: five tests use a plain `build(true)`, and of those two add meta commits and run again and two fail a verify, which writes a conflict, so one only reads; the other eight build another history. A shared world is never written by a test.
+- [x] Step 4: Times (Task 1) and coverage (Task 2) before and after; `pychron_elctl_tests --gtest_filter='ImportCmd*'`. Commit `test(elctl): import parity tests check the command, the engine tests check the import`.
+  - `ImportCmd*` 54 tests with `ImportDerive`, passing. ctest `-j1`: `ImportCmdParity` 15.0 -> 10.4 s, `ImportCmd` 18.1 -> 16.6 s, the second run at a lighter load (28 against 44), so most of that is load: five verifies and three listings go.
+  - Coverage. Of `pychron_elctl_tests` alone (`ImportCmd*` and `ImportDerive*`, old file against new, each run twice, runs identical): one file changes, `libs/ingest/src/verify_parity.cpp` 188 -> 185 lines, 99 -> 94 branches, the supersede path. Whole tree: `verify_parity.cpp` 217 lines and 144 branches in all five runs on this branch, so `VerifierTest` does hold them; no file under `libs/ingest` or `libs/dvc` went down. Totals 88298/92622 lines (95.33%), 46709/56744 branches (82.32%), inside the band of Task 6.
+
+### Task 9 onward: S1 and S3, one suite per commit
+
+Not cut yet: the candidates (spec section 3, about 60 S1 names and the S3 names) are judged by reading bodies, suite by suite. Cut into tasks after Task 8 lands, from a list made then: `grep` of the S1 shapes per suite, read, and S3 twins by body. Each such task: list, removal with named cover, coverage and time before and after.
+
+## Found on the way, not changed
+
+- `Rehearse.PythonTimeBeforeAStepStillCountsAgainstWallTime` (`tests/scripting/test_rehearse.cpp`) failed once in a whole-tree coverage run at load average 48 and passes alone (six of six). `max_wall_time` is looked at only on every 256th line event (`libs/scripting/src/python/host_state.cpp:232`), and the test crosses its 300 ms limit in the last 100 ms of a busy loop: a thread short of CPU can leave that loop without another 256 lines, and the script ends with the limit never read. Nothing in this branch reaches it. Not fixed here: it is a test or a production-check change for its own row.
+
+## Self-review
+
+- Spec section 6's order kept: tooling (Tasks 1, 2), importer fixtures (3–5), S2 (6, 7), S4 (8), S1 and S3 (9 on). Section 4's "measure SetUp first" is Task 3, and its premise is already measured to be false for most of the time, so Tasks 4 and 5 were left to be written from Task 3's findings rather than guessed. Task 3 found `SetUp` at about 2% and git processes at about 85% of both suites: Tasks 4 and 5 now cut git processes (reader, then fixture), and the shared per-suite world of the spec's first proposal is dropped.
+- Coverage gate (owner's answer 4) is a constraint on every task from 4 on; it needs Task 2 first.
+- UI suites (answer 5): none touched.
+
+## Open questions
+
+None.
+
+## Owner's answers, 2026-10-18
+
+1. The `libs/dvc` change (was Task 4) is its own row, T097, not part of T036. Task 5 is test-only and lands with T036 whether or not T097 has landed.

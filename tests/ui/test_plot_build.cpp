@@ -9,14 +9,14 @@
 
 #include <qcustomplot.h>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/scheduler.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/systems/spectrometer/assembler.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/scheduler.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/systems/spectrometer/assembler.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace std::chrono_literals;
 
 class TestPlotBuild : public QObject {
@@ -35,7 +35,7 @@ class TestPlotBuild : public QObject {
 
   void simSpectrometerDriversRegistered() {
     auto data =
-        cfg::load_spectrometer(std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "spectrometer.sim-integrated.toml");
+        cfg::load_spectrometer(std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "spectrometer.sim-integrated.toml");
     if (!data) QFAIL(data.error().what.c_str());
     ManualClock clock{TimePoint{} + 1000s};
     SignalBus bus;

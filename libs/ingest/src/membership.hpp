@@ -10,9 +10,9 @@
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/persistence/import.hpp"
+#include "nobion/persistence/import.hpp"
 
-namespace pychron::ingest::detail {
+namespace nobion::ingest::detail {
 
 inline constexpr char kMembershipOnly[] = "membership_only";
 
@@ -27,4 +27,4 @@ inline bool is_membership_only(const persistence::ProvenanceRow& row) {
   return flag != parsed.end() && flag->is_boolean() && flag->get<bool>();
 }
 
-}  // namespace pychron::ingest::detail
+}  // namespace nobion::ingest::detail

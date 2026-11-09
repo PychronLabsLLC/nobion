@@ -2,21 +2,24 @@
 
 #include <filesystem>
 #include <fstream>
+#include <map>
 
-#include "pychron/devices/connectable.hpp"
-#include "pychron/sim/spectrometer/beam_model.hpp"
-#include "pychron/transport/sim_transport.hpp"
-#include "pychron/systems/spectrometer/assembler.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/devices/connectable.hpp"
+#include "nobion/sim/spectrometer/beam_model.hpp"
+#include "nobion/transport/sim_transport.hpp"
+#include "nobion/systems/spectrometer/assembler.hpp"
 #include "spectrometer_fakes.hpp"
+#include "temp_path.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
-using namespace pychron::spectrometer::testing;
+using namespace nobion;
+using namespace nobion::spectrometer;
+using namespace nobion::spectrometer::testing;
 using namespace std::chrono_literals;
 
 namespace {
 
-const std::filesystem::path kDir(PYCHRON_EXAMPLE_CONFIGS_DIR);
+const std::filesystem::path kDir(NOBION_EXAMPLE_CONFIGS_DIR);
 
 cfg::SpectrometerData load(const char* file) {
   auto d = cfg::load_spectrometer(kDir / file);
@@ -37,11 +40,47 @@ struct Env {
   ManualClock clock;
   SignalBus bus;
   Scheduler scheduler{clock, &bus, Scheduler::Options{0}};
-  SpectrometerContext ctx() { return SpectrometerContext{clock, scheduler, bus}; }
+  std::shared_ptr<LogHub> log_hub;
+  SpectrometerContext ctx() { return SpectrometerContext{clock, scheduler, bus, nullptr, log_hub}; }
   ~Env() { sim::BeamModelRegistry::global().clear(); }
 };
 
 }  // namespace
+
+// Spec 2026-11-06-field-diagnostics: a spectrometer transport mirrors its bytes
+// to "<transport>.wire" like a line transport, so the flight recorder holds them
+// at trace although the file level is info.
+TEST(SpectrometerAssembler, TransportsLogWireBytes) {
+  // Declared first, so destroyed last: after the hub has closed its files, and
+  // also when an ASSERT below returns early.
+  struct Cleanup {
+    std::filesystem::path dir;
+    ~Cleanup() {
+      std::error_code ec;
+      std::filesystem::remove_all(dir, ec);
+    }
+  } cleanup{nobion::testing::unique_temp_path("nobion_spec_wire_test_")};
+  const auto& dir = cleanup.dir;
+  std::filesystem::create_directories(dir);
+  config::LoggingConfig lc;
+  lc.dir = dir;
+  lc.default_level = LogLevel::Info;
+  Env env;
+  auto hub = LogHub::create(lc, env.clock);
+  ASSERT_TRUE(hub) << hub.error().what;
+  env.log_hub = std::move(*hub);
+
+  auto data = load("spectrometer.sim-legacy.toml");
+  const auto& tc = data.config.transports.at("dac");
+  auto transport = SpectrometerAssembler::default_transport(tc, env.ctx(), dir / "traces");
+  ASSERT_TRUE(transport) << transport.error().what;
+  (void)(*transport)->write(Bytes{0x0a, 0x0d});
+
+  const std::string ring = env.log_hub->recorder_snapshot();
+  EXPECT_NE(ring.find("dac.wire: tx"), std::string::npos) << ring;
+  transport->reset();
+  env.log_hub.reset();
+}
 
 TEST(SpectrometerAssembler, BindReportsEveryProblem) {
   auto data = load("spectrometer.sim-legacy.toml");
@@ -80,6 +119,52 @@ TEST(SpectrometerAssembler, BindSucceedsForMatchingDevices) {
   EXPECT_EQ(roles->beam_blank, nullptr);
 }
 
+TEST(SpectrometerAssembler, EveryDriverOnATransportIsGivenItsOneLink) {
+  auto data = load("spectrometer.sim-legacy.toml");
+  data.config.drivers.at("faradays").transport = "dac";  // two drivers on one transport
+  data.config.transports.at("dac").recovery.optional = true;
+  data.config.transports.at("dac").recovery.call_window_s = 5;
+  Env env;
+  std::map<std::string, Link*> given;
+  std::map<std::string, LinkPolicy> policies;
+  AssemblerOptions options;
+  options.make_driver = [&](const cfg::DriverConfig& dc, Transport& t, const SpectrometerContext& ctx,
+                            Link* link) -> Result<std::unique_ptr<Device>> {
+    given[dc.name] = link;
+    if (link != nullptr) policies[dc.name] = link->policy();
+    return SpectrometerAssembler::default_driver(dc, t, ctx, link);
+  };
+  (void)SpectrometerAssembler::assemble(std::move(data), env.ctx(), options);
+  ASSERT_EQ(given.size(), 4U);
+  ASSERT_NE(given.at("magnet_dac"), nullptr);
+  EXPECT_EQ(given.at("faradays"), given.at("magnet_dac"));
+  ASSERT_NE(given.at("multiplier"), nullptr);
+  EXPECT_NE(given.at("multiplier"), given.at("magnet_dac"));
+  EXPECT_TRUE(policies.at("magnet_dac").optional);
+  EXPECT_EQ(policies.at("magnet_dac").call_window, std::chrono::seconds(5));
+  EXPECT_EQ(policies.at("multiplier"), LinkPolicy{});
+}
+
+TEST(SpectrometerAssembler, ALinkTakesTheLabsDefaultsForWhatItsTableDoesNotSay) {
+  auto data = load("spectrometer.sim-legacy.toml");
+  data.config.transports.at("dac").recovery.call_window_s = 5;
+  Env env;
+  std::map<std::string, LinkPolicy> policies;
+  AssemblerOptions options;
+  options.link_defaults.call_window = std::chrono::seconds(90);
+  options.link_defaults.backoff_min = std::chrono::seconds(2);
+  options.make_driver = [&](const cfg::DriverConfig& dc, Transport& t, const SpectrometerContext& ctx,
+                            Link* link) -> Result<std::unique_ptr<Device>> {
+    if (link != nullptr) policies[dc.name] = link->policy();
+    return SpectrometerAssembler::default_driver(dc, t, ctx, link);
+  };
+  (void)SpectrometerAssembler::assemble(std::move(data), env.ctx(), options);
+  ASSERT_TRUE(policies.contains("magnet_dac") && policies.contains("multiplier"));
+  EXPECT_EQ(policies.at("magnet_dac").call_window, std::chrono::seconds(5));
+  EXPECT_EQ(policies.at("magnet_dac").backoff_min, std::chrono::seconds(2));
+  EXPECT_EQ(policies.at("multiplier"), options.link_defaults);
+}
+
 TEST(SpectrometerAssembler, ConfigRulesRunBeforeBuilding) {
   auto data = load("spectrometer.sim-integrated.toml");
   data.config.magnet.native_axis = cfg::Axis::Mass;  // HV correction enabled -> rule violation
@@ -101,7 +186,7 @@ TEST(SpectrometerAssembler, DriverFailuresAreCollected) {
   auto data = load("spectrometer.sim-legacy.toml");
   Env env;
   AssemblerOptions options;
-  options.make_driver = [](const cfg::DriverConfig& dc, Transport&, const SpectrometerContext&)
+  options.make_driver = [](const cfg::DriverConfig& dc, Transport&, const SpectrometerContext&, Link*)
       -> Result<std::unique_ptr<Device>> { return fail(ErrorKind::Io, "no " + dc.name); };
   auto spec = SpectrometerAssembler::assemble(std::move(data), env.ctx(), options);
   ASSERT_FALSE(spec.has_value());
@@ -124,7 +209,7 @@ TEST(SpectrometerAssembler, AssemblesBothSimConfigsFromRegistry) {
 
 TEST(SpectrometerAssembler, TraceKeyWritesTraceFile) {
   auto data = load("spectrometer.sim-legacy.toml");
-  const auto dir = std::filesystem::temp_directory_path() / "pychron_spec_trace_test" / "nested";
+  const auto dir = std::filesystem::temp_directory_path() / "nobion_spec_trace_test" / "nested";
   std::filesystem::remove_all(dir.parent_path());
   const std::string name = data.config.transports.begin()->first;
   data.config.transports.begin()->second.trace = true;
@@ -140,7 +225,7 @@ TEST(SpectrometerAssembler, TraceKeyWritesTraceFile) {
 
 TEST(SpectrometerAssembler, TraceDirCreationFailureIsIoError) {
   auto data = load("spectrometer.sim-legacy.toml");
-  const auto blocker = std::filesystem::temp_directory_path() / "pychron_spec_trace_blocker";
+  const auto blocker = std::filesystem::temp_directory_path() / "nobion_spec_trace_blocker";
   std::filesystem::remove_all(blocker);
   { std::ofstream(blocker) << "x"; }
   data.config.transports.begin()->second.trace = true;
@@ -175,8 +260,9 @@ class ProbeTransport final : public Transport {
     if (is_open()) events_.push_back("close:" + name_);
     inner_->close();
   }
-  Result<Bytes> exchange(Bytes tx, ReadSpec rs, Duration t = kDefaultTimeout) override {
-    return inner_->exchange(std::move(tx), std::move(rs), t);
+  Result<Bytes> exchange(Bytes tx, ReadSpec rs, Duration t = kDefaultTimeout,
+                         Resend resend = Resend::Never) override {
+    return inner_->exchange(std::move(tx), std::move(rs), t, resend);
   }
   Result<void> write(Bytes tx) override { return inner_->write(std::move(tx)); }
   Result<Bytes> read(ReadSpec rs, Duration t = kDefaultTimeout) override { return inner_->read(std::move(rs), t); }
@@ -229,7 +315,7 @@ struct Rig {
       return std::unique_ptr<Transport>(std::move(t));
     };
     o.make_driver = [this](const cfg::DriverConfig& dc, Transport& t,
-                           const SpectrometerContext&) -> Result<std::unique_ptr<Device>> {
+                           const SpectrometerContext&, Link*) -> Result<std::unique_ptr<Device>> {
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast): the test made it
       auto& probe = static_cast<ProbeTransport&>(t);
       std::unique_ptr<Device> d;

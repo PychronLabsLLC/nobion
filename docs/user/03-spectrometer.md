@@ -17,12 +17,12 @@ Related pages: [the extraction line](02-extraction-line.md),
 ## Opening the window
 
 Choose **View > Spectrometer** (Ctrl+Shift+S, Cmd+Shift+S on a Mac) in any
-Pychron window.
+Nobion window.
 
 The menu entry is greyed out when:
 
 - no spectrometer config was given or installed (an installation names one;
-  otherwise start with `pychron-ui --spectrometer <file>`, or `--sim`, which
+  otherwise start with `nobion --spectrometer <file>`, or `--sim`, which
   uses the example simulated spectrometer);
 - the config failed to load (the log dock shows
   `ERROR [ui] spectrometer not loaded: ...`);
@@ -44,8 +44,8 @@ Close it before running something that wants the spectrometer to itself.
 | Area | Contents |
 |---|---|
 | Centre | The strip chart. A red banner with a **Restart** button appears above it when something is wrong (see below). |
-| Left dock **Controls** | Integration time, graph settings, the detector list, the Magnet group. |
-| Right dock **Intensities** | A table of each detector's latest value. |
+| Left dock **Controls** | Integration time, graph settings, the Magnet group, the Rise rate calculator. |
+| Right dock **Intensities** | A table of each detector's latest value, where you also choose which detectors are drawn. |
 
 Docks can be dragged, floated and resized; the layout is remembered per
 spectrometer and per user. **Window > Panels** shows or hides Intensities
@@ -56,7 +56,7 @@ arrangements" in [the extraction line chapter](02-extraction-line.md).
 ### Strip chart
 
 Time (seconds since the chart started or was cleared) runs along the bottom,
-signal up the side. Each detector is one line in its own colour (the colour
+signal up the side. Each detector is one line in its own color (the color
 from the config, or a default palette). The chart redraws at most every 50 ms.
 
 Under **Graph** in the Controls dock:
@@ -69,12 +69,14 @@ Under **Graph** in the Controls dock:
 | Max / Min | Y limits. Read-only while autoscale is on; when you turn autoscale off they start at the current range. A pair that is not Min < Max (or Min <= 0 on a log axis) is rejected and reverts. |
 | Clear | Empties the chart. The data table and the instrument are unaffected. |
 
-Unchecking a detector under **Detectors** hides its line only. It keeps being
-read and still shows in the table; nothing is sent to the hardware.
+To hide a detector's line, double-click its row in the **Intensities**
+table; double-click again to show it. A hidden detector's row is greyed. It
+keeps being read and its numbers keep updating in the table; nothing is sent
+to the hardware. Which detectors are hidden is remembered.
 
 ### Intensities table
 
-Columns: Colour, Name, Isotope, Intensity, ±1σ, Units.
+Columns: Color, Name, Isotope, Intensity, ±1σ, Units.
 
 - **Intensity** is the latest integrated value (5 decimals).
 - **±1σ** is the standard deviation of that detector's recent readings (a
@@ -85,6 +87,8 @@ Columns: Colour, Name, Isotope, Intensity, ±1σ, Units.
 - A **red** Intensity cell with the tooltip `saturated` means the detector is
   reporting saturation for that reading (the detector's `saturation` limit).
 - A dash means no reading has arrived for that detector yet.
+- A **greyed** row is a detector whose line is not drawn in the chart
+  (double-click the row to draw it again).
 
 ### Integration time
 
@@ -105,13 +109,63 @@ Columns: Colour, Name, Isotope, Intensity, ±1σ, Units.
 
 **Large-move confirmation.** If the move would change the mass on the
 reference detector by more than a threshold (default **5 amu**), or the
-current or target position is unknown, Pychron asks "This moves H1 by N amu.
+current or target position is unknown, Nobion asks "This moves H1 by N amu.
 Move the magnet?" (or "The current magnet position is unknown. Move the
 magnet?"). The default answer is No. Set the threshold in **File >
 Preferences... > Spectrometer** ("Ask before moving the magnet more than");
 set it to 0 ("Never ask") to switch the question off. Be careful with that
 setting on a real instrument: on a vendor instrument the detector protection
 and beam-blank behaviour for a move come from the field table.
+
+### Rise rate
+
+How fast a detector's signal climbs: the static rise of the isolated
+spectrometer for a leak or outgassing check, before and after a bake, after
+a filament change. The calculator only listens to the readings the window
+already shows. It moves nothing and closes no valve: isolate the
+spectrometer yourself first.
+
+1. Choose the **detector**. The box is set to the Magnet group's detector
+   whenever that changes and no run is on; choose another here if you want.
+2. Press **Start**. A dark vertical line marks the start on the chart.
+3. Watch the line under the button: the number of readings, the minutes
+   elapsed and the two rates so far. Let it run until the rates stop
+   moving.
+4. Press **Stop**. A red line marks the end, and the result is added to the
+   table.
+
+| Column | Meaning |
+|---|---|
+| Endpoints | The last reading less the first, divided by the minutes between them. What a hand calculation gives; one noisy reading at either end moves it. |
+| Linear | The slope of a straight line fitted to every reading of the run. The steadier of the two. |
+| ± | The standard error of that slope (1σ). Blank for a run of two readings. |
+| Units | The detector's units per minute (`fA/min`, `cps/min`). |
+| Minutes, n | How long the run was and how many readings it used. |
+| Time | When it was stopped. |
+| Note | `saturated` when the detector reported saturation during the run: do not trust that rate. |
+
+If the two rates disagree by much more than the ±, the signal was not
+rising in a straight line (still equilibrating, or a burst): run longer, or
+start again once it has settled.
+
+**Copy** puts the table on the clipboard, tab separated, to paste into a
+spreadsheet or a notebook. **Clear results** empties the table, which is
+kept while the window is open.
+
+Every result is also appended to `rise_rates.csv` in the data directory
+(beside `records/`), one line each, so that you can look back over months:
+time, spectrometer, whether it was simulated, detector, isotope, the two
+rates and the standard error in full precision, units, minutes, number of
+readings and the note. The file is made the first time there is a result and
+only ever added to; Clear results does not touch it. If it cannot be written
+the panel says so and the result stays in the table.
+
+A run of fewer than two readings gives no result. Neither does one that was
+running when the window was closed, when **Restart** was pressed, or when
+the readings' time began again: the panel says why, and you start again.
+Changing the integration time or moving the magnet during a run is not
+prevented, and makes the result meaningless. **Clear** (the chart) during a
+run does not stop it; that run's lines are not drawn.
 
 ### When the banner appears
 
@@ -131,7 +185,7 @@ spectrometer's transport appears there as a chip too) and the log.
 
 ### What the window does not do
 
-The window is deliberately small. It has **no** controls for peak centering,
+The window is deliberately small. It has **no** controls for
 detector deflection, source (HV, trap current), baselines, saving a scan to a
 file, event markers or magnet DAC sliders. Those are done by measurement plans
 and scripts in the [experiment window](04-experiments.md) (see "Peak centering"
@@ -161,7 +215,7 @@ a plan is meant for the analysis types in its `analysis_types`). Edit plan files
 with the program closed or at least not mid-run, and check them with:
 
 ```bash
-elctl exp validate experiment.toml --lab <lab dir> --spectrometer spectrometer.toml
+elctl exp validate queues/experiment.toml --lab <lab dir> --spectrometer spectrometer.toml
 ```
 
 ### Reading a plan
@@ -201,6 +255,7 @@ after = true
 detector = "H1"
 isotope = "Ar40"
 config = "default"      # a named table in the lab's peak_center.toml
+min_signal = 3.0        # skip the peak centre after a run with less signal than this
 
 [baseline]              # measure with the magnet off the peaks
 after = true
@@ -275,7 +330,7 @@ Notes on the parts people trip over:
 
 Each detector has its own gain and efficiency. The factor that puts them on
 one scale is the **IC factor**: the same gas measured on two detectors, as a
-ratio. In Pychron:
+ratio. In Nobion:
 
 1. Measure it with the `detector_ic` plan (or an air shot with a plan that
    hops the same isotope across detectors). Air runs have a known
@@ -294,15 +349,31 @@ the starter `detector_ic` plan hops only Faradays for exactly that reason.
 
 Peak centring finds the magnet setting that puts an isotope's peak in the
 middle of a detector, and (by default) writes the correction into the field
-table so later moves use it. There is no button for it in the spectrometer
-window; it runs from a plan (`[peak_center] before/after = true`) or a
-script. The result appears in the **Evolutions** dock of the experiment
-window under **Peak centers** as `Ar40 on H1: center 5.001234, table
-updated`, or `failed: <reason>`. A failed centring is reported and the run
-continues; it is not an error.
+table so later moves use it. It runs from a plan (`[peak_center] before/after =
+true`), from a script, or by hand from the Peak Center window ("From the
+Peak Center window", below). The result of a plan's centring appears in the
+**Evolutions** dock of the experiment window under **Peak centers** as `Ar40 on
+H1: center 5.001234, table updated`, or `failed: <reason>`. A failed centring
+is reported and the run continues; it is not an error.
 
-The settings are named tables in the lab's `peak_center.toml`; a plan picks
-one with `config = "default"`:
+A small peak can still be fitted, and its centre then goes into the field
+table: after a blank that moves the table by noise. `min_signal` in the plan's
+`[peak_center]` prevents it. When the last ten readings of the isotope on the
+detector, in the run just measured, average less than `min_signal` (in the
+detector's units, not corrected for baseline), the peak centre after the run is
+not made: the magnet is not swept and the table is left alone. The run's events
+say `peak_center.after skipped: signal 0.011 below min_signal 0.05`, and the
+record keeps the same line. A peak centre before the run has no readings to
+compare and is always made. The plans an install ships set `min_signal = 3.0`
+and expose it as **Peak center minimum signal**, so a run may change it in the
+**Measurement** tab or with `overrides = { "peak_center.min_signal" = 50.0 }`
+(a blank whose remaining peak is above 3 is still centred unless its rows raise
+it); 0 is no minimum. (`min_peak_height` in `peak_center.toml` is a different
+thing: it fails a centring whose swept peak is lower, after the sweep has been
+made.)
+
+The settings are named tables in the lab's `peak_center.toml`; a plan picks one
+with `config = "default"`:
 
 ```toml
 [default]
@@ -317,19 +388,205 @@ integration_s = 1.0
 baseline_timeout_s = 10  # how long to wait for the signal to drop at the start
 update_table = true      # write the result to the field table
 propagate = true         # and move the other detectors' columns with it
-# also accepted: additional_detectors, center, direction ("increase"/"decrease"),
-# settle_s, dac_offset, peak_shift_threshold, test_peak_flat
+# also accepted: additional_detectors, center,
+# direction ("increase"/"decrease"), settle_s, dac_offset,
+# peak_shift_threshold, test_peak_flat
 ```
 
-Choose `window` from your real peak width: the example's wide window suits
-the simulator's broad peaks, and the program's built-in default is much
-narrower. A window that misses the peak fails the centring. An unknown key in
-this file is an error, and `elctl exp validate` reports a plan whose
-`config` is not in the file.
+Choose `window` from your real peak width: the example's wide window suits the
+simulator's broad peaks, and the program's built-in default is much narrower. A
+window that misses the peak fails the centring. An unknown key in this file is
+an error, and `elctl exp validate` reports a plan whose `config` is not in the
+file.
+
+`additional_detectors = ["H2", "AX"]` lists other detectors to read during the
+same sweep. They are read at every step and fitted as the reference is, but
+only for display: the centre, the field table update and the outcome come from
+the reference detector alone, and a detector whose fit fails does not fail the
+centring. In the experiment window (the Evolutions pane's Peak center tab, see
+section 3 of [Experiments](04-experiments.md)) each one is drawn on the
+reference's graph, scaled so that its lowest and highest readings span the same
+range as the reference's: you compare the shapes and positions of the peaks,
+not their sizes. The values stored and shown in the tooltip are the raw
+readings.
+
+Choose detectors that sit on a peak of their own when the reference is centred:
+in a multicollection setup, the detectors that collect the other isotopes of
+the same gas at that magnet setting (for example, with `Ar40` on `H1`, the
+detector that carries `Ar36` or `Ar39` in your plan). A detector with no peak
+inside the sweep window reads only baseline and noise, and scaling stretches
+that noise over the reference's whole range: it is drawn as a peak where there
+is none. Leave such a detector out. The example lab's `peak_center.toml` names
+none, because in the simulator no other detector has a peak in the example's
+window; the files a new install gets name none either, so each lab chooses its
+own.
 
 `update_table = true` writes a **new version** of the field table (a
 timestamped file under `tables/<name>/`, with a `current` pointer file naming
-the active one). Old versions are kept; nothing is overwritten.
+the active one). Old versions are kept; nothing is overwritten. If that file
+cannot be written (no data directory, a folder that is not writable), the peak
+center still succeeds and moves to the new value, but its result carries the
+note `field table not saved: <why>` and a warning is logged: the update then
+lasts only until nobion is restarted.
+
+#### From the Peak Center window
+
+**Spectrometer > Peak Center...** opens the Peak Center window (from any
+window's menu bar; it is greyed out, with the tooltip "no spectrometer
+configured", when there is no spectrometer). Choosing it again brings the same
+window to the front. The settings form is on the left (it scrolls when the
+window is shorter than it) and the plot on the right; drag the divider between
+them to share the width differently. The window's size, place and divider are
+remembered per spectrometer and per user. The spectrometer window does not
+need to be open, but its scan is the one a run stops and puts back.
+
+The form starts from the settings of the lab's `peak_center.toml` (described
+above): pick a set from the list, and its values fill the form. Change any field (isotope, detector,
+window, step and the rest) and it is marked as an override of the set; the
+override is used for this run only and does not touch the file. **Revert to
+set** puts the set's own values back.
+
+**Start** begins the run and **Cancel** ends it. If the scan is running it is
+stopped first and started again, with its integration time, when the run ends,
+unless you pressed Stop scan meanwhile or closed the window. A cancel takes
+effect at the next step: a settle or other wait in progress runs to its end.
+The plot is cleared at each Start and draws each try (earlier tries faint); the
+last result stays there, and in the form's result area, until the next Start.
+The plot's horizontal axis is the sweep's whole width from the moment a try
+starts, so the trace grows across it rather than the axis growing with the
+trace; a later try that sweeps wider widens it once, when it starts. The
+vertical axis follows the values drawn, with a little room above and below.
+The Evolutions pane's Peak center tab in the experiment window draws a plan's
+peak centers the same way.
+
+While the run goes nothing else may move the magnet or scan under the sweep: in
+the spectrometer window's Controls dock the magnet's **Apply**, the banner's **Restart** and the rise
+rate's **Start** are disabled from Start until the run has ended, and a rise
+rate measurement in progress is ended without a result. The other controls
+(graph, detectors, integration time) stay as they are.
+
+After a successful run, **Apply to field table** writes the centre into the
+detector's row for the isotope in the active field table, after asking you to
+confirm. With **Propagate** on, the other detectors' columns move with it. The
+change is saved as a new version of the table, as any edit in the field table
+editor is. Apply is off if the table was changed or a queue has run since the
+result, and it can be used once per result.
+
+**Save to set...** writes the form's values to a named set in the lab's
+`peak_center.toml`: an existing name is replaced in place, a new name is added,
+and the comments and order of the rest of the file are kept. The file is read
+again when a queue starts, so a plan sees a saved set at its next start, not
+partway through a queue. The experiment window checks a queue against the file
+as it is now: a row whose plan names a set you have just saved is good once the
+queue is checked again (**Revalidate**, or any edit), without restarting
+nobion. If the file cannot be read (a syntax error, an unknown key, an invalid
+value), the check shows a message naming the file and the queue start is
+refused with it.
+
+A queue and a peak center from the window never run together: Start and Apply
+are disabled, with the tooltip "a queue is running", while a queue runs (Save
+is still allowed), and starting a queue is refused with "peak center running in
+the Peak Center window" while a window run goes. Closing the Peak Center
+window during a run asks "Cancel peak center?": **Yes** cancels the run, puts
+the scan back as it was and closes the window when the run has ended; **No**
+keeps the window open and the run going. Closing the spectrometer window asks
+nothing: its scan stops, and a run going on ends with the scan left stopped.
+Closing the program or switching spectrometer cancels a run without asking.
+
+## Field table editor
+
+The field table (nobion's mftable) says, for every isotope, the magnet
+setting that puts it on each detector. Choose **Spectrometer > Field
+Table…** in any Nobion window to see and edit it. There is one editor
+window; choosing the item again brings it to the front. The item is greyed,
+with the tooltip `no spectrometer configured`, when there is no spectrometer
+or it has no data directory.
+
+| Part | What it shows |
+|---|---|
+| Left, **Tables** | Every table under the data directory's `tables/`. The one the magnet uses is marked **(active)**, the high-voltage table **(HV)**. |
+| Left, **Versions** | The versions of the selected table, newest first, with their number of points and detectors; the current one is marked **(current)**. Click one to open it. |
+| Centre, grid | The open version: **Isotope**, **Mass**, then one column per detector (the config's, in config order, then any the table has that the config does not, marked **(not in config)**). Rows are sorted by mass. An empty cell means no value for that detector. |
+| Centre, plot | The selected detector column: each value against its mass, and the fit through them over the detector's mass range plus 1 amu each side. Hover a point for its value and residual (value minus fit). A discrete fit, or one that fails, draws points only. |
+| Right | The table's default fit, a fit per detector (**default** uses the table's), the axis (not editable), and the diagnostics. Click a diagnostic to go to its cell. |
+
+### Editing
+
+- Type in a cell to change it. Values keep every digit you type; the grid
+  shows five decimals. Clear a cell to remove that detector's value.
+- Renaming an isotope fills its mass from the molecular weights when the mass
+  was empty or was the old isotope's weight; a mass you typed is kept.
+- **Add Row** offers the molecular weights' names (or type one); the mass
+  comes from the weights and the values start empty. **Remove Row** removes
+  the selected rows.
+- **Set Value…** sets one detector's value at one isotope. With
+  **Propagate** (default: the config's `[magnet] propagate`) the same offset
+  is added to the other detectors at that isotope: what a peak center does.
+- **Undo** and **Redo** (Ctrl+Z, Ctrl+Shift+Z) step through every edit;
+  **Revert** drops all of them.
+- **Import CSV…** reads a legacy pychron `mftable.csv` into the selected
+  table as unsaved edits; **Save** makes it a version.
+
+Diagnostics are checked as you edit. Errors keep the table from being saved:
+an empty or repeated isotope, a mass that is not a positive number, a fit
+that fails (too few points for its degree, repeated masses), and, for the
+active and HV tables, an active detector with no value at all. Warnings do
+not: a fit that is not monotonic over its range, a point far from its fit,
+a detector that is not in the config, an isotope not in the molecular
+weights or whose mass is more than 0.01 amu off its weight.
+
+### Saving and versions
+
+**Save** writes a new version and makes it current; the magnet uses it from
+its next move. Old versions are never changed or deleted. Save is greyed,
+with the reason as tooltip, while there is nothing to save, while a
+diagnostic is an error, and while a queue or a scan (a peak center, a sweep)
+holds the table: the table never changes between the hops of a run. The
+spectrometer refuses such a save itself, whatever the window shows.
+
+If the table got a new version after you opened yours (a peak center, an
+`elctl spec table` command), Save asks: **Reload** (drop your edits and open
+the new current version), **Save Anyway** (your edits become the newest
+version) or **Cancel**. When a peak center saves while you have edits, a
+banner says `table changed since you opened it (now <version>)` and your
+edits stay; without edits the window just opens the new version.
+
+A version written by hand loses its comments when saved over: you are asked
+once. A version that does not parse is shown with its error, read-only. When
+the spectrometer holds a table that differs from the saved current version,
+the window opens what the spectrometer holds, with the banner `in-memory
+table differs from saved version <version>`; saving makes it a version.
+
+**Make Current** points the table back at the selected version (after you
+confirm). It is refused for a version with an error or one that does not
+parse, while the table is held, and when the current version moved since the
+list was read. **Compare…** shows the differences between two selected
+versions (or your edits, or the selected version, against the current one),
+matched by isotope: changed values with old, new and Δ, rows added or
+removed, and fit changes. A version that does not parse is compared as text.
+
+### `elctl spec table`
+
+The same operations, for scripts and for a line without the UI. Each works
+on the files of the data directory named by the spectrometer config
+(`--spectrometer <file>`), opens no device, and takes effect when a process
+next loads the table: a running nobion keeps the table it loaded until
+it saves one itself or is restarted.
+
+```
+elctl spec table list                          # tables, current version, (active) and (HV)
+elctl spec table show [<name>] [--version V]   # a version as a grid
+elctl spec table versions <name>               # newest first
+elctl spec table diff <name> <v1> [<v2>]       # v2 defaults to current; by isotope
+elctl spec table check [<name>]                # diagnostics; exit 1 on an error
+elctl spec table set <name> <det> <isotope> <value> [--propagate|--no-propagate]
+elctl spec table restore <name> <version>
+elctl spec table import <name> <mftable.csv>
+```
+
+`set` and `import` write a new version and refuse, with exit status 1 and
+nothing written, when the result has a diagnostics error; `restore` refuses
+a version with an error.
 
 ## The spectrometer config
 
@@ -400,12 +657,12 @@ Things worth knowing:
 - **Field table.** For every isotope, the magnet setting that puts it on each
   detector (`tables/<name>/current` points at the active
   `<timestamp>.toml`; each file has `[[points]]` with `isotope`, `mass` and
-  one column per detector). The `argon` table shipped with Pychron is a
+  one column per detector). The `argon` table shipped with Nobion is a
   **simulation placeholder** and describes no instrument.
 - **Mass table.** `molecular_weights.toml` extends the built-in noble-gas
   masses.
 - **Protection and saturation.** `protection.threshold` is the signal at
-  which a detector counts as in danger; `on_move = true` makes Pychron
+  which a detector counts as in danger; `on_move = true` makes Nobion
   protect it during magnet moves; `[magnet] protection` lists the detectors
   and a `beam_blank_threshold`. These are only as good as the field table.
 - **Source ramping.** `[source] ramp = { HV = 200.0, TrapCurrent = 10.0 }`
@@ -428,7 +685,7 @@ Things worth knowing:
 Run the same check outside the program:
 
 ```bash
-elctl exp validate experiment.toml --lab <lab dir> --spectrometer spectrometer.toml
+elctl exp validate queues/experiment.toml --lab <lab dir> --spectrometer spectrometer.toml
 elctl doctor --install <name>     # checks an installation, lists leftover placeholders
 elctl conditionals-check <file> --spectrometer spectrometer.toml
 ```
@@ -447,7 +704,7 @@ What that means in practice:
 
 - **Simulated** is safe and complete. Beside a simulated extraction line it
   measures the gas in the line's spectrometer stage; on its own it shows a
-  fixed argon ([The simulated lab](../simulator.md)). `pychron-ui --sim` refuses to load a
+  fixed argon ([The simulated lab](../simulator.md)). `nobion --sim` refuses to load a
   spectrometer config that is not fully simulated (every transport `sim`, and
   every driver a `sim_*` one), so it cannot be used to rehearse against
   hardware by accident. Error: `simulation requested but <file> is not a
@@ -459,7 +716,10 @@ What that means in practice:
   Thermo instrument", and the driver spec's bring-up checklist before
   connecting ([dev setup](../dev_setup.md);
   [driver spec](../superpowers/specs/2026-10-01-qtegra-driver-design.md)). In
-  short: the example's field tables, deflection coefficients, `cdd_voltage`,
+  short: `RemoteControlServer.cs` must be the current one, run with
+  `Config.use_udp = false` (the driver uses TCP only), and `channels` must be
+  detector names it reports; otherwise connecting fails and says why. The
+  example's field tables, deflection coefficients, `cdd_voltage`,
   `nominal_hv` and protection thresholds are **simulation placeholders**;
   replace them with the instrument's real calibration before any magnet move,
   because detector protection on a move is planned from the field table and a
@@ -484,10 +744,10 @@ What that means in practice:
 
 ## Calibration checklist
 
-When `pychron setup` writes an install it also writes a `CALIBRATE.md` in the
-install folder listing what is still a placeholder; `elctl doctor` warns about
-every file that still says `SIMULATION PLACEHOLDER` or `CONFIRM`. Before you
-measure on a real instrument:
+When `elctl init` or the setup wizard writes an install, it also writes a
+`CALIBRATE.md` in the install folder listing what is still a placeholder;
+`elctl doctor` warns about every file that still says `SIMULATION PLACEHOLDER`
+or `CONFIRM`. Before you measure on a real instrument:
 
 1. **Field table** (`tables/`): replace with a calibration for your
    instrument, every isotope on every detector. Do not move the magnet
@@ -513,20 +773,18 @@ To leave simulation once the instrument is ready:
 elctl init --reconfigure --install <name> --set simulation=no
 ```
 
-(or run `pychron-ui --setup` again). Files you have edited are kept.
+(or run `nobion --setup` again). Files you have edited are kept.
 
 ## Unverified / not yet implemented
 
 - No peak-centre, deflection, source or baseline controls in the spectrometer
   window (by design; see the spec). I did not find any code that offers them
   there.
-- **Plan features not yet supported.** The "measurement plan v2" design
-  (segments, positions with per-detector deflection, several gases, baselines
-  during extraction, `optics`, per-run field tables) is marked Draft. The plan
-  loader today accepts only the sections shown above (`plan`, `hook`,
-  `detectors`, `equilibration`, `sniff`, `peak_center`, `baseline`, `main`,
-  `fits`, `conditionals`, `whiff`, `parameters`); anything else, such as
-  `[[segment]]` or `[[gas]]`, is rejected as an unknown key.
+- **Measurement plans, version 2** (segments, positions, several gases,
+  optics presets, per-run field tables) are described in
+  [Experiments, section 10](04-experiments.md#10-measurement-plans-version-2),
+  with what is not run yet. No hardware driver applies an optics preset or
+  switches the source's output yet; the simulated drivers do.
 - Whether the spectrometer window and a running queue can both hold the
   acquirer: the scan service refuses to start when the acquisition engine is
   already running elsewhere; I did not verify what an operator sees. Close the
@@ -534,7 +792,7 @@ elctl init --reconfigure --install <name> --set simulation=no
 - **Hardware behaviour** of the Qtegra and NGX drivers, source ramping on
   real hardware, and the effect of `af_demag` have not been checked against an
   instrument; this page documents the configuration, not measured behaviour.
-- The window's colour cell for a saturated detector depends on the config
+- The window's color cell for a saturated detector depends on the config
   `saturation` value; a detector without `saturation` never shows it.
 - Spec text says "Window > Spectrometer"; the real menu is **View >
   Spectrometer**.

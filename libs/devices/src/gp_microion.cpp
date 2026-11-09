@@ -1,9 +1,9 @@
-#include "pychron/devices/gp_microion.hpp"
+#include "nobion/devices/gp_microion.hpp"
 
 #include <algorithm>
 #include <mutex>
 
-namespace pychron {
+namespace nobion {
 
 namespace mi = codec::microion;
 
@@ -52,8 +52,8 @@ Result<std::vector<int>> parse_channels(const toml::table& options) {
 }  // namespace
 
 GpMicroIon::GpMicroIon(std::string name, Transport& transport, int address, std::vector<int> channels,
-                       const Clock* clock)
-    : Device(std::move(name), DeviceOptions{clock}),
+                       const Clock* clock, Link* link)
+    : Device(std::move(name), DeviceOptions{clock, DeviceOptions{}.fault_after, link}),
       transport_(transport),
       address_(address),
       channels_(std::move(channels)),
@@ -73,21 +73,25 @@ Result<std::unique_ptr<GpMicroIon>> GpMicroIon::create(const DriverArgs& args) {
   if (!address) return fail(std::move(address).error());
   auto channels = parse_channels(args.options);
   if (!channels) return fail(std::move(channels).error());
-  return std::make_unique<GpMicroIon>(args.name, args.transport, *address, std::move(*channels), args.clock);
+  return std::make_unique<GpMicroIon>(args.name, args.transport, *address, std::move(*channels), args.clock, args.link);
 }
 
 Result<double> GpMicroIon::read_pressure() { return read_pressure(channels_.front()); }
 
 Result<double> GpMicroIon::read_pressure(int channel) {
+  const Operation op = begin("read_pressure");
   if (std::ranges::find(channels_, channel) == channels_.end()) {
-    return observe(Result<double>(
+    return observe(op, Result<double>(
         fail(ErrorKind::Config, "channel " + std::to_string(channel) + " is not configured")));
   }
   auto cmd = mi::read_pressure(address_, channel);
-  if (!cmd) return observe(Result<double>(fail(std::move(cmd).error())));
-  auto reply = transport_.exchange(cmd->tx, *cmd->reply);
-  if (!reply) return observe(Result<double>(fail(std::move(reply).error())));
-  return observe(mi::decode_pressure(address_, *reply));
+  if (!cmd) return observe(op, Result<double>(fail(std::move(cmd).error())));
+  // A read may be sent again: nothing on the gauge changes by it.
+  auto reply = relay<Bytes>("read_pressure",
+      [&](Resend resend) { return transport_.exchange(cmd->tx, *cmd->reply, Transport::kDefaultTimeout, resend); },
+      Repeat::Safe);
+  if (!reply) return observe(op, Result<double>(fail(std::move(reply).error())));
+  return observe(op, mi::decode_pressure(address_, *reply));
 }
 
 Result<Sample> GpMicroIon::sample() {
@@ -97,11 +101,15 @@ Result<Sample> GpMicroIon::sample() {
 }
 
 Result<void> GpMicroIon::set_ion_gauge(bool on) {
+  const Operation op = begin("set_ion_gauge");
   auto cmd = mi::set_ion_gauge(address_, on);
-  if (!cmd) return observe(Result<void>(fail(std::move(cmd).error())));
-  auto reply = transport_.exchange(cmd->tx, *cmd->reply);
-  if (!reply) return observe(Result<void>(fail(std::move(reply).error())));
-  return observe(mi::decode_ok(address_, *reply));
+  if (!cmd) return observe(op, Result<void>(fail(std::move(cmd).error())));
+  // IG1 ON|OFF is an absolute state: Safe.
+  auto reply = relay<Bytes>("set_ion_gauge",
+      [&](Resend resend) { return transport_.exchange(cmd->tx, *cmd->reply, Transport::kDefaultTimeout, resend); },
+      Repeat::Safe);
+  if (!reply) return observe(op, Result<void>(fail(std::move(reply).error())));
+  return observe(op, mi::decode_ok(address_, *reply));
 }
 
 REGISTER_DRIVER("gp_microion", GpMicroIon);
@@ -147,4 +155,4 @@ SimTransport::Hook microion_sim_hook(MicroIonSimModel model) {
   return [state](const Bytes& tx) { return state->respond(tx); };
 }
 
-}  // namespace pychron
+}  // namespace nobion

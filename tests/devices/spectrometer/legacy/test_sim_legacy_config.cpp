@@ -12,21 +12,21 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/devices/spectrometer/legacy/adc_bank.hpp"
-#include "pychron/devices/spectrometer/legacy/dac_positioner.hpp"
-#include "pychron/devices/spectrometer/legacy/pulse_counter.hpp"
-#include "pychron/devices/spectrometer/legacy/serial_hv.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/devices/spectrometer/legacy/adc_bank.hpp"
+#include "nobion/devices/spectrometer/legacy/dac_positioner.hpp"
+#include "nobion/devices/spectrometer/legacy/pulse_counter.hpp"
+#include "nobion/devices/spectrometer/legacy/serial_hv.hpp"
 #include "spectrometer/legacy/sim_util.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace legacy_test;
 using namespace std::chrono_literals;
 
 namespace {
 
-const std::string kConfig = std::string(PYCHRON_EXAMPLES_DIR) + "/spectrometer.sim-legacy.toml";
+const std::string kConfig = std::string(NOBION_EXAMPLES_DIR) + "/spectrometer.sim-legacy.toml";
 
 // Hardware kind behind each simulated driver kind in the example config.
 const std::map<std::string, std::string> kHardwareKind{{"sim_dac_positioner", "dac_positioner"},

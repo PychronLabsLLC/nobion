@@ -3,9 +3,9 @@
 How to turn the fluence monitor analyses of an irradiation level into a J for
 every position of that level, and save it, with `elctl flux`. The design is
 `superpowers/specs/2026-10-06-flux-fitting-design.md`; the code is
-`libs/reduction` (`flux.hpp`, the math), `libs/processing` (`flux_fit.hpp`,
-the fit of a level) and the `processing_store` adapter (`flux_store.hpp`,
-reading and writing the store). The review step (leave an analysis out,
+`libs/arar` (`flux.hpp`, the math, and `flux_fit.hpp`, the fit of a level)
+and its `arar_store` adapter (`flux_store.hpp`, reading and writing the
+store). The review step (leave an analysis out,
 leave a position out) is done in the flux window (below) or with flags.
 
 ## Before you start
@@ -34,12 +34,12 @@ leave a position out) is done in the flux window (below) or with flags.
 
 ## The flux window
 
-`Fit ▸ Flux…` in `pychron-ui` opens a window that does what `elctl flux fit`
+`Fit ▸ Flux…` in `nobion` opens a window that does what `elctl flux fit`
 does, with the review done by eye: the plot shows the monitors and the fit,
 and every change refits at once. It needs a store, like entry. The design is
 `superpowers/specs/2026-10-07-flux-window-design.md`. The window computes
 nothing itself: the fit is `fit_level`, and what it shows comes from
-`libs/processing` (`flux_view.hpp`). The warnings, the model line and the CSV
+`libs/arar` (`flux_view.hpp`). The warnings, the model line and the CSV
 are the same code `elctl flux` prints from; the plot, the options schema and
 the status line are the window's own.
 
@@ -178,6 +178,13 @@ On the right.
   for the models that form it from a fit or a mean. Choosing `sd` for the
   error of the fit of a fitted surface turns the field red; its tooltip is
   the reason, and the status shows it.
+- The plot's style, in the sections Layout, Appearance and Legend: panel
+  spacing, the font and its sizes, the backgrounds, the grid and the legend,
+  as in the blanks and IC factor windows. The style belongs to the preset,
+  not to the fit: a preset brings its own style with its model, but a saved
+  fit holds none. Changing it is no edit (nothing to save, nothing asked), and
+  opening another level, `Reload`, `Revert` and choosing `(saved fit)` leave
+  it as it is. Save a preset to keep one.
 
 ### The status line and the warnings
 
@@ -233,7 +240,13 @@ Not saved: <the error>
 When who and when cannot be read, the conflict line reads `Not saved: hole 7
 was saved by someone else since this level was loaded. Reload and fit again.`
 
-with `, 2 not saved` added when `Save` boxes were unticked. The conflict
+with `, 2 not saved` added when `Save` boxes were unticked. A save that wrote
+positions also says how many analyses sit at them: `; cached ages of 24
+analyses are now out of date; run elctl db derive`. A new J changes the age
+of every analysis of the position, monitor or unknown, but the ages the data
+browser shows and filters by are cached, and are not recomputed at save: they
+stay as they were until those analyses are reduced again or
+`elctl db derive` brings them up to date. The conflict
 line is red; nothing was written and your edits are kept. To go on, press
 `Reload`: it reads the level as it is now and puts your edits back on it (the
 analyses you omitted, the monitors you left out, the options you changed, the
@@ -297,7 +310,7 @@ Both call the same `save_level`: the same revisions, the same changeset
 message `fit flux for <irradiation><level>`, the same options. A fit saved in
 the window is repeated by `elctl flux fit NM-300 A --save`, and the reverse.
 The window records its version as the `software` of the revision
-(`pychron-ui <version>`). After the window saves, the Packages window shows
+(`nobion <version>`). After the window saves, the Packages window shows
 the new J of the level it has open, unless it has unsaved edits of its own
 (in the grid, the dose table or the level fields): it then keeps them and
 does not read the level again.
@@ -356,6 +369,9 @@ saved 24 positions (0 unchanged)
 nothing to save: 24 positions unchanged
 not saved: hole 5 was saved by <user> at <time> since this fit was loaded
 ```
+
+and, after a save that wrote positions, `cached ages of <n> analyses are now
+out of date; run elctl db derive` (the window's rule, above).
 
 Other commands:
 
@@ -421,7 +437,7 @@ fit; with no saved fit the defaults are `plane`, unweighted, arithmetic mean,
 | `--no-save-position HOLE` | Do not save that position. |
 | `--reset-omits` | Ignore the omissions and exclusions of the saved fit (all of them: there is no flag to drop one exclusion; `--include` brings one analysis back). |
 | `--csv FILE` | Write every position; with no level, every level in one file. The file is replaced at the end of the run and only when at least one level was fitted: a mistyped irradiation, or a level that cannot be fitted, leaves an earlier file as it was. A destination whose directory cannot be written stops the run before anything is saved. |
-| `--save [--user NAME]` | Save. The author is `--user`, else `$USER`, else `pychron`. |
+| `--save [--user NAME]` | Save. The author is `--user`, else `$USER`, else `nobion`. |
 
 A saved fit that used `sd` on a surface (it cannot be made here, but an
 import can carry one) is refitted with `msem`, and the command says

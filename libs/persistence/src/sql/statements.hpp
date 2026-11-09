@@ -8,9 +8,9 @@
 #include <QString>
 #include <QStringList>
 
-#include "pychron/persistence/store.hpp"
+#include "nobion/persistence/store.hpp"
 
-namespace pychron::persistence::detail::sql {
+namespace nobion::persistence::detail::sql {
 
 // A timestamptz column read back as "YYYY-MM-DDTHH:MM:SS.ffffffZ". QtSql
 // would hand PostgreSQL timestamps over as QDateTime, which drops microseconds.
@@ -51,7 +51,7 @@ inline const QString kSqliteSynchronousFull = QStringLiteral("PRAGMA synchronous
 
 inline const QString kNextChangeSeq =
     QStringLiteral("UPDATE change_counter SET seq = seq + 1 WHERE id = 1 RETURNING seq");
-inline const QString kNotify = QStringLiteral("SELECT pg_notify('pychron_change', ?)");
+inline const QString kNotify = QStringLiteral("SELECT pg_notify('nobion_change', ?)");
 
 inline const QString kChangesSince = QStringLiteral(
     "SELECT change_seq, %1 AS committed, changeset_uuid, client_uuid, kind FROM change_log "
@@ -156,6 +156,16 @@ inline const QString kHeadsInGroup = QStringLiteral(
 inline const QString kBookmarkEntries = QStringLiteral(
     "SELECT subject_uuid, kind, revision_uuid FROM bookmark_entry WHERE bookmark_uuid = ? "
     "ORDER BY subject_uuid, kind");
+inline const QString kBookmarkEntriesOfSubject = QStringLiteral(
+    "SELECT subject_uuid, kind, revision_uuid FROM bookmark_entry WHERE bookmark_uuid = ? AND subject_uuid = ? "
+    "ORDER BY kind");
+// The bookmark's `value` entries for the given n ref objects (one seek each on the primary key).
+inline QString bookmark_value_entries(qsizetype n) {
+  return QStringLiteral(
+             "SELECT subject_uuid, revision_uuid FROM bookmark_entry WHERE bookmark_uuid = ? AND kind = 'value' "
+             "AND subject_uuid IN (%1)")
+      .arg(placeholders(n));
+}
 inline const QString kCurrentHeadsOfBookmark = QStringLiteral(
     "SELECT e.subject_uuid, e.kind, h.revision_uuid FROM bookmark_entry e "
     "LEFT JOIN head h ON h.subject_uuid = e.subject_uuid AND h.kind = e.kind WHERE e.bookmark_uuid = ?");
@@ -186,16 +196,29 @@ inline const QString kRefObjectAtHead = QStringLiteral(
 inline const QString kDerivedRows = QStringLiteral(
     "SELECT name, value, error, units FROM derived_value WHERE analysis_uuid = ? AND fingerprint = ? "
     "ORDER BY name");
+inline const QString kDeleteOtherDerived =
+    QStringLiteral("DELETE FROM derived_value WHERE analysis_uuid = ? AND fingerprint <> ?");
 inline const QString kDerivedVersions =
     QStringLiteral("SELECT DISTINCT reduction_version FROM derived_value WHERE analysis_uuid = ?");
 inline const QString kPruneDerived = QStringLiteral(
     "DELETE FROM derived_value WHERE analysis_uuid = ? AND reduction_version = ? AND fingerprint <> ?");
+// The fingerprint `n` analyses are cached under: one row an analysis, since
+// the cache keeps one fingerprint each. Found by the primary key
+// (analysis_uuid, fingerprint, name), a seek an analysis. Written `name = 'age'`
+// SQLite takes derived_value_name_ix instead and reads every cached age of
+// the store; `name || ''` is no column of an index, so the name is tested on
+// the rows the key found (SchemaIndexes.CachedFingerprintsAreFoundByAnalysis).
+inline QString derived_fingerprints(qsizetype n) {
+  return QStringLiteral("SELECT analysis_uuid, fingerprint FROM derived_value "
+                        "WHERE analysis_uuid IN (%1) AND name || '' = 'age'")
+      .arg(placeholders(n));
+}
 
 // ---------------------------------------------------------------- analysis reads
 
 inline const QString kAnalysisSummarySelect = QStringLiteral(
     "SELECT a.uuid, a.runid_text, i.identifier, a.aliquot, a.increment, a.provisional, a.analysis_type, "
-    "%1 AS ts, m.name AS mass_spectrometer, a.signals_state "
+    "%1 AS ts, m.name AS mass_spectrometer, a.signals_state, a.record_sha256 "
     "FROM analysis a JOIN identifier i ON i.uuid = a.identifier_uuid "
     "JOIN mass_spectrometer m ON m.uuid = a.mass_spectrometer_uuid");
 
@@ -293,4 +316,4 @@ inline const QString kImportConflicts = QStringLiteral(
     "SELECT uuid, path, entity_uuid, conflict_kind, db_head_revision_uuid, file_sha256, detail, resolution, "
     "%1 AS resolved FROM import_conflict");
 
-}  // namespace pychron::persistence::detail::sql
+}  // namespace nobion::persistence::detail::sql

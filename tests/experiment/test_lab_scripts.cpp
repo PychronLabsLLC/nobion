@@ -7,10 +7,11 @@
 #include <filesystem>
 #include <fstream>
 
-#include "pychron/experiment/lab/scripts.hpp"
+#include "example_lab.hpp"
+#include "nobion/experiment/lab/scripts.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 namespace {
 
 namespace fs = std::filesystem;
@@ -19,8 +20,8 @@ using scripting::ScriptKind;
 class LabScriptsTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    dir_ = pychron::testing::unique_temp_path("pychron-scripts-");
-    fs::copy(fs::path(PYCHRON_EXAMPLE_CONFIGS_DIR), dir_, fs::copy_options::recursive);
+    dir_ = nobion::testing::unique_temp_path("nobion-scripts-");
+    nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_);
     fs::create_directories(dir_ / "scripts" / "extraction" / "co2");
     std::ofstream(dir_ / "scripts" / "extraction" / "co2" / "degas.py") << "def main():\n    sleep(1)\n";
     fs::create_directories(dir_ / "scripts" / "lib");
@@ -39,13 +40,35 @@ TEST_F(LabScriptsTest, ListsScriptsWithQueueNamesAndPaths) {
   for (const auto& f : files) names.push_back(std::string(scripting::to_string(f.kind)) + "/" + f.name);
   EXPECT_EQ(names, (std::vector<std::string>{"extraction/co2:degas", "extraction/laser_extract",
                                              "extraction/sim_air", "extraction/sim_blank",
-                                             "extraction/sim_extract", "post_measurement/sim_pump",
+                                             "extraction/sim_cocktail", "extraction/sim_extract", "post_measurement/sim_pump",
                                              "extraction/lib:pump"}));
   EXPECT_TRUE(fs::is_regular_file(files[1].path));
   auto p = script_path(lab_, ScriptKind::Extraction, "co2:degas");
   ASSERT_TRUE(p);
   EXPECT_EQ(fs::canonical(*p), fs::canonical(files[0].path));
   EXPECT_FALSE(script_path(lab_, ScriptKind::Extraction, "../escape"));
+}
+
+// The safe_state script is one file beside the kind directories (spec 4.7):
+// listed when the lab has it, after the kinds and before lib/.
+TEST_F(LabScriptsTest, TheSafeStateScriptIsOneFile) {
+  auto p = script_path(lab_, ScriptKind::SafeState, "anything");
+  ASSERT_TRUE(p);
+  EXPECT_EQ(*p, fs::absolute(dir_ / "scripts" / "safe_state.py"));
+  for (const auto& f : lab_scripts(lab_)) EXPECT_NE(f.kind, ScriptKind::SafeState);
+  EXPECT_TRUE(lab_.scripts->names(ScriptKind::SafeState).empty());
+
+  std::ofstream(dir_ / "scripts" / "safe_state.py") << "def main():\n    close('A')\n";
+  const auto files = lab_scripts(lab_);
+  const auto it = std::find_if(files.begin(), files.end(), [](const auto& f) { return f.kind == ScriptKind::SafeState; });
+  ASSERT_NE(it, files.end());
+  EXPECT_EQ(it->name, "safe_state");
+  EXPECT_EQ(fs::canonical(it->path), fs::canonical(dir_ / "scripts" / "safe_state.py"));
+  EXPECT_EQ(std::next(it)->name, "lib:pump");
+  EXPECT_EQ(lab_.scripts->names(ScriptKind::SafeState), std::vector<std::string>{"safe_state"});
+  auto s = lab_.scripts->resolver().resolve("safe_state", ScriptKind::SafeState);
+  ASSERT_TRUE(s);
+  EXPECT_NE(s->text.find("close('A')"), std::string::npos);
 }
 
 TEST_F(LabScriptsTest, CompletionWordsFollowTheKind) {
@@ -125,4 +148,4 @@ TEST_F(LabScriptsTest, ChecksAndEstimatesWithoutHardware) {
 }
 
 }  // namespace
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

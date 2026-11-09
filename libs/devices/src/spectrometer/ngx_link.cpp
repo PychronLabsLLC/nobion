@@ -1,12 +1,14 @@
-#include "pychron/devices/spectrometer/ngx_link.hpp"
+#include "nobion/devices/spectrometer/ngx_link.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <system_error>
 
-#include "pychron/transport/link_transport.hpp"
+#include "nobion/core/log_context.hpp"
+#include "nobion/core/signal_stack.hpp"
+#include "nobion/transport/link_transport.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace ngx = codec::ngx;
 
@@ -94,13 +96,19 @@ bool NgxLink::has_event_sink() const {
 Result<std::string> NgxLink::read_line(Duration timeout) {
   auto r = transport_.read(ReadSpec::until(ngx::kLineEnd), timeout);
   if (!r) return fail(std::move(r).error());
-  return ::pychron::to_string(*r);
+  return ::nobion::to_string(*r);
 }
 
 Result<void> NgxLink::send(std::string_view command) {
   std::string tx(command);
   tx += options_.send_terminator;
   return transport_.write(to_bytes(tx));
+}
+
+Result<void> NgxLink::send_secret(std::string_view command) {
+  std::string tx(command);
+  tx += options_.send_terminator;
+  return transport_.write_secret(to_bytes(tx));
 }
 
 Result<void> NgxLink::handshake() {
@@ -110,7 +118,8 @@ Result<void> NgxLink::handshake() {
   }
   if (options_.user.empty()) return {};
   const std::string login = "Login " + options_.user + "," + options_.password;
-  if (auto w = send(login); !w) return fail(std::move(w).error());
+  // The login carries the password: a wire log or trace records its length.
+  if (auto w = send_secret(login); !w) return fail(std::move(w).error());
   const TimePoint deadline = clock_.now() + options_.command_timeout;
   for (;;) {
     const Duration left = deadline - clock_.now();
@@ -174,7 +183,9 @@ void NgxLink::went_down(const Error& why) {
 }
 
 void NgxLink::reader(std::shared_ptr<Clock::Hold> started) {
+  install_signal_stack();
   Clock::Participant participant(clock_, "ngx.reader");
+  const LogContext::Thread log_thread("ngx.reader");
   started.reset();
   // Said while this thread is still a participant: the destructor is runnable
   // again before the clock stops counting the reader.
@@ -188,7 +199,7 @@ void NgxLink::reader(std::shared_ptr<Clock::Hold> started) {
       link.clock_.notify_all(link.cv_);
     }
   } done{*this};
-  Duration backoff = options_.reconnect_min;
+  Duration backoff = options_.policy.backoff_min;
   for (;;) {
     {
       std::lock_guard lock(mutex_);
@@ -197,7 +208,7 @@ void NgxLink::reader(std::shared_ptr<Clock::Hold> started) {
     const TimePoint t0 = clock_.now();
     auto polled = transport_.poll(ReadSpec::until(ngx::kLineEnd), options_.read_timeout);
     if (polled && *polled) {
-      route(::pychron::to_string(**polled));
+      route(::nobion::to_string(**polled));
       continue;
     }
     if (polled) {
@@ -219,7 +230,7 @@ void NgxLink::reader(std::shared_ptr<Clock::Hold> started) {
         while (!stop_ && clock_.now() < until) clock_.wait_until(cv_, lock, until);
         if (stop_) return;
       }
-      backoff = std::min(backoff * 2, options_.reconnect_max);
+      backoff = std::min(backoff * 2, options_.policy.backoff_max);
       transport_.close();
       if (auto opened = transport_.open(); !opened) {
         went_down(opened.error());
@@ -237,7 +248,7 @@ void NgxLink::reader(std::shared_ptr<Clock::Hold> started) {
         ++stats_.reconnects;
       }
       clock_.notify_all(cv_);
-      backoff = options_.reconnect_min;
+      backoff = options_.policy.backoff_min;
       break;
     }
   }
@@ -329,6 +340,39 @@ Result<std::string> NgxLink::ask(std::string_view command, std::optional<Duratio
   return reply;
 }
 
+bool NgxLink::await_back(std::uint64_t seen, ErrorKind kind, TimePoint deadline, Duration& backoff) {
+  bool started = false;
+  {
+    std::unique_lock lock(mutex_);
+    started = started_;
+    if (started) {
+      // Still up on the connection the op used: only a Timeout, which the
+      // next ask may simply follow.
+      if (kind == ErrorKind::Timeout && up_ && session_ == seen) return clock_.now() < deadline;
+      while (!(up_ && session_ != seen) && !stop_ && clock_.now() < deadline) clock_.wait_until(cv_, lock, deadline);
+      return up_ && session_ != seen && !stop_;
+    }
+  }
+  // No reader yet (connect() failed): nobody else reopens the transport.
+  const Duration left = deadline - clock_.now();
+  if (left <= Duration::zero()) return false;
+  clock_.sleep_for(std::min(backoff, left));
+  backoff = std::min(backoff * 2, options_.policy.backoff_max);
+  std::lock_guard connecting(connect_mutex_);
+  {
+    std::lock_guard lock(mutex_);
+    if (started_) return true;  // another caller's connect() got there
+  }
+  transport_.close();
+  (void)transport_.open();  // a failure is the next op's
+  return clock_.now() < deadline;
+}
+
+void NgxLink::note_repeat() {
+  std::lock_guard lock(mutex_);
+  ++stats_.repeats;
+}
+
 // --- handle -----------------------------------------------------------------
 
 Result<NgxLinkHandle> make_ngx_link(Transport& transport, const std::string& name, NgxLinkOptions options,
@@ -338,4 +382,4 @@ Result<NgxLinkHandle> make_ngx_link(Transport& transport, const std::string& nam
   });
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

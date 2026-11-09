@@ -1,4 +1,4 @@
-#include "pychron/setup/install.hpp"
+#include "nobion/setup/install.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -9,15 +9,18 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/sha256.hpp"
-#include "pychron/setup/legacy_line.hpp"
-#include "pychron/systems/canvas/cross_validate.hpp"
-#include "pychron/systems/canvas/loader.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/setup/legacy_line.hpp"
+#include "nobion/systems/canvas/cross_validate.hpp"
+#include "nobion/systems/canvas/loader.hpp"
 
-namespace pychron::setup {
+#include "file_io.hpp"
+
+namespace nobion::setup {
 
 namespace fs = std::filesystem;
+using detail::write_file;
 
 namespace {
 
@@ -27,22 +30,6 @@ Result<std::string> read_file(const fs::path& p) {
   std::ostringstream ss;
   ss << in.rdbuf();
   return ss.str();
-}
-
-Result<void> write_file(const fs::path& p, const std::string& content, bool secret) {
-  std::error_code ec;
-  if (p.has_parent_path()) fs::create_directories(p.parent_path(), ec);
-  if (ec) return fail(ErrorKind::Io, "cannot create " + p.parent_path().string() + ": " + ec.message());
-  if (secret) {
-    // Created empty and restricted before the secret goes in.
-    { std::ofstream create(p, std::ios::binary | std::ios::trunc); }
-    fs::permissions(p, fs::perms::owner_read | fs::perms::owner_write, fs::perm_options::replace, ec);
-  }
-  std::ofstream out(p, std::ios::binary | std::ios::trunc);
-  out << content;
-  out.close();
-  if (!out) return fail(ErrorKind::Io, "cannot write " + p.string());
-  return {};
 }
 
 // "@examples/plans/" -> <examples>/plans/; "{{ line_file }}" -> the file the
@@ -122,7 +109,7 @@ std::string sha256_hex(std::string_view bytes) {
   return to_hex(digest);
 }
 
-fs::path record_path(const fs::path& root) { return root / ".pychron" / "install.toml"; }
+fs::path record_path(const fs::path& root) { return root / ".nobion" / "install.toml"; }
 
 Result<InstallPlan> plan_install(const ProfileLibrary& library, const ResolvedProfile& profile, const Answers& answers,
                                  const fs::path& root, PlanOptions options) {
@@ -294,47 +281,15 @@ Result<InstallReport> apply_install(const InstallPlan& plan) {
     }
   }
 
-  toml::table record;
-  toml::table install;
-  install.insert("profile", plan.profile.top.name);
-  toml::table versions;
-  for (const auto& [name, v] : plan.profile.versions) versions.insert(name, v);
-  install.insert("versions", std::move(versions));
-  record.insert("install", std::move(install));
-  toml::table answers;
+  InstallRecord record{plan.profile.top.name, {}, {}, std::move(hashes)};
+  record.versions.insert(plan.profile.versions.begin(), plan.profile.versions.end());
   for (const auto& [id, v] : plan.answers) {
     // Only answers to questions: built-ins and [values] come from the profile again.
     const bool question = std::any_of(plan.profile.questions.begin(), plan.profile.questions.end(),
                                       [&](const Question& q) { return q.id == id; });
-    if (!question || is_secret_question(plan.profile, id)) continue;
-    std::visit(
-        [&](const auto& x) {
-          using T = std::decay_t<decltype(x)>;
-          if constexpr (std::is_same_v<T, std::vector<std::string>>) {
-            toml::array a;
-            for (const auto& s : x) a.push_back(s);
-            answers.insert(id, std::move(a));
-          } else if constexpr (std::is_same_v<T, std::vector<Row>>) {
-            toml::array a;
-            for (const auto& r : x) {
-              toml::table row;
-              for (const auto& [k, val] : r) row.insert(k, val);
-              a.push_back(std::move(row));
-            }
-            answers.insert(id, std::move(a));
-          } else {
-            answers.insert(id, x);
-          }
-        },
-        v);
+    if (question && !is_secret_question(plan.profile, id)) record.answers.emplace(id, v);
   }
-  record.insert("answers", std::move(answers));
-  toml::table files;
-  for (const auto& [path, hash] : hashes) files.insert(path, hash);
-  record.insert("files", std::move(files));
-  std::ostringstream out;
-  out << "# Written by pychron setup. Do not edit: reconfigure and doctor read it.\n" << record << "\n";
-  if (auto w = write_file(record_path(plan.root), out.str(), false); !w) return fail(std::move(w).error());
+  if (auto w = write_install_record(plan.root, record); !w) return fail(std::move(w).error());
   return report;
 }
 
@@ -361,4 +316,44 @@ Result<InstallRecord> read_install_record(const fs::path& root) {
   return r;
 }
 
-}  // namespace pychron::setup
+Result<void> write_install_record(const fs::path& root, const InstallRecord& record) {
+  toml::table install;
+  install.insert("profile", record.profile);
+  toml::table versions;
+  for (const auto& [name, v] : record.versions) versions.insert(name, v);
+  install.insert("versions", std::move(versions));
+  toml::table answers;
+  for (const auto& [id, v] : record.answers) {
+    std::visit(
+        [&](const auto& x) {
+          using T = std::decay_t<decltype(x)>;
+          if constexpr (std::is_same_v<T, std::vector<std::string>>) {
+            toml::array a;
+            for (const auto& s : x) a.push_back(s);
+            answers.insert(id, std::move(a));
+          } else if constexpr (std::is_same_v<T, std::vector<Row>>) {
+            toml::array a;
+            for (const auto& r : x) {
+              toml::table row;
+              for (const auto& [k, val] : r) row.insert(k, val);
+              a.push_back(std::move(row));
+            }
+            answers.insert(id, std::move(a));
+          } else {
+            answers.insert(id, x);
+          }
+        },
+        v);
+  }
+  toml::table files;
+  for (const auto& [path, hash] : record.files) files.insert(path, hash);
+  toml::table out_table;
+  out_table.insert("install", std::move(install));
+  out_table.insert("answers", std::move(answers));
+  out_table.insert("files", std::move(files));
+  std::ostringstream out;
+  out << "# Written by nobion setup. Do not edit: reconfigure and doctor read it.\n" << out_table << "\n";
+  return write_file(record_path(root), out.str(), false);
+}
+
+}  // namespace nobion::setup

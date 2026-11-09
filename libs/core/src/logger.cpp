@@ -1,11 +1,12 @@
-#include "pychron/core/logger.hpp"
+#include "nobion/core/logger.hpp"
 
 #include <ostream>
 
 #include "log_hub_internal.hpp"
-#include "pychron/core/signal_bus.hpp"
+#include "nobion/core/log_context.hpp"
+#include "nobion/core/signal_bus.hpp"
 
-namespace pychron {
+namespace nobion {
 
 std::string_view to_string(LogLevel level) noexcept {
   switch (level) {
@@ -26,6 +27,14 @@ Logger::Logger(std::string name, const Clock& clock, SignalBus* bus, Options opt
       echo_(options.echo),
       echo_mutex_(std::make_shared<std::mutex>()) {}
 
+Logger Logger::disabled(std::string name) {
+  static const SteadyClock clock;
+  // One past Error: no record reaches it. The packed state keeps 8 bits of level.
+  // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): deliberate, see above
+  const auto above_error = static_cast<LogLevel>(static_cast<int>(LogLevel::Error) + 1);
+  return Logger(std::move(name), clock, nullptr, Options{above_error, nullptr});
+}
+
 // Epoch 0 is never a hub epoch, so the first level() call resolves.
 Logger::Logger(std::string name, std::shared_ptr<LogHub::Impl> hub)
     : name_(std::move(name)), state_(0), hub_(std::move(hub)) {}
@@ -35,6 +44,7 @@ Logger::Logger(const Logger& other)
       clock_(other.clock_),
       bus_(other.bus_),
       state_(other.state_.load()),
+      recorder_state_(other.recorder_state_.load()),
       echo_(other.echo_),
       echo_mutex_(other.echo_mutex_),
       hub_(other.hub_) {}
@@ -45,6 +55,7 @@ Logger& Logger::operator=(const Logger& other) {
     clock_ = other.clock_;
     bus_ = other.bus_;
     state_.store(other.state_.load());
+    recorder_state_.store(other.recorder_state_.load());
     echo_ = other.echo_;
     echo_mutex_ = other.echo_mutex_;
     hub_ = other.hub_;
@@ -80,18 +91,53 @@ LogLevel Logger::level() const noexcept {
   return static_cast<LogLevel>(cur & kLevelMask);
 }
 
+LogLevel Logger::recorder_level() const noexcept {
+  if (!hub_) return level();
+  std::uint64_t cur = recorder_state_.load();
+  const std::uint64_t epoch = detail::hub_rule_epoch(*hub_);
+  while ((cur >> kEpochShift) != epoch) {
+    const auto resolved = detail::hub_resolve_level(*hub_, name_);
+    const std::uint64_t next =
+        (resolved.epoch << kEpochShift) | static_cast<std::uint64_t>(resolved.recorder);
+    if (recorder_state_.compare_exchange_weak(cur, next)) {
+      cur = next;
+      break;
+    }
+  }
+  return static_cast<LogLevel>(cur & kLevelMask);
+}
+
 void Logger::log(LogLevel level, std::string_view message) const {
   if (!enabled(level)) return;
   if (hub_) {
-    detail::hub_write(*hub_, level, name_, message);
+    // File, stderr and bus only at or above the file level; below it the
+    // record is only for the recorder (spec 5.1).
+    if (level >= this->level()) {
+      detail::hub_write(*hub_, level, name_, message);
+    } else {
+      detail::hub_record_only(*hub_, level, name_, message);
+    }
     return;
   }
-  Log event{level, name_, std::string(message), clock_->now()};
+  Log event{level, name_, std::string(message), clock_->now(), detail::thread_label(),
+            std::string(LogContext::run_id())};
   if (echo_ != nullptr) {
     std::lock_guard lock(*echo_mutex_);
     *echo_ << '[' << to_string(level) << "] " << name_ << ": " << message << '\n';
   }
   if (bus_ != nullptr) bus_->publish(event);
+}
+
+void Logger::record(LogLevel level, std::string_view message) const noexcept {
+  if (hub_ && enabled(level)) detail::hub_record_only(*hub_, level, name_, message);
+}
+
+void Logger::log_unrecorded(LogLevel level, std::string_view message) const {
+  if (!hub_) {
+    log(level, message);
+    return;
+  }
+  if (level >= this->level()) detail::hub_write(*hub_, level, name_, message, false);
 }
 
 Logger Logger::child(std::string_view suffix) const {
@@ -104,4 +150,4 @@ Logger Logger::child(std::string_view suffix) const {
   return out;
 }
 
-}  // namespace pychron
+}  // namespace nobion

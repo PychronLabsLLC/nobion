@@ -1,6 +1,6 @@
-#include "pychron/vision/opencv_source.hpp"
+#include "nobion/vision/opencv_source.hpp"
 
-#include "pychron/vision/camera_backend.hpp"
+#include "nobion/vision/camera_backend.hpp"
 
 #include <cctype>
 #include <chrono>
@@ -10,15 +10,15 @@
 #include <filesystem>
 #include <utility>
 
-#ifdef PYCHRON_VISION_OPENCV_ENABLED
+#ifdef NOBION_VISION_OPENCV_ENABLED
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/videoio.hpp>
 #endif
 
-namespace pychron::vision {
+namespace nobion::vision {
 
-#ifdef PYCHRON_VISION_OPENCV_ENABLED
+#ifdef NOBION_VISION_OPENCV_ENABLED
 
 namespace {
 
@@ -209,4 +209,4 @@ std::vector<CameraFound> list_opencv_cameras() { return {}; }
 
 #endif
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

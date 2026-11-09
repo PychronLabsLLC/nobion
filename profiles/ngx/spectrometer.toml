@@ -1,4 +1,4 @@
-# {{ instrument }} (written by pychron setup). See CALIBRATE.md.
+# {{ instrument }} (written by nobion setup). See CALIBRATE.md.
 {% if simulation %}
 # SIMULATION: a simulated spectrometer stands in for the instrument. To
 # connect: elctl init --reconfigure --install {{ install_name }} --set simulation=no

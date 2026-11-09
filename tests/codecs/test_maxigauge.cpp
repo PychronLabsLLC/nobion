@@ -3,12 +3,12 @@
 // ACK "\x06\r\n" (or NAK "\x15\r\n"); host then sends ENQ "\x05" and the
 // gauge answers with the data line.
 
-#include "pychron/codecs/maxigauge.hpp"
+#include "nobion/codecs/maxigauge.hpp"
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-namespace mg = pychron::codec::maxigauge;
+using namespace nobion;
+namespace mg = nobion::codec::maxigauge;
 
 namespace {
 
@@ -235,4 +235,14 @@ TEST(MaxiGaugeGaugeSide, RequestsMatchHostEncoding) {
   EXPECT_EQ(mg::decode_request(mg::read_all_pressures().tx)->kind, mg::Request::Kind::AllPressures);
   EXPECT_EQ(mg::decode_request(mg::read_units().tx)->kind, mg::Request::Kind::Units);
   EXPECT_EQ(mg::decode_request(mg::enquiry().tx)->kind, mg::Request::Kind::Enquiry);
+}
+
+TEST(MaxiGaugeCodec, RequestLengthLineOrEnq) {
+  using mg::request_length;
+  EXPECT_EQ(request_length(Bytes{}), std::nullopt);
+  EXPECT_EQ(request_length(to_bytes("PR1\r")), std::nullopt);
+  EXPECT_EQ(request_length(to_bytes("PR1\r\n")), 5U);
+  EXPECT_EQ(request_length(Bytes{mg::kEnq}), 1U);
+  EXPECT_EQ(request_length(Bytes{mg::kEnq, 'P'}), 1U);
+  EXPECT_EQ(request_length(mg::enquiry().tx), 1U);
 }

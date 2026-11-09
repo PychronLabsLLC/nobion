@@ -1,10 +1,10 @@
 #include <chrono>
 #include <utility>
 
-#include "pychron/vision/fixture.hpp"
-#include "pychron/vision/pgm.hpp"
+#include "nobion/vision/fixture.hpp"
+#include "nobion/vision/pgm.hpp"
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 RecordedSource::RecordedSource(FixtureCase c, ClockFn clock) : case_(std::move(c)), clock_(std::move(clock)) {
   if (!clock_) clock_ = &std::chrono::steady_clock::now;
@@ -27,4 +27,4 @@ FrameInfo RecordedSource::info() const {
   return FrameInfo{f->width, f->height, f->pixel_depth, 0.0};
 }
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

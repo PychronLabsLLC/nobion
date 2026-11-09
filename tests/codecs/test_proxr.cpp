@@ -2,12 +2,12 @@
 // pychron's hardware/ncd/relay.py: 254 prefix, 49 = select bank, 0-7 = relay
 // off, 8-15 = relay on, 16-23 = relay status, 'U' (0x55) = ack.
 
-#include "pychron/codecs/proxr.hpp"
+#include "nobion/codecs/proxr.hpp"
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-using namespace pychron::codec;
+using namespace nobion;
+using namespace nobion::codec;
 
 TEST(ProxrCodec, AddressSplitsIntoBankAndRelay) {
   auto a0 = proxr::relay_address(0);
@@ -113,4 +113,24 @@ TEST(ProxrCodec, DecodeRelayStateRejectsGarbage) {
     ASSERT_FALSE(r) << escape(bad);
     EXPECT_EQ(r.error().kind, ErrorKind::Protocol);
   }
+}
+
+TEST(ProxrCodec, RequestLengthFromOpcode) {
+  using proxr::request_length;
+  EXPECT_EQ(request_length(Bytes{}), std::nullopt);
+  EXPECT_EQ(request_length(Bytes{0xFE}), std::nullopt);
+  EXPECT_EQ(request_length(Bytes{0xFE, 0x08}), 2U);        // relay 0 on
+  EXPECT_EQ(request_length(Bytes{0xFE, 0x10, 0xFE}), 2U);  // status; the next request follows
+  EXPECT_EQ(request_length(Bytes{0xFE, 0x31}), std::nullopt);  // select bank needs its bank byte
+  EXPECT_EQ(request_length(Bytes{0xFE, 0x31, 0x02}), 3U);
+  // Each builder's own bytes frame as one request.
+  EXPECT_EQ(request_length(proxr::select_bank(2)->tx), 3U);
+  EXPECT_EQ(request_length(proxr::relay_on(3)->tx), 2U);
+  EXPECT_EQ(request_length(proxr::read_relay(7)->tx), 2U);
+}
+
+TEST(ProxrCodec, RequestLengthSkipsToPrefix) {
+  // Bytes before a prefix are a request of their own, which nothing answers.
+  EXPECT_EQ(proxr::request_length(Bytes{0x00, 0x01, 0xFE, 0x08}), 2U);
+  EXPECT_EQ(proxr::request_length(Bytes{0x00, 0x01}), 2U);
 }

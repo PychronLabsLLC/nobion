@@ -13,9 +13,9 @@
 #include <string>
 #include <vector>
 
-#include "pychron/devices/spectrometer/roles.hpp"
+#include "nobion/devices/spectrometer/roles.hpp"
 
-namespace pychron::spectrometer::testing {
+namespace nobion::spectrometer::testing {
 
 using CallLog = std::vector<std::string>;
 
@@ -228,4 +228,4 @@ struct FakeAcquirer : IIntensityAcquirer {
   std::deque<Frame> frames;
 };
 
-}  // namespace pychron::spectrometer::testing
+}  // namespace nobion::spectrometer::testing

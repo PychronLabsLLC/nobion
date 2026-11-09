@@ -1,4 +1,4 @@
-#include "pychron/earthbank/uploader.hpp"
+#include "nobion/earthbank/uploader.hpp"
 
 #include <algorithm>
 #include <array>
@@ -18,16 +18,16 @@
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/core/error.hpp"
-#include "pychron/core/path_text.hpp"
-#include "pychron/earthbank/http.hpp"
-#include "pychron/earthbank/journal.hpp"
-#include "pychron/earthbank/lookup.hpp"
-#include "pychron/earthbank/model.hpp"
-#include "pychron/earthbank/preflight.hpp"
-#include "pychron/earthbank/session.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/core/path_text.hpp"
+#include "nobion/earthbank/http.hpp"
+#include "nobion/earthbank/journal.hpp"
+#include "nobion/earthbank/lookup.hpp"
+#include "nobion/earthbank/model.hpp"
+#include "nobion/earthbank/preflight.hpp"
+#include "nobion/earthbank/session.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 namespace fs = std::filesystem;
@@ -761,4 +761,4 @@ Result<UploadReport> upload(const std::vector<Submission>& submissions, Session&
   return report;
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

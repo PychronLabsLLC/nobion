@@ -1,21 +1,21 @@
 // Compiled into a separate static library that nothing references by symbol.
-// Its REGISTER_DRIVER must still run: see pychron_link_drivers().
+// Its REGISTER_DRIVER must still run: see nobion_link_drivers().
 
-#include "pychron/devices/capabilities.hpp"
-#include "pychron/devices/driver_registry.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/devices/driver_registry.hpp"
 
 namespace {
 
-class ArchivedDriver : public pychron::Device, public pychron::IScannable {
+class ArchivedDriver : public nobion::Device, public nobion::IScannable {
  public:
   explicit ArchivedDriver(std::string name) : Device(std::move(name)) {}
 
-  static pychron::DriverSchema schema() { return {"", "linker fixture", {}}; }
-  static pychron::Result<std::unique_ptr<ArchivedDriver>> create(const pychron::DriverArgs& args) {
+  static nobion::DriverSchema schema() { return {"", "linker fixture", {}}; }
+  static nobion::Result<std::unique_ptr<ArchivedDriver>> create(const nobion::DriverArgs& args) {
     return std::make_unique<ArchivedDriver>(args.name);
   }
 
-  pychron::Result<pychron::Sample> sample() override { return pychron::Sample{name(), {}, 0.0}; }
+  nobion::Result<nobion::Sample> sample() override { return nobion::Sample{name(), {}, 0.0}; }
 };
 
 }  // namespace

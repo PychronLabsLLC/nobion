@@ -1,9 +1,9 @@
-#include "pychron/codecs/microion.hpp"
+#include "nobion/codecs/microion.hpp"
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-namespace mi = pychron::codec::microion;
+using namespace nobion;
+namespace mi = nobion::codec::microion;
 
 namespace {
 

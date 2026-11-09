@@ -1,6 +1,7 @@
 # Notifications
 
-How to make pychron send a message when a run fails and when a queue ends.
+How to make nobion send a message when a run fails, when the queue waits
+for an instrument that has stopped answering, and when a queue ends.
 Written for the lab manager: no programming is needed, only a text editor, a
 terminal and about twenty minutes.
 
@@ -10,6 +11,9 @@ terminal and about twenty minutes.
 |---|---|---|
 | `run_failed` | A run fails, or its record could not be saved | The run, the queue, the row, the error |
 | `queue_ended` | The queue finishes, is stopped or fails | How it ended, and one line per run |
+| `queue_holding` | The queue waits because something the next run needs (the spectrometer, a laser, a controller) stopped answering | What it waits for, and how long it waits before it ends the queue |
+| `queue_resumed` | The queue goes on again after waiting | That it is running again |
+| `unsafe` | A failed run left the line in a state that is not safe, and the queue ended | That someone must look at the line; a `queue_ended` message follows |
 
 Messages go to the addresses in `to`, and to the `email` written in the
 queue (the person who started it). The recipients can use any mail system:
@@ -17,10 +21,10 @@ Gmail, Outlook, a university account. Nothing has to be set up on their side.
 
 ## Which way to send
 
-Pychron does not send from a Gmail or Outlook account directly. Both now
+Nobion does not send from a Gmail or Outlook account directly. Both now
 need a browser sign-in that an unattended instrument computer cannot do
 reliably. Instead it hands each message to a mail service, which delivers it.
-You make one free account with the service and give pychron its key.
+You make one free account with the service and give nobion its key.
 
 | You have | Use | Section |
 |---|---|---|
@@ -51,7 +55,7 @@ search the service's help for the words in bold.
 1. Click your account name (top right), then **Senders, Domains & Dedicated
    IPs**.
 2. On the **Senders** tab, check that your address is listed. If not, click
-   **Add a sender**, enter a name (`Argon Lab Pychron`) and the address.
+   **Add a sender**, enter a name (`Argon Lab Nobion`) and the address.
 3. Brevo mails that address. Open the message and confirm.
 
 Recipients will see the name you entered. Because your institution's domain
@@ -63,7 +67,7 @@ not reach you; nobody needs to reply to these.
 
 1. Click your account name, then **SMTP & API**.
 2. Open the **API Keys** tab and click **Generate a new API key**. Name it
-   after the instrument computer (`pychron-argus`).
+   after the instrument computer (`nobion-argus`).
 3. Copy the key now. It starts with `xkeysib-` and is shown only this once.
    If you lose it, delete it and generate another.
 4. On the **Security** tab, find **Blocking unauthorized IP addresses** (or
@@ -74,47 +78,47 @@ not reach you; nobody needs to reply to these.
 The key lets its holder send mail as your lab. Treat it like a password: do
 not put it in `notifications.toml`, in email, or in a shared drive.
 
-### 4. Give the key to pychron
+### 4. Give the key to nobion
 
-Pychron reads the key from an environment variable named
-`PYCHRON_MAIL_API_KEY`. Set it for the account that runs pychron on the
+Nobion reads the key from an environment variable named
+`NOBION_MAIL_API_KEY`. Set it for the account that runs nobion on the
 instrument computer, in the way for that system. Replace `xkeysib-...` with
 your key.
 
 **Windows.** In a Command Prompt:
 
 ```bat
-setx PYCHRON_MAIL_API_KEY "xkeysib-..."
+setx NOBION_MAIL_API_KEY "xkeysib-..."
 ```
 
-Close every pychron window and terminal and open them again.
+Close every nobion window and terminal and open them again.
 
-**Linux.** Create the file `~/.config/environment.d/pychron.conf` holding one
+**Linux.** Create the file `~/.config/environment.d/nobion.conf` holding one
 line:
 
 ```
-PYCHRON_MAIL_API_KEY=xkeysib-...
+NOBION_MAIL_API_KEY=xkeysib-...
 ```
 
 Then make it private and log out and in again:
 
 ```bash
-chmod 600 ~/.config/environment.d/pychron.conf
+chmod 600 ~/.config/environment.d/nobion.conf
 ```
 
 **macOS.** Add this line to the end of the file `~/.zshrc`:
 
 ```bash
-export PYCHRON_MAIL_API_KEY="xkeysib-..."
+export NOBION_MAIL_API_KEY="xkeysib-..."
 ```
 
-That covers `elctl` and a `pychron-ui` started from a terminal. A
-`pychron-ui` started from the Dock or Finder does not read `~/.zshrc`. For
+That covers `elctl` and a `nobion` started from a terminal. A
+`nobion` started from the Dock or Finder does not read `~/.zshrc`. For
 it, also run this once after each restart of the computer, before opening
-pychron:
+nobion:
 
 ```bash
-launchctl setenv PYCHRON_MAIL_API_KEY "xkeysib-..."
+launchctl setenv NOBION_MAIL_API_KEY "xkeysib-..."
 ```
 
 ### 5. Write notifications.toml
@@ -126,7 +130,7 @@ doctor` prints it as `install folder`), copy `notifications.toml.example` to
 ```toml
 [[email]]
 provider = "brevo"
-api_key_env = "PYCHRON_MAIL_API_KEY"
+api_key_env = "NOBION_MAIL_API_KEY"
 from = "argon-lab@your-university.edu"     # the sender you confirmed in step 2
 to = ["you@your-university.edu"]           # who always gets the messages
 ```
@@ -143,7 +147,7 @@ elctl exp notify
 
 With more than one install, name it: `elctl --install argus exp notify`.
 
-- `sent: email` and a message titled "pychron: test notification" in your
+- `sent: email` and a message titled "nobion: test notification" in your
   inbox within a minute: done. Check the spam folder the first time, and
   mark the message "not spam".
 - `failed: email: ...`: find the text in [Troubleshooting](#troubleshooting).
@@ -166,7 +170,7 @@ Every `[[email]]` entry takes:
 | `from` | The sender address, confirmed with the service | required |
 | `to` | Addresses that always get the messages | none |
 | `queue_user` | Also send to the `email` written in the queue | `true` |
-| `on` | Which events: `"run_failed"`, `"queue_ended"` | both |
+| `on` | Which events: `"run_failed"`, `"queue_ended"`, `"queue_holding"`, `"queue_resumed"`, `"unsafe"` | all five |
 | `name` | What the channel is called in the event list and by `doctor` | `"email"` |
 
 Several entries are allowed, for example failures to the manager only:
@@ -175,13 +179,13 @@ Several entries are allowed, for example failures to the manager only:
 [[email]]
 name = "everything"
 provider = "brevo"
-api_key_env = "PYCHRON_MAIL_API_KEY"
+api_key_env = "NOBION_MAIL_API_KEY"
 from = "argon-lab@your-university.edu"
 
 [[email]]
 name = "failures"
 provider = "brevo"
-api_key_env = "PYCHRON_MAIL_API_KEY"
+api_key_env = "NOBION_MAIL_API_KEY"
 from = "argon-lab@your-university.edu"
 to = ["manager@your-university.edu"]
 queue_user = false
@@ -202,13 +206,13 @@ records you have added.
    domain's registrar and wait for "Verified".
 3. **API Keys > Create API Key** with "Sending access". The key starts with
    `re_`.
-4. Set the variable as in [step 4](#4-give-the-key-to-pychron), and:
+4. Set the variable as in [step 4](#4-give-the-key-to-nobion), and:
 
 ```toml
 [[email]]
 provider = "resend"
-api_key_env = "PYCHRON_MAIL_API_KEY"
-from = "pychron@your-domain.org"           # any address at the verified domain
+api_key_env = "NOBION_MAIL_API_KEY"
+from = "nobion@your-domain.org"           # any address at the verified domain
 to = ["you@your-university.edu"]
 ```
 
@@ -221,12 +225,12 @@ to = ["you@your-university.edu"]
    the link Postmark mails to it, or verify a whole domain with DNS records.
 3. Open the server Postmark made for you, then **API Tokens**, and copy the
    **Server API token**.
-4. Set the variable as in [step 4](#4-give-the-key-to-pychron), and:
+4. Set the variable as in [step 4](#4-give-the-key-to-nobion), and:
 
 ```toml
 [[email]]
 provider = "postmark"
-api_key_env = "PYCHRON_MAIL_API_KEY"
+api_key_env = "NOBION_MAIL_API_KEY"
 from = "argon-lab@your-university.edu"     # the confirmed signature
 to = ["you@your-university.edu"]
 ```
@@ -243,7 +247,7 @@ url = "smtp://smtp.your-university.edu:587"  # smtps://host:465 for port 465
 from = "argon-lab@your-university.edu"
 to = ["you@your-university.edu"]
 username = "argon-lab"
-password_env = "PYCHRON_SMTP_PASSWORD"       # set like the key in step 4
+password_env = "NOBION_SMTP_PASSWORD"       # set like the key in step 4
 ```
 
 `smtp://` insists on an encrypted connection (STARTTLS); `tls = false`
@@ -268,7 +272,7 @@ format = "slack"
 ```
 
 A command runs your own program with the message on its standard input and
-the fields as `PYCHRON_EVENT`, `PYCHRON_SUBJECT`, `PYCHRON_QUEUE` and so on.
+the fields as `NOBION_EVENT`, `NOBION_SUBJECT`, `NOBION_QUEUE` and so on.
 
 ```toml
 [[command]]
@@ -279,6 +283,35 @@ argv = ["/usr/local/bin/notify-lab"]
 Email, webhook and command entries can be mixed in one file. Each is sent
 on its own: one failing does not stop the others, and never stops a queue.
 
+## When a message cannot be sent
+
+A message is written to the `outbox` folder in the data folder (beside
+`records` and `spool`) before it is sent, and removed once every channel it
+is for has taken it. When a channel fails (no network, the mail service
+down) the message stays there and that channel tries it again 1, 2, 4, 8, 16
+and 32 minutes later, then every hour. After 24 hours it is given up: one
+warning in the log names the message and the last error, and the file is
+removed. Each attempt shows in the event list, with when the next one is.
+
+- Messages keep their order on each channel. While the oldest waits for a
+  retry on one channel, the newer ones wait behind it there, and only there:
+  a channel that works is not held up by one that does not.
+- `[[command]]` entries are tried before email and webhooks. A program on
+  the instrument computer (a pager, a light, a local script) is how the lab
+  hears that the network is down; the email saying so arrives when it is
+  back.
+- Closing nobion does not lose what is waiting: the next start, from
+  `elctl` or the window, sends it.
+- The files hold the message, the queue's `email` and the names of its
+  channels, never a key, a password, a server or a webhook URL, nor the
+  addresses in `to`. Those are read from `notifications.toml` and the
+  environment when the message is sent, so a changed key is used for what is
+  already waiting. A channel removed from
+  `notifications.toml` is dropped from waiting messages, with a log line.
+- The test message (`elctl exp notify`, **Send Test Notification**) is tried
+  once and never waits.
+- The retries follow the computer's own clock, also in a simulated session.
+
 ## Troubleshooting
 
 Run `elctl exp notify` and match what follows `failed:`.
@@ -287,12 +320,14 @@ Run `elctl exp notify` and match what follows `failed:`.
 |---|---|---|
 | `no notifications are configured` | No `notifications.toml` in this lab folder, or it has no entries | Step 5. Check the folder with `elctl doctor` |
 | `notifications.toml: ... unknown key` or `missing` | A typo in the file | The message names the entry and the key |
-| `PYCHRON_MAIL_API_KEY is not set` | The variable is not set for this program | Step 4, then open a new terminal or restart pychron. On macOS see the note about the Dock |
+| `NOBION_MAIL_API_KEY is not set` | The variable is not set for this program | Step 4, then open a new terminal or restart nobion. On macOS see the note about the Dock |
 | `error: 401` with `Key not found`, `API key is invalid` or `valid Server token` | The key is wrong, deleted, or belongs to another service | Generate a new key (step 3) and set it again. Check `provider` matches the service |
 | `error: 401` with `unrecognised IP address` | Brevo is blocking computers it does not know | Step 3, item 4 |
 | `error: 400`, `403` or `422` mentioning the sender, `from` or a domain | `from` is not an address the service has confirmed | Step 2. `from` must match exactly |
 | `Could not resolve host`, `Failed to connect`, `timed out` | No route to the internet from the instrument computer | Try `curl https://api.brevo.com` in a terminal. Ask IT to allow outgoing HTTPS to the service |
 | `cannot run curl` or `curl: option --fail-with-body: is unknown` | curl is missing, or older than 7.76 (2021) | Install a current curl, or set `curl = "<path>"` at the top of the file |
+| `...; tried again in N min` | That attempt failed (the rest of the message says why); the message waits in the outbox | Usually nothing: it goes when the network or the service is back. If it keeps failing, fix the cause shown |
+| `...; given up after 24 h` | The message could not be sent for a day and was dropped | Fix the cause shown; the log has the message's subject |
 | `no recipients (the queue has no email)` | `to` is empty and the queue has no `email` | Add `to = [...]` |
 | `sent: email` but nothing arrives | Spam filtering, or a mistyped address | Look in spam. In Brevo, **Transactional > Logs** shows each message and what became of it |
 | Works from `elctl`, not from the window | The window was started without the variable | Step 4. Confirm with **Experiment > Executor > Send Test Notification** |
@@ -300,7 +335,7 @@ Run `elctl exp notify` and match what follows `failed:`.
 ## Looking after it
 
 - **Changing the key.** Generate a new one, set the variable to it, restart
-  pychron, test, then delete the old key at the service. Do this when
+  nobion, test, then delete the old key at the service. Do this when
   someone who knew the key leaves, or if it was ever pasted somewhere
   shared.
 - **Changing who is told.** Edit `to`, and restart the experiment window.

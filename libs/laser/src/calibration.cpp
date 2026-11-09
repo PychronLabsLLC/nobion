@@ -1,4 +1,4 @@
-#include "pychron/laser/calibration.hpp"
+#include "nobion/laser/calibration.hpp"
 
 #include <cmath>
 #include <iomanip>
@@ -7,7 +7,7 @@
 #include <sstream>
 #include <vector>
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 namespace {
 
@@ -153,4 +153,4 @@ std::vector<std::string> cautions(const TrayMap& map, std::span<const Calibratio
   return out;
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

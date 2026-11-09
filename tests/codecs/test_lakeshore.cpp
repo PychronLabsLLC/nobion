@@ -1,12 +1,12 @@
-#include "pychron/codecs/lakeshore.hpp"
+#include "nobion/codecs/lakeshore.hpp"
 
 #include <gtest/gtest.h>
 
 #include <cmath>
 #include <locale>
 
-using namespace pychron;
-namespace ls = pychron::codec::lakeshore;
+using namespace nobion;
+namespace ls = nobion::codec::lakeshore;
 
 namespace {
 

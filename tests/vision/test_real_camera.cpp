@@ -1,24 +1,24 @@
 // A real camera, when there is one to try: not run unless
-// PYCHRON_TEST_CAMERA names its index (no CI machine has a camera, and on
+// NOBION_TEST_CAMERA names its index (no CI machine has a camera, and on
 // macOS the first open asks a person).
 //
-//   PYCHRON_TEST_CAMERA=0 ctest --test-dir build/dev -R RealCamera
+//   NOBION_TEST_CAMERA=0 ctest --test-dir build/dev -R RealCamera
 
 #include <gtest/gtest.h>
 
 #include <cstdlib>
 #include <string>
 
-#include "pychron/core/env.hpp"
-#include "pychron/vision/camera_backend.hpp"
-#include "pychron/vision/live_feed.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/vision/camera_backend.hpp"
+#include "nobion/vision/live_feed.hpp"
 
-using namespace pychron;
-using namespace pychron::vision;
+using namespace nobion;
+using namespace nobion::vision;
 
 TEST(RealCamera, GivesFramesThroughALiveFeed) {
-  const auto index = pychron::env_var("PYCHRON_TEST_CAMERA");
-  if (!index || index->empty()) GTEST_SKIP() << "set PYCHRON_TEST_CAMERA=<index> to open a real camera";
+  const auto index = nobion::env_var("NOBION_TEST_CAMERA");
+  if (!index || index->empty()) GTEST_SKIP() << "set NOBION_TEST_CAMERA=<index> to open a real camera";
   CameraRequest request;
   request.backend = "opencv";
   request.device = *index;

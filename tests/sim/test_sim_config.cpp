@@ -1,4 +1,4 @@
-#include "pychron/sim/sim_config.hpp"
+#include "nobion/sim/sim_config.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -17,14 +17,14 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/sim/gas.hpp"
-#include "pychron/sim/sim_system.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/sim/gas.hpp"
+#include "nobion/sim/sim_system.hpp"
 
 namespace {
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 using sim::Composition;
 using sim::SimRole;
@@ -58,7 +58,7 @@ class SimConfig : public ::testing::Test {
  protected:
   void SetUp() override {
     const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
-    dir_ = std::filesystem::temp_directory_path() / (std::string("pychron-sim-config-") + info->name());
+    dir_ = std::filesystem::temp_directory_path() / (std::string("nobion-sim-config-") + info->name());
     std::filesystem::remove_all(dir_);
     std::filesystem::create_directories(dir_);
   }
@@ -137,6 +137,13 @@ void expect_same(const SimSettings& a, const SimSettings& b) {
     EXPECT_EQ(detector.drift_per_h, b.detectors.at(name).drift_per_h) << name;
   }
   EXPECT_EQ(a.named, b.named);
+  ASSERT_EQ(a.cryo_traps.size(), b.cryo_traps.size());
+  for (std::size_t i = 0; i < a.cryo_traps.size(); ++i) {
+    EXPECT_EQ(a.cryo_traps[i].volume, b.cryo_traps[i].volume) << i;
+    EXPECT_EQ(a.cryo_traps[i].cryostat, b.cryo_traps[i].cryostat) << i;
+    EXPECT_EQ(a.cryo_traps[i].input, b.cryo_traps[i].input) << i;
+    EXPECT_EQ(a.cryo_traps[i].release_k, b.cryo_traps[i].release_k) << i;
+  }
 }
 
 TEST_F(SimConfig, AnEmptyFileGivesTheDefaults) {
@@ -400,6 +407,29 @@ TEST_F(SimConfig, RefusesANumberNoLineCanHave) {
   ASSERT_TRUE(ends) << ends.error().what;
   EXPECT_EQ(ends->default_volume_cc, 1e-6);
   EXPECT_EQ(ends->source.consumption, 1e6);
+}
+
+// [[cryo_trap]] (staged release): a known volume, a cryostat, an input A to
+// D, and release temperatures above 0 K, by species.
+TEST_F(SimConfig, CryoTrapKeysRangeChecked) {
+  const auto ok = load("[[cryo_trap]]\nvolume = \"bone\"\ncryostat = \"cryo\"\ninput = \"B\"\n"
+                       "release_k = { He4 = 30, Ne20 = 70.5 }\n");
+  ASSERT_TRUE(ok) << ok.error().what;
+  ASSERT_EQ(ok->cryo_traps.size(), 1u);
+  EXPECT_EQ(ok->cryo_traps[0].volume, "bone");
+  EXPECT_EQ(ok->cryo_traps[0].cryostat, "cryo");
+  EXPECT_EQ(ok->cryo_traps[0].input, 'B');
+  EXPECT_EQ(ok->cryo_traps[0].release_k, (std::map<std::string, double>{{"He4", 30.0}, {"Ne20", 70.5}}));
+  const std::string head = "[[cryo_trap]]\nvolume = \"bone\"\ncryostat = \"cryo\"\n";
+  expect_refused(head + "release_k = { He4 = 0 }\n", "cryo_trap[0].release_k.He4");
+  expect_refused(head + "release_k = { He4 = -5 }\n", "cryo_trap[0].release_k.He4");
+  expect_refused(head + "release_k = { Xe132 = 100 }\n", "cryo_trap[0].release_k.Xe132");
+  expect_refused(head + "release_k = { He4 = 30 }\ninput = \"E\"\n", "cryo_trap[0].input");
+  expect_refused(head + "release_k = { He4 = 30 }\nwarm = 1\n", "cryo_trap[0].warm");
+  expect_refused(head, "cryo_trap[0].release_k");
+  expect_refused("[[cryo_trap]]\nvolume = \"nowhere\"\ncryostat = \"cryo\"\nrelease_k = { He4 = 30 }\n",
+                 "cryo_trap[0].volume");
+  expect_refused("[[cryo_trap]]\nvolume = \"bone\"\nrelease_k = { He4 = 30 }\n", "cryo_trap[0].cryostat");
 }
 
 TEST_F(SimConfig, RefusesAnUnknownComposition) {
@@ -770,17 +800,20 @@ TEST_F(SimConfig, AMessageNamesWhatIsKnownAndTheUnit) {
 // every `# key = value` line (and `# [section]`) uncommented in their place
 // it says the defaults, so what it documents cannot drift from the code.
 TEST_F(SimConfig, TheExampleFileIsTheDefaults) {
-  const std::filesystem::path example = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "sim.toml";
+  const std::filesystem::path example = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "sim.toml";
   SimTopology canvas;  // the example canvas's names
-  canvas.volumes = {{"bone"}, {"prep"}, {"spec"}, {"turbo"}, {"rough"}, {"air_tank"}, {"air"}, {"IG1"}, {"PG1"}};
+  canvas.volumes = {{"stage1"},  {"prep"},    {"spec"},    {"turbo"},         {"rough"},    {"air_tank"}, {"air"},
+                    {"IG1"},     {"PG1"},     {"laser"},   {"ion"},           {"getter1"},  {"getter2"},  {"cryo"},
+                    {"turbo2"},  {"cocktail_tank"},        {"cocktail"},      {"IG2"},      {"CG1"}};
   canvas.volumes[5].role = SimRole::Tank;
-  canvas.valves = {"A", "B", "C", "P1", "P2", "M1"};
+  canvas.volumes[15].role = SimRole::Tank;
+  canvas.valves = {"A", "B", "C", "P1", "P2", "M1", "L", "I", "G1", "G2", "Y", "D", "Q1", "Q2", "R1", "R2", "M2"};
 
   // As shipped: comments, then what the example sets; a base that is
   // nobody's default comes back as it went in but for those.
   std::ifstream in(example);
   ASSERT_TRUE(in) << example;
-  const std::regex commented_out(R"(^# (\[[A-Za-z0-9_."~-]+\]\s*$|[A-Za-z0-9_]+ = \S))");
+  const std::regex commented_out(R"(^# (\[\[?[A-Za-z0-9_."~-]+\]\]?\s*$|[A-Za-z0-9_]+ = \S))");
   std::ostringstream uncommented;
   std::vector<std::string> keys;
   int sections = 0;
@@ -816,7 +849,7 @@ TEST_F(SimConfig, TheExampleFileIsTheDefaults) {
   base.named["cocktail"] = Composition{1, 2, 3, 4, 5, 6};
   base.compositions["air_tank"] = sim::with_ar40(sim::cocktail_ratios(), 1e-6);
   base.initial_pressures["prep"] = 2e-5;
-  base.leaks["bone"] = 3e-12;
+  base.leaks["stage1"] = 3e-12;
   base.sizes["air"] = 0.7;
   base.conductances["B"] = 0.6;
   base.pumps["turbo"] = {3e-6, 2s};
@@ -829,24 +862,28 @@ TEST_F(SimConfig, TheExampleFileIsTheDefaults) {
   // What the example lab sets (the reasons are in the file, and
   // tests/integration/test_lab_sim.cpp holds the lab to them).
   EXPECT_EQ(in_force, (std::vector<std::string>{"[defaults]", "pressure = 1e-10", "outgassing = 1.5e-13",
-                                                "[volumes.air_tank]", "argon40 = 9.5e-5", "[valves.B]",
+                                                "[volumes.air_tank]", "argon40 = 9.5e-5", "[volumes.cocktail_tank]",
+                                                "composition = \"cocktail\"", "[valves.B]",
                                                 "conductance = 0.02", "[pumps.turbo]", "base = 1e-10"}));
   SimSettings tuned = base;
   tuned.default_pressure = 1e-10;
   tuned.outgassing = 1.5e-13;
   tuned.compositions["air_tank"] = sim::with_ar40(sim::air_ratios(), 9.5e-5);
+  // The base's cocktail, at the base's unasked Ar40 of a tank.
+  tuned.compositions["cocktail_tank"] = sim::with_ar40(base.named.at("cocktail"), base.tank_argon40);
   tuned.conductances["B"] = 0.02;
   tuned.pumps["turbo"].base = 1e-10;
   expect_same(*shipped, tuned);
 
   // Uncommented: every key of the format, each at its default.
-  EXPECT_EQ(sections, 11);
+  EXPECT_EQ(sections, 12);
   const std::vector<std::string> every_key{
       "pressure", "volume_cc",   "pipe_cc",     "gauge_cc",        "valve_conductance", "outgassing", "noise",
       "seed",     "Ar36",        "Ar37",        "Ar38",            "Ar39",              "Ar40",       "active",
+      "He4",      "Ne20",
       "composition", "argon40",  "pressure",    "leak",            "volume_cc",         "conductance", "speed",
       "base",     "speed",       "base",        "sensitivity",     "consumption",       "memory_fA_per_s",
-      "baseline", "baseline_drift_per_h"};
+      "baseline", "baseline_drift_per_h", "volume", "cryostat", "input", "release_k"};
   EXPECT_EQ(keys, every_key);
   const auto loaded = sim::load_sim_settings(write(uncommented.str()), canvas);
   ASSERT_TRUE(loaded) << loaded.error().what;
@@ -856,7 +893,7 @@ TEST_F(SimConfig, TheExampleFileIsTheDefaults) {
   expected.named["cocktail"] = sim::cocktail_ratios();
   expected.compositions["air_tank"] = sim::with_ar40(sim::air_ratios(), defaults.tank_argon40);
   expected.initial_pressures["prep"] = defaults.default_pressure;
-  expected.leaks["bone"] = 0.0;
+  expected.leaks["stage1"] = 0.0;
   expected.sizes["air"] = defaults.pipette_cc;
   expected.conductances["B"] = defaults.valve_conductance;
   expected.pumps["turbo"] = sim::SimPump{defaults.pump_base, sim::SimPump{}.tau};
@@ -864,6 +901,7 @@ TEST_F(SimConfig, TheExampleFileIsTheDefaults) {
   expected.pumps["rough"] = sim::SimPump{defaults.pump_base, sim::SimPump{}.tau};
   expected.pump_speeds["rough"] = defaults.pump_speed;
   expected.detectors["H1"] = {0.0, 0.0};
+  expected.cryo_traps = {{"cryo", "cryostat", 'A', {{"He4", 30.0}, {"Ne20", 70.0}}}};
   expect_same(*loaded, expected);
 }
 

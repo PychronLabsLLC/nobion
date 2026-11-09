@@ -1,6 +1,6 @@
 #pragma once
 
-// The tolerant JSON reader behind the legacy parsers. Private to pychron_dvc:
+// The tolerant JSON reader behind the legacy parsers. Private to nobion_dvc:
 // nlohmann_json must not reach a public header.
 
 #include <exception>
@@ -11,9 +11,9 @@
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/core/error.hpp"
+#include "nobion/core/error.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
 using Json = nlohmann::json;  // objects keep their keys sorted, so dump() is deterministic
 
@@ -82,4 +82,4 @@ std::optional<std::string> extra_text(const Json& object);
 // "unexpected content".
 Error unexpected_content(const std::exception& e);
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

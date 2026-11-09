@@ -54,6 +54,7 @@ constexpr const char* kHelp =
     "                            stored unlinked and stays unlinked\n"
     "\n"
     "  run [--source <id|name> | --all] [--batch <n>] [--limit <n>] [--replay] [--dry-run]\n"
+    "      [--no-derive]\n"
     "        Import, resuming where the last run stopped. Without --source: every source,\n"
     "        the database dump first, then meta repositories, repositories of reference\n"
     "        runs, and the other project repositories by url. Ctrl-C finishes the batch\n"
@@ -64,6 +65,11 @@ constexpr const char* kHelp =
     "                            is left alone, analyses refused earlier (unknown_analysis)\n"
     "                            are imported now that the catalog has their identifier\n"
     "        --dry-run           write nothing, fetch nothing; print what a run would write\n"
+    "        --no-derive         leave the cache of ages alone. Without it, a run that\n"
+    "                            walks to the end (not one stopped by --limit or Ctrl-C)\n"
+    "                            then does what 'elctl db derive' does and prints its\n"
+    "                            summary line; a failure there is reported and does not\n"
+    "                            change the exit code\n"
     "\n"
     "  status\n"
     "        One line per source: id kind name status done/total head\n"
@@ -87,7 +93,7 @@ constexpr const char* kHelp =
     "  status, conflicts, verify and run --dry-run need a database that exists.\n"
     "\n"
     "  --cache <dir>   settings of each source (<id>.toml) and mirrors of remote\n"
-    "                  repositories; default: the user's cache directory, pychron/import\n"
+    "                  repositories; default: the user's cache directory, nobion/import\n"
     "\n"
     "Exit codes: 0 ok, also for a paused run and one that left only warnings;\n"
     "            1 verify is not ok, or a run finished with blocking conflicts pending;\n"
@@ -135,7 +141,7 @@ int conflicts(Context& ctx, const Flags& flags) {
                         {"path", row.path},
                         {"entity", row.entity ? Json(row.entity->str()) : Json(nullptr)},
                         {"resolution", row.resolution},
-                        {"blocking", row.resolution == "pending" && !pychron::ingest::is_warning_conflict(row)},
+                        {"blocking", row.resolution == "pending" && !nobion::ingest::is_warning_conflict(row)},
                         {"detail", detail.is_discarded() ? Json(row.detail_json) : detail}});
       continue;
     }
@@ -203,7 +209,7 @@ int fatal(Io io, const Error& error) { return fatal(io, error.what); }
 
 }  // namespace import_detail
 
-int import_command(const std::vector<std::string>& args, Io io) {
+int import_command(const std::vector<std::string>& args, const nobion::processing::Domain& domain, Io io) {
   using namespace import_detail;
   if (args.empty()) {
     io.err << kShortUsage;
@@ -221,7 +227,7 @@ int import_command(const std::vector<std::string>& args, Io io) {
     spec.switches = {"--catalog-from-repos", "--reference-runs"};
   } else if (verb == "run") {
     spec.with_value.insert(spec.with_value.end(), {"--source", "--batch", "--limit"});
-    spec.switches = {"--all", "--replay", "--dry-run"};
+    spec.switches = {"--all", "--replay", "--dry-run", "--no-derive"};
   } else if (verb == "conflicts") {
     spec.with_value.insert(spec.with_value.end(), {"--source", "--kind"});
     spec.switches = {"--all", "--json"};
@@ -239,7 +245,7 @@ int import_command(const std::vector<std::string>& args, Io io) {
   // No exception leaves a library, but std::filesystem and the standard
   // containers used here can throw: a fatal error like any other.
   try {
-    Context ctx{io, {}, nullptr};
+    Context ctx{io, {}, nullptr, *db, &domain};
     const auto cache = flags->get("--cache");
     ctx.cache = cache ? fs::path(*cache) : default_cache_dir();
 
@@ -254,7 +260,7 @@ int import_command(const std::vector<std::string>& args, Io io) {
       if (!fs::is_regular_file(file, code)) return fatal(io, "no database at " + db->substr(kSqlite.size()));
       // SQLite would take an empty file for a new database and write to it.
       if (fs::file_size(file, code) == 0 && !code)
-        return fatal(io, db->substr(kSqlite.size()) + " is empty: not a pychron store");
+        return fatal(io, db->substr(kSqlite.size()) + " is empty: not a nobion store");
     }
     auto store = P::open_store(P::StoreConfig{*db, creates});
     if (!store) return fatal(io, store.error());

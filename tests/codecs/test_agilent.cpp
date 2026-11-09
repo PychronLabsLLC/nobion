@@ -1,10 +1,10 @@
 // codec::agilent: 34970A-family SCPI, as legacy pychron spoke it.
-#include "pychron/codecs/agilent.hpp"
+#include "nobion/codecs/agilent.hpp"
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-namespace ag = pychron::codec::agilent;
+using namespace nobion;
+namespace ag = nobion::codec::agilent;
 
 namespace {
 

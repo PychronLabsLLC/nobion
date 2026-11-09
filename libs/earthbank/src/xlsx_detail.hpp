@@ -3,14 +3,14 @@
 // Two small parts of the workbook exporter (xlsx.cpp) that a test cannot
 // reach through export_xlsx: where the templates are looked for when they are
 // nowhere, and what happens to the files already written when one cannot be
-// taken back. Internal to pychron::earthbank.
+// taken back. Internal to nobion::earthbank.
 
 #include <filesystem>
 #include <optional>
 #include <string>
 #include <vector>
 
-namespace pychron::earthbank::detail {
+namespace nobion::earthbank::detail {
 
 // Where the templates were looked for, in order, each place in words a user
 // can follow, and the directory taken: the first that applies. `found` is
@@ -20,7 +20,7 @@ struct TemplateSearch {
   std::vector<std::string> tried;
 };
 
-// `named` is what PYCHRON_EARTHBANK_TEMPLATES holds (taken as it is: the user
+// `named` is what NOBION_EARTHBANK_TEMPLATES holds (taken as it is: the user
 // said so); `program_dir` the running program's directory, beside which an
 // install keeps the templates (empty: not known); `source_dir` the source
 // tree's templates, taken only when the directory is there. On a machine
@@ -37,4 +37,4 @@ std::string templates_not_found(const TemplateSearch& search);
 // not be removed are returned: they are still there, and the error says so.
 std::vector<std::filesystem::path> take_back(const std::vector<std::filesystem::path>& written);
 
-}  // namespace pychron::earthbank::detail
+}  // namespace nobion::earthbank::detail

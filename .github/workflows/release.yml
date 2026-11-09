@@ -11,7 +11,7 @@
 # it beside themselves. Qt comes with the package on macOS and Windows; the
 # .deb depends on Ubuntu's Qt.
 #
-# macOS: Pychron.app is signed with the hardened runtime, and the .dmg signed,
+# macOS: Nobion.app is signed with the hardened runtime, and the .dmg signed,
 # notarized and stapled, when the repository has these secrets
 # (docs/installation_runbook.md, "Signing and notarizing the macOS package"):
 #   MACOS_CERTIFICATE_P12_BASE64, MACOS_CERTIFICATE_PASSWORD   Developer ID Application
@@ -27,8 +27,8 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - cmake/PychronInstall.cmake
-      - cmake/PychronPackaging.cmake
+      - cmake/NobionInstall.cmake
+      - cmake/NobionPackaging.cmake
       - packaging/**
       - .github/workflows/release.yml
   # By hand: the packages as workflow artifacts; given a tag, built from it and
@@ -96,6 +96,12 @@ jobs:
           version: "6.8.*"
           cache: true
 
+      # ci.yml's convention: Windows runners have `python`, the others `python3`.
+      # -I: the tools read nothing from the working directory.
+      - name: Python for the tools
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then echo "PY=python -I" >> "$GITHUB_ENV"; else echo "PY=python3 -I" >> "$GITHUB_ENV"; fi
+
       - name: Relocatable Python
         run: |
           url="https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_RELEASE}/cpython-${PBS_PYTHON}+${PBS_RELEASE}-${{ matrix.pbs }}-install_only.tar.gz"
@@ -113,6 +119,46 @@ jobs:
           fi
           echo "PBS=$pbs" >> "$GITHUB_ENV"
 
+      # OpenCV for libs/vision: core, imgproc and videoio only, static, built
+      # from a pinned tarball by packaging/opencv/build.py (field diagnostics
+      # spec 12.1). Homebrew's or apt's would bring a hundred shared libraries
+      # into the package. Cached on OS, arch, runner image, OpenCV version and
+      # the script's sha256: a change to an option in the script, or a new
+      # runner image (compiler, SDK), is a new build.
+      - name: OpenCV cache key
+        run: |
+          tmp="$RUNNER_TEMP"
+          if [ "$RUNNER_OS" = Windows ]; then tmp=$(cygpath -m "$RUNNER_TEMP"); fi
+          version=$($PY packaging/opencv/build.py --print-version | tr -d '\r')
+          script_sha=$($PY -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' packaging/opencv/build.py | tr -d '\r')
+          cmake_dir=$($PY packaging/opencv/build.py --print-cmake-dir | tr -d '\r')
+          {
+            echo "OCV_SRC=$tmp/opencv-src"
+            echo "OCV_PREFIX=$tmp/opencv"
+            echo "OCV_DIR=$tmp/opencv/$cmake_dir"
+            echo "OCV_KEY=opencv-${RUNNER_OS}-${RUNNER_ARCH}-${ImageOS:-image}-${ImageVersion:-0}-${version}-${script_sha}"
+          } >> "$GITHUB_ENV"
+
+      - name: Restore OpenCV
+        id: opencv-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.OCV_PREFIX }}
+          key: ${{ env.OCV_KEY }}
+
+      - name: Build OpenCV
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        run: $PY packaging/opencv/build.py "$OCV_SRC" "$OCV_PREFIX"
+
+      # Saved as soon as it is built, so a later step's failure does not cost
+      # the next run the build.
+      - name: Save OpenCV
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.OCV_PREFIX }}
+          key: ${{ env.OCV_KEY }}
+
       - name: Signing identity (macOS)
         if: runner.os == 'macOS'
         env:
@@ -120,7 +166,7 @@ jobs:
           CERT_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         run: |
           if [ -z "$CERT" ]; then
-            echo "PYCHRON_CODESIGN_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "NOBION_CODESIGN_IDENTITY=-" >> "$GITHUB_ENV"
             if [ -n "${{ inputs.tag }}" ] || [[ "$GITHUB_REF" == refs/tags/v* ]]; then
               echo "::warning::No MACOS_CERTIFICATE_P12_BASE64 secret: this release's .dmg is signed ad hoc and not notarized"
             fi
@@ -144,25 +190,115 @@ jobs:
             security find-identity -v -p codesigning "$kc"
             exit 1
           fi
-          echo "PYCHRON_CODESIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "NOBION_CODESIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
           echo "signing as: $identity"
 
       - name: Configure
         run: |
           gen=(-G Ninja)
           if [ "$RUNNER_OS" = Windows ]; then gen=(-G "Visual Studio 17 2022" -A x64); fi
-          cmake -S . -B build "${gen[@]}" -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_UI=ON -DBUILD_TESTS=OFF -DPYCHRON_WARNINGS_AS_ERRORS=OFF \
+          cmake -S . -B build "${gen[@]}" -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DBUILD_UI=ON -DBUILD_TESTS=OFF -DNOBION_WARNINGS_AS_ERRORS=OFF \
             -DPython_ROOT_DIR="$PBS" -DPython_FIND_STRATEGY=LOCATION \
-            -DPYCHRON_BUNDLE_PYTHON="$PBS"
+            -DNOBION_BUNDLE_PYTHON="$PBS" \
+            -DNOBION_VISION_OPENCV=ON -DOpenCV_DIR="$OCV_DIR" -DOpenCV_STATIC=ON -DNOBION_PUBLISH=OFF
 
       - name: Build
-        run: cmake --build build --config Release --parallel
+        run: cmake --build build --config RelWithDebInfo --parallel
+
+      # A release names the commit it was built from, and a clean one: a build id
+      # ending in ".dirty" or "+unknown" cannot be traced to a source.
+      - name: Check the build id
+        run: |
+          elctl_bin=$(find build -type f \( -name elctl -o -name elctl.exe \) -perm -u+x | head -n 1)
+          if [ -z "$elctl_bin" ]; then echo "no elctl built"; exit 1; fi
+          echo "checking $elctl_bin"
+          id=$("$elctl_bin" --version | head -n 1 | tr -d '\r')
+          echo "$id"
+          if ! printf '%s\n' "$id" | grep -Eq '^elctl [0-9]+\.[0-9]+\.[0-9]+\+[0-9a-f]{12}$'; then
+            echo "build id is not a clean, known commit: $id"; exit 1
+          fi
+          # The optional libraries a release is built with (spec 12): the
+          # trimmed OpenCV in, Arrow out. The list compiled into the programs
+          # (About, support bundle) is this file's.
+          features=$(tr -d '\r' < build/generated/build_features.txt)
+          echo "features: $(tr '\n' ' ' <<< "$features")"
+          if ! grep -qx 'vision_opencv' <<< "$features"; then echo "::error::built without vision_opencv"; exit 1; fi
+          if grep -qx 'publish_parquet' <<< "$features"; then echo "::error::built with publish_parquet"; exit 1; fi
+
+      # RelWithDebInfo compiles with -O2 -g where Release did -O3: a numeric
+      # fixture that differs under that stops the release. What is packaged
+      # (BUILD_TESTS=OFF above) is not changed for it: the suites are built in
+      # a second directory, without the UI, which none of them reads.
+      - name: Configure the tests
+        run: |
+          gen=(-G Ninja)
+          if [ "$RUNNER_OS" = Windows ]; then gen=(-G "Visual Studio 17 2022" -A x64); fi
+          cmake -S . -B build-tests "${gen[@]}" -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DBUILD_UI=OFF -DBUILD_TESTS=ON -DNOBION_WARNINGS_AS_ERRORS=OFF \
+            -DPython_ROOT_DIR="$PBS" -DPython_FIND_STRATEGY=LOCATION \
+            -DNOBION_BUNDLE_PYTHON="$PBS" \
+            -DNOBION_VISION_OPENCV=ON -DOpenCV_DIR="$OCV_DIR" -DOpenCV_STATIC=ON -DNOBION_PUBLISH=OFF
+
+      - name: Test (release configuration)
+        run: |
+          targets="nobion_arar_tests nobion_arar_store_tests nobion_arar_records_tests nobion_reduction_tests nobion_processing_tests nobion_processing_store_tests nobion_processing_records_tests nobion_core_tests nobion_vision_tests nobion_crash_helper"
+          cmake --build build-tests --config RelWithDebInfo --parallel --target $targets
+          # The label is on these suites' gtest_discover_tests, so their own TIMEOUT applies.
+          ctest --test-dir build-tests -C RelWithDebInfo -L release_config --parallel 4 --output-on-failure
+
+      # The debug information of the programs, kept as a release asset beside
+      # the installers (never inside one). Linux: this also adds the debuglink
+      # section to the build-tree files, before cpack copies and strips them.
+      - name: Split the symbols
+        run: |
+          case "$RUNNER_OS" in macOS) os=macos;; Linux) os=linux;; *) os=windows;; esac
+          $PY tools/split_symbols.py build symbols --os "$os" --config RelWithDebInfo
 
       - name: Package
-        run: cd build && cpack -C Release
+        run: cd build && cpack -C RelWithDebInfo
 
-      # Pychron.app was signed when cpack made the image (packaging/macos/cpack_sign.cmake).
+      # The archive is only any use if it is of the programs the package ships.
+      - name: Check the symbols match the package
+        if: runner.os != 'Windows'
+        run: |
+          case "$RUNNER_OS" in macOS) os=macos;; *) os=linux;; esac
+          tools/check_shipped_symbols.sh build symbols "$os"
+
+      # A crash of the test helper, named from the split symbols: a symbol
+      # archive that does not name a frame of crash_helper.cpp is no use to
+      # anyone reading a field crash file. The helper's own symbols come from
+      # the tests build (the helper is not packaged).
+      - name: Symbolize a crash
+        run: |
+          case "$RUNNER_OS" in macOS) os=macos;; Linux) os=linux;; *) os=windows;; esac
+          $PY tools/split_symbols.py build-tests symbols-tests --os "$os" --config RelWithDebInfo --only nobion_crash_helper
+          mkdir -p "$RUNNER_TEMP/syms" "$RUNNER_TEMP/crashlog"
+          helper=$(find build-tests -type f \( -name nobion_crash_helper -o -name nobion_crash_helper.exe \) | head -n 1)
+          "$helper" "$RUNNER_TEMP/crashlog" segv || true
+          if [ "$os" = windows ]; then
+            # Windows leaves a minidump: WinDbg or Visual Studio read it, with
+            # the PDB archive; the steps are printed, not run.
+            dmp=$(find "$RUNNER_TEMP/crashlog/crash" -name '*.dmp' | head -n 1)
+            if [ -z "$dmp" ]; then echo "no minidump left"; exit 1; fi
+            $PY -m zipfile -e symbols-tests/*.zip "$RUNNER_TEMP/syms"
+            $PY tools/symbolize.py "$dmp" --symbols "$RUNNER_TEMP/syms"
+            exit 0
+          fi
+          if [ "$os" = macos ]; then
+            $PY -m zipfile -e symbols-tests/*.zip "$RUNNER_TEMP/syms"
+          else
+            tar --zstd -xf symbols-tests/*.tar.zst -C "$RUNNER_TEMP/syms"
+          fi
+          crash=$(find "$RUNNER_TEMP/crashlog/crash" -name '*.txt' | head -n 1)
+          if [ -z "$crash" ]; then echo "no crash file left"; exit 1; fi
+          $PY tools/symbolize.py "$crash" --symbols "$RUNNER_TEMP/syms" --os "$os" | tee "$RUNNER_TEMP/symbolized.txt"
+          if ! grep -q crash_helper.cpp "$RUNNER_TEMP/symbolized.txt"; then
+            echo "::error::No frame of the symbolized crash names crash_helper.cpp"
+            exit 1
+          fi
+
+      # Nobion.app was signed when cpack made the image (packaging/macos/cpack_sign.cmake).
       - name: Sign and notarize the disk image (macOS)
         if: runner.os == 'macOS'
         env:
@@ -170,12 +306,12 @@ jobs:
           API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           API_ISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
         run: |
-          dmg=$(ls build/Pychron-*.dmg)
-          if [ "$PYCHRON_CODESIGN_IDENTITY" = "-" ]; then
+          dmg=$(ls build/Nobion-*.dmg)
+          if [ "$NOBION_CODESIGN_IDENTITY" = "-" ]; then
             echo "signed ad hoc: the image is not signed or notarized"
             exit 0
           fi
-          codesign --force --sign "$PYCHRON_CODESIGN_IDENTITY" --timestamp "$dmg"
+          codesign --force --sign "$NOBION_CODESIGN_IDENTITY" --timestamp "$dmg"
           codesign --verify --verbose=2 "$dmg"
           if [ -z "$API_KEY" ]; then
             echo "::warning::No APPLE_API_KEY_P8_BASE64 secret: the .dmg is signed but not notarized"
@@ -196,15 +332,15 @@ jobs:
           rm -f "$key"
           xcrun stapler staple "$dmg"
           xcrun stapler validate "$dmg"
-          echo "PYCHRON_NOTARIZED=1" >> "$GITHUB_ENV"
+          echo "NOBION_NOTARIZED=1" >> "$GITHUB_ENV"
 
       - name: Smoke test (Linux)
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get install -y ./build/pychron_*.deb
+          sudo apt-get install -y ./build/nobion_*.deb
           elctl --version
-          QT_QPA_PLATFORM=offscreen pychron-ui --self-test
-          export PYCHRON_SITE_CONFIG="$RUNNER_TEMP/site.toml"
+          QT_QPA_PLATFORM=offscreen nobion --self-test
+          export NOBION_SITE_CONFIG="$RUNNER_TEMP/site.toml"
           elctl init data-reduction --root "$RUNNER_TEMP/dr" --yes
           elctl init argus --root "$RUNNER_TEMP/argus" --yes
           elctl --install argus exp run experiment.toml --sim-speed 200
@@ -212,48 +348,58 @@ jobs:
       - name: Smoke test (macOS)
         if: runner.os == 'macOS'
         run: |
-          hdiutil attach build/Pychron-*.dmg -mountpoint /Volumes/Pychron
-          cp -R /Volumes/Pychron/Pychron.app "$RUNNER_TEMP/"
-          hdiutil detach /Volumes/Pychron
+          hdiutil attach build/Nobion-*.dmg -mountpoint /Volumes/Nobion
+          cp -R /Volumes/Nobion/Nobion.app "$RUNNER_TEMP/"
+          hdiutil detach /Volumes/Nobion
           # Signed throughout, with the hardened runtime and the camera entitlement;
           # what follows then runs (Python included) under that runtime.
-          codesign --verify --deep --strict --verbose=2 "$RUNNER_TEMP/Pychron.app"
-          codesign --display --verbose=2 "$RUNNER_TEMP/Pychron.app" 2>&1 | grep -E 'flags=.*runtime'
-          entitlements=$(codesign --display --entitlements - --xml "$RUNNER_TEMP/Pychron.app")
+          codesign --verify --deep --strict --verbose=2 "$RUNNER_TEMP/Nobion.app"
+          codesign --display --verbose=2 "$RUNNER_TEMP/Nobion.app" 2>&1 | grep -E 'flags=.*runtime'
+          entitlements=$(codesign --display --entitlements - --xml "$RUNNER_TEMP/Nobion.app")
           grep -q com.apple.security.device.camera <<< "$entitlements"
-          codesign --display --verbose=2 "$RUNNER_TEMP/Pychron.app/Contents/MacOS/elctl" 2>&1 | grep -E 'flags=.*runtime'
-          if [ "${PYCHRON_NOTARIZED:-}" = 1 ]; then
+          codesign --display --verbose=2 "$RUNNER_TEMP/Nobion.app/Contents/MacOS/elctl" 2>&1 | grep -E 'flags=.*runtime'
+          if [ "${NOBION_NOTARIZED:-}" = 1 ]; then
             # What Gatekeeper decides for a user who downloaded it.
-            spctl --assess --type open --context context:primary-signature --verbose=2 build/Pychron-*.dmg
-            spctl --assess --type execute --verbose=2 "$RUNNER_TEMP/Pychron.app"
+            spctl --assess --type open --context context:primary-signature --verbose=2 build/Nobion-*.dmg
+            spctl --assess --type execute --verbose=2 "$RUNNER_TEMP/Nobion.app"
           fi
-          app="$RUNNER_TEMP/Pychron.app/Contents/MacOS"
+          app="$RUNNER_TEMP/Nobion.app/Contents/MacOS"
           "$app/elctl" --version
-          "$app/Pychron" --self-test  # macdeployqt ships the cocoa platform plugin only
-          export PYCHRON_SITE_CONFIG="$RUNNER_TEMP/site.toml"
+          "$app/Nobion" --self-test  # macdeployqt ships the cocoa platform plugin only
+          export NOBION_SITE_CONFIG="$RUNNER_TEMP/site.toml"
           "$app/elctl" init argus --root "$RUNNER_TEMP/argus" --yes
           "$app/elctl" --install argus exp run experiment.toml --sim-speed 200
 
       - name: Smoke test (Windows)
         if: runner.os == 'Windows'
         run: |
-          mkdir -p "$RUNNER_TEMP/zip" && unzip -q build/Pychron-*.zip -d "$RUNNER_TEMP/zip"
+          mkdir -p "$RUNNER_TEMP/zip" && $PY -m zipfile -e build/Nobion-*.zip "$RUNNER_TEMP/zip"
           bin=$(ls -d "$RUNNER_TEMP"/zip/*/bin)
           "$bin/elctl.exe" --version
-          "$bin/pychron-ui.exe" --self-test  # windeployqt ships the windows platform plugin only
-          export PYCHRON_SITE_CONFIG="$RUNNER_TEMP/site.toml"
+          "$bin/nobion.exe" --self-test  # windeployqt ships the windows platform plugin only
+          export NOBION_SITE_CONFIG="$RUNNER_TEMP/site.toml"
           "$bin/elctl.exe" init argus --root "$RUNNER_TEMP/argus" --yes
           "$bin/elctl.exe" --install argus exp run experiment.toml --sim-speed 200
 
+      # One flat directory: upload-artifact roots an artifact at the paths'
+      # common ancestor, so build/* beside symbols/* would arrive as
+      # dist/build/* and dist/symbols/*, and `files: dist/*` would attach
+      # nothing. Every name carries its platform (Nobion-<version>-<os>...,
+      # nobion-<version>-<os>-<arch>.<kind>), so merge-multiple below cannot
+      # have one OS's file overwrite another's; a name met twice fails here.
+      - name: Stage the release files
+        run: |
+          mkdir -p out
+          shopt -s nullglob
+          for f in build/*.deb build/*.tar.gz build/*.dmg build/*.exe build/*.zip symbols/*; do
+            if [ -e "out/$(basename "$f")" ]; then echo "::error::$(basename "$f") staged twice"; exit 1; fi
+            cp "$f" out/
+          done
+
       - uses: actions/upload-artifact@v4
         with:
-          name: pychron-${{ matrix.name }}
-          path: |
-            build/*.deb
-            build/*.tar.gz
-            build/*.dmg
-            build/*.exe
-            build/*.zip
+          name: nobion-${{ matrix.name }}
+          path: out/*
           if-no-files-found: error
 
   release:

@@ -8,9 +8,9 @@
 #include <fstream>
 #include <sstream>
 
-#include "pychron/core/process.hpp"
+#include "nobion/core/process.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {
@@ -60,11 +60,11 @@ TEST(Process, ArgumentsArePassedAsTheyAre) {
 
 TEST(Process, AddsEnvironmentVariables) {
 #ifdef _WIN32
-  auto spec = shell("echo %PYCHRON_PROCESS_TEST%");
+  auto spec = shell("echo %NOBION_PROCESS_TEST%");
 #else
-  auto spec = shell("printf %s \"$PYCHRON_PROCESS_TEST\"");
+  auto spec = shell("printf %s \"$NOBION_PROCESS_TEST\"");
 #endif
-  spec.env = {{"PYCHRON_PROCESS_TEST", "42"}};
+  spec.env = {{"NOBION_PROCESS_TEST", "42"}};
   auto r = run_process(spec);
   ASSERT_TRUE(r) << r.error().what;
   EXPECT_NE(r->output.find("42"), std::string::npos) << r->output;
@@ -72,11 +72,11 @@ TEST(Process, AddsEnvironmentVariables) {
 
 TEST(Process, AMissingProgramIsAnIoError) {
   ProcessSpec spec;
-  spec.argv = {"pychron-no-such-program-xyz"};
+  spec.argv = {"nobion-no-such-program-xyz"};
   auto r = run_process(spec);
   ASSERT_FALSE(r);
   EXPECT_EQ(r.error().kind, ErrorKind::Io);
-  EXPECT_NE(r.error().what.find("pychron-no-such-program-xyz"), std::string::npos) << r.error().what;
+  EXPECT_NE(r.error().what.find("nobion-no-such-program-xyz"), std::string::npos) << r.error().what;
   EXPECT_FALSE(run_process(ProcessSpec{}));
 }
 
@@ -104,7 +104,7 @@ std::string slurp(const std::filesystem::path& p) {
 }
 
 std::filesystem::path scratch(const char* name) {
-  return std::filesystem::temp_directory_path() / (std::string("pychron-process-test-") + name);
+  return std::filesystem::temp_directory_path() / (std::string("nobion-process-test-") + name);
 }
 
 }  // namespace

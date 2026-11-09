@@ -1,12 +1,14 @@
-#include "pychron/systems/spectrometer/field_table_store.hpp"
+#include "nobion/systems/spectrometer/field_table_store.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
 #include <cstdio>
 #include <fstream>
 #include <sstream>
+#include <string_view>
 #include <utility>
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace fs = std::filesystem;
 
@@ -40,18 +42,8 @@ Result<std::string> read_file(const fs::path& p) {
 
 // Write-then-rename so readers never see a partial file.
 Result<void> write_atomic(const fs::path& p, const std::string& text) {
-  fs::path tmp = p;
-  tmp += ".tmp";
-  {
-    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-    if (!out) return fail(ErrorKind::Io, "cannot write " + tmp.string());
-    out << text;
-    out.flush();
-    if (!out) return fail(ErrorKind::Io, "write failed: " + tmp.string());
-  }
-  std::error_code ec;
-  fs::rename(tmp, p, ec);
-  if (ec) return fail(ErrorKind::Io, "cannot rename " + tmp.string() + ": " + ec.message());
+  if (auto written = write_file_atomic(p, text, Durability::Power); !written)
+    return fail(ErrorKind::Io, "cannot write " + p.string() + ": " + written.error().what);
   return {};
 }
 
@@ -117,8 +109,15 @@ Result<std::vector<std::string>> FieldTableStore::versions() const {
 Result<std::string> FieldTableStore::current_version() const {
   auto text = read_file(directory() / "current");
   if (!text) return fail(ErrorKind::Config, "field table '" + name_ + "' has no current version");
+  // The pointer holds "<version>.toml" (what set_current writes and what
+  // shipped tables and cfg::resolve_current_table use); a bare stem is read
+  // too. One suffix is stripped, so "x.toml.toml" stays invalid.
   std::string v = *text;
-  while (!v.empty() && (v.back() == '\n' || v.back() == '\r' || v.back() == ' ')) v.pop_back();
+  while (!v.empty() && (v.back() == '\n' || v.back() == '\r' || v.back() == ' ' || v.back() == '\t')) v.pop_back();
+  constexpr std::string_view suffix = ".toml";
+  if (v.size() > suffix.size() && std::string_view(v).substr(v.size() - suffix.size()) == suffix) {
+    v.resize(v.size() - suffix.size());
+  }
   if (!valid_version(v)) return fail(ErrorKind::Config, "field table '" + name_ + "': bad current pointer '" + v + "'");
   return v;
 }
@@ -152,7 +151,7 @@ Result<void> FieldTableStore::restore(const std::string& version) {
 }
 
 Result<void> FieldTableStore::set_current(const std::string& version) {
-  return write_atomic(directory() / "current", version + "\n");
+  return write_atomic(directory() / "current", version + ".toml\n");
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

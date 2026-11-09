@@ -1,0 +1,51 @@
+#pragma once
+
+// Capability interfaces. A driver composes Transport& + codec and implements
+// one or more of these; managers depend on these only and are vendor-blind.
+// Calls block until the device answers (or the transport times out) and are
+// made from scheduler/manager threads, never the UI thread.
+
+#include <vector>
+
+#include "nobion/core/error.hpp"
+#include "nobion/devices/device.hpp"
+#include "nobion/devices/types.hpp"
+
+namespace nobion {
+
+struct IPressureGauge {
+  virtual ~IPressureGauge() = default;
+  // One reading in the gauge's configured units.
+  virtual Result<double> read_pressure() = 0;
+};
+
+struct IValveActuator {
+  virtual ~IValveActuator() = default;
+  virtual Result<void> open(const ValveAddress& address) = 0;
+  virtual Result<void> close(const ValveAddress& address) = 0;
+  // State as reported by the hardware (read-back), not as last commanded.
+  virtual Result<ValveState> read(const ValveAddress& address) = 0;
+  // read() of each address, in order, one result per address. A driver
+  // that can read several at once (a PLC's coil range) overrides it; the
+  // default reads them one by one.
+  virtual std::vector<Result<ValveState>> read_many(const std::vector<ValveAddress>& addresses) {
+    std::vector<Result<ValveState>> out;
+    out.reserve(addresses.size());
+    for (const auto& a : addresses) out.push_back(read(a));
+    return out;
+  }
+};
+
+struct IScannable {
+  virtual ~IScannable() = default;
+  // One periodic sample for the Scheduler; `device` is the device's name.
+  virtual Result<Sample> sample() = 0;
+};
+
+// The capability `device` implements, or nullptr.
+template <class Capability>
+Capability* capability(Device& device) noexcept {
+  return dynamic_cast<Capability*>(&device);
+}
+
+}  // namespace nobion

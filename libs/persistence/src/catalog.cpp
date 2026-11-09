@@ -10,13 +10,23 @@
 #include <set>
 
 #include "catalog_impl.hpp"
-#include "pychron/core/calendar.hpp"
+#include "nobion/core/calendar.hpp"
 #include "sql/catalog.hpp"
 #include "sql/errors.hpp"
 #include "sql/geometry.hpp"
 #include "sql/statements.hpp"
 
-namespace pychron::persistence {
+namespace nobion::persistence {
+
+std::string_view pi_kind_name(PiKind kind) noexcept {
+  return kind == PiKind::Organisation ? "organisation" : "person";
+}
+
+std::optional<PiKind> parse_pi_kind(std::string_view name) noexcept {
+  if (name == "person") return PiKind::Person;
+  if (name == "organisation") return PiKind::Organisation;
+  return std::nullopt;
+}
 
 std::string_view table_name(CatalogTable table) noexcept {
   switch (table) {
@@ -71,12 +81,17 @@ struct TableRules {
 const std::vector<TableRules>& rules() {
   using T = ColumnType;
   static const std::vector<TableRules> all = {
+      // No natural key: two PIs may share a name (migration 0006). An ORCID is
+      // unique when present; the index refuses a second one.
       {CatalogTable::PrincipalInvestigator,
-       {{"last_name", T::Text, true, true},
-        {"first_initial", T::Text, false, true},
+       {{"kind", T::Text, false, true},
+        {"family_name", T::Text, true, true},
+        {"given_name", T::Text, false, true},
+        {"orcid", T::Text, false, false},
+        {"ror", T::Text, false, false},
         {"affiliation", T::Text, false, false},
         {"email", T::Text, false, false}},
-       {"last_name", "first_initial"}},
+       {}},
       {CatalogTable::Project,
        {{"name", T::Text, true, true},
         {"pi_uuid", T::Id, false, false},
@@ -221,6 +236,15 @@ Result<void> check_value(const TableRules& t, const Column& c, const CatalogValu
     const auto& kind = std::get<std::string>(v);
     if (kind != "irradiation" && kind != "package")
       return fail(ErrorKind::Protocol, where + ": " + describe(v) + " is not irradiation or package");
+  }
+  if (t.table == CatalogTable::PrincipalInvestigator) {
+    const std::string name = c.name;
+    if (name == "kind" && !parse_pi_kind(std::get<std::string>(v)))
+      return fail(ErrorKind::Protocol, where + ": " + describe(v) + " is not person or organisation");
+    // No identifier is given as no value, never as '' (the ORCID index would
+    // take '' for one).
+    if ((name == "orcid" || name == "ror") && std::get<std::string>(v).empty())
+      return fail(ErrorKind::Protocol, where + ": an empty " + name + " is given as no value");
   }
   return {};
 }
@@ -414,6 +438,7 @@ class EditRun {
 
   // Another row already has the natural key `row` would have.
   Result<bool> unique_clash(const TableRules& t, Uuid uuid, const CatalogFields& row) {
+    if (t.key.empty()) return false;  // known by its uuid alone
     QString sql = QStringLiteral("SELECT uuid FROM %1 WHERE uuid <> ?").arg(qstr(table_name(t.table)));
     Bindings b{qv(uuid)};
     for (const char* k : t.key) {
@@ -499,8 +524,10 @@ class EditRun {
       if (it != e.values.end()) {
         row[c.name] = normalized(c, it->second);
       } else if (c.not_null) {
-        row[c.name] = std::string();  // first_initial, grainsize: '' (the column default)
+        row[c.name] = std::string();  // given_name, grainsize: '' (the column default)
         if (e.table == CatalogTable::Irradiation && std::string(c.name) == "kind") row[c.name] = std::string("irradiation");
+        if (e.table == CatalogTable::PrincipalInvestigator && std::string(c.name) == "kind")
+          row[c.name] = std::string(pi_kind_name(PiKind::Person));
       }
     }
     auto clash = unique_clash(rules, e.uuid, row);
@@ -795,15 +822,72 @@ class EditRun {
 
 // ---------------------------------------------------------------- reads
 
+namespace {
+
+// A row of kPrincipalInvestigators' columns. A kind this build does not know
+// is read as a person.
+PrincipalInvestigatorRow principal_investigator_row(const Row& r) {
+  PrincipalInvestigatorRow p;
+  p.uuid = to_uuid(r.value("uuid"));
+  p.kind = parse_pi_kind(to_std(r.value("kind"))).value_or(PiKind::Person);
+  p.family_name = to_std(r.value("family_name"));
+  p.given_name = to_std(r.value("given_name"));
+  p.display_name = to_std(r.value("display_name"));
+  p.orcid = opt_str(r.value("orcid"));
+  p.ror = opt_str(r.value("ror"));
+  p.affiliation = opt_str(r.value("affiliation"));
+  p.email = opt_str(r.value("email"));
+  return p;
+}
+
+}  // namespace
+
+}  // namespace detail
+
+std::string pi_listing_label(const PrincipalInvestigatorRow& row, const std::vector<PrincipalInvestigatorRow>& all) {
+  const bool shared = std::ranges::any_of(all, [&](const PrincipalInvestigatorRow& p) {
+    return p.uuid != row.uuid && p.display_name == row.display_name;
+  });
+  if (!shared) return row.display_name;
+  if (row.affiliation && !row.affiliation->empty()) return row.display_name + " (" + *row.affiliation + ")";
+  if (row.orcid && row.orcid->size() >= 4) return row.display_name + " (" + row.orcid->substr(row.orcid->size() - 4) + ")";
+  return row.display_name;
+}
+
+namespace detail {
+
 Result<std::vector<PrincipalInvestigatorRow>> principal_investigators(Db& db) {
   auto rows = db.select(sql::kPrincipalInvestigators);
   if (!rows) return fail(rows.error());
   std::vector<PrincipalInvestigatorRow> out;
-  for (const auto& r : *rows)
-    out.push_back(PrincipalInvestigatorRow{to_uuid(r.value("uuid")), to_std(r.value("last_name")),
-                                           to_std(r.value("first_initial")), to_std(r.value("display_name")),
-                                           opt_str(r.value("affiliation")), opt_str(r.value("email"))});
+  for (const auto& r : *rows) out.push_back(principal_investigator_row(r));
   return out;
+}
+
+Result<std::vector<PrincipalInvestigatorRow>> principal_investigators_named(Db& db, const std::string& family_name,
+                                                                           const std::string& given_initial) {
+  QString sql = sql::kPrincipalInvestigatorsNamed;
+  Bindings b{qv(family_name)};
+  if (given_initial.empty()) {
+    sql += sql::kGivenNameEmpty;
+  } else {
+    sql += sql::kGivenNameStartsWith;
+    b << qv(given_initial) << qv(given_initial);
+  }
+  sql += sql::kOldestFirst;
+  auto rows = db.select(sql, b);
+  if (!rows) return fail(rows.error());
+  std::vector<PrincipalInvestigatorRow> out;
+  out.reserve(rows->size());
+  for (const auto& r : *rows) out.push_back(principal_investigator_row(r));
+  return out;
+}
+
+Result<std::optional<PrincipalInvestigatorRow>> find_principal_investigator_by_orcid(Db& db, const std::string& orcid) {
+  auto row = db.select_one(sql::kPrincipalInvestigatorByOrcid, {qv(orcid)});
+  if (!row) return fail(row.error());
+  if (!*row) return std::optional<PrincipalInvestigatorRow>{};
+  return std::optional<PrincipalInvestigatorRow>{principal_investigator_row(**row)};
 }
 
 Result<std::vector<ProjectRow>> projects(Db& db, std::optional<Uuid> pi) {
@@ -1180,4 +1264,4 @@ Result<AllocationOutcome> allocate_identifiers(Db& db, Dialect dialect, Uuid cli
 }
 
 }  // namespace detail
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence

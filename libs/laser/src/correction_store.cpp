@@ -1,4 +1,5 @@
-#include "pychron/laser/correction_store.hpp"
+#include "nobion/laser/correction_store.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <cmath>
 #include <fstream>
@@ -7,9 +8,9 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/laser/calibration_store.hpp"
+#include "nobion/laser/calibration_store.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 namespace {
 
@@ -114,23 +115,10 @@ Result<void> CorrectionStore::write(const TrayMap& map, std::string_view device,
   std::error_code ec;
   fs::create_directories(dir_, ec);
   if (ec) return cannot(ec.message());
-  // Beside the target, then renamed: a reader never sees a torn file.
-  const fs::path tmp = fs::path(path).concat(".tmp");
-  {
-    std::ofstream out(tmp, std::ios::out | std::ios::trunc);
-    if (out) out << table << '\n';
-    out.flush();
-    if (!out) {
-      fs::remove(tmp, ec);
-      return cannot("");
-    }
-  }
-  fs::rename(tmp, path, ec);
-  if (ec) {
-    const std::string why = ec.message();
-    fs::remove(tmp, ec);
-    return cannot(why);
-  }
+  std::ostringstream text;
+  text << table << '\n';
+  if (auto written = write_file_atomic(path, text.str(), Durability::Power); !written)
+    return cannot(written.error().what);
   return {};
 }
 
@@ -168,4 +156,4 @@ Result<void> CorrectionStore::clear_hole(const TrayMap& map, std::string_view de
   return write(map, device, calibration, *holes);
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

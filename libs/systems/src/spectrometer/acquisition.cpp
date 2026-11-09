@@ -1,11 +1,13 @@
-#include "pychron/systems/spectrometer/acquisition.hpp"
+#include "nobion/systems/spectrometer/acquisition.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <string>
 
-namespace pychron::spectrometer {
+#include "nobion/core/log_context.hpp"
+
+namespace nobion::spectrometer {
 
 namespace {
 
@@ -40,7 +42,7 @@ Result<std::optional<Reading>> IntensityStream::next(Duration timeout) {
     if (error_) {
       Error e = std::move(*error_);
       error_.reset();
-      return pychron::fail(std::move(e));
+      return nobion::fail(std::move(e));
     }
     if (clock_.now() >= deadline) return std::optional<Reading>{};
     clock_.wait_until(cv_, lock, deadline);
@@ -522,6 +524,7 @@ void AcquisitionEngine::deliver(std::vector<Reading>& readings, std::vector<Alar
 }
 
 void AcquisitionEngine::poll(std::size_t index) {
+  const LogContext::Polling polling;
   if (index >= acquirers_.size()) return;
   std::vector<Reading> out;
   std::vector<Alarm> alarms;
@@ -646,4 +649,4 @@ Result<std::vector<Reading>> AcquisitionEngine::acquire_impl(std::size_t n,
   return result;
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

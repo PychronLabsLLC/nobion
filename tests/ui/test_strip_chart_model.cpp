@@ -7,21 +7,24 @@
 #include <string>
 #include <utility>
 
+#include <QSignalSpy>
 #include <QtTest/QtTest>
 
 #include "intensities_model.hpp"
+#include "plot_style.hpp"
 #include "strip_chart_model.hpp"
 #include "theme.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
-using pychron::spectrometer::IntensityReading;
-using pychron::spectrometer::Value;
-using pychron::ui::AxisRange;
-using pychron::ui::DetectorSeries;
-using pychron::ui::IntensitiesModel;
-using pychron::ui::StripChartModel;
-using pychron::ui::YScale;
+using nobion::spectrometer::IntensityReading;
+using nobion::spectrometer::Value;
+using nobion::ui::AxisRange;
+using nobion::ui::DetectorSeries;
+using nobion::ui::IntensitiesModel;
+using nobion::ui::PlotStyle;
+using nobion::ui::StripChartModel;
+using nobion::ui::YScale;
 
 namespace {
 
@@ -59,6 +62,8 @@ class TestStripChartModel : public QObject {
   Q_OBJECT
 
  private slots:
+  void cleanup() { ui::set_plot_style(ui::default_plot_style()); }
+
   void xIsSecondsSinceFirstReading() {
     StripChartModel m(two());
     m.append(row(100.0, {{"H1", 1.0}}));
@@ -67,6 +72,20 @@ class TestStripChartModel : public QObject {
     QCOMPARE(m.series(0)[0].t, 0.0);
     QCOMPARE(m.series(0)[1].t, 2.5);
     QCOMPARE(m.latest_x(), 2.5);
+  }
+
+  void xOfAReadingTime() {
+    StripChartModel m(two());
+    QVERIFY(!m.x_of(kT0));  // an empty chart has no origin
+    m.append(row(100.0, {{"H1", 1.0}}));
+    m.append(row(102.5, {{"H1", 2.0}}));
+    using std::chrono::duration_cast;
+    const TimePoint first = TimePoint{} + duration_cast<Duration>(std::chrono::duration<double>(100.0));
+    QCOMPARE(*m.x_of(first), 0.0);
+    QCOMPARE(*m.x_of(first + 2500ms), 2.5);
+    QCOMPARE(*m.x_of(first + 60s), 60.0);  // of a reading yet to come, too
+    m.clear();
+    QVERIFY(!m.x_of(first));
   }
 
   void xRangeBeforeAndAfterWindowFills() {
@@ -249,10 +268,51 @@ class TestStripChartModel : public QObject {
     QCOMPARE(m.detectors()[0].color, StripChartModel::palette_color(0));
     QCOMPARE(m.detectors()[1].color, QColor(1, 2, 3));
     QVERIFY(StripChartModel::palette_color(0) != StripChartModel::palette_color(1));
-    QCOMPARE(StripChartModel::palette_color(8), StripChartModel::palette_color(0));
+    QCOMPARE(StripChartModel::palette_color(12), StripChartModel::palette_color(0));
+    QVERIFY(StripChartModel::palette_color(8) != StripChartModel::palette_color(0));
+  }
+
+  void restyle_recolors_palette_series_only() {
+    StripChartModel m({{"H1", QColor("#123456"), {}, {}, true}, {"AX", {}, {}, {}, true}});
+    QVERIFY(!m.detectors()[0].palette_slot);
+    QCOMPARE(m.detectors()[1].palette_slot, std::optional<std::size_t>(1));
+    PlotStyle style = ui::default_plot_style();
+    style.series[0] = QColor("#ff0000");
+    style.series[1] = QColor("#00ff00");
+    ui::set_plot_style(style);
+    m.restyle();
+    QCOMPARE(m.detectors()[0].color.name(), QStringLiteral("#123456"));
+    QCOMPARE(m.detectors()[1].color.name(), QStringLiteral("#00ff00"));
   }
 
   // IntensitiesModel
+
+  void intensities_restyle_recolors_palette_rows_only() {
+    IntensitiesModel m({{"H1", QColor("#123456"), {}, {}, true}, {"AX", {}, {}, {}, true}});
+    QSignalSpy spy(&m, &QAbstractItemModel::dataChanged);
+    PlotStyle style = ui::default_plot_style();
+    style.series[0] = QColor("#ff0000");
+    style.series[1] = QColor("#00ff00");
+    ui::set_plot_style(style);
+    QVERIFY(spy.count() >= 1);  // the model follows the hub by itself
+    const auto swatch = [&m](int r) {
+      return m.data(m.index(r, IntensitiesModel::ColColour), Qt::BackgroundRole).value<QBrush>().color().name();
+    };
+    QCOMPARE(swatch(0), QStringLiteral("#123456"));
+    QCOMPARE(swatch(1), QStringLiteral("#00ff00"));
+  }
+
+  void hub_signals_only_a_change() {
+    QSignalSpy spy(&ui::PlotStyleHub::instance(), &ui::PlotStyleHub::changed);
+    ui::set_plot_style(ui::default_plot_style());
+    QCOMPARE(spy.count(), 0);
+    PlotStyle style = ui::default_plot_style();
+    style.plot_background = QColor("#fafad2");
+    ui::set_plot_style(style);
+    QCOMPARE(spy.count(), 1);
+    ui::set_plot_style(style);
+    QCOMPARE(spy.count(), 1);
+  }
 
   void sigmaOverElevenValuesMatchesHandCalc() {
     IntensitiesModel m(two());
@@ -267,17 +327,58 @@ class TestStripChartModel : public QObject {
     QCOMPARE(m.data(m.index(0, IntensitiesModel::ColSigma)).toString(), QStringLiteral("0.00000"));
   }
 
+  void theSwatchColumnIsHeadedColor() {
+    const IntensitiesModel m(two());
+    QCOMPARE(m.headerData(IntensitiesModel::ColColour, Qt::Horizontal, Qt::DisplayRole).toString(),
+             QStringLiteral("Color"));
+  }
+
   void saturatedCellRedWithTooltip() {
     IntensitiesModel m(two());
     m.update(row(0.0, {{"H1", 4.0}}, true));
     const QModelIndex cell = m.index(0, IntensitiesModel::ColIntensity);
-    QCOMPARE(m.data(cell, Qt::BackgroundRole).value<QBrush>().color(), pychron::ui::theme().error);
+    QCOMPARE(m.data(cell, Qt::BackgroundRole).value<QBrush>().color(), nobion::ui::theme().error);
     QCOMPARE(m.data(cell, Qt::ToolTipRole).toString(), QStringLiteral("saturated"));
     QCOMPARE(m.data(m.index(0, IntensitiesModel::ColColour), Qt::BackgroundRole).value<QBrush>().color(),
              StripChartModel::palette_color(0));
     m.update(row(1.0, {{"H1", 4.0}}));
     QVERIFY(!m.data(cell, Qt::BackgroundRole).isValid());
     QVERIFY(!m.data(cell, Qt::ToolTipRole).isValid());
+  }
+
+  void anOffDetectorIsGreyAndStillUpdates() {
+    IntensitiesModel m(two());
+    QVERIFY(m.shown(0) && m.shown(1));
+    QSignalSpy changed(&m, &QAbstractItemModel::dataChanged);
+    m.set_shown(1, false);
+    QVERIFY(!m.shown(1));
+    QCOMPARE(changed.count(), 1);
+    for (int col : {IntensitiesModel::ColName, IntensitiesModel::ColIsotope, IntensitiesModel::ColIntensity,
+                    IntensitiesModel::ColSigma, IntensitiesModel::ColUnits}) {
+      QCOMPARE(m.data(m.index(1, col), Qt::ForegroundRole).value<QBrush>().color(), nobion::ui::theme().faint_text);
+      QVERIFY(!m.data(m.index(0, col), Qt::ForegroundRole).isValid());
+    }
+    // Its swatch stays, so the row can still be told from the others.
+    QCOMPARE(m.data(m.index(1, IntensitiesModel::ColColour), Qt::BackgroundRole).value<QBrush>().color(),
+             StripChartModel::palette_color(1));
+    m.update(row(0.0, {{"H1", 1.0}, {"AX", 7.0}}));
+    QCOMPARE(m.data(m.index(1, IntensitiesModel::ColIntensity)).toString(), QStringLiteral("7.00000"));
+    m.update(row(1.0, {{"H1", 1.0}, {"AX", 8.0}}));
+    QCOMPARE(m.data(m.index(1, IntensitiesModel::ColIntensity)).toString(), QStringLiteral("8.00000"));
+
+    m.set_shown(1, true);
+    QVERIFY(m.shown(1));
+    QVERIFY(!m.data(m.index(1, IntensitiesModel::ColName), Qt::ForegroundRole).isValid());
+    m.set_shown(1, true);  // no change: nothing announced
+    QCOMPARE(changed.count(), 4);  // off, two readings, on
+    m.set_shown(9, false);  // no such row: ignored
+  }
+
+  void aRowSaysHowToToggleIt() {
+    IntensitiesModel m(two());
+    QVERIFY(m.data(m.index(0, IntensitiesModel::ColName), Qt::ToolTipRole).toString().contains(QStringLiteral("hide")));
+    m.set_shown(0, false);
+    QVERIFY(m.data(m.index(0, IntensitiesModel::ColName), Qt::ToolTipRole).toString().contains(QStringLiteral("show")));
   }
 
   void missingValueShowsEmDash() {

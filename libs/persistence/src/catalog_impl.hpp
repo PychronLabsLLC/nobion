@@ -10,7 +10,7 @@
 
 #include "store_impl.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 
 // Revisions staged in a unit of work, written into a transaction someone
 // else opened and will commit.
@@ -29,6 +29,9 @@ class StagedRefs {
 Result<StagedRefs*> prepare_staged(IUnitOfWork& uow, Db& db, ChangesetKind kind, std::string message);
 
 Result<std::vector<PrincipalInvestigatorRow>> principal_investigators(Db& db);
+Result<std::vector<PrincipalInvestigatorRow>> principal_investigators_named(Db& db, const std::string& family_name,
+                                                                           const std::string& given_initial);
+Result<std::optional<PrincipalInvestigatorRow>> find_principal_investigator_by_orcid(Db& db, const std::string& orcid);
 Result<std::vector<ProjectRow>> projects(Db& db, std::optional<Uuid> pi);
 Result<std::vector<MaterialRow>> materials(Db& db);
 Result<std::vector<SampleRow>> samples(Db& db, Dialect dialect, const SampleQuery& query);
@@ -44,4 +47,4 @@ Result<CatalogOutcome> apply_catalog_edits(Db& db, Uuid client, const CatalogEdi
 Result<AllocationOutcome> allocate_identifiers(Db& db, Dialect dialect, Uuid client,
                                                const IdentifierAllocation& allocation);
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

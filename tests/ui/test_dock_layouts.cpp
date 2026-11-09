@@ -20,8 +20,8 @@
 
 #include "dock_layouts.hpp"
 
-using pychron::ErrorKind;
-using pychron::ui::DockLayouts;
+using nobion::ErrorKind;
+using nobion::ui::DockLayouts;
 
 namespace {
 

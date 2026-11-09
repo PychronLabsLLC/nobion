@@ -1,60 +1,74 @@
 // qtegra_valves: valves through Qtegra, alone or on the spectrometer's
 // connection (plan 2026-10-05, task A2).
-#include "pychron/devices/spectrometer/qtegra_valves.hpp"
+#include "nobion/devices/spectrometer/qtegra_valves.hpp"
 
 #include <gtest/gtest.h>
 
 #include <chrono>
 
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/devices/spectrometer/thermo_qtegra_sim.hpp"
-#include "pychron/transport/link_transport.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra_sim.hpp"
+#include "nobion/transport/link_transport.hpp"
 #include "spectrometer/legacy/sim_util.hpp"
 #include "valve_conformance.hpp"
+#include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace std::chrono_literals;
 
 namespace {
 
-TransportOptions fast() {
+TransportOptions fast(const Clock* clock = nullptr) {
   TransportOptions o;
   o.name = "qtegra";
   o.timeout = 50ms;
+  o.clock = clock;
   return o;
 }
 
-Result<std::unique_ptr<Device>> make(Transport& t, std::string_view toml, std::string name) {
-  return DriverRegistry::global().create("qtegra_valves", t, legacy_test::table_of(toml), DriverContext{name});
+Result<std::unique_ptr<Device>> make(Transport& t, std::string_view toml, std::string name,
+                                     const Clock* clock = nullptr) {
+  return DriverRegistry::global().create("qtegra_valves", t, legacy_test::table_of(toml),
+                                         DriverContext{std::move(name), clock});
 }
 
-// The valves owning a Qtegra connection of their own.
-struct Rig final : pychron::test::ValveRig {
-  explicit Rig(std::string link) {
+// The valves owning a Qtegra connection of their own, on `clock` (real time
+// when null).
+struct Rig final : nobion::test::ValveRig {
+  explicit Rig(const std::string& link, const Clock* on = nullptr) : clock(on) {
     EXPECT_TRUE(bus->open());
-    auto made = make(*bus, "link = \"" + link + "\"", "switch_controller");
+    auto made = make(*bus, "link = \"" + link + "\"", "switch_controller", clock);
     EXPECT_TRUE(made) << made.error().what;
     if (made) device = std::move(*made);
   }
 
+  const Clock* clock;
   std::shared_ptr<QtegraSimModel> model = std::make_shared<QtegraSimModel>();
-  pychron::test::WireTap wire{qtegra_sim_hook(model), to_bytes("ERROR: no such valve\r\n")};
-  std::unique_ptr<SimTransport> bus = SimTransport::hooked(wire.hook(), fast());
+  nobion::test::WireTap wire{qtegra_sim_hook(model), to_bytes("ERROR: no such valve\r\n")};
+  std::unique_ptr<SimTransport> bus = SimTransport::hooked(wire.hook(), fast(clock));
   std::unique_ptr<Device> device;
 
   IValveActuator& actuator() override { return *capability<IValveActuator>(*device); }
   ValveAddress first() override { return {"Valve 1_9 Set"}; }
   ValveAddress second() override { return {"Pipet Ref. Out Set"}; }
   std::optional<ValveAddress> bad() override { return ValveAddress{"A,B"}; }
-  pychron::test::WireTap* tap() override { return &wire; }
+  nobion::test::WireTap* tap() override { return &wire; }
 };
 
 }  // namespace
 
-TEST(QtegraValves, PassTheValveConformanceSuite) {
-  Rig rig("qv_conformance");
-  pychron::test::expect_valve_conformance(rig);
+// On a virtual clock: every Qtegra command is Safe, so the link tries a
+// silent instrument for its call window, which then costs no real time.
+struct QtegraValvesVirtual : nobion::testing::VirtualTimeTest {
+  VirtualClock clock;
+  Clock::Participant main{clock, "test"};
+};
+
+TEST_F(QtegraValvesVirtual, PassTheValveConformanceSuite) {
+  Rig rig("qv_conformance", &clock);
+  nobion::test::expect_valve_conformance(rig);
 }
 
 TEST(QtegraValves, SpeakLegacyQtegraValveCommands) {
@@ -64,14 +78,14 @@ TEST(QtegraValves, SpeakLegacyQtegraValveCommands) {
   ASSERT_TRUE(v.read(ValveAddress{"Valve 1_9 Set"}));
   ASSERT_TRUE(v.close(ValveAddress{"Valve 1_9 Set"}));
   std::lock_guard lock(rig.model->mutex);
-  EXPECT_EQ(rig.model->commands, (std::vector<std::string>{"Open Valve 1_9 Set", "GetValveState Valve 1_9 Set",
-                                                            "Close Valve 1_9 Set"}));
+  EXPECT_EQ(rig.model->commands, (std::vector<std::string>{"KeepAlive", "Describe", "Open Valve 1_9 Set",
+                                                            "GetValveState Valve 1_9 Set", "Close Valve 1_9 Set"}));
   EXPECT_FALSE(rig.model->valves.at("Valve 1_9 Set"));
 }
 
 TEST(QtegraValves, AnErrorReplyIsNeverAState) {
   Rig rig("qv_error");
-  rig.wire.set(pychron::test::WireTap::Mode::Garbage);  // every reply: ERROR: no such valve
+  rig.wire.set(nobion::test::WireTap::Mode::Garbage);  // every reply: ERROR: no such valve
   auto opened = rig.actuator().open(ValveAddress{"Nope"});
   ASSERT_FALSE(opened);
   EXPECT_EQ(opened.error().kind, ErrorKind::Protocol);

@@ -1,9 +1,9 @@
-#include "pychron/devices/varian_xgs600.hpp"
+#include "nobion/devices/varian_xgs600.hpp"
 
 #include <set>
 #include <utility>
 
-namespace pychron {
+namespace nobion {
 
 namespace xgs = codec::varian_xgs600;
 
@@ -17,8 +17,8 @@ const Clock& steady_clock() {
 }  // namespace
 
 VarianXgs600::VarianXgs600(std::string name, Transport& transport, std::string address,
-                           std::vector<std::string> labels, const Clock* clock)
-    : Device(std::move(name), DeviceOptions{clock}),
+                           std::vector<std::string> labels, const Clock* clock, Link* link)
+    : Device(std::move(name), DeviceOptions{clock, DeviceOptions{}.fault_after, link}),
       transport_(transport),
       address_(std::move(address)),
       labels_(std::move(labels)),
@@ -47,7 +47,7 @@ Result<std::unique_ptr<VarianXgs600>> VarianXgs600::create(const DriverArgs& arg
     }
   }
   if (labels.empty()) return fail(ErrorKind::Config, "labels: at least one sensor label is required");
-  return std::make_unique<VarianXgs600>(args.name, args.transport, address, std::move(labels), args.clock);
+  return std::make_unique<VarianXgs600>(args.name, args.transport, address, std::move(labels), args.clock, args.link);
 }
 
 std::vector<int> VarianXgs600::pressure_channels() const {
@@ -59,16 +59,19 @@ std::vector<int> VarianXgs600::pressure_channels() const {
 Result<double> VarianXgs600::read_pressure() { return read_pressure(1); }
 
 Result<double> VarianXgs600::read_pressure(int channel) {
+  const Operation op = begin("read_pressure");
   if (channel < 1 || std::cmp_greater(channel, labels_.size())) {
-    return observe(Result<double>(fail(ErrorKind::Config, "channel " + std::to_string(channel) +
-                                                              " has no label (labels has " +
-                                                              std::to_string(labels_.size()) + ")")));
+    return observe(op, Result<double>(fail(ErrorKind::Config, "channel " + std::to_string(channel) +
+                                                                  " has no label (labels has " +
+                                                                  std::to_string(labels_.size()) + ")")));
   }
   auto cmd = xgs::read_pressure(address_, labels_[static_cast<std::size_t>(channel - 1)]);
-  if (!cmd) return observe(Result<double>(fail(std::move(cmd).error())));
-  auto reply = transport_.exchange(cmd->tx, *cmd->reply);
-  if (!reply) return observe(Result<double>(fail(std::move(reply).error())));
-  return observe(xgs::decode_pressure(*reply));
+  if (!cmd) return observe(op, Result<double>(fail(std::move(cmd).error())));
+  auto reply = relay<Bytes>("read_pressure",
+      [&](Resend resend) { return transport_.exchange(cmd->tx, *cmd->reply, Transport::kDefaultTimeout, resend); },
+      Repeat::Safe);
+  if (!reply) return observe(op, Result<double>(fail(std::move(reply).error())));
+  return observe(op, xgs::decode_pressure(*reply));
 }
 
 Result<Sample> VarianXgs600::sample() {
@@ -88,6 +91,6 @@ SimTransport::Hook xgs600_sim_hook(Xgs600SimModel model) {
   };
 }
 
-}  // namespace pychron
+}  // namespace nobion
 
-REGISTER_DRIVER("varian_xgs600", pychron::VarianXgs600);
+REGISTER_DRIVER("varian_xgs600", nobion::VarianXgs600);

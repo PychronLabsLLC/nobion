@@ -16,40 +16,61 @@
 #include <thread>
 #include <vector>
 
+#include <QGraphicsRectItem>
 #include <QGraphicsScene>
 #include <QGraphicsSceneHoverEvent>
+#include <QScrollBar>
+#include <QSignalSpy>
+#include <QWheelEvent>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
 
+#include "canvas_state.hpp"
 #include "canvas_view.hpp"
 #include "core_bridge.hpp"
-#include "pychron/core/virtual_clock.hpp"
+#include "nobion/core/config/local_file.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/systems/canvas/loader.hpp"
 #include "theme.hpp"
 #include "ui_fixture.hpp"
 
-using namespace pychron;
-using pychron::systems::SwitchOp;
-using pychron::ui::CanvasView;
-using pychron::ui::CoreBridge;
+using namespace nobion;
+using nobion::systems::SwitchOp;
+using nobion::ui::CanvasView;
+using nobion::ui::CoreBridge;
 
 namespace {
 
-// True when the pixel just outside the left edge of the valve body, rendered
-// over white, is the lock colour (the border is 3 px wide, centered on the edge).
-bool hasLockBorder(ui::ValveItem* item) {
+// The valve painted alone over white, its centre at (30, 30).
+QImage painted(ui::ValveItem* item) {
   QImage image(60, 60, QImage::Format_ARGB32);
   image.fill(Qt::white);
   QPainter painter(&image);
   painter.translate(30, 30);
   item->paint(&painter, nullptr, nullptr);
   painter.end();
-  const QColor px = image.pixelColor(30 - static_cast<int>(ui::ValveItem::kSize / 2) - 1, 30);
-  const QColor want = ui::ValveItem::lock_color();
-  return std::abs(px.red() - want.red()) < 8 && std::abs(px.green() - want.green()) < 8 &&
-         std::abs(px.blue() - want.blue()) < 8;
+  return image;
+}
+
+bool near(const QColor& a, const QColor& b) {
+  return std::abs(a.red() - b.red()) < 8 && std::abs(a.green() - b.green()) < 8 && std::abs(a.blue() - b.blue()) < 8;
+}
+
+// True when the padlock's body, low in the badge, is painted in the lock colour.
+bool hasLockBadge(ui::ValveItem* item) {
+  const QRectF badge = ui::ValveItem::badge_rect();
+  const QImage image = painted(item);
+  const QPointF at = QPointF(30, 30) + QPointF(badge.center().x(), badge.bottom() - 3);
+  return near(image.pixelColor(at.toPoint()), ui::ValveItem::lock_color());
 }
 
 }  // namespace
+
+// The text's bounding rect inside the room, to the tolerance fit_label uses.
+bool fitsWithin(const ui::FittedLabel& fitted, const QSizeF& room) {
+  const QRectF used = QFontMetricsF(fitted.font).boundingRect(QRectF(QPointF(0, 0), room), fitted.flags, fitted.text);
+  return used.width() <= room.width() + 0.01 && used.height() <= room.height() + 0.01;
+}
 
 class TestCanvasView : public QObject {
   Q_OBJECT
@@ -78,7 +99,7 @@ class TestCanvasView : public QObject {
 
     // A view of a line whose canvas names one is drawn on it: the example's
     // canvas, with the line it leaves commented out switched on.
-    std::ifstream in(std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "canvas.toml");
+    std::ifstream in(std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "canvas.toml");
     std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     const std::string off = "# background = \"#f4f6f8\"";
     const auto at = text.find(off);
@@ -101,17 +122,22 @@ class TestCanvasView : public QObject {
   }
 
   void buildsItemsFromCanvas() {
-    for (const char* name : {"A", "B", "C", "P1", "P2", "M1", "pump_power"}) {
+    for (const char* name : {"A", "B", "C", "P1", "P2", "L", "D", "G1", "G2", "Y", "I", "Q1", "Q2", "R1", "R2", "M1",
+                             "M2", "pump_power"}) {
       QVERIFY2(view_->valve(name) != nullptr, name);
     }
-    for (const char* name : {"bone", "prep", "spec", "turbo", "rough", "air_tank", "air"}) {
+    for (const char* name : {"laser", "stage1", "prep", "spec", "ion", "getter1", "getter2", "cryo", "turbo2", "turbo",
+                             "rough", "air_tank", "cocktail_tank", "air", "cocktail"}) {
       QVERIFY2(view_->stage(name) != nullptr, name);
     }
-    QVERIFY(view_->gauge("IG1") != nullptr);
-    QVERIFY(view_->gauge("PG1") != nullptr);
-    QVERIFY(view_->connection_count() >= 10);
+    for (const char* name : {"IG1", "PG1", "IG2", "CG1"}) {
+      QVERIFY2(view_->gauge(name) != nullptr, name);
+    }
+    QVERIFY(view_->connection_count() >= 30);
     QCOMPARE(view_->valve("A")->kind(), canvas::ValveKind::Valve);
     QCOMPARE(view_->valve("M1")->kind(), canvas::ValveKind::Manual);
+    QCOMPARE(view_->valve("M2")->kind(), canvas::ValveKind::Manual);
+    QCOMPARE(view_->valve("R1")->kind(), canvas::ValveKind::Rough);
   }
 
   void snapshotPaintsValvesAndGauges() {
@@ -119,16 +145,63 @@ class TestCanvasView : public QObject {
     QVERIFY(view_->gauge("IG1")->text().contains(QStringLiteral("torr")));
   }
 
-  void clickingAValveActuatesIt() {
+  // Option-click (Alt) is the one-click actuation.
+  void altClickingAValveActuatesIt() {
     ui::ValveItem* b = view_->valve("B");
     QCOMPARE(b->state(), ValveState::Closed);
     view_->show();
     QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
     const QPoint at = view_->mapFromScene(b->scenePos());
-    QTest::mouseClick(view_->viewport(), Qt::LeftButton, {}, at);
+    QTest::mouseClick(view_->viewport(), Qt::LeftButton, Qt::AltModifier, at);
     QVERIFY(b->is_pending());
     QTRY_COMPARE(b->state(), ValveState::Open);
     QTRY_VERIFY(!b->is_pending());
+  }
+
+  // A plain click selects the valve and opens its faceplate; nothing moves.
+  void aPlainClickSelectsAndDoesNotActuate() {
+    ui::ValveItem* b = view_->valve("B");
+    view_->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
+    QSignalSpy selected(view_.get(), &CanvasView::valve_selected);
+    QTest::mouseClick(view_->viewport(), Qt::LeftButton, {}, view_->mapFromScene(b->scenePos()));
+    QCOMPARE(selected.count(), 1);
+    QCOMPARE(selected.at(0).at(0).toString(), QStringLiteral("B"));
+    QCOMPARE(view_->selected(), std::string("B"));
+    QVERIFY(b->is_selected());
+    QVERIFY(!b->is_pending());
+    QTest::qWait(50);
+    QCOMPARE(b->state(), ValveState::Closed);
+    QCOMPARE(bridge_->state().switches.at("B").stats.opens, 0);
+  }
+
+  // A right click has no menu any more: it neither locks nor actuates.
+  void aRightClickNeitherLocksNorActuates() {
+    ui::ValveItem* a = view_->valve("A");
+    view_->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
+    QTest::mouseClick(view_->viewport(), Qt::RightButton, {}, view_->mapFromScene(a->scenePos()));
+    QTest::qWait(50);
+    QVERIFY(!a->locked());
+    QVERIFY(!a->is_pending());
+    QVERIFY(view_->selected().empty());
+  }
+
+  // A read-only view selects (its faceplate only reads) and never actuates.
+  void aReadOnlyViewSelectsButNeverActuates() {
+    ui::CoreBridgeCanvasState state(*bridge_);
+    CanvasView ro(state, nullptr);
+    ro.resize(1100, 800);
+    ro.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&ro));
+    ui::ValveItem* b = ro.valve("B");
+    QTest::mouseClick(ro.viewport(), Qt::LeftButton, Qt::AltModifier, ro.mapFromScene(b->scenePos()));
+    QVERIFY(!b->is_pending());
+    QVERIFY(!ro.actuate("B", SwitchOp::Open));
+    QTest::mouseClick(ro.viewport(), Qt::LeftButton, {}, ro.mapFromScene(b->scenePos()));
+    QCOMPARE(ro.selected(), std::string("B"));
+    QTest::qWait(50);
+    QCOMPARE(bridge_->state().valves.at("B"), ValveState::Closed);
   }
 
   void interlockRejectionFlashesWithReason() {
@@ -137,13 +210,13 @@ class TestCanvasView : public QObject {
     bridge_->actuate("A", SwitchOp::Open);
     ui::ValveItem* a = view_->valve("A");
     QTRY_VERIFY(a->is_flashing());
-    QVERIFY(a->toolTip().contains(QStringLiteral("Last failure: ")));
+    QVERIFY(a->toolTip().contains(QStringLiteral(">Last failure</td>")));
     QVERIFY(a->toolTip().contains(QStringLiteral("interlocked")));
     QCOMPARE(a->state(), ValveState::Closed);
     // A refusal is in the valve's history, apart from the commands that failed.
-    QTRY_VERIFY2(a->toolTip().contains(QStringLiteral("Opened 0, closed 0, failed 0, refused 1")), qPrintable(a->toolTip()));
+    QTRY_VERIFY2(a->toolTip().contains(QStringLiteral("0 opened · 0 closed · 0 failed · 1 refused")), qPrintable(a->toolTip()));
     bridge_->actuate("A", SwitchOp::Open);
-    QTRY_VERIFY2(a->toolTip().contains(QStringLiteral("refused 2")), qPrintable(a->toolTip()));
+    QTRY_VERIFY2(a->toolTip().contains(QStringLiteral("2 refused")), qPrintable(a->toolTip()));
   }
 
   // The tooltip says what the valve is, its state and since when, and what
@@ -152,7 +225,7 @@ class TestCanvasView : public QObject {
     ui::ValveItem* b = view_->valve("B");
     // Earlier tests have used this valve, and its history is kept.
     const auto counts = [b] {
-      const auto m = QRegularExpression(QStringLiteral("Opened ([\\d,]+), closed ([\\d,]+), failed ([\\d,]+)")).match(b->toolTip());
+      const auto m = QRegularExpression(QStringLiteral("([\\d,]+) opened · ([\\d,]+) closed · ([\\d,]+) failed")).match(b->toolTip());
       return std::array<int, 3>{m.captured(1).remove(QLatin1Char(',')).toInt(), m.captured(2).remove(QLatin1Char(',')).toInt(),
                                 m.captured(3).remove(QLatin1Char(',')).toInt()};
     };
@@ -167,8 +240,8 @@ class TestCanvasView : public QObject {
     QTRY_VERIFY(b->toolTip().contains(QStringLiteral("Open since ")));
     QCOMPARE(counts(), (std::array<int, 3>{before[0] + 1, before[1], before[2]}));
     QVERIFY(b->toolTip().contains(QStringLiteral("Prep to spectrometer")));
-    QVERIFY(b->toolTip().contains(QStringLiteral("Last actuated ")));
-    QVERIFY(b->toolTip().contains(QStringLiteral("Time open ")));
+    QVERIFY(b->toolTip().contains(QStringLiteral(">Last actuated</td>")));
+    QVERIFY(b->toolTip().contains(QStringLiteral(">Time open</td>")));
   }
 
   // "Since" is counted on the line's clock, which stamped the actuation: on a
@@ -210,6 +283,71 @@ class TestCanvasView : public QObject {
     line->stop();
   }
 
+  // A wired gauge with no reading for three scans goes grey, dashed, with
+  // its age (spec 2026-11-05-hmi-banner §7), on the line's clock; the next
+  // reading clears it; grey wins over the alarm red; a gauge only drawn is
+  // never stale.
+  void aGaugeWithNoNewReadingGoesStale() {
+    using namespace std::chrono_literals;
+    VirtualClock clock(VirtualClock::Options{});  // outlives the line; nobody holds it, so a sleep jumps
+    // With a gauge the line does not define, drawn for illustration.
+    const std::filesystem::path examples = NOBION_EXAMPLE_CONFIGS_DIR;
+    QTemporaryDir tmp;
+    const std::filesystem::path canvas = std::filesystem::path(tmp.path().toStdString()) / "canvas.toml";
+    std::filesystem::copy_file(examples / "canvas.toml", canvas);
+    std::ofstream(canvas, std::ios::app) << "\n[[gauge]]\nname = \"Stage1 IG\"\npos = [100, 120]\n";
+    auto line = ui::test::make_example_line(canvas, &clock);
+    CoreBridge bridge(*line);
+    CanvasView view(bridge);
+    QCOMPARE(view.stale_after(), 3 * std::chrono::milliseconds(line->config().system.scan_interval_ms));
+    ui::GaugeLabelItem* ig1 = view.gauge("IG1");
+    QVERIFY(ig1 != nullptr && ig1->wired());
+
+    view.check_stale();
+    QVERIFY(!ig1->is_stale());
+    clock.sleep_for(view.stale_after() + 1s);
+    view.check_stale();
+    QVERIFY(ig1->is_stale());
+    QVERIFY2(ig1->text().endsWith(QStringLiteral("no reading")), qPrintable(ig1->text()));
+
+    QVERIFY(ig1->toolTip().startsWith(QStringLiteral("No reading for")));
+    line->bus().publish(PressureSample{"IG1", 1.2e-8, "torr", clock.now()});
+    QTRY_VERIFY(!ig1->is_stale());
+    QVERIFY(ig1->toolTip().isEmpty());  // at once, not at the next check
+    QVERIFY2(ig1->text().startsWith(QStringLiteral("IG1: 1.20e-08 torr")), qPrintable(ig1->text()));
+    QCOMPARE(ig1->brush().color(), ui::theme().text);
+
+    clock.sleep_for(view.stale_after() + 2s);
+    view.check_stale();
+    QVERIFY(ig1->is_stale());
+    const QString age =
+        ui::CanvasView::age_text(std::chrono::duration_cast<std::chrono::milliseconds>(view.stale_after() + 2s));
+    QVERIFY2(ig1->text().endsWith(QStringLiteral(" · ") + age), qPrintable(ig1->text()));
+    QCOMPARE(ig1->brush().color(), ui::theme().muted_text);
+    ig1->set_alarm(true);
+    QCOMPARE(ig1->brush().color(), ui::theme().muted_text);
+    view.check_stale();
+    QVERIFY(ig1->toolTip().contains(QStringLiteral("in alarm")));
+
+    const ui::GaugeLabelItem* drawn = view.gauge("Stage1 IG");
+    QVERIFY(drawn != nullptr && !drawn->wired());
+    QVERIFY(!drawn->is_stale());
+    QCOMPARE(ui::CanvasView::age_text(45s), QStringLiteral("45 s"));
+    QCOMPARE(ui::CanvasView::age_text(119s), QStringLiteral("119 s"));
+    QCOMPARE(ui::CanvasView::age_text(185s), QStringLiteral("3 min"));
+  }
+
+  // A read-only view (a rehearsal) has no readings and marks nothing stale.
+  void aReadOnlyViewMarksNothingStale() {
+    auto line = ui::test::make_example_line();
+    CoreBridge bridge(*line);
+    ui::CoreBridgeCanvasState state(bridge);
+    CanvasView ro(state, nullptr);
+    QCOMPARE(ro.stale_after().count(), 0);
+    ro.check_stale();
+    QVERIFY(!ro.gauge("IG1")->is_stale());
+  }
+
   // The lines under a valve's name, from its history and as of a given moment.
   void valveDetailsSayStateHistoryAndTimeOpen() {
     using std::chrono::seconds;
@@ -223,7 +361,7 @@ class TestCanvasView : public QObject {
     state.switches["V"] = v;
     state.valves["V"] = ValveState::Closed;
     QCOMPARE(ui::CanvasView::valve_details(state, "V", now),
-             (QStringList{QStringLiteral("Bone to turbo"), QStringLiteral("Closed, locked"), QStringLiteral("Never actuated")}));
+             (QStringList{QStringLiteral("Bone to turbo"), QStringLiteral("State\tClosed, locked"), QStringLiteral("Actuations\tNone")}));
 
     systems::SwitchStats& h = state.switches["V"].stats;
     h.opens = 1204;
@@ -234,43 +372,59 @@ class TestCanvasView : public QObject {
     h.last_actuation = ago(3 * 86400);
     h.open_time = seconds(40 * 3600);
     state.switches["V"].locked = false;
+    state.switches["V"].owner = "laser";
     state.valves["V"] = ValveState::Open;
     const QLocale locale;
     QCOMPARE(ui::CanvasView::valve_details(state, "V", now),
-             (QStringList{QStringLiteral("Bone to turbo"), QStringLiteral("Open since 12:47:00 (2 h 13 min)"),
-                          QStringLiteral("Last actuated %1").arg(locale.toString(now.addDays(-3), QStringLiteral("d MMM yyyy HH:mm"))),
-                          QStringLiteral("Opened %1, closed %2, failed 3, refused 12").arg(locale.toString(1204), locale.toString(1203)),
-                          QStringLiteral("Time open 1 d 18 h")}));  // 40 h ended, 2 h 13 min running
-    QCOMPARE(ui::CanvasView::valve_details(state, "nope", now), QStringList{QStringLiteral("State unknown")});
+             (QStringList{QStringLiteral("Bone to turbo"), QStringLiteral("State\tOpen since 12:47:00 (2 h 13 min)"),
+                          QStringLiteral("Owner\tlaser"),
+                          QStringLiteral("Last actuated\t%1").arg(locale.toString(now.addDays(-3), QStringLiteral("d MMM yyyy HH:mm"))),
+                          QStringLiteral("Actuations\t%1 opened · %2 closed · 3 failed · 12 refused")
+                              .arg(locale.toString(1204), locale.toString(1203)),
+                          QStringLiteral("Time open\t1 d 18 h")}));  // 40 h ended, 2 h 13 min running
+    QCOMPARE(ui::CanvasView::valve_details(state, "nope", now), QStringList{QStringLiteral("State\tUnknown")});
   }
 
   // A command that was sent and failed is in the valve's history at once.
   void failedCommandIsCountedInTheTooltip() {
-    ui::ValveItem* c = view_->valve("C");
-    QVERIFY(line_->transport("valve_bus") != nullptr);
-    line_->transport("valve_bus")->close();
-    bridge_->actuate("C", SwitchOp::Open);
+    // A closed transport is reopened by its link and the command repeated
+    // (spec 4.2): for a command to fail, the valve bus here does not reconnect.
+    std::ifstream in(std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "extraction_line.toml");
+    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    text += "\n[transports.valve_bus.recovery]\nreconnect = false\n";
+    QTemporaryDir dir;
+    const auto file = std::filesystem::path(dir.path().toStdString()) / "extraction_line.toml";
+    { std::ofstream(file) << text; }
+    auto line = ui::test::make_example_line({}, nullptr, file);
+    CoreBridge bridge(*line);
+    CanvasView view(bridge);
+    QVERIFY(line->start().has_value());
+    ui::ValveItem* c = view.valve("C");
+    QVERIFY(line->transport("valve_bus") != nullptr);
+    line->transport("valve_bus")->close();
+    bridge.actuate("C", SwitchOp::Open);
     QTRY_VERIFY(c->is_flashing());
-    QTRY_VERIFY2(c->toolTip().contains(QStringLiteral("failed 1, refused 0")), qPrintable(c->toolTip()));
-    bridge_->actuate("C", SwitchOp::Open);
-    QTRY_VERIFY2(c->toolTip().contains(QStringLiteral("failed 2, refused 0")), qPrintable(c->toolTip()));
+    QTRY_VERIFY2(c->toolTip().contains(QStringLiteral("1 failed · 0 refused")), qPrintable(c->toolTip()));
+    bridge.actuate("C", SwitchOp::Open);
+    QTRY_VERIFY2(c->toolTip().contains(QStringLiteral("2 failed · 0 refused")), qPrintable(c->toolTip()));
+    line->stop();
   }
 
-  void lockedValveDrawsBlueBorderAndUnlockClearsIt() {
+  void lockedValveWearsAPadlockAndUnlockTakesItOff() {
     ui::ValveItem* a = view_->valve("A");
     QVERIFY(!a->locked());
-    QVERIFY(!hasLockBorder(a));
+    QVERIFY(!hasLockBadge(a));
 
     view_->set_confirm_unlock([](const QString&) { return true; });
     QVERIFY(view_->request_lock("A", true));
     QTRY_VERIFY(a->locked());
     QVERIFY(line_->is_locked("A"));
-    QVERIFY(hasLockBorder(a));
+    QVERIFY(hasLockBadge(a));
 
     QVERIFY(view_->request_lock("A", false));
     QTRY_VERIFY(!a->locked());
     QVERIFY(!line_->is_locked("A"));
-    QVERIFY(!hasLockBorder(a));
+    QVERIFY(!hasLockBadge(a));
   }
 
   void unlockAsksForConfirmationAndCanBeDeclined() {
@@ -306,7 +460,7 @@ class TestCanvasView : public QObject {
     view_->show();
     QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
     ui::ValveItem* b = view_->valve("B");
-    QTest::mouseClick(view_->viewport(), Qt::LeftButton, {}, view_->mapFromScene(b->scenePos()));
+    QTest::mouseClick(view_->viewport(), Qt::LeftButton, Qt::AltModifier, view_->mapFromScene(b->scenePos()));
     QTRY_VERIFY(b->is_flashing());
     QCOMPARE(b->state(), ValveState::Closed);
     QVERIFY(b->locked());
@@ -323,10 +477,49 @@ class TestCanvasView : public QObject {
     QTRY_VERIFY(view_->valve("pump_power")->locked());
   }
 
-  void openValveStaysGreenByDefault() {
+  // The example sets no valve_style: hmi. Changing it repaints every valve.
+  void anOpenValveTakesItsStylesFill() {
+    QCOMPARE(view_->valve_style(), canvas::ValveStyle::Hmi);
     bridge_->actuate("A", SwitchOp::Open);
     QTRY_COMPARE_WITH_TIMEOUT(view_->valve("A")->state(), ValveState::Open, 5000);
-    QCOMPARE(view_->valve("A")->fill_color(), ui::valve_color(ValveState::Open));
+    QCOMPARE(view_->valve("A")->fill_color(), ui::valve_fill(ValveState::Open, canvas::ValveStyle::Hmi));
+    view_->set_valve_style(canvas::ValveStyle::Redgreen);
+    QCOMPARE(view_->valve("A")->style(), canvas::ValveStyle::Redgreen);
+    QCOMPARE(view_->valve("A")->fill_color(), ui::theme().ok);
+    QCOMPARE(view_->valve("B")->fill_color(), ui::theme().error);
+  }
+
+  // A valve's box, where it takes no section colour: hmi open the isolated
+  // grey and closed a darker grey; the legacy style green and red. Unknown is
+  // hatched over the base in both. The glyph inside is white open, black closed, grey unknown.
+  void eachStyleFillsEachState() {
+    using canvas::ValveStyle;
+    QCOMPARE(ui::valve_fill(ValveState::Open, ValveStyle::Hmi), ui::theme().neutral_fill);
+    QCOMPARE(ui::valve_fill(ValveState::Closed, ValveStyle::Hmi), ui::theme().inactive);
+    QCOMPARE(ui::valve_tie_fill(ValveState::Open), ui::theme().valve_open);
+    QCOMPARE(ui::valve_tie_fill(ValveState::Closed), ui::theme().valve_closed);
+    QCOMPARE(ui::valve_tie_fill(ValveState::Unknown), ui::theme().muted_text);
+    QCOMPARE(ui::valve_fill(ValveState::Unknown, ValveStyle::Hmi), ui::theme().base);
+    QCOMPARE(ui::valve_fill(ValveState::Open, ValveStyle::Redgreen), ui::theme().ok);
+    QCOMPARE(ui::valve_fill(ValveState::Closed, ValveStyle::Redgreen), ui::theme().error);
+    QCOMPARE(ui::valve_fill(ValveState::Unknown, ValveStyle::Redgreen), ui::theme().base);
+  }
+
+  // In the hmi style an open valve's box always wears its section's colour,
+  // with no open_valve_color asked for; in redgreen only when asked.
+  void anOpenHmiValveTakesItsSectionsColour() {
+    QCOMPARE(view_->open_valve_color(), canvas::OpenValveColor::Green);
+    ui::ValveItem* b = view_->valve("B");  // joins prep to the spectrometer
+    bridge_->actuate("B", SwitchOp::Open);
+    QTRY_COMPARE_WITH_TIMEOUT(b->state(), ValveState::Open, 5000);
+    QCOMPARE(b->fill_color(), CanvasView::source_color(canvas::SourceKind::Spectrometer));
+    view_->set_valve_style(canvas::ValveStyle::Redgreen);
+    QCOMPARE(b->fill_color(), ui::theme().ok);
+    view_->set_valve_style(canvas::ValveStyle::Hmi);
+    QCOMPARE(b->fill_color(), CanvasView::source_color(canvas::SourceKind::Spectrometer));
+    bridge_->actuate("B", SwitchOp::Close);
+    QTRY_COMPARE_WITH_TIMEOUT(b->state(), ValveState::Closed, 5000);
+    QCOMPARE(b->fill_color(), ui::theme().inactive);
   }
 
   void inheritModeColoursOpenValveWithItsRegion() {
@@ -337,25 +530,27 @@ class TestCanvasView : public QObject {
     const QColor region = view_->stage("prep")->region_color();
     QCOMPARE(region, CanvasView::source_color(canvas::SourceKind::Spectrometer));
     QCOMPARE(b->fill_color(), region);
-    QVERIFY(b->fill_color() != ui::valve_color(ValveState::Open));
+    QVERIFY(b->fill_color() != ui::valve_fill(ValveState::Open, view_->valve_style()));
 
     bridge_->actuate("B", SwitchOp::Close);
     QTRY_COMPARE_WITH_TIMEOUT(b->state(), ValveState::Closed, 5000);
-    QCOMPARE(b->fill_color(), ui::valve_color(ValveState::Closed));
+    QCOMPARE(b->fill_color(), ui::valve_fill(ValveState::Closed, view_->valve_style()));
 
+    // In redgreen, "green" keeps the open box green.
+    view_->set_valve_style(canvas::ValveStyle::Redgreen);
     view_->set_open_valve_color(canvas::OpenValveColor::Green);
     bridge_->actuate("B", SwitchOp::Open);
     QTRY_COMPARE_WITH_TIMEOUT(b->state(), ValveState::Open, 5000);
-    QCOMPARE(b->fill_color(), ui::valve_color(ValveState::Open));
+    QCOMPARE(b->fill_color(), ui::valve_fill(ValveState::Open, view_->valve_style()));
   }
 
   // A valve joining volumes with no source among them has no colour to take.
   void inheritModeLeavesAValveInASourcelessRegionGreen() {
     view_->set_open_valve_color(canvas::OpenValveColor::Inherit);
-    bridge_->actuate("A", SwitchOp::Open);  // bone to prep: two plain volumes
+    bridge_->actuate("A", SwitchOp::Open);  // stage1 to prep: two plain volumes
     QTRY_COMPARE_WITH_TIMEOUT(view_->valve("A")->state(), ValveState::Open, 5000);
-    QCOMPARE(view_->valve("A")->fill_color(), ui::valve_color(ValveState::Open));
-    QCOMPARE(view_->stage("bone")->region_color(), CanvasView::isolated_color());
+    QCOMPARE(view_->valve("A")->fill_color(), ui::valve_fill(ValveState::Open, view_->valve_style()));
+    QCOMPARE(view_->stage("stage1")->region_color(), CanvasView::isolated_color());
   }
 
   void inheritModeLeavesIsolatedOpenValveGreen() {
@@ -364,17 +559,17 @@ class TestCanvasView : public QObject {
     bridge_->actuate("pump_power", SwitchOp::Open);
     ui::ValveItem* p = view_->valve("pump_power");
     QTRY_COMPARE_WITH_TIMEOUT(p->state(), ValveState::Open, 5000);
-    QCOMPARE(p->fill_color(), ui::valve_color(ValveState::Open));
+    QCOMPARE(p->fill_color(), ui::valve_fill(ValveState::Open, view_->valve_style()));
   }
 
-  void inheritModeKeepsLockBorderAndFlash() {
+  void inheritModeKeepsLockBadgeAndFlash() {
     view_->set_open_valve_color(canvas::OpenValveColor::Inherit);
     view_->set_confirm_unlock([](const QString&) { return true; });
     bridge_->actuate("A", SwitchOp::Open);
     QTRY_COMPARE_WITH_TIMEOUT(view_->valve("A")->state(), ValveState::Open, 5000);
     QVERIFY(view_->request_lock("A", true));
     QTRY_VERIFY(view_->valve("A")->locked());
-    QVERIFY(hasLockBorder(view_->valve("A")));
+    QVERIFY(hasLockBadge(view_->valve("A")));
     view_->valve("A")->flash("x");
     QVERIFY(view_->valve("A")->is_flashing());
   }
@@ -389,7 +584,7 @@ class TestCanvasView : public QObject {
     QTRY_COMPARE_WITH_TIMEOUT(view_->valve("B")->state(), ValveState::Open, 5000);
     QCOMPARE(prep->region_color(), spectrometer);
     QCOMPARE(spec->region_color(), spectrometer);
-    QCOMPARE(view_->stage("bone")->region_color(), CanvasView::isolated_color());  // behind the closed A
+    QCOMPARE(view_->stage("stage1")->region_color(), CanvasView::isolated_color());  // behind the closed A
   }
 
   void pipesInheritRegionColour() {
@@ -415,7 +610,7 @@ class TestCanvasView : public QObject {
         ++coloured;
       }
       // A pipe on the far side of the closed valve A never takes the colour.
-      if (touches(pipe, "bone")) {
+      if (touches(pipe, "stage1")) {
         QVERIFY(pipe->region_color() != region);
       }
     }
@@ -426,16 +621,16 @@ class TestCanvasView : public QObject {
   // slant (the legacy importer writes them; legacy canvases rely on them):
   // straight when the ends line up, else round one corner.
   void orientedConnectionsAreDrawnSquare() {
-    const std::filesystem::path examples = PYCHRON_EXAMPLE_CONFIGS_DIR;
+    const std::filesystem::path examples = NOBION_EXAMPLE_CONFIGS_DIR;
     QTemporaryDir tmp;
     const std::filesystem::path canvas = std::filesystem::path(tmp.path().toStdString()) / "canvas.toml";
     std::filesystem::copy_file(examples / "canvas.toml", canvas);
-    // B (550, 200) and turbo (650, 300; 60 x 40) do not line up either way.
+    // B (780, 200) and turbo (850, 300; 60 x 40) do not line up either way.
     std::ofstream(canvas, std::ios::app) << "\n[[connection]]\nstart = \"B\"\nend = \"turbo\"\norientation = \"v\"\n";
-    // offsets move where a pipe meets its element: A (250, 200) to the top
-    // edge of bone (100, 200; 80 x 40), 30 left of its center
+    // offsets move where a pipe meets its element: A (420, 200) to the top
+    // edge of stage1 (300, 200; 80 x 40), 30 left of its center
     std::ofstream(canvas, std::ios::app)
-        << "\n[[connection]]\nstart = \"A\"\nend = \"bone\"\nstart_offset = [0, -15]\nend_offset = [-30, -20]\n";
+        << "\n[[connection]]\nstart = \"A\"\nend = \"stage1\"\nstart_offset = [0, -15]\nend_offset = [-30, -20]\n";
     auto line = ui::test::make_example_line(canvas);
     CoreBridge bridge(*line);
     CanvasView view(bridge);
@@ -449,21 +644,21 @@ class TestCanvasView : public QObject {
       return points;
     };
     // down first, then across
-    QCOMPARE(route("B", "turbo"), (std::vector<QPointF>{{550, 200}, {550, 300}, {650, 300}}));
-    QCOMPARE(route("A", "bone"), (std::vector<QPointF>{{250, 185}, {70, 180}}));
-    // the example's own: P1 straight under prep
-    QCOMPARE(route("prep", "P1"), (std::vector<QPointF>{{400, 200}, {400, 330}}));
+    QCOMPARE(route("B", "turbo"), (std::vector<QPointF>{{780, 200}, {780, 300}, {850, 300}}));
+    QCOMPARE(route("A", "stage1"), (std::vector<QPointF>{{420, 185}, {270, 180}}));
+    // the example's own: P1 straight under prep, 60 left of its center
+    QCOMPARE(route("prep", "P1"), (std::vector<QPointF>{{540, 200}, {540, 330}}));
     line->stop();
   }
 
   // An elbow turns at the named corner of its ends' bounding box. Named a
   // corner one of its ends sits on, it turns level with the end instead.
   void elbowsTurnOneSquareCorner() {
-    const std::filesystem::path examples = PYCHRON_EXAMPLE_CONFIGS_DIR;
+    const std::filesystem::path examples = NOBION_EXAMPLE_CONFIGS_DIR;
     QTemporaryDir tmp;
     const std::filesystem::path canvas = std::filesystem::path(tmp.path().toStdString()) / "canvas.toml";
     std::filesystem::copy_file(examples / "canvas.toml", canvas);
-    // B (550, 200), A (250, 200), turbo (650, 300), P2 (400, 510).
+    // B (780, 200), A (420, 200), turbo (850, 300), P1 (540, 330), P2 (540, 460).
     std::ofstream(canvas, std::ios::app) << "\n[[elbow]]\nstart = \"B\"\nend = \"turbo\"\ncorner = \"ur\"\n"
                                          << "\n[[elbow]]\nstart = \"A\"\nend = \"turbo\"\ncorner = \"ul\"\n"
                                          << "\n[[elbow]]\nstart = \"P1\"\nend = \"P2\"\ncorner = \"ll\"\n";
@@ -480,9 +675,9 @@ class TestCanvasView : public QObject {
       }
       return points;
     };
-    QCOMPARE(route("B", "turbo"), (std::vector<QPointF>{{550, 200}, {650, 200}, {650, 300}}));
-    QCOMPARE(route("A", "turbo"), (std::vector<QPointF>{{250, 200}, {250, 300}, {650, 300}}));
-    QCOMPARE(route("P1", "P2"), (std::vector<QPointF>{{400, 330}, {400, 510}}));  // lined up
+    QCOMPARE(route("B", "turbo"), (std::vector<QPointF>{{780, 200}, {850, 200}, {850, 300}}));
+    QCOMPARE(route("A", "turbo"), (std::vector<QPointF>{{420, 200}, {420, 300}, {850, 300}}));
+    QCOMPARE(route("P1", "P2"), (std::vector<QPointF>{{540, 330}, {540, 460}}));  // lined up
     line->stop();
   }
 
@@ -508,10 +703,10 @@ class TestCanvasView : public QObject {
     QVERIFY(gap->scene() == pipe->scene());
     QVERIFY(gap->zValue() > view_->stage("prep")->zValue());
     QVERIFY(gap->zValue() < view_->valve("P1")->zValue());
-    // it straddles prep's bottom edge, on the pipe (x = 400)
+    // it straddles prep's bottom edge, on the pipe (x = 540)
     const QRectF prep = view_->stage("prep")->sceneBoundingRect().adjusted(1, 1, -1, -1);
     const QRectF across = gap->path().boundingRect();
-    QCOMPARE(across.center().x(), 400.0);
+    QCOMPARE(across.center().x(), 540.0);
     QVERIFY(across.top() < prep.bottom() && across.bottom() > prep.bottom());
     QCOMPARE(gap->pen().widthF(), pipe->pen().widthF());
 
@@ -526,7 +721,7 @@ class TestCanvasView : public QObject {
   // A pipe that lands in a volume's rounded corner: the border curves in
   // from the edge there, and the gap reaches in as far as it does.
   void gapReachesRoundAVolumesCorner() {
-    const QRectF box(60, 180, 80, 40);  // the example's bone: radius 8
+    const QRectF box(60, 180, 80, 40);  // as big as the example's stage1: radius 8
     const ui::BoxEntry mid{{140, 200}, {-1, 0}};
     QCOMPARE(ui::StageItem::border_inset(box, mid, 6), 0.0);
     // 4 below the top-right corner, 6 wide: its upper side is 1 from the corner
@@ -536,7 +731,7 @@ class TestCanvasView : public QObject {
     // through the top edge, by the left corner
     QVERIFY(std::abs(ui::StageItem::border_inset(box, {{64, 180}, {0, 1}}, 6) - inset) < 1e-9);
 
-    ui::ConnectionItem pipe({{250, 184}, {100, 184}}, 6, {"A", "bone"});
+    ui::ConnectionItem pipe({{250, 184}, {100, 184}}, 6, {"A", "stage1"});
     const QGraphicsPathItem* gap = pipe.add_gap(corner, inset);
     const QRectF across = gap->path().boundingRect();
     QCOMPARE(across.right(), 140 + ui::ConnectionItem::kBorderWidth);
@@ -549,11 +744,11 @@ class TestCanvasView : public QObject {
   // ends that legacy offsets put on a volume's far edge (D into Bone) or a
   // fraction of a pixel short of it (J into FurnaceManifold) included.
   void everyPipeIntoAVolumeBreaksItsBorder() {
-    const std::filesystem::path dir = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "nmgrl";
+    const std::filesystem::path dir = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "nmgrl";
     systems::ExtractionLine::Options options;
     options.force_sim = true;
     options.run_scheduler = false;
-    options.state_file = std::filesystem::path(QDir::tempPath().toStdString()) / "pychron-ui-test-nmgrl.state.toml";
+    options.state_file = std::filesystem::path(QDir::tempPath().toStdString()) / "nobion-test-nmgrl.state.toml";
     auto line = systems::ExtractionLine::load(dir / "extraction_line.toml", dir / "canvas.toml", options);
     QVERIFY2(line.has_value(), line ? "" : line.error().what.c_str());
     CoreBridge bridge(**line);
@@ -572,10 +767,10 @@ class TestCanvasView : public QObject {
   // On the NMGRL line: each tank has its own colour, and opening a tank's
   // valve gives the pipette (and the pipes and the valve) the tank's colour.
   void theNmgrlTanksColourWhatIsOpenToThem() {
-    const std::filesystem::path dir = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "nmgrl";
+    const std::filesystem::path dir = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "nmgrl";
     systems::ExtractionLine::Options options;
     options.force_sim = true;
-    options.state_file = std::filesystem::path(QDir::tempPath().toStdString()) / "pychron-ui-test-nmgrl-tanks.state.toml";
+    options.state_file = std::filesystem::path(QDir::tempPath().toStdString()) / "nobion-test-nmgrl-tanks.state.toml";
     std::filesystem::remove(options.state_file);
     auto line = systems::ExtractionLine::load(dir / "extraction_line.toml", dir / "canvas.toml", options);
     QVERIFY2(line.has_value(), line ? "" : line.error().what.c_str());
@@ -610,9 +805,61 @@ class TestCanvasView : public QObject {
     std::filesystem::remove(options.state_file);
   }
 
+  // A name that does not fit its box is wrapped, then shrunk, and elided only
+  // as the last resort.
+  void aShortNameIsLeftAsItIs() {
+    const QFont font;
+    const QSizeF room(80, 40);
+    const ui::FittedLabel fitted = ui::fit_label(font, "Jan", room);
+    QCOMPARE(fitted.text, QString("Jan"));
+    QCOMPARE(fitted.font, font);
+    QVERIFY(!(fitted.flags & Qt::TextWordWrap));
+    QVERIFY(fitsWithin(fitted, room));
+  }
+
+  void aNameWithASpaceWrapsInsteadOfBeingClipped() {
+    const QFont font;
+    const QSizeF room(42, 42);  // the example pipette box (50 x 50) less its padding
+    QVERIFY(QFontMetricsF(font).horizontalAdvance("Cocktail Pipette") > room.width());
+    const ui::FittedLabel fitted = ui::fit_label(font, "Cocktail Pipette", room);
+    QCOMPARE(fitted.text, QString("Cocktail Pipette"));
+    QVERIFY(fitted.flags & Qt::TextWordWrap);
+    QVERIFY(fitsWithin(fitted, room));
+  }
+
+  void aLongSingleWordIsShrunkNotElided() {
+    const QFont font;
+    const QSizeF room(72, 32);  // the example tank box (80 x 40) less its padding
+    QVERIFY(QFontMetricsF(font).horizontalAdvance("cocktail_tank") > room.width());
+    const ui::FittedLabel fitted = ui::fit_label(font, "cocktail_tank", room);
+    QCOMPARE(fitted.text, QString("cocktail_tank"));
+    QVERIFY(fitted.font.pointSizeF() < font.pointSizeF());
+    QVERIFY(fitsWithin(fitted, room));
+  }
+
+  void aNameNothingCanFitIsElidedLast() {
+    const ui::FittedLabel fitted = ui::fit_label(QFont(), "an_extremely_long_name_for_a_tiny_box", QSizeF(20, 12));
+    QVERIFY(fitted.text.endsWith(QChar(0x2026)));
+  }
+
+  void everyStageAndPipetteNameOfTheExampleIsDrawnWhole() {
+    int seen = 0;
+    for (QGraphicsItem* it : view_->scene()->items()) {
+      auto* stage = dynamic_cast<ui::StageItem*>(it);
+      if (stage == nullptr) continue;
+      ++seen;
+      const ui::FittedLabel fitted = stage->fitted_label(view_->scene()->font());
+      QCOMPARE(fitted.text, stage->label());
+    }
+    QVERIFY(seen > 5);
+  }
+
   // A stage's symbol is a glyph inside its box, placed where it fits.
   void stageSymbolsFitInsideTheBox() {
     QCOMPARE(view_->stage("spec")->symbol(), canvas::StageSymbol::None);
+    QCOMPARE(view_->stage("turbo")->symbol(), canvas::StageSymbol::Turbo);
+    QCOMPARE(view_->stage("cryo")->symbol(), canvas::StageSymbol::Cryo);
+    QCOMPARE(view_->stage("rough")->symbol(), canvas::StageSymbol::RoughingPump);
     const QSizeF label(40, 16);
     ui::StageItem tall("Jan", "Jan", {58, 83}, Qt::white);
     QVERIFY(tall.symbol_rect(label).isEmpty());  // no symbol asked for
@@ -650,6 +897,11 @@ class TestCanvasView : public QObject {
     ui::StageItem plain("Jan", "Jan", {58, 83}, Qt::white);
     QCOMPARE(dark_pixels(plain), 0);
     QVERIFY(dark_pixels(tall) > 10);
+    for (const auto symbol : {canvas::StageSymbol::Turbo, canvas::StageSymbol::Cryo, canvas::StageSymbol::RoughingPump}) {
+      ui::StageItem pump("Jan", "Jan", {58, 83}, Qt::white);
+      pump.set_symbol(symbol);
+      QVERIFY2(dark_pixels(pump) > 10, std::to_string(static_cast<int>(symbol)).c_str());
+    }
   }
 
   // A region takes the colour of the source connected to it with the highest
@@ -672,7 +924,7 @@ class TestCanvasView : public QObject {
     QCOMPARE(colour("air_tank"), tank);
     QCOMPARE(colour("air"), tank);  // the pipette wears its tank's colour, valve open or not
     QCOMPARE(colour("spec"), spectrometer);
-    QCOMPARE(colour("bone"), none);
+    QCOMPARE(colour("stage1"), none);
     QCOMPARE(colour("prep"), none);
 
     // tank to pipette (P2): what is open to a tank is the tank's colour
@@ -680,11 +932,11 @@ class TestCanvasView : public QObject {
     QCOMPARE(colour("air_tank"), tank);
     QCOMPARE(colour("air"), tank);
 
-    // prep to the spectrometer (B), then bone joins (A): all the spectrometer's
+    // prep to the spectrometer (B), then stage1 joins (A): all the spectrometer's
     open("B", true);
     QCOMPARE(colour("prep"), spectrometer);
     open("A", true);
-    QCOMPARE(colour("bone"), spectrometer);
+    QCOMPARE(colour("stage1"), spectrometer);
     QCOMPARE(colour("prep"), spectrometer);
     QCOMPARE(colour("spec"), spectrometer);
     // other regions were not touched by that
@@ -692,9 +944,9 @@ class TestCanvasView : public QObject {
     QCOMPARE(colour("turbo"), pump);
 
     // prep to the turbo (C; A must be closed for it): the pump's 120 takes the
-    // region, spectrometer included, and bone is cut off again
+    // region, spectrometer included, and stage1 is cut off again
     open("A", false);
-    QCOMPARE(colour("bone"), none);
+    QCOMPARE(colour("stage1"), none);
     open("C", true);
     for (const char* stage : {"prep", "spec", "turbo"}) QCOMPARE(colour(stage), pump);
     QCOMPARE(colour("air"), tank);
@@ -711,7 +963,7 @@ class TestCanvasView : public QObject {
     open("A", true);
     open("P2", true);
     open("B", true);
-    QCOMPARE(colour("bone"), spectrometer);
+    QCOMPARE(colour("stage1"), spectrometer);
     QCOMPARE(colour("prep"), spectrometer);
     QCOMPARE(colour("air_tank"), tank);
     QCOMPARE(colour("air"), tank);
@@ -723,7 +975,7 @@ class TestCanvasView : public QObject {
     QCOMPARE(colour("air"), tank);
     // the aliquot let into prep is still the tank's gas, and shows as it
     open("P1", true);
-    for (const char* stage : {"bone", "prep", "spec", "air"}) QCOMPARE(colour(stage), tank);
+    for (const char* stage : {"stage1", "prep", "spec", "air"}) QCOMPARE(colour(stage), tank);
   }
 
   // Each tank has a colour of its own, so the gas of one is never taken for
@@ -740,59 +992,178 @@ class TestCanvasView : public QObject {
     QCOMPARE(view_->stage("air_tank")->region_color(), CanvasView::source_color(SourceKind::Tank, 0));
   }
 
-  // A manual valve wears a handwheel on its face: nothing sticks out of the
-  // body, so pipes can join any side. Any valve cuts a label too long for
-  // the body short; the tooltip keeps the name whole.
-  void manualValvesWearAHandwheelAndLongLabelsAreCutShort() {
+  // Every valve but a switch is a bow-tie with its actuator on a stem: a
+  // dome for one Nobion drives, a T bar (the handwheel) for a manual one.
+  // The tooltip keeps the name whole.
+  void manualValvesWearATBarAndTheRestADome() {
     ui::ValveItem manual("MiniBoneGP5Manual", canvas::ValveKind::Manual);
     ui::ValveItem valve("A", canvas::ValveKind::Valve);
-    QCOMPARE(manual.boundingRect(), valve.boundingRect());
-    QVERIFY(valve.wheel_rect().isEmpty());
-    const QRectF body(-ui::ValveItem::kSize / 2, -ui::ValveItem::kSize / 2, ui::ValveItem::kSize, ui::ValveItem::kSize);
-
-    const QFontMetricsF metrics{QFont()};
-    const QString shown = manual.shown_name(metrics);
-    QVERIFY(shown != QStringLiteral("MiniBoneGP5Manual"));
-    QVERIFY(shown.endsWith(QChar(0x2026)));  // an ellipsis
-    QVERIFY(metrics.horizontalAdvance(shown) <= ui::ValveItem::kSize - 4);
     QCOMPARE(manual.toolTip(), QStringLiteral("MiniBoneGP5Manual"));
-    QCOMPARE(valve.shown_name(metrics), QStringLiteral("A"));
-
-    // labelled: a small wheel in the top-right corner, clear of the label
-    const QRectF corner = manual.wheel_rect();
-    QVERIFY(body.contains(corner));
-    QVERIFY(corner.left() > 0 && corner.bottom() < 0);
-    // blank: the wheel fills the face
     manual.set_label(QString());
-    const QRectF wheel = manual.wheel_rect();
-    QCOMPARE(wheel.center(), QPointF(0, 0));
-    QCOMPARE(wheel.width(), 2 * ui::ValveItem::kWheelRadius);
-    QVERIFY(body.contains(wheel));
+    valve.set_label(QString());
+    // Open, so the box is the light isolated grey and the bow-tie white.
+    manual.set_state(ValveState::Open);
+    valve.set_state(ValveState::Open);
+    // The glyph is drawn at 0.72 inside the 30 px box centred on (30, 30).
+    // (25.5, 21): on the T bar's left arm (y 30 - 12 x 0.72), wide of the dome
+    QVERIFY(painted(&manual).pixelColor(25, 21).lightness() < 110);
+    QVERIFY(painted(&valve).pixelColor(25, 21).lightness() > 200);
+    // the dome's top, above the centre (30 - 15 x 0.72)
+    QVERIFY(painted(&valve).pixelColor(30, 19).lightness() < 140);
+    // a bow-tie: the triangles' outer edge on the left (30 - 13 x 0.72, its
+    // stroke on the pixel left of 20.6),
+    // nothing but the box near its top-left corner
+    for (auto* item : {&manual, &valve}) {
+      const QImage image = painted(item);
+      QVERIFY(image.pixelColor(20, 30).lightness() < 140);
+      QVERIFY(image.pixelColor(23, 30).lightness() > 240);  // white inside: open
+      QVERIFY(near(image.pixelColor(18, 18), ui::theme().neutral_fill));
+    }
 
-    // painted: the dark hub at the center and rim to its right, on a blank face
-    QImage image(60, 60, QImage::Format_ARGB32);
-    image.fill(Qt::white);
-    QPainter painter(&image);
-    painter.translate(30, 30);
-    manual.paint(&painter, nullptr, nullptr);
-    painter.end();
-    QVERIFY(image.pixelColor(30, 30).lightness() < 100);
-    QVERIFY(image.pixelColor(30 + static_cast<int>(ui::ValveItem::kWheelRadius), 30).lightness() < 110);
-    QVERIFY(image.pixelColor(30 + 4, 30 - 4).lightness() < 110);  // a spoke, on the diagonal
-    QVERIFY(image.pixelColor(30 + 6, 30).lightness() > 120);      // between the spokes: the face
-
-    // On the canvas a manual valve's face is blank unless it is given a
+    // On the canvas a manual valve has no label unless it is given a
     // display_name; other valves show their name.
     QCOMPARE(view_->valve("M1")->label(), QString());
     QVERIFY(view_->valve("M1")->toolTip().contains(QStringLiteral(">M1<")));
     QCOMPARE(view_->valve("A")->label(), QStringLiteral("A"));
   }
 
-  // The lock border is blue and thick enough to read at a glance.
-  void lockBorderIsBlueAndThick() {
+  // An unknown valve's box is hatched: light and dark in its top-left
+  // corner, clear of the glyph; the bow-tie inside is grey.
+  void anUnknownValveIsHatched() {
+    ui::ValveItem item("A", canvas::ValveKind::Valve);
+    item.set_label(QString());
+    QCOMPARE(item.state(), ValveState::Unknown);
+    const QImage image = painted(&item);
+    QVERIFY(near(image.pixelColor(30 - 7, 30), ui::theme().muted_text));
+    int dark = 0;
+    int light = 0;
+    for (int x = 17; x <= 20; ++x) {
+      for (int y = 17; y <= 22; ++y) {
+        (image.pixelColor(x, y).lightness() < 200 ? dark : light) += 1;
+      }
+    }
+    QVERIFY2(dark > 0 && light > 0, qPrintable(QStringLiteral("%1 dark, %2 light").arg(dark).arg(light)));
+  }
+
+  // The label is a caption beside the glyph, on the first side no pipe
+  // leaves by: below, above, right, left (below when every side has one).
+  void theCaptionGoesWhereNoPipeLeaves() {
+    using Side = ui::ValveItem::Side;
+    ui::ValveItem item("A", canvas::ValveKind::Valve);
+    const double half = ui::ValveItem::kSize / 2;
+    QVERIFY(item.caption_rect().top() > half);
+    item.set_pipe_sides(Side::Bottom);
+    QVERIFY(item.caption_rect().bottom() < -half);
+    item.set_pipe_sides(Side::Bottom | Side::Top);
+    QVERIFY(item.caption_rect().left() > half);
+    item.set_pipe_sides(Side::Bottom | Side::Top | Side::Right);
+    QVERIFY(item.caption_rect().right() < -half);
+    item.set_pipe_sides(Side::Bottom | Side::Top | Side::Right | Side::Left);
+    QVERIFY(item.caption_rect().top() > half);
+    QVERIFY(item.boundingRect().contains(item.caption_rect()));
+
+    // no label, no caption: the item is its body
+    const QRectF body_box(-half - 4, -half - 4, ui::ValveItem::kSize + 8, ui::ValveItem::kSize + 8);
+    item.set_label(QString());
+    QVERIFY(item.caption_rect().isEmpty());
+    QCOMPARE(item.boundingRect(), body_box);
+  }
+
+  // A valve whose pipes all leave above and below stands upright; the view
+  // works the sides out from the pipes it lays.
+  void aValveJoinedOnlyAboveAndBelowIsVertical() {
+    using Side = ui::ValveItem::Side;
+    ui::ValveItem item("A", canvas::ValveKind::Valve);
+    QVERIFY(!item.vertical());
+    item.set_pipe_sides(Side::Top | Side::Bottom);
+    QVERIFY(item.vertical());
+    item.set_pipe_sides(Side::Top | Side::Right);
+    QVERIFY(!item.vertical());
+
+    int vertical = 0;
+    int horizontal = 0;
+    for (QGraphicsItem* it : view_->scene()->items()) {
+      auto* valve = dynamic_cast<ui::ValveItem*>(it);
+      if (valve == nullptr) continue;
+      const unsigned sides = valve->pipe_sides();
+      if (sides == 0) {  // a switch need join nothing (pump_power)
+        QVERIFY2(valve->kind() == canvas::ValveKind::Switch, valve->name().c_str());
+        QVERIFY(!valve->vertical());
+        continue;
+      }
+      const bool upright = (sides & (Side::Left | Side::Right)) == 0;
+      QCOMPARE(valve->vertical(), upright);
+      (upright ? vertical : horizontal) += 1;
+    }
+    QVERIFY(vertical > 0);
+    QVERIFY(horizontal > 0);
+  }
+
+  // The example's switch pump_power cannot fit a 30-unit circle: it is drawn
+  // whole under the body, and the item's rectangle takes it in.
+  void aLongNameIsACaptionUnderTheBody() {
+    ui::ValveItem* item = view_->valve("pump_power");
+    QVERIFY(item != nullptr);
+    const QFont font = view_->scene()->font();
+    const auto layout = item->name_layout(font);
+    QVERIFY(layout.caption);
+    QCOMPARE(layout.text, QStringLiteral("pump_power"));
+    QVERIFY(!layout.text.contains(QChar(0x2026)));
+    QCOMPARE(layout.font, font);
+    const QRectF caption = item->caption_rect();
+    QVERIFY(!caption.isEmpty());
+    QVERIFY(caption.top() > ui::ValveItem::kSize / 2 + 4);  // below the body and its outlines
+    QVERIFY(caption.width() >= QFontMetricsF(font).horizontalAdvance(layout.text));
+    QCOMPARE(caption.center().x(), 0.0);
+    QVERIFY(item->boundingRect().contains(caption));
+
+    // the body still has its rectangle: the pending outline is not cut
+    const QRectF body_box(-ui::ValveItem::kSize / 2 - 4, -ui::ValveItem::kSize / 2 - 4, ui::ValveItem::kSize + 8,
+                          ui::ValveItem::kSize + 8);
+    QVERIFY(item->boundingRect().contains(body_box));
+
+    // no label takes the caption away, a label brings it back
+    item->set_label(QString());
+    QVERIFY(item->caption_rect().isEmpty());
+    QCOMPARE(item->boundingRect(), body_box);
+    item->set_label(QStringLiteral("pump_power"));
+    QVERIFY(item->boundingRect().contains(item->caption_rect()));
+  }
+
+  void noValveOrSwitchOfTheExampleIsDrawnWithAnEllipsis() {
+    int seen = 0;
+    int captions = 0;
+    for (QGraphicsItem* it : view_->scene()->items()) {
+      auto* valve = dynamic_cast<ui::ValveItem*>(it);
+      if (valve == nullptr) continue;
+      ++seen;
+      const auto layout = valve->name_layout(view_->scene()->font());
+      QVERIFY2(!layout.text.contains(QChar(0x2026)), valve->name().c_str());
+      QCOMPARE(layout.text, valve->label());
+      captions += layout.caption ? 1 : 0;
+    }
+    QVERIFY(seen > 5);
+    QVERIFY(captions >= 1);
+  }
+
+  // The caption is no part of the valve: a click on it does not actuate.
+  void clickingTheCaptionDoesNotActuate() {
+    ui::ValveItem* item = view_->valve("pump_power");
+    view_->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
+    QVERIFY(item->shape().contains(QPointF(0, 0)));
+    QVERIFY(!item->shape().contains(item->caption_rect().center()));
+    const QPoint at = view_->mapFromScene(item->mapToScene(item->caption_rect().center()));
+    QTest::mouseClick(view_->viewport(), Qt::LeftButton, Qt::AltModifier, at);
+    QVERIFY(!item->is_pending());
+    QTest::mouseClick(view_->viewport(), Qt::LeftButton, Qt::AltModifier, view_->mapFromScene(item->scenePos()));
+    QVERIFY(item->is_pending());
+  }
+
+  // The padlock is blue, apart from every state fill.
+  void thePadlockIsBlue() {
     const QColor lock = ui::ValveItem::lock_color();
     QVERIFY(lock.blue() > 200 && lock.blue() > lock.red() + 100 && lock.blue() > lock.green() + 80);
-    QVERIFY(ui::ValveItem::kLockBorderWidth >= 5.0);
   }
 
   void boxEntryFindsWhereALineCrossesIntoABox() {
@@ -834,19 +1205,19 @@ class TestCanvasView : public QObject {
   // A gauge the line does not define is drawn for illustration: the canvas
   // loads, and the gauge shows its name and no reading.
   void aGaugeTheLineDoesNotDefineIsDrawnWithoutAReading() {
-    const std::filesystem::path examples = PYCHRON_EXAMPLE_CONFIGS_DIR;
+    const std::filesystem::path examples = NOBION_EXAMPLE_CONFIGS_DIR;
     QTemporaryDir tmp;
     const std::filesystem::path canvas = std::filesystem::path(tmp.path().toStdString()) / "canvas.toml";
     std::filesystem::copy_file(examples / "canvas.toml", canvas);
-    std::ofstream(canvas, std::ios::app) << "\n[[gauge]]\nname = \"Bone IG\"\npos = [100, 120]\n"
-                                         << "\n[[connection]]\nstart = \"bone\"\nend = \"Bone IG\"\n";
+    std::ofstream(canvas, std::ios::app) << "\n[[gauge]]\nname = \"Stage1 IG\"\npos = [100, 120]\n"
+                                         << "\n[[connection]]\nstart = \"stage1\"\nend = \"Stage1 IG\"\n";
     auto line = ui::test::make_example_line(canvas);
     CoreBridge bridge(*line);
     CanvasView view(bridge);
-    const ui::GaugeLabelItem* gauge = view.gauge("Bone IG");
+    const ui::GaugeLabelItem* gauge = view.gauge("Stage1 IG");
     QVERIFY(gauge != nullptr);
     QVERIFY(!gauge->wired());
-    QCOMPARE(gauge->text(), QStringLiteral("Bone IG"));
+    QCOMPARE(gauge->text(), QStringLiteral("Stage1 IG"));
     QVERIFY(view.gauge("IG1")->wired());
     line->stop();
   }
@@ -864,7 +1235,296 @@ class TestCanvasView : public QObject {
     QTRY_VERIFY(!ig->in_alarm());
   }
 
+  // ---- a gauge clicked or rested on (gauge history) ----
+
+  // Clicking a wired gauge says which, on its text, its dial and its chip's
+  // padding alike; no valve moves and nothing is sent to the line.
+  void clickingAGaugeSaysWhich() {
+    view_->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
+    const auto valves_before = bridge_->state().valves;
+    QSignalSpy clicked(view_.get(), &CanvasView::gauge_clicked);
+    ui::GaugeLabelItem* ig = view_->gauge("IG1");
+    const QRectF chip = ig->chip_rect();
+    const QRectF text = ig->QGraphicsSimpleTextItem::boundingRect();
+    const std::vector<QPointF> spots{text.center(), ig->dial_rect().center(), QPointF(chip.right() - 2, chip.center().y())};
+    for (const QPointF& spot : spots) {
+      QTest::mouseClick(view_->viewport(), Qt::LeftButton, {}, view_->mapFromScene(ig->mapToScene(spot)));
+    }
+    QCOMPARE(clicked.count(), 3);
+    // A double click is taken too, not passed to what is under the chip.
+    QTest::mouseDClick(view_->viewport(), Qt::LeftButton, {}, view_->mapFromScene(ig->mapToScene(text.center())));
+    QVERIFY(clicked.count() > 3);
+    for (const auto& args : clicked) QCOMPARE(args.at(0).toString(), QStringLiteral("IG1"));
+    QTest::qWait(50);
+    QCOMPARE(bridge_->state().valves, valves_before);
+    for (const auto& [name, item] : valves_before) QVERIFY2(!view_->valve(name)->is_pending(), name.c_str());
+  }
+
+  void clickingAGaugeTheLineDoesNotDefineSaysNothing() {
+    const std::filesystem::path examples = NOBION_EXAMPLE_CONFIGS_DIR;
+    QTemporaryDir tmp;
+    const std::filesystem::path canvas = std::filesystem::path(tmp.path().toStdString()) / "canvas.toml";
+    std::filesystem::copy_file(examples / "canvas.toml", canvas);
+    std::ofstream(canvas, std::ios::app) << "\n[[gauge]]\nname = \"Stage1 IG\"\npos = [100, 120]\n";
+    auto line = ui::test::make_example_line(canvas);
+    CoreBridge bridge(*line);
+    CanvasView view(bridge);
+    view.resize(1100, 800);
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    QSignalSpy clicked(&view, &CanvasView::gauge_clicked);
+    const ui::GaugeLabelItem* gauge = view.gauge("Stage1 IG");
+    QTest::mouseClick(view.viewport(), Qt::LeftButton, {}, view.mapFromScene(gauge->mapToScene(gauge->chip_rect().center())));
+    QCOMPARE(clicked.count(), 0);
+    line->stop();
+  }
+
+  void aRightClickOnAGaugeSaysNothing() {
+    view_->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
+    QSignalSpy clicked(view_.get(), &CanvasView::gauge_clicked);
+    const ui::GaugeLabelItem* ig = view_->gauge("IG1");
+    QTest::mouseClick(view_->viewport(), Qt::RightButton, {}, view_->mapFromScene(ig->mapToScene(ig->chip_rect().center())));
+    QCOMPARE(clicked.count(), 0);
+  }
+
+  void theRestDelayIsATooltipsNotSeconds() {
+    // The popup opens about when a tooltip would: 3 s felt like nothing came.
+    QCOMPARE(CanvasView::kGaugeRestMs, 700);
+    QCOMPARE(view_->gauge_rest_ms(), CanvasView::kGaugeRestMs);
+    view_->set_gauge_rest_ms(-5);
+    QCOMPARE(view_->gauge_rest_ms(), 0);
+  }
+
+  // A view destroyed while scrolled. Its scene goes with it and leaves the
+  // view, which resets the scroll range and calls scrollContentsBy: that
+  // must not reach members already destroyed (a test's MainWindow crashed
+  // there, now and then, under a full parallel run).
+  //
+  // The scene deletes its items before it leaves its views, so a probe item
+  // marks the start of the scene's teardown: no scroll may come after it.
+  void aScrolledViewIsDestroyedCleanly() {
+    struct Probe : QGraphicsRectItem {
+      bool* gone;
+      explicit Probe(bool* flag) : gone(flag) {}
+      Probe(const Probe&) = delete;
+      Probe& operator=(const Probe&) = delete;
+      Probe(Probe&&) = delete;
+      Probe& operator=(Probe&&) = delete;
+      ~Probe() override { *gone = true; }
+    };
+    bool scene_going = false;
+    int late_scrolls = 0;
+    view_->scene()->addItem(new Probe(&scene_going));
+    view_->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
+    view_->setTransform(QTransform::fromScale(8, 8));
+    QScrollBar* bar = view_->horizontalScrollBar();
+    QVERIFY(bar->maximum() > bar->minimum());
+    bar->setValue(bar->maximum());
+    QVERIFY(bar->value() != 0);
+    connect(bar, &QScrollBar::valueChanged, bar, [&] { late_scrolls += scene_going ? 1 : 0; });
+    view_.reset();
+    QVERIFY(scene_going);
+    QCOMPARE(late_scrolls, 0);
+  }
+
+  // The canvas never overflows its view: at any size the whole drawing is in
+  // the viewport, scaled to fill it on one axis, with no scroll bars.
+  void theCanvasFitsItsViewAtAnySize() {
+    view_->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
+    const QRectF content = view_->scene()->sceneRect();
+    QVERIFY(content.contains(view_->scene()->itemsBoundingRect()));
+    for (const QSize size : {QSize(300, 200), QSize(1100, 800), QSize(2400, 1400)}) {
+      view_->resize(size);
+      QTRY_COMPARE(view_->size(), size);
+      QTest::qWait(0);
+      const QRectF port = QRectF(view_->viewport()->rect()).adjusted(-1, -1, 1, 1);
+      const QRectF shown = view_->mapFromScene(content).boundingRect();
+      QVERIFY2(port.contains(shown), qPrintable(QStringLiteral("%1x%2").arg(size.width()).arg(size.height())));
+      QCOMPARE(view_->horizontalScrollBarPolicy(), Qt::ScrollBarAlwaysOff);
+      QCOMPARE(view_->verticalScrollBarPolicy(), Qt::ScrollBarAlwaysOff);
+      QVERIFY(!view_->horizontalScrollBar()->isVisible());
+      QVERIFY(!view_->verticalScrollBar()->isVisible());
+      QCOMPARE(view_->horizontalScrollBar()->maximum(), view_->horizontalScrollBar()->minimum());
+      QCOMPARE(view_->verticalScrollBar()->maximum(), view_->verticalScrollBar()->minimum());
+      // Fills, not only fits: on one axis it reaches both edges (fitInView
+      // leaves a couple of pixels).
+      const auto within = [](double a, double b) { return std::abs(a - b) <= 4; };
+      const bool across = within(shown.left(), port.left()) && within(shown.right(), port.right());
+      const bool down = within(shown.top(), port.top()) && within(shown.bottom(), port.bottom());
+      QVERIFY2(across || down, qPrintable(QStringLiteral("%1x%2").arg(size.width()).arg(size.height())));
+    }
+  }
+
+  // Nothing pans the drawing away: a wheel or an arrow key leaves it where it is.
+  void theWheelAndKeysDoNotPanTheCanvas() {
+    view_->resize(300, 200);
+    view_->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
+    const QPoint middle = view_->viewport()->rect().center();
+    const QPointF before = view_->mapToScene(middle);
+    QWheelEvent wheel(QPointF(middle), QPointF(view_->viewport()->mapToGlobal(middle)), QPoint(), QPoint(0, -360),
+                      Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+    QApplication::sendEvent(view_->viewport(), &wheel);
+    QCOMPARE(view_->mapToScene(middle), before);
+    for (const auto key : {Qt::Key_Down, Qt::Key_Right, Qt::Key_PageDown, Qt::Key_End}) QTest::keyClick(view_.get(), key);
+    QCOMPARE(view_->mapToScene(middle), before);
+  }
+
+  void restingOnAGaugeSaysSoAfterTheDelay() {
+    view_->set_gauge_rest_ms(0);
+    view_->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
+    QSignalSpy rested(view_.get(), &CanvasView::gauge_rested);
+    const ui::GaugeLabelItem* ig = view_->gauge("IG1");
+    QTest::mouseMove(view_->viewport(), off_gauge(*ig));
+    QTest::mouseMove(view_->viewport(), on_gauge(*ig));
+    QTRY_COMPARE(rested.count(), 1);
+    QCOMPARE(rested.at(0).at(0).toString(), QStringLiteral("IG1"));
+    QCOMPARE(rested.at(0).at(1).toRect(), global_chip(*ig));
+  }
+
+  void leavingBeforeTheDelayCancelsIt() {
+    // 200 and 400 ms: the one real wait here; widen both if CI shows it close.
+    view_->set_gauge_rest_ms(200);
+    view_->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
+    QSignalSpy rested(view_.get(), &CanvasView::gauge_rested);
+    const ui::GaugeLabelItem* ig = view_->gauge("IG1");
+    QTest::mouseMove(view_->viewport(), off_gauge(*ig));
+    QTest::mouseMove(view_->viewport(), on_gauge(*ig));
+    QTest::mouseMove(view_->viewport(), off_gauge(*ig));
+    QTest::qWait(400);
+    QCOMPARE(rested.count(), 0);
+  }
+
+  void leavingAfterARestSaysSo() {
+    view_->set_gauge_rest_ms(0);
+    view_->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view_.get()));
+    QSignalSpy rested(view_.get(), &CanvasView::gauge_rested);
+    QSignalSpy left(view_.get(), &CanvasView::gauge_left);
+    const ui::GaugeLabelItem* ig = view_->gauge("IG1");
+    const auto rest = [&] {
+      QTest::mouseMove(view_->viewport(), off_gauge(*ig));
+      QTest::mouseMove(view_->viewport(), on_gauge(*ig));
+    };
+
+    // Moving off.
+    rest();
+    QTRY_COMPARE(rested.count(), 1);
+    QTest::mouseMove(view_->viewport(), off_gauge(*ig));
+    QTRY_COMPARE(left.count(), 1);
+
+    // A button pressed while rested (the right one: the left would also click).
+    rest();
+    QTRY_COMPARE(rested.count(), 2);
+    QTest::mousePress(view_->viewport(), Qt::RightButton, {}, on_gauge(*ig));
+    QTest::mouseRelease(view_->viewport(), Qt::RightButton, {}, on_gauge(*ig));
+    QTRY_COMPARE(left.count(), 2);
+
+    // A wheel over the view, with nothing to scroll.
+    QTest::mouseMove(view_->viewport(), off_gauge(*ig));
+    rest();
+    QTRY_COMPARE(rested.count(), 3);
+    QCOMPARE(left.count(), 2);
+    QWheelEvent wheel(QPointF(on_gauge(*ig)), QPointF(view_->viewport()->mapToGlobal(on_gauge(*ig))), QPoint(),
+                      QPoint(0, -120), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+    QApplication::sendEvent(view_->viewport(), &wheel);
+    QCOMPARE(left.count(), 3);
+
+    // A resize: the canvas is fitted to the view again and the chip moves
+    // from under the popup.
+    QTest::mouseMove(view_->viewport(), off_gauge(*ig));
+    const int rests = rested.count();
+    rest();
+    QTRY_COMPARE(rested.count(), rests + 1);
+    const int before = left.count();
+    QVERIFY(view_->size() != QSize(300, 200));  // else the resize is no change
+    view_->resize(300, 200);
+    QTRY_COMPARE(left.count(), before + 1);
+  }
+
+  void restingOnADecorationGaugeSaysNothing() {
+    const std::filesystem::path examples = NOBION_EXAMPLE_CONFIGS_DIR;
+    QTemporaryDir tmp;
+    const std::filesystem::path canvas = std::filesystem::path(tmp.path().toStdString()) / "canvas.toml";
+    std::filesystem::copy_file(examples / "canvas.toml", canvas);
+    std::ofstream(canvas, std::ios::app) << "\n[[gauge]]\nname = \"Stage1 IG\"\npos = [100, 120]\n";
+    auto line = ui::test::make_example_line(canvas);
+    CoreBridge bridge(*line);
+    CanvasView view(bridge);
+    view.set_gauge_rest_ms(0);
+    view.resize(1100, 800);
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    QSignalSpy rested(&view, &CanvasView::gauge_rested);
+    const ui::GaugeLabelItem* gauge = view.gauge("Stage1 IG");
+    const QPoint on = view.mapFromScene(gauge->mapToScene(gauge->chip_rect().center()));
+    QTest::mouseMove(view.viewport(), on + QPoint(0, 80));
+    QTest::mouseMove(view.viewport(), on);
+    QTest::qWait(100);
+    QCOMPARE(rested.count(), 0);
+    line->stop();
+  }
+
+  // A wired gauge takes the click on its chip: no chip, showing a reading,
+  // may cover a valve's centre, on the example canvas and on NMGRL's (with
+  // its own line, which the example's does not load). One that does is a
+  // fault of the canvas file.
+  void aValveUnderAGaugeChipStillTakesItsClick() {
+    const std::filesystem::path examples = NOBION_EXAMPLE_CONFIGS_DIR;
+    for (const auto& dir : {examples, examples / "nmgrl"}) {
+      const auto config = config::load_system_config_without_local(dir / "extraction_line.toml");
+      QVERIFY2(config.has_value(), qPrintable(QString::fromStdString(dir.string())));
+      const auto drawing = canvas::load_canvas(dir / "canvas.toml");
+      QVERIFY2(drawing.has_value(), qPrintable(QString::fromStdString(dir.string())));
+      int wired = 0;
+      for (const auto& g : drawing->gauges) {
+        const auto defined = std::find_if(config->gauges.begin(), config->gauges.end(),
+                                          [&](const auto& d) { return d.name == g.name; });
+        if (defined == config->gauges.end()) continue;
+        ++wired;
+        ui::GaugeLabelItem gauge(g.name);
+        gauge.set_value(1.23e-8, "torr");  // as wide as any unit drawn
+        gauge.setPos(ui::to_qpoint(g.pos));
+        const QRectF chip = gauge.mapRectToScene(gauge.chip_rect());
+        for (const auto& v : drawing->valves) {
+          QVERIFY2(!chip.contains(ui::to_qpoint(v.pos)),
+                   qPrintable(QStringLiteral("%1: gauge %2 covers valve %3")
+                                  .arg(QString::fromStdString(dir.string()), QString::fromStdString(g.name),
+                                       QString::fromStdString(v.name))));
+        }
+      }
+      // NMGRL's gauges are drawn for illustration (its line imports no gauge
+      // controller): none is wired, and an unwired chip lets a click through.
+      // If NMGRL's line ever wires one, its chips are checked here too: drop
+      // this case then.
+      if (dir == examples) {
+        QVERIFY(wired > 0);
+      } else {
+        QCOMPARE(wired, 0);
+      }
+    }
+  }
+
  private:
+  // A point on the gauge's chip, and one well off it, in viewport coordinates.
+  QPoint on_gauge(const ui::GaugeLabelItem& g) const {
+    return view_->mapFromScene(g.mapToScene(g.chip_rect().center()));
+  }
+  QPoint off_gauge(const ui::GaugeLabelItem& g) const {
+    const QRectF chip = g.mapRectToScene(g.chip_rect());
+    return view_->mapFromScene(QPointF(chip.center().x(), chip.bottom() + 40));
+  }
+  QRect global_chip(const ui::GaugeLabelItem& g) const {
+    const QRect local = view_->mapFromScene(g.mapRectToScene(g.chip_rect())).boundingRect();
+    return {view_->viewport()->mapToGlobal(local.topLeft()), local.size()};
+  }
+
   std::unique_ptr<systems::ExtractionLine> line_;
   std::unique_ptr<CoreBridge> bridge_;
   std::unique_ptr<CanvasView> view_;

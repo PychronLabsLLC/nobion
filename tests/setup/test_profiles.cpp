@@ -11,35 +11,36 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <toml++/toml.hpp>
 
-#include "pychron/experiment/factory/defaults.hpp"
-#include "pychron/experiment/model/identifiers.hpp"
+#include "nobion/experiment/factory/defaults.hpp"
+#include "nobion/experiment/model/identifiers.hpp"
 
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/experiment/model/queue_file.hpp"
-#include "pychron/experiment/plan/parameters.hpp"
-#include "pychron/experiment/plan/plan_loader.hpp"
-#include "pychron/setup/doctor.hpp"
-#include "pychron/setup/install.hpp"
-#include "pychron/setup/installer.hpp"
-#include "pychron/setup/profile.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/model/queue_file.hpp"
+#include "nobion/experiment/plan/parameters.hpp"
+#include "nobion/experiment/plan/plan_loader.hpp"
+#include "nobion/setup/doctor.hpp"
+#include "nobion/setup/install.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/setup/profile.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
 #include "temp_path.hpp"
 
-using namespace pychron;
-using namespace pychron::setup;
+using namespace nobion;
+using namespace nobion::setup;
 namespace fs = std::filesystem;
 
 namespace {
 
-const fs::path kProfiles(PYCHRON_PROFILES_DIR);
-const fs::path kExamples(PYCHRON_EXAMPLE_CONFIGS_DIR);
+const fs::path kProfiles(NOBION_PROFILES_DIR);
+const fs::path kExamples(NOBION_EXAMPLE_CONFIGS_DIR);
 
 fs::path scratch(const std::string& tag) {
-  const fs::path dir = pychron::testing::unique_temp_path("pychron-setup-" + tag + "-");
+  const fs::path dir = nobion::testing::unique_temp_path("nobion-setup-" + tag + "-");
   fs::remove_all(dir);
   return dir;
 }
@@ -78,7 +79,7 @@ void expect_no_failures(const SiteInstall& site) {
 void expect_queue_checks(const SiteInstall& site) {
   auto lab = experiment::lab::load_lab({site.root, site.path(site.line), site.path(site.spectrometer)});
   ASSERT_TRUE(lab.problems.empty()) << lab.problems.front();
-  auto queue = experiment::load_queue_file((site.root / "experiment.toml").string(), lab.ids);
+  auto queue = experiment::load_queue_file((site.root / "queues" / "experiment.toml").string(), lab.ids);
   ASSERT_TRUE(queue) << queue.error().what;
   const auto check = experiment::lab::check_lab_queue(lab, *queue);
   for (const auto& d : check.all())
@@ -124,8 +125,12 @@ TEST_P(InstrumentProfile, InstallsLoadsAndPassesDoctor) {
   EXPECT_EQ(site.kind, "instrument");
   EXPECT_EQ(site.simulation, simulation);
   for (const char* f : {"extraction_line.toml", "canvas.toml", "spectrometer.toml", "plans/multicollect.toml",
-                        "plans/detector_ic.toml", "plans/multicollect_hop_ar39.toml", "peak_center.toml", "experiment.toml", "CALIBRATE.md", "scripts/extraction/sim_extract.py", "sim.toml"})
+                        "plans/detector_ic.toml", "plans/multicollect_hop_ar39.toml", "peak_center.toml", "queues/experiment.toml",
+                        "queues/blocks/blank_pair.toml", "CALIBRATE.md", "scripts/extraction/sim_extract.py", "sim.toml"})
     EXPECT_TRUE(fs::exists(root / f)) << name << ": " << f;
+  // Queues and blocks live under queues/ (queue-directory design, section 2).
+  EXPECT_FALSE(fs::exists(root / "experiment.toml")) << name;
+  EXPECT_FALSE(fs::exists(root / "blocks")) << name;
   // The example line comes with the example lab's numbers, as they are.
   EXPECT_EQ(read_file(root / "sim.toml"), read_file(kExamples / "sim.toml")) << name;
   // And with what its laser (co2) needs: tray maps, the example tray's place
@@ -214,7 +219,7 @@ TEST_P(InstrumentProfile, ShipsASeedThatTheDefaultsAndTheExampleQueueAgreeWith) 
   }
   auto ids = experiment::IdentifierRules::load((root / "identifiers.toml").string());
   ASSERT_TRUE(ids) << ids.error().what;
-  auto queue = experiment::load_queue_file((root / "experiment.toml").string(), *ids);
+  auto queue = experiment::load_queue_file((root / "queues" / "experiment.toml").string(), *ids);
   ASSERT_TRUE(queue) << queue.error().what;
   // The queue is three air shots between two blanks, and every part of it is something the install has.
   std::map<std::string, std::pair<std::string, std::string>> seeded;  // identifier -> sample, material
@@ -293,23 +298,28 @@ TEST_P(InstrumentProfile, EveryInstalledPlanPutsItsIsotopesOnItsDetectors) {
     auto loaded = experiment::plan::load_plan(*tmpl, {}, resolvers);
     ASSERT_TRUE(loaded) << label << ": " << loaded.error().what;
     const auto& plan = loaded->plan;
-    ASSERT_FALSE(plan.main.hops.empty()) << label;
+    ASSERT_FALSE(plan.gases.empty()) << label;
+    const auto* main = experiment::plan::main_segment(plan.gases.front());
+    ASSERT_TRUE(main) << label;
+    ASSERT_FALSE(main->positions.empty()) << label;
     int h = 0;
     std::size_t compared = 0;
-    for (const auto& hop : plan.main.hops) {
+    for (const auto& hop : main->positions) {
       const std::string where = label + " hop " + std::to_string(h++);
-      const auto target = experiment::plan::hop_target(plan, hop);
+      const auto at_target = experiment::plan::position_target(plan, hop);
+      ASSERT_TRUE(at_target) << where;
+      const auto* target = std::get_if<experiment::plan::AtLabel>(&*at_target);
       ASSERT_TRUE(target) << where;
-      ASSERT_FALSE(target->isotope.empty()) << where;
-      auto reference = table->value_for(isotope_mass(target->isotope), target->detector);
+      ASSERT_FALSE(target->label.empty()) << where;
+      auto reference = table->value_for(isotope_mass(target->label), target->detector);
       ASSERT_TRUE(reference) << where << ": " << reference.error().what;
-      for (const auto& active : experiment::plan::active_detectors(plan, hop)) {
-        auto at = table->value_for(isotope_mass(active.isotope), active.detector);
+      for (const auto& active : experiment::plan::collecting(hop)) {
+        auto at = table->value_for(isotope_mass(active.label), active.detector);
         ASSERT_TRUE(at) << where << ": " << at.error().what;
         ++compared;
         EXPECT_NEAR(*at, *reference, tolerance)
-            << where << ": " << active.isotope << " on " << active.detector << " is at " << *at << ", but "
-            << target->isotope << " on " << target->detector << ", where the magnet is, is at " << *reference;
+            << where << ": " << active.label << " on " << active.detector << " is at " << *at << ", but "
+            << target->label << " on " << target->detector << ", where the magnet is, is at " << *reference;
       }
     }
     // A plan that is only one detector per hop (detector_ic) has nothing to compare; the others do.
@@ -354,8 +364,8 @@ TEST_P(InstrumentProfile, HasADatabaseOnThisComputerByDefault) {
   const fs::path root = scratch(name);
   auto site = install(lib, name, {{"simulation", Value{simulation}}}, root);
   EXPECT_EQ(site.kind, "instrument");
-  EXPECT_EQ(site.database, "sqlite:" + (root / "data" / "pychron.db").generic_string());
-  EXPECT_FALSE(fs::exists(root / ".pychron" / "credentials.toml"));
+  EXPECT_EQ(site.database, "sqlite:" + (root / "data" / "nobion.db").generic_string());
+  EXPECT_FALSE(fs::exists(root / ".nobion" / "credentials.toml"));
   // A database that is not there, or cannot be opened, is not what stops an instrument.
   DoctorOptions options;
   options.open_database = [](const std::string&) -> Result<std::string> { return fail(ErrorKind::Io, "no such file"); };
@@ -379,10 +389,10 @@ TEST_P(InstrumentProfile, HasADatabaseOnThisComputerByDefault) {
                   {"db_user", Value{std::string("jan")}},
                   {"db_password", Value{std::string("p@ss word")}}},
                  server);
-  EXPECT_EQ(site.database, "postgresql://jan@db.lab.org:5432/pychron");
+  EXPECT_EQ(site.database, "postgresql://jan@db.lab.org:5432/nobion");
   auto url = database_url(site);
   ASSERT_TRUE(url) << url.error().what;
-  EXPECT_EQ(*url, "postgresql://jan:p%40ss%20word@db.lab.org:5432/pychron");
+  EXPECT_EQ(*url, "postgresql://jan:p%40ss%20word@db.lab.org:5432/nobion");
   fs::remove_all(server);
 }
 
@@ -396,6 +406,22 @@ INSTANTIATE_TEST_SUITE_P(Shipped, InstrumentProfile,
 
 using Positions = std::map<std::string, std::string>;
 
+// The peak center step a plan runs after the run (v1 [peak_center] after); nullptr: none.
+const experiment::plan::PeakCenterStep* after_run_peak_center(const experiment::plan::MeasurementPlan& plan) {
+  for (const auto& gas : plan.gases)
+    for (const auto& seg : gas.segments)
+      if (seg.peak_center && seg.when == experiment::plan::When::AfterRun) return &*seg.peak_center;
+  return nullptr;
+}
+
+// The kind of time zero of a plan's main segment (v1 [main] time_zero).
+std::optional<experiment::plan::TimeZeroKind> main_time_zero(const experiment::plan::MeasurementPlan& plan) {
+  if (plan.gases.empty()) return std::nullopt;
+  const auto* main = experiment::plan::main_segment(plan.gases.front());
+  if (main == nullptr || !main->time_zero) return std::nullopt;
+  return main->time_zero->kind;
+}
+
 // The hops of an installed plan, as the lab resolves it against the
 // installed line and spectrometer.
 std::vector<Positions> installed_hops(const fs::path& root, const SiteInstall& site, const std::string& plan) {
@@ -404,8 +430,14 @@ std::vector<Positions> installed_hops(const fs::path& root, const SiteInstall& s
   auto loaded = lab.plans->load(plan, {});
   EXPECT_TRUE(loaded) << root << ": " << (loaded ? "" : loaded.error().what);
   std::vector<Positions> out;
-  if (loaded)
-    for (const auto& hop : loaded->plan.main.hops) out.push_back(hop.positions);
+  if (!loaded || loaded->plan.gases.empty()) return out;
+  if (const auto* main = experiment::plan::main_segment(loaded->plan.gases.front())) {
+    for (const auto& pos : main->positions) {
+      Positions hop;
+      for (const auto& e : experiment::plan::collecting(pos)) hop[e.label] = e.detector;
+      out.push_back(std::move(hop));
+    }
+  }
   return out;
 }
 
@@ -439,6 +471,40 @@ TEST(Profiles, NgxShipsTheThreeStarterPlans) {
 
 // Every shipped plan says where its time zero is and lets a run change it:
 // the measurement panel shows what a plan exposes.
+// Every shipped plan leaves the field table alone after a run with next to
+// no signal (legacy's pre-check, 3), and lets a run change the minimum.
+TEST(Profiles, EveryShippedPlanHasAPeakCenterMinimumSignalAndShowsIt) {
+  namespace plan = experiment::plan;
+  const auto lib = library();
+  const fs::path root = scratch("argus-peak-center-minimum");
+  const auto site = install(lib, "argus", {}, root);
+  auto lab = experiment::lab::load_lab({site.root, site.path(site.line), site.path(site.spectrometer)});
+  ASSERT_TRUE(lab.problems.empty()) << lab.problems.front();
+  for (const char* name : {"multicollect", "detector_ic", "multicollect_hop_ar39"}) {
+    const auto* tmpl = lab.plans->find(name);
+    ASSERT_NE(tmpl, nullptr) << name;
+    const auto params = plan::plan_parameters(*tmpl);
+    ASSERT_TRUE(params) << name << ": " << params.error().what;
+    const auto shown =
+        std::find_if(params->begin(), params->end(), [](const auto& p) { return p.path == "peak_center.min_signal"; });
+    ASSERT_NE(shown, params->end()) << name;
+    EXPECT_EQ(shown->label, "Peak center minimum signal") << name;
+    EXPECT_EQ(shown->value, experiment::ParamValue(3.0)) << name;
+
+    auto as_shipped = lab.plans->load(name, {});
+    ASSERT_TRUE(as_shipped) << name << ": " << as_shipped.error().what;
+    const auto* after = after_run_peak_center(as_shipped->plan);
+    ASSERT_TRUE(after) << name;
+    EXPECT_DOUBLE_EQ(after->min_signal, 3.0) << name;
+    auto changed = lab.plans->load(name, {{"peak_center.min_signal", 12.5}});
+    ASSERT_TRUE(changed) << name << ": " << changed.error().what;
+    ASSERT_TRUE(after_run_peak_center(changed->plan)) << name;
+    EXPECT_DOUBLE_EQ(after_run_peak_center(changed->plan)->min_signal, 12.5) << name;
+    EXPECT_FALSE(lab.plans->load(name, {{"peak_center.min_signal", -1.0}})) << name;
+  }
+  fs::remove_all(root);
+}
+
 TEST(Profiles, EveryShippedPlanShowsItsTimeZero) {
   namespace plan = experiment::plan;
   const auto lib = library();
@@ -458,10 +524,10 @@ TEST(Profiles, EveryShippedPlanShowsItsTimeZero) {
 
     auto as_shipped = lab.plans->load(name, {});
     ASSERT_TRUE(as_shipped) << name << ": " << as_shipped.error().what;
-    EXPECT_EQ(as_shipped->plan.main.time_zero.kind, plan::TimeZeroKind::OnInletClose) << name;
+    EXPECT_EQ(main_time_zero(as_shipped->plan), plan::TimeZeroKind::OnInletClose) << name;
     auto changed = lab.plans->load(name, {{"main.time_zero", std::string("on_first_count")}});
     ASSERT_TRUE(changed) << name << ": " << changed.error().what;
-    EXPECT_EQ(changed->plan.main.time_zero.kind, plan::TimeZeroKind::OnFirstCount) << name;
+    EXPECT_EQ(main_time_zero(changed->plan), plan::TimeZeroKind::OnFirstCount) << name;
     EXPECT_FALSE(lab.plans->load(name, {{"main.time_zero", std::string("soon")}})) << name;
   }
   fs::remove_all(root);
@@ -566,7 +632,7 @@ TEST(Profiles, DataReductionLocalAndServer) {
   const fs::path local = scratch("dr-local");
   auto site = install(lib, "data-reduction", {}, local);
   EXPECT_EQ(site.kind, "data_reduction");
-  EXPECT_EQ(site.database, "sqlite:" + (local / "data" / "pychron.db").generic_string());
+  EXPECT_EQ(site.database, "sqlite:" + (local / "data" / "nobion.db").generic_string());
   expect_no_failures(site);
   fs::remove_all(local);
 
@@ -577,11 +643,84 @@ TEST(Profiles, DataReductionLocalAndServer) {
                   {"db_user", Value{std::string("reader")}},
                   {"db_password", Value{std::string("p@ss word")}}},
                  server);
-  EXPECT_EQ(site.database, "postgresql://reader@db.lab.org:5432/pychron");  // no password in the site config
+  EXPECT_EQ(site.database, "postgresql://reader@db.lab.org:5432/nobion");  // no password in the site config
   auto url = database_url(site);
   ASSERT_TRUE(url);
-  EXPECT_EQ(*url, "postgresql://reader:p%40ss%20word@db.lab.org:5432/pychron");
+  EXPECT_EQ(*url, "postgresql://reader:p%40ss%20word@db.lab.org:5432/nobion");
   fs::remove_all(server);
+}
+
+TEST(Profiles, StoreCommonAsksForTheFileAndTheDataFolder) {
+  const auto lib = library();
+  const Profile* store = lib.find("store-common");
+  ASSERT_NE(store, nullptr);
+  EXPECT_EQ(store->version, 2);
+  auto question = [&](const std::string& id) -> const Question* {
+    const auto it = std::ranges::find(store->questions, id, &Question::id);
+    return it == store->questions.end() ? nullptr : &*it;
+  };
+  const Question* file = question("db_file");
+  ASSERT_NE(file, nullptr);
+  EXPECT_EQ(file->type, QuestionType::Path);
+  ASSERT_TRUE(file->default_value.has_value());
+  EXPECT_EQ(*file->default_value, Value{std::string("data/nobion.db")});
+  EXPECT_EQ(file->group, "Data");
+  EXPECT_EQ(file->when, "data_source == \"local\"");
+  EXPECT_EQ(file->prompt, "Database file");
+  EXPECT_EQ(file->help, "Relative to the install folder, or a full path");
+
+  const Question* folder = question("data_folder");
+  ASSERT_NE(folder, nullptr);
+  EXPECT_EQ(folder->type, QuestionType::Path);
+  ASSERT_TRUE(folder->default_value.has_value());
+  EXPECT_EQ(*folder->default_value, Value{std::string("data")});
+  EXPECT_EQ(folder->group, "Data");
+  EXPECT_TRUE(folder->when.empty());
+  EXPECT_EQ(folder->prompt, "Data folder");
+  EXPECT_EQ(folder->help, "Where run records are kept");
+}
+
+TEST(Profiles, EveryShippedProfileWritesADomain) {
+  const auto lib = library();
+  for (const char* name : {"argus", "helix", "ngx", "data-reduction"}) {
+    const auto site = install(lib, name, {}, scratch(std::string("domain-") + name));
+    EXPECT_EQ(site.domain, "arar") << name;
+  }
+}
+
+TEST(Profiles, DataReductionAsksForTheDomainAndTheAnswerWins) {
+  const auto lib = library();
+  auto resolved = lib.resolve("data-reduction");
+  ASSERT_TRUE(resolved) << resolved.error().what;
+  const auto it = std::find_if(resolved->questions.begin(), resolved->questions.end(),
+                               [](const Question& q) { return q.id == "domain"; });
+  ASSERT_NE(it, resolved->questions.end());
+  EXPECT_EQ(it->choices, (std::vector<std::string>{"arar", "noble_gas"}));
+  EXPECT_EQ(it->labels, (std::vector<std::string>{"Ar/Ar geochronology", "Noble gas (abundances, no age)"}));
+  EXPECT_EQ(it->group, "Data");
+  ASSERT_TRUE(it->default_value.has_value());
+  EXPECT_EQ(*it->default_value, Value{std::string("arar")});
+  const auto site = install(lib, "data-reduction", {{"domain", Value{std::string("noble_gas")}}}, scratch("domain-noble"));
+  EXPECT_EQ(site.domain, "noble_gas");
+  expect_no_failures(site);
+}
+
+TEST(Profiles, ADataFolderAnswerIsTheSiteEntrysData) {
+  const auto lib = library();
+  auto resolved = lib.resolve("data-reduction");
+  ASSERT_TRUE(resolved) << resolved.error().what;
+  const fs::path root = scratch("dr-data-folder");
+  const std::string records = (fs::temp_directory_path() / "x" / "records-disk").generic_string();
+  const Answers builtins{{"install_name", Value{std::string("dr")}}, {"root", Value{root.generic_string()}}};
+
+  auto answers = complete_answers(*resolved, {{"data_folder", Value{records}}}, builtins);
+  ASSERT_TRUE(answers) << answers.error().what;
+  auto plan = plan_install(lib, *resolved, *answers, root);
+  ASSERT_TRUE(plan) << plan.error().what;
+  EXPECT_EQ(site_install(*plan, "dr").data, records);
+
+  plan->answers.erase("data_folder");
+  EXPECT_EQ(site_install(*plan, "dr").data, "data");
 }
 
 TEST(Profiles, InstrumentPagesAreSimulationConnectionThenDetectors) {

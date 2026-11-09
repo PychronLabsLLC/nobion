@@ -1,6 +1,6 @@
 // Tray maps in the legacy pychron format (laser system design, section 3.1).
 
-#include "pychron/laser/tray_map.hpp"
+#include "nobion/laser/tray_map.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -11,10 +11,10 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/sha256.hpp"
+#include "nobion/core/sha256.hpp"
 
-using namespace pychron;
-using namespace pychron::laser;
+using namespace nobion;
+using namespace nobion::laser;
 namespace fs = std::filesystem;
 
 namespace {
@@ -26,7 +26,7 @@ std::string slurp(const fs::path& file) {
   return out.str();
 }
 
-fs::path data(const std::string& name) { return fs::path(PYCHRON_TEST_DATA_DIR) / "tray_maps" / name; }
+fs::path data(const std::string& name) { return fs::path(NOBION_TEST_DATA_DIR) / "tray_maps" / name; }
 
 std::vector<std::string> ids(const TrayMap& map) {
   std::vector<std::string> out;
@@ -36,7 +36,7 @@ std::vector<std::string> ids(const TrayMap& map) {
 
 fs::path scratch() {
   std::random_device rd;
-  auto dir = fs::temp_directory_path() / ("pychron_trays_" + std::to_string(rd()) + std::to_string(rd()));
+  auto dir = fs::temp_directory_path() / ("nobion_trays_" + std::to_string(rd()) + std::to_string(rd()));
   fs::create_directories(dir);
   return dir;
 }
@@ -178,7 +178,7 @@ TEST(TrayMap, ShaIsOfTheBytes) {
   const std::string text = slurp(data("small.txt"));
   auto map = TrayMap::parse(text, "small");
   ASSERT_TRUE(map);
-  const auto digest = pychron::sha256(std::string_view(text));
+  const auto digest = nobion::sha256(std::string_view(text));
   EXPECT_EQ(map->sha256(), to_hex(digest));
 }
 
@@ -223,7 +223,7 @@ TEST(TrayLibrary, LoadsADirectoryAndReportsWhatDidNot) {
 }
 
 TEST(TrayLibrary, AMissingDirectoryIsEmpty) {
-  const auto lib = TrayLibrary::load(fs::temp_directory_path() / "pychron_no_such_tray_dir");
+  const auto lib = TrayLibrary::load(fs::temp_directory_path() / "nobion_no_such_tray_dir");
   EXPECT_TRUE(lib.names().empty());
   EXPECT_TRUE(lib.problems().empty());
 }

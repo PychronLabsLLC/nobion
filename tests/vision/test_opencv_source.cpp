@@ -1,5 +1,5 @@
 // OpenCvSource happy path. The test video is written with OpenCV, so everything here
-// except the build-flag check sits behind PYCHRON_VISION_OPENCV_ENABLED.
+// except the build-flag check sits behind NOBION_VISION_OPENCV_ENABLED.
 #include <gtest/gtest.h>
 
 #include <array>
@@ -10,17 +10,17 @@
 #include <string>
 #include <system_error>
 
-#include "pychron/vision/legacy_finder.hpp"
-#include "pychron/vision/opencv_source.hpp"
+#include "nobion/vision/legacy_finder.hpp"
+#include "nobion/vision/opencv_source.hpp"
 
-#ifdef PYCHRON_VISION_OPENCV_ENABLED
+#ifdef NOBION_VISION_OPENCV_ENABLED
 #include <opencv2/core.hpp>
 #include <opencv2/videoio.hpp>
 #endif
 
-using namespace pychron::vision;
+using namespace nobion::vision;
 
-#ifdef PYCHRON_VISION_OPENCV_ENABLED
+#ifdef NOBION_VISION_OPENCV_ENABLED
 
 namespace {
 
@@ -39,7 +39,7 @@ struct TempDir {
     static int n = 0;
     const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
     path = std::filesystem::temp_directory_path() /
-           (std::string("pychron_vision_") + info->test_suite_name() + "_" + info->name() + "_" + std::to_string(++n));
+           (std::string("nobion_vision_") + info->test_suite_name() + "_" + info->name() + "_" + std::to_string(++n));
     std::filesystem::remove_all(path);
     std::filesystem::create_directories(path);
   }
@@ -74,6 +74,25 @@ double quad_mean(const Frame& f, int q) {
   return sum / n;
 }
 
+// Per quadrant, the mean {R, G, B} of the middle half of the first frame as cv::VideoCapture
+// decodes the file. OpenCV's own MJPEG writer (the only one in a build without FFmpeg, as a
+// release's) scales Cb by about 0.78, which moves the blue plane of a saturated quadrant by
+// some 35, more than kTol: a channel is checked against the plane OpenCV decodes, so what is
+// tested is which plane the source picks, not the codec.
+std::array<std::array<double, 3>, 4> decoded_planes(const std::filesystem::path& file) {
+  std::array<std::array<double, 3>, 4> planes{};
+  cv::VideoCapture cap(file.string());
+  cv::Mat m;
+  if (!cap.isOpened() || !cap.read(m) || m.type() != CV_8UC3) return planes;
+  const int qw = m.cols / 2, qh = m.rows / 2;
+  for (int q = 0; q < 4; ++q) {
+    const cv::Rect r((q % 2) * qw + qw / 4, (q / 2) * qh + qh / 4, qw / 2, qh / 2);
+    const cv::Scalar bgr = cv::mean(m(r));
+    planes[static_cast<std::size_t>(q)] = {bgr[2], bgr[1], bgr[0]};
+  }
+  return planes;
+}
+
 // Fixture: a video in a temp dir, or a skip.
 class OpenCvSourceVideo : public ::testing::Test {
  protected:
@@ -104,12 +123,11 @@ class OpenCvSourceVideo : public ::testing::Test {
     }
     auto end = (*s)->grab();
     ASSERT_FALSE(end.has_value());
-    EXPECT_EQ(end.error().kind, pychron::ErrorKind::Io);
+    EXPECT_EQ(end.error().kind, nobion::ErrorKind::Io);
     EXPECT_EQ(end.error().what, "end of stream");
   }
 
   auto luma() const { return [](int q) { return kLuma[static_cast<std::size_t>(q)]; }; }
-  static auto chan(int c) { return [c](int q) { return static_cast<double>(kColours[static_cast<std::size_t>(q)][static_cast<std::size_t>(c)]); }; }
 
   TempDir dir;
   std::filesystem::path file;
@@ -121,11 +139,18 @@ TEST_F(OpenCvSourceVideo, LumaIdentityStream) { expect_stream({}, kW, kH, {0, 1,
 
 TEST_F(OpenCvSourceVideo, ChannelsPickTheRightPlane) {
   // A pure-red quadrant must be bright in R and dark in B: this catches a BGR index swap.
+  // The decoded planes are near the colours written (an R/B swap would be 170 off), and
+  // the source must give the plane asked for.
+  const auto planes = decoded_planes(file);
+  for (std::size_t q = 0; q < 4; ++q)
+    for (std::size_t c = 0; c < 3; ++c) EXPECT_NEAR(planes[q][c], kColours[q][c], 2 * kTol) << "quadrant " << q << " channel " << c;
   for (const auto& [ch, idx] : {std::pair{SourceConfig::Channel::R, 0}, std::pair{SourceConfig::Channel::G, 1},
                                std::pair{SourceConfig::Channel::B, 2}}) {
     SourceConfig c;
     c.channel = ch;
-    expect_stream(c, kW, kH, {0, 1, 2, 3}, chan(idx));
+    expect_stream(c, kW, kH, {0, 1, 2, 3}, [&planes, i = static_cast<std::size_t>(idx)](int q) {
+      return planes[static_cast<std::size_t>(q)][i];
+    });
   }
 }
 
@@ -162,13 +187,13 @@ TEST_F(OpenCvSourceVideo, RotationsAreClockwise) {
 TEST_F(OpenCvSourceVideo, FramesCarryStrictlyIncreasingTimestampsFromTheClock) {
   auto n = std::make_shared<int>(0);
   auto s = open_opencv_source(file.string(), SourceConfig{},
-                              [n] { return pychron::TimePoint{} + std::chrono::milliseconds(100 * ++*n); });
+                              [n] { return nobion::TimePoint{} + std::chrono::milliseconds(100 * ++*n); });
   ASSERT_TRUE(s.has_value()) << s.error().what;
-  pychron::TimePoint prev{};
+  nobion::TimePoint prev{};
   for (int i = 0; i < kFrames; ++i) {
     auto f = (*s)->grab();
     ASSERT_TRUE(f.has_value()) << f.error().what;
-    EXPECT_EQ(f->timestamp, pychron::TimePoint{} + std::chrono::milliseconds(100 * (i + 1)));
+    EXPECT_EQ(f->timestamp, nobion::TimePoint{} + std::chrono::milliseconds(100 * (i + 1)));
     EXPECT_GT(f->timestamp, prev);
     prev = f->timestamp;
   }
@@ -179,7 +204,7 @@ TEST_F(OpenCvSourceVideo, InvalidRotationIsConfigError) {
   c.rotate = 45;
   const auto s = open_opencv_source(file.string(), c);
   ASSERT_FALSE(s.has_value());
-  EXPECT_EQ(s.error().kind, pychron::ErrorKind::Config);
+  EXPECT_EQ(s.error().kind, nobion::ErrorKind::Config);
 }
 
 #else

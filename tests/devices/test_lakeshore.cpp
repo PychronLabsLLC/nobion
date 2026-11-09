@@ -1,13 +1,13 @@
 // lakeshore over its simulator (plan 2026-10-05, tasks C2/C3).
-#include "pychron/devices/lakeshore.hpp"
+#include "nobion/devices/lakeshore.hpp"
 
 #include <gtest/gtest.h>
 
 #include <chrono>
 
-#include "pychron/devices/driver_registry.hpp"
+#include "nobion/devices/driver_registry.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {

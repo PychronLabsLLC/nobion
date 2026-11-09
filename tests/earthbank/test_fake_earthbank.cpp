@@ -18,11 +18,11 @@
 
 #include "fake_earthbank.hpp"
 #include "ooxml.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/http.hpp"
-#include "pychron/earthbank/vocab.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/http.hpp"
+#include "nobion/earthbank/vocab.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using namespace std::string_view_literals;
@@ -389,7 +389,7 @@ TEST(FakeEarthBank, EveryLookupEndpointIsServed) {
 TEST(FakeEarthBank, TheArArListsAreTheTemplates) {
   FakeEarthBank bank;
   const Client client(bank);
-  auto book = ooxml::Workbook::open(std::filesystem::path(PYCHRON_EARTHBANK_TEMPLATE_DIR) /
+  auto book = ooxml::Workbook::open(std::filesystem::path(NOBION_EARTHBANK_TEMPLATE_DIR) /
                                     "ArArDataPoint_Template2026.xlsx");
   ASSERT_TRUE(book.has_value()) << to_string(book.error());
   struct List {
@@ -1365,7 +1365,7 @@ std::vector<int> numbers_in(std::string_view text) {
 // `// assumed (n):`, and listed for the owner in the fixtures' README, item
 // n. The two are one list: no mark without its item, no item without a mark.
 TEST(FakeEarthBank, EveryAssumptionIsMarkedAndListed) {
-  const std::filesystem::path fixtures = PYCHRON_EARTHBANK_FIXTURE_DIR;
+  const std::filesystem::path fixtures = NOBION_EARTHBANK_FIXTURE_DIR;
   const std::string source = file_text(fixtures.parent_path() / "fake_earthbank.cpp");
   const std::string readme = file_text(fixtures / "README.md");
 
@@ -1436,7 +1436,7 @@ TEST(FakeEarthBank, TheSameCallsGiveTheSameIds) {
 
 TEST(FakeEarthBank, AMissingFixtureIsNamed) {
   FakeEarthBank::Options options;
-  options.fixtures = std::filesystem::path(PYCHRON_EARTHBANK_FIXTURE_DIR) / "no-such-directory";
+  options.fixtures = std::filesystem::path(NOBION_EARTHBANK_FIXTURE_DIR) / "no-such-directory";
   try {
     FakeEarthBank bank(options);
     FAIL() << "built from nothing";
@@ -1446,4 +1446,4 @@ TEST(FakeEarthBank, AMissingFixtureIsNamed) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

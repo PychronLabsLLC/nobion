@@ -31,18 +31,18 @@ them are [02 Extraction line](02-extraction-line.md),
 There is no global search path. Each program is told where its files are, in
 one of three ways, and every other file is found relative to those.
 
-1. **An install** (what the setup wizard makes). `pychron-ui --install
+1. **An install** (what the setup wizard makes). `nobion --install
    <name>` or `elctl --install <name>` reads the per-user **site file**
    (below) to find that install's root folder and the names of its line,
    canvas and spectrometer files. With no name, the site file's `default`
    install is used, or the only install if there is one.
-2. **Named on the command line.** `pychron-ui <extraction_line.toml>
+2. **Named on the command line.** `nobion <extraction_line.toml>
    [canvas.toml]`, `--spectrometer <file>`, `--lab <dir>`, `--data <dir>`;
    `elctl -c <extraction_line.toml>` and the same `--lab`, `--spectrometer`
    and `--data` on `exp`.
-3. **The shipped examples**. `pychron-ui --examples` opens the example line
+3. **The shipped examples**. `nobion --examples` opens the example line
    and canvas that come with the program (`configs/examples`), all
-   simulated. (`pychron-ui` with no arguments at all picks an install from
+   simulated. (`nobion` with no arguments at all picks an install from
    the site file instead, and offers the setup wizard when it has none.)
 
 From those:
@@ -90,10 +90,10 @@ owner-readable only.
 
 ### The site file
 
-The per-user list of installs on a computer. Location: `$PYCHRON_SITE_CONFIG`
-if set, else `~/Library/Application Support/Pychron/site.toml` (macOS),
-`%APPDATA%\Pychron\site.toml` (Windows), `$XDG_CONFIG_HOME/pychron/site.toml`
-or `~/.config/pychron/site.toml` (elsewhere). A missing file is an empty
+The per-user list of installs on a computer. Location: `$NOBION_SITE_CONFIG`
+if set, else `~/Library/Application Support/Nobion/site.toml` (macOS),
+`%APPDATA%\Nobion\site.toml` (Windows), `$XDG_CONFIG_HOME/nobion/site.toml`
+or `~/.config/nobion/site.toml` (elsewhere). A missing file is an empty
 list. The wizard writes it; `elctl doctor` checks it.
 
 | Key | Type | Meaning |
@@ -102,6 +102,7 @@ list. The wizard writes it; `elctl doctor` checks it.
 | `[[installs]]` `name` | text | the install's name |
 | `kind` | `instrument` or `data_reduction` | |
 | `profile` | text | the setup profile it was made from |
+| `domain` | `arar` or `noble_gas` | the kind of data reduction the install does; default `arar` when absent. See below. |
 | `root` | path | its folder |
 | `line`, `canvas`, `spectrometer` | path relative to `root` | conventional: `extraction_line.toml`, `canvas.toml`, `spectrometer.toml` |
 | `data` | path relative to `root` | the data folder (`data`) |
@@ -109,8 +110,18 @@ list. The wizard writes it; `elctl doctor` checks it.
 | `database` | text | data reduction: the database URL **without a password** |
 
 The password for a `postgresql://` database is in
-`<root>/.pychron/credentials.toml` (see
+`<root>/.nobion/credentials.toml` (see
 [Install files](#install-files-sitetoml-profiles-credentials)).
+
+`domain` says what the data windows and `elctl` offer for the install's
+analyses. `arar` is Ar/Ar geochronology: ages, J, flux, the age figures and
+the data report. Every install made before this key existed is `arar`, and
+so is an entry that leaves the key out. `noble_gas` is abundances with no
+age: the data toolbar offers time series, isotope evolutions, and blank and
+IC factor fits.
+`elctl doctor` reports a value that is neither. `elctl --domain ID` chooses
+one for a single command (see the
+[elctl reference](08-elctl-reference.md)).
 
 ## Checking a file
 
@@ -121,7 +132,7 @@ elctl validate extraction_line.toml
 elctl canvas-check canvas.toml
 elctl list-drivers
 elctl conditionals-check conditionals/system.toml --spectrometer spectrometer.toml
-elctl exp validate experiment.toml --lab . --spectrometer spectrometer.toml
+elctl exp validate queues/experiment.toml --lab . --spectrometer spectrometer.toml
 elctl doctor            # a whole install; add --probe to reach the instrument
 elctl --install argus-lab doctor --strict
 ```
@@ -162,12 +173,19 @@ else at top level is an error): `[system]`, `[logging]`, `[transports.*]`,
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `dir` | path | none | folder for log files; with none there is no file log. `~` is your home folder |
-| `max_size_mb` | whole number >= 1 | 10 | size at which a log file rolls over |
-| `max_files` | whole number >= 1 | 5 | log files kept |
-| `default_level` | `trace`, `debug`, `info`, `warn`, `error` | `info` | |
+| `dir` | path | the default log folder | folder for log files; `""` writes no file. `~` is your home folder |
+| `max_size_mb` | whole number >= 1 | 50 | size at which a log file rolls over |
+| `max_files` | whole number >= 1 | 10 | log files kept |
+| `default_level` | `trace`, `debug`, `info`, `warn`, `error` | `debug` | the level for loggers not named below |
+| `dock_level` | same | `info` | what the Log panel shows |
 | `echo_stderr` | true/false | false | also print to the terminal |
 | `[logging.levels]` | text = level | none | per-logger overrides by name pattern: `"*.wire" = "trace"` shows every transport's bytes; each transport logs to `<name>.wire`. `"scheduler"` and `"extraction_line"` are the line's own loggers |
+
+This table is the older place for logging. The same keys, at the top level and
+with the per-logger table named `[levels]`, go in `logging.toml` in the install
+folder (and `logging.local.toml` for this computer only), which are read over
+this table; File > Preferences > Logging writes the second. See the extraction
+line chapter, "The log file".
 
 ### [metrics] (optional)
 
@@ -200,6 +218,19 @@ Plus, by kind:
 | `modbus_tcp` | `host` (required), `port` (default 502) |
 | `sim` | nothing: a simulated device (a drivers' own simulator answers) |
 | `link` | `link` (required): the name of a connection another config owns, so one socket is shared (an NGX spectrometer and its valves) |
+
+A transport may say how its link recovers when it drops, in
+`[transports.<name>.recovery]` (optional; the same table in a spectrometer
+file):
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `reconnect` | true/false | true | false: a failed call is not tried again, the link not reopened |
+| `optional` | true/false | false | a run may start while this link is down (a camera, a gauge that only watches) |
+| `call_window_s` | seconds, 0 to 3600 | the lab's (`executor.toml`, 20) | how long one call keeps reconnecting and trying again |
+
+A transport of kind `link` has no table of its own: it recovers as the
+connection it names.
 
 ### [drivers.\<name\>]
 
@@ -337,9 +368,10 @@ be positive. Top-level sections: `[canvas]`, `[colors]`, `[[valve]]`,
 | `[canvas]` | `origin` | `[x, y]` | `[0, 0]` | |
 | | `size` | `[w, h]` | `[1000, 700]` | |
 | | `connection_width` | whole number >= 1 | 5 | pipe thickness |
-| | `open_valve_color` | `green`, `inherit` | `green` | `inherit`: an open valve takes the colour of the region it joins |
+| | `open_valve_color` | `green`, `inherit` | `green` | With `valve_style = "redgreen"`, `inherit`: an open valve takes the color of the region it joins. The `hmi` style always does. |
+| | `valve_style` | `hmi`, `redgreen` | `hmi` | Each valve is a box. `hmi`: open in the color of the region it joins (light grey with no source), closed grey; `redgreen`: open green, closed red. In both the glyph inside is white when open, black when closed |
 | `[colors]` | any name = `"#rrggbb"` | text | | e.g. `valve`, `pipette` |
-| | `background` | `"#rrggbb"` or a colour name | the application's own | what is behind the drawing, to the edges of the view; a value that is not a colour is ignored |
+| | `background` | `"#rrggbb"` or a color name | the application's own | what is behind the drawing, to the edges of the view; a value that is not a color is ignored |
 | `[[valve]]`, `[[manual_valve]]`, `[[rough_valve]]`, `[[switch]]` | `name` | text, required | | must match the line |
 | | `pos` | `[x, y]`, required | | |
 | | `display_name` | text | the name (blank on a manual valve) | the label on its face |
@@ -349,9 +381,9 @@ be positive. Top-level sections: `[canvas]`, `[colors]`, `[[valve]]`,
 | | `volume` | number | none | cc: its size in the simulated line (50 cc with none) |
 | | `fill` | true/false | false | |
 | | `display_name` | text | the name | `""` for no label |
-| | `use_symbol`, `symbol` | true/false; `spectrometer`, `quadrupole`, `laser`, `turbo`, `getter`, `ion_pump` | false | a glyph in the box |
-| | `kind` | `volume`, `pump`, `pipette`, `laser`, `tank`, `spectrometer`, `getter` | from the symbol | what it is to the gas |
-| | `precedence` | whole number >= 0 | the kind's | which source wins a shared region. 0 colours nothing |
+| | `use_symbol`, `symbol` | true/false; `spectrometer`, `quadrupole`, `laser`, `turbo`, `getter`, `ion_pump`, `cryo`, `roughing_pump` | false | a glyph in the box |
+| | `kind` | `volume`, `pump`, `pipette`, `laser`, `tank`, `spectrometer`, `getter` | from the symbol (none from `cryo`) | what it is to the gas |
+| | `precedence` | whole number >= 0 | the kind's | which source wins a shared region. 0 colors nothing |
 | | `color` | `"#rrggbb"` | the theme's | |
 | | `tank` | text | | for a pipette: the tank whose gas it holds |
 | `[[pipette]]` | `name`, `pos` | required | | the name must be a pipette in the line |
@@ -367,12 +399,12 @@ be positive. Top-level sections: `[canvas]`, `[colors]`, `[[valve]]`,
 | `[[label]]` | `text`, `pos` | required | | |
 | | `font` | text | | `"Arial 12"` |
 | `[[image]]` | `path`, `pos` | required | | a picture file |
-| `[legend]` | `pos` | `[x, y]`, required | | where the colour key goes |
+| `[legend]` | `pos` | `[x, y]`, required | | where the color key goes |
 
-Gas colours: a region takes the colour of the connected source with the
+Gas colors: a region takes the color of the connected source with the
 highest precedence: a pump (120), then a tank (110), a pipette or laser
-(100), a spectrometer (80), a getter (70). Each tank gets its own colour
-and a pipette wears the colour of the tank across its valve unless `tank`
+(100), a spectrometer (80), a getter (70). Each tank gets its own color
+and a pipette wears the color of the tank across its valve unless `tank`
 says otherwise.
 
 ## spectrometer.toml and its folder
@@ -382,7 +414,7 @@ the detectors, and the field tables. Examples:
 `configs/examples/spectrometer.qtegra.toml` (one Thermo box),
 `spectrometer.ngx.toml` (Isotopx), `spectrometer.sim-integrated.toml` and
 `spectrometer.sim-legacy.toml` (simulated). Check with
-`elctl exp validate` or open it in `pychron-ui`.
+`elctl exp validate` or open it in `nobion`.
 
 ```
 spectrometer/                      (the folder holding the config)
@@ -422,7 +454,7 @@ for serial kinds (and required for serial); `link` (required, only for kind
 |---|---|---|
 | `kind` | text, required | `thermo_qtegra`, `isotopx_ngx`, `dac_positioner`, `adc_bank`, `pulse_counter`, `serial_hv`, their `sim_*` twins, ... see `elctl list-drivers` |
 | `transport` | text, required | a `[transports.*]` name in this file |
-| `roles` | list, required, not empty | which of `positioner`, `source`, `acquirer`, `detector_control`, `beam_blank` it plays. An integrated vendor box plays several; a legacy split uses one driver per role |
+| `roles` | list, required, not empty | which of `positioner`, `source`, `acquirer`, `detector_control`, `beam_blank`, `optics` it plays. An integrated vendor box plays several; a legacy split uses one driver per role. `optics`: the driver applies `[optics.*]` presets and switches the source's output (the simulated drivers do; no hardware driver does yet) |
 | `channels` | list of text | an acquirer must list its channel names (`["H2", "H1", "AX"]`) |
 | anything else | | read by the driver (`limit_min`, `limit_max`, `sample_hz`, `link`, `user`, ...) |
 
@@ -477,11 +509,27 @@ any detector's `deflection.control` or `protection`.
 | `isotope` | text | none | the isotope normally on it |
 | `color` | `"#rrggbb"` | none | |
 | `active` | true/false | true | an inactive detector needs no column in the field table |
-| `deflection` | `{ control, correction = [c0, c1, ...], sign = 1 or -1, max, per_volt }` | | deflection with a polynomial correction (lowest order first); `max` > 0 |
+| `deflection` | `{ control, correction = [c0, c1, ...], sign = 1 or -1, max, per_volt }` | | deflection with a polynomial correction (lowest order first); `max` > 0, the largest absolute deflection taken: a value past it is refused (by the plan when it is checked, by the spectrometer when it is set), never run as `max` |
 | `protection` | `{ threshold > 0, on_move }` | | protect against a beam over this intensity; `on_move` also while the magnet moves |
 | `saturation` | number > 0 | none | |
 | `dead_time_ns` | number >= 0 | none | |
 | `cdd_voltage` | number | none | |
+| `large_beam_threshold` | number > 0 | none (never) | a reading above it puts the detector in its large-beam state |
+| `settle_after_large_beam_s` | seconds >= 0 | 0 | a measurement plan v2 position with a detector in that state settles at least this long |
+| `collector`, `mode` | text | the detector's own | logical detectors sharing one collector (`H2` and `H2(CDD)`, `collector = "H2"`, `mode = "CDD"`) |
+| `mode_switch_s` | seconds >= 0 | 0 | wait when a position changes the mode of this detector's collector |
+
+### [optics.\<name\>] (optional)
+
+Named presets a measurement plan v2 position names with `optics = "<name>"`.
+Each key and value (text, number or true/false) is handed to the driver of
+role `optics` as written, in file order; what they mean is the driver's. A
+plan may name presets only on a spectrometer that has such a driver.
+
+### [interferences] (optional)
+
+`"<monitor>" = "<what it corrects>"`, for example `"Ar40++" = "Ne20"`: stored
+with each run for reduction; nothing is corrected at measurement.
 
 ### Field tables
 
@@ -507,20 +555,23 @@ krypton and xenon isotopes). A value must be a number above zero.
 ## Lab folder files
 
 The lab folder is where everything that is about the lab, not the hardware,
-lives. `elctl exp` and `pychron-ui` load it without needing the hardware;
+lives. `elctl exp` and `nobion` load it without needing the hardware;
 a file that does not load is reported with the others by `elctl exp
 validate`, and stops only what depends on it.
 
 ```
 <lab>/
+  queues/*.toml             queues (any name; looked for and saved here first)
+  queues/blocks/*.toml      reusable run sequences (optional)
   plans/*.toml              measurement plans
   scripts/extraction/  post_equilibration/  post_measurement/  measurement_hooks/    (.py files)
+  scripts/safe_state.py     the lab's safe state after a failed run (optional)
   conditionals/*.toml       conditional sets (system.toml is always applied)
   identifiers.toml          what an identifier means (optional)
   peak_center.toml          named peak-center settings (optional)
   defaults.toml             what a new run starts with (optional)
-  blocks/*.toml             reusable run sequences (optional)
   notifications.toml        email, webhook, command messages (optional)
+  executor.toml             how a queue rides out links that drop (optional)
   tray_maps/*.txt           sample trays (optional)
   patterns/*.toml           laser patterns (optional)
   cameras.toml              the camera of each laser (optional)
@@ -534,8 +585,11 @@ validate`, and stops only what depends on it.
 ### Queue files (experiment.toml)
 
 A queue is a list of runs. Any file name works; `experiment.toml` is the
-convention and what the setup wizard writes (`elctl exp run experiment.toml`).
-Example: `configs/examples/experiment.toml`, `experiment.laser.toml`. Only
+convention and what the setup wizard writes, as `queues/experiment.toml`
+(`elctl --install <name> exp run experiment.toml` finds it there). A queue
+kept anywhere else runs too; its lab is the folder it is in, or the folder
+above when that folder is `queues/`.
+Example: `configs/examples/queues/experiment.toml`, `experiment.laser.toml`. Only
 `queue` and `runs` exist at top level; an unknown key anywhere is an error.
 
 `[queue]`:
@@ -652,10 +706,33 @@ Example: `configs/examples/peak_center.toml`.
 | `update_table` | true/false | true | write the centre into the field table |
 | `propagate` | true/false | true | and into the other detectors' columns |
 
-### blocks/*.toml
+### executor.toml
+
+How a queue rides out links that drop (optional; without it, the defaults
+below). The example lab's file lists every key with its default, commented
+out. Times are in seconds.
+
+| Key | Range | Default | Meaning |
+|---|---|---|---|
+| `[links] call_window_s` | 0 to 3600 | 20 | how long one call keeps trying, where its transport does not say |
+| `[links] critical_window_s` | 0 to 86400 | 600 | how long a call that must get through keeps trying: a valve during a measurement, a step of the safe state |
+| `[links] backoff_min_s`, `backoff_max_s` | over 0, to 3600 | 1, 30 | the wait between reconnects doubles from the one to the other |
+| `[hold] settle_s` | 0 to 3600 | 30 | a link is back once it has been up this long |
+| `[hold] probe_interval_s` | over 0, to 3600 | 15 | how often each link is asked while the queue holds |
+| `[hold] limit_s` | 0 to 604800 | 7200 | a hold this long ends the queue |
+| `[hold] after_link_failure` | `hold_then_continue`, `end` | `hold_then_continue` | after a run fails for a link, hold and go on, or end the queue |
+| `[measurement] max_gap_s` | 0 to 3600 | 120 | how long a measurement waits for its readings to resume |
+| `[measurement] min_counts_fraction` | 0 to 1 | 0.2 | after a gap, a main block with fewer of its planned counts fails |
+| `[spool] min_free_mb` | 0 to 10000000 | 500 | the queue waits while the spool's disk has less free |
+| `[spool] max_pending` | whole number, 0 to 1000000 | 200 | the queue waits while more records wait to be sent |
+
+An unknown key or table, or a value out of range, is an error naming it.
+
+### queues/blocks/*.toml
 
 A reusable run sequence the run factory can insert (a blank, an air shot, a
-blank). The `[[runs]]` are exactly as in a queue.
+blank). Blocks are read from `<lab>/queues/blocks/` only; a lab's old
+`<lab>/blocks/` folder is not read, so move its files by hand. The `[[runs]]` are exactly as in a queue.
 
 | Key | Meaning |
 |---|---|
@@ -673,7 +750,9 @@ The plan's name is `[plan] name` (not the file name) and a queue says
 
 Top-level tables (others are errors): `plan`, `hook`, `detectors`,
 `equilibration`, `sniff`, `peak_center`, `baseline`, `main`, `fits`,
-`conditionals`, `whiff`, `parameters`.
+`conditionals`, `whiff`, `parameters`, and for a version 2 plan `segment`
+and `gas` ([Experiments, section 10](04-experiments.md#10-measurement-plans-version-2);
+the table below is the hop plan's).
 
 | Table | Key | Type | Default | Meaning |
 |---|---|---|---|---|
@@ -695,6 +774,7 @@ Top-level tables (others are errors): `plan`, `hook`, `detectors`,
 | | `detector` | text | the reference | |
 | | `isotope` | text | required when before or after | |
 | | `config` | text | `default` | a name from `peak_center.toml` |
+| | `min_signal` | number >= 0 | 0 (no minimum) | the peak centre after the run is skipped when the isotope's last ten readings on the detector average less than this, in the detector's units. The shipped plans set 3.0 and expose it |
 | `[baseline]` | `before`, `after` | true/false | false | |
 | | `counts` | whole number | 0 (>= 1 when used) | |
 | | `mass` | number > 0 | where the magnet is | |
@@ -791,7 +871,7 @@ starter is `configs/examples/notifications.toml.example`. Test with
 | | `queue_user` | true | also the queue's `email` |
 | | `on` | both | `run_failed`, `queue_ended` |
 | `[[webhook]]` | `name`, `url`, `format` (`json` or `slack`), `on` | | |
-| `[[command]]` | `name`, `argv` (list; first is the program), `on` | | the message goes on standard input; `PYCHRON_EVENT`, `PYCHRON_SUBJECT`, `PYCHRON_QUEUE` are set |
+| `[[command]]` | `name`, `argv` (list; first is the program), `on` | | the message goes on standard input; `NOBION_EVENT`, `NOBION_SUBJECT`, `NOBION_QUEUE` are set |
 
 Keep keys and passwords in environment variables (`*_env`), never in the
 file.
@@ -807,13 +887,15 @@ follow the glow. A laser with no table has no camera. Example:
 | `source` | `sim`, `recorded`, `opencv`, `pylon` | `sim` | `pylon` is read and checked, but its driver is not in this build |
 | `use` | `center`, `view` | `center` | `view`: only a picture; nothing it sees moves the stage |
 | `px_per_mm` | number > 0 | 23.0 | picture scale |
+| `beam_diameter_mm` | number, 0 or more | 0 | the beam, mm: a dragonfly keeps it at most a third of its diameter past the hole's edge. 0: not known (a simulated grain's `beam_radius_mm` is used; with none the beam's center stays in the hole) |
 | `flip_x`, `flip_y` | true/false | false, true | which way the picture moves when the stage does |
 | `aim_offset_px` | `[x, y]` | `[0, 0]` | where the beam is, from the picture's centre |
 | `settle_ms` | 0 to 10000 | 200 | after a move, before a frame is trusted |
 | `frames` | text | | `recorded`: the folder of recorded frames, relative to the lab |
 | `[<laser>.opencv]` | `device` (index or file), `width`, `height`, `fps`, `channel` (`luma`, `r`, `g`, `b`), `rotate` (0, 90, 180, 270), `roi` (`[x, y, w, h]`), `timeout_ms` (100 to 60000; 1000) | | a real camera or a video file |
 | `[<laser>.pylon]` | `serial`, `exposure_us`, `gain_db`, `pixel_format`, `packet_size` (576 to 16404), `timeout_ms` | | Basler |
-| `[<laser>.sim]` | `tray_error_mm`, `noise` (0 to 1), `width`, `height`, `grain_offset_mm`, `glow_drift_mm_per_s`, `glow_sigma_mm` | | the simulated camera |
+| `[<laser>.sim]` | `tray_error_mm`, `noise` (0 to 1), `width`, `height`, `surface`, `grain_offset_mm`, `glow_drift_mm_per_s`, `glow_sigma_mm` | | the simulated camera. `surface` is `plain` (default) or `machined`: stainless steel, its holes lit from one side, as a crescent to a threshold. `grain_offset_mm` places the grain; `glow_drift_mm_per_s` and `glow_sigma_mm` are its steady glow, and an error with `[<laser>.sim.grain]` |
+| `[<laser>.sim.grain]` | every key optional, its default a behaviour that is off: `beam_radius_mm` (0.4), `reference_output_percent` (20), `heat_tau_s` (0.5), `cool_tau_s` (1), `glow_exponent` (4), `glow_peak` (0.6), `lobes` (1 to 16; 1), `lobe_sigma_mm` (0.3), `lobe_spread_mm` (0), `lobe_wander_mm_per_rt_s` (0), `lobe_life_s` (0, or 0.1 to 600), `flicker` (0 to 1; 0), `flicker_tau_s` (0.3), `flares_per_s` (0), `flare_gain` (3), `flare_tau_s` (0.3), `dropouts_per_s` (0), `dropout_s` (0.5), `creep_mm_per_s` (`[0, 0]`), `wander_mm_per_rt_s` (0), `jumps_per_s` (0), `jump_mm` (0.3), `grain_radius_mm` (0 to 100; 0, a point), `grain_sides` (3 to 16; 6), `grain_irregularity` (0 to 0.6; 0.3), `body_glow` (0 to 1; 0.4), `melt_mm_per_s` (0 to 10; 0), `min_radius_mm` (0 to 100; 0.1) | | a grain that heats under the beam and glows irregularly, moves and jumps, in place of the steady glow. Its glow follows the beam: a tracker that lets the beam wander sees it dim. Every key is documented in `configs/examples/cameras.toml`; unknown keys and out-of-range values are errors. The numbers are judgement, not measurement. `elctl laser track` ([05 Laser](05-laser.md), section 8.3) takes the same table as `[grain]` in a scenario, and the laser window's Follow (simulated) (section 8.5) watches it |
 | `[<laser>.autocenter]` | `tolerance_mm` (0.03), `max_iterations` (1 to 50; 4), `max_step_mm` (0.5), `frames_per_step` (1 to 15; 3), `on_failure` (`continue` or `fail`; `continue`) | | `fail`: a hole that cannot be centred stops the run before the laser fires |
 
 A simulated camera may only be used over a simulated laser, a live one
@@ -912,7 +994,7 @@ only write one to add an instrument. An instrument
 install gets its own `tables/` (`qtegra` and `ngx` each ship placeholder field
 tables, laid out so the installed `multicollect` plan puts each isotope on its
 detector, not the example lab's), the example line's `sim.toml` when it takes
-the example line, and the `seed.toml` and `experiment.toml` described below
+the example line, and the `seed.toml` and `queues/experiment.toml` described below
 and in [Queue files](#queue-files-experimenttoml).
 
 | Key | Type | Meaning |
@@ -962,7 +1044,7 @@ An answers file for `elctl init --answers file.toml` is `id = value`
 
 ### credentials.toml (data-reduction installs)
 
-`<install root>/.pychron/credentials.toml`, written by the wizard for a
+`<install root>/.nobion/credentials.toml`, written by the wizard for a
 server database, readable only by you. The site file holds the database URL
 without the password; the programs add it when they open the database.
 
@@ -991,7 +1073,7 @@ it has two optional lists of names:
 An empty name or a name given twice in one list is refused. A queue's
 `mass_spectrometer` and `extract_device` (and a run's own extraction device)
 must be in the database, or the queue is not started. The queue that setup
-writes, `experiment.toml` in the install, names only what the seed made.
+writes, `queues/experiment.toml` in the install, names only what the seed made.
 
 ### references.toml (records folders)
 
@@ -1013,9 +1095,9 @@ yours in the per-user `presets/<kind>/`. Format and every setting are in
   the framework (`kind`, `transport`, `channels`, `roles`) and the example
   laser driver only. A key set for a driver that does not declare it is an
   error, so `list-drivers` is the authority.
-- **Measurement plans, version 2.** A design for segments, positions and
-  gases exists (`docs/superpowers/specs/2026-10-05-measurement-plan-v2-design.md`);
-  the code in this release reads the hop-based plans documented above.
+- **Measurement plans, version 2.** Plans of segments, positions and gases
+  are read and run; they are described in
+  [Experiments, section 10](04-experiments.md#10-measurement-plans-version-2).
 - **Source ramping.** The example Qtegra config says source ramping is not
   implemented for that driver: HV and trap current change in one step.
   `[source] ramp` is read, and limits the rate on drivers that support it

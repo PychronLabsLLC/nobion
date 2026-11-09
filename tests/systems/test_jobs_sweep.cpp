@@ -3,14 +3,17 @@
 #include <chrono>
 #include <cmath>
 #include <future>
+#include <mutex>
+#include <optional>
+#include <string>
 
 #include "jobs_fakes.hpp"
-#include "pychron/systems/jobs/sweep.hpp"
+#include "nobion/systems/jobs/sweep.hpp"
 
-using namespace pychron;
-using namespace pychron::jobs;
-using namespace pychron::spectrometer::testing;
-using pychron::spectrometer::ChannelId;
+using namespace nobion;
+using namespace nobion::jobs;
+using namespace nobion::spectrometer::testing;
+using nobion::spectrometer::ChannelId;
 using namespace std::chrono_literals;
 
 namespace {
@@ -215,7 +218,7 @@ TEST(Sweep, CddVoltageAxisDrivesDetectorControl) {
   EXPECT_EQ(r.spec->detector_state("CDD")->cdd_voltage, 1500);
 }
 
-TEST(Sweep, DeflectionAxisRecordsClampedValue) {
+TEST(Sweep, DeflectionAxisPastMaxEndsTheSweep) {
   JobRig r;
   ASSERT_TRUE(r.spec);
   r.acquirer.signal = [](const ChannelId&) { return 1.0; };
@@ -230,8 +233,10 @@ TEST(Sweep, DeflectionAxisRecordsClampedValue) {
   CancelToken cancel;
   auto fut = std::async(std::launch::async, [&] { return sweep.run(*r.spec, s, progress, cancel); });
   auto result = r.drive(fut);
-  ASSERT_TRUE(result.has_value()) << to_string(result.error());
-  expect_near(xs(*result), {700, 800, 800});
+  // 900 is past the detector's max: refused, not run as 800.
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error().kind, ErrorKind::Config);
+  EXPECT_NE(result.error().what.find("900"), std::string::npos) << result.error().what;
 }
 
 TEST(Sweep, BidirectionalVisitsBothDirections) {
@@ -367,4 +372,30 @@ TEST(Sweep, FailedMagnetStepWaitsTheConfiguredSettleBeforeCleanup) {
   EXPECT_EQ(r.clock.now() - start, 500ms);  // the facade's wait; the sweep's own settle never ran
   EXPECT_TRUE(r.sleeps.empty());
   EXPECT_TRUE(sweep.points().empty());
+}
+
+// A sweep holds the field table for its whole run (field table editor spec,
+// section 5): the editor's Save is refused while it measures.
+TEST(Sweep, HoldsTheTableWhileRunning) {
+  JobRig r;
+  ASSERT_TRUE(r.spec);
+  std::mutex seen_mutex;
+  std::vector<std::optional<std::string>> seen;
+  r.acquirer.signal = [&](const ChannelId&) {
+    std::lock_guard lock(seen_mutex);
+    seen.push_back(r.spec->table_held());
+    return 1.0;
+  };
+  SweepSpec s = magnet_sweep(4.0, 5.0, 0.5);
+  s.record = {"H1"};
+  Sweep sweep(Sweep::Options{r.sweep_sleep(), spectrometer::ProtectPolicy::Never});
+  Progress progress;
+  CancelToken cancel;
+  EXPECT_EQ(r.spec->table_held(), std::nullopt);
+  auto fut = std::async(std::launch::async, [&] { return sweep.run(*r.spec, s, progress, cancel); });
+  auto result = r.drive(fut);
+  ASSERT_TRUE(result.has_value()) << to_string(result.error());
+  ASSERT_FALSE(seen.empty());
+  for (const auto& held : seen) EXPECT_EQ(held, std::optional<std::string>("sweep"));
+  EXPECT_EQ(r.spec->table_held(), std::nullopt);
 }

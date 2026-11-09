@@ -32,10 +32,10 @@
 #endif
 
 #include "ooxml.hpp"
-#include "pychron/core/error.hpp"
+#include "nobion/core/error.hpp"
 #include "zip_support.hpp"
 
-namespace pychron::earthbank::ooxml {
+namespace nobion::earthbank::ooxml {
 namespace {
 
 namespace fs = std::filesystem;
@@ -43,7 +43,7 @@ namespace fs = std::filesystem;
 const char* const kArAr = "ArArDataPoint_Template2026.xlsx";
 const char* const kSample = "Sample_Template_v2025-04-16.xlsx";
 
-fs::path template_file(const char* name) { return fs::path(PYCHRON_EARTHBANK_TEMPLATE_DIR) / name; }
+fs::path template_file(const char* name) { return fs::path(NOBION_EARTHBANK_TEMPLATE_DIR) / name; }
 
 std::string slurp(const fs::path& file) {
   std::ifstream in(file, std::ios::binary);
@@ -150,7 +150,7 @@ class Ooxml : public ::testing::Test {
     const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
     // Per process as well as per test: two build trees may run at once.
     dir_ = fs::temp_directory_path() /
-           (std::string("pychron_ooxml_") + info->name() + "_" + std::to_string(process_id()));
+           (std::string("nobion_ooxml_") + info->name() + "_" + std::to_string(process_id()));
     fs::remove_all(dir_);
     fs::create_directories(dir_);
   }
@@ -1439,4 +1439,4 @@ TEST_F(Ooxml, AFillIsASolidOneAndItsColourAsWritten) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank::ooxml
+}  // namespace nobion::earthbank::ooxml

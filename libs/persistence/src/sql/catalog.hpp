@@ -5,13 +5,32 @@
 
 #include <QString>
 
-#include "pychron/persistence/store.hpp"
+#include "nobion/persistence/store.hpp"
 
-namespace pychron::persistence::detail::sql {
+namespace nobion::persistence::detail::sql {
 
+// Sorted by name, not by how it is shown (PI spec 5.1). A lab has tens to
+// hundreds of PIs: read whole.
 inline const QString kPrincipalInvestigators = QStringLiteral(
-    "SELECT uuid, last_name, first_initial, display_name, affiliation, email FROM principal_investigator "
-    "ORDER BY last_name, first_initial, uuid");
+    "SELECT uuid, kind, family_name, given_name, display_name, orcid, ror, affiliation, email "
+    "FROM principal_investigator ORDER BY family_name, given_name, uuid");
+
+// The PI an ORCID names: the partial unique index principal_investigator_orcid.
+inline const QString kPrincipalInvestigatorByOrcid = QStringLiteral(
+    "SELECT uuid, kind, family_name, given_name, display_name, orcid, ror, affiliation, email "
+    "FROM principal_investigator WHERE orcid = ?");
+
+// Namesakes of a family name, case ignored, oldest first; the caller appends
+// the condition on the given name. lower(family_name) has no index and the
+// table is scanned on purpose: a lab has tens to hundreds of PIs, and this
+// runs once a name entered or imported, never per analysis.
+inline const QString kPrincipalInvestigatorsNamed = QStringLiteral(
+    "SELECT uuid, kind, family_name, given_name, display_name, orcid, ror, affiliation, email "
+    "FROM principal_investigator WHERE lower(family_name) = lower(?)");
+inline const QString kGivenNameEmpty = QStringLiteral(" AND given_name = ''");
+inline const QString kGivenNameStartsWith =
+    QStringLiteral(" AND lower(substr(given_name, 1, length(?))) = lower(?)");
+inline const QString kOldestFirst = QStringLiteral(" ORDER BY created_utc, uuid");
 
 inline const QString kProjects = QStringLiteral(
     "SELECT p.uuid, p.name, p.pi_uuid, pi.display_name AS pi_name, p.checkin_date, p.comment, p.lab_contact, "
@@ -144,4 +163,4 @@ inline const QString kSeedCounter = QStringLiteral(
 inline const QString kSetCounter = QStringLiteral("UPDATE identifier_counter SET last_value = ? WHERE scope = ?");
 inline const QString kIdentifierByTextAny = QStringLiteral("SELECT uuid FROM identifier WHERE identifier = ?");
 
-}  // namespace pychron::persistence::detail::sql
+}  // namespace nobion::persistence::detail::sql

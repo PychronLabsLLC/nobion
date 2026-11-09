@@ -12,12 +12,12 @@
 #include <gtest/gtest.h>
 
 #include "laser_harness.hpp"
-#include "pychron/laser/pattern_runner.hpp"
+#include "nobion/laser/pattern_runner.hpp"
 
-using namespace pychron;
-using namespace pychron::extraction;
-using namespace pychron::laser;
-using namespace pychron::laser::harness;
+using namespace nobion;
+using namespace nobion::extraction;
+using namespace nobion::laser;
+using namespace nobion::laser::harness;
 using namespace std::chrono_literals;
 
 namespace {
@@ -57,8 +57,10 @@ struct Rig : LaserHarness {
   CorrectionStore corrections{lab.dir / "stage_corrections"};
   Shutter* shutter = nullptr;
 
-  explicit Rig(CameraConfig camera = glow_camera(0.3, -0.2), const char* hole = "3") {
+  explicit Rig(const CameraConfig& camera =glow_camera(0.3, -0.2), const char* hole = "3",
+               std::function<void(const vision::DragonflyStep&)> observer = {}) {
     system.set_corrections(corrections);
+    system.set_step_observer(std::move(observer));
     auto frames = std::make_unique<Shutter>(std::make_unique<SimTrayCamera>(camera, system.sight(), clock));
     shutter = frames.get();
     EXPECT_TRUE(system.attach_camera(camera, std::move(frames), clock));
@@ -103,6 +105,20 @@ struct Rig : LaserHarness {
 double apart(StageXY a, StageXY b) { return std::hypot(a.x - b.x, a.y - b.y); }
 
 }  // namespace
+
+TEST(Dragonfly, TellsItsObserverEachLook) {
+  int looks = 0, tracks = 0, deadbands = 0;
+  Rig rig(glow_camera(0.3, -0.2), "3", [&](const vision::DragonflyStep& step) {
+    ++looks;
+    if (step.reason == vision::DragonflyStep::Reason::Track) ++tracks;
+    if (step.reason == vision::DragonflyStep::Reason::Deadband) ++deadbands;
+  });
+  ASSERT_TRUE(rig.runner().execute_pattern("track"));
+  ASSERT_TRUE(rig.run_for(8));
+  EXPECT_GT(looks, 2);
+  EXPECT_GE(tracks, 1);
+  EXPECT_GE(deadbands, 1);
+}
 
 TEST(Dragonfly, FollowsAnOffsetGrain) {
   Rig rig;
@@ -362,9 +378,10 @@ TEST(Dragonfly, WithNoDurationAnywhereItIsRefused) {
 }
 
 // The beam is on. With no glow to follow the search spirals outward: never
-// further than the room the hole has before its neighbours (45% of the way to
-// the nearest), whatever the pattern's own perimeter. Hole 7's neighbours are
-// 1.41 mm away.
+// further than the hole allows, short of its neighbours (45% of the way to the
+// nearest) and with the beam within a third of its diameter of the hole's edge,
+// whatever the pattern's own perimeter. Hole 7's neighbours are 1.41 mm away;
+// its radius, 0.5 mm with no beam known, is the nearer limit.
 TEST(Dragonfly, ItsPerimeterIsLimitedToTheRoomItsHoleHas) {
   Rig rig(glow_camera(0, 0), "7");  // (18, 28) on the stage
   rig.shutter->blank = true;        // nothing glows: it will search
@@ -374,10 +391,10 @@ TEST(Dragonfly, ItsPerimeterIsLimitedToTheRoomItsHoleHas) {
   ASSERT_TRUE(done) << done.error().what;
   const auto moves = rig.targets();
   ASSERT_GT(moves.size(), before + 3);
-  const double room = 0.45 * std::sqrt(2.0);
+  const double room = 0.5;
   for (std::size_t i = before; i < moves.size(); ++i) EXPECT_LE(apart(moves[i], {18, 28}), room + 0.001) << i;
   const std::string note = rig.runner().last_note();
-  EXPECT_NE(note.find("0.636"), std::string::npos) << note;              // said: it was held in
+  EXPECT_NE(note.find("0.500"), std::string::npos) << note;              // said: it was held in
   EXPECT_NE(note.find("glow was not seen"), std::string::npos) << note;  // and that it followed nothing
 }
 
@@ -455,4 +472,124 @@ TEST(Dragonfly, ACameraLostIsSaidEvenIfThePatternIsStoppedAfter) {
   ASSERT_TRUE(rig.runner().stop_pattern());
   const std::string note = rig.runner().last_note();
   EXPECT_NE(note.find("camera"), std::string::npos) << note;
+}
+
+// A grain that heats where the beam is, from [sim.grain]. The closed loop:
+// the tracker is followed against the model's own truth.
+namespace {
+
+CameraConfig grain_camera(const vision::GrainParams& grain, double gx, double gy) {
+  CameraConfig c = camera_config(0, 0);
+  c.sim_grain = grain;
+  c.sim_grain_offset_mm = {gx, gy};
+  return c;
+}
+
+// Rig's start (hole 3, beam on at 20 %), over a harness that keeps its
+// SimTrayCamera, so the test can ask where the grain really is.
+struct GrainRig : CameraHarness {
+  explicit GrainRig(CameraConfig seen) : CameraHarness(std::move(seen)) {
+    EXPECT_TRUE(system.move_to_position("3", false));
+    EXPECT_TRUE(conformance::settles(*this, [&] { return system.moving(); }));
+    EXPECT_TRUE(system.enable());
+    EXPECT_TRUE(system.extract(20, ExtractUnits::Percent));
+    EXPECT_TRUE(system.laser()->fire_laser());
+  }
+  IPatternRunner& runner() { return *system.pattern_runner(); }
+  Result<bool> poll() {  // as Rig::run_for: one poll, then 100 ms of clock
+    auto busy = runner().running();
+    if (busy && *busy) clock.advance(100ms);
+    return busy;
+  }
+};
+
+}  // namespace
+
+TEST(Dragonfly, FollowsAGrainThatJumps) {
+  vision::GrainParams p;
+  p.jumps_per_s = 0.2;
+  p.jump_mm = 0.15;
+  GrainRig rig(grain_camera(p, 0.1, 0));
+  ASSERT_NE(rig.sim_camera, nullptr);
+  ASSERT_TRUE(rig.runner().execute_pattern("track"));
+  std::optional<StageXY> last_grain;
+  std::optional<TimePoint> jumped;  // the jump the beam has yet to get back from
+  int jumps = 0;
+  for (;;) {
+    auto busy = rig.poll();
+    ASSERT_TRUE(busy) << busy.error().what;
+    if (!*busy) break;
+    const auto view = rig.sim_camera->observe();
+    ASSERT_TRUE(view);
+    const TimePoint now = rig.clock.now();
+    if (last_grain && apart(view->grain_mm, *last_grain) > 0.05) {  // a jump, not a creep: nothing else moves it
+      ++jumps;
+      jumped = now;
+    }
+    last_grain = view->grain_mm;
+    if (jumped && apart(view->beam_mm, view->grain_mm) <= 0.12) jumped.reset();
+    if (jumped) {
+      EXPECT_LE(now - *jumped, Duration(5s)) << "after the jump at " << jumps;
+    }
+  }
+  EXPECT_GE(jumps, 2);  // the seed gives it something to follow
+}
+
+TEST(Dragonfly, ReacquiresAfterADropout) {
+  vision::GrainParams p;
+  p.dropouts_per_s = 0.1;
+  p.dropout_s = 2;
+  GrainRig rig(grain_camera(p, 0.1, 0));
+  const TimePoint started = rig.clock.now();
+  ASSERT_TRUE(rig.runner().execute_pattern("track"));
+  Result<bool> busy = true;
+  while (busy && *busy && rig.clock.now() - started < Duration(600s)) busy = rig.poll();
+  ASSERT_TRUE(busy) << busy.error().what;
+  EXPECT_FALSE(*busy);
+  EXPECT_EQ(rig.runner().last_note(), "");
+  EXPECT_GE(rig.clock.now() - started, Duration(20s));
+  EXPECT_LT(rig.clock.now() - started, Duration(23s));
+}
+
+// The laser window draws the grain's truth beside what the finder sees.
+TEST(GrainPx, IsWhereTheFrameShowsTheGrain) {
+  for (const bool flipped : {false, true}) {
+    CameraConfig camera = grain_camera(vision::GrainParams{}, 0.25, -0.15);
+    camera.flip_x = flipped;
+    GrainRig rig(camera);
+    (void)rig.system.picture();  // the grain is made at its first look
+    rig.clock.advance(3s);
+    auto seen = rig.system.picture();
+    ASSERT_TRUE(seen) << seen.error().what;
+    const vision::Truth truth = rig.sim_camera->last_truth();
+    ASSERT_TRUE(truth.visible);
+    const auto px = rig.system.grain_px(*seen);
+    ASSERT_TRUE(px.has_value());
+    EXPECT_NEAR(px->x, truth.center_px.x, 0.5);
+    EXPECT_NEAR(px->y, truth.center_px.y, 0.5);
+  }
+}
+
+TEST(GrainPx, AMeasuredScaleDoesNotMoveIt) {
+  GrainRig rig(grain_camera(vision::GrainParams{}, 0.25, -0.15));
+  (void)rig.system.picture();
+  rig.clock.advance(3s);
+  ScaleMeasurement measured;
+  measured.px_per_mm = 11.5;
+  measured.map = vision::CameraStageMap::from_scale(11.5, false, true);
+  rig.system.set_measured_scale(measured);
+  auto seen = rig.system.picture();
+  ASSERT_TRUE(seen) << seen.error().what;
+  const vision::Truth truth = rig.sim_camera->last_truth();
+  const auto px = rig.system.grain_px(*seen);
+  ASSERT_TRUE(px.has_value());
+  EXPECT_NEAR(px->x, truth.center_px.x, 0.5);
+  EXPECT_NEAR(px->y, truth.center_px.y, 0.5);
+}
+
+TEST(GrainPx, NoGrainTableNoTruth) {
+  CameraHarness rig;
+  auto seen = rig.system.picture();
+  ASSERT_TRUE(seen) << seen.error().what;
+  EXPECT_FALSE(rig.system.grain_px(*seen).has_value());
 }

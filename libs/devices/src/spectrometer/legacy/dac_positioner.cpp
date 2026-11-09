@@ -1,11 +1,11 @@
-#include "pychron/devices/spectrometer/legacy/dac_positioner.hpp"
+#include "nobion/devices/spectrometer/legacy/dac_positioner.hpp"
 
 #include <cmath>
 
-#include "pychron/codecs/map215.hpp"
-#include "pychron/devices/spectrometer/legacy/polled_acquirer.hpp"
+#include "nobion/codecs/map215.hpp"
+#include "nobion/devices/spectrometer/legacy/polled_acquirer.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace {
 
@@ -46,7 +46,7 @@ Result<std::unique_ptr<DacPositioner>> DacPositioner::create(const DriverArgs& a
   const double full_scale = o["full_scale"].value_or(10.0);
   if (!(full_scale > 0.0) || !std::isfinite(full_scale)) return fail(ErrorKind::Config, "full_scale must be positive");
 
-  auto output = std::make_unique<Map215Dac>(args.transport, static_cast<int>(range), full_scale);
+  auto output = std::make_unique<Map215Dac>(args.transport, static_cast<int>(range), full_scale, args.link);
   const Limits limits{o["min"].value_or(0.0), o["max"].value_or(full_scale)};
   const Range span = output->span();
   if (!(limits.min < limits.max) || !span.contains(limits.min) || !span.contains(limits.max)) {
@@ -57,18 +57,19 @@ Result<std::unique_ptr<DacPositioner>> DacPositioner::create(const DriverArgs& a
 }
 
 Result<void> DacPositioner::set(double value) {
+  const Operation op = begin("set");
   if (!std::isfinite(value) || !limits_.contains(value)) {
-    return observe(Result<void>(fail(ErrorKind::Config, "dac " + std::to_string(value) + " is outside limits " +
-                                                            format_range(limits_))));
+    return observe(op, Result<void>(fail(ErrorKind::Config, "dac " + std::to_string(value) + " is outside limits " +
+                                                                format_range(limits_))));
   }
   auto written = output_->write(value);
-  if (!written) return observe(Result<void>(fail(std::move(written).error())));
+  if (!written) return observe(op, Result<void>(fail(std::move(written).error())));
   cached_.store(*written);
-  return observe(Result<void>{});
+  return observe(op, Result<void>{});
 }
 
 Result<double> DacPositioner::read() { return cached_.load(); }
 
 REGISTER_DRIVER("dac_positioner", DacPositioner);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

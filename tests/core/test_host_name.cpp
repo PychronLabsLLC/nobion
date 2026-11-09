@@ -8,13 +8,13 @@
 #include <unistd.h>
 #endif
 
-#include "pychron/core/host_name.hpp"
+#include "nobion/core/host_name.hpp"
 
 // The machine's name comes from the machine, not from HOSTNAME, which a
 // shell sets for itself and rarely exports: with it every program was
 // "localhost" to the database.
 TEST(HostName, IsTheMachinesAndNeverEmpty) {
-  const std::string name = pychron::host_name();
+  const std::string name = nobion::host_name();
   EXPECT_FALSE(name.empty());
 #ifndef _WIN32
   std::array<char, 256> buf{};
@@ -24,8 +24,8 @@ TEST(HostName, IsTheMachinesAndNeverEmpty) {
   }
   // HOSTNAME has no say.
   ::setenv("HOSTNAME", "not-this-machine", 1);
-  EXPECT_EQ(pychron::host_name(), name);
+  EXPECT_EQ(nobion::host_name(), name);
   ::unsetenv("HOSTNAME");
-  EXPECT_EQ(pychron::host_name(), name);
+  EXPECT_EQ(nobion::host_name(), name);
 #endif
 }

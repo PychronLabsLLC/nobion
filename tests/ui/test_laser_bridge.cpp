@@ -1,26 +1,36 @@
 // LaserBridge on the example lab's simulated laser (laser window design,
 // section 5).
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
 #include <ranges>
+#include <sstream>
+#include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
 #include <QCoreApplication>
+#include <QTemporaryDir>
 #include <QtTest/QtTest>
 
 #include "laser_fixture.hpp"
-#include "pychron/core/clock.hpp"
-#include "pychron/core/virtual_clock.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/process_log.hpp"
+#include "nobion/core/virtual_clock.hpp"
 
-using namespace pychron;
-using namespace pychron::ui;
-using pychron::experiment::lab::Lasers;
+using namespace nobion;
+using namespace nobion::ui;
+using nobion::experiment::lab::Lasers;
 
 namespace {
 
@@ -234,6 +244,279 @@ class LaserBridgeTest : public QObject {
     QCOMPARE(bridge_->state().activity, laser::LaserActivity::Idle);
   }
 
+ private:
+  // Follow (simulated): the dragonfly grain simulator design, section 8.
+  void build_to_follow(const std::function<void(const std::filesystem::path&)>& prepare = {},
+                       const std::function<bool(std::string_view)>& simulated = {}) {
+    cleanup();
+    lab_ = std::make_unique<test::SimLaserLab>(
+        50,
+        [&prepare](const std::filesystem::path& dir) {
+          test::add_long_dragonfly(dir);
+          if (prepare) prepare(dir);
+        },
+        simulated);
+    bridge_ = std::make_unique<LaserBridge>(lab_->deps([this] { ++aborts_; }));
+    heard_ = std::make_unique<Heard>(*bridge_);
+    aborts_ = 0;
+  }
+  // A spiral from the stage's corner would leave its travel at once.
+  void on_a_hole() {
+    bridge_->set_tray(QStringLiteral("example-9"));
+    bridge_->go_to(QStringLiteral("5"), false);
+    test::settle(*bridge_);
+    QVERIFY2(heard_->ok("go_to"), qPrintable(heard_->why("go_to")));
+  }
+  bool ever_sent(const char* command) {
+    const auto log = lab_->sim().log();
+    return std::ranges::any_of(log, [command](const std::string& line) { return line.starts_with(command); });
+  }
+  bool laser_is_off() {
+    return !lab_->sim().firing() && !lab_->sim().enabled() && lab_->sim().output() == 0.0;
+  }
+
+  void following() {
+    build_to_follow();
+    on_a_hole();
+    bridge_->follow_simulated(QStringLiteral("watch"), 20);
+    QTRY_VERIFY(lab_->sim().firing());
+    QTRY_VERIFY(lab_->system().looking());
+  }
+  void stopped_and_off(const char* by) {
+    test::settle(*bridge_);
+    QCOMPARE(heard_->result("follow_simulated")->error().kind, ErrorKind::Cancelled);
+    QVERIFY(heard_->ok(by));
+    QVERIFY(laser_is_off());
+    QVERIFY(!lab_->system().looking());
+  }
+
+ private slots:
+  void a_simulated_laser_offers_to_follow() { QVERIFY(bridge_->offers_simulated_follow()); }
+
+  void a_real_laser_does_not_offer_to_follow_and_refuses_it() {
+    build_to_follow({}, [](std::string_view) { return false; });
+    QVERIFY(!bridge_->offers_simulated_follow());
+    bridge_->follow_simulated(QStringLiteral("watch"), 20);
+    test::settle(*bridge_);
+    QVERIFY2(heard_->why("follow_simulated").contains("simulated"), qPrintable(heard_->why("follow_simulated")));
+    QVERIFY(!lab_->sim().enabled());
+    QVERIFY(!ever_sent("Laser.Fire"));
+  }
+
+  void a_camera_for_looking_does_not_offer_to_follow() {
+    build_to_follow([](const std::filesystem::path& dir) {
+      const auto file = dir / "cameras.toml";
+      std::ifstream in(file);
+      std::stringstream text;
+      text << in.rdbuf();
+      in.close();
+      std::string cameras = text.str();
+      const auto at = cameras.find("\nuse = \"center\"");
+      QVERIFY(at != std::string::npos);
+      cameras.replace(at, 15, "\nuse = \"view\"");
+      std::ofstream(file) << cameras;
+    });
+    QVERIFY(bridge_->has_camera());
+    QVERIFY(!bridge_->offers_simulated_follow());
+  }
+
+  void only_a_dragonfly_is_followed() {
+    bridge_->follow_simulated(QStringLiteral("hexagon"), 20);
+    bridge_->follow_simulated(QStringLiteral("nope"), 20);
+    test::settle(*bridge_);
+    QVERIFY2(heard_->why("follow_simulated").contains("not a dragonfly"), qPrintable(heard_->why("follow_simulated")));
+    QVERIFY(!ever_sent("Laser.Fire"));
+  }
+
+  double perimeter_of_a_follow(double fence_mm) {
+    std::vector<laser::FollowSample> rows;
+    QObject guard;
+    connect(bridge_.get(), &LaserBridge::followSamples, &guard,
+            [&rows](const std::vector<laser::FollowSample>& got) { rows.insert(rows.end(), got.begin(), got.end()); });
+    bridge_->follow_simulated(QStringLiteral("follow"), 20, fence_mm);
+    test::settle(*bridge_);
+    QCoreApplication::processEvents();
+    return rows.empty() ? 0.0 : rows.front().step.perimeter_mm;
+  }
+
+  void the_fence_is_set_and_the_hole_limits_it() {
+    on_a_hole();
+    const double room = bridge_->state().hole_room_mm;
+    QVERIFY(room > 0);
+    const double held = perimeter_of_a_follow(0.5 * room);
+    QVERIFY(std::abs(held - 0.5 * room) < 1e-9);
+    const double capped = perimeter_of_a_follow(100);  // the second on this hole: it is still known
+    QVERIFY(std::abs(capped - room) < 1e-9);
+    QCOMPARE(bridge_->state().last_hole, std::string("5"));
+    bridge_->jog(0.1, 0, 0);
+    test::settle(*bridge_);
+    QTRY_COMPARE(bridge_->state().hole_room_mm, 0.0);  // off the hole, for all it knows
+  }
+
+  void a_reset_is_refused_on_a_real_laser() {
+    build_to_follow({}, [](std::string_view) { return false; });
+    bridge_->reset_simulation(false);
+    test::settle(*bridge_);
+    QVERIFY2(heard_->why("reset_simulation").contains("simulated"), qPrintable(heard_->why("reset_simulation")));
+  }
+
+  void a_reset_goes_back_to_the_last_hole() {
+    on_a_hole();
+    const auto hole = lab_->sim().position();
+    bridge_->follow_simulated(QStringLiteral("follow"), 20);
+    test::settle(*bridge_);
+    QVERIFY2(heard_->ok("follow_simulated"), qPrintable(heard_->why("follow_simulated")));
+    bridge_->reset_simulation(false);
+    test::settle(*bridge_);
+    QVERIFY2(heard_->ok("reset_simulation"), qPrintable(heard_->why("reset_simulation")));
+    QCOMPARE(lab_->sim().position().x, hole.x);
+    QCOMPARE(lab_->sim().position().y, hole.y);
+  }
+
+  void a_jog_means_no_hole_to_go_back_to() {
+    on_a_hole();
+    bridge_->jog(0.4, 0.3, 0);
+    test::settle(*bridge_);
+    const auto moved = lab_->sim().position();
+    bridge_->reset_simulation(false);
+    test::settle(*bridge_);
+    QVERIFY2(heard_->ok("reset_simulation"), qPrintable(heard_->why("reset_simulation")));
+    QCOMPARE(lab_->sim().position().x, moved.x);
+  }
+
+  void a_follow_fires_at_its_output_and_ends_off() {
+    on_a_hole();
+    bridge_->follow_simulated(QStringLiteral("follow"), 20);
+    QTRY_VERIFY(lab_->sim().firing());
+    QCOMPARE(lab_->sim().output(), 20.0);
+    test::settle(*bridge_);
+    QVERIFY2(heard_->ok("follow_simulated"), qPrintable(heard_->why("follow_simulated")));
+    QVERIFY(laser_is_off());
+  }
+
+  void stopping_the_pattern_turns_the_follow_off() {
+    following();
+    bridge_->stop_pattern();
+    stopped_and_off("stop_pattern");
+  }
+
+  void stopping_the_beam_turns_the_follow_off() {
+    following();
+    bridge_->stop_beam();
+    stopped_and_off("stop_beam");
+  }
+
+  void stopping_the_stage_turns_the_follow_off() {
+    following();
+    bridge_->stop_stage();
+    stopped_and_off("stop_stage");
+  }
+
+  void an_emergency_stop_turns_the_follow_off() {
+    following();
+    bridge_->emergency_stop();
+    stopped_and_off("emergency_stop");
+    QCOMPARE(aborts_, 1);
+  }
+
+  void a_bridge_that_goes_turns_the_follow_off() {
+    following();
+    heard_.reset();
+    bridge_.reset();
+    QVERIFY(laser_is_off());
+  }
+
+  void a_stage_that_fails_turns_the_follow_off() {
+    build_to_follow();
+    on_a_hole();
+    for (int i = 0; i < 8; ++i) lab_->sim().fail_next("Stage.MoveTo", 4);  // the line's transport tries again
+    bridge_->follow_simulated(QStringLiteral("watch"), 20);
+    test::settle(*bridge_);
+    QVERIFY2(heard_->why("follow_simulated").contains("pattern watch"), qPrintable(heard_->why("follow_simulated")));
+    QVERIFY(ever_sent("Laser.Fire"));
+    QVERIFY(laser_is_off());
+  }
+
+  void a_refused_fire_leaves_the_laser_off() {
+    build_to_follow();
+    lab_->sim().trip_interlock("Door");
+    bridge_->follow_simulated(QStringLiteral("watch"), 20);
+    test::settle(*bridge_);
+    QVERIFY(!heard_->why("follow_simulated").isEmpty());
+    QVERIFY(!lab_->sim().firing());
+    QVERIFY(!lab_->sim().enabled());
+  }
+
+  void a_beam_that_will_not_stop_is_closed_by_the_disable() {
+    following();
+    for (int i = 0; i < 2; ++i) lab_->sim().fail_next("Laser.Stop", 4);  // end_extract's own is refused
+    bridge_->stop_pattern();
+    test::settle(*bridge_);
+    QVERIFY(laser_is_off());
+  }
+
+  void follow_reaches_the_main_thread() {
+    build_to_follow(test::add_grain);
+    on_a_hole();
+    std::vector<laser::FollowSample> rows;
+    bool on_main = true;
+    connect(bridge_.get(), &LaserBridge::followSamples, this,
+            [&rows, &on_main](const std::vector<laser::FollowSample>& got) {
+              on_main = on_main && QThread::currentThread() == QCoreApplication::instance()->thread();
+              rows.insert(rows.end(), got.begin(), got.end());
+            });
+    bridge_->follow_simulated(QStringLiteral("watch"), 20);
+    QTRY_VERIFY(rows.size() >= 2);
+    QVERIFY(on_main);
+    QVERIFY(rows.back().step.elapsed_s > rows.front().step.elapsed_s);
+    bridge_->stop_pattern();
+    test::settle(*bridge_);
+    QVERIFY(laser_is_off());
+  }
+
+  void a_bridge_gone_with_a_dragonfly_running_is_safe() {
+    following();
+    bridge_.reset();  // mid-Follow: the observer goes first, the worker next
+    heard_.reset();
+    QCoreApplication::processEvents();
+  }
+
+  void the_grain_is_shown_only_while_something_looks_for_it() {
+    build_to_follow(test::add_grain);
+    on_a_hole();
+    int with = 0, without = 0;
+    connect(bridge_.get(), &LaserBridge::view, this,
+            [&with, &without](const laser::CameraView& seen) { ++(seen.grain_px ? with : without); });
+    bridge_->add_viewer();
+    QTRY_VERIFY(without > 0);
+    QCOMPARE(with, 0);
+    bridge_->follow_simulated(QStringLiteral("watch"), 20);
+    QTRY_VERIFY(with > 0);
+    bridge_->stop_pattern();
+    test::settle(*bridge_);
+    bridge_->remove_viewer();
+    QVERIFY(laser_is_off());
+  }
+
+  void no_grain_table_no_grain_shown() {
+    build_to_follow();
+    on_a_hole();
+    int with = 0, frames = 0;
+    connect(bridge_.get(), &LaserBridge::view, this, [&with, &frames](const laser::CameraView& seen) {
+      ++frames;
+      if (seen.grain_px) ++with;
+    });
+    bridge_->add_viewer();
+    bridge_->follow_simulated(QStringLiteral("watch"), 20);
+    QTRY_VERIFY(lab_->system().looking());
+    const int at = frames;
+    QTRY_VERIFY(frames > at + 2);
+    bridge_->stop_pattern();
+    test::settle(*bridge_);
+    bridge_->remove_viewer();
+    QCOMPARE(with, 0);
+  }
+
   void an_unknown_pattern_is_refused() {
     bridge_->run_pattern(QStringLiteral("nope"));
     test::settle(*bridge_);
@@ -339,15 +622,8 @@ class LaserBridgeTest : public QObject {
   // came up short on one whose timed waits overrun. The finder is not run on
   // the picture: that is for a centering or a dragonfly, while one runs.
   void the_picture_is_shown_as_video() {
-    heard_.reset();
-    bridge_.reset();
-    video_clock_ = std::make_unique<VirtualClock>();
-    on_video_clock_.emplace(*video_clock_, "test");
-    auto deps = lab_->deps();
-    deps.video_clock = video_clock_.get();
-    const auto period = deps.video;
-    bridge_ = std::make_unique<LaserBridge>(std::move(deps));
-    heard_ = std::make_unique<Heard>(*bridge_);
+    const auto period = on_a_video_clock();
+    bridge_->add_viewer();  // a window shows it
 
     int frames = 0, with_target = 0;
     std::uint64_t last_seq = 0;
@@ -362,21 +638,12 @@ class LaserBridgeTest : public QObject {
     });
     // Every frame taken so far is shown: the video thread is asleep in the
     // clock again (waited for in real time), and what it posted is delivered.
-    const auto shown = [&] {
-      const bool asleep = QTest::qWaitFor([&] { return video_clock_->waiters() == 1; }, 20000);
-      QCoreApplication::processEvents();
-      return asleep;
-    };
-    // The frames of one second of the video clock, a period at a time as the
-    // window's event loop would see them; -1 if the video thread stopped.
     const auto a_second = [&] {
       const int before = frames;
-      for (auto t = std::chrono::milliseconds(0); t < std::chrono::seconds(1); t += period) {
-        video_clock_->sleep_for(period);
-        if (!shown()) return -1;
-      }
+      if (!video_second(period)) return -1;
       return frames - before;
     };
+    const auto shown = [this] { return video_shown(); };
     const int every_second = static_cast<int>(std::chrono::seconds(1) / period);
     QCOMPARE(every_second, 25);
 
@@ -401,7 +668,87 @@ class LaserBridgeTest : public QObject {
     QCOMPARE(with_target, 0);
   }
 
+  // No laser view open: the video thread takes no frames, so the camera
+  // never reads the stage for one and the log is not filled with it.
+  void noFramesWithoutAViewer() {
+    QTemporaryDir tmp;
+    const auto hub = log_hub(tmp, LogLevel::Trace);
+    const ProcessLogScope scope(hub);
+    rebuild_lab();  // its devices take their loggers from the hub above
+    const auto period = on_a_video_clock();
+    QVERIFY(video_second(period));
+    QCOMPARE(heard_->views, 0);
+    hub->flush();
+    const std::string log = slurp(hub->file_path());
+    QCOMPARE(count_lines(log, "[laser.video] device."), 0);
+  }
+
+  // Frames flow while a view is open, at the configured rate; the first at
+  // once, not a period later. Closed, they stop.
+  void framesWhileAViewerIsOpen() {
+    const auto period = on_a_video_clock();
+    const int every_second = static_cast<int>(std::chrono::seconds(1) / period);
+    QVERIFY(video_shown());
+    QCOMPARE(heard_->views, 0);
+    bridge_->add_viewer();
+    QVERIFY(video_shown());
+    QCOMPARE(heard_->views, 1);  // no time has passed
+    int before = heard_->views;
+    QVERIFY(video_second(period));
+    QCOMPARE(heard_->views - before, every_second);
+    bridge_->remove_viewer();
+    before = heard_->views;
+    QVERIFY(video_second(period));
+    QCOMPARE(heard_->views - before, 0);
+    // and open again: at once
+    bridge_->add_viewer();
+    QVERIFY(video_shown());
+    QCOMPARE(heard_->views - before, 1);
+    QVERIFY(video_second(period));
+    QCOMPARE(heard_->views - before, 1 + every_second);
+    bridge_->remove_viewer();
+  }
+
+  // Frames are polling: their device calls are logged at trace, so a log at
+  // debug does not get 25 lines a second from them.
+  void videoDeviceCallsAreTrace() {
+    QTemporaryDir tmp;
+    const auto hub = log_hub(tmp, LogLevel::Debug);
+    const ProcessLogScope scope(hub);
+    rebuild_lab();
+    const auto period = on_a_video_clock();
+    bridge_->add_viewer();
+    QVERIFY(video_second(period));
+    QVERIFY(heard_->views > 0);
+    hub->flush();
+    QCOMPARE(count_lines(slurp(hub->file_path()), "[debug] [laser.video] device."), 0);
+    // They are there at trace: what was left out above was there to leave out.
+    hub->set_level("device", LogLevel::Trace);
+    QVERIFY(video_second(period));
+    hub->flush();
+    QVERIFY(count_lines(slurp(hub->file_path()), "[trace] [laser.video] device.co2: position") > 0);
+    bridge_->remove_viewer();
+  }
+
+  // A bridge whose video thread waits for a viewer goes at once, on either
+  // clock.
+  void destroyedWhilePausedReturnsPromptly() {
+    const auto bound = std::chrono::seconds(5);
+    QTest::qWait(100);  // the video thread (real time) is waiting for a viewer
+    auto started = std::chrono::steady_clock::now();
+    heard_.reset();
+    bridge_.reset();
+    QVERIFY(std::chrono::steady_clock::now() - started < bound);
+    (void)on_a_video_clock();
+    QVERIFY(video_shown());
+    started = std::chrono::steady_clock::now();
+    heard_.reset();
+    bridge_.reset();
+    QVERIFY(std::chrono::steady_clock::now() - started < bound);
+  }
+
   void publishes_snapshots_and_views() {
+    bridge_->add_viewer();
     QTRY_VERIFY(heard_->snapshots.size() >= 3);
     QTRY_VERIFY(heard_->views >= 3);
     QCOMPARE(heard_->snapshots.back().device, std::string("co2"));
@@ -545,6 +892,68 @@ class LaserBridgeTest : public QObject {
   }
 
  private:
+  // The lab again, from scratch (after a process log hub is set).
+  void rebuild_lab() {
+    cleanup();
+    lab_ = std::make_unique<test::SimLaserLab>(50);
+    bridge_ = std::make_unique<LaserBridge>(lab_->deps([this] { ++aborts_; }));
+    heard_ = std::make_unique<Heard>(*bridge_);
+  }
+  // The bridge again, its video thread on a clock of the test's own which
+  // this thread takes part in. Returns the video period.
+  std::chrono::milliseconds on_a_video_clock() {
+    heard_.reset();
+    bridge_.reset();
+    on_video_clock_.reset();
+    video_clock_ = std::make_unique<VirtualClock>();
+    on_video_clock_.emplace(*video_clock_, "test");
+    auto deps = lab_->deps();
+    deps.video_clock = video_clock_.get();
+    const auto period = deps.video;
+    bridge_ = std::make_unique<LaserBridge>(std::move(deps));
+    heard_ = std::make_unique<Heard>(*bridge_);
+    return period;
+  }
+  // Every frame taken so far is shown: the video thread is asleep in the
+  // clock again (waited for in real time), and what it posted is delivered.
+  bool video_shown() {
+    const bool asleep = QTest::qWaitFor([this] { return video_clock_->waiters() == 1; }, 20000);
+    QCoreApplication::processEvents();
+    return asleep;
+  }
+  // One second of the video clock, a period at a time as the window's event
+  // loop would see it; false if the video thread stopped.
+  bool video_second(std::chrono::milliseconds period) {
+    for (auto t = std::chrono::milliseconds(0); t < std::chrono::seconds(1); t += period) {
+      video_clock_->sleep_for(period);
+      if (!video_shown()) return false;
+    }
+    return true;
+  }
+  static std::shared_ptr<LogHub> log_hub(const QTemporaryDir& dir, LogLevel level) {
+    config::LoggingConfig cfg;
+    cfg.dir = std::filesystem::path(dir.path().toStdString());
+    cfg.default_level = level;
+    auto created = LogHub::create(cfg, steady_);
+    if (!created) qFatal("no log hub: %s", to_string(created.error()).c_str());
+    return std::move(*created);
+  }
+  static std::string slurp(const std::filesystem::path& path) {
+    std::ifstream in(path);
+    std::ostringstream out;
+    out << in.rdbuf();
+    return out.str();
+  }
+  static int count_lines(const std::string& text, std::string_view needle) {
+    int n = 0;
+    std::istringstream in(text);
+    for (std::string line; std::getline(in, line);) {
+      if (line.find(needle) != std::string::npos) ++n;
+    }
+    return n;
+  }
+
+  static inline SteadyClock steady_;
   std::unique_ptr<test::SimLaserLab> lab_;
   // A clock for a bridge's video thread, and this thread's part in it: after
   // the bridge in cleanup(), which waits for that thread through it.

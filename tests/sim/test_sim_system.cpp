@@ -1,4 +1,4 @@
-#include "pychron/sim/sim_system.hpp"
+#include "nobion/sim/sim_system.hpp"
 
 #include <chrono>
 #include <cmath>
@@ -12,22 +12,23 @@
 
 #include <map>
 
-#include "pychron/sim/gas.hpp"
+#include "nobion/codecs/thermo_qtegra.hpp"
+#include "nobion/sim/gas.hpp"
 
-#include "pychron/devices/heater.hpp"
+#include "nobion/devices/heater.hpp"
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/devices/gp_microion.hpp"
-#include "pychron/devices/pfeiffer_maxigauge.hpp"
-#include "pychron/devices/agilent_switch.hpp"
-#include "pychron/devices/channel_gauge.hpp"
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/devices/proxr_relay.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/devices/gp_microion.hpp"
+#include "nobion/devices/pfeiffer_maxigauge.hpp"
+#include "nobion/devices/agilent_switch.hpp"
+#include "nobion/devices/channel_gauge.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/devices/proxr_relay.hpp"
+#include "nobion/transport/sim_transport.hpp"
 
 namespace {
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 using sim::SimSystem;
 
@@ -1475,4 +1476,177 @@ transport = "laser_pc"
   EXPECT_EQ(sim.chromium("laser")->position().x, 5000);
   EXPECT_EQ(sim.chromium("laser_pc"), nullptr);
   EXPECT_EQ(sim.chromium("nope"), nullptr);
+}
+
+// ---- the cryotrap (staged gas release, measurement plan v2 spec 11) -----------
+
+namespace {
+
+constexpr const char* kCryoConfig = R"(
+[system]
+name = "t"
+
+[transports.cryostat]
+kind = "sim"
+
+[drivers.cryostat]
+kind = "lakeshore"
+transport = "cryostat"
+)";
+
+constexpr std::size_t kHe4 = sim::index(Species::He4);
+constexpr std::size_t kNe20 = sim::index(Species::Ne20);
+
+}  // namespace
+
+// He and Ne frozen in a trap behind a valve: at 20 K neither leaves; at 35 K
+// He does and Ne stays; at 75 K both.
+TEST(SimCryoTrap, HoldsBelowReleaseTemperature) {
+  auto cfg = config::load_system_config_from_string(kCryoConfig, "t.toml");
+  ASSERT_TRUE(cfg) << cfg.error().what;
+  ManualClock clock;
+  auto settings = quiet();
+  settings.default_pressure = 0.0;
+  settings.cryo_traps.push_back({"a", "cryostat", 'A', {{"He4", 30.0}, {"Ne20", 70.0}}});
+  SimSystem sim(clock, two_volumes(), settings);
+  (void)sim.hook_for(cfg->drivers.at("cryostat"), *cfg);
+  auto* cryostat = sim.cryostat("cryostat");
+  ASSERT_NE(cryostat, nullptr);
+  Composition gas{};
+  gas[kHe4] = 1e-4;
+  gas[kNe20] = 2e-4;
+  ASSERT_TRUE(sim.inject("a", gas));
+
+  const auto at = [&](double kelvin) {
+    // Held there: the controller's input as it reads now, at each step.
+    cryostat->set_temperature('A', kelvin);
+    sim.set_valve("V", true);
+    for (int i = 0; i < 60; ++i) {
+      clock.advance(1s);
+      cryostat->set_temperature('A', kelvin);
+      (void)sim.pressure("a");
+    }
+    sim.set_valve("V", false);
+    return *sim.partial_pressures("b");
+  };
+  auto b = at(20.0);
+  EXPECT_EQ(b[kHe4], 0.0);
+  EXPECT_EQ(b[kNe20], 0.0);
+  b = at(35.0);
+  EXPECT_GT(b[kHe4], 1e-4 / 0.1 * 0.4);  // half of it, in 50 + 50 cc
+  EXPECT_EQ(b[kNe20], 0.0);
+  b = at(75.0);
+  EXPECT_GT(b[kNe20], 2e-4 / 0.1 * 0.4);
+}
+
+// A trap whose cryostat the line has no driver for holds nothing.
+TEST(SimCryoTrap, WithoutItsCryostatATrapHoldsNothing) {
+  ManualClock clock;
+  auto settings = quiet();
+  settings.default_pressure = 0.0;
+  settings.cryo_traps.push_back({"a", "nope", 'A', {{"He4", 300.0}}});
+  SimSystem sim(clock, two_volumes(), settings);
+  Composition gas{};
+  gas[kHe4] = 1e-4;
+  ASSERT_TRUE(sim.inject("a", gas));
+  sim.set_valve("V", true);
+  clock.advance(60s);
+  EXPECT_GT((*sim.partial_pressures("b"))[kHe4], 0.0);
+}
+
+// What a trap lets through does not depend on how often anyone asks: the
+// line moves in whole seconds, each held as at its start.
+TEST(SimCryoTrap, WhatPassesDoesNotDependOnHowOftenTheLineIsAsked) {
+  auto cfg = config::load_system_config_from_string(kCryoConfig, "t.toml");
+  ASSERT_TRUE(cfg) << cfg.error().what;
+  const auto passed = [&](Duration every) {
+    ManualClock clock;
+    auto settings = quiet();
+    settings.default_pressure = 0.0;
+    settings.cryo_traps.push_back({"a", "cryostat", 'A', {{"He4", 30.0}}});
+    SimSystem sim(clock, two_volumes(), settings);
+    (void)sim.hook_for(cfg->drivers.at("cryostat"), *cfg);
+    // 40 K, falling to its 10 K base: helium flows until about 66 s, then freezes.
+    sim.cryostat("cryostat")->set_temperature('A', 40.0);
+    Composition gas{};
+    gas[kHe4] = 1e-4;
+    EXPECT_TRUE(sim.inject("a", gas));
+    sim.set_valve("V", true);
+    while (clock.now() < TimePoint{} + 120s) {
+      clock.advance(every);
+      (void)sim.pressure("a");
+    }
+    return (*sim.partial_pressures("b"))[kHe4];
+  };
+  const double often = passed(100ms);
+  const double once = passed(120s);
+  EXPECT_GT(once, 0.0);
+  EXPECT_NEAR(often, once, once * 1e-9);
+}
+
+TEST(SimSystem, JoinQtegraBothDriversOnOneModel) {
+  // One Qtegra PC answering the line's valves and gauges (and, under sim
+  // serve, the spectrometer): each driver joined to one model.
+  auto cfg = config::load_system_config_from_string(R"(
+[system]
+name = "t"
+[transports.qtegra]
+kind = "sim"
+[drivers.switch_controller]
+kind = "qtegra_valves"
+transport = "qtegra"
+[drivers.ms_gauges]
+kind = "qtegra_gauges"
+transport = "qtegra"
+parameters = ["Ion Gauge MS Readback"]
+[[valves]]
+name = "A"
+actuator = "switch_controller"
+address = "Valve 1_1 Set"
+[[gauges]]
+name = "MS_IG"
+driver = "ms_gauges"
+channel = 1
+)",
+                                                    "t.toml");
+  ASSERT_TRUE(cfg) << cfg.error().what;
+  ManualClock clock;
+  SimSystem sim(clock, three_volumes(), quiet());
+  auto model = std::make_shared<spectrometer::QtegraSimModel>();
+  sim.join_qtegra(*model, cfg->drivers.at("switch_controller"), *cfg);
+  sim.join_qtegra(*model, cfg->drivers.at("ms_gauges"), *cfg);
+  auto hook = spectrometer::qtegra_sim_hook(model);
+  hook(to_bytes("Open Valve 1_1 Set\r"));
+  EXPECT_TRUE(sim.valve_open("A"));
+  const auto reading = hook(to_bytes("GetParameter Ion Gauge MS Readback\r"));
+  EXPECT_EQ(reading, codec::qtegra::encode_number(*sim.gauge_reading("MS_IG"))) << to_string(reading);
+}
+
+TEST(SimSystem, JoinNgxMovesValves) {
+  auto cfg = config::load_system_config_from_string(R"(
+[system]
+name = "t"
+[transports.ngx]
+kind = "sim"
+[drivers.ngx_valves]
+kind = "ngx_valves"
+transport = "ngx"
+[[valves]]
+name = "A"
+actuator = "ngx_valves"
+address = "1"
+inverted = true
+)",
+                                                    "t.toml");
+  ASSERT_TRUE(cfg) << cfg.error().what;
+  ManualClock clock;
+  SimSystem sim(clock, three_volumes(), quiet());
+  auto model = std::make_shared<spectrometer::NgxSimModel>();
+  model->banner_pending = false;
+  sim.join_ngx(*model, cfg->drivers.at("ngx_valves"), *cfg);
+  auto hook = spectrometer::ngx_sim_hook(model);
+  hook(to_bytes("CloseValve 1\r"));
+  EXPECT_TRUE(sim.valve_open("A"));  // inverted
+  hook(to_bytes("OpenValve 1\r"));
+  EXPECT_FALSE(sim.valve_open("A"));
 }

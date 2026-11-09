@@ -1,8 +1,8 @@
-#include "pychron/transport/trace_recorder.hpp"
+#include "nobion/transport/trace_recorder.hpp"
 
 #include <fstream>
 
-namespace pychron {
+namespace nobion {
 
 namespace {
 
@@ -60,10 +60,10 @@ Health TraceRecorder::health() const { return inner_->health(); }
 // never held while waiting for the bus. Holding a recorder-wide lock across
 // the inner call would deadlock against a transaction running on the bus.
 
-Result<Bytes> TraceRecorder::exchange(Bytes tx, ReadSpec rs, Duration timeout) {
+Result<Bytes> TraceRecorder::exchange(Bytes tx, ReadSpec rs, Duration timeout, Resend resend) {
   return transact(*inner_, [&]() -> Result<Bytes> {
     record(TraceRecord::Dir::Tx, tx);
-    auto r = inner_->exchange(std::move(tx), std::move(rs), timeout);
+    auto r = inner_->exchange(std::move(tx), std::move(rs), timeout, resend);
     if (r) {
       record(TraceRecord::Dir::Rx, *r);
     } else {
@@ -77,6 +77,15 @@ Result<void> TraceRecorder::write(Bytes tx) {
   return transact(*inner_, [&]() -> Result<void> {
     record(TraceRecord::Dir::Tx, tx);
     auto r = inner_->write(std::move(tx));
+    if (!r) record_error(r.error());
+    return r;
+  });
+}
+
+Result<void> TraceRecorder::write_secret(Bytes tx) {
+  return transact(*inner_, [&]() -> Result<void> {
+    record_withheld(tx.size());
+    auto r = inner_->write_secret(std::move(tx));
     if (!r) record_error(r.error());
     return r;
   });
@@ -121,6 +130,19 @@ void TraceRecorder::record(TraceRecord::Dir dir, const Bytes& data) {
     wire_log_->trace(std::string(dir == TraceRecord::Dir::Tx ? "tx " : "rx ") + wire_text(data));
 }
 
+void TraceRecorder::record_withheld(std::size_t count) {
+  std::lock_guard lock(mutex_);  // guards the sink only
+  if (sink_) {
+    const auto at = std::chrono::duration_cast<std::chrono::microseconds>(clock_->now() - start_);
+    TraceRecord rec{at, TraceRecord::Dir::Tx, {}, {}};
+    rec.withheld = count;
+    *sink_ << format_trace_record(rec) << '\n';
+    sink_->flush();
+  }
+  if (wire_log_ && wire_log_->enabled(LogLevel::Trace))
+    wire_log_->trace("tx " + std::to_string(count) + "B withheld");
+}
+
 void TraceRecorder::record_error(const Error& error) {
   std::lock_guard lock(mutex_);  // guards the sink only
   if (sink_) {
@@ -134,4 +156,4 @@ void TraceRecorder::record_error(const Error& error) {
     wire_log_->trace("err " + std::string(to_string(error.kind)) + " " + error.what);
 }
 
-}  // namespace pychron
+}  // namespace nobion

@@ -3,28 +3,50 @@
 // truncate/terminate/cancel/abort, safety on exit, hooks, and results.
 
 #include <gtest/gtest.h>
+#include "log_capture.hpp"
 
+#include <algorithm>
+#include <array>
 #include <chrono>
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <cmath>
 #include <functional>
 #include <limits>
 #include <map>
+#include <optional>
+#include <set>
+#include <sstream>
 #include <string>
+#include <variant>
 #include <vector>
 
-#include "pychron/experiment/measurement/engine.hpp"
-#include "pychron/experiment/measurement/results.hpp"
+#include "nobion/experiment/measurement/engine.hpp"
+#include "nobion/devices/link.hpp"
+#include "nobion/experiment/measurement/results.hpp"
+#include "nobion/experiment/plan/plan_loader.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment;
-using namespace pychron::experiment::measurement;
+using namespace nobion;
+using namespace nobion::experiment;
+using namespace nobion::experiment::measurement;
 using namespace std::chrono_literals;
 using collect::SeriesKey;
-using collect::SeriesKind;
+using collect::merged_series;
 
 namespace {
 
-double secs(pychron::Duration d) { return std::chrono::duration<double>(d).count(); }
+double secs(nobion::Duration d) { return std::chrono::duration<double>(d).count(); }
+
+SeriesKey skey(std::string label, std::string detector, std::string_view kind, int segment = 0, int position = 0) {
+  SeriesKey k;
+  k.label = std::move(label);
+  k.detector = std::move(detector);
+  k.kind = std::string(kind);
+  k.segment = segment;
+  k.position = position;
+  return k;
+}
 
 // Intensity = abundance of the isotope on the detector at the magnet target,
 // growing linearly with time since t0: v = a * (1 + 0.01 t).
@@ -32,37 +54,101 @@ class FakeSpectrometer final : public ISpectrometerPort {
  public:
   explicit FakeSpectrometer(ManualClock& clock) : clock_(clock) {}
 
-  Result<void> position(const plan::HopTarget& target) override {
-    log.push_back("position " + (target.mass ? std::to_string(*target.mass) : target.isotope) + "@" + target.detector);
+  Result<void> position(const plan::At& target) override {
+    log.push_back(describe(target));
     if (fail_position) return fail(ErrorKind::Io, "magnet fault");
     at_ = target;
     return {};
   }
+  Result<double> set_deflection(const std::string& det, double value) override {
+    log.push_back("deflect " + det + "=" + num(value));
+    deflections[det] = value;
+    return value;
+  }
+  Result<double> deflection(const std::string& det) override {
+    const auto it = deflections.find(det);
+    return it == deflections.end() ? 0.0 : it->second;
+  }
+  Result<void> with_table(const std::string& name) override {
+    log.push_back("table " + name);
+    return {};
+  }
+  Result<void> set_gain(const std::string& det, double gain) override {
+    log.push_back("gain " + det + "=" + num(gain));
+    return {};
+  }
+  Result<void> set_hv(double volts) override {
+    log.push_back("hv " + num(volts));
+    return {};
+  }
+  Result<void> set_cdd_voltage(double volts) override {
+    log.push_back("cdd_voltage " + num(volts));
+    return {};
+  }
+  Result<void> set_param(const std::string& name, double value) override {
+    log.push_back("param " + name + "=" + num(value));
+    return {};
+  }
+  Result<void> blank_beam(bool on) override {
+    log.push_back(std::string("blank ") + (on ? "on" : "off"));
+    return {};
+  }
+  Result<void> apply_optics(const std::string& name) override {
+    log.push_back("optics " + name);
+    return {};
+  }
+  Result<void> set_source_output(bool on) override {
+    log.push_back(std::string("source_output ") + (on ? "on" : "off"));
+    return {};
+  }
   Result<void> protect(const std::string& det, bool on) override {
+    if (protect_fault) {
+      if (auto r = protect_fault(det, on); !r) return r;
+    }
     log.push_back(std::string(on ? "protect " : "unprotect ") + det);
     if (on) protected_.insert(det); else protected_.erase(det);
     return {};
   }
-  Result<void> start_acquisition(pychron::Duration integration) override {
+  Result<void> start_acquisition(nobion::Duration integration) override {
+    if (lose_starts > 0) {  // as NGX's StartAcq whose reply was lost (link.hpp)
+      --lose_starts;
+      log.emplace_back("start lost");
+      return fail(Error{ErrorKind::Io, "StartAcq: reply lost", {}, kOutcomeUnknown});
+    }
     log.push_back("start " + std::to_string(secs(integration)));
     integration_ = integration;
     acquiring = true;
     return {};
   }
-  Result<std::optional<spectrometer::Reading>> next_reading(pychron::Duration) override {
+  Result<std::optional<spectrometer::Reading>> next_reading(nobion::Duration timeout) override {
     if (!acquiring) return fail(ErrorKind::Config, "not acquiring");
+    // Silent from silent_from until silent_until: the call waits its timeout
+    // (or until the silence ends, when a reading comes at once), or fails at
+    // once with Io when the link is down.
+    if (silent_from && clock_.now() >= *silent_from && (!silent_until || clock_.now() < *silent_until)) {
+      ++silent_calls;
+      if (silence_is_link_down) {
+        clock_.advance(link_down_costs);  // even a failing call takes some time on a real clock
+        return fail(ErrorKind::Io, "spectrometer link down");
+      }
+      const TimePoint until = silent_until ? std::min(clock_.now() + timeout, *silent_until) : clock_.now() + timeout;
+      clock_.set(until);
+      if (!silent_until || clock_.now() < *silent_until) return std::optional<spectrometer::Reading>{};
+      if (silence_ends_in_error) return fail(ErrorKind::Protocol, "acquirer fault");
+    }
     ++readings;
-    if (fail_at && readings == *fail_at) return fail(ErrorKind::Timeout, "acquirer stalled");
+    if (fail_at && readings == *fail_at) return fail(fail_kind, "acquirer stalled");
     clock_.advance(integration_);
     spectrometer::Reading r;
-    r.ts = clock_.now();
+    r.ts = clock_.now() - ts_lag;
     r.integration = integration_;
     const double t = secs(clock_.now() - TimePoint{});
     for (const auto& det : detectors) {
       double v = 0.0;
-      if (at_ && !at_->mass) {
+      const auto* label = at_ ? std::get_if<plan::AtLabel>(&*at_) : nullptr;
+      if (label != nullptr) {
         // The isotope sitting on `det` given where the reference was put.
-        auto it = layout.find(at_->isotope + "@" + at_->detector);
+        auto it = layout.find(label->label + "@" + label->detector);
         if (it != layout.end()) {
           auto iso = it->second.find(det);
           if (iso != it->second.end()) v = abundance.at(iso->second) * (1 + 0.01 * t);
@@ -88,26 +174,57 @@ class FakeSpectrometer final : public ISpectrometerPort {
   std::map<std::string, double> abundance{{"Ar40", 1000}, {"Ar39", 100}, {"Ar36", 3}, {"Ar41", 0}};
   std::function<void(int)> on_reading;
   std::optional<int> fail_at;
+  ErrorKind fail_kind = ErrorKind::Timeout;
+  std::optional<TimePoint> silent_from, silent_until;
+  bool silence_is_link_down = false;
+  nobion::Duration link_down_costs{};
+  bool silence_ends_in_error = false;
+  nobion::Duration ts_lag{};  // a reading's own time is this much behind the clock
+  int silent_calls = 0;
+  int lose_starts = 0;
+  std::function<Result<void>(const std::string&, bool)> protect_fault;
   bool fail_position = false;
   bool acquiring = false;
   int readings = 0;
   std::set<std::string> protected_;
+  std::map<std::string, double> deflections;  // detector -> current deflection; absent: 0
 
  private:
+  static std::string num(double v) {
+    std::ostringstream out;
+    out << v;
+    return out.str();
+  }
+  // "position Ar40@H1", "position 35.000000@CDD", "move_native 1.234",
+  // "position_hv 4500@H1".
+  static std::string describe(const plan::At& at) {
+    if (const auto* l = std::get_if<plan::AtLabel>(&at)) return "position " + l->label + "@" + l->detector;
+    if (const auto* m = std::get_if<plan::AtMass>(&at)) return "position " + std::to_string(m->mass) + "@" + m->detector;
+    if (const auto* d = std::get_if<plan::AtDac>(&at)) return "move_native " + num(d->dac);
+    const auto& h = std::get<plan::AtHv>(at);
+    return "position_hv " + num(h.hv) + "@" + h.detector;
+  }
+
   ManualClock& clock_;
-  std::optional<plan::HopTarget> at_;
-  pychron::Duration integration_ = 1s;
+  std::optional<plan::At> at_;
+  nobion::Duration integration_ = 1s;
 };
 
 class FakeValves final : public IValvePort {
  public:
   explicit FakeValves(ManualClock& clock) : clock_(clock) {}
   Result<void> open(const std::string& v) override {
+    if (open_fault) {
+      if (auto r = open_fault(v); !r) return r;
+    }
     log.push_back("open " + v + " @" + std::to_string(secs(clock_.now() - t0)));
     state[v] = true;
     return {};
   }
   Result<void> close(const std::string& v) override {
+    if (close_fault) {
+      if (auto r = close_fault(v); !r) return r;
+    }
     log.push_back("close " + v + " @" + std::to_string(secs(clock_.now() - t0)));
     state[v] = false;
     return {};
@@ -115,6 +232,8 @@ class FakeValves final : public IValvePort {
   std::vector<std::string> log;
   std::map<std::string, bool> state;
   TimePoint t0{};
+  std::function<Result<void>(const std::string&)> close_fault;  // its error is the call's
+  std::function<Result<void>(const std::string&)> open_fault;   // likewise
 
  private:
   ManualClock& clock_;
@@ -131,8 +250,34 @@ class FakePeakCenter final : public IPeakCenterPort {
     else report.message = "no peak";
     return report;
   }
+  void drop_run_tables() override { ++dropped; }
   std::vector<PeakCenterRequest> requests;
   bool ok = true;
+  int dropped = 0;
+};
+
+// Journals each prepare it is asked for; can fail one gas's, or stop the run
+// while one runs (as the operator would, through the run's token).
+class FakePrepare final : public IPrepareScriptPort {
+ public:
+  Result<PrepareReport> run(const PrepareRequest& request, scripting::CancelToken& token) override {
+    requests.push_back(request);
+    if (request.gas == fail_gas) return fail(ErrorKind::Io, "cryostat did not reach its setpoint");
+    if (request.gas == cancel_gas) {
+      token.cancel();
+      return fail(ErrorKind::Cancelled, "script cancelled");
+    }
+    PrepareReport rep;
+    for (const auto& [k, v] : request.variables)
+      rep.variables[k] = std::visit([](const auto& x) {
+        std::ostringstream o;
+        o << x;
+        return o.str();
+      }, v);
+    return rep;
+  }
+  std::vector<PrepareRequest> requests;
+  std::string fail_gas, cancel_gas;
 };
 
 class FakeHook final : public IMeasurementHook {
@@ -149,18 +294,153 @@ class FakeHook final : public IMeasurementHook {
   std::map<std::string, std::function<Result<void>(scripting::IMeasurementApi&)>> actions;
 };
 
-plan::Hop hop(std::map<std::string, std::string> positions, int counts, double settle = 2) {
-  plan::Hop h;
+// A plan as the engine tests write it: the v1 tables, rendered to TOML and
+// resolved by the plan loader, so the engine runs the segments a v1 file
+// desugars to (measurement plan v2 spec, 4.1).
+struct TestHopPosition {
+  std::string isotope, detector;
+};
+
+struct TestHop {
+  std::map<std::string, std::string> positions;
+  int counts = 0;
+  double settle_s = 0;
+  std::vector<std::string> protect;
+  bool baseline = false;
+  std::optional<double> mass;
+  std::optional<TestHopPosition> position;
+};
+
+struct TestSniff {
+  bool enabled = false;
+  int counts = 0;
+  double integration_s = 1;
+};
+
+struct TestPeakCenter {
+  bool before = false, after = false;
+  std::string detector, isotope, config = "default";
+  double min_signal = 0;
+};
+
+struct TestBaseline {
+  bool before = false, after = false;
+  int counts = 0;
+  std::optional<double> mass;
+  std::string detector;
+  double settle_s = 0;
+  double integration_s = 1;
+};
+
+struct TestMain {
+  int cycles = 1;
+  double integration_s = 1;
+  plan::TimeZero time_zero;
+  std::vector<TestHop> hops;
+};
+
+struct TestWhiff {
+  bool enabled = false;
+  int counts = 0;
+  double integration_s = 1;
+  std::vector<plan::WhiffCheck> checks;
+};
+
+std::string num(double v) {
+  std::array<char, 32> buf{};
+  std::snprintf(buf.data(), buf.size(), "%.17g", v);
+  return buf.data();
+}
+
+std::string quoted(const std::string& s) { return "\"" + s + "\""; }
+
+// NOLINTNEXTLINE(modernize-use-string-view): concatenated with "+" into TOML text, which a string_view does not take
+std::string boolean(bool b) { return b ? "true" : "false"; }
+
+std::string string_array(const std::vector<std::string>& v) {
+  std::string out = "[";
+  for (std::size_t i = 0; i < v.size(); ++i) out += (i == 0 ? "" : ", ") + quoted(v[i]);
+  return out + "]";
+}
+
+// The plan through the loader, which fails the test when it does not resolve.
+plan::MeasurementPlan plan_from(std::string_view toml) {
+  auto r = plan::resolve_plan(toml, plan::PlanResolvers{}, "test");
+  EXPECT_TRUE(r.has_value()) << (r ? "" : r.error().what) << "\n" << toml;
+  return r.value_or(plan::MeasurementPlan{});
+}
+
+struct V1Plan {
+  plan::DetectorsSpec detectors;
+  plan::Equilibration equilibration;
+  TestSniff sniff;
+  TestPeakCenter peak_center;
+  TestBaseline baseline;
+  TestMain main;
+  TestWhiff whiff;
+  std::optional<std::string> hook;
+
+  std::string toml() const {
+    std::string t;
+    if (hook) t += "hook = " + quoted(*hook) + "\n";
+    t += "[plan]\nname = \"mc\"\ninstrument_family = \"fake\"\n";
+    t += "[detectors]\nreference = " + quoted(detectors.reference) + "\nexclude = " + string_array(detectors.exclude) + "\n";
+    const auto& eq = equilibration;
+    t += "[equilibration]\ninlet = " + quoted(eq.inlet) + "\noutlet = " + quoted(eq.outlet) + "\ntime_s = " + num(eq.time_s) +
+         "\ninlet_delay_s = " + num(eq.inlet_delay_s) + "\nclose_inlet = " + boolean(eq.close_inlet) + "\n";
+    t += "[sniff]\nenabled = " + boolean(sniff.enabled) + "\ncounts = " + std::to_string(sniff.counts) +
+         "\nintegration_s = " + num(sniff.integration_s) + "\n";
+    const auto& pc = peak_center;
+    t += "[peak_center]\nbefore = " + boolean(pc.before) + "\nafter = " + boolean(pc.after) + "\ndetector = " +
+         quoted(pc.detector) + "\nisotope = " + quoted(pc.isotope) + "\nconfig = " + quoted(pc.config) +
+         "\nmin_signal = " + num(pc.min_signal) + "\n";
+    const auto& b = baseline;
+    t += "[baseline]\nbefore = " + boolean(b.before) + "\nafter = " + boolean(b.after) + "\ncounts = " +
+         std::to_string(b.counts) + "\ndetector = " + quoted(b.detector) + "\nsettle_s = " + num(b.settle_s) +
+         "\nintegration_s = " + num(b.integration_s) + "\n";
+    if (b.mass) t += "mass = " + num(*b.mass) + "\n";
+    t += "[main]\ncycles = " + std::to_string(main.cycles) + "\nintegration_s = " + num(main.integration_s) + "\n";
+    switch (main.time_zero.kind) {
+      case plan::TimeZeroKind::OnInletClose: t += "time_zero = \"on_inlet_close\"\n"; break;
+      case plan::TimeZeroKind::OnFirstCount: t += "time_zero = \"on_first_count\"\n"; break;
+      default: t += "time_zero = { offset_s = " + num(main.time_zero.offset_s) + " }\n"; break;
+    }
+    for (const auto& h : main.hops) {
+      t += "[[main.hops]]\npositions = {";
+      bool first = true;
+      for (const auto& [iso, det] : h.positions) {
+        t += std::string(first ? " " : ", ") + iso + " = " + quoted(det);
+        first = false;
+      }
+      t += " }\ncounts = " + std::to_string(h.counts) + "\nsettle_s = " + num(h.settle_s) + "\nprotect = " +
+           string_array(h.protect) + "\nbaseline = " + boolean(h.baseline) + "\n";
+      if (h.mass) t += "mass = " + num(*h.mass) + "\n";
+      if (h.position) {
+        t += "position = { detector = " + quoted(h.position->detector);
+        if (!h.position->isotope.empty()) t += ", isotope = " + quoted(h.position->isotope);
+        t += " }\n";
+      }
+    }
+    t += "[whiff]\nenabled = " + boolean(whiff.enabled) + "\ncounts = " + std::to_string(whiff.counts) +
+         "\nintegration_s = " + num(whiff.integration_s) + "\n";
+    for (const auto& c : whiff.checks)
+      t += "[[whiff.checks]]\ncheck = " + quoted(c.check) + "\naction = " + quoted(c.action) + "\n";
+    return t;
+  }
+
+  plan::MeasurementPlan plan() const { return plan_from(toml()); }
+};
+
+TestHop hop(std::map<std::string, std::string> positions, int counts, double settle = 2) {
+  TestHop h;
   h.positions = std::move(positions);
   h.counts = counts;
   h.settle_s = settle;
   return h;
 }
 
-plan::MeasurementPlan multicollect(int counts = 10, int cycles = 1) {
-  plan::MeasurementPlan p;
-  p.info.name = "mc";
-  p.info.instrument_family = "fake";
+V1Plan multicollect(int counts = 10, int cycles = 1) {
+  V1Plan p;
   p.detectors.reference = "H1";
   p.equilibration = {"B", "C", 10, 2, true};
   p.sniff = {true, 10, 1};
@@ -186,6 +466,10 @@ MeasurementInputs inputs(plan::MeasurementPlan p, ConditionalSet conditionals = 
   return in;
 }
 
+MeasurementInputs inputs(const V1Plan& p, ConditionalSet conditionals = {}) {
+  return inputs(p.plan(), std::move(conditionals));
+}
+
 Conditional conditional(ConditionalKind kind, std::string name, std::string check, int start = 0,
                         ActionSpec action = {}) {
   Conditional c;
@@ -206,36 +490,47 @@ class EngineTest : public ::testing::Test {
  protected:
   EngineTest() { valves_.t0 = t0_; }
 
+  MeasurementResult run(const V1Plan& p, ConditionalSet conditionals = {}, EngineOptions options = {}) {
+    return run(p.plan(), std::move(conditionals), std::move(options));
+  }
+
   MeasurementResult run(plan::MeasurementPlan p, ConditionalSet conditionals = {}, EngineOptions options = {}) {
     MeasurementInputs in = inputs(std::move(p), std::move(conditionals));
-    if (!options.sleep) options.sleep = [this](pychron::Duration d) { clock_.advance(d); };
+    if (!options.sleep) options.sleep = [this](nobion::Duration d) { clock_.advance(d); };
     engine_ = std::make_unique<MeasurementEngine>(context(), std::move(in), std::move(options));
     return engine_->run(token_);
   }
 
   EngineContext context() {
-    return EngineContext{spec_, clock_, &valves_, &peak_, &hook_, &bus_, nullptr};
+    EngineContext c{spec_, clock_, &valves_, &peak_, &hook_, &bus_, nullptr};
+    c.timing = timing_;
+    c.prepare = prepare_;
+    return c;
   }
 
-  int count(const MeasurementResult& r, const SeriesKey& key) {
-    auto it = r.data.series.find(key);
-    return it == r.data.series.end() ? 0 : static_cast<int>(it->second.v.size());
+  // Points of a label on a detector, wherever in the plan they were read.
+  static int count(const MeasurementResult& r, std::string_view label, std::string_view detector,
+                   std::string_view kind) {
+    const auto s = merged_series(r.data, label, detector, kind);
+    return s ? static_cast<int>(s->v.size()) : 0;
   }
 
   TimePoint t0_ = TimePoint{} + 1000s;
+  std::map<std::string, DetectorTiming> timing_;  // EngineContext::timing
   ManualClock clock_{t0_};
   SignalBus bus_;
   FakeSpectrometer spec_{clock_};
   FakeValves valves_{clock_};
   FakePeakCenter peak_;
   FakeHook hook_;
+  IPrepareScriptPort* prepare_ = nullptr;  // EngineContext::prepare
   scripting::CancelToken token_;
   std::unique_ptr<MeasurementEngine> engine_;
 };
 
 TEST_F(EngineTest, RunsTheBlockSequenceInOrder) {
   auto p = multicollect();
-  p.peak_center = {true, true, "", "Ar40", "default"};
+  p.peak_center = {true, true, "", "Ar40", "default", 0};
   p.baseline.before = p.baseline.after = true;
   std::vector<std::string> events;
   auto s1 = bus_.subscribe<BlockStarted>([&](const BlockStarted& e) { events.push_back("+" + std::string(to_string(e.block))); });
@@ -254,9 +549,9 @@ TEST_F(EngineTest, RunsTheBlockSequenceInOrder) {
   EXPECT_EQ(peak_.requests[0].isotope, "Ar40");
   EXPECT_EQ(r.peak_centers.size(), 2u);
   // Baselines collect per detector (no isotope) on every detector of the hops.
-  EXPECT_EQ(count(r, {"", "H1", SeriesKind::Baseline}), 10);
-  EXPECT_EQ(count(r, {"", "CDD", SeriesKind::Baseline}), 10);
-  EXPECT_EQ(count(r, {"Ar40", "H1", SeriesKind::Signal}), 10);
+  EXPECT_EQ(count(r, "", "H1", collect::kBaseline), 10);
+  EXPECT_EQ(count(r, "", "CDD", collect::kBaseline), 10);
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kSignal), 10);
   EXPECT_EQ(r.data.counts.at("main"), 10);
   EXPECT_EQ(r.data.counts.at("baseline.before"), 5);
   EXPECT_EQ(r.data.counts.at("baseline.after"), 5);
@@ -285,7 +580,7 @@ TEST_F(EngineTest, EquilibrationTimingAndTimeZeroOnInletClose) {
   EXPECT_EQ(overlap, 1);
   EXPECT_EQ(closed_cb, 1);
   // Sniff stops at its counts; equilibration still runs its full time.
-  EXPECT_EQ(count(r, {"Ar40", "H1", SeriesKind::Sniff}), 10);
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kSniff), 10);
   EXPECT_FALSE(valves_.state["B"]);
 }
 
@@ -303,7 +598,7 @@ TEST_F(EngineTest, TimeZeroOnFirstCountAndOffset) {
   p.sniff.enabled = false;
   p.main.time_zero = {plan::TimeZeroKind::OnFirstCount, 0};
   auto r = run(p);
-  const auto& s = r.data.series.at({"Ar40", "H1", SeriesKind::Signal});
+  const auto s = merged_series(r.data, "Ar40", "H1", collect::kSignal).value();
   EXPECT_DOUBLE_EQ(*r.data.timing.time_zero, s.t.front());
 
   p.main.time_zero = {plan::TimeZeroKind::Offset, 4};
@@ -337,7 +632,7 @@ TEST_F(EngineTest, OneHopTimesNCyclesEqualsOneHopWithNTimesCounts) {
   ASSERT_EQ(rb.outcome, MeasurementOutcome::Completed);
   EXPECT_EQ(ra.data.series.size(), rb.data.series.size());
   for (const auto& [key, s] : ra.data.series) {
-    if (key.kind == SeriesKind::Signal) {
+    if (key.kind == collect::kSignal) {
       EXPECT_EQ(s.v.size(), 20u) << to_string(key);
       EXPECT_EQ(s.t, rb.data.series.at(key).t) << to_string(key);
       EXPECT_EQ(s.v, rb.data.series.at(key).v) << to_string(key);
@@ -357,11 +652,11 @@ TEST_F(EngineTest, PeakHopOrderingProtectionAndBaselineHops) {
   auto h0 = hop({{"Ar40", "H1"}, {"Ar36", "CDD"}}, 3);
   h0.protect = {"CDD"};
   auto h1 = hop({{"Ar39", "CDD"}}, 2);
-  h1.position = plan::HopPosition{"Ar39", "CDD"};
+  h1.position = TestHopPosition{"Ar39", "CDD"};
   auto h2 = hop({{"Ar36", "CDD"}}, 1);
   h2.baseline = true;
   h2.mass = 34.2;
-  h2.position = plan::HopPosition{"", "CDD"};
+  h2.position = TestHopPosition{"", "CDD"};
   p.main.hops = {h0, h1, h2};
   auto r = run(p);
   ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
@@ -378,15 +673,15 @@ TEST_F(EngineTest, PeakHopOrderingProtectionAndBaselineHops) {
       "position Ar39@CDD", "position 34.200000@CDD",
   };
   EXPECT_EQ(moves, expected);
-  EXPECT_EQ(count(r, {"Ar40", "H1", SeriesKind::Signal}), 6);
-  EXPECT_EQ(count(r, {"Ar36", "CDD", SeriesKind::Signal}), 6);
-  EXPECT_EQ(count(r, {"Ar39", "CDD", SeriesKind::Signal}), 4);
-  EXPECT_EQ(count(r, {"Ar36", "CDD", SeriesKind::Baseline}), 2);
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kSignal), 6);
+  EXPECT_EQ(count(r, "Ar36", "CDD", collect::kSignal), 6);
+  EXPECT_EQ(count(r, "Ar39", "CDD", collect::kSignal), 4);
+  EXPECT_EQ(count(r, "Ar36", "CDD", collect::kBaseline), 2);
   EXPECT_EQ(r.data.counts.at("main"), 12);
   EXPECT_TRUE(spec_.protected_.empty());
   // Ar39 on CDD reads Ar39's abundance, not Ar36's.
-  EXPECT_NEAR(r.data.series.at({"Ar39", "CDD", SeriesKind::Signal}).v.front() /
-                  r.data.series.at({"Ar36", "CDD", SeriesKind::Signal}).v.front(),
+  EXPECT_NEAR(merged_series(r.data, "Ar39", "CDD", collect::kSignal).value().v.front() /
+                  merged_series(r.data, "Ar36", "CDD", collect::kSignal).value().v.front(),
               100.0 / 3.0, 1.0);
 }
 
@@ -400,11 +695,817 @@ TEST_F(EngineTest, TruncationScalesLaterCollections) {
   set.items.back().abbreviated_count_ratio = 0.3;
   auto r = run(p, set);
   EXPECT_EQ(r.outcome, MeasurementOutcome::Truncated);
-  EXPECT_EQ(count(r, {"Ar40", "H1", SeriesKind::Signal}), 11);  // first check after reading start + 1
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kSignal), 11);  // first check after reading start + 1
   EXPECT_DOUBLE_EQ(r.count_scale, 0.3);                         // the conditional's ratio (pychron)
   EXPECT_EQ(r.data.counts.at("baseline.after"), 9);  // ceil(30 * 0.3)
   ASSERT_EQ(r.data.trips.size(), 1u);
   EXPECT_EQ(r.data.trips[0].name, "big");
+}
+
+// ---- set, blank_beam, park, delay, time_zero steps (plan Task 17) ----------------
+
+std::string steps_plan(std::string_view before, std::string_view after = "") {
+  return std::string(R"toml(
+[plan]
+name = "steps"
+instrument_family = "thermo_argus"
+analysis_types = ["unknown"]
+
+[equilibration]
+inlet = "B"
+outlet = "C"
+time_s = 10
+)toml") + std::string(before) + R"toml(
+[[segment]]
+kind = "signal"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+counts = 3
+)toml" + std::string(after);
+}
+
+// The entries of `log` from the first that starts with `from`.
+std::vector<std::string> log_from(const std::vector<std::string>& log, std::string_view from) {
+  const auto it = std::find_if(log.begin(), log.end(), [&](const std::string& l) { return l.starts_with(from); });
+  return {it, log.end()};
+}
+
+TEST_F(EngineTest, StepsSetMapsEachSubKeyToOneCall) {
+  auto r = run(plan_from(steps_plan(R"(
+[[segment]]
+kind = "set"
+when = "before_inlet"
+set = { deflection = { CDD = 2000, H1 = 10 }, gain = { H1 = 1.5 }, source = { trap_current = 200 }, hv = 4500, cdd_voltage = 1800, integration_s = 2 }
+)")));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  const auto from = log_from(spec_.log, "deflect CDD");
+  ASSERT_GE(from.size(), 6u);
+  EXPECT_EQ(std::vector<std::string>(from.begin(), from.begin() + 6),
+            (std::vector<std::string>{"deflect CDD=2000", "deflect H1=10", "gain H1=1.5", "param trap_current=200",
+                                      "hv 4500", "cdd_voltage 1800"}));
+  // integration_s holds for the gas's later collections.
+  EXPECT_NE(std::find(spec_.log.begin(), spec_.log.end(), "start 2.000000"), spec_.log.end());
+  // What the step left standing goes back when the run ends.
+  const auto end = log_from(spec_.log, "deflect CDD=0");
+  EXPECT_FALSE(end.empty());
+  EXPECT_NE(std::find(end.begin(), end.end(), "deflect H1=0"), end.end());
+}
+
+TEST_F(EngineTest, StepsBlankBeam) {
+  auto r = run(plan_from(steps_plan(R"(
+[[segment]]
+kind = "blank_beam"
+when = "before_inlet"
+blank_beam = true
+)", R"(
+[[segment]]
+kind = "blank_beam"
+when = "after_main"
+blank_beam = false
+)")));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  EXPECT_EQ(std::count(spec_.log.begin(), spec_.log.end(), "blank on"), 1);
+  EXPECT_EQ(std::count(spec_.log.begin(), spec_.log.end(), "blank off"), 1);
+  // A beam left blanked is let through when the run ends.
+  spec_.log.clear();
+  auto left = run(plan_from(steps_plan(R"(
+[[segment]]
+kind = "blank_beam"
+when = "before_inlet"
+blank_beam = true
+)")));
+  ASSERT_EQ(left.outcome, MeasurementOutcome::Completed);
+  EXPECT_EQ(spec_.log.back(), "blank off");
+}
+
+TEST_F(EngineTest, StepsParkMovesWithoutCollecting) {
+  auto r = run(plan_from(steps_plan("", R"(
+[[segment]]
+kind = "park"
+when = "after_main"
+park = { mass = 36.5, detector = "CDD" }
+)")));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  EXPECT_EQ(spec_.log.back(), "position 36.500000@CDD");
+  int collections = 0;
+  for (const auto& e : r.trace) collections += e.what == "collect" ? 1 : 0;
+  EXPECT_EQ(collections, 1);  // the signal's only
+}
+
+TEST_F(EngineTest, StepsDelayWaitsOnTheClock) {
+  const auto plain_run = run(plan_from(steps_plan("")));
+  const auto plain_end = clock_.now();
+  ASSERT_EQ(plain_run.outcome, MeasurementOutcome::Completed);
+  clock_.set(t0_);
+  auto r = run(plan_from(steps_plan("", R"(
+[[segment]]
+kind = "delay"
+when = "after_main"
+delay = { seconds = 42 }
+)")));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  EXPECT_EQ(clock_.now() - plain_end, std::chrono::seconds(42));
+}
+
+// Worked plan 7.3's time zero after its IC block (at after_main here: an
+// after_inlet step runs with Task 19's phases): the clock at the step, not
+// the inlet's close.
+TEST_F(EngineTest, StepsTimeZeroStepAfterIcBlock) {
+  auto r = run(plan_from(steps_plan("", R"(
+[[segment]]
+kind = "time_zero"
+when = "after_main"
+time_zero = "now"
+)")));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  ASSERT_TRUE(r.data.timing.time_zero);
+  ASSERT_TRUE(r.data.timing.inlet_close);
+  const auto& signal = r.data.series.begin()->second;
+  EXPECT_GT(*r.data.timing.time_zero, *r.data.timing.inlet_close);
+  EXPECT_GE(*r.data.timing.time_zero, signal.t.back());  // the IC block is before it
+  EXPECT_DOUBLE_EQ(*r.data.timing.time_zero, secs(clock_.now() - r.data.timing.epoch));
+}
+
+// ---- phases (plan Task 19) ----------------------------------------------------
+
+std::string phases_plan(std::string_view segments, double eq_time = 10) {
+  return std::string(R"toml(
+[plan]
+name = "phases"
+instrument_family = "thermo_argus"
+analysis_types = ["unknown"]
+
+[equilibration]
+inlet = "B"
+outlet = "C"
+time_s = )toml") + num(eq_time) + "\n" + std::string(segments);
+}
+
+// Segment indexes of the trace's collections and steps, in the order run
+// (one entry per segment however often it collected).
+std::vector<int> run_order(const MeasurementResult& r) {
+  std::vector<int> out;
+  for (const auto& e : r.trace) {
+    if (e.what != "collect" && e.what != "step") continue;
+    if (out.empty() || out.back() != e.segment) out.push_back(e.segment);
+  }
+  return out;
+}
+
+// The time (s since the epoch) of the first trace entry of `segment`.
+double first_t(const MeasurementResult& r, int segment) {
+  for (const auto& e : r.trace)
+    if (e.segment == segment) return e.t;
+  return -1;
+}
+
+TEST_F(EngineTest, PhasesOrderAcrossWhens) {
+  auto r = run(plan_from(phases_plan(R"(
+[[segment]]
+kind = "delay"
+when = "after_run"
+delay = { seconds = 1 }
+
+[[segment]]
+kind = "baseline"
+when = "after_main"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+at = { mass = 34.2, detector = "H1" }
+counts = 2
+
+[[segment]]
+kind = "signal"
+when = "after_inlet"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+counts = 3
+
+[[segment]]
+kind = "baseline"
+when = "during_equilibration"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+at = { mass = 35, detector = "H1" }
+counts = 2
+
+[[segment]]
+kind = "delay"
+when = "before_inlet"
+delay = { seconds = 1 }
+)")));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  EXPECT_EQ(run_order(r), (std::vector<int>{4, 3, 2, 1, 0}));
+  // during_equilibration runs once the inlet is open, after_inlet once it closed.
+  ASSERT_TRUE(r.data.timing.inlet_open && r.data.timing.inlet_close);
+  EXPECT_GE(first_t(r, 3), *r.data.timing.inlet_open);
+  EXPECT_GE(first_t(r, 2), *r.data.timing.inlet_close);
+  EXPECT_EQ(r.blocks, (std::vector<Block>{Block::Step, Block::PositionFirstHop, Block::Equilibrate, Block::Segment,
+                                          Block::Main, Block::BaselineAfter, Block::Step}));
+}
+
+// A measurement run on its own (no extraction beside it) runs its
+// during_extraction phase first, once; after run_phase it is not run again.
+TEST_F(EngineTest, PhasesDuringExtractionRunsOnceWhoeverStartsIt) {
+  const auto plan = plan_from(phases_plan(R"(
+[[segment]]
+kind = "baseline"
+when = "during_extraction"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+at = { mass = 34.2, detector = "H1" }
+counts = 2
+
+[[segment]]
+kind = "signal"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+counts = 3
+)"));
+  auto alone = run(plan);
+  ASSERT_EQ(alone.outcome, MeasurementOutcome::Completed) << (alone.error ? alone.error->what : "");
+  EXPECT_EQ(run_order(alone), (std::vector<int>{0, 1}));
+  EXPECT_EQ(alone.data.series.at(skey("", "H1", collect::kBaseline, 0, 0)).v.size(), 2u);
+
+  EngineOptions options;
+  options.sleep = [this](nobion::Duration d) { clock_.advance(d); };
+  MeasurementEngine e(context(), inputs(plan, {}), options);
+  ASSERT_TRUE(e.run_phase(plan::When::DuringExtraction, token_));
+  auto after = e.run(token_);
+  ASSERT_EQ(after.outcome, MeasurementOutcome::Completed);
+  EXPECT_EQ(after.data.series.at(skey("", "H1", collect::kBaseline, 0, 0)).v.size(), 2u);  // not twice
+}
+
+TEST_F(EngineTest, PhasesSameWhenRunsInFileOrder) {
+  auto r = run(plan_from(phases_plan(R"(
+[[segment]]
+kind = "signal"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+counts = 3
+
+[[segment]]
+kind = "baseline"
+when = "after_main"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+at = { mass = 35, detector = "H1" }
+counts = 2
+
+[[segment]]
+kind = "delay"
+when = "after_main"
+delay = { seconds = 2 }
+
+[[segment]]
+kind = "baseline"
+when = "after_main"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+at = { mass = 34.2, detector = "H1" }
+counts = 2
+)")));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  EXPECT_EQ(run_order(r), (std::vector<int>{0, 1, 2, 3}));
+}
+
+// after_main comes after every after_inlet signal segment, wherever it is
+// written.
+TEST_F(EngineTest, PhasesAfterMainAfterLastSignalSegment) {
+  auto r = run(plan_from(phases_plan(R"(
+[[segment]]
+kind = "signal"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+counts = 3
+
+[[segment]]
+kind = "baseline"
+when = "after_main"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+at = { mass = 35, detector = "H1" }
+counts = 2
+
+[[segment]]
+kind = "signal"
+[[segment.positions]]
+collect = { Ar39 = "H1" }
+counts = 3
+)")));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  EXPECT_EQ(run_order(r), (std::vector<int>{0, 2, 1}));
+}
+
+// A baseline while the gas equilibrates: its positions are read while the
+// equilibration waits, and the inlet closes on time, at a reading.
+TEST_F(EngineTest, PhasesBaselineDuringEquilibration) {
+  auto r = run(plan_from(phases_plan(R"(
+[[segment]]
+kind = "baseline"
+when = "during_equilibration"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+at = { mass = 35, detector = "H1" }
+counts = 8
+settle_s = 1
+
+[[segment]]
+kind = "signal"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+counts = 3
+)", 4)));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  ASSERT_TRUE(r.data.timing.inlet_open && r.data.timing.inlet_close);
+  const double held = *r.data.timing.inlet_close - *r.data.timing.inlet_open;
+  EXPECT_GE(held, 4.0);
+  EXPECT_LE(held, 5.0);  // within a reading of its time
+  const auto& baseline = r.data.series.at(skey("", "H1", collect::kBaseline, 0, 0));
+  EXPECT_EQ(baseline.v.size(), 8u);  // read to its end, past the close
+  EXPECT_GT(baseline.t.back(), *r.data.timing.inlet_close);
+  EXPECT_LT(baseline.t.front(), *r.data.timing.inlet_close);
+  EXPECT_EQ(std::count_if(valves_.log.begin(), valves_.log.end(),
+                          [](const std::string& l) { return l.starts_with("close B"); }),
+            1);
+  EXPECT_DOUBLE_EQ(*r.data.timing.time_zero, *r.data.timing.inlet_close);
+}
+
+// ---- several gases (plan Task 22) ------------------------------------------------
+
+constexpr std::string_view kThreeGases = R"toml(
+[plan]
+name = "gases"
+instrument_family = "thermo_argus"
+
+[equilibration]
+inlet = "B"
+outlet = "C"
+time_s = 10
+
+[[gas]]
+name = "He"
+inlet = "He_in"
+outlet = "C"
+equilibration = { time_s = 5 }
+[[gas.segment]]
+kind = "signal"
+[[gas.segment.positions]]
+collect = { He4 = "H1" }
+counts = 3
+[[gas.segment]]
+kind = "baseline"
+when = "after_main"
+[[gas.segment.positions]]
+collect = { He4 = "H1" }
+at = { mass = 3.5, detector = "H1" }
+counts = 2
+
+[[gas]]
+name = "Ne"
+inlet = "Ne_in"
+outlet = "C"
+equilibration = { time_s = 6 }
+[[gas.segment]]
+kind = "signal"
+cycles = 2
+integration_s = 2
+[[gas.segment.positions]]
+collect = { Ne20 = "H1" }
+counts = 2
+[[gas.segment.positions]]
+collect = { Ne21 = "H1" }
+counts = 2
+[[gas.segment.positions]]
+collect = { Ne22 = "H1" }
+counts = 2
+[[gas.segment.positions]]
+collect = { Ar40 = "AX" }
+counts = 2
+[[gas.segment.positions]]
+collect = { CO2 = "H1" }
+counts = 2
+
+[[gas]]
+name = "Ar"
+inlet = "Ar_in"
+outlet = "C"
+[[gas.segment]]
+kind = "signal"
+[[gas.segment.positions]]
+collect = { Ar40 = "H1", Ar36 = "CDD" }
+counts = 3
+[[gas.segment.positions]]
+collect = [ { label = "Ar39", detector = "CDD", deflection = 110 } ]
+at = { label = "Ar39", detector = "CDD" }
+counts = 3
+)toml";
+
+// The gases of each trace entry, as they come.
+std::vector<std::string> gas_order(const MeasurementResult& r) {
+  std::vector<std::string> out;
+  for (const auto& e : r.trace)
+    if (out.empty() || out.back() != e.gas) out.push_back(e.gas);
+  return out;
+}
+
+TEST_F(EngineTest, GasesWorkedPlan76Order) {
+  auto r = run(plan_from(kThreeGases));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  EXPECT_EQ(gas_order(r), (std::vector<std::string>{"He", "Ne", "Ar"}));
+  // Each gas through its own inlet, one after the other.
+  std::vector<std::string> inlets;
+  for (const auto& l : valves_.log)
+    if (!l.starts_with("open C") && !l.starts_with("close C")) inlets.push_back(l.substr(0, l.find(" @")));
+  EXPECT_EQ(inlets, (std::vector<std::string>{"open He_in", "close He_in", "open Ne_in", "close Ne_in", "open Ar_in",
+                                              "close Ar_in"}));
+  // He's baseline (after_main) before Ne's inlet opens.
+  double he_baseline = -1, ne_open = -1;
+  for (const auto& e : r.trace) {
+    if (e.gas == "He" && e.segment == 1 && e.what == "collect") he_baseline = e.t;
+    if (e.gas == "Ne" && ne_open < 0) ne_open = e.t;
+  }
+  EXPECT_GE(he_baseline, 0);
+  EXPECT_LT(he_baseline, ne_open);
+  // Collections of a named gas are counted under its name.
+  EXPECT_EQ(r.data.counts.at("He.main"), 3);
+  EXPECT_EQ(r.data.counts.at("Ne.main"), 20);
+}
+
+TEST_F(EngineTest, GasesEachGasItsOwnTimeZero) {
+  const auto plan = plan_from(kThreeGases);
+  auto r = run(plan);
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  const auto& zeros = r.data.timing.time_zeros;
+  ASSERT_EQ(zeros.size(), 3u);
+  EXPECT_LT(zeros.at("He"), zeros.at("Ne"));
+  EXPECT_LT(zeros.at("Ne"), zeros.at("Ar"));
+  EXPECT_DOUBLE_EQ(*r.data.timing.time_zero, zeros.at("He"));
+  const auto data = to_record_data(r.data, plan, r.states);
+  ASSERT_EQ(data.gases.size(), 3u);
+  EXPECT_EQ(data.gases[1].name, "Ne");
+  EXPECT_DOUBLE_EQ(data.gases[1].time_zero, zeros.at("Ne"));
+  // A series' t is from its own gas's time zero: each gas's signal starts after it.
+  for (const auto& s : data.series) {
+    if (s.kind == "signal") {
+      EXPECT_GT(s.trace.t.front(), 0.f) << s.gas << " " << s.iso;
+    }
+  }
+}
+
+TEST_F(EngineTest, GasesStatesRecordedOncePerGas) {
+  const auto plan = plan_from(kThreeGases);
+  auto r = run(plan);
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  const auto data = to_record_data(r.data, plan, r.states);
+  ASSERT_EQ(data.gases.size(), 3u);
+  EXPECT_EQ(data.gases[1].states.size(), 1u);  // Ne's five positions: one state
+  EXPECT_EQ(data.gases[1].states[0].integration_time, 2);
+  ASSERT_EQ(data.gases[2].states.size(), 2u);  // Ar's second position deflects CDD
+  EXPECT_EQ(data.gases[2].states[1].deflections, (std::map<std::string, double>{{"CDD", 110}}));
+  for (const auto& s : data.series) {
+    if (s.gas != "Ar" || s.kind != "signal") continue;
+    EXPECT_EQ(s.state, s.position) << s.iso;
+  }
+}
+
+TEST_F(EngineTest, GasesOverlapReadyAfterLastInlet) {
+  std::vector<double> ready;
+  auto sub = bus_.subscribe<OverlapReady>([&](const OverlapReady&) { ready.push_back(secs(clock_.now() - t0_)); });
+  auto r = run(plan_from(kThreeGases));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  ASSERT_EQ(ready.size(), 1u);
+  const auto close = std::find_if(valves_.log.begin(), valves_.log.end(),
+                                  [](const std::string& l) { return l.starts_with("close Ar_in"); });
+  ASSERT_NE(close, valves_.log.end());
+  EXPECT_EQ(ready[0], std::stod(close->substr(close->find('@') + 1)));
+}
+
+constexpr std::string_view kDarkPlan = R"toml(
+[plan]
+name = "dark"
+instrument_family = "thermo_argus"
+
+[equilibration]
+inlet = "B"
+outlet = "C"
+time_s = 10
+
+[[gas]]
+name = "Ar"
+source_dark_phase = true
+[[gas.segment]]
+kind = "sniff"
+when = "during_equilibration"
+[[gas.segment.positions]]
+collect = { Ar40 = "H1" }
+counts = 5
+[[gas.segment]]
+[[gas.segment.positions]]
+collect = { Ar40 = "H1" }
+counts = 3
+)toml";
+
+// The source is held dark while the gas is let in and switched on at time
+// zero; a stop in the equilibration switches it on too.
+TEST_F(EngineTest, GasesSourceDarkPhase) {
+  auto r = run(plan_from(kDarkPlan));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  const auto off = std::find(spec_.log.begin(), spec_.log.end(), "source_output off");
+  const auto on = std::find(spec_.log.begin(), spec_.log.end(), "source_output on");
+  ASSERT_NE(off, spec_.log.end());
+  ASSERT_NE(on, spec_.log.end());
+  EXPECT_LT(off, on);
+  EXPECT_EQ(std::count(spec_.log.begin(), spec_.log.end(), "source_output on"), 1);
+  // Off before the inlet opens, on as it closes, which is time zero.
+  ASSERT_TRUE(r.data.timing.inlet_open && r.data.timing.inlet_close);
+  double off_t = -1, on_t = -1;
+  for (const auto& e : r.trace) {
+    if (e.what == "source" && e.detail == "off") off_t = e.t;
+    if (e.what == "source" && e.detail == "on") on_t = e.t;
+  }
+  EXPECT_LE(off_t, *r.data.timing.inlet_open);
+  EXPECT_DOUBLE_EQ(on_t, *r.data.timing.inlet_close);
+  EXPECT_DOUBLE_EQ(on_t, *r.data.timing.time_zero);
+
+  spec_.log.clear();
+  const int before = spec_.readings;
+  spec_.on_reading = [&](int n) {
+    if (n == before + 2) token_.cancel();  // in the sniff
+  };
+  auto cancelled = run(plan_from(kDarkPlan));
+  EXPECT_EQ(cancelled.outcome, MeasurementOutcome::Cancelled);
+  EXPECT_EQ(std::count(spec_.log.begin(), spec_.log.end(), "source_output off"), 1);
+  EXPECT_EQ(std::count(spec_.log.begin(), spec_.log.end(), "source_output on"), 1);  // by the cleanup
+}
+
+// ---- staged release (plan Task 25) ---------------------------------------------
+
+constexpr std::string_view kStaged = R"toml(
+[plan]
+name = "staged"
+instrument_family = "thermo_argus"
+
+[equilibration]
+inlet = "B"
+outlet = "C"
+time_s = 5
+
+[[gas]]
+name = "He"
+inlet = "He_in"
+prepare = { script = "cryo:release", variables = { cryo_temp = 35, hold_s = 300 } }
+pump_out = { valve = "IP", time_s = 120 }
+[[gas.segment]]
+[[gas.segment.positions]]
+collect = { He4 = "H1" }
+counts = 3
+
+[[gas]]
+name = "Ne"
+inlet = "Ne_in"
+prepare = { script = "cryo:release", variables = { cryo_temp = 75, hold_s = 300 } }
+[[gas.segment]]
+[[gas.segment.positions]]
+collect = { Ne20 = "H1" }
+counts = 3
+)toml";
+
+class StagedRelease : public EngineTest {
+ protected:
+  StagedRelease() { prepare_ = &fake_prepare_; }
+  FakePrepare fake_prepare_;
+
+  // The trace's prepare, pump-out, collect entries and the valves' inlet moves, as words.
+  std::vector<std::string> story(const MeasurementResult& r) {
+    std::vector<std::string> out;
+    for (const auto& e : r.trace) {
+      if (e.what == "prepare") out.push_back("prepare " + e.gas);
+      if (e.what == "pump_out") out.push_back("pump_out " + e.gas);
+      if (e.what == "collect" && (out.empty() || out.back() != "segments " + e.gas)) out.push_back("segments " + e.gas);
+    }
+    return out;
+  }
+};
+
+TEST_F(StagedRelease, OrderPrepareInletSegmentsPumpOut) {
+  auto r = run(plan_from(kStaged));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  EXPECT_EQ(story(r), (std::vector<std::string>{"prepare He", "segments He", "pump_out He", "prepare Ne",
+                                                "segments Ne"}));
+  std::vector<std::string> moves;
+  for (const auto& l : valves_.log)
+    if (!l.starts_with("open C") && !l.starts_with("close C")) moves.push_back(l);
+  ASSERT_EQ(moves.size(), 6u);
+  EXPECT_TRUE(moves[0].starts_with("open He_in"));
+  EXPECT_TRUE(moves[1].starts_with("close He_in"));
+  EXPECT_TRUE(moves[2].starts_with("open IP"));
+  EXPECT_TRUE(moves[3].starts_with("close IP"));
+  const auto at = [](const std::string& l) { return std::stod(l.substr(l.find('@') + 1)); };
+  EXPECT_DOUBLE_EQ(at(moves[3]) - at(moves[2]), 120);  // the pump-out's time, on the clock
+  EXPECT_TRUE(moves[4].starts_with("open Ne_in"));
+  EXPECT_TRUE(moves[5].starts_with("close Ne_in"));
+  EXPECT_EQ(r.blocks.front(), Block::Prepare);
+  ASSERT_EQ(r.gases.size(), 2u);
+  EXPECT_EQ(r.gases[0].name, "He");
+  ASSERT_TRUE(r.gases[0].pump_out);
+  EXPECT_EQ(r.gases[0].pump_out->valve, "IP");
+  EXPECT_FALSE(r.gases[1].pump_out);
+}
+
+TEST_F(StagedRelease, VariablesReachTheScript) {
+  auto r = run(plan_from(kStaged));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  ASSERT_EQ(fake_prepare_.requests.size(), 2u);
+  EXPECT_EQ(fake_prepare_.requests[0].gas, "He");
+  EXPECT_EQ(fake_prepare_.requests[0].script, "cryo:release");
+  EXPECT_EQ(fake_prepare_.requests[0].variables.at("cryo_temp"), plan::PrepareValue{std::int64_t{35}});
+  EXPECT_EQ(fake_prepare_.requests[0].variables.at("hold_s"), plan::PrepareValue{std::int64_t{300}});
+  EXPECT_EQ(fake_prepare_.requests[1].variables.at("cryo_temp"), plan::PrepareValue{std::int64_t{75}});
+  ASSERT_TRUE(r.gases[1].prepare);
+  EXPECT_EQ(r.gases[1].prepare->variables.at("cryo_temp"), "75");
+}
+
+TEST_F(StagedRelease, FailingSecondPrepareKeepsFirstGas) {
+  fake_prepare_.fail_gas = "Ne";
+  auto r = run(plan_from(kStaged));
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Failed);
+  ASSERT_TRUE(r.error);
+  EXPECT_NE(r.error->what.find("gas 'Ne'"), std::string::npos) << r.error->what;
+  EXPECT_NE(r.error->what.find("cryostat did not reach its setpoint"), std::string::npos);
+  EXPECT_FALSE(merged_series(r.data, "He4", "H1", collect::kSignal).value_or(collect::Series{}).v.empty());
+  EXPECT_FALSE(merged_series(r.data, "Ne20", "H1", collect::kSignal));
+  for (const auto& l : valves_.log) EXPECT_FALSE(l.starts_with("open Ne_in")) << l;
+}
+
+// Review Focus 2: a stop while a prepare runs ends the run there; no inlet
+// is left open, and the gas already measured is kept.
+TEST_F(StagedRelease, CancelDuringPrepareKeepsEarlierGases) {
+  fake_prepare_.cancel_gas = "Ne";
+  auto r = run(plan_from(kStaged));
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Cancelled);
+  EXPECT_FALSE(merged_series(r.data, "He4", "H1", collect::kSignal).value_or(collect::Series{}).v.empty());
+  for (const auto& [valve, open] : valves_.state) {
+    if (valve != "C") {
+      EXPECT_FALSE(open) << valve;
+    }
+  }
+  for (const auto& l : valves_.log) EXPECT_FALSE(l.starts_with("open Ne_in")) << l;
+}
+
+// A pump-out whose valve does not open fails the measurement, and the valve
+// is told to close all the same.
+TEST_F(StagedRelease, PumpOutThatDoesNotOpenFailsAndCloses) {
+  valves_.open_fault = [](const std::string& v) -> Result<void> {
+    if (v == "IP") return fail(ErrorKind::Io, "valve IP did not answer");
+    return {};
+  };
+  auto r = run(plan_from(kStaged));
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Failed);
+  ASSERT_TRUE(r.error);
+  EXPECT_NE(r.error->what.find("valve IP did not answer"), std::string::npos) << r.error->what;
+  EXPECT_NE(std::find_if(valves_.log.begin(), valves_.log.end(), [](const std::string& l) { return l.starts_with("close IP"); }),
+            valves_.log.end());
+  EXPECT_TRUE(fake_prepare_.requests.size() == 1u);  // Ne not prepared
+}
+
+// A stop in the pump-out's wait closes the valve; it is no pump-out done.
+TEST_F(StagedRelease, PumpOutStoppedMidWaitClosesTheValve) {
+  int opened = 0;
+  valves_.open_fault = [&](const std::string& v) -> Result<void> {
+    if (v == "IP") ++opened;
+    return {};
+  };
+  EngineOptions options;
+  options.sleep = [this, &opened](nobion::Duration d) {
+    clock_.advance(d);
+    if (opened > 0) token_.cancel();  // stopped while it pumps
+  };
+  auto r = run(plan_from(kStaged), {}, options);
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Cancelled);
+  EXPECT_FALSE(valves_.state["IP"]);
+  for (const auto& g : r.gases) EXPECT_FALSE(g.pump_out) << g.name;
+}
+
+TEST_F(StagedRelease, ValidateNeedsThePorts) {
+  prepare_ = nullptr;
+  MeasurementEngine e(context(), inputs(plan_from(kStaged), {}));
+  auto v = e.validate();
+  ASSERT_FALSE(v);
+  EXPECT_NE(v.error().what.find("prepare"), std::string::npos) << v.error().what;
+}
+
+// ---- live edits (plan Task 15) -------------------------------------------------
+
+constexpr std::string_view kTwoSegmentPlan = R"toml(
+[plan]
+name = "live"
+instrument_family = "thermo_argus"
+analysis_types = ["unknown"]
+
+[detectors]
+reference = "H1"
+
+[equilibration]
+inlet = "B"
+outlet = "C"
+time_s = 10
+
+[[segment]]
+kind = "signal"
+cycles = 5
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+counts = 2
+[[segment.positions]]
+collect = { Ar39 = "H1" }
+counts = 3
+
+[[segment]]
+kind = "signal"
+cycles = 5
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+counts = 2
+)toml";
+
+// Points a segment collected, over every position and label.
+int points_in(const MeasurementResult& r, int segment) {
+  int n = 0;
+  for (const auto& [key, s] : r.data.series)
+    if (key.segment == segment && key.kind == collect::kSignal) n += static_cast<int>(s.v.size());
+  return n;
+}
+
+// Review Focus 5: a live `cycles` changes the running segment only.
+TEST_F(EngineTest, LiveEditCyclesChangeOnlyTheRunningSegment) {
+  spec_.on_reading = [&](int n) {
+    if (n == 1) engine_->set_cycles(2);
+  };
+  auto r = run(plan_from(kTwoSegmentPlan));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  EXPECT_EQ(points_in(r, 0), 2 * (2 + 3));
+  EXPECT_EQ(points_in(r, 1), 5 * 2);
+}
+
+// Fewer cycles than the one in progress: it is finished, no more.
+TEST_F(EngineTest, LiveEditCyclesNeverCutTheCycleInProgress) {
+  spec_.on_reading = [&](int n) {
+    if (n == 12) engine_->set_cycles(1);  // in cycle 3 (readings 11 to 15)
+  };
+  auto r = run(plan_from(kTwoSegmentPlan));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  EXPECT_EQ(points_in(r, 0), 3 * (2 + 3));
+  EXPECT_EQ(points_in(r, 1), 5 * 2);
+}
+
+// A live `counts` changes the running position's collection only: the next
+// position, and the same position next cycle, collect as planned.
+TEST_F(EngineTest, LiveEditCountsChangeOnlyTheRunningPosition) {
+  spec_.on_reading = [&](int n) {
+    if (n == 1) engine_->set_target(4);
+  };
+  auto r = run(plan_from(kTwoSegmentPlan));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  const auto first = r.data.series.find(skey("Ar40", "H1", collect::kSignal, 0, 0));
+  ASSERT_NE(first, r.data.series.end());
+  EXPECT_EQ(first->second.v.size(), 4u + 4 * 2);  // cycle 1 took 4, cycles 2 to 5 their 2
+  EXPECT_EQ(r.data.series.at(skey("Ar39", "H1", collect::kSignal, 0, 1)).v.size(), 5u * 3);
+  EXPECT_EQ(points_in(r, 1), 5 * 2);
+}
+
+TEST_F(EngineTest, EngineLogPeakCenterStartAndResult) {
+  nobion::testing::LogCapture log;
+  ASSERT_TRUE(log.ok());
+  auto p = multicollect(12);
+  p.sniff.enabled = false;
+  p.peak_center.after = true;
+  p.peak_center.isotope = "Ar40";
+  auto r = run(p);
+  ASSERT_EQ(r.peak_centers.size(), 1u);
+  std::vector<std::string> mine;
+  for (const auto& l : log.lines())
+    if (l.find("experiment.engine: peak center") != std::string::npos) mine.push_back(l);
+  ASSERT_EQ(mine.size(), 2u) << ::testing::PrintToString(log.lines());
+  EXPECT_EQ(mine[0].rfind("[debug] experiment.engine: peak center start: Ar40@", 0), 0u) << mine[0];
+  EXPECT_EQ(mine[1].rfind("[debug] experiment.engine: peak center done: Ar40@", 0), 0u) << mine[1];
+  EXPECT_NE(mine[1].find("center 8"), std::string::npos) << mine[1];
+}
+
+TEST_F(EngineTest, EngineLogTruncateIsInfoWithRatio) {
+  nobion::testing::LogCapture log;
+  ASSERT_TRUE(log.ok());
+  auto p = multicollect(40, 3);
+  p.sniff.enabled = false;
+  spec_.on_reading = [&](int n) {
+    if (n == 5) engine_->truncate(true);
+  };
+  auto r = run(p);
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Truncated);
+  bool found = false;
+  for (const auto& l : log.lines())
+    if (l.starts_with("[info] experiment.engine: truncate: ratio 0.25")) found = true;
+  EXPECT_TRUE(found) << ::testing::PrintToString(log.lines());
 }
 
 TEST_F(EngineTest, UserQuickTruncateScalesByAQuarter) {
@@ -417,7 +1518,7 @@ TEST_F(EngineTest, UserQuickTruncateScalesByAQuarter) {
   };
   auto r = run(p);
   EXPECT_EQ(r.outcome, MeasurementOutcome::Truncated);
-  EXPECT_EQ(count(r, {"Ar40", "H1", SeriesKind::Signal}), 5);  // requested while reading 5 was in flight
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kSignal), 5);  // requested while reading 5 was in flight
   EXPECT_DOUBLE_EQ(r.count_scale, 0.25);
   EXPECT_EQ(r.data.counts.at("baseline.after"), 8);  // ceil(30 * 0.25); later cycles skipped
 }
@@ -432,7 +1533,7 @@ TEST_F(EngineTest, TerminationKeepsDataAndSkipsLaterBlocks) {
   set.items.push_back(conditional(ConditionalKind::Termination, "stop", "count(Ar40) >= 7"));
   auto r = run(p, set);
   EXPECT_EQ(r.outcome, MeasurementOutcome::Terminated);
-  EXPECT_EQ(count(r, {"Ar40", "H1", SeriesKind::Signal}), 7);
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kSignal), 7);
   EXPECT_EQ(r.blocks.back(), Block::Main);
   EXPECT_TRUE(peak_.requests.empty());
   EXPECT_FALSE(valves_.state["B"]);
@@ -464,7 +1565,7 @@ TEST_F(EngineTest, ActionsAndModifications) {
   EXPECT_EQ(r.modifications[0].name, "skip");
   EXPECT_EQ(r.notes, (std::vector<std::string>{"notify: note"}));
   EXPECT_EQ(hook_.entries, (std::vector<std::string>{"before_main", "on_big", "after_main"}));
-  EXPECT_EQ(count(r, {"Ar40", "H1", SeriesKind::Signal}), 7);
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kSignal), 7);
   EXPECT_DOUBLE_EQ(r.count_scale, 1.0);  // a user/action truncate keeps later counts
   EXPECT_EQ(r.data.counts.at("baseline.after"), 30);
   EXPECT_FALSE(r.cancel_queue);
@@ -481,7 +1582,7 @@ TEST_F(EngineTest, NonResumingActionEndsMainWithoutTruncating) {
                                   action(ActionSpec::Type::Notify)));
   auto r = run(p, set);
   EXPECT_EQ(r.outcome, MeasurementOutcome::Completed);
-  EXPECT_EQ(count(r, {"Ar40", "H1", SeriesKind::Signal}), 4);  // later cycles skipped
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kSignal), 4);  // later cycles skipped
   EXPECT_EQ(r.data.counts.at("baseline.after"), 30);
   EXPECT_EQ(r.notes, (std::vector<std::string>{"notify: note"}));
 }
@@ -498,7 +1599,7 @@ TEST_F(EngineTest, ModificationFlagsActInRun) {
   set.items.back().abbreviated_count_ratio = 0.5;
   auto r = run(p, set);
   EXPECT_EQ(r.outcome, MeasurementOutcome::Truncated);
-  EXPECT_EQ(count(r, {"Ar40", "H1", SeriesKind::Signal}), 5);
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kSignal), 5);
   EXPECT_EQ(r.data.counts.at("baseline.after"), 10);
   ASSERT_EQ(r.modifications.size(), 1u);
   EXPECT_TRUE(r.modifications[0].truncate);
@@ -519,7 +1620,7 @@ TEST_F(EngineTest, AnalysisTypeFiltersConditionals) {
   MeasurementInputs in = inputs(p, set);
   in.analysis_type = "unknown";
   EngineOptions options;
-  options.sleep = [this](pychron::Duration d) { clock_.advance(d); };
+  options.sleep = [this](nobion::Duration d) { clock_.advance(d); };
   MeasurementEngine e(context(), in, options);
   auto r = e.run(token_);
   EXPECT_EQ(r.outcome, MeasurementOutcome::Completed);
@@ -578,13 +1679,13 @@ TEST_F(EngineTest, WhiffRunRemainderPumpAbort) {
   auto r = run(p);
   ASSERT_EQ(r.outcome, MeasurementOutcome::Completed)
       << to_string(r.outcome) << " " << (r.error ? r.error->what : "") << " blocks=" << r.blocks.size()
-      << " notes=" << testing::PrintToString(r.notes);
+      << " notes=" << ::testing::PrintToString(r.notes);
   EXPECT_EQ(r.whiff, WhiffCheck::Action::RunRemainder);  // nothing matched
   EXPECT_EQ(hook_.whiff_result, "run_remainder");
-  EXPECT_EQ(count(r, {"Ar40", "H1", SeriesKind::Whiff}), 3);
-  EXPECT_EQ(count(r, {"Ar40", "H1", SeriesKind::Sniff}), 7);  // the rest of the 10 s equilibration
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kWhiff), 3);
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kSniff), 7);  // the rest of the 10 s equilibration
   // The whiff happens after the inlet opens.
-  EXPECT_GT(r.data.series.at({"Ar40", "H1", SeriesKind::Whiff}).t.front(), *r.data.timing.inlet_open);
+  EXPECT_GT(merged_series(r.data, "Ar40", "H1", collect::kWhiff).value().t.front(), *r.data.timing.inlet_open);
 
   p.whiff.checks = {{"Ar40.cur > 500", "pump"}};
   valves_.log.clear();
@@ -594,7 +1695,7 @@ TEST_F(EngineTest, WhiffRunRemainderPumpAbort) {
   EXPECT_FALSE(valves_.state["B"]);
   EXPECT_TRUE(valves_.state["C"]);  // outlet opened to pump the gas away
   EXPECT_EQ(r.blocks.back(), Block::Equilibrate);
-  EXPECT_FALSE(r.data.series.contains({"Ar40", "H1", SeriesKind::Signal}));
+  EXPECT_FALSE(merged_series(r.data, "Ar40", "H1", collect::kSignal).has_value());
 
   p.whiff.checks = {{"Ar40.cur > 500", "abort"}};
   r = run(p);
@@ -628,7 +1729,7 @@ TEST_F(EngineTest, CancelMidMainLeavesTheLineSafe) {
   EXPECT_FALSE(spec_.acquiring);
   EXPECT_TRUE(spec_.protected_.empty());
   EXPECT_EQ(r.blocks.back(), Block::Main);
-  EXPECT_LT(count(r, {"Ar40", "H1", SeriesKind::Signal}), 40);
+  EXPECT_LT(count(r, "Ar40", "H1", collect::kSignal), 40);
 }
 
 TEST_F(EngineTest, AbortDuringEquilibrationClosesTheInlet) {
@@ -650,17 +1751,18 @@ TEST_F(EngineTest, CancelationConditionalCancels) {
   set.items.push_back(conditional(ConditionalKind::Cancelation, "bad", "Ar40 > 0", 2));
   auto r = run(p, set);
   EXPECT_EQ(r.outcome, MeasurementOutcome::Cancelled);
-  EXPECT_EQ(count(r, {"Ar40", "H1", SeriesKind::Signal}), 3);
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kSignal), 3);
 }
 
 TEST_F(EngineTest, AcquisitionFailureFailsAndCleansUp) {
   auto p = multicollect(10);
   p.equilibration.close_inlet = false;
   spec_.fail_at = 15;  // inside main (10 sniff readings first)
+  spec_.fail_kind = ErrorKind::Protocol;  // definite: a timeout is a gap (MeasurementGap below)
   auto r = run(p);
   EXPECT_EQ(r.outcome, MeasurementOutcome::Failed);
   ASSERT_TRUE(r.error);
-  EXPECT_EQ(r.error->kind, ErrorKind::Timeout);
+  EXPECT_EQ(r.error->kind, ErrorKind::Protocol);
   EXPECT_FALSE(spec_.acquiring);
   EXPECT_FALSE(valves_.state["B"]);
 }
@@ -673,10 +1775,31 @@ TEST_F(EngineTest, PositionFailureFails) {
   EXPECT_TRUE(valves_.log.empty());
 }
 
+// What the dock shows from the engine is in the file too, once.
+TEST_F(EngineTest, EngineLogPeakCenterFailureReachesTheFileOnce) {
+  nobion::testing::LogCapture log;
+  ASSERT_TRUE(log.ok());
+  auto p = multicollect(3);
+  p.sniff.enabled = false;
+  p.peak_center = {true, false, "AX", "Ar39", "default", 0};
+  peak_.ok = false;
+  std::vector<std::string> warnings;
+  auto sub = bus_.subscribe<Log>([&](const Log& l) {
+    if (l.level == LogLevel::Warn) warnings.push_back(l.message);
+  });
+  auto r = run(p);
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed);
+  EXPECT_EQ(warnings.size(), 1u);  // the dock
+  int in_file = 0;
+  for (const auto& l : log.lines())
+    if (l.starts_with("[warn] measurement:") && l.find("no peak") != std::string::npos) ++in_file;
+  EXPECT_EQ(in_file, 1) << ::testing::PrintToString(log.lines());
+}
+
 TEST_F(EngineTest, FailedPeakCenterIsReportedAndForcesARepositioning) {
   auto p = multicollect(3);
   p.sniff.enabled = false;
-  p.peak_center = {true, false, "AX", "Ar39", "default"};
+  p.peak_center = {true, false, "AX", "Ar39", "default", 0};
   peak_.ok = false;
   std::vector<std::string> warnings;
   auto sub = bus_.subscribe<Log>([&](const Log& l) {
@@ -691,9 +1814,161 @@ TEST_F(EngineTest, FailedPeakCenterIsReportedAndForcesARepositioning) {
   EXPECT_NE(warnings[0].find("no peak"), std::string::npos);
 }
 
+// A peak center after a blank would fit whatever small peak is left and move
+// the field table by it: below the plan's minimum the block does nothing.
+TEST_F(EngineTest, APeakCenterAfterIsSkippedWhenTheSignalIsBelowThePlansMinimum) {
+  auto p = multicollect(12);
+  p.sniff.enabled = false;
+  p.peak_center.after = true;
+  p.peak_center.isotope = "Ar39";
+  p.peak_center.detector = "AX";
+  p.peak_center.min_signal = 5000;  // Ar39 reads about 1100 here, Ar40 about 11000
+  std::vector<std::string> said;
+  auto sub = bus_.subscribe<Log>([&](const Log& l) { said.push_back(l.message); });
+  auto r = run(p);
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  EXPECT_TRUE(peak_.requests.empty());
+  ASSERT_EQ(r.peak_centers.size(), 1u);
+  EXPECT_TRUE(r.peak_centers[0].skipped);
+  EXPECT_FALSE(r.peak_centers[0].ok);
+  EXPECT_FALSE(r.peak_centers[0].table_updated);
+  EXPECT_EQ(r.peak_centers[0].request.isotope, "Ar39");
+  EXPECT_EQ(r.peak_centers[0].request.detector, "AX");
+  EXPECT_NE(r.peak_centers[0].message.find("below min_signal 5000"), std::string::npos) << r.peak_centers[0].message;
+  EXPECT_EQ(r.blocks.back(), Block::PeakCenterAfter);
+  const auto told = std::ranges::count_if(said, [](const std::string& m) { return m.find("skipped") != std::string::npos; });
+  EXPECT_EQ(told, 1);
+}
+
+// ---- the peak_center step (plan Task 16) ------------------------------------------
+
+std::string ic_plan(std::string_view peak_center, std::string_view when = "before_inlet") {
+  const std::string table = when == "before_inlet" ? "table = \"ic_run\"\n" : "";
+  return std::string(R"toml(
+[plan]
+name = "ic"
+instrument_family = "thermo_argus"
+analysis_types = ["unknown"]
+
+[equilibration]
+inlet = "B"
+outlet = "C"
+time_s = 10
+
+[[segment]]
+kind = "peak_center"
+when = ")toml") + std::string(when) + R"toml("
+peak_center = )toml" + std::string(peak_center) + R"toml(
+
+[[segment]]
+kind = "signal"
+cycles = 2
+)toml" + table + R"toml(
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+counts = 3
+[[segment.positions]]
+collect = { Ar40 = "AX" }
+counts = 3
+)toml";
+}
+
+// Worked plan 7.3: the job runs once per detector, each into the run's table.
+TEST_F(EngineTest, PeakCenterStepOncePerDetector) {
+  auto r = run(plan_from(ic_plan(R"({ label = "Ar40", detectors = ["H1", "AX", "L2"], write_table = "ic_run" })")));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  ASSERT_EQ(peak_.requests.size(), 3u);
+  const std::vector<std::string> dets{"H1", "AX", "L2"};
+  for (std::size_t i = 0; i < 3; ++i) {
+    EXPECT_EQ(peak_.requests[i].detector, dets[i]);
+    EXPECT_EQ(peak_.requests[i].isotope, "Ar40");
+    EXPECT_EQ(peak_.requests[i].write_table, "ic_run");
+  }
+  EXPECT_EQ(r.peak_centers.size(), 3u);
+  // One trace entry a detector, each naming its own, in the step's segment.
+  std::vector<std::string> steps;
+  for (const auto& e : r.trace)
+    if (e.what == "step" && e.detail.starts_with("peak_center")) {
+      steps.push_back(e.detail);
+      EXPECT_EQ(e.segment, 0) << e.detail;
+    }
+  EXPECT_EQ(steps, (std::vector<std::string>{"peak_center Ar40@H1", "peak_center Ar40@AX", "peak_center Ar40@L2"}));
+  // The positions then run on the run's table.
+  EXPECT_EQ(std::count(spec_.log.begin(), spec_.log.end(), "table ic_run"), 1);
+  EXPECT_EQ(peak_.dropped, 1);  // the run's tables end with it
+}
+
+// Worked plan 7.1: extra detectors are fitted with the reference.
+TEST_F(EngineTest, PeakCenterStepExtraDetectorsPassed) {
+  auto r = run(plan_from(ic_plan(R"({ label = "Ar40", detector = "H1", extra_detectors = ["AX", "CDD"], write_table = "ic_run" })")));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  ASSERT_EQ(peak_.requests.size(), 1u);
+  EXPECT_EQ(peak_.requests[0].extra_detectors, (std::vector<std::string>{"AX", "CDD"}));
+}
+
+// The v1 rule stays: an after_run peak center under min_signal is skipped.
+TEST_F(EngineTest, PeakCenterStepMinSignalSkipsAfterRun) {
+  auto r = run(plan_from(ic_plan(R"({ label = "Ar40", detector = "H1", min_signal = 1e12, write_table = "ic_run" })",
+                                 "after_run")));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  EXPECT_TRUE(peak_.requests.empty());
+  ASSERT_EQ(r.peak_centers.size(), 1u);
+  EXPECT_TRUE(r.peak_centers[0].skipped);
+}
+
+// Review Focus 1: a failed write leaves the positions that name the table on
+// the current one; the run says so and goes on.
+TEST_F(EngineTest, PeakCenterStepFailedWriteTableFallsBackToCurrentTable) {
+  peak_.ok = false;
+  auto r = run(plan_from(ic_plan(R"({ label = "Ar40", detectors = ["H1", "AX"], write_table = "ic_run" })")));
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  EXPECT_EQ(peak_.requests.size(), 2u);
+  EXPECT_EQ(std::count(spec_.log.begin(), spec_.log.end(), "table ic_run"), 0);
+  const auto notes = std::count(r.notes.begin(), r.notes.end(), "table ic_run not written: no peak");
+  EXPECT_EQ(notes, 1);  // once, not once per detector
+  EXPECT_EQ(merged_series(r.data, "Ar40", "AX", collect::kSignal).value().v.size(), 6u);
+}
+
+// The signal compared is the mean of the last ten readings of the main block.
+TEST_F(EngineTest, APeakCenterAfterRunsWhenTheSignalReachesTheMinimum) {
+  auto p = multicollect(12);
+  p.sniff.enabled = false;
+  p.peak_center.after = true;
+  p.peak_center.isotope = "Ar40";
+  auto plain = run(p);
+  const auto v = merged_series(plain.data, "Ar40", "H1", collect::kSignal).value().v;
+  ASSERT_EQ(v.size(), 12u);
+  double last_ten = 0;
+  for (std::size_t i = 2; i < v.size(); ++i) last_ten += v[i] / 10;
+  ASSERT_LT(v.front(), v.back());  // the fake's signal grows: the mean of all twelve is lower
+
+  peak_.requests.clear();
+  p.peak_center.min_signal = last_ten;
+  auto at = run(p);
+  ASSERT_EQ(at.peak_centers.size(), 1u);
+  EXPECT_FALSE(at.peak_centers[0].skipped);
+  EXPECT_TRUE(at.peak_centers[0].ok);
+  EXPECT_EQ(peak_.requests.size(), 1u);
+}
+
+// Before the gas is in there is no reading to compare: the block runs.
+TEST_F(EngineTest, APeakCenterBeforeIsNotHeldToTheMinimumSignal) {
+  auto p = multicollect(3);
+  p.sniff.enabled = false;
+  p.peak_center.before = true;
+  p.peak_center.isotope = "Ar40";
+  p.peak_center.min_signal = 1e9;
+  auto r = run(p);
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed);
+  ASSERT_EQ(r.peak_centers.size(), 1u);
+  EXPECT_FALSE(r.peak_centers[0].skipped);
+  EXPECT_EQ(peak_.requests.size(), 1u);
+}
+
 TEST_F(EngineTest, ValidateNamesMissingServices) {
   auto p = multicollect();
   p.peak_center.after = true;
+  p.peak_center.isotope = "Ar40";
   p.hook = "h.py";
   EngineContext ctx{spec_, clock_};
   MeasurementEngine e(ctx, inputs(p));
@@ -732,6 +2007,35 @@ TEST_F(EngineTest, HookUsesTheMeasurementApi) {
   EXPECT_EQ(std::count(spec_.log.begin(), spec_.log.end(), "position Ar40@H1"), 2);
 }
 
+// Hooks as capable as the plan (spec 5.5, plan Task 18).
+TEST_F(EngineTest, EngineHookApiNewCallsReachThePorts) {
+  auto p = multicollect(4);
+  p.sniff.enabled = false;
+  p.hook = "h.py";
+  hook_.actions["before_main"] = [](scripting::IMeasurementApi& api) -> Result<void> {
+    if (auto r = api.peak_center("Ar40", "AX", "ic_run"); !r) return r;
+    if (auto r = api.set_deflection("CDD", 110); !r) return r;
+    if (auto r = api.set_integration(2); !r) return r;
+    if (auto r = api.with_table("ic"); !r) return r;
+    if (auto r = api.apply_optics("ar_config_a"); !r) return r;
+    if (api.set_integration(0)) return fail(ErrorKind::Config, "zero integration accepted");
+    return {};
+  };
+  auto r = run(p);
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  ASSERT_EQ(peak_.requests.size(), 1u);
+  EXPECT_EQ(peak_.requests[0].isotope, "Ar40");
+  EXPECT_EQ(peak_.requests[0].detector, "AX");
+  EXPECT_EQ(peak_.requests[0].write_table, "ic_run");
+  const auto from = log_from(spec_.log, "deflect CDD=110");
+  ASSERT_GE(from.size(), 3u);
+  EXPECT_EQ(std::vector<std::string>(from.begin(), from.begin() + 3),
+            (std::vector<std::string>{"deflect CDD=110", "table ic", "optics ar_config_a"}));
+  // Main collects with the hook's integration; the deflection stands to the end.
+  EXPECT_NE(std::find(from.begin(), from.end(), "start 2.000000"), from.end());
+  EXPECT_EQ(spec_.log.back(), "deflect CDD=0");
+}
+
 TEST_F(EngineTest, HookErrorFailsTheMeasurement) {
   auto p = multicollect(4);
   p.hook = "h.py";
@@ -744,7 +2048,7 @@ TEST_F(EngineTest, HookErrorFailsTheMeasurement) {
 }
 
 TEST_F(EngineTest, PlanTruncationsBecomeAConditionalLevel) {
-  auto p = multicollect();
+  plan::MeasurementPlan p;
   p.conditionals.truncations = {{"Ar40 > 8e5", 20}};
   auto set = plan_conditionals(p);
   ASSERT_TRUE(set);
@@ -762,19 +2066,19 @@ TEST_F(EngineTest, ResultsFitInterceptsAndBaselines) {
   p.baseline.after = true;
   auto r = run(p);
   ASSERT_EQ(r.outcome, MeasurementOutcome::Completed);
-  auto fits = fit_results(r.data, p.fits);
+  auto fits = fit_results(r.data, p.plan());
   EXPECT_TRUE(fits.errors.empty());
   // v = a (1 + 0.01 t) with t absolute clock seconds: the intercept at time
   // zero is a (1 + 0.01 t_zero).
   const double tz = secs(r.data.timing.epoch - TimePoint{}) + *r.data.timing.time_zero;
-  ASSERT_TRUE(fits.results.intercepts.contains("Ar40"));
-  EXPECT_NEAR(fits.results.intercepts.at("Ar40").intercept.value, 1000 * (1 + 0.01 * tz), 1e-6);
-  EXPECT_NEAR(fits.results.intercepts.at("Ar39").intercept.value, 100 * (1 + 0.01 * tz), 1e-6);
-  EXPECT_EQ(fits.results.intercepts.at("Ar40").fit.kind, reduction::FitKind::Linear);
+  ASSERT_TRUE(fits.results.intercepts.contains("Ar40@H1"));
+  EXPECT_NEAR(fits.results.intercepts.at("Ar40@H1").intercept.value, 1000 * (1 + 0.01 * tz), 1e-6);
+  EXPECT_NEAR(fits.results.intercepts.at("Ar39@AX").intercept.value, 100 * (1 + 0.01 * tz), 1e-6);
+  EXPECT_EQ(fits.results.intercepts.at("Ar40@H1").fit.kind, reduction::FitKind::Linear);
   ASSERT_TRUE(fits.results.baselines.contains("H1"));
   EXPECT_DOUBLE_EQ(fits.results.baselines.at("H1").value, 0.0);  // magnet at mass 34.2: empty
 
-  auto data = to_record_data(r.data);
+  auto data = to_record_data(r.data, p.plan());
   EXPECT_EQ(data.time_zero, *r.data.timing.time_zero);
   EXPECT_EQ(data.counts.at("main"), 30);
   bool found = false;
@@ -791,24 +2095,1056 @@ TEST_F(EngineTest, ResultsFitInterceptsAndBaselines) {
   EXPECT_TRUE(found);
 }
 
+// The record (v3) keeps a series per position; one label on one detector is
+// one intercept, its positions fitted as one series in time order.
+TEST_F(EngineTest, RecordKeepsPositionsAndFitsOneLabelOnOneDetectorAsOne) {
+  collect::RunData d;
+  d.series[skey("Ar40", "H1", collect::kSignal, 1, 0)] = collect::Series{{1, 3}, {10, 30}, {}, {false, false}};
+  d.series[skey("Ar40", "H1", collect::kSignal, 1, 1)] = collect::Series{{2, 4}, {20, 40}, {}, {false, false}};
+  d.series[skey("", "H1", collect::kBaseline, 0, 0)] = collect::Series{{0}, {1}, {}, {false}};
+  d.series[skey("", "H1", collect::kBaseline, 2, 0)] = collect::Series{{5}, {3}, {}, {false}};
+  const auto data = to_record_data(d, plan::MeasurementPlan{});
+  ASSERT_EQ(data.series.size(), 4u);
+  // By label, as v2 records were: the baseline segment's (no label) first,
+  // then by segment and position.
+  EXPECT_EQ(data.series[0].kind, "baseline");
+  EXPECT_EQ(data.series[0].segment, 0);
+  EXPECT_EQ(data.series[1].segment, 2);
+  EXPECT_EQ(data.series[2].iso, "Ar40");
+  EXPECT_EQ(data.series[2].position, 0);
+  EXPECT_EQ(data.series[3].position, 1);
+  EXPECT_EQ(data.series[3].trace.v, (std::vector<float>{20, 40}));
+  ASSERT_EQ(data.gases.size(), 1u);
+  const auto out = fit_results(d, plan::MeasurementPlan{});
+  EXPECT_EQ(out.results.intercepts.size(), 1u);
+  EXPECT_NEAR(out.results.intercepts.at("Ar40@H1").intercept.value, 0, 1e-9);  // y = 10 t
+  ASSERT_EQ(out.results.baseline_positions.size(), 2u);
+  // The two baselines bracket the signal: their average.
+  EXPECT_DOUBLE_EQ(out.results.baselines.at("H1").value, 2);
+  EXPECT_EQ(out.results.baseline_choices.at("Ar40@H1").rule, "bracketing_average");
+}
+
+// ---- the baseline rule (spec 6.2) ---------------------------------------------
+
+constexpr std::string_view kBaselineRulePlan = R"toml(
+[plan]
+name = "baseline_rule"
+instrument_family = "thermo_argus"
+analysis_types = ["unknown"]
+
+[detectors]
+reference = "H1"
+
+[equilibration]
+inlet = "B"
+outlet = "C"
+time_s = 10
+
+[[segment]]
+kind = "signal"
+when = "after_inlet"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+counts = 3
+[[segment.positions]]
+kind = "baseline"
+collect = { Ar40 = "H1" }
+counts = 2
+
+[[segment]]
+kind = "baseline"
+when = "before_inlet"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+at = { mass = 34.2, detector = "H1" }
+counts = 2
+
+[[segment]]
+kind = "baseline"
+when = "after_main"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+at = { mass = 34.2, detector = "H1" }
+counts = 2
+)toml";
+
+collect::RunData baseline_rule_data() {
+  collect::RunData d;
+  d.series[skey("Ar40", "H1", collect::kSignal, 0, 0)] = collect::Series{{10, 11, 12}, {5, 5, 5}, {}, {}};
+  return d;
+}
+
+// A baseline position whose `at` is the signal position's target wins over
+// one nearer in time.
+TEST(FitResults, BaselineRuleAt) {
+  const auto plan = plan_from(kBaselineRulePlan);
+  auto d = baseline_rule_data();
+  d.series[skey("Ar40", "H1", collect::kBaseline, 0, 1)] = collect::Series{{20, 21}, {1, 1}, {}, {}};
+  d.series[skey("", "H1", collect::kBaseline, 2, 0)] = collect::Series{{13, 14}, {3, 3}, {}, {}};
+  const auto out = fit_results(d, plan);
+  ASSERT_EQ(out.results.baseline_positions.size(), 2u);
+  const auto& c = out.results.baseline_choices.at("Ar40@H1");
+  EXPECT_EQ(c.rule, "at");
+  EXPECT_DOUBLE_EQ(c.value, 1);
+  ASSERT_EQ(c.baselines.size(), 1u);
+  EXPECT_EQ(out.results.baseline_positions[c.baselines[0]].segment, 0);
+  EXPECT_EQ(out.results.baseline_positions[c.baselines[0]].position, 1);
+  EXPECT_EQ(out.results.baseline_positions[c.baselines[0]].when, "after_inlet");
+  EXPECT_DOUBLE_EQ(out.results.baselines.at("H1").value, 1);
+}
+
+// No `at` matches and nothing brackets: the nearest by mean time.
+TEST(FitResults, BaselineRuleNearest) {
+  const auto plan = plan_from(kBaselineRulePlan);
+  auto d = baseline_rule_data();
+  d.series[skey("", "H1", collect::kBaseline, 1, 0)] = collect::Series{{30, 31}, {7, 7}, {}, {}};
+  d.series[skey("", "H1", collect::kBaseline, 2, 0)] = collect::Series{{13, 14}, {3, 3}, {}, {}};
+  const auto out = fit_results(d, plan);
+  const auto& c = out.results.baseline_choices.at("Ar40@H1");
+  EXPECT_EQ(c.rule, "nearest");
+  EXPECT_DOUBLE_EQ(c.value, 3);
+  EXPECT_EQ(out.results.baseline_positions[c.baselines.at(0)].when, "after_main");
+}
+
+// One before the signal, one after, neither matching: their average, the
+// error a mean of two.
+// Two baselines as near as each other: the first of them (record order).
+TEST(FitResults, BaselineRuleTieTakesTheFirst) {
+  const auto plan = plan_from(kBaselineRulePlan);
+  auto d = baseline_rule_data();  // signal at 10..12, mean 11
+  d.series[skey("", "H1", collect::kBaseline, 1, 0)] = collect::Series{{13, 13}, {7, 7}, {}, {}};
+  d.series[skey("", "H1", collect::kBaseline, 2, 0)] = collect::Series{{13, 13}, {3, 3}, {}, {}};
+  const auto out = fit_results(d, plan);
+  const auto& c = out.results.baseline_choices.at("Ar40@H1");
+  EXPECT_EQ(c.rule, "nearest");
+  EXPECT_EQ(c.baselines, (std::vector<std::size_t>{0}));
+  EXPECT_DOUBLE_EQ(c.value, 7);
+}
+
+// A signal on a detector no baseline was read on, in a run with baselines:
+// no choice, and it is said.
+TEST(FitResults, BaselineRuleNoCandidateIsSaid) {
+  const auto plan = plan_from(kBaselineRulePlan);
+  auto d = baseline_rule_data();
+  d.series[skey("Ar39", "AX", collect::kSignal, 0, 0)] = collect::Series{{10, 11}, {5, 5}, {}, {}};
+  d.series[skey("", "H1", collect::kBaseline, 2, 0)] = collect::Series{{13, 14}, {3, 3}, {}, {}};
+  const auto out = fit_results(d, plan);
+  EXPECT_TRUE(out.results.baseline_choices.contains("Ar40@H1"));
+  EXPECT_FALSE(out.results.baseline_choices.contains("Ar39@AX"));
+  ASSERT_EQ(out.errors.size(), 1u);
+  EXPECT_EQ(out.errors[0], "Ar39@AX: no baseline on AX");
+  // With no baseline in the run at all, nothing to say.
+  const auto none = fit_results(baseline_rule_data(), plan);
+  EXPECT_TRUE(none.errors.empty());
+}
+
+// One label on one detector read in two gases is not fitted as one series.
+TEST(FitResults, ASignalAcrossGasesIsNotMerged) {
+  collect::RunData d;
+  auto in_gas = [](std::string gas) {
+    SeriesKey k = skey("Ar40", "H1", collect::kSignal);
+    k.gas = std::move(gas);
+    return k;
+  };
+  d.series[in_gas("A")] = collect::Series{{1, 2}, {10, 10}, {}, {}};
+  d.series[in_gas("B")] = collect::Series{{5, 6}, {20, 20}, {}, {}};
+  const auto out = fit_results(d, plan::MeasurementPlan{});
+  EXPECT_FALSE(out.results.intercepts.contains("Ar40@H1"));
+  ASSERT_EQ(out.errors.size(), 1u);
+  EXPECT_NE(out.errors[0].find("more than one gas"), std::string::npos) << out.errors[0];
+}
+
+TEST(FitResults, BaselineRuleBracketingAverage) {
+  const auto plan = plan_from(kBaselineRulePlan);
+  auto d = baseline_rule_data();
+  d.series[skey("", "H1", collect::kBaseline, 1, 0)] = collect::Series{{0, 1}, {1, 2}, {}, {}};
+  d.series[skey("", "H1", collect::kBaseline, 2, 0)] = collect::Series{{20, 21}, {3, 5}, {}, {}};
+  const auto out = fit_results(d, plan);
+  ASSERT_EQ(out.results.baseline_positions.size(), 2u);
+  const auto& b1 = out.results.baseline_positions[0].result;
+  const auto& b2 = out.results.baseline_positions[1].result;
+  EXPECT_DOUBLE_EQ(b1.value, 1.5);
+  EXPECT_DOUBLE_EQ(b2.value, 4);
+  EXPECT_GT(b1.error, 0);
+  const auto& c = out.results.baseline_choices.at("Ar40@H1");
+  EXPECT_EQ(c.rule, "bracketing_average");
+  EXPECT_EQ(c.baselines, (std::vector<std::size_t>{0, 1}));
+  EXPECT_DOUBLE_EQ(c.value, 2.75);
+  EXPECT_DOUBLE_EQ(c.error, std::sqrt(b1.error * b1.error + b2.error * b2.error) / 2);
+  EXPECT_DOUBLE_EQ(out.results.baselines.at("H1").value, 2.75);
+}
+
+// ---- baseline modifiers (spec 3.5, plan Task 21) ---------------------------------
+
+std::string modifier_plan(std::string_view model) {
+  return std::string(R"toml(
+[plan]
+name = "mod"
+instrument_family = "thermo_argus"
+
+[equilibration]
+inlet = "B"
+outlet = "C"
+time_s = 10
+
+[[segment]]
+[[segment.positions]]
+collect = { Ar40 = "H1", Ar39 = "AX" }
+counts = 3
+
+[baseline.modifier.CDD]
+variable = "Ar40+Ar39"
+model = ")toml") + std::string(model) + R"toml("
+error = "counting_statistics"
+)toml";
+}
+
+collect::RunData modifier_data() {
+  collect::RunData d;
+  d.series[skey("Ar40", "H1", collect::kSignal)] = collect::Series{{1, 2, 3}, {1000, 1000, 1000}, {}, {}};
+  d.series[skey("Ar39", "AX", collect::kSignal)] = collect::Series{{1, 2, 3}, {100, 100, 100}, {}, {}};
+  d.series[skey("", "CDD", collect::kBaseline, 1, 0)] = collect::Series{{5, 6}, {0.5, 0.5}, {}, {}};
+  d.series[skey("", "H1", collect::kBaseline, 1, 0)] = collect::Series{{5, 6}, {0.1, 0.1}, {}, {}};
+  d.series[skey("", "AX", collect::kBaseline, 1, 0)] = collect::Series{{5, 6}, {0.1, 0.1}, {}, {}};
+  return d;
+}
+
+TEST(FitResults, BaselineModifierEvaluated) {
+  const auto out = fit_results(modifier_data(), plan_from(modifier_plan("0.01*x")));
+  ASSERT_TRUE(out.errors.empty()) << out.errors.front();
+  const auto& m = out.results.baseline_modifiers.at("CDD");
+  EXPECT_EQ(m.variable, "Ar40+Ar39");
+  EXPECT_EQ(m.model, "0.01*x");
+  EXPECT_EQ(m.error, "counting_statistics");
+  EXPECT_NEAR(m.value, 0.01 * 1100, 1e-9);
+  EXPECT_EQ(m.error_value, 0);
+  EXPECT_DOUBLE_EQ(out.results.baselines.at("CDD").value, 0.5);  // applied at reduction, not here
+}
+
+// A model file: the weighted least-squares line through its points.
+TEST(FitResults, BaselineModifierFromAModelFile) {
+  const ModelFiles files{{"model.csv", "# variable, baseline, error\nx, baseline, error\n0, 1, 0.1\n1000, 2, 0.1\n2000, 3, 0.1\n"}};
+  const auto out = fit_results(modifier_data(), plan_from(modifier_plan("model.csv")), {}, files);
+  ASSERT_TRUE(out.errors.empty()) << out.errors.front();
+  const auto& m = out.results.baseline_modifiers.at("CDD");
+  EXPECT_NEAR(m.value, 1 + 1100.0 / 1000, 1e-9);
+  EXPECT_GT(m.error_value, 0);
+  EXPECT_LT(m.error_value, 0.1);
+  // Not read: said, and nothing recorded.
+  const auto missing = fit_results(modifier_data(), plan_from(modifier_plan("model.csv")));
+  ASSERT_EQ(missing.errors.size(), 1u);
+  EXPECT_NE(missing.errors[0].find("model file 'model.csv' not read"), std::string::npos) << missing.errors[0];
+  EXPECT_TRUE(missing.results.baseline_modifiers.empty());
+}
+
 TEST_F(EngineTest, IsotopeOnTwoDetectorsGetsDetectorQualifiedIntercepts) {
   collect::RunData d;
-  d.series[{"Ar36", "CDD", SeriesKind::Signal}] = collect::Series{{1, 2, 3}, {1, 2, 3}, {}, {}};
-  d.series[{"Ar36", "L2", SeriesKind::Signal}] = collect::Series{{1, 2, 3}, {2, 4, 6}, {}, {}};
-  d.series[{"Ar40", "H1", SeriesKind::Signal}] = collect::Series{{1}, {5}, {}, {}};  // too few for linear
-  d.series[{"Ar39", "AX", SeriesKind::Signal}] =
+  d.series[skey("Ar36", "CDD", collect::kSignal)] = collect::Series{{1, 2, 3}, {1, 2, 3}, {}, {}};
+  d.series[skey("Ar36", "L2", collect::kSignal)] = collect::Series{{1, 2, 3}, {2, 4, 6}, {}, {}};
+  d.series[skey("Ar40", "H1", collect::kSignal)] = collect::Series{{1}, {5}, {}, {}};  // too few for linear
+  d.series[skey("Ar39", "AX", collect::kSignal)] =
       collect::Series{{1, 2}, {1, std::numeric_limits<double>::quiet_NaN()}, {}, {}};
-  auto out = fit_results(d, plan::Fits{});
-  EXPECT_TRUE(out.results.intercepts.contains("Ar36:CDD"));
-  EXPECT_TRUE(out.results.intercepts.contains("Ar36:L2"));
+  auto out = fit_results(d, plan::MeasurementPlan{});
+  EXPECT_TRUE(out.results.intercepts.contains("Ar36@CDD"));
+  EXPECT_TRUE(out.results.intercepts.contains("Ar36@L2"));
   // One point: averaged, and the record says which fit was used.
-  ASSERT_TRUE(out.results.intercepts.contains("Ar40"));
-  EXPECT_EQ(out.results.intercepts.at("Ar40").fit.kind, reduction::FitKind::Average);
-  EXPECT_DOUBLE_EQ(out.results.intercepts.at("Ar40").intercept.value, 5);
+  ASSERT_TRUE(out.results.intercepts.contains("Ar40@H1"));
+  EXPECT_EQ(out.results.intercepts.at("Ar40@H1").fit.kind, reduction::FitKind::Average);
+  EXPECT_DOUBLE_EQ(out.results.intercepts.at("Ar40@H1").intercept.value, 5);
   // Non-finite data cannot be fitted.
-  EXPECT_FALSE(out.results.intercepts.contains("Ar39"));
+  EXPECT_FALSE(out.results.intercepts.contains("Ar39@AX"));
   ASSERT_EQ(out.errors.size(), 1u);
-  EXPECT_EQ(out.errors[0].substr(0, 5), "Ar39:");
+  EXPECT_EQ(out.errors[0].substr(0, 8), "Ar39@AX:");
 }
 
 }  // namespace
+
+// ---- a silence in the readings (executor hardening, spec 4.4) ----------------
+
+class MeasurementGaps : public EngineTest {
+ protected:
+  MeasurementGaps() {
+    progress_ = bus_.subscribe<CountsProgress>([this](const CountsProgress& e) {
+      if (e.block != Block::Main) return;
+      if (e.i == 1) first_main_ = clock_.now();
+      if (silence_after_ && e.i == *silence_after_ && !spec_.silent_from) {
+        spec_.silent_from = clock_.now();
+        if (silence_for_) spec_.silent_until = clock_.now() + *silence_for_;
+        valves_at_silence_ = valves_.log.size();
+        spec_log_at_silence_ = spec_.log.size();
+      }
+      if (e.i == (silence_after_ ? *silence_after_ : 0) + 1 && spec_.silent_from) {
+        valves_at_resume_ = valves_.log.size();
+        spec_log_at_resume_ = spec_.log.size();
+      }
+      last_main_ = clock_.now();
+    });
+    gaps_ = bus_.subscribe<measurement::MeasurementGap>([this](const measurement::MeasurementGap& g) { published_.push_back(g); });
+    alarms_ = bus_.subscribe<Alarm>([this](const Alarm& a) { said_.push_back(a); });
+  }
+
+  // Silent after the n-th main reading, for `d` (for good when not given).
+  void silence(int n, std::optional<nobion::Duration> d) {
+    silence_after_ = n;
+    silence_for_ = d;
+  }
+  // When the main collection began: one integration (1 s) before its first reading.
+  TimePoint main_began() const { return *first_main_ - 1s; }
+
+  std::optional<int> silence_after_;
+  std::optional<nobion::Duration> silence_for_;
+  std::optional<TimePoint> first_main_, last_main_;
+  std::size_t valves_at_silence_ = 0, valves_at_resume_ = 0, spec_log_at_silence_ = 0, spec_log_at_resume_ = 0;
+  std::vector<measurement::MeasurementGap> published_;
+  std::vector<Alarm> said_;
+  SignalBus::Subscription progress_, gaps_, alarms_;
+};
+
+TEST_F(MeasurementGaps, AShortSilenceIsRecordedAndTheBlockEndsOnTime) {
+  auto p = multicollect(100);
+  silence(30, 20s);
+  const auto r = run(p);
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  EXPECT_FALSE(r.truncated_by_link);
+  ASSERT_EQ(r.gaps.size(), 1u);
+  EXPECT_EQ(r.gaps[0].block, Block::Main);
+  // From the last reading before the silence to the first after it.
+  EXPECT_NEAR(r.gaps[0].to - r.gaps[0].from, 21.0, 1e-9);
+  ASSERT_EQ(published_.size(), 1u);
+  EXPECT_EQ(published_[0].from, r.gaps[0].from);
+  // The block ends at its planned end (100 s after it began), with what 80 s gives.
+  EXPECT_EQ(*last_main_ - main_began(), 100s);
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kSignal), 80);
+}
+
+TEST_F(MeasurementGaps, NothingIsDoneToTheLineWhileWaiting) {
+  auto p = multicollect(100);
+  silence(30, 20s);
+  const auto r = run(p);
+  ASSERT_EQ(r.gaps.size(), 1u);
+  EXPECT_EQ(valves_at_resume_, valves_at_silence_);
+  EXPECT_EQ(spec_log_at_resume_, spec_log_at_silence_);  // no protect, no position, no restart
+}
+
+TEST_F(MeasurementGaps, ASilenceLongerThanMaxGapEndsTheBlock) {
+  auto p = multicollect(300);
+  silence(100, std::nullopt);
+  const auto r = run(p);
+  ASSERT_EQ(r.gaps.size(), 1u);
+  // Waited max_gap (120 s) from the last reading, then the acquisition was
+  // started again once, which gave nothing within a reading's timeout (8 s).
+  EXPECT_EQ(*last_main_ - main_began(), 100s);
+  const auto restarts = std::count(spec_.log.begin() + static_cast<std::ptrdiff_t>(spec_log_at_silence_), spec_.log.end(),
+                                   "start 1.000000");
+  EXPECT_EQ(restarts, 1);
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kSignal), 100);
+}
+
+TEST_F(MeasurementGaps, EnoughCountsIsTruncatedWithReasonLink) {
+  auto p = multicollect(300);
+  silence(100, std::nullopt);  // 100 of 300: above 20 %
+  const auto r = run(p);
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Truncated) << (r.error ? r.error->what : "");
+  EXPECT_TRUE(r.truncated_by_link);
+  EXPECT_FALSE(spec_.acquiring);
+  EXPECT_FALSE(valves_.state["B"]);
+}
+
+TEST_F(MeasurementGaps, TooFewCountsIsFailed) {
+  auto p = multicollect(300);
+  silence(30, std::nullopt);  // 30 of 300: under 20 %
+  const auto r = run(p);
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Failed);
+  ASSERT_TRUE(r.error);
+  EXPECT_NE(r.error->what.find("30 of 300"), std::string::npos) << r.error->what;
+}
+
+// 20 % of 5 is one count; a linear fit needs two: the fit's is the floor.
+TEST_F(MeasurementGaps, TheFitsMinimumIsTheFloor) {
+  auto p = multicollect(5);
+  silence(1, std::nullopt);
+  const auto r = run(p);
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Failed);
+  ASSERT_TRUE(r.error);
+  EXPECT_NE(r.error->what.find("1 of 5"), std::string::npos) << r.error->what;
+}
+
+TEST_F(MeasurementGaps, ALinkThatFailsAtOnceIsWaitedOutOnTheClock) {
+  auto p = multicollect(100);
+  spec_.silence_is_link_down = true;
+  spec_.link_down_costs = 1ms;  // a clock that moves between two reads of it, as a real one
+  silence(30, 20s);
+  const auto r = run(p);
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  ASSERT_EQ(r.gaps.size(), 1u);
+  EXPECT_GE(*last_main_ - main_began(), 100s);  // each failing call cost 1 ms
+  EXPECT_LT(*last_main_ - main_began(), 101s);
+  EXPECT_LT(spec_.silent_calls, 40);  // waited, not spun
+}
+
+TEST_F(MeasurementGaps, AnAcquisitionStartOfUnknownOutcomeIsRestartedOnce) {
+  auto p = multicollect(10);
+  spec_.lose_starts = 1;
+  const auto r = run(p);
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  ASSERT_GE(spec_.log.size(), 3u);
+  const auto lost = std::find(spec_.log.begin(), spec_.log.end(), "start lost");
+  ASSERT_NE(lost, spec_.log.end());
+  EXPECT_EQ(*(lost + 1), "stop");
+  EXPECT_EQ(*(lost + 2), "start 1.000000");
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kSignal), 10);
+}
+
+TEST_F(MeasurementGaps, EquilibrationFollowsTheSameRule) {
+  auto p = multicollect(10);
+  // Silent from the third sniff reading for 15 s, longer than a reading's
+  // timeout (8 s): a gap, waited out without moving the inlet, which still
+  // closes on time.
+  spec_.on_reading = [this](int n) {
+    if (n == 3) {
+      spec_.silent_from = clock_.now();
+      spec_.silent_until = clock_.now() + 15s;
+    }
+  };
+  const auto r = run(p);
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  ASSERT_EQ(r.gaps.size(), 1u);
+  EXPECT_EQ(r.gaps[0].block, Block::Equilibrate);
+  EXPECT_FALSE(r.gaps[0].resumed);  // silent until the inlet closed
+  const auto& tm = r.data.timing;
+  ASSERT_TRUE(tm.inlet_open && tm.inlet_close);
+  EXPECT_NEAR(*tm.inlet_close - *tm.inlet_open, 10.0, 1e-9);  // as without a gap
+  EXPECT_FALSE(valves_.state["B"]);
+}
+
+TEST_F(MeasurementGaps, WithNoGapNothingChanges) {
+  const auto r = run(multicollect(10));
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Completed);
+  EXPECT_TRUE(r.gaps.empty());
+  EXPECT_FALSE(r.truncated_by_link);
+  EXPECT_TRUE(published_.empty());
+  EXPECT_TRUE(said_.empty());
+}
+
+// Spec 4.4, valve row: in a measurement the inlet close and a detector's
+// unprotect keep trying for the critical window, with an alarm at 20 s.
+TEST_F(MeasurementGaps, AValveCallInMeasurementKeepsTryingForTheCriticalWindow) {
+  std::optional<TimePoint> first_try, closed;
+  valves_.close_fault = [&](const std::string& v) -> Result<void> {
+    if (v != "B") return {};
+    if (!first_try) first_try = clock_.now();
+    if (clock_.now() - *first_try < 5min) return fail(ErrorKind::Io, "valve bus down");
+    closed = clock_.now();
+    return {};
+  };
+  const auto r = run(multicollect(10));
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  ASSERT_TRUE(closed);
+  EXPECT_GE(*closed - *first_try, 5min);
+  EXPECT_LE(*closed - *first_try, 5min + 30s);
+  ASSERT_EQ(said_.size(), 1u);
+  EXPECT_EQ(said_[0].severity, AlarmSeverity::Warning);
+  EXPECT_EQ(said_[0].ts - *first_try, 20s);
+}
+
+TEST_F(MeasurementGaps, AValveDownForGoodFailsTheMeasurementAfterTheCriticalWindow) {
+  std::optional<TimePoint> first_try;
+  valves_.close_fault = [&](const std::string& v) -> Result<void> {
+    if (v != "B") return {};
+    if (!first_try) first_try = clock_.now();
+    return fail(ErrorKind::Io, "valve bus down");
+  };
+  const auto r = run(multicollect(10));
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Failed);
+  ASSERT_EQ(said_.size(), 2u);
+  EXPECT_EQ(said_[1].severity, AlarmSeverity::Critical);
+  EXPECT_EQ(said_[1].ts - *first_try, 10min);
+}
+
+TEST_F(MeasurementGaps, ADetectorUnprotectKeepsTryingForTheCriticalWindow) {
+  auto p = multicollect(10);
+  p.main.hops.front().protect = {"CDD"};
+  std::optional<TimePoint> first_try, done;
+  spec_.protect_fault = [&](const std::string& det, bool on) -> Result<void> {
+    if (on || det != "CDD") return {};
+    if (!first_try) first_try = clock_.now();
+    if (clock_.now() - *first_try < 5min) return fail(ErrorKind::Io, "spectrometer link down");
+    done = clock_.now();
+    return {};
+  };
+  const auto r = run(p);
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  ASSERT_TRUE(done);
+  EXPECT_GE(*done - *first_try, 5min);
+  ASSERT_FALSE(said_.empty());
+  EXPECT_EQ(said_[0].severity, AlarmSeverity::Warning);
+}
+
+// A conditional over a window sees only readings after the gap in a real run.
+TEST_F(MeasurementGaps, AConditionalsWindowStartsAgainAfterTheGap) {
+  auto p = multicollect(100);
+  silence(30, 20s);
+  spec_.ts_lag = 500ms;  // a reading is stamped when it was integrated, before it arrives
+  MetricRef ar40;
+  ar40.a = "Ar40";
+  std::optional<std::size_t> from_at_resume;
+  auto sub = bus_.subscribe<CountsProgress>([&](const CountsProgress& e) {
+    if (e.block == Block::Main && e.i == 31 && engine_ != nullptr)
+      from_at_resume = engine_->collector().metrics().contiguous_from(ar40);
+  });
+  const auto r = run(p);
+  ASSERT_EQ(r.gaps.size(), 1u);
+  ASSERT_TRUE(from_at_resume);
+  EXPECT_EQ(*from_at_resume, 30u);  // the 31st point is the first after the gap
+}
+
+// Review of the branch: what a gap must not do.
+
+TEST_F(MeasurementGaps, ACancelAfterAGapIsACancelNotAFailure) {
+  auto p = multicollect(300);
+  silence(30, 20s);
+  auto sub = bus_.subscribe<CountsProgress>([this](const CountsProgress& e) {
+    if (e.block == Block::Main && e.i == 35) token_.cancel();
+  });
+  const auto r = run(p);
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Cancelled) << (r.error ? r.error->what : "");
+}
+
+TEST_F(MeasurementGaps, StartingAgainDoesNotRunPastThePlannedEnd) {
+  auto p = multicollect(124);
+  silence(1, std::nullopt);  // max_gap ends at 121 s; the planned end is 124 s
+  std::optional<TimePoint> main_done;
+  auto sub = bus_.subscribe<BlockFinished>([&](const BlockFinished& e) {
+    if (e.block == Block::Main) main_done = clock_.now();
+  });
+  const auto r = run(p);
+  ASSERT_TRUE(main_done);
+  EXPECT_LE(*main_done - main_began(), 124s);
+  EXPECT_EQ(r.gaps.size(), 1u);
+}
+
+TEST_F(MeasurementGaps, ADefiniteErrorInAGapFailsAndKeepsTheGap) {
+  auto p = multicollect(100);
+  spec_.silence_ends_in_error = true;
+  silence(30, 20s);
+  const auto r = run(p);
+  EXPECT_EQ(r.outcome, MeasurementOutcome::Failed);
+  ASSERT_TRUE(r.error);
+  EXPECT_EQ(r.error->kind, ErrorKind::Protocol);
+  ASSERT_EQ(r.gaps.size(), 1u);
+  EXPECT_FALSE(r.gaps[0].resumed);
+}
+
+TEST_F(MeasurementGaps, AStartLostTwiceLeavesTheAcquisitionStopped) {
+  auto p = multicollect(10);
+  spec_.lose_starts = 2;  // the sniff's start, then its one retry
+  (void)run(p);
+  const auto second = std::find(std::find(spec_.log.begin(), spec_.log.end(), "start lost") + 1, spec_.log.end(),
+                                "start lost");
+  ASSERT_NE(second, spec_.log.end());
+  ASSERT_NE(second + 1, spec_.log.end());
+  EXPECT_EQ(*(second + 1), "stop");  // it may have started: stopped, to be sure
+}
+
+// ---- the engine runs segments (measurement plan v2, Task 6) -------------------
+
+namespace {
+
+// The extraction-line aliases the plan fixtures name.
+class FixtureLine final : public plan::IAliasResolver {
+ public:
+  std::optional<ParamValue> resolve_alias(std::string_view key) const override {
+    if (key == "valves.inlet") return std::string("B");
+    if (key == "valves.outlet") return std::string("C");
+    if (key == "extraction.eqtime") return std::int64_t{20};
+    return std::nullopt;
+  }
+};
+
+plan::MeasurementPlan load_fixture_plan(const std::string& name) {
+  std::ifstream in(std::filesystem::path(NOBION_PLAN_FIXTURES_DIR) / "valid" / name);
+  std::stringstream text;
+  text << in.rdbuf();
+  auto t = plan::parse_plan_template(text.str(), name);
+  EXPECT_TRUE(t.has_value()) << (t ? "" : t.error().what);
+  if (!t) return {};
+  const FixtureLine line;
+  auto loaded = plan::load_plan(*t, {}, plan::PlanResolvers{&line, nullptr});
+  EXPECT_TRUE(loaded.has_value()) << (loaded ? "" : loaded.error().what);
+  return loaded ? loaded->plan : plan::MeasurementPlan{};
+}
+
+}  // namespace
+
+class EngineV2 : public EngineTest {
+ protected:
+  struct Run {
+    MeasurementResult result;
+    TimePoint end{};
+  };
+
+  Run run_fixture(const std::string& name) {
+    clock_.set(t0_);
+    spec_.log.clear();
+    valves_.log.clear();
+    valves_.state.clear();
+    peak_.requests.clear();
+    hook_.entries.clear();
+    Run out;
+    out.result = run(load_fixture_plan(name));
+    out.end = clock_.now();
+    return out;
+  }
+
+  // The same plan written as v1 tables and as v2 segments runs the same.
+  void expect_same_run(const std::string& v1, const std::string& v2) {
+    const auto a = run_fixture(v1);
+    const auto b = run_fixture(v2);
+    ASSERT_EQ(a.result.outcome, MeasurementOutcome::Completed) << (a.result.error ? a.result.error->what : "");
+    ASSERT_EQ(b.result.outcome, MeasurementOutcome::Completed) << (b.result.error ? b.result.error->what : "");
+    EXPECT_FALSE(a.result.trace.empty());
+    EXPECT_EQ(a.result.trace, b.result.trace);
+    EXPECT_EQ(a.result.blocks, b.result.blocks);
+    EXPECT_EQ(a.end, b.end);
+    ASSERT_EQ(a.result.data.series.size(), b.result.data.series.size());
+    for (const auto& [key, s] : a.result.data.series) {
+      ASSERT_TRUE(b.result.data.series.contains(key)) << to_string(key);
+      EXPECT_EQ(s.t, b.result.data.series.at(key).t) << to_string(key);
+      EXPECT_EQ(s.v, b.result.data.series.at(key).v) << to_string(key);
+    }
+    EXPECT_EQ(a.result.data.counts, b.result.data.counts);
+  }
+};
+
+TEST_F(EngineV2, V1AndV2SpellingTraceEqual) {
+  expect_same_run("multicollect.toml", "v2_spelling_of_multicollect.toml");
+}
+
+TEST_F(EngineV2, V1AndV2SpellingTraceEqualForPeakHops) {
+  expect_same_run("peak_hop_cdd.toml", "v2_spelling_of_peak_hop_cdd.toml");
+}
+
+// The trace says what was done, in order, and when.
+TEST_F(EngineV2, TheTraceRecordsMovesSettlesProtectionAndCollections) {
+  auto p = multicollect(3);
+  p.sniff.enabled = false;
+  p.main.hops.front().protect = {"CDD"};
+  const auto r = run(p);
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  std::vector<std::string> what;
+  what.reserve(r.trace.size());
+  for (const auto& e : r.trace) what.push_back(e.what + " " + e.detail);
+  EXPECT_EQ(what, (std::vector<std::string>{"protect CDD on", "move Ar40@H1", "settle 2", "protect CDD off",
+                                            "collect 3"}));
+  ASSERT_EQ(r.trace.size(), 5u);
+  EXPECT_EQ(r.trace[1].segment, 0);  // the main segment, positioned before equilibration
+  EXPECT_EQ(r.trace[1].position, 0);
+  EXPECT_DOUBLE_EQ(r.trace[1].t, 0);
+  EXPECT_DOUBLE_EQ(r.trace[4].t, 14);  // after the 2 s settle and the 12 s equilibration
+}
+
+// A whiff reads where the first position put the magnet: no move of its own.
+TEST_F(EngineV2, AWhiffReadsWhereTheMagnetIs) {
+  auto p = multicollect(3);
+  p.main.hops.front().position = TestHopPosition{"Ar39", "AX"};
+  p.whiff = {true, 2, 1, {{"Ar40.cur > 1e9", "abort"}}};
+  const auto r = run(p);
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  EXPECT_EQ(std::count_if(spec_.log.begin(), spec_.log.end(), [](const std::string& l) { return l.starts_with("position"); }),
+            1);
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kWhiff), 2);
+}
+
+// An excluded cup the hop protects is still protected during the move.
+TEST_F(EngineV2, AnExcludedCupTheHopProtectsIsStillProtected) {
+  auto p = multicollect(3);
+  p.sniff.enabled = false;
+  p.detectors.exclude = {"CDD"};
+  p.main.hops.front().protect = {"CDD"};
+  const auto r = run(p);
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  EXPECT_NE(std::find(spec_.log.begin(), spec_.log.end(), "protect CDD"), spec_.log.end());
+  EXPECT_TRUE(spec_.protected_.empty());
+  EXPECT_FALSE(merged_series(r.data, "Ar36", "CDD", collect::kSignal).has_value());
+}
+
+// ---- position execution (measurement plan v2 spec 5.2, Task 8) ---------------
+
+namespace {
+
+constexpr std::string_view kPlanHeader = R"(
+[plan]
+name = "positions"
+instrument_family = "fake"
+)";
+
+std::vector<std::string> what_of(const std::vector<TraceEntry>& trace) {
+  std::vector<std::string> out;
+  out.reserve(trace.size());
+  for (const auto& e : trace) out.push_back(e.what + " " + e.detail);
+  return out;
+}
+
+// The entries of one segment's position, in order.
+std::vector<std::string> at_position(const std::vector<TraceEntry>& trace, int segment, int position) {
+  std::vector<TraceEntry> picked;
+  std::copy_if(trace.begin(), trace.end(), std::back_inserter(picked),
+               [&](const TraceEntry& e) { return e.segment == segment && e.position == position; });
+  return what_of(picked);
+}
+
+}  // namespace
+
+class PositionExec : public EngineV2 {
+ protected:
+  MeasurementResult run_toml(std::string_view body) {
+    const std::string toml = std::string(kPlanHeader) + std::string(body);
+    auto r = run(plan_from(toml));
+    EXPECT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+    return r;
+  }
+};
+
+// Worked plan 7.2 (with a reference named, so the first two positions have a
+// magnet target): CDD is deflected at the first position only, and put back
+// before the second, which does not set it.
+TEST_F(PositionExec, WorkedPlan72DeflectsCddOnlyAtTheFirstPosition) {
+  spec_.detectors = {"H1", "H2", "L1", "L2", "CDD"};
+  const auto r = run_toml(R"(
+[detectors]
+reference = "H1"
+
+[[segment]]
+kind = "signal"
+cycles = 20
+integration_s = 1
+[[segment.positions]]
+collect = [
+  { label = "Ar40", detector = "H1" }, { label = "Ar41", detector = "H2" },
+  { label = "Ar38", detector = "L1" }, { label = "Ar37", detector = "L2" },
+  { label = "Ar36", detector = "CDD", deflection = 110 } ]
+counts = 15
+settle_s = 6
+[[segment.positions]]
+collect = { Ar39 = "CDD" }
+at = { label = "Ar39", detector = "CDD" }
+counts = 15
+settle_s = 5
+[[segment.positions]]
+collect = { mass35 = "CDD" }
+at = { mass = 35.0, detector = "CDD" }
+counts = 8
+settle_s = 3
+
+[[segment]]
+kind = "baseline"
+when = "after_main"
+[[segment.positions]]
+collect = { Ar40 = "H1", Ar41 = "H2", Ar38 = "L1", Ar37 = "L2", Ar36 = "CDD" }
+at = { mass = 34.2, detector = "H1" }
+counts = 120
+settle_s = 20
+)");
+  const auto what = what_of(r.trace);
+  ASSERT_GE(what.size(), 22u);
+  const std::vector<std::string> cycle1{"deflect CDD=110", "move Ar40@H1",      "settle 6", "collect 15",
+                                        "deflect CDD=0",   "move Ar39@CDD",     "settle 5", "collect 15",
+                                        "move mass 35@CDD", "settle 3",         "collect 8"};
+  EXPECT_EQ(std::vector<std::string>(what.begin(), what.begin() + 11), cycle1);
+  // Cycle 2 begins as cycle 1 did: CDD is deflected again before the move.
+  EXPECT_EQ(std::vector<std::string>(what.begin() + 11, what.begin() + 15),
+            (std::vector<std::string>{"deflect CDD=110", "move Ar40@H1", "settle 6", "collect 15"}));
+  EXPECT_EQ(std::count(what.begin(), what.end(), "deflect CDD=110"), 20);
+  EXPECT_EQ(std::count(what.begin(), what.end(), "deflect CDD=0"), 20);
+  // The baseline after main sees CDD as it was.
+  EXPECT_EQ(std::vector<std::string>(what.end() - 3, what.end()),
+            (std::vector<std::string>{"move mass 34.2@H1", "settle 20", "collect 120"}));
+  EXPECT_DOUBLE_EQ(spec_.deflections.at("CDD"), 0);
+  EXPECT_EQ(count(r, "mass35", "CDD", collect::kSignal), 20 * 8);
+}
+
+// Worked plan 7.4, second position: the inactive H2(CDD) is protected for the
+// move and deflected, and nothing is collected on it.
+TEST_F(PositionExec, InactiveEntryIsProtectedNotCollected) {
+  spec_.detectors = {"H2", "H2(CDD)", "H1(CDD)", "AX(CDD)", "L1(CDD)", "L2(CDD)"};
+  const auto r = run_fixture("v2_74_helix_hydride_hcl.toml").result;
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  const auto pos2 = at_position(r.trace, 0, 1);
+  ASSERT_GE(pos2.size(), 11u);
+  EXPECT_EQ(std::vector<std::string>(pos2.begin(), pos2.begin() + 11),
+            (std::vector<std::string>{"protect H2(CDD) on", "deflect H2(CDD)=3250", "deflect H1(CDD)=200",
+                                      "deflect L1(CDD)=600", "move Ar38@AX(CDD)", "settle 3", "protect H2(CDD) off",
+                                      "collect 10", "deflect H1(CDD)=0", "deflect H2(CDD)=0",
+                                      "deflect L1(CDD)=0"}));
+  EXPECT_FALSE(merged_series(r.data, "Ar40", "H2(CDD)", collect::kSignal).has_value());
+  EXPECT_TRUE(merged_series(r.data, "Ar40", "H2", collect::kSignal).has_value());
+  EXPECT_TRUE(merged_series(r.data, "Ar39", "H1(CDD)", collect::kSignal).has_value());
+  EXPECT_TRUE(spec_.protected_.empty());
+}
+
+// Worked plan 7.5: each position's optics before its move, every cycle.
+TEST_F(PositionExec, OpticsBeforeMove) {
+  spec_.detectors = {"F0", "IC0", "IC1", "IC2"};
+  const auto r = run_toml(R"(
+[[segment]]
+kind = "signal"
+cycles = 3
+[[segment.positions]]
+collect = { Ar40 = "F0", Ar38 = "IC1", Ar36 = "IC2" }
+at = { label = "Ar40", detector = "F0" }
+optics = "ar_config_a"
+counts = 2
+settle_s = 5
+[[segment.positions]]
+collect = { Ar39 = "IC0", Ar37 = "IC1" }
+at = { label = "Ar39", detector = "IC0" }
+optics = "ar_config_b"
+counts = 2
+settle_s = 5
+)");
+  ASSERT_EQ(r.outcome, MeasurementOutcome::Completed) << (r.error ? r.error->what : "");
+  std::vector<std::string> seen;
+  for (const auto& e : r.trace)
+    if (e.what == "optics" || e.what == "move") seen.push_back(e.what + " " + e.detail);
+  ASSERT_EQ(seen.size(), 12u) << ::testing::PrintToString(seen);
+  for (std::size_t i = 0; i < seen.size(); i += 4) {
+    EXPECT_EQ(seen[i], "optics ar_config_a") << i;
+    EXPECT_TRUE(seen[i + 1].starts_with("move ")) << seen[i + 1];
+    EXPECT_EQ(seen[i + 2], "optics ar_config_b") << i;
+    EXPECT_TRUE(seen[i + 3].starts_with("move ")) << seen[i + 3];
+  }
+  EXPECT_EQ(std::count(spec_.log.begin(), spec_.log.end(), "optics ar_config_a"), 3);
+  // Each place's state names its optics (the record's).
+  EXPECT_EQ(r.states.at(Place{"", 0, 0}).optics, "ar_config_a");
+  EXPECT_EQ(r.states.at(Place{"", 0, 1}).optics, "ar_config_b");
+}
+
+// Worked plan 7.5 without its optics: acquisition restarts with each
+// position's integration, and the trace says so where it changes.
+TEST_F(PositionExec, IntegrationChangeRestartsAcquisition) {
+  spec_.detectors = {"F0", "IC0", "IC1", "IC2"};
+  const auto r = run_toml(R"(
+[[segment]]
+kind = "signal"
+cycles = 15
+[[segment.positions]]
+collect = { Ar40 = "F0", Ar38 = "IC1", Ar36 = "IC2" }
+counts = 10
+settle_s = 5
+integration_s = 1
+[[segment.positions]]
+collect = { Ar39 = "IC0", Ar37 = "IC1" }
+counts = 10
+settle_s = 5
+integration_s = 2
+)");
+  std::vector<std::string> changes;
+  for (const auto& e : r.trace)
+    if (e.what == "integration") changes.push_back(std::to_string(e.position) + ":" + e.detail);
+  // The first collection has nothing to differ from; after it, every
+  // position changes the integration, every cycle.
+  std::vector<std::string> expected{"1:2"};
+  for (int cycle = 1; cycle < 15; ++cycle) {
+    expected.emplace_back("0:1");
+    expected.emplace_back("1:2");
+  }
+  EXPECT_EQ(changes, expected);
+  EXPECT_EQ(std::count(spec_.log.begin(), spec_.log.end(), "start 2.000000"), 15);
+  EXPECT_EQ(std::count(spec_.log.begin(), spec_.log.end(), "start 1.000000"), 15);
+  const auto t = merged_series(r.data, "Ar39", "IC0", collect::kSignal).value().t;
+  ASSERT_GE(t.size(), 2u);
+  EXPECT_DOUBLE_EQ(t[1] - t[0], 2);  // readings 2 s apart
+}
+
+// One position, three cycles: one move and one settle; its deflection is set
+// once and put back when the segment ends.
+TEST_F(PositionExec, UnchangedPositionSkipsMoveAndSettle) {
+  const auto r = run_toml(R"(
+[detectors]
+reference = "H1"
+[[segment]]
+cycles = 3
+[[segment.positions]]
+collect = [ { label = "Ar40", detector = "H1" }, { label = "Ar36", detector = "CDD", deflection = 50 } ]
+counts = 4
+settle_s = 2
+)");
+  EXPECT_EQ(what_of(r.trace),
+            (std::vector<std::string>{"deflect CDD=50", "move Ar40@H1", "settle 2", "collect 4", "collect 4",
+                                      "collect 4", "deflect CDD=0"}));
+  EXPECT_EQ(count(r, "Ar40", "H1", collect::kSignal), 12);
+}
+
+TEST_F(PositionExec, DacAndHvTargets) {
+  auto r = run_toml(R"(
+[[segment]]
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+at = { dac = 1.234 }
+counts = 2
+)");
+  EXPECT_NE(std::find(spec_.log.begin(), spec_.log.end(), "move_native 1.234"), spec_.log.end());
+  EXPECT_EQ(what_of(r.trace).front(), "move dac 1.234");
+  spec_.log.clear();
+  r = run_toml(R"(
+[[segment]]
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+at = { hv = 4500, detector = "H1" }
+counts = 2
+)");
+  EXPECT_NE(std::find(spec_.log.begin(), spec_.log.end(), "position_hv 4500@H1"), spec_.log.end());
+  EXPECT_EQ(what_of(r.trace).front(), "move hv 4500@H1");
+}
+
+// A position's table, else its segment's, is selected before the move; going
+// to another table moves the magnet again.
+TEST_F(PositionExec, TheTableIsSelectedPerPosition) {
+  const auto r = run_toml(R"(
+[detectors]
+reference = "H1"
+[[segment]]
+cycles = 2
+table = "t1"
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+counts = 1
+settle_s = 1
+[[segment.positions]]
+collect = { Ar40 = "H1" }
+table = "t2"
+counts = 1
+settle_s = 1
+)");
+  EXPECT_EQ(what_of(r.trace),
+            (std::vector<std::string>{"table t1", "move Ar40@H1", "settle 1", "collect 1",  //
+                                      "table t2", "move Ar40@H1", "settle 1", "collect 1",  //
+                                      "table t1", "move Ar40@H1", "settle 1", "collect 1",  //
+                                      "table t2", "move Ar40@H1", "settle 1", "collect 1"}));
+  EXPECT_EQ(std::count(spec_.log.begin(), spec_.log.end(), "table t2"), 2);
+}
+
+// Large-beam settle and logical detector modes (measurement plan v2 spec
+// 3.6 and 5.2): H2 has threshold 5 and settles 20 s after a large beam;
+// H2(CDD) is H2 in CDD mode, 2 s to switch.
+class LargeBeamSettle : public PositionExec {
+ protected:
+  LargeBeamSettle() {
+    spec_.detectors = {"H1", "H2", "H2(CDD)"};
+    // Ar40 on H2 reads about 110 (10 x the fake's growth), far over 5; at
+    // Ar39@H1, H2 sees Ar38 at about 0.11.
+    spec_.layout = {{"Ar40@H2", {{"H2", "Ar40"}}},
+                    {"Ar39@H1", {{"H1", "Ar39"}, {"H2", "Ar38"}}},
+                    {"Ar40@H2(CDD)", {{"H2(CDD)", "Ar40"}}}};
+    spec_.abundance = {{"Ar40", 10}, {"Ar39", 1}, {"Ar38", 0.01}};
+    timing_["H2"] = DetectorTiming{5.0, 20, "", 0};
+    timing_["H2(CDD)"] = DetectorTiming{std::nullopt, 0, "H2", 2};
+  }
+
+  static std::vector<std::string> settles(const MeasurementResult& r) {
+    std::vector<std::string> out;
+    for (const auto& e : r.trace)
+      if (e.what == "settle") out.push_back(std::to_string(e.segment) + ":" + std::to_string(e.position) + " " + e.detail);
+    return out;
+  }
+};
+
+TEST_F(LargeBeamSettle, WaitsTheConfiguredSettle) {
+  const auto r = run_toml(R"(
+[[segment]]
+[[segment.positions]]
+collect = { Ar40 = "H2" }
+at = { label = "Ar40", detector = "H2" }
+counts = 2
+settle_s = 1
+[[segment.positions]]
+collect = { Ar39 = "H1", Ar38 = "H2" }
+at = { label = "Ar39", detector = "H1" }
+counts = 2
+settle_s = 3
+)");
+  EXPECT_EQ(settles(r), (std::vector<std::string>{"0:0 1", "0:1 20"}));
+}
+
+// A detector without the large beam, or not in the next position, does not wait.
+TEST_F(LargeBeamSettle, OnlyADetectorThatSawALargeBeamWaits) {
+  spec_.abundance["Ar40"] = 0.01;  // about 0.11 on H2: under 5
+  const auto r = run_toml(R"(
+[[segment]]
+[[segment.positions]]
+collect = { Ar40 = "H2" }
+at = { label = "Ar40", detector = "H2" }
+counts = 2
+settle_s = 1
+[[segment.positions]]
+collect = { Ar39 = "H1", Ar38 = "H2" }
+at = { label = "Ar39", detector = "H1" }
+counts = 2
+settle_s = 3
+)");
+  EXPECT_EQ(settles(r), (std::vector<std::string>{"0:0 1", "0:1 3"}));
+}
+
+TEST_F(LargeBeamSettle, BaselineDoesNotClearIt) {
+  const auto r = run_toml(R"(
+[[segment]]
+[[segment.positions]]
+collect = { Ar40 = "H2" }
+at = { label = "Ar40", detector = "H2" }
+counts = 2
+settle_s = 1
+[[segment.positions]]
+kind = "baseline"
+collect = { Ar40 = "H2" }
+at = { mass = 34.2, detector = "H2" }
+counts = 2
+settle_s = 3
+[[segment.positions]]
+collect = { Ar39 = "H1", Ar38 = "H2" }
+at = { label = "Ar39", detector = "H1" }
+counts = 2
+settle_s = 3
+)");
+  EXPECT_EQ(settles(r), (std::vector<std::string>{"0:0 1", "0:1 20", "0:2 20"}));
+}
+
+// Review focus 4: the state is the measurement's, not the segment's.
+TEST_F(LargeBeamSettle, StateCarriesAcrossSegments) {
+  const auto r = run_toml(R"(
+[[segment]]
+[[segment.positions]]
+collect = { Ar40 = "H2" }
+at = { label = "Ar40", detector = "H2" }
+counts = 2
+settle_s = 1
+
+[[segment]]
+[[segment.positions]]
+collect = { Ar39 = "H1", Ar38 = "H2" }
+at = { label = "Ar39", detector = "H1" }
+counts = 2
+settle_s = 3
+)");
+  EXPECT_EQ(settles(r), (std::vector<std::string>{"0:0 1", "1:0 20"}));
+}
+
+TEST_F(LargeBeamSettle, ModeSwitchWaits) {
+  timing_["H2"].large_beam_threshold.reset();  // only the mode switch here
+  const auto r = run_toml(R"toml(
+[[segment]]
+cycles = 2
+[[segment.positions]]
+collect = { Ar40 = "H2" }
+at = { label = "Ar40", detector = "H2" }
+counts = 1
+settle_s = 1
+[[segment.positions]]
+collect = { Ar40 = "H2(CDD)" }
+at = { label = "Ar40", detector = "H2(CDD)" }
+counts = 1
+settle_s = 1
+)toml");
+  // The first position has no mode to switch from; every switch after it,
+  // into CDD and back, waits mode_switch_s.
+  EXPECT_EQ(settles(r), (std::vector<std::string>{"0:0 1", "0:1 2", "0:0 2", "0:1 2"}));
+}

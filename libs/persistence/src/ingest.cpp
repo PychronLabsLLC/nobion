@@ -6,7 +6,7 @@
 #include "sql/statements.hpp"
 #include "store_impl.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 namespace {
 
 Result<std::optional<Uuid>> lookup(Db& db, const QString& sql, const std::string& key) {
@@ -395,9 +395,9 @@ Result<IngestAck> ingest_blob(Db& db, const IngestItem& item, const BlobIngest& 
 }
 
 }  // namespace
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail
 
-namespace pychron::persistence {
+namespace nobion::persistence {
 
 bool is_unknown_catalog_reference(const Error& error) noexcept {
   if (error.kind != ErrorKind::Protocol) return false;
@@ -421,9 +421,9 @@ Sha256Digest snapshot_sha256(const SpectrometerSnapshot& s) {
   return h.finish();
 }
 
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 
 Result<Uuid> ensure_user_row(Db& db, const std::string& name, std::vector<ChangeEntityRow>& created) {
   auto id = lookup(db, sql::kUserByName, name);
@@ -445,4 +445,4 @@ Result<IngestAck> ingest_item(Db& db, const IngestItem& item) {
   return ingest_blob(db, item, std::get<BlobIngest>(item.body));
 }
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

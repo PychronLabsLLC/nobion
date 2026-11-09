@@ -14,7 +14,7 @@
 //
 // Every subcommand takes --cache <dir>: where the settings of each source and
 // the mirrors of remote repositories are kept (default: the user's cache
-// directory, pychron/import).
+// directory, nobion/import).
 //
 // Exit codes: 0 ok (a paused run included); 1 verify is not ok, or a run
 // finished with blocking conflicts pending; 2 usage or fatal error.
@@ -26,10 +26,11 @@
 #include <vector>
 
 #include "cli.hpp"
+#include "nobion/processing/domain.hpp"
 
 namespace elctl {
 
-int import_command(const std::vector<std::string>& args, Io io);
+int import_command(const std::vector<std::string>& args, const nobion::processing::Domain& domain, Io io);
 
 // For tests: called after each batch `import run` commits, before the run
 // asks whether it was interrupted. Empty: nothing is called.

@@ -1,6 +1,6 @@
 // The part of a *.local.toml the application writes (File > Preferences):
 // one table replaced, the rest of the file left exactly as it was.
-#include "pychron/core/config/local_file.hpp"
+#include "nobion/core/config/local_file.hpp"
 
 #include <gtest/gtest.h>
 
@@ -9,16 +9,17 @@
 #include <sstream>
 #include <string>
 
-#include "pychron/core/config/loader.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/config/logging_file.hpp"
 
-using namespace pychron;
-using namespace pychron::config;
+using namespace nobion;
+using namespace nobion::config;
 namespace fs = std::filesystem;
 
 namespace {
 
 struct LocalFile : ::testing::Test {
-  fs::path dir = fs::temp_directory_path() / ("pychron_local_file_" + std::to_string(::testing::UnitTest::GetInstance()->random_seed()) +
+  fs::path dir = fs::temp_directory_path() / ("nobion_local_file_" + std::to_string(::testing::UnitTest::GetInstance()->random_seed()) +
                                               "_" + ::testing::UnitTest::GetInstance()->current_test_info()->name());
   fs::path main_file = dir / "extraction_line.toml";
   fs::path local = dir / "extraction_line.local.toml";
@@ -75,6 +76,14 @@ TEST(LocalOverrideText, OnlyTheKeysThatDiffer) {
   EXPECT_EQ(metrics_override_toml(m, MetricsConfig{}), "[metrics]\nenabled = true\nport = 9500\n");
 }
 
+TEST(LocalOverrideText, LoggingOverrideWritesDockLevel) {
+  LoggingConfig main_cfg;
+  main_cfg.dock_level = LogLevel::Info;
+  LoggingConfig wanted = main_cfg;
+  wanted.dock_level = LogLevel::Warn;
+  EXPECT_EQ(logging_override_toml(wanted, main_cfg), "[logging]\ndock_level = \"warn\"\n");
+}
+
 TEST(LocalOverrideText, LevelsAreWrittenWholeAndInOrder) {
   LoggingConfig wanted;
   wanted.levels = {{"scheduler", LogLevel::Debug}, {"*.wire", LogLevel::Trace}};
@@ -106,13 +115,16 @@ TEST(LocalOverrideText, PathsAndPatternsAreQuotedSafely) {
 
 TEST(LocalOverrideText, ClearingTheSharedFoldersIsAnEmptyDir) {
   LoggingConfig main_cfg;
-  main_cfg.dir = "/var/log/pychron";
-  const std::string text = logging_override_toml(LoggingConfig{}, main_cfg);
+  main_cfg.dir = "/var/log/nobion";
+  LoggingConfig wanted;
+  wanted.dir = fs::path{};
+  const std::string text = logging_override_toml(wanted, main_cfg);
   EXPECT_EQ(text, "[logging]\ndir = \"\"\n");
-  const auto r = load_report_from_string("[system]\nname = \"x\"\n[logging]\ndir = \"/var/log/pychron\"\n", "main.toml", text,
+  const auto r = load_report_from_string("[system]\nname = \"x\"\n[logging]\ndir = \"/var/log/nobion\"\n", "main.toml", text,
                                          "main.local.toml");
   ASSERT_TRUE(r.ok());
-  EXPECT_TRUE(r.config->logging.dir.empty());
+  ASSERT_TRUE(r.config->logging.dir.has_value());
+  EXPECT_TRUE(r.config->logging.dir->empty());
 }
 
 // ---- writing it -------------------------------------------------------------
@@ -184,6 +196,50 @@ TEST_F(LocalFile, WindowsLineEndingsAreUnderstood) {
   ASSERT_TRUE(cfg) << cfg.error().what;
   EXPECT_FALSE(cfg->metrics.enabled);
   EXPECT_NE(read(local).find("[transports.valve_bus]\r\nport = \"COM4\"\r\n"), std::string::npos);
+}
+
+TEST_F(LocalFile, SetKeepsTheCommentAndThePlaceOfTheTable) {
+  write(local, "# first\n[a]\nx = 1\n\n# about b\n[b]\ny = 1\nz = 2\n\n# about c\n[c]\nw = 1\n");
+  ASSERT_TRUE(set_local_table(local, "b", "[b]\ny = 9\n"));
+  EXPECT_EQ(read(local), "# first\n[a]\nx = 1\n\n# about b\n[b]\ny = 9\n\n# about c\n[c]\nw = 1\n");
+}
+
+TEST_F(LocalFile, SetKeepsWindowsLineEndings) {
+  write(local, "# about b\r\n[b]\r\ny = 1\r\n\r\n[c]\r\nw = 1\r\n");
+  ASSERT_TRUE(set_local_table(local, "b", "[b]\ny = 9\nq = 2\n"));
+  EXPECT_EQ(read(local), "# about b\r\n[b]\r\ny = 9\r\nq = 2\r\n\r\n[c]\r\nw = 1\r\n");
+}
+
+TEST_F(LocalFile, SetFindsAHeaderWithATrailingComment) {
+  write(local, "# about b\n[ b ]  # note\ny = 1\n\n[c]\nw = 1\n");
+  ASSERT_TRUE(set_local_table(local, "b", "[b]\ny = 9\n"));
+  EXPECT_EQ(read(local), "# about b\n[b]\ny = 9\n\n[c]\nw = 1\n");
+}
+
+TEST_F(LocalFile, SetReplacesSubtablesWithTheTable) {
+  write(local, "# about b\n[b]\ny = 1\n[b.sub]\nk = 1\n\n[c]\nw = 1\n");
+  ASSERT_TRUE(set_local_table(local, "b", "[b]\ny = 9\n"));
+  EXPECT_EQ(read(local), "# about b\n[b]\ny = 9\n\n[c]\nw = 1\n");
+}
+
+TEST_F(LocalFile, SetAppendsATableThatIsNotThere) {
+  write(local, "[a]\nx = 1\n");
+  ASSERT_TRUE(set_local_table(local, "b", "[b]\ny = 9\n"));
+  EXPECT_EQ(read(local), "[a]\nx = 1\n\n[b]\ny = 9\n");
+}
+
+TEST_F(LocalFile, SetAppendsToACommentOnlyFile) {
+  write(local, "# nothing yet\n");
+  ASSERT_TRUE(set_local_table(local, "b", "[b]\ny = 9\n"));
+  EXPECT_EQ(read(local), "# nothing yet\n\n[b]\ny = 9\n");
+}
+
+TEST_F(LocalFile, SetMakesAFileThatIsNotThere) {
+  ASSERT_TRUE(set_local_table(local, "b", "[b]\ny = 9\n"));
+  EXPECT_EQ(read(local), "[b]\ny = 9\n");
+#ifndef _WIN32  // Windows has no owner-only mode bits: a new file reports all of them
+  EXPECT_EQ(fs::status(local).permissions() & fs::perms::mask, fs::perms::owner_read | fs::perms::owner_write);
+#endif
 }
 
 TEST_F(LocalFile, AFileItCannotMakeSenseOfIsLeftAlone) {
@@ -258,4 +314,67 @@ TEST_F(LocalFile, TheMainFileAloneSaysWhatTheSharedConfigIs) {
   const auto effective = load_system_config(main_file);
   ASSERT_TRUE(effective);
   EXPECT_EQ(effective->logging.default_level, LogLevel::Trace);
+}
+
+// ---- logging.local.toml: the logging keys at the top level -------------------
+
+TEST(LoggingLocalText, TopLevelKeysAndALevelsTable) {
+  LoggingConfig wanted;
+  wanted.default_level = LogLevel::Warn;
+  wanted.dock_level = LogLevel::Error;
+  wanted.levels = {{"*.wire", LogLevel::Trace}};
+  const std::string text = logging_local_toml(wanted, LoggingConfig{});
+  EXPECT_EQ(text, "default_level = \"warn\"\ndock_level = \"error\"\n\n[levels]\n\"*.wire\" = \"trace\"\n");
+  LoggingConfig back;
+  ASSERT_TRUE(apply_logging_toml(text, "logging.local.toml", back));
+  EXPECT_EQ(back.default_level, LogLevel::Warn);
+  EXPECT_EQ(back.dock_level, LogLevel::Error);
+  ASSERT_EQ(back.levels.size(), 1u);
+}
+
+TEST(LoggingLocalText, NothingWhenNothingDiffers) {
+  EXPECT_EQ(logging_local_toml(LoggingConfig{}, LoggingConfig{}), "");
+}
+
+TEST_F(LocalFile, LoggingKeysReplaceTheOldOnesAndKeepTheRest) {
+  write(local, "# this install\ndefault_level = \"info\"\nmax_files = 4  # kept few\nfoo_comment_key = 1\n\n"
+               "# my levels\n[levels]\nold = \"debug\"\n\n# other\n[other]\nx = 1\n");
+  ASSERT_TRUE(replace_local_logging(local, "default_level = \"warn\"\n\n[levels]\nnew = \"trace\"\n"));
+  const std::string got = read(local);
+  EXPECT_NE(got.find("# this install"), std::string::npos);
+  EXPECT_NE(got.find("foo_comment_key = 1"), std::string::npos);
+  EXPECT_NE(got.find("[other]\nx = 1"), std::string::npos);
+  EXPECT_NE(got.find("default_level = \"warn\""), std::string::npos);
+  EXPECT_EQ(got.find("\"info\""), std::string::npos);
+  EXPECT_EQ(got.find("max_files"), std::string::npos);
+  EXPECT_EQ(got.find("old ="), std::string::npos);
+  EXPECT_NE(got.find("new = \"trace\""), std::string::npos);
+  // the keys come before the first table
+  EXPECT_LT(got.find("default_level"), got.find('['));
+}
+
+TEST_F(LocalFile, LoggingFileIsMadeAndRemovedWhenEmpty) {
+  ASSERT_TRUE(replace_local_logging(local, "dock_level = \"warn\"\n"));
+  EXPECT_EQ(read(local), "dock_level = \"warn\"\n");
+  ASSERT_TRUE(replace_local_logging(local, ""));
+  EXPECT_FALSE(fs::exists(local));
+}
+
+TEST_F(LocalFile, LoggingReplacementKeepsOtherTablesAndCommentsWhenNothingLeft) {
+  write(local, "dock_level = \"warn\"\n\n# keep\n[other]\nx = 1\n");
+  ASSERT_TRUE(replace_local_logging(local, ""));
+  EXPECT_EQ(read(local), "# keep\n[other]\nx = 1\n");
+}
+
+TEST_F(LocalFile, LoggingKeysInAFileWithOnlyAHeaderCommentGoBelowIt) {
+  write(local, "# this install's logging\n");
+  ASSERT_TRUE(replace_local_logging(local, "dock_level = \"warn\"\n"));
+  EXPECT_EQ(read(local), "# this install's logging\ndock_level = \"warn\"\n");
+}
+
+TEST_F(LocalFile, LoggingKeysKeepWindowsLineEndings) {
+  write(local, "# mine\r\nmax_files = 4\r\n\r\n[other]\r\nx = 1\r\n");
+  ASSERT_TRUE(replace_local_logging(local, "dock_level = \"warn\"\n\n[levels]\nscheduler = \"debug\"\n"));
+  EXPECT_EQ(read(local),
+            "# mine\r\ndock_level = \"warn\"\r\n\r\n[other]\r\nx = 1\r\n\r\n[levels]\r\nscheduler = \"debug\"\r\n");
 }

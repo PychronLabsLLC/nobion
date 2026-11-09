@@ -1,4 +1,4 @@
-#include "pychron/core/sha1.hpp"
+#include "nobion/core/sha1.hpp"
 
 #include <gtest/gtest.h>
 
@@ -6,10 +6,10 @@
 #include <string>
 #include <utility>
 
-#include "pychron/core/sha256.hpp"  // to_hex
+#include "nobion/core/sha256.hpp"  // to_hex
 
-using pychron::sha1;
-using pychron::to_hex;
+using nobion::sha1;
+using nobion::to_hex;
 
 TEST(Sha1, KnownVectors) {
   EXPECT_EQ(to_hex(sha1(std::string_view{})), "da39a3ee5e6b4b0d3255bfef95601890afd80709");

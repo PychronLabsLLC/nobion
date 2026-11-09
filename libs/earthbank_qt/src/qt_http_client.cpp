@@ -1,4 +1,5 @@
-#include "pychron/earthbank/qt_http_client.hpp"
+#include "nobion/earthbank/qt_http_client.hpp"
+#include "nobion/core/build_info.hpp"
 
 #include <algorithm>
 #include <array>
@@ -34,7 +35,7 @@
 // Here a request is one connection, one write and one read, and the code
 // knows whether a byte of it was written.
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 // The most of an answer that is kept. The largest the service gives is a page
@@ -287,7 +288,7 @@ std::string wire_form(const HttpRequest& request, const QUrl& url) {
     out += value;
     out += "\r\n";
   }
-  if (!has_agent) out += std::string("User-Agent: ") + PYCHRON_EARTHBANK_USER_AGENT + "\r\n";
+  if (!has_agent) out += "User-Agent: nobion/" + nobion::build_id() + "\r\n";
   const bool carries = request.method == "POST" || request.method == "PUT" || request.method == "PATCH";
   if (carries || !request.body.empty()) out += "Content-Length: " + std::to_string(request.body.size()) + "\r\n";
   out += "Connection: close\r\n\r\n";
@@ -434,4 +435,4 @@ Result<HttpResponse> QtHttpClient::send(const HttpRequest& request) {
 
 std::unique_ptr<IHttpClient> make_http_client() { return std::make_unique<QtHttpClient>(); }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

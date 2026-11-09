@@ -1,10 +1,12 @@
-#include "pychron/processing/source.hpp"
+#include "nobion/processing/source.hpp"
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <set>
+#include <tuple>
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
@@ -77,7 +79,7 @@ std::string facet_value(const AnalysisSummary& s, Facet f) {
     case Facet::Project:
       return s.project;
     case Facet::PrincipalInvestigator:
-      return s.principal_investigator;
+      return s.principal_investigator_uuid.empty() ? s.principal_investigator : s.principal_investigator_uuid;
     case Facet::Sample:
       return s.sample;
     case Facet::Material:
@@ -96,7 +98,32 @@ std::string facet_value(const AnalysisSummary& s, Facet f) {
   return {};
 }
 
+std::string irradiation_key(const AnalysisSummary& s) {
+  return s.irradiation_uuid.empty() ? s.irradiation : s.irradiation_uuid;
+}
+
+std::string level_key(const AnalysisSummary& s) {
+  if (!s.level_uuid.empty()) return s.level_uuid;
+  return s.level.empty() ? std::string{} : s.irradiation + "/" + s.level;
+}
+
+namespace {
+
+bool listed(const std::vector<std::string>& set, const std::string& v) {
+  return !v.empty() && std::find(set.begin(), set.end(), v) != set.end();
+}
+
+// The tree's ticks: any one list matching is enough.
+bool at_position(const PositionSelection& p, const AnalysisSummary& s) {
+  const std::string irradiation = irradiation_key(s);
+  if (irradiation.empty()) return p.not_irradiated || listed(p.identifiers, s.identifier);
+  return listed(p.irradiations, irradiation) || listed(p.levels, level_key(s)) || listed(p.identifiers, s.identifier);
+}
+
+}  // namespace
+
 bool matches(const BrowseQuery& q, const AnalysisSummary& s, double newest, std::optional<Facet> ignore) {
+  if (q.positions && !at_position(*q.positions, s)) return false;
   auto check = [&](Facet f, const std::vector<std::string>& set) { return ignore == f || in(set, facet_value(s, f)); };
   if (!check(Facet::Identifier, q.identifiers) || !check(Facet::Sample, q.samples) ||
       !check(Facet::Project, q.projects) || !check(Facet::PrincipalInvestigator, q.principal_investigators) ||
@@ -105,10 +132,15 @@ bool matches(const BrowseQuery& q, const AnalysisSummary& s, double newest, std:
       !check(Facet::Load, q.loads) || !check(Facet::Irradiation, q.irradiations) || !check(Facet::Level, q.levels) ||
       !check(Facet::Repository, q.repositories))
     return false;
+  if (!q.uuids.empty() && !in(q.uuids, s.uuid)) return false;
   if (q.from && s.timestamp < *q.from) return false;
   if (q.to && s.timestamp > *q.to) return false;
   if (q.last_hours && s.timestamp < newest - *q.last_hours * 3600.0) return false;
   if (std::find(q.exclude_tags.begin(), q.exclude_tags.end(), s.tag) != q.exclude_tags.end()) return false;
+  // An age that is absent, or not a number (no store caches one), matches no bound.
+  if ((q.age_min || q.age_max) && (!s.age || !std::isfinite(*s.age))) return false;
+  if (q.age_min && *s.age < *q.age_min) return false;
+  if (q.age_max && *s.age > *q.age_max) return false;
   if (!q.text.empty()) {
     const std::string t = lower(q.text);
     if (!starts_with_ci(s.runid, t) && !starts_with_ci(s.identifier, t) && !starts_with_ci(s.sample, t)) return false;
@@ -163,17 +195,49 @@ BrowsePage browse_summaries(const std::vector<AnalysisSummary>& rows, const Brow
   return page;
 }
 
-std::vector<std::string> facet_values(const std::vector<AnalysisSummary>& rows, Facet f, const BrowseQuery& q) {
+std::vector<FacetValue> facet_values(const std::vector<AnalysisSummary>& rows, Facet f, const BrowseQuery& q) {
   const double newest = newest_of(rows);
   BrowseQuery unpaged = q;
   unpaged.after.reset();
-  std::set<std::string> values;
+  std::set<std::pair<std::string, std::string>> found;  // label, value: listed by what is shown
   for (const auto& r : rows) {
     if (!matches(unpaged, r, newest, f)) continue;
     auto v = facet_value(r, f);
-    if (!v.empty()) values.insert(std::move(v));
+    if (v.empty()) continue;
+    found.emplace(f == Facet::PrincipalInvestigator ? r.principal_investigator : v, std::move(v));
   }
-  return {values.begin(), values.end()};
+  std::vector<FacetValue> values;
+  values.reserve(found.size());
+  for (const auto& [label, value] : found) values.push_back({value, label});
+  return values;
+}
+
+std::vector<PositionRow> position_rows(const std::vector<AnalysisSummary>& rows, const BrowseQuery& q, double newest) {
+  BrowseQuery untreed = q;
+  untreed.positions.reset();
+  untreed.after.reset();
+  std::vector<const AnalysisSummary*> hits;
+  for (const auto& r : rows)
+    if (matches(untreed, r, newest)) hits.push_back(&r);
+  // NOLINTNEXTLINE(bugprone-nondeterministic-pointer-iteration-order): ordered by newer(), not by address
+  std::sort(hits.begin(), hits.end(), [](const auto* a, const auto* b) { return newer(*a, *b); });
+  std::map<std::string, PositionRow> by_identifier;  // the newest analysis of an identifier says where it is
+  for (const auto* h : hits) {
+    if (by_identifier.contains(h->identifier)) continue;
+    const bool placed = !irradiation_key(*h).empty();
+    by_identifier.emplace(h->identifier, PositionRow{irradiation_key(*h), placed ? h->irradiation : std::string{},
+                                                     level_key(*h), placed ? h->level : std::string{}, h->identifier,
+                                                     h->sample, h->project});
+  }
+  std::vector<PositionRow> out;
+  out.reserve(by_identifier.size());
+  for (auto& [_, row] : by_identifier) out.push_back(std::move(row));
+  std::sort(out.begin(), out.end(), [](const PositionRow& a, const PositionRow& b) {
+    const bool a_placed = !a.irradiation_key.empty(), b_placed = !b.irradiation_key.empty();
+    if (a_placed != b_placed) return a_placed;  // not irradiated last
+    return std::tie(a.irradiation, a.level, a.identifier) < std::tie(b.irradiation, b.level, b.identifier);
+  });
+  return out;
 }
 
 // ---------------------------------------------------------------- MemorySource
@@ -194,23 +258,58 @@ void MemorySource::add(AnalysisPtr analysis, std::optional<RawData> raw) {
   ++generation_;
 }
 
+void MemorySource::set_age(const std::string& uuid, double age, double age_err) {
+  std::lock_guard lock(mutex_);
+  ages_[uuid] = {age, age_err};
+  ++generation_;
+}
+
+void MemorySource::remove(const std::string& uuid) {
+  std::lock_guard lock(mutex_);
+  const auto same = std::find_if(analyses_.begin(), analyses_.end(),
+                                 [&](const AnalysisPtr& a) { return a->uuid == uuid; });
+  if (same == analyses_.end()) return;
+  analyses_.erase(same);
+  raw_.erase(uuid);
+  ages_.erase(uuid);
+  ++generation_;
+}
+
 std::uint64_t MemorySource::generation() const {
   std::lock_guard lock(mutex_);
   return generation_;
 }
 
+std::vector<AnalysisSummary> MemorySource::summaries() const {
+  std::vector<AnalysisSummary> rows;
+  rows.reserve(analyses_.size());
+  for (const auto& a : analyses_) {
+    AnalysisSummary s = summarize(*a);
+    if (auto it = ages_.find(a->uuid); it != ages_.end()) {
+      s.age = it->second.first;
+      s.age_err = it->second.second;
+    }
+    rows.push_back(std::move(s));
+  }
+  return rows;
+}
+
 Result<BrowsePage> MemorySource::browse(const BrowseQuery& query) {
   std::lock_guard lock(mutex_);
-  std::vector<AnalysisSummary> rows;
-  for (const auto& a : analyses_) rows.push_back(summarize(*a));
+  const std::vector<AnalysisSummary> rows = summaries();
   return browse_summaries(rows, query);
 }
 
-Result<std::vector<std::string>> MemorySource::facet(Facet f, const BrowseQuery& query) {
+Result<std::vector<FacetValue>> MemorySource::facet(Facet f, const BrowseQuery& query) {
   std::lock_guard lock(mutex_);
-  std::vector<AnalysisSummary> rows;
-  for (const auto& a : analyses_) rows.push_back(summarize(*a));
+  const std::vector<AnalysisSummary> rows = summaries();
   return facet_values(rows, f, query);
+}
+
+Result<std::vector<PositionRow>> MemorySource::positions(const BrowseQuery& query) {
+  std::lock_guard lock(mutex_);
+  const std::vector<AnalysisSummary> rows = summaries();
+  return position_rows(rows, query, newest_of(rows));
 }
 
 Result<AnalysisPtr> MemorySource::load(const std::string& uuid) {
@@ -227,4 +326,4 @@ Result<RawData> MemorySource::load_raw(const std::string& uuid) {
   return it->second;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

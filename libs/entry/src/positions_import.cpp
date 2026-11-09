@@ -1,18 +1,17 @@
-#include "pychron/entry/positions_import.hpp"
+#include "nobion/entry/positions_import.hpp"
 
 #include <charconv>
 #include <cmath>
 
-#include "pychron/entry/names.hpp"
-#include "pychron/core/number.hpp"
+#include "nobion/entry/names.hpp"
+#include "nobion/core/number.hpp"
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 namespace ps = persistence;
 
 PositionImportResult apply_position_import(const CsvTable& table, const CatalogSnapshot& catalog,
-                                           std::map<std::string, LevelSheetEdit>& levels,
-                                           const std::vector<std::string>& pi_names_allowed) {
+                                           std::map<std::string, LevelSheetEdit>& levels) {
   PositionImportResult out;
   std::map<std::string, std::size_t> column;
   for (std::size_t i = 0; i < table.header.size(); ++i) {
@@ -56,7 +55,7 @@ PositionImportResult apply_position_import(const CsvTable& table, const CatalogS
     if (!sample.empty()) {
       std::string pi = get("principal_investigator");
       if (!pi.empty())
-        if (auto parsed = parse_pi(pi, pi_names_allowed)) pi = display_name(*parsed);
+        if (auto parsed = parse_pi(pi)) pi = display_name(*parsed);
       const std::string project = get("project"), material = get("material"), grainsize = get("grainsize");
       const ps::SampleRow* found = nullptr;
       int matches = 0;
@@ -111,4 +110,4 @@ PositionImportResult apply_position_import(const CsvTable& table, const CatalogS
   return out;
 }
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

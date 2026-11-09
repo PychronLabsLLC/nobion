@@ -1,6 +1,11 @@
 # Notifications for this lab: copy to notifications.toml and keep the
-# channels you want. Each sends a message when a run fails (run_failed) and
-# when the queue ends (queue_ended); `on` narrows that.
+# channels you want. Each sends a message when a run fails (run_failed), when
+# the queue holds for a link that is down (queue_holding) and goes on again
+# (queue_resumed), when a failed run leaves the line unsafe (unsafe) and when
+# the queue ends (queue_ended); `on` narrows that.
+# A message that cannot be sent waits in <data>/outbox and is tried again,
+# 1, 2, 4 ... 60 minutes apart, for 24 hours. A [[command]] (a program on this
+# computer) is tried first, so it is how the lab hears while the network is down.
 # Test with:  elctl exp notify --lab <this directory>
 # Step-by-step setup: docs/notifications.md
 
@@ -11,19 +16,19 @@
 # with the service, and its key in an environment variable.
 # [[email]]
 # provider = "brevo"
-# api_key_env = "PYCHRON_MAIL_API_KEY"     # the key is read from this environment variable
-# from = "pychron@example.org"             # a sender confirmed with the service
+# api_key_env = "NOBION_MAIL_API_KEY"     # the key is read from this environment variable
+# from = "nobion@example.org"             # a sender confirmed with the service
 # to = ["lab-manager@example.org"]
 # queue_user = true                        # also mail the queue's `email`
-# on = ["run_failed", "queue_ended"]
+# on = ["run_failed", "unsafe"]            # only these; leave out for every event
 
 # Email through an SMTP server.
 # [[email]]
 # url = "smtps://smtp.example.org:465"     # or smtp://host:587 (STARTTLS is required unless tls = false)
-# from = "pychron@example.org"
+# from = "nobion@example.org"
 # to = ["lab-manager@example.org"]
-# username = "pychron@example.org"
-# password_env = "PYCHRON_SMTP_PASSWORD"   # the password is read from this environment variable
+# username = "nobion@example.org"
+# password_env = "NOBION_SMTP_PASSWORD"   # the password is read from this environment variable
 # queue_user = true                        # also mail the queue's `email`
 # on = ["run_failed", "queue_ended"]
 
@@ -35,4 +40,4 @@
 
 # [[command]]
 # name = "pager"
-# argv = ["/usr/local/bin/notify-lab"]     # message on stdin; PYCHRON_EVENT, PYCHRON_SUBJECT, PYCHRON_QUEUE, ...
+# argv = ["/usr/local/bin/notify-lab"]     # message on stdin; NOBION_EVENT, NOBION_SUBJECT, NOBION_QUEUE, ...

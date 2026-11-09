@@ -1,6 +1,6 @@
 // elctl flux fit: a level's J fitted from its monitors, driven through
 // elctl::run against a file-backed SQLite store holding the seeded level
-// NM-300 A of tests/processing/flux_seed.hpp.
+// NM-300 A of tests/arar/flux_seed.hpp.
 
 #include <gtest/gtest.h>
 
@@ -11,7 +11,7 @@ using elctl::testing::contains;
 using elctl::testing::Outcome;
 using elctl::testing::run_raw;
 
-#ifndef PYCHRON_ELCTL_HAS_STORE
+#ifndef NOBION_ELCTL_HAS_STORE
 
 TEST(FluxCmd, StubWithoutPersistence) {
   const Outcome o = run_raw({"flux", "fit", "NM-300", "A", "--db", "sqlite::memory:"});
@@ -31,14 +31,14 @@ TEST(FluxCmd, StubWithoutPersistence) {
 #include <vector>
 
 #include "flux_seed.hpp"
-#include "pychron/core/sha256.hpp"
-#include "pychron/persistence/store.hpp"
-#include "pychron/processing/flux_view.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/persistence/store.hpp"
+#include "nobion/arar/flux_view.hpp"
 
 namespace {
 
-namespace ps = pychron::persistence;
-namespace pt = pychron::processing::testing;
+namespace ps = nobion::persistence;
+namespace pt = nobion::processing::testing;
 namespace fs = std::filesystem;
 
 std::vector<std::string> split_ws(const std::string& line) {
@@ -147,7 +147,7 @@ class FluxCmd : public elctl::testing::ElctlTest {
 
   // The value at a hole's head; an empty value and a failure when there is none.
   ps::FluxValue head_value(int hole) const {
-    auto level = pychron::processing::load_saved_flux(*store_, "NM-300", "A");
+    auto level = nobion::processing::load_saved_flux(*store_, "NM-300", "A");
     if (!level) {
       ADD_FAILURE() << to_string(level.error());
       return {};
@@ -161,8 +161,8 @@ class FluxCmd : public elctl::testing::ElctlTest {
     ADD_FAILURE() << "hole " << hole << " has no saved flux";
     return {};
   }
-  pychron::processing::FluxOptionsDoc head_options(int hole) const {
-    return pychron::processing::parse_flux_options(head_value(hole).options_json.value_or(""));
+  nobion::processing::FluxOptionsDoc head_options(int hole) const {
+    return nobion::processing::parse_flux_options(head_value(hole).options_json.value_or(""));
   }
 
   std::string db_;
@@ -170,6 +170,17 @@ class FluxCmd : public elctl::testing::ElctlTest {
   pt::SeededLevel seeded_;
   ps::Actor actor_;
 };
+
+TEST_F(FluxCmd, RefusesOutsideArAr) {
+  const auto before = seq();
+  const Outcome o = run_raw({"--domain", "noble_gas", "flux", "fit", "NM-300", "A", "--db", db_});
+  EXPECT_EQ(o.code, elctl::kUsage);
+  EXPECT_EQ(o.err, "elctl flux: needs domain arar (this install: noble_gas)\n");
+  EXPECT_EQ(o.out, "");
+  EXPECT_EQ(seq(), before);
+  // Every subcommand, not only fit.
+  EXPECT_EQ(run_raw({"--domain", "noble_gas", "flux", "show", "NM-300", "A", "--db", db_}).code, elctl::kUsage);
+}
 
 TEST_F(FluxCmd, PrintsBothTablesAndWritesNothing) {
   const auto before = seq();
@@ -211,11 +222,14 @@ TEST_F(FluxCmd, SaveThenRepeatSaysUnchanged) {
   Outcome o = fit({"--save", "--user", "jsmith"});
   EXPECT_EQ(o.code, elctl::kOk) << o.err;
   EXPECT_TRUE(contains(o.out, "saved 12 positions (0 unchanged)")) << o.out;
+  // Age cache spec 4.5, item 4: the eight monitors' three analyses each.
+  EXPECT_TRUE(contains(o.out, "cached ages of 24 analyses are now out of date; run elctl db derive\n")) << o.out;
   EXPECT_GT(seq(), before);
   const auto after = seq();
   o = fit({"--save", "--user", "jsmith"});
   EXPECT_EQ(o.code, elctl::kOk) << o.err;
   EXPECT_TRUE(contains(o.out, "nothing to save: 12 positions unchanged")) << o.out;
+  EXPECT_FALSE(contains(o.out, "cached age")) << o.out;
   EXPECT_EQ(seq(), after);
   // The saved J now shows, and agrees with the prediction.
   const auto row = table_row(o.out, "Monitors", 1);
@@ -317,7 +331,7 @@ TEST_F(FluxCmd, ASavedSampleOverrideIsRepeated) {
 // R20: --monitors with another set fits that set's sample, not the saved fit's.
 TEST_F(FluxCmd, AnotherMonitorSetFitsItsOwnSample) {
   ASSERT_EQ(fit({"--save"}).code, elctl::kOk);
-  namespace pp = pychron::processing;
+  namespace pp = nobion::processing;
   auto sets = pp::load_monitor_sets(*store_);
   ASSERT_TRUE(sets) << to_string(sets.error());
   pp::MonitorSets edited = sets->sets;
@@ -347,7 +361,7 @@ TEST_F(FluxCmd, AnotherMonitorSetFitsItsOwnSample) {
 // R22: a saved all-positions fit is its own set's; another set selects by its sample.
 TEST_F(FluxCmd, AnotherMonitorSetDoesNotRepeatASavedAllPositions) {
   ASSERT_EQ(fit({"--all-positions", "--save"}).code, elctl::kOk);
-  namespace pp = pychron::processing;
+  namespace pp = nobion::processing;
   auto sets = pp::load_monitor_sets(*store_);
   ASSERT_TRUE(sets) << to_string(sets.error());
   pp::MonitorSets edited = sets->sets;
@@ -382,8 +396,8 @@ TEST_F(FluxCmd, ModelFlagsAreSavedAndRepeated) {
   EXPECT_TRUE(contains(o.out, "saved 12 positions")) << o.out;
   auto doc = head_options(9);
   ASSERT_TRUE(doc.options);
-  EXPECT_EQ(doc.options->fit.kind, pychron::reduction::ModelKind::Bracketing);
-  EXPECT_EQ(doc.options->fit.interpolation, pychron::reduction::Interpolation::Linear);
+  EXPECT_EQ(doc.options->fit.kind, nobion::reduction::ModelKind::Bracketing);
+  EXPECT_EQ(doc.options->fit.interpolation, nobion::reduction::Interpolation::Linear);
   o = fit({"--save"});
   EXPECT_TRUE(contains(o.out, "model bracketing, linear;")) << o.out;
   EXPECT_TRUE(contains(o.out, "nothing to save: 12 positions unchanged")) << o.out;
@@ -391,21 +405,21 @@ TEST_F(FluxCmd, ModelFlagsAreSavedAndRepeated) {
   o = fit({"--interpolation", "average", "--save"});
   EXPECT_TRUE(contains(o.out, "model bracketing, average;")) << o.out;
   EXPECT_TRUE(contains(o.out, "saved ")) << o.out;
-  EXPECT_EQ(head_options(9).options->fit.interpolation, pychron::reduction::Interpolation::Average);
+  EXPECT_EQ(head_options(9).options->fit.interpolation, nobion::reduction::Interpolation::Average);
 
   o = fit({"--model", "ls1d", "--degree", "1", "--axis", "y", "--save"});
   ASSERT_EQ(o.code, elctl::kOk) << o.err;
   doc = head_options(1);
   ASSERT_TRUE(doc.options);
-  EXPECT_EQ(doc.options->fit.kind, pychron::reduction::ModelKind::LeastSquares1D);
-  EXPECT_EQ(doc.options->fit.axis, pychron::reduction::Axis::Y);
+  EXPECT_EQ(doc.options->fit.kind, nobion::reduction::ModelKind::LeastSquares1D);
+  EXPECT_EQ(doc.options->fit.axis, nobion::reduction::Axis::Y);
   EXPECT_EQ(doc.options->fit.degree, 1);
   o = fit({"--save"});
   EXPECT_TRUE(contains(o.out, "degree 1, axis y;")) << o.out;
   EXPECT_TRUE(contains(o.out, "nothing to save: 12 positions unchanged")) << o.out;
   o = fit({"--axis", "x", "--save"});
   EXPECT_TRUE(contains(o.out, "degree 1, axis x;")) << o.out;
-  EXPECT_EQ(head_options(1).options->fit.axis, pychron::reduction::Axis::X);
+  EXPECT_EQ(head_options(1).options->fit.axis, nobion::reduction::Axis::X);
 
   ASSERT_TRUE(pt::seed_ingest_monitor(*store_, seeded_, "66101", 1, 30.0, "2026-01-01T19:01:00Z"));
   o = fit({"--model", "plane", "--all-positions", "--save"});
@@ -960,7 +974,7 @@ TEST_F(FluxCmd, MonitorsSetRejectsABadFile) {
 // between is a conflict that saves nothing. First with no document stored
 // when it was read (the defaults), then with one.
 TEST_F(FluxCmd, MonitorsSaveOverAMovedDocumentIsAConflict) {
-  namespace pp = pychron::processing;
+  namespace pp = nobion::processing;
   for (const bool stored : {false, true}) {
     auto read = pp::load_monitor_sets(*store_);
     ASSERT_TRUE(read) << to_string(read.error());
@@ -1014,15 +1028,15 @@ TEST_F(FluxCmd, UnknownSubcommandIsUsage) {
 }
 
 TEST(FluxCmdFormat, CsvFieldQuotesOnlyWhatNeedsIt) {
-  EXPECT_EQ(pychron::processing::csv_field("plain"), "plain");
-  EXPECT_EQ(pychron::processing::csv_field("a,b"), "\"a,b\"");
-  EXPECT_EQ(pychron::processing::csv_field("say \"hi\""), "\"say \"\"hi\"\"\"");
-  EXPECT_EQ(pychron::processing::csv_field("two\nlines"), "\"two\nlines\"");
-  EXPECT_EQ(pychron::processing::csv_field(""), "");
+  EXPECT_EQ(nobion::processing::csv_field("plain"), "plain");
+  EXPECT_EQ(nobion::processing::csv_field("a,b"), "\"a,b\"");
+  EXPECT_EQ(nobion::processing::csv_field("say \"hi\""), "\"say \"\"hi\"\"\"");
+  EXPECT_EQ(nobion::processing::csv_field("two\nlines"), "\"two\nlines\"");
+  EXPECT_EQ(nobion::processing::csv_field(""), "");
 }
 
 TEST(FluxCmdFormat, ASaveConflictExitsOne) {
-  pychron::processing::FluxSaveOutcome outcome;
+  nobion::processing::FluxSaveOutcome outcome;
   outcome.conflict_position = "hole 7";
   ps::Conflict conflict;
   ps::ChangesetInfo by;
@@ -1031,7 +1045,7 @@ TEST(FluxCmdFormat, ASaveConflictExitsOne) {
   outcome.conflict = conflict;
   EXPECT_EQ(elctl::format_flux_save(outcome, "jsmith"),
             "not saved: hole 7 was saved by jsmith at " + by.created.iso() + " since this fit was loaded\n");
-  pychron::processing::FluxSaveOutcome saved;
+  nobion::processing::FluxSaveOutcome saved;
   saved.written = 12;
   EXPECT_EQ(elctl::format_flux_save(saved, ""), "saved 12 positions (0 unchanged)\n");
   saved.written = 0;

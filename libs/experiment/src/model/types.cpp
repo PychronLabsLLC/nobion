@@ -1,9 +1,9 @@
-#include "pychron/experiment/model/types.hpp"
+#include "nobion/experiment/model/types.hpp"
 
 #include <algorithm>
 #include <cctype>
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 std::string_view to_string(Unit u) noexcept {
   switch (u) {
@@ -27,4 +27,4 @@ std::optional<Unit> parse_unit(std::string_view text) {
   return std::nullopt;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

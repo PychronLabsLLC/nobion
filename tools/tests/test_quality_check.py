@@ -32,9 +32,9 @@ diff --git a/libs/core/src/removed.cpp b/libs/core/src/removed.cpp
 @@ -1,2 +0,0 @@
 -x
 -y
-diff --git a/libs/core/include/pychron/core/b.hpp b/libs/core/include/pychron/core/b.hpp
+diff --git a/libs/core/include/nobion/core/b.hpp b/libs/core/include/nobion/core/b.hpp
 --- /dev/null
-+++ b/libs/core/include/pychron/core/b.hpp
++++ b/libs/core/include/nobion/core/b.hpp
 @@ -0,0 +1,4 @@
 +a
 +b
@@ -47,7 +47,7 @@ class ChangedLines(unittest.TestCase):
     def test_added_and_changed_lines_are_ranges_of_the_new_file(self):
         changed = qc.parse_changed_lines(DIFF)
         self.assertEqual(changed["libs/core/src/a.cpp"], [(11, 13), (23, 23)])
-        self.assertEqual(changed["libs/core/include/pychron/core/b.hpp"], [(1, 4)])
+        self.assertEqual(changed["libs/core/include/nobion/core/b.hpp"], [(1, 4)])
 
     def test_a_deleted_file_is_not_listed(self):
         self.assertNotIn("libs/core/src/removed.cpp", qc.parse_changed_lines(DIFF))
@@ -101,14 +101,14 @@ class Findings(unittest.TestCase):
 
 class HeaderSources(unittest.TestCase):
     SOURCES = ["libs/core/src/b.cpp", "libs/devices/src/uses_b.cpp", "tests/core/test_b.cpp", "tests/core/other.cpp"]
-    HEADERS = ["libs/core/include/pychron/core/b.hpp", "libs/core/include/pychron/core/inner.hpp", "tests/core/fake.hpp"]
+    HEADERS = ["libs/core/include/nobion/core/b.hpp", "libs/core/include/nobion/core/inner.hpp", "tests/core/fake.hpp"]
     TEXTS = {
-        "libs/core/src/b.cpp": '#include "pychron/core/b.hpp"\n',
-        "libs/devices/src/uses_b.cpp": '#include <pychron/core/b.hpp>\n',
-        "tests/core/test_b.cpp": '#  include "pychron/core/b.hpp"\n#include "fake.hpp"\n',
-        "tests/core/other.cpp": '#include "pychron/core/bb.hpp"\n#include "not_fake.hpp"\n',
-        "libs/core/include/pychron/core/b.hpp": '#include "pychron/core/inner.hpp"\n',
-        "libs/core/include/pychron/core/inner.hpp": "",
+        "libs/core/src/b.cpp": '#include "nobion/core/b.hpp"\n',
+        "libs/devices/src/uses_b.cpp": '#include <nobion/core/b.hpp>\n',
+        "tests/core/test_b.cpp": '#  include "nobion/core/b.hpp"\n#include "fake.hpp"\n',
+        "tests/core/other.cpp": '#include "nobion/core/bb.hpp"\n#include "not_fake.hpp"\n',
+        "libs/core/include/nobion/core/b.hpp": '#include "nobion/core/inner.hpp"\n',
+        "libs/core/include/nobion/core/inner.hpp": "",
         "tests/core/fake.hpp": "",
     }
 
@@ -116,22 +116,22 @@ class HeaderSources(unittest.TestCase):
         return qc.sources_including(header, self.SOURCES, self.HEADERS, dict(self.TEXTS))
 
     def test_a_public_header_is_named_from_below_include(self):
-        self.assertEqual(qc.include_spelling("libs/core/include/pychron/core/b.hpp"), "pychron/core/b.hpp")
+        self.assertEqual(qc.include_spelling("libs/core/include/nobion/core/b.hpp"), "nobion/core/b.hpp")
         self.assertEqual(qc.include_spelling("tests/core/fake.hpp"), "fake.hpp")
 
     def test_the_headers_own_component_comes_first(self):
-        self.assertEqual(self.users("libs/core/include/pychron/core/b.hpp"),
+        self.assertEqual(self.users("libs/core/include/nobion/core/b.hpp"),
                          ["libs/core/src/b.cpp", "libs/devices/src/uses_b.cpp"])
 
     def test_a_longer_name_ending_the_same_is_not_a_match(self):
         self.assertEqual(self.users("tests/core/fake.hpp"), ["tests/core/test_b.cpp"])
 
     def test_a_header_only_another_header_includes_is_reached_through_it(self):
-        self.assertEqual(self.users("libs/core/include/pychron/core/inner.hpp"),
+        self.assertEqual(self.users("libs/core/include/nobion/core/inner.hpp"),
                          ["libs/core/src/b.cpp", "libs/devices/src/uses_b.cpp"])
 
     def test_a_header_nothing_includes_has_no_source(self):
-        self.assertEqual(self.users("libs/core/include/pychron/core/orphan.hpp"), [])
+        self.assertEqual(self.users("libs/core/include/nobion/core/orphan.hpp"), [])
 
 
 if __name__ == "__main__":

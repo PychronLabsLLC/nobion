@@ -1,0 +1,104 @@
+#pragma once
+
+// RiseRatePanel: the "Rise rate" group of the spectrometer window's controls.
+// The operator picks a detector and presses Start; the panel takes that
+// detector's value from every reading it is handed, shows the rate so far,
+// and on Stop adds the result to a table kept for the session. It sends
+// nothing to the instrument and reads no clock: a duration is the difference
+// of two readings' times, and a result's wall time comes from the function it
+// was given, or is blank.
+
+#include <filesystem>
+#include <functional>
+#include <map>
+#include <string>
+#include <vector>
+
+#include <QDateTime>
+#include <QWidget>
+
+#include "rise_rate.hpp"
+#include "strip_chart_model.hpp"
+
+class QComboBox;
+class QLabel;
+class QPushButton;
+class QTableWidget;
+
+namespace nobion::ui {
+
+class RiseRatePanel : public QWidget {
+  Q_OBJECT
+
+ public:
+  enum Column { ColNumber, ColDetector, ColEndpoints, ColLinear, ColError, ColUnits, ColMinutes, ColReadings, ColTime, ColNote, ColCount };
+
+  explicit RiseRatePanel(std::vector<DetectorSeries> detectors, QWidget* parent = nullptr);
+
+  void on_reading(const spectrometer::IntensityReading& reading);
+  // Ignored while a run is on, and for a detector the panel does not have.
+  void set_detector(const QString& name);
+  // The isotope on a detector, named in the results beside it.
+  void set_isotope(const std::string& detector, const QString& isotope);
+  void set_wall_clock(std::function<QDateTime()> now);
+  // Each result is also appended to this CSV file (made with its header when
+  // it is not there), so that rise rates can be looked back at across
+  // sessions. `spectrometer` and `simulated` go in every line. An empty path:
+  // no file. A line that cannot be written is said in the status; the result
+  // stays in the table.
+  void set_results_file(std::filesystem::path path, QString spectrometer, bool simulated);
+  void toggle();  // the Start / Stop button
+  // Whether a run may be started (not while a peak center sweeps the magnet):
+  // Start is disabled and toggle() starts nothing. A run going can still be
+  // stopped.
+  void set_start_allowed(bool allowed);
+  // Ends a run with no result and says why (the window was closed, the scan
+  // was restarted): readings either side of a break are not one rise.
+  // Nothing when no run is on.
+  void abandon(const QString& why);
+  [[nodiscard]] bool running() const noexcept { return run_.running(); }
+
+  // For tests.
+  [[nodiscard]] QTableWidget* results() const noexcept { return results_; }
+  [[nodiscard]] QComboBox* detector_box() const noexcept { return detector_; }
+  [[nodiscard]] QPushButton* toggle_button() const noexcept { return toggle_; }
+  [[nodiscard]] QPushButton* clear_button() const noexcept { return clear_; }
+  [[nodiscard]] QString live_text() const;
+  [[nodiscard]] QString status_text() const;
+  // What Copy puts on the clipboard: a header line and a line a result, tab
+  // separated.
+  [[nodiscard]] QString copy_text() const;
+
+ signals:
+  void started(nobion::TimePoint at);  // the run's first reading
+  void stopped(nobion::TimePoint at);  // its last; only when it gave a result
+  void cleared();                       // a run began, or ended with no result: its marks go
+
+ private:
+  void show_live();
+  void add_result(const RiseRate& rate);
+  [[nodiscard]] QString units_of(const std::string& detector) const;
+  [[nodiscard]] bool append_to_file(const RiseRate& rate, const QString& time, const QString& note) const;
+
+  std::vector<DetectorSeries> detectors_;
+  std::map<std::string, QString> isotopes_;
+  std::function<QDateTime()> wall_now_;
+  std::filesystem::path file_;
+  QString spectrometer_;
+  bool simulated_ = false;
+  RiseRun run_;
+  bool start_allowed_ = true;
+  bool announced_ = false;  // started() sent for this run
+  bool void_said_ = false;  // cleared() sent for this run's having gone void
+  int count_ = 0;           // results since the table was last cleared
+
+  QComboBox* detector_;
+  QPushButton* toggle_;
+  QLabel* live_;
+  QLabel* status_;
+  QTableWidget* results_;
+  QPushButton* copy_;
+  QPushButton* clear_;
+};
+
+}  // namespace nobion::ui

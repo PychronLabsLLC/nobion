@@ -1,11 +1,11 @@
-# Pychron user guide
+# Nobion user guide
 
-Guides for the people who run pychron: operators, lab managers and
+Guides for the people who run nobion: operators, lab managers and
 data-reduction users. Start with [getting started](01-getting-started.md); it
 includes a 15-minute walkthrough in the simulator. Developers want
 [dev_setup.md](../dev_setup.md) and [AGENTS.md](../../AGENTS.md) instead.
 
-> Pychron-cpp is in development. Everything has been run against the built-in
+> Nobion is in development. Everything has been run against the built-in
 > simulator; no driver has been run on a real instrument yet. These pages were
 > written from the source code and are marked where something is unverified.
 

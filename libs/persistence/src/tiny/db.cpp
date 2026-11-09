@@ -13,6 +13,7 @@
 #include <QUrlQuery>
 #include <QUuid>
 
+#include <array>
 #include <atomic>
 #include <cstring>
 #include <exception>
@@ -20,7 +21,7 @@
 
 #include "sql/errors.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 namespace {
 
 std::shared_ptr<Orm::DatabaseManager> manager() {
@@ -43,16 +44,16 @@ void ensure_qt_application() {
   std::call_once(once, [] {
     if (QCoreApplication::instance() != nullptr) return;
     static int argc = 1;
-    static char name[] = "pychron";
-    static char* argv[] = {name, nullptr};
-    new QCoreApplication(argc, argv);
+    static std::array<char, sizeof("nobion")> name{"nobion"};
+    static std::array<char*, 2> argv{name.data(), nullptr};
+    new QCoreApplication(argc, argv.data());
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks): the application object lives as long as the process
   });
 }
 
 QString next_connection_name() {
   static std::atomic<int> counter{0};
-  return QStringLiteral("pychron-%1").arg(counter.fetch_add(1));
+  return QStringLiteral("nobion-%1").arg(counter.fetch_add(1));
 }
 
 // Runs `fn`, turning any TinyORM/Qt SQL exception into an Error.
@@ -109,7 +110,7 @@ Result<QVariantHash> parse_config(const StoreConfig& config, Dialect& dialect) {
     c["charset"] = "utf8";
     c["search_path"] = "public";
     // search_path=<schema> confines a store to one schema (tests use a fresh one each).
-    c["application_name"] = "pychron";
+    c["application_name"] = "nobion";
     const QUrlQuery q(u);
     for (const char* key : {"sslmode", "sslcert", "sslkey", "sslrootcert", "search_path"})
       if (q.hasQueryItem(key)) c[key] = q.queryItemValue(key, QUrl::FullyDecoded);
@@ -290,10 +291,10 @@ Sha256Digest to_digest(const QVariant& v) {
   return d;
 }
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail
 
-namespace pychron::persistence {
+namespace nobion::persistence {
 
 void ensure_host_application() { detail::ensure_qt_application(); }
 
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence

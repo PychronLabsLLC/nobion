@@ -13,22 +13,22 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/core/virtual_clock.hpp"
+#include "nobion/core/virtual_clock.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {
 
 using Real = std::chrono::steady_clock;
-using pychron::testing::await_participants;
-using pychron::testing::await_waiters;
+using nobion::testing::await_participants;
+using nobion::testing::await_waiters;
 
 // A clock that loses a wake-up leaves a thread asleep for good. A test cannot
 // unwind past such a thread, so each one runs under a real-time bound: when it
 // is exceeded the process says so and aborts, well inside the ctest timeout.
-class VirtualClockTest : public pychron::testing::VirtualTimeTest {
+class VirtualClockTest : public nobion::testing::VirtualTimeTest {
  protected:
   VirtualClockTest() : VirtualTimeTest(45s) {}
 };
@@ -326,8 +326,17 @@ TEST_F(VirtualClockTest, ThreadsStartingAndLeavingNeverLoseAJump) {
 
 // The same race with every jump paced (ten simulated milliseconds cost ten
 // real microseconds), so that sleeps are interrupted and handed over.
+// Windows rounds every timed wait up to its timer tick (about 15.6 ms), so a
+// round there costs some 32 ms instead of under 0.1 ms: a thousand rounds took
+// 32.6 s on CI's Windows runner and ran past the 45 s dead-man in a loaded
+// Release build. Two hundred keep it near a seventh of that.
 TEST_F(VirtualClockTest, PacedThreadsStartingAndLeavingNeverLoseAJump) {
-  expect_threads_starting_and_leaving_never_lose_a_jump(1'000, 1'000);
+#ifdef _WIN32
+  constexpr int kRounds = 200;
+#else
+  constexpr int kRounds = 1'000;
+#endif
+  expect_threads_starting_and_leaving_never_lose_a_jump(1'000, kRounds);
 }
 
 TEST_F(VirtualClockTest, WallNowIsEpochPlusElapsed) {

@@ -7,10 +7,10 @@
 #include <system_error>
 
 #include "internal.hpp"
-#include "pychron/core/env.hpp"
-#include "pychron/core/process.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/process.hpp"
 
-namespace pychron::scripting::python {
+namespace nobion::scripting::python {
 namespace {
 
 Runtime* g_runtime = nullptr;
@@ -18,6 +18,8 @@ Runtime* g_runtime = nullptr;
 void bind_classes(py::module_ scope) {
   py::class_<HostState>(scope, "_Host")
       .def_property_readonly("estimating", &HostState::estimating)
+      .def_property_readonly("rehearsing", &HostState::rehearsing)
+      .def("rehearse_step", &HostState::rehearse_step)
       .def("now", &HostState::now)
       .def("info", &HostState::info)
       .def("require", &HostState::require)
@@ -100,6 +102,38 @@ void bind_classes(py::module_ scope) {
              auto& api = a.state->measurement();
              a.state->unwrap(nogil([&] { return api.close(v); }));
            })
+      .def(
+          "peak_center",
+          [nogil](HookApi& a, const std::string& label, const std::string& det, const std::string& write_table) {
+            a.state->guard();
+            auto& api = a.state->measurement();
+            a.state->unwrap(nogil([&] { return api.peak_center(label, det, write_table); }));
+          },
+          py::arg("label"), py::arg("detector"), py::arg("write_table") = std::string())
+      .def("set_deflection",
+           [nogil](HookApi& a, const std::string& det, double value) {
+             a.state->guard();
+             auto& api = a.state->measurement();
+             a.state->unwrap(nogil([&] { return api.set_deflection(det, value); }));
+           })
+      .def("set_integration",
+           [nogil](HookApi& a, double seconds) {
+             a.state->guard();
+             auto& api = a.state->measurement();
+             a.state->unwrap(nogil([&] { return api.set_integration(seconds); }));
+           })
+      .def("with_table",
+           [nogil](HookApi& a, const std::string& name) {
+             a.state->guard();
+             auto& api = a.state->measurement();
+             a.state->unwrap(nogil([&] { return api.with_table(name); }));
+           })
+      .def("apply_optics",
+           [nogil](HookApi& a, const std::string& name) {
+             a.state->guard();
+             auto& api = a.state->measurement();
+             a.state->unwrap(nogil([&] { return api.apply_optics(name); }));
+           })
       .def("add_conditional",
            [](HookApi& a, const std::string& spec) {
              a.state->unwrap(a.state->measurement().add_conditional(spec));
@@ -116,25 +150,18 @@ void bind_classes(py::module_ scope) {
   py::class_<DeviceHandle>(scope, "DeviceHandle")
       .def_property_readonly("name",
                              [](DeviceHandle& d) {
-                               if (d.state->estimating()) return std::string{};
+                               if (d.state->estimating() || d.state->rehearsing()) return std::string{};
                                return d.state->device().device_name();
                              })
-      .def("output",
-           [](DeviceHandle& d) {
-             if (d.state->estimating()) return 0.0;
-             return d.state->unwrap(d.state->device().output());
-           })
-      .def("is_enabled", [](DeviceHandle& d) {
-        if (d.state->estimating()) return false;
-        return d.state->unwrap(d.state->device().is_enabled());
-      });
+      .def("output", [](DeviceHandle& d) { return d.state->device_output(); })
+      .def("is_enabled", [](DeviceHandle& d) { return d.state->device_is_enabled(); });
 }
 
 void create_runtime() {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory): see the line
   auto* rt = new Runtime();  // lives for the process, like the interpreter
   auto types = py::module_::import("types");
-  rt->module = types.attr("ModuleType")("_pychron_runtime");
+  rt->module = types.attr("ModuleType")("_nobion_runtime");
   PyObject* runtime_code = Py_CompileString(kRuntimeSource, kRuntimeFilename, Py_file_input);
   if (!runtime_code) throw py::error_already_set();
   auto runtime_code_obj = py::reinterpret_steal<py::object>(runtime_code);
@@ -142,7 +169,7 @@ void create_runtime() {
   PyObject* ran = PyEval_EvalCode(runtime_code, runtime_dict.ptr(), runtime_dict.ptr());
   if (!ran) throw py::error_already_set();
   Py_DECREF(ran);
-  py::module_::import("sys").attr("modules")["_pychron_runtime"] = rt->module;
+  py::module_::import("sys").attr("modules")["_nobion_runtime"] = rt->module;
   bind_classes(py::reinterpret_borrow<py::module_>(rt->module));
 
   PyObject* code = Py_CompileString(kPreludeSource, kPreludeFilename, Py_file_input);
@@ -171,14 +198,14 @@ void create_runtime() {
 namespace {
 
 // An installed pychron carries its own CPython (python-build-standalone)
-// beside the programs: <prefix>/share/pychron/python, or a macOS bundle's
+// beside the programs: <prefix>/share/nobion/python, or a macOS bundle's
 // Contents/Resources/python. Point the interpreter at it unless PYTHONHOME is
 // already set; a build-tree run uses the Python it was built against.
 void use_bundled_python() {
   if (auto home = env_var("PYTHONHOME"); home && !home->empty()) return;
   const std::filesystem::path exe = executable_dir();
   if (exe.empty()) return;
-  for (const auto& dir : {exe / ".." / "share" / "pychron" / "python", exe / ".." / "Resources" / "python"}) {
+  for (const auto& dir : {exe / ".." / "share" / "nobion" / "python", exe / ".." / "Resources" / "python"}) {
     std::error_code ec;
     if (!std::filesystem::is_directory(dir / "lib", ec) && !std::filesystem::is_directory(dir / "Lib", ec)) continue;
     const std::filesystem::path canonical = std::filesystem::weakly_canonical(dir, ec);
@@ -213,4 +240,4 @@ void ensure_interpreter() {
 
 Runtime& runtime() { return *g_runtime; }
 
-}  // namespace pychron::scripting::python
+}  // namespace nobion::scripting::python

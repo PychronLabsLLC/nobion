@@ -31,18 +31,18 @@
 #include "experiment_fixture.hpp"
 #include "settings_guard.hpp"
 
-using pychron::experiment::ActionSpec;
-using pychron::experiment::Conditional;
-using pychron::experiment::ConditionalKind;
-using pychron::experiment::ConditionalSet;
-using pychron::ui::ConditionalForm;
-using pychron::ui::ConditionalTableModel;
-using pychron::ui::ConditionalsEditorWindow;
+using nobion::experiment::ActionSpec;
+using nobion::experiment::Conditional;
+using nobion::experiment::ConditionalKind;
+using nobion::experiment::ConditionalSet;
+using nobion::ui::ConditionalForm;
+using nobion::ui::ConditionalTableModel;
+using nobion::ui::ConditionalsEditorWindow;
 namespace fs = std::filesystem;
-namespace ex = pychron::experiment;
-namespace lab = pychron::experiment::lab;
+namespace ex = nobion::experiment;
+namespace lab = nobion::experiment::lab;
 
-Q_DECLARE_METATYPE(pychron::experiment::Conditional)
+Q_DECLARE_METATYPE(nobion::experiment::Conditional)
 
 namespace {
 
@@ -108,7 +108,7 @@ class TestConditionalsEditor : public QObject {
 
   // The window tests: a fresh scratch lab per test; the lab outlives the window.
   QTemporaryDir tmp_;
-  pychron::ui::test::ApplicationSettingsGuard app_settings_;
+  nobion::ui::test::ApplicationSettingsGuard app_settings_;
   fs::path dir_;
   std::unique_ptr<lab::Lab> lab_;
   int settings_n_ = 0;
@@ -133,8 +133,8 @@ class TestConditionalsEditor : public QObject {
   void initTestCase() { qRegisterMetaType<Conditional>(); }
   void init() {
     ++settings_n_;
-    dir_ = pychron::ui::test::scratch_lab();
-    lab_ = std::make_unique<lab::Lab>(lab::load_lab(pychron::ui::test::lab_paths(dir_)));
+    dir_ = nobion::ui::test::scratch_lab();
+    lab_ = std::make_unique<lab::Lab>(lab::load_lab(nobion::ui::test::lab_paths(dir_)));
   }
   void cleanup() {
     lab_.reset();
@@ -564,7 +564,7 @@ class TestConditionalsEditor : public QObject {
 
   // File > Open: one of the lab's files, with the question open() asks.
   void windowFileOpenPicksOneOfTheLabsFiles() {
-    using pychron::ui::MenuHub;
+    using nobion::ui::MenuHub;
     auto w = window();
     QStringList offered;
     std::optional<QString> answer;

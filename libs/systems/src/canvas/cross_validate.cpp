@@ -1,10 +1,10 @@
-#include "pychron/systems/canvas/cross_validate.hpp"
+#include "nobion/systems/canvas/cross_validate.hpp"
 
 #include <filesystem>
 #include <set>
 #include <string>
 
-namespace pychron::canvas {
+namespace nobion::canvas {
 namespace {
 
 using config::Diagnostic;
@@ -86,4 +86,4 @@ Result<std::vector<config::Diagnostic>> check_canvas(const Canvas& canvas, const
   return std::move(r.warnings);
 }
 
-}  // namespace pychron::canvas
+}  // namespace nobion::canvas

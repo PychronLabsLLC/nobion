@@ -17,15 +17,15 @@
 #include <string>
 #include <thread>
 
-#include "pychron/devices/spectrometer/ngx_sim.hpp"
-#include "pychron/setup/connection.hpp"
-#include "pychron/setup/install.hpp"
-#include "pychron/setup/installer.hpp"
-#include "pychron/setup/profile.hpp"
+#include "nobion/devices/spectrometer/ngx_sim.hpp"
+#include "nobion/setup/connection.hpp"
+#include "nobion/setup/install.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/setup/profile.hpp"
 #include "temp_path.hpp"
 
-using namespace pychron;
-using namespace pychron::setup;
+using namespace nobion;
+using namespace nobion::setup;
 namespace fs = std::filesystem;
 
 namespace {
@@ -92,7 +92,7 @@ class NgxServer {
 };
 
 struct Tmp {
-  fs::path dir = pychron::testing::unique_temp_path("pychron-conn-");
+  fs::path dir = nobion::testing::unique_temp_path("nobion-conn-");
   Tmp() { fs::create_directories(dir); }
   ~Tmp() { fs::remove_all(dir); }
 };
@@ -224,9 +224,9 @@ TEST(ExtractionLine, TheStarterLineOrTheLabsOwnFilesAreCheckedBeforeAnythingIsWr
   EXPECT_EQ(read(tmp.dir / "own" / "extraction_line.toml"), line);
   EXPECT_EQ(read(tmp.dir / "own" / "canvas.toml"), read(examples / "canvas.toml"));
 
-  // A line without valve A, which the canvas draws.
+  // A line without valve A, which the canvas draws (C and D interlock with it).
   std::string renamed = line;
-  for (const std::string from : {"name = \"A\"", "interlocks = [\"A\"]"}) {
+  for (const std::string from : {"name = \"A\"", "interlocks = [\"A\"]", "interlocks = [\"A\"]"}) {
     const auto at = renamed.find(from);
     ASSERT_NE(at, std::string::npos) << from;
     renamed.replace(at, from.size(), from == "name = \"A\"" ? "name = \"Z\"" : "interlocks = [\"Z\"]");

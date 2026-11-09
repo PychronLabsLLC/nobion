@@ -5,11 +5,11 @@
 #include <span>
 #include <vector>
 
-#include "pychron/vision/autocenter.hpp"
+#include "nobion/vision/autocenter.hpp"
 #include "sim_loop.hpp"
 
-using namespace pychron::vision;
-using namespace pychron::vision::sim;
+using namespace nobion::vision;
+using namespace nobion::vision::sim;
 using Action = AutocenterStep::Action;
 
 namespace {

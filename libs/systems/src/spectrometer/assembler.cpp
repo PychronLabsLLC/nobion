@@ -1,15 +1,15 @@
-#include "pychron/systems/spectrometer/assembler.hpp"
+#include "nobion/systems/spectrometer/assembler.hpp"
 
 #include <algorithm>
 #include <filesystem>
 
-#include "pychron/devices/capabilities.hpp"
-#include "pychron/devices/connectable.hpp"
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/systems/spectrometer/config_validate.hpp"
-#include "pychron/transport/factory.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/devices/connectable.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/systems/spectrometer/config_validate.hpp"
+#include "nobion/transport/factory.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace {
 
@@ -86,6 +86,10 @@ Result<SpectrometerRoles> SpectrometerAssembler::bind(const cfg::SpectrometerCon
   }
   std::ranges::stable_partition(blankers, [&](const std::string& n) { return n == config.magnet.positioner; });
   if (!blankers.empty()) roles.beam_blank = bind_role<IBeamBlank>(devices, blankers.front(), "beam_blank", problems);
+  for (const auto& [name, dc] : config.drivers) {
+    if (dc.has_role(cfg::Role::Optics) && roles.optics == nullptr)
+      roles.optics = bind_role<IOpticsControl>(devices, name, "optics", problems);
+  }
 
   for (const auto& name : config.acquisition.acquirers) {
     auto* acquirer = bind_role<IIntensityAcquirer>(devices, name, "acquirer", problems);
@@ -115,7 +119,8 @@ Result<SpectrometerRoles> SpectrometerAssembler::bind(const cfg::SpectrometerCon
 
 Result<std::unique_ptr<Transport>> SpectrometerAssembler::default_transport(const cfg::TransportConfig& c,
                                                                             const SpectrometerContext& context,
-                                                                            const std::filesystem::path& trace_dir) {
+                                                                            const std::filesystem::path& trace_dir,
+                                                                            const std::map<std::string, Endpoint>* endpoints) {
   config::TransportConfig tc;
   tc.name = c.name;
   tc.loc = c.loc;
@@ -158,6 +163,9 @@ Result<std::unique_ptr<Transport>> SpectrometerAssembler::default_transport(cons
   tctx.clock = &context.clock;
   tctx.bus = &context.bus;
   tctx.trace_dir = trace_dir.string();
+  tctx.endpoints = endpoints;
+  tctx.hang_monitor = context.hang_monitor;
+  tctx.log_hub = context.log_hub;
   if (c.trace) {
     std::error_code ec;
     std::filesystem::create_directories(trace_dir, ec);
@@ -168,14 +176,14 @@ Result<std::unique_ptr<Transport>> SpectrometerAssembler::default_transport(cons
 
 Result<std::unique_ptr<Device>> SpectrometerAssembler::default_driver(const cfg::DriverConfig& dc,
                                                                       Transport& transport,
-                                                                      const SpectrometerContext& context) {
+                                                                      const SpectrometerContext& context, Link* link) {
   toml::table options = dc.options;
   if (!dc.channels.empty() && !options.contains("channels")) {
     toml::array channels;
     for (const auto& c : dc.channels) channels.push_back(c);
     options.insert("channels", std::move(channels));
   }
-  return DriverRegistry::global().create(dc.kind, transport, options, DriverContext{dc.name, &context.clock});
+  return DriverRegistry::global().create(dc.kind, transport, options, DriverContext{dc.name, &context.clock, link, &context.bus});
 }
 
 Result<std::unique_ptr<Spectrometer>> SpectrometerAssembler::load(const std::filesystem::path& config_file,
@@ -189,16 +197,18 @@ Result<std::unique_ptr<Spectrometer>> SpectrometerAssembler::assemble(cfg::Spect
                                                                       SpectrometerContext context, Options options) {
   if (auto diags = cfg::validate(data.config, data.tables); !diags.empty()) return fail(config::to_error(diags));
   if (!options.make_transport) {
-    options.make_transport = [dir = options.spectrometer.trace_dir](const cfg::TransportConfig& tc,
-                                                                    const SpectrometerContext& ctx) {
-      return default_transport(tc, ctx, dir);
+    options.make_transport = [dir = options.spectrometer.trace_dir, endpoints = options.sim_endpoints](
+                                 const cfg::TransportConfig& tc, const SpectrometerContext& ctx) {
+      return default_transport(tc, ctx, dir, endpoints.get());
     };
   }
   if (!options.make_driver) options.make_driver = default_driver;
 
   std::vector<std::string> problems;
   std::vector<std::unique_ptr<Transport>> transports;
+  std::vector<std::unique_ptr<Link>> links;
   std::map<std::string, Transport*> by_name;
+  std::map<std::string, Link*> link_of;  // none for kind "link": recovered where it is owned
   std::vector<std::pair<std::string, Transport*>> transport_ptrs;  // config order
   for (const auto& [name, tc] : data.config.transports) {
     auto t = options.make_transport(tc, context);
@@ -208,14 +218,20 @@ Result<std::unique_ptr<Spectrometer>> SpectrometerAssembler::assemble(cfg::Spect
     }
     by_name[name] = t->get();
     transport_ptrs.emplace_back(name, t->get());
+    if (tc.kind != cfg::TransportKind::Link) {
+      links.push_back(std::make_unique<Link>(**t, context.clock, link_policy(tc.recovery, options.link_defaults), &context.bus));
+      link_of[name] = links.back().get();
+    }
     transports.push_back(std::move(*t));
   }
+  // Destroyed before `links` and `transports` if anything below fails.
   std::vector<std::unique_ptr<Device>> devices;
   std::vector<std::pair<std::string, Device*>> device_ptrs;
   for (const auto& [name, dc] : data.config.drivers) {
     auto t = by_name.find(dc.transport);
     if (t == by_name.end()) continue;  // already reported
-    auto d = options.make_driver(dc, *t->second, context);
+    const auto l = link_of.find(dc.transport);
+    auto d = options.make_driver(dc, *t->second, context, l == link_of.end() ? nullptr : l->second);
     if (!d) {
       problems.push_back("driver '" + name + "': " + d.error().what);
       continue;
@@ -228,11 +244,13 @@ Result<std::unique_ptr<Spectrometer>> SpectrometerAssembler::assemble(cfg::Spect
   auto roles = bind(data.config, device_ptrs);
   if (!roles) return fail(roles.error());
   roles->transports = std::move(transports);
+  roles->links = std::move(links);
   roles->devices = std::move(devices);
 
   std::map<std::string, FieldTable> tables;
   for (const auto& [name, tf] : data.tables) tables.emplace(name, to_field_table(tf));
-  if (options.spectrometer.data_root.empty()) options.spectrometer.data_root = data.root;
+  if (options.spectrometer.data_root.empty())
+    options.spectrometer.data_root = data.table_root.empty() ? data.root : data.table_root;
   auto spectrometer = Spectrometer::create(std::move(data.config), MolecularWeights(std::move(data.weights)),
                                            std::move(tables), std::move(*roles), context,
                                            std::move(options.spectrometer));
@@ -243,4 +261,4 @@ Result<std::unique_ptr<Spectrometer>> SpectrometerAssembler::assemble(cfg::Spect
   return spectrometer;
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

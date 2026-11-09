@@ -1,12 +1,12 @@
 // The shared codec vocabulary (libs/codecs) lives with device_kit; vendor
 // codecs get their own tests under tests/codecs.
 
-#include "pychron/codecs/codec.hpp"
+#include "nobion/codecs/codec.hpp"
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-using namespace pychron::codec;
+using namespace nobion;
+using namespace nobion::codec;
 
 TEST(CodecConventions, CommandCarriesBytesAndReplyFraming) {
   Command c = Command::ascii("PR1\r\n", ReadSpec::until("\r\n"));

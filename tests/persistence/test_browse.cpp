@@ -7,9 +7,17 @@
 #include <algorithm>
 
 #include "store_fixture.hpp"
+#include "store_impl.hpp"
 
-namespace pychron::persistence::testing {
+namespace nobion::persistence::testing {
 namespace {
+
+std::vector<std::string> values(const Result<std::vector<FacetValue>>& facet) {
+  std::vector<std::string> out;
+  if (!facet) return out;
+  for (const auto& v : *facet) out.push_back(v.value);
+  return out;
+}
 
 class BrowseTest : public StoreTest {
  protected:
@@ -64,7 +72,47 @@ class BrowseTest : public StoreTest {
     return r ? *r : BrowseResult{};
   }
 
-  Uuid pi_, project_, material_, sample_, a1_, a2_, a3_, a4_, a5_;
+  // Caches an age for the analysis as the age sink would: one `age` row, in
+  // Ma; a null value is an analysis cached as having no age.
+  void cache_age(Uuid analysis, std::optional<double> age, std::optional<double> err) {
+    const auto fp = nobion::sha256(std::string_view{"fingerprint of " + analysis.str()});
+    auto ok = store_->put_derived(analysis, fp, "red-1", {DerivedRow{"age", age, err, std::string("Ma")}});
+    ASSERT_TRUE(ok) << to_string(ok.error());
+  }
+
+  // a1 10 Ma, a2 20 Ma, a3 cached with no age, a4 (invalid) 15 Ma, a5 no row.
+  void cache_ages() {
+    cache_age(a1_, 10.0, 0.1);
+    cache_age(a2_, 20.0, 0.2);
+    cache_age(a3_, std::nullopt, std::nullopt);
+    cache_age(a4_, 15.0, 0.15);
+  }
+
+  static BrowseFilter ages(std::optional<double> min, std::optional<double> max) {
+    BrowseFilter f;
+    f.age_min = min;
+    f.age_max = max;
+    return f;
+  }
+
+  // A second irradiation whose level is also named "A", with position 1
+  // holding 88000 and one unknown analysis of it.
+  void add_second_irradiation() {
+    const Uuid c = lab_.acquisition_client;
+    nm301_ = *store_->add_irradiation(c, "NM-301");
+    level301_ = *store_->add_level(c, {nm301_, "A", std::nullopt, 0.5, std::nullopt, std::nullopt});
+    const Uuid pos = *store_->add_irradiation_position(c, {level301_, 1, std::nullopt, std::nullopt, {}, {}, std::nullopt});
+    ASSERT_TRUE(store_->add_identifier(c, {"88000", "unknown", std::nullopt, std::nullopt, pos, std::nullopt, std::nullopt}));
+    a6_ = add("88000", 1, "unknown", "2026-10-02T15:00:00Z");
+  }
+
+  BrowseFilter with_positions(PositionFilter p) {
+    BrowseFilter f;
+    f.positions = std::move(p);
+    return f;
+  }
+
+  Uuid pi_, project_, material_, sample_, a1_, a2_, a3_, a4_, a5_, a6_, nm301_, level301_;
 };
 
 TEST_P(BrowseTest, NewestFirstWithPagingAndTotals) {
@@ -92,7 +140,7 @@ TEST_P(BrowseTest, RowsCarrySampleAndCatalogColumns) {
   EXPECT_EQ(it->sample, "FC-2");
   EXPECT_EQ(it->project, "Fish Canyon");
   EXPECT_EQ(it->material, "sanidine");
-  EXPECT_EQ(it->principal_investigator, "Ross, J");
+  EXPECT_EQ(it->principal_investigator, "J Ross");
   EXPECT_EQ(it->extract_device, "co2");
   EXPECT_EQ(it->irradiation, "NM-300");
   EXPECT_EQ(it->level, "A");
@@ -115,7 +163,7 @@ TEST_P(BrowseTest, Filters) {
   EXPECT_EQ(uuids(browse(sample)), (std::vector<Uuid>{a2_, a1_}));
   BrowseFilter project;
   project.projects = {"Fish Canyon"};
-  project.principal_investigators = {"Ross, J"};
+  project.principal_investigators = {pi_};
   project.materials = {"sanidine"};
   EXPECT_EQ(browse(project).rows.size(), 2u);
 
@@ -159,15 +207,75 @@ TEST_P(BrowseTest, FacetsIgnoreTheirOwnFilter) {
   f.analysis_types = {"air"};
   auto types = store_->facet(BrowseFacet::AnalysisType, f);
   ASSERT_TRUE(types) << to_string(types.error());
-  EXPECT_EQ(*types, (std::vector<std::string>{"air", "blank_unknown", "unknown"}));
+  EXPECT_EQ(values(types), (std::vector<std::string>{"air", "blank_unknown", "unknown"}));
   auto ids = store_->facet(BrowseFacet::Identifier, f);
   ASSERT_TRUE(ids);
-  EXPECT_EQ(*ids, (std::vector<std::string>{"66574"}));
-  EXPECT_EQ(*store_->facet(BrowseFacet::Sample, {}), (std::vector<std::string>{"FC-2"}));
-  EXPECT_EQ(*store_->facet(BrowseFacet::Repository, {}), (std::vector<std::string>{"FishCanyon"}));
+  EXPECT_EQ(values(ids), (std::vector<std::string>{"66574"}));
+  EXPECT_EQ(values(store_->facet(BrowseFacet::Sample, {})), (std::vector<std::string>{"FC-2"}));
+  EXPECT_EQ(values(store_->facet(BrowseFacet::Repository, {})), (std::vector<std::string>{"FishCanyon"}));
   EXPECT_TRUE(store_->facet(BrowseFacet::Repository, f)->empty());
-  EXPECT_EQ(*store_->facet(BrowseFacet::PrincipalInvestigator, {}), (std::vector<std::string>{"Ross, J"}));
-  EXPECT_EQ(*store_->facet(BrowseFacet::Level, {}), (std::vector<std::string>{"A"}));
+  EXPECT_EQ(*store_->facet(BrowseFacet::PrincipalInvestigator, {}), (std::vector<FacetValue>{{pi_.str(), "J Ross"}}));
+  EXPECT_EQ(values(store_->facet(BrowseFacet::Level, {})), (std::vector<std::string>{"A"}));
+}
+
+// PI spec 7: a name is not a PI. Each namesake is its own value, read apart by
+// its affiliation, else its ORCID's last four; one with neither reads as its
+// name alone, and its uuid still says which. Sorted as every PI list.
+TEST_P(BrowseTest, NamesakesAreTwoFacetValuesAndFilterApart) {
+  const Uuid c = lab_.acquisition_client;
+  const auto analysis_of = [&](const Uuid pi, const std::string& project, const std::string& sample,
+                               const std::string& identifier, int position, const std::string& ts) {
+    const Uuid proj = *store_->add_project(c, {project, pi, std::nullopt});
+    const Uuid smp = *store_->add_sample(c, {.name = sample, .project = proj, .material = material_});
+    const Uuid pos = *store_->add_irradiation_position(c, {lab_.level, position, smp, std::nullopt, {}, {}, std::nullopt});
+    EXPECT_TRUE(store_->add_identifier(c, {identifier, "unknown", std::nullopt, std::nullopt, pos, std::nullopt, std::nullopt}));
+    return add(identifier, 1, "unknown", ts);
+  };
+  const Uuid unm = Uuid::v7(), orcid = Uuid::v7(), abbot = Uuid::v7();
+  const auto pi = [](Uuid id, std::string family, std::string given, const char* column, std::string value) {
+    return CatalogInsert{CatalogTable::PrincipalInvestigator, id,
+                         {{"family_name", std::move(family)}, {"given_name", std::move(given)}, {column, std::move(value)}}};
+  };
+  CatalogEditBatch namesakes;
+  namesakes.edits = {pi(unm, "Ross", "J", "affiliation", "UNM"), pi(orcid, "Ross", "J", "orcid", "0000-0001-5109-3700"),
+                     pi(abbot, "Abbot", "Z", "email", "z@example.org")};
+  ASSERT_TRUE(store_->apply_catalog_edits(c, namesakes));
+  const Uuid of_unm = analysis_of(unm, "UNM project", "UN-1", "78000", 3, "2026-10-03T10:00:00Z");
+  const Uuid of_orcid = analysis_of(orcid, "ORCID project", "OR-1", "78001", 4, "2026-10-03T11:00:00Z");
+  analysis_of(abbot, "Abbot project", "AB-1", "78002", 5, "2026-10-03T12:00:00Z");
+
+  EXPECT_EQ(*store_->facet(BrowseFacet::PrincipalInvestigator, {}),
+            (std::vector<FacetValue>{{abbot.str(), "Z Abbot"},
+                                     {pi_.str(), "J Ross"},
+                                     {unm.str(), "J Ross (UNM)"},
+                                     {orcid.str(), "J Ross (3700)"}}));
+
+  BrowseFilter one;
+  one.principal_investigators = {unm};
+  EXPECT_EQ(uuids(browse(one)), (std::vector<Uuid>{of_unm}));
+  EXPECT_EQ(browse(one).total, 1);
+  BrowseFilter two;
+  two.principal_investigators = {unm, orcid};
+  EXPECT_EQ(uuids(browse(two)), (std::vector<Uuid>{of_orcid, of_unm}));
+  ASSERT_EQ(browse(one).rows.size(), 1u);
+  EXPECT_EQ(browse(one).rows[0].principal_investigator, "J Ross");
+  EXPECT_EQ(browse(one).rows[0].principal_investigator_uuid, std::optional<Uuid>{unm});
+
+  // A facet ignores its own filter, and a label does not depend on what the
+  // other filters leave: the one Ross offered here is still told apart.
+  EXPECT_EQ(store_->facet(BrowseFacet::PrincipalInvestigator, one)->size(), 4u);
+  BrowseFilter narrowed;
+  narrowed.samples = {"UN-1"};
+  EXPECT_EQ(*store_->facet(BrowseFacet::PrincipalInvestigator, narrowed),
+            (std::vector<FacetValue>{{unm.str(), "J Ross (UNM)"}}));
+}
+
+TEST_P(BrowseTest, AnAnalysisWithNoPiIsNoFacetValue) {
+  BrowseFilter airs;
+  airs.analysis_types = {"air"};
+  EXPECT_TRUE(store_->facet(BrowseFacet::PrincipalInvestigator, airs)->empty());
+  ASSERT_FALSE(browse(airs).rows.empty());
+  EXPECT_FALSE(browse(airs).rows[0].principal_investigator_uuid);
 }
 
 TEST_P(BrowseTest, DetailAndBlobs) {
@@ -209,7 +317,217 @@ TEST_P(BrowseTest, LatestChangeSeqIsTheEndOfTheLog) {
   EXPECT_EQ(before->entries[0].seq, *latest);
 }
 
+TEST_P(BrowseTest, AgeBounds) {
+  cache_ages();
+  EXPECT_EQ(uuids(browse(ages(12.0, std::nullopt))), (std::vector<Uuid>{a4_, a2_}));
+  EXPECT_EQ(uuids(browse(ages(std::nullopt, 15.0))), (std::vector<Uuid>{a4_, a1_}));
+  EXPECT_EQ(uuids(browse(ages(12.0, 18.0))), (std::vector<Uuid>{a4_}));
+  EXPECT_EQ(uuids(browse(ages(10.0, 10.0))), (std::vector<Uuid>{a1_})) << "both ends are inclusive";
+  // Every age there is: a3 (cached as having none) and a5 (never cached) are left out.
+  EXPECT_EQ(uuids(browse(ages(-1e9, std::nullopt))), (std::vector<Uuid>{a4_, a2_, a1_}));
+  EXPECT_EQ(uuids(browse(ages(std::nullopt, 1e9))), (std::vector<Uuid>{a4_, a2_, a1_}));
+  EXPECT_TRUE(browse(ages(30.0, std::nullopt)).rows.empty());
+  // A bound with the other filters.
+  BrowseFilter unknowns = ages(12.0, std::nullopt);
+  unknowns.analysis_types = {"unknown"};
+  EXPECT_EQ(uuids(browse(unknowns)), (std::vector<Uuid>{a2_}));
+}
+
+TEST_P(BrowseTest, RowsCarryTheCachedAge) {
+  cache_ages();
+  const auto r = browse({});
+  ASSERT_EQ(r.rows.size(), 5u);
+  auto row = [](const BrowseResult& in, Uuid u) {
+    const auto it = std::find_if(in.rows.begin(), in.rows.end(), [&](const BrowseRow& x) { return x.summary.uuid == u; });
+    if (it == in.rows.end()) {
+      ADD_FAILURE() << "no row for " << u.str();
+      return BrowseRow{};
+    }
+    return *it;
+  };
+  EXPECT_EQ(row(r, a1_).age, 10.0);
+  EXPECT_EQ(row(r, a1_).age_err, 0.1);
+  EXPECT_EQ(row(r, a2_).age, 20.0);
+  EXPECT_FALSE(row(r, a3_).age) << "cached as having no age";
+  EXPECT_FALSE(row(r, a3_).age_err);
+  EXPECT_FALSE(row(r, a5_).age) << "never cached";
+  auto d = store_->load_analysis_detail(a2_);
+  ASSERT_TRUE(d) << to_string(d.error());
+  ASSERT_TRUE(*d);
+  EXPECT_EQ((*d)->row.age, 20.0);
+  EXPECT_EQ((*d)->row.age_err, 0.2);
+  // A new fingerprint replaces the age: still one row for the analysis.
+  const auto fp = nobion::sha256(std::string_view{"new inputs"});
+  ASSERT_TRUE(store_->put_derived(a1_, fp, "red-1", {DerivedRow{"age", 11.0, 0.3, std::string("Ma")}}));
+  const auto again = browse({});
+  EXPECT_EQ(again.rows.size(), 5u);
+  EXPECT_EQ(row(again, a1_).age, 11.0);
+  EXPECT_EQ(row(again, a1_).age_err, 0.3);
+}
+
+TEST_P(BrowseTest, PagingAndTotalsUnderAnAgeBound) {
+  cache_ages();
+  auto page1 = store_->browse(BrowseRequest{ages(0.0, 100.0), 2, std::nullopt, true});
+  ASSERT_TRUE(page1) << to_string(page1.error());
+  EXPECT_EQ(uuids(*page1), (std::vector<Uuid>{a4_, a2_}));
+  EXPECT_EQ(page1->total, 3);
+  ASSERT_TRUE(page1->next);
+  auto page2 = store_->browse(BrowseRequest{ages(0.0, 100.0), 2, page1->next, true});
+  ASSERT_TRUE(page2) << to_string(page2.error());
+  EXPECT_EQ(uuids(*page2), (std::vector<Uuid>{a1_}));
+  EXPECT_EQ(page2->total, 3) << "the total is of every match, not of what is left";
+  EXPECT_FALSE(page2->next);
+}
+
+TEST_P(BrowseTest, FacetsUnderAnAgeBound) {
+  cache_ages();
+  const BrowseFilter older = ages(12.0, std::nullopt);  // a2 (unknown, FC-2), a4 (air)
+  auto types = store_->facet(BrowseFacet::AnalysisType, older);
+  ASSERT_TRUE(types) << to_string(types.error());
+  EXPECT_EQ(values(types), (std::vector<std::string>{"air", "unknown"}));
+  EXPECT_EQ(values(store_->facet(BrowseFacet::Sample, older)), (std::vector<std::string>{"FC-2"}));
+  EXPECT_EQ(values(store_->facet(BrowseFacet::Repository, older)), (std::vector<std::string>{"FishCanyon"}));
+  const BrowseFilter middle = ages(14.0, 16.0);  // a4 only
+  EXPECT_EQ(values(store_->facet(BrowseFacet::Identifier, middle)), (std::vector<std::string>{"66574"}));
+  EXPECT_TRUE(store_->facet(BrowseFacet::Sample, middle)->empty());
+  EXPECT_TRUE(store_->facet(BrowseFacet::Repository, middle)->empty());
+  EXPECT_TRUE(store_->facet(BrowseFacet::AnalysisType, ages(std::nullopt, 5.0))->empty());
+}
+
+TEST_P(BrowseTest, UuidFilter) {
+  BrowseFilter f;
+  f.uuids = {a1_, a4_, a2_};
+  EXPECT_EQ(uuids(browse(f)), (std::vector<Uuid>{a4_, a2_, a1_}));  // page order, invalid kept
+  EXPECT_EQ(browse(f).total, 3);
+  f.exclude_tags = {"invalid"};
+  EXPECT_EQ(uuids(browse(f)), (std::vector<Uuid>{a2_, a1_}));  // ANDed with other fields
+  f = {};
+  f.uuids = {Uuid::v7()};
+  EXPECT_TRUE(browse(f).rows.empty());
+}
+
+TEST_P(BrowseTest, UuidFilterInParts) {
+  BrowseFilter f;
+  for (int i = 0; i < 1200; ++i) f.uuids.push_back(Uuid::v7());
+  f.uuids.push_back(a3_);
+  f.uuids.insert(f.uuids.begin() + 700, a5_);
+  f.uuids.push_back(a1_);
+  const auto r = browse(f, 1203);
+  EXPECT_EQ(uuids(r), (std::vector<Uuid>{a5_, a3_, a1_}));
+  EXPECT_FALSE(r.next);
+}
+
+TEST_P(BrowseTest, NoUuidsLeavesTheStatementAlone) {
+  auto db = detail::Db::open(StoreConfig{"sqlite::memory:", false});
+  ASSERT_TRUE(db) << to_string(db.error());
+  BrowseFilter plain;
+  plain.text = "77";
+  plain.analysis_types = {"unknown"};
+  plain.age_min = 1.0;
+  BrowseFilter with = plain;
+  with.uuids = {a1_, a2_};
+  const auto dialect = Dialect::Sqlite;
+  const BrowseRequest req{plain, 10, std::nullopt, true};
+  const BrowseRequest req_with{with, 10, std::nullopt, true};
+
+  auto expect_same_unless_uuids = [&](const Result<detail::BrowseStatement>& without,
+                                      const Result<detail::BrowseStatement>& with_uuids) {
+    ASSERT_TRUE(without) << to_string(without.error());
+    ASSERT_TRUE(with_uuids) << to_string(with_uuids.error());
+    EXPECT_FALSE(without->sql.contains(QStringLiteral("a.uuid IN")));
+    EXPECT_TRUE(with_uuids->sql.contains(QStringLiteral("a.uuid IN (?, ?)")));
+    EXPECT_EQ(with_uuids->bindings.size(), without->bindings.size() + 2);
+  };
+  expect_same_unless_uuids(detail::browse_page_statement(**db, dialect, req),
+                           detail::browse_page_statement(**db, dialect, req_with));
+  expect_same_unless_uuids(detail::browse_count_statement(**db, dialect, plain),
+                           detail::browse_count_statement(**db, dialect, with));
+  expect_same_unless_uuids(detail::facet_statement(**db, dialect, BrowseFacet::Sample, plain),
+                           detail::facet_statement(**db, dialect, BrowseFacet::Sample, with));
+}
+
+// The irradiation tree. Levels are keyed by uuid: both irradiations have a
+// level named "A".
+TEST_P(BrowseTest, PositionsFilterByLevelKeyNotName) {
+  add_second_irradiation();
+  auto r = browse(with_positions({.levels = {lab_.level}}));
+  // NM-300 level A holds 77000 (a1, a2) and 66573 (a5); NM-301's level A is not it.
+  EXPECT_EQ(uuids(r), (std::vector<Uuid>{a5_, a2_, a1_}));
+  EXPECT_EQ(uuids(browse(with_positions({.levels = {level301_}}))), (std::vector<Uuid>{a6_}));
+  EXPECT_EQ(uuids(browse(with_positions({.irradiations = {lab_.irradiation}}))), (std::vector<Uuid>{a5_, a2_, a1_}));
+}
+
+TEST_P(BrowseTest, PositionsBranchesCombineByOr) {
+  add_second_irradiation();
+  BrowseFilter f = with_positions({.irradiations = {nm301_}, .not_irradiated = true});
+  f.exclude_tags = {"invalid"};  // the browser's view: a4 is hidden
+  EXPECT_EQ(uuids(browse(f)), (std::vector<Uuid>{a6_, a3_}));  // 66574 has no position; 66573 has one
+  EXPECT_EQ(uuids(browse(with_positions({.identifiers = {"77000"}}))), (std::vector<Uuid>{a2_, a1_}));
+  EXPECT_EQ(uuids(browse(with_positions({.irradiations = {nm301_}, .levels = {lab_.level}, .identifiers = {"66573"}}))),
+            (std::vector<Uuid>{a6_, a5_, a2_, a1_}));
+}
+
+TEST_P(BrowseTest, PositionsCombineByAndWithOtherFilters) {
+  add_second_irradiation();
+  BrowseFilter f = with_positions({.not_irradiated = true});
+  f.analysis_types = {"air"};
+  f.exclude_tags = {"invalid"};
+  EXPECT_EQ(uuids(browse(f)), (std::vector<Uuid>{a3_}));
+  // The lists respect the tree.
+  EXPECT_EQ(values(store_->facet(BrowseFacet::AnalysisType, with_positions({.not_irradiated = true}))),
+            (std::vector<std::string>{"air"}));
+  EXPECT_EQ(values(store_->facet(BrowseFacet::AnalysisType, with_positions({.irradiations = {lab_.irradiation}}))),
+            (std::vector<std::string>{"blank_unknown", "unknown"}));
+}
+
+TEST_P(BrowseTest, AnEmptyPositionSelectionMatchesNothing) {
+  add_second_irradiation();
+  auto r = browse(with_positions(PositionFilter{}));
+  EXPECT_TRUE(r.rows.empty());
+  EXPECT_EQ(r.total, 0);
+}
+
+TEST_P(BrowseTest, PositionListingIgnoresItsOwnFilterAndOrders) {
+  add_second_irradiation();
+  auto listing = store_->positions(with_positions({.levels = {lab_.level}}));
+  ASSERT_TRUE(listing) << to_string(listing.error());
+  const std::vector<PositionListing> want{
+      {lab_.irradiation, lab_.level, "NM-300", "A", "66573", "", ""},
+      {lab_.irradiation, lab_.level, "NM-300", "A", "77000", "FC-2", "Fish Canyon"},
+      {nm301_, level301_, "NM-301", "A", "88000", "", ""},
+      {std::nullopt, std::nullopt, "", "", "66574", "", ""},
+  };
+  EXPECT_EQ(*listing, want);
+  // Other filters still narrow it.
+  BrowseFilter f = with_positions({.levels = {lab_.level}});
+  f.analysis_types = {"air"};
+  auto air = store_->positions(f);
+  ASSERT_TRUE(air);
+  ASSERT_EQ(air->size(), 1u);
+  EXPECT_EQ(air->front().identifier, "66574");
+}
+
+TEST_P(BrowseTest, BrowseRowsCarryIrradiationAndLevelUuids) {
+  const auto r = browse({});
+  bool saw_a1 = false;
+  bool saw_a3 = false;
+  for (const auto& row : r.rows) {
+    if (row.summary.uuid == a1_) {
+      saw_a1 = true;
+      EXPECT_EQ(row.irradiation_uuid, lab_.irradiation);
+      EXPECT_EQ(row.level_uuid, lab_.level);
+    }
+    if (row.summary.uuid == a3_) {
+      saw_a3 = true;
+      EXPECT_FALSE(row.irradiation_uuid);
+      EXPECT_FALSE(row.level_uuid);
+    }
+  }
+  EXPECT_TRUE(saw_a1);
+  EXPECT_TRUE(saw_a3);
+}
+
 INSTANTIATE_TEST_SUITE_P(Engines, BrowseTest, ::testing::ValuesIn(engines()), [](const auto& p) { return p.param; });
 
 }  // namespace
-}  // namespace pychron::persistence::testing
+}  // namespace nobion::persistence::testing

@@ -5,16 +5,16 @@
 // rows table and per-group styling, and number formatting.
 
 #include <cstdint>
-#include <set>
+#include <span>
 #include <string>
 #include <vector>
 
-#include "pychron/processing/dataset.hpp"
-#include "pychron/processing/options.hpp"
-#include "pychron/processing/scene.hpp"
-#include "pychron/reduction/stats.hpp"
+#include "nobion/processing/dataset.hpp"
+#include "nobion/processing/options.hpp"
+#include "nobion/processing/scene.hpp"
+#include "nobion/reduction/stats.hpp"
 
-namespace pychron::processing::detail {
+namespace nobion::processing::detail {
 
 std::string format_sig(double v, int sig);
 std::string format_utc(double t);
@@ -23,8 +23,17 @@ Color with_alpha(Color c, std::uint8_t a);
 // title, graph_columns, panel_spacing, graph_spacing, font.*, background, plot_background,
 // show_grid, error_bar_nsigma, excluded_style, show_legend, legend_location,
 // statistics_location, statistics_sig_figs.
+// The corners a legend, a statistics text or an inset may take, as option choices.
+const std::vector<std::string>& corner_choices();
 std::vector<FieldSpec> common_figure_fields();
 void apply_common_style(const Options& o, Scene& scene);
+
+// The part of the common fields a fit figure (blanks, IC factors, isotope
+// evolution refit) takes: panel_spacing, font.*, background,
+// plot_background, show_grid, show_legend, legend_location. Same keys and
+// defaults, so a preset saved before a figure had them reads as it drew.
+std::vector<FieldSpec> fit_figure_fields();
+void apply_fit_style(const Options& o, Scene& scene);
 
 // Group rows: colour, marker, legend label, fill opacity; with
 // `fixed_steps` also fixed_start / fixed_end step letters (spectra).
@@ -52,13 +61,14 @@ struct MeanTextOptions {
   bool probability = false;
   bool n = true;
 };
-// The inverse isochron (arar_figures.hpp). With `plateau_steps` (analysis
-// uuids), "exclude_non_plateau" leaves out every step not among them, in
-// place of the plateau the isochron would look for itself.
-Result<Scene> build_isochron_scene(const Dataset& dataset, const Options& options,
-                                   const std::set<std::string>* plateau_steps);
-
 std::string mean_text(const std::string& prefix, double value, double error, const reduction::Mean* stats,
                       std::size_t n_total, const MeanTextOptions& t, const std::string& units = {});
 
-}  // namespace pychron::processing::detail
+// The mean of one group as the ideogram shows it: "mean" (weighted or
+// arithmetic) and "error_kind" (msem when unreadable) of the figure options.
+// The ideogram and the R-value matrix (r_values.hpp) both use it, so the two
+// cannot disagree.
+Result<reduction::Mean> group_mean(std::span<const double> values, std::span<const double> errors,
+                                   const Options& figure_options);
+
+}  // namespace nobion::processing::detail

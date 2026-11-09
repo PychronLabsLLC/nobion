@@ -15,21 +15,39 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <variant>
 #include <vector>
 
-#include "pychron/devices/extraction/interfaces.hpp"
-#include "pychron/experiment/measurement/ports.hpp"
-#include "pychron/experiment/persist/persister.hpp"
-#include "pychron/experiment/plan/plan_library.hpp"
-#include "pychron/experiment/run/run.hpp"
-#include "pychron/scripting/script_host.hpp"
+#include "nobion/devices/extraction/interfaces.hpp"
+#include "nobion/experiment/measurement/ports.hpp"
+#include "nobion/experiment/persist/persister.hpp"
+#include "nobion/experiment/plan/plan_library.hpp"
+#include "nobion/experiment/run/run.hpp"
+#include "nobion/scripting/script_host.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::experiment::fakes {
+namespace nobion::experiment::fakes {
 
 using namespace std::chrono_literals;
 
-inline double secs(pychron::Duration d) { return std::chrono::duration<double>(d).count(); }
+inline double secs(nobion::Duration d) { return std::chrono::duration<double>(d).count(); }
+
+// What several fakes were told, in the order it happened across them.
+class Journal {
+ public:
+  void add(std::string what) {
+    std::lock_guard lock(mutex_);
+    lines_.push_back(std::move(what));
+  }
+  std::vector<std::string> lines() {
+    std::lock_guard lock(mutex_);
+    return lines_;
+  }
+
+ private:
+  std::mutex mutex_;
+  std::vector<std::string> lines_;
+};
 
 class FakeSpectrometer final : public measurement::ISpectrometerPort {
  public:
@@ -38,33 +56,55 @@ class FakeSpectrometer final : public measurement::ISpectrometerPort {
   // on that clock.
   explicit FakeSpectrometer(const Clock& clock) : clock_(clock) {}
 
-  Result<void> position(const plan::HopTarget& target) override {
+  Result<void> position(const plan::At& target) override {
     std::lock_guard lock(mutex_);
     at_ = target;
     ++moves;
     return {};
   }
-  Result<void> protect(const std::string&, bool) override { return {}; }
-  Result<void> start_acquisition(pychron::Duration integration) override {
+  Result<double> set_deflection(const std::string& detector, double value) override {
+    std::lock_guard lock(mutex_);
+    deflections_[detector] = value;
+    return value;
+  }
+  Result<double> deflection(const std::string& detector) override {
+    std::lock_guard lock(mutex_);
+    const auto it = deflections_.find(detector);
+    return it == deflections_.end() ? 0.0 : it->second;
+  }
+  Result<void> with_table(const std::string&) override { return {}; }
+  Result<void> set_gain(const std::string&, double) override { return {}; }
+  Result<void> set_hv(double) override { return {}; }
+  Result<void> set_cdd_voltage(double) override { return {}; }
+  Result<void> set_param(const std::string&, double) override { return {}; }
+  Result<void> blank_beam(bool) override { return {}; }
+  Result<void> apply_optics(const std::string&) override { return {}; }
+  Result<void> set_source_output(bool) override { return {}; }
+  Result<void> protect(const std::string& detector, bool on) override {
+    if (journal != nullptr) journal->add((on ? "protect " : "unprotect ") + detector);
+    return {};
+  }
+  Result<void> start_acquisition(nobion::Duration integration) override {
     std::lock_guard lock(mutex_);
     if (acquiring) ++overlapping;  // two runs measuring at once
     integration_ = integration;
     acquiring = true;
     return {};
   }
-  Result<std::optional<spectrometer::Reading>> next_reading(pychron::Duration) override {
+  Result<std::optional<spectrometer::Reading>> next_reading(nobion::Duration) override {
     int n = 0;
     {
       std::lock_guard lock(mutex_);
       n = ++readings;
     }
+    if (fail_from > 0 && n >= fail_from) return fail(fail_kind, "spectrometer link down");
     if (manual_ != nullptr) manual_->advance(integration_);
     else clock_.sleep_for(integration_);
     spectrometer::Reading r;
     r.ts = clock_.now();
     r.integration = integration_;
     const double t = secs(clock_.now() - TimePoint{});
-    const bool on_peak = at_ && !at_->mass;
+    const bool on_peak = at_ && std::holds_alternative<plan::AtLabel>(*at_);
     r.values["H1"] = spectrometer::Value{on_peak ? 1000 + t : 0.5, std::nullopt, std::nullopt, false};
     r.values["AX"] = spectrometer::Value{on_peak ? 100 + 0.1 * t : 0.5, std::nullopt, std::nullopt, false};
     if (on_reading) on_reading(n);
@@ -73,6 +113,9 @@ class FakeSpectrometer final : public measurement::ISpectrometerPort {
   void stop_acquisition() override { acquiring = false; }
 
   std::function<void(int)> on_reading;
+  Journal* journal = nullptr;
+  std::atomic<int> fail_from{0};  // reading n and every one after fail (fail_kind); 0: none do
+  ErrorKind fail_kind = ErrorKind::Protocol;  // Io: a link down, which a measurement waits out
   std::atomic<int> readings{0}, moves{0}, overlapping{0};
   std::atomic<bool> acquiring{false};
 
@@ -80,8 +123,9 @@ class FakeSpectrometer final : public measurement::ISpectrometerPort {
   const Clock& clock_;
   ManualClock* manual_ = nullptr;
   std::mutex mutex_;
-  std::optional<plan::HopTarget> at_;
-  pychron::Duration integration_ = 1s;
+  std::optional<plan::At> at_;
+  std::map<std::string, double> deflections_;
+  nobion::Duration integration_ = 1s;
 };
 
 class FakeValves final : public measurement::IValvePort {
@@ -93,12 +137,20 @@ class FakeValves final : public measurement::IValvePort {
     return state[v];
   }
   std::vector<std::string> log;
+  Journal* journal = nullptr;
+  // Asked before each command; an error it returns is the command's, and the
+  // valve is not moved.
+  std::function<Result<void>(const std::string&, bool)> fault;
 
  private:
   Result<void> set(const std::string& v, bool open) {
+    if (fault) {
+      if (auto r = fault(v, open); !r) return r;
+    }
     std::lock_guard lock(mutex_);
     state[v] = open;
     log.push_back((open ? "open " : "close ") + v);
+    if (journal != nullptr) journal->add((open ? "open " : "close ") + v);
     return {};
   }
   std::mutex mutex_;
@@ -165,6 +217,7 @@ class FakeDevice final : public extraction::IExtractionDevice {
   Result<void> disable() override {
     enabled = false;
     ++disables;
+    if (journal != nullptr) journal->add("disable");
     return {};
   }
   Result<bool> is_enabled() override { return enabled.load(); }
@@ -177,6 +230,7 @@ class FakeDevice final : public extraction::IExtractionDevice {
     if (end_extracts == 0) pattern_running_at_end = fake_patterns.running().value_or(false);
     output_ = 0;
     ++end_extracts;
+    if (journal != nullptr) journal->add("end_extract");
     return {};
   }
   Result<double> output() override { return output_.load(); }
@@ -184,6 +238,7 @@ class FakeDevice final : public extraction::IExtractionDevice {
 
   std::atomic<bool> enabled{false};
   std::atomic<int> disables{0}, end_extracts{0}, extracts{0};
+  Journal* journal = nullptr;
   bool has_stage = false;
   FakeStage fake_stage;
   FakePatterns fake_patterns;
@@ -200,7 +255,8 @@ class FakeScriptHost final : public scripting::IScriptHost {
  public:
   using Body = std::function<Result<void>(const scripting::ScriptEnvironment&, scripting::CancelToken&)>;
 
-  bool available() const noexcept override { return true; }
+  bool available() const noexcept override { return enabled; }
+  bool enabled = true;  // false: as a build without scripting
   Result<scripting::CheckReport> check(const scripting::Script&, const scripting::ScriptEnvironment&) override {
     return scripting::CheckReport{};
   }
@@ -213,6 +269,8 @@ class FakeScriptHost final : public scripting::IScriptHost {
     {
       std::lock_guard lock(mutex_);
       ran.push_back(script.name);
+      kinds_.push_back(script.kind);
+      globals_.push_back(env.context.globals);
       auto it = bodies.find(script.name);
       if (it != bodies.end()) body = it->second;
     }
@@ -226,23 +284,40 @@ class FakeScriptHost final : public scripting::IScriptHost {
                                             const scripting::ScriptEnvironment&, scripting::CancelToken&) override {
     return scripting::ScriptResult{};
   }
+  Result<scripting::ScriptResult> rehearse(const scripting::Script&, const scripting::ScriptEnvironment&,
+                                           scripting::IRehearsal&, scripting::CancelToken&) override {
+    return fail(extraction::not_supported("rehearse"));
+  }
 
   std::vector<std::string> ran_scripts() {
     std::lock_guard lock(mutex_);
     return ran;
+  }
+  // The kind and the globals of each script run, in order.
+  std::vector<scripting::ScriptKind> kinds() {
+    std::lock_guard lock(mutex_);
+    return kinds_;
+  }
+  std::vector<scripting::ValueMap> globals() {
+    std::lock_guard lock(mutex_);
+    return globals_;
   }
   std::map<std::string, Body> bodies;
 
  private:
   std::mutex mutex_;
   std::vector<std::string> ran;
+  std::vector<scripting::ScriptKind> kinds_;
+  std::vector<scripting::ValueMap> globals_;
 };
 
 // Resolves any name to a script of that name.
 class AnyScriptResolver final : public scripting::IScriptResolver {
  public:
   Result<scripting::Script> resolve(std::string_view name, scripting::ScriptKind from) const override {
-    if (missing.contains(std::string(name))) return fail(ErrorKind::Config, "no script '" + std::string(name) + "'");
+    if (missing.contains(std::string(name)))
+      return fail(Error{ErrorKind::Config, "no script '" + std::string(name) + "'", {}, scripting::kScriptNotFound});
+    if (broken.contains(std::string(name))) return fail(ErrorKind::Io, "cannot read " + std::string(name));
     scripting::Script s;
     s.name = std::string(name);
     s.text = "def main(): pass";
@@ -250,6 +325,7 @@ class AnyScriptResolver final : public scripting::IScriptResolver {
     return s;
   }
   std::set<std::string> missing;
+  std::set<std::string> broken;  // there, but cannot be read
 };
 
 inline constexpr const char* kTestPlan = R"(
@@ -285,10 +361,88 @@ settle_s = 1
 expose = ["main.hops[0].counts"]
 )";
 
+// "mc" with its hop protecting CDD while the magnet moves.
+inline std::string protecting_plan() {
+  std::string text = kTestPlan;
+  const std::string name = "name = \"mc\"";
+  text.replace(text.find(name), name.size(), "name = \"mcp\"");
+  const std::string hop = "counts = 10\nsettle_s = 1\n";
+  text.replace(text.find(hop), hop.size(), hop + "protect = [\"CDD\"]\n");
+  return text;
+}
+
+// A baseline while the sample is extracted (measurement plan v2 spec 5.4):
+// 60 readings at mass 34.2, then main.
+inline constexpr const char* kSynPlan = R"(
+[plan]
+name = "syn"
+instrument_family = "fake"
+
+[detectors]
+reference = "H1"
+
+[equilibration]
+inlet = "B"
+outlet = "C"
+time_s = 5
+inlet_delay_s = 1
+
+[[segment]]
+kind = "baseline"
+when = "during_extraction"
+[[segment.positions]]
+collect = { Ar40 = "H1", Ar39 = "AX" }
+at = { mass = 34.2, detector = "H1" }
+counts = 60
+settle_s = 1
+
+[[segment]]
+kind = "signal"
+[[segment.positions]]
+collect = { Ar40 = "H1", Ar39 = "AX" }
+counts = 10
+settle_s = 1
+)";
+
+// A staged release (spec 11): He, pumped out, then Ne, each prepared by
+// "cryo:release" at its own temperature.
+inline constexpr const char* kStagedPlan = R"(
+[plan]
+name = "staged"
+instrument_family = "fake"
+
+[equilibration]
+inlet = "B"
+outlet = "C"
+time_s = 5
+inlet_delay_s = 1
+
+[[gas]]
+name = "He"
+prepare = { script = "cryo:release", variables = { cryo_temp = 35, hold_s = 300 } }
+pump_out = { valve = "IP", time_s = 60 }
+[[gas.segment]]
+[[gas.segment.positions]]
+collect = { He4 = "H1" }
+counts = 5
+
+[[gas]]
+name = "Ne"
+prepare = { script = "cryo:release", variables = { cryo_temp = 75, hold_s = 300 } }
+[[gas.segment]]
+[[gas.segment.positions]]
+collect = { Ne20 = "AX" }
+counts = 5
+)";
+
 inline plan::PlanLibrary test_plans() {
   plan::PlanLibrary lib;
+  if (auto syn = plan::parse_plan_template(kSynPlan, "syn.toml")) lib.add(*syn);
+  if (auto staged = plan::parse_plan_template(kStagedPlan, "staged.toml")) lib.add(*staged);
   auto t = plan::parse_plan_template(kTestPlan, "mc.toml");
   if (t) lib.add(*t);
+  auto p = plan::parse_plan_template(protecting_plan(), "mcp.toml");
+  if (p) lib.add(*p);
   return lib;
 }
 
@@ -310,7 +464,7 @@ inline RunSpec unknown_run(const std::string& identifier, const std::string& pla
 class Lab {
  public:
   Lab()
-      : dir_(pychron::testing::unique_temp_path("lab_")),
+      : dir_(nobion::testing::unique_temp_path("lab_")),
         files(dir_ / "records"),
         spool(dir_ / "spool"),
         save(spool, files),
@@ -334,4 +488,4 @@ class Lab {
   persist::AliquotAllocator aliquots;
 };
 
-}  // namespace pychron::experiment::fakes
+}  // namespace nobion::experiment::fakes

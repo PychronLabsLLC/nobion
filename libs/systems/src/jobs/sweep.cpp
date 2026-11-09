@@ -1,9 +1,9 @@
-#include "pychron/systems/jobs/sweep.hpp"
+#include "nobion/systems/jobs/sweep.hpp"
 
 #include <cmath>
 #include <thread>
 
-namespace pychron::jobs {
+namespace nobion::jobs {
 
 Result<std::vector<double>> sweep_positions(const SweepSpec& spec) {
   if (!std::isfinite(spec.start) || !std::isfinite(spec.stop)) {
@@ -100,6 +100,7 @@ class IntegrationScope {
 Result<std::vector<SweepPoint>> Sweep::run(Spectrometer& spec, const SweepSpec& sweep, Progress& progress,
                                            CancelToken& cancel) {
   points_.clear();
+  const auto hold = spec.hold_table("sweep");  // the editor cannot replace the table mid-sweep
   auto positions = sweep_positions(sweep);
   if (!positions) return fail(positions.error());
 
@@ -143,4 +144,4 @@ Result<std::vector<SweepPoint>> Sweep::run(Spectrometer& spec, const SweepSpec& 
   return points_;
 }
 
-}  // namespace pychron::jobs
+}  // namespace nobion::jobs

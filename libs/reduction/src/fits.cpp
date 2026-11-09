@@ -1,4 +1,4 @@
-#include "pychron/reduction/fits.hpp"
+#include "nobion/reduction/fits.hpp"
 
 #include <algorithm>
 #include <array>
@@ -7,7 +7,7 @@
 #include <set>
 #include <string>
 
-#include "least_squares.hpp"
+#include "nobion/reduction/detail/least_squares.hpp"
 
 // Port of pychron.core.regression. Error model shared by every kind:
 //   sef     = sqrt(SSR / (n - q))                 (BaseRegressor.calculate_standard_error_fit)
@@ -18,7 +18,7 @@
 // covariance by Xk = [x, x, x], which is identically 0 at x = 0; here the
 // exponential uses the delta method on a + c (g = [1, 0, 1]) like the OLS path.
 
-namespace pychron::reduction {
+namespace nobion::reduction {
 
 namespace {
 
@@ -313,4 +313,4 @@ std::optional<FitKind> parse_fit_kind(std::string_view name) noexcept {
   return std::nullopt;
 }
 
-}  // namespace pychron::reduction
+}  // namespace nobion::reduction

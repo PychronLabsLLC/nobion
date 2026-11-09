@@ -2,7 +2,7 @@
 // wire and on a real loopback socket that hangs up after every reply
 // (plan 2026-10-05, task A4).
 
-#include "pychron/devices/pychron_valves.hpp"
+#include "nobion/devices/pychron_valves.hpp"
 
 #include <gtest/gtest.h>
 
@@ -11,12 +11,12 @@
 #include <chrono>
 #include <thread>
 
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/devices/pychron_valve_server_sim.hpp"
-#include "pychron/transport/tcp_transport.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/devices/pychron_valve_server_sim.hpp"
+#include "nobion/transport/tcp_transport.hpp"
 #include "valve_conformance.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {
@@ -28,10 +28,10 @@ TransportOptions fast(std::string name = "felix") {
   return o;
 }
 
-struct Rig final : pychron::test::ValveRig {
+struct Rig final : nobion::test::ValveRig {
   Rig() { EXPECT_TRUE(bus->open()); }
   PychronValveServerSim server;
-  pychron::test::WireTap wire{server.hook(), to_bytes("No Response")};
+  nobion::test::WireTap wire{server.hook(), to_bytes("No Response")};
   std::unique_ptr<SimTransport> bus = SimTransport::hooked(wire.hook(), fast());
   PychronValves driver{"felix_valves", *bus};
 
@@ -39,7 +39,7 @@ struct Rig final : pychron::test::ValveRig {
   ValveAddress first() override { return {"A"}; }
   ValveAddress second() override { return {"Inlet"}; }
   std::optional<ValveAddress> bad() override { return ValveAddress{"A,B"}; }
-  pychron::test::WireTap* tap() override { return &wire; }
+  nobion::test::WireTap* tap() override { return &wire; }
 };
 
 // Legacy's server over TCP: accept, read one command, answer, hang up.
@@ -90,7 +90,7 @@ class OneShotServer {
 
 TEST(PychronValves, PassTheValveConformanceSuite) {
   Rig rig;
-  pychron::test::expect_valve_conformance(rig);
+  nobion::test::expect_valve_conformance(rig);
 }
 
 TEST(PychronValves, OneConnectionPerCommandOnARealSocket) {

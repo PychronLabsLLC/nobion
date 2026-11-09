@@ -1,7 +1,7 @@
 // What ships for the lab's box (packaging/observability) against what the
 // application exports: a metric renamed in the code and not on its dashboard,
 // or the other way round, fails here.
-#ifdef PYCHRON_EXPERIMENT_HAS_METRICS
+#ifdef NOBION_EXPERIMENT_HAS_METRICS
 
 #include <gtest/gtest.h>
 
@@ -15,22 +15,22 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/config/metrics_config.hpp"
-#include "pychron/core/scheduler.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/experiment/metrics/service.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/config/metrics_config.hpp"
+#include "nobion/core/scheduler.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/experiment/metrics/service.hpp"
 
-#ifdef PYCHRON_TEST_HAS_JSON
+#ifdef NOBION_TEST_HAS_JSON
 #include <nlohmann/json.hpp>
 #endif
 
 namespace fs = std::filesystem;
-using namespace pychron;
+using namespace nobion;
 
 namespace {
 
-const fs::path kRoot = fs::path(PYCHRON_SOURCE_DIR) / "packaging" / "observability";
+const fs::path kRoot = fs::path(NOBION_SOURCE_DIR) / "packaging" / "observability";
 
 std::string slurp(const fs::path& p) {
   std::ifstream in(p, std::ios::binary);
@@ -87,7 +87,7 @@ std::string family_of(const std::string& token, const std::set<std::string>& kno
 
 // file -> the families its queries name.
 std::map<std::string, std::set<std::string>> used(const std::set<std::string>& known) {
-  static const std::regex name("pychron_[a-z0-9_]+");
+  static const std::regex name("nobion_[a-z0-9_]+");
   std::map<std::string, std::set<std::string>> out;
   for (const fs::path& p : files_under(kRoot)) {
     const std::string text = slurp(p);
@@ -102,8 +102,8 @@ std::map<std::string, std::set<std::string>> used(const std::set<std::string>& k
 
 TEST(MetricsPackaging, TheFilesAreThere) {
   for (const char* rel :
-       {"prometheus/pychron.scrape.yml", "grafana/provisioning/dashboards/pychron.yml",
-        "grafana/provisioning/alerting/pychron-deadman.yml", "grafana/dashboards/instrument-health.json",
+       {"prometheus/nobion.scrape.yml", "grafana/provisioning/dashboards/nobion.yml",
+        "grafana/provisioning/alerting/nobion-deadman.yml", "grafana/dashboards/instrument-health.json",
         "grafana/dashboards/run-operations.json", "grafana/dashboards/app-health.json"}) {
     EXPECT_TRUE(fs::exists(kRoot / rel)) << rel;
   }
@@ -125,18 +125,36 @@ TEST(MetricsPackaging, EveryExportedMetricIsOnSomeDashboard) {
     if (file.size() > 5 && file.ends_with(".json")) shown.insert(names.begin(), names.end());
   }
   // The endpoint's own bookkeeping is for whoever debugs the endpoint.
-  const std::set<std::string> exempt{"pychron_metrics_dropped_series_total", "pychron_metrics_bad_requests_total"};
+  const std::set<std::string> exempt{"nobion_metrics_dropped_series_total", "nobion_metrics_bad_requests_total"};
   for (const std::string& n : known) {
     if (exempt.contains(n)) continue;
     EXPECT_EQ(shown.count(n), 1u) << n << " is exported and on no dashboard";
   }
 }
 
+// Executor hardening (spec 4.9): link recoveries, holds, gaps and backlogs.
+// The test above holds every metric to a panel; this one names these, so
+// that one dropped from the exporter as well as from its dashboard is seen.
+TEST(MetricsPackaging, LinkRecoveriesHoldsGapsAndBacklogsHaveAPanel) {
+  const std::set<std::string> known = exported();
+  std::set<std::string> shown;
+  for (const auto& [file, names] : used(known)) {
+    if (file.size() > 5 && file.ends_with(".json")) shown.insert(names.begin(), names.end());
+  }
+  for (const char* n :
+       {"nobion_link_reconnects_total", "nobion_link_repeats_total", "nobion_executor_holds_total",
+        "nobion_executor_holding", "nobion_measurement_gaps_total", "nobion_spool_pending",
+        "nobion_notifications_outbox"}) {
+    EXPECT_EQ(known.count(n), 1u) << n << " is not exported";
+    EXPECT_EQ(shown.count(n), 1u) << n << " is on no dashboard";
+  }
+}
+
 TEST(MetricsPackaging, TheAlertNamesBothConditions) {
-  const std::string alert = slurp(kRoot / "grafana" / "provisioning" / "alerting" / "pychron-deadman.yml");
-  EXPECT_NE(alert.find("last_over_time(pychron_queue_active[24h])"), std::string::npos);
-  EXPECT_NE(alert.find("up{job=\\\"pychron\\\"} == 0"), std::string::npos);
-  EXPECT_NE(alert.find("pychron_scheduler_heartbeat_age_seconds > 60"), std::string::npos);
+  const std::string alert = slurp(kRoot / "grafana" / "provisioning" / "alerting" / "nobion-deadman.yml");
+  EXPECT_NE(alert.find("last_over_time(nobion_queue_active[24h])"), std::string::npos);
+  EXPECT_NE(alert.find("up{job=\\\"nobion\\\"} == 0"), std::string::npos);
+  EXPECT_NE(alert.find("nobion_scheduler_heartbeat_age_seconds > 60"), std::string::npos);
   // The box's clock and the instrument computer's need not agree: nothing here compares them.
   EXPECT_EQ(alert.find("time()"), std::string::npos);
   // Grafana leaves a template's dollar alone and keeps a doubled one as it is
@@ -156,7 +174,7 @@ TEST(MetricsPackaging, NoDashboardComparesTheBoxsClockWithTheInstruments) {
 // ignore it; without that the panel is silently empty.
 TEST(MetricsPackaging, QueueProgressDividesDoneByTotal) {
   const std::string board = slurp(kRoot / "grafana" / "dashboards" / "run-operations.json");
-  EXPECT_NE(board.find("status=\\\"done\\\"} / ignoring(status) clamp_min(pychron_queue_runs{"), std::string::npos);
+  EXPECT_NE(board.find("status=\\\"done\\\"} / ignoring(status) clamp_min(nobion_queue_runs{"), std::string::npos);
 }
 
 // The virtual box (box/docker-compose.yml) loads the real box's files; what
@@ -168,15 +186,15 @@ TEST(MetricsPackaging, TheVirtualBoxAgreesWithTheRealOnesFiles) {
   const std::string datasource = slurp(box / "datasource.yml");
   const std::string targets = slurp(box / "targets.yml");
   // The alert finds the job by name, and the dashboards the instrument by label.
-  EXPECT_NE(prometheus.find("job_name: pychron"), std::string::npos);
+  EXPECT_NE(prometheus.find("job_name: nobion"), std::string::npos);
   EXPECT_NE(prometheus.find("scrape_interval: 15s"), std::string::npos);
   EXPECT_NE(targets.find("instrument:"), std::string::npos);
   EXPECT_NE(targets.find(":9464"), std::string::npos);
   // The alert rules' data source is the one the box provisions.
-  EXPECT_NE(compose.find("PYCHRON_PROM_UID: pychron-prometheus"), std::string::npos);
-  EXPECT_NE(datasource.find("uid: pychron-prometheus"), std::string::npos);
+  EXPECT_NE(compose.find("NOBION_PROM_UID: nobion-prometheus"), std::string::npos);
+  EXPECT_NE(datasource.find("uid: nobion-prometheus"), std::string::npos);
   // Every file it mounts from the real box's set exists.
-  for (const char* rel : {"grafana/provisioning/dashboards/pychron.yml", "grafana/provisioning/alerting/pychron-deadman.yml",
+  for (const char* rel : {"grafana/provisioning/dashboards/nobion.yml", "grafana/provisioning/alerting/nobion-deadman.yml",
                           "grafana/dashboards"}) {
     EXPECT_NE(compose.find(std::string("../") + rel + ":"), std::string::npos) << rel;
     EXPECT_TRUE(fs::exists(kRoot / rel)) << rel;
@@ -185,14 +203,14 @@ TEST(MetricsPackaging, TheVirtualBoxAgreesWithTheRealOnesFiles) {
   EXPECT_NE(compose.find("\"127.0.0.1:3000:3000\""), std::string::npos);
   EXPECT_NE(compose.find("\"127.0.0.1:9090:9090\""), std::string::npos);
   // The dashboards folder the provider reads is the one the compose file fills.
-  const std::string provider = slurp(kRoot / "grafana" / "provisioning" / "dashboards" / "pychron.yml");
-  EXPECT_NE(provider.find("path: /var/lib/grafana/dashboards/pychron"), std::string::npos);
-  EXPECT_NE(compose.find(":/var/lib/grafana/dashboards/pychron:ro"), std::string::npos);
+  const std::string provider = slurp(kRoot / "grafana" / "provisioning" / "dashboards" / "nobion.yml");
+  EXPECT_NE(provider.find("path: /var/lib/grafana/dashboards/nobion"), std::string::npos);
+  EXPECT_NE(compose.find(":/var/lib/grafana/dashboards/nobion:ro"), std::string::npos);
 }
 
 TEST(MetricsPackaging, TheScrapeJobIsNamedAsTheAlertExpects) {
-  const std::string scrape = slurp(kRoot / "prometheus" / "pychron.scrape.yml");
-  EXPECT_NE(scrape.find("job_name: pychron"), std::string::npos);
+  const std::string scrape = slurp(kRoot / "prometheus" / "nobion.scrape.yml");
+  EXPECT_NE(scrape.find("job_name: nobion"), std::string::npos);
   EXPECT_NE(scrape.find(":9464"), std::string::npos);
   EXPECT_NE(scrape.find("instrument:"), std::string::npos);
 }
@@ -212,7 +230,7 @@ TEST(MetricsPackaging, EveryQueryIsForOneInstrument) {
   }
 }
 
-#ifdef PYCHRON_TEST_HAS_JSON
+#ifdef NOBION_TEST_HAS_JSON
 
 TEST(MetricsPackaging, EveryDashboardIsValidJsonWithATitleAndUid) {
   std::set<std::string> uids;
@@ -272,6 +290,6 @@ TEST(MetricsPackaging, PanelsDoNotOverlapAndHaveDistinctIds) {
   }
 }
 
-#endif  // PYCHRON_TEST_HAS_JSON
+#endif  // NOBION_TEST_HAS_JSON
 
-#endif  // PYCHRON_EXPERIMENT_HAS_METRICS
+#endif  // NOBION_EXPERIMENT_HAS_METRICS

@@ -8,13 +8,13 @@
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/core/sha256.hpp"
+#include "nobion/core/sha256.hpp"
 #include "membership.hpp"
-#include "pychron/ingest/ids.hpp"
+#include "nobion/ingest/ids.hpp"
 
-namespace pychron::ingest::detail {
+namespace nobion::ingest::detail {
 
-namespace P = pychron::persistence;
+namespace P = nobion::persistence;
 using Json = nlohmann::json;
 
 namespace {
@@ -466,4 +466,4 @@ bool is_late_revision_detail(std::string_view detail_json) {
          reason->get_ref<const std::string&>() == kReasonLateRevisionNotApplied;
 }
 
-}  // namespace pychron::ingest::detail
+}  // namespace nobion::ingest::detail

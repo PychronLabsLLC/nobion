@@ -1,4 +1,4 @@
-#include "pychron/earthbank/lookup.hpp"
+#include "nobion/earthbank/lookup.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -13,12 +13,12 @@
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/http.hpp"
-#include "pychron/earthbank/vocab.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/http.hpp"
+#include "nobion/earthbank/vocab.hpp"
 #include "text_detail.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using nlohmann::json;
@@ -277,4 +277,4 @@ LookupResult LookupResolver::resolve(std::string_view name_field, std::string_vi
   return result;
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

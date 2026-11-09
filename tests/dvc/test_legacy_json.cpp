@@ -5,7 +5,7 @@
 
 #include "legacy_json.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 namespace {
 
 TEST(LegacyJson, NanAndInfinityBecomeNull) {
@@ -116,4 +116,4 @@ TEST(LegacyJson, TakeErasesWhatItRepresents) {
 }
 
 }  // namespace
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

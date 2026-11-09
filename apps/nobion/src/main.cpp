@@ -1,0 +1,1080 @@
+// nobion: M1 status/control window.
+//
+//   nobion [--install <name> | --setup | --examples | extraction_line.toml [canvas.toml]]
+//              [--sim] [--spectrometer <file>] [--lab <dir>] [--data <dir>]
+//              [--queue <file>] [--sim-speed <x>] [--db <url>] [--sim-save]
+//
+// With no config files it opens an install from the site config: --install
+// names one, else the default (or the only) one; with several and no default
+// File > Installations asks. With nothing installed (or --setup) the setup
+// wizard runs first. An instrument install opens its line, canvas and
+// spectrometer configs, as --sim when it was set up for simulation; a
+// data-reduction install opens the data browser on its database alone.
+// --examples opens the example line shipped with nobion (development), as
+// does --sim when nothing is installed.
+//
+// --sim forces every extraction-line transport to kind = "sim".
+// --spectrometer loads that spectrometer config for View > Spectrometer;
+// with --sim and no file the example sim-integrated spectrometer is used.
+// --sim never rewrites a spectrometer config: one that is not simulated is
+// refused.
+//
+// View > Experiment runs queues against the lab directory (--lab, default
+// the install folder or the line config's directory; records under --data,
+// default <lab>/data). --queue opens a queue there: a relative name not found
+// as given is looked up in <lab>/queues/, then <lab>/. --sim-speed (with --sim,
+// or an install set up for simulation) puts the whole app on simulated time
+// running that many times faster than real time, from the real time of day.
+// It takes a number: unlimited speed (elctl's --sim-speed max) would finish a
+// queue before the window painted.
+//
+// View > Data browses the records under the data directory
+// (<data>/records) and plots them; with --db, or on an install that has a
+// database, it browses that DVC store instead ("postgresql://user:pw@host/db"
+// or "sqlite:/path/to/file.db"; the schema must be current, it is never
+// migrated from here), a queue's runs are saved to it, and the data window
+// shows each run when it ends. A simulated session's runs are saved to it
+// only when it is the install's own file on this computer, or with
+// --sim-save; otherwise they are record files, and the log says so once. An install's database that cannot be opened
+// does not stop the program: the data window says why, and no queue starts.
+// Figure presets live in the user's config directory, with lab presets under
+// <lab>/figures.
+//
+// File > Preferences… sets the font sizes, the data browser page size and the
+// spectrometer's large-move threshold; they are kept in the user's settings.
+
+#include <algorithm>
+#include <array>
+#include <chrono>
+#include <cstdlib>
+#include <cstdio>
+#include <filesystem>
+#include <functional>
+#include <iostream>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
+
+#include <QApplication>
+#include <QCoreApplication>
+#include <QMessageBox>
+#include <QSettings>
+#include <QStandardPaths>
+#include <QTimer>
+
+#include "brand.hpp"
+#include "collect_diagnostics.hpp"
+#include "command_line.hpp"
+#include "data_main_window.hpp"
+#include "data_source_page.hpp"
+#include "database_choice.hpp"
+#include "domain_choice.hpp"
+#include "error_report.hpp"
+#include "experiment_bridge.hpp"
+#include "installations_dialog.hpp"
+#include "laser_bridge.hpp"
+#include "laser_window.hpp"
+#include "main_window.hpp"
+#include "menu_hub.hpp"
+#include "unclean_exit_dialog.hpp"
+#include "no_database_persister.hpp"
+#include "pattern_maker_window.hpp"
+#include "preferences.hpp"
+#include "nobion/core/build_info.hpp"
+#include "nobion/core/log_context.hpp"
+#include "nobion/setup/doctor.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/setup/site.hpp"
+#include "setup_support.hpp"
+#include "setup_wizard.hpp"
+#include "nobion/core/log_dir.hpp"
+#include "nobion/core/flight_recorder_triggers.hpp"
+#include "nobion/core/hang_monitor.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/event_recorder.hpp"
+#include "nobion/core/process_log.hpp"
+#include "process_log.hpp"
+#include "qt_log_handler.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/experiment/event_log.hpp"
+#include "nobion/experiment/lab/executor_config.hpp"
+#include "nobion/experiment/lab/lasers.hpp"
+#include "nobion/experiment/flight_recorder_wiring.hpp"
+#include "nobion/experiment/lab/session.hpp"
+#ifdef NOBION_EXPERIMENT_HAS_METRICS
+#include "nobion/experiment/metrics/service.hpp"
+#endif
+#include "nobion/sim/sim_system.hpp"
+#include "nobion/arar/record_loader.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/record_source.hpp"
+#ifdef NOBION_UI_HAS_STORE
+// Qt's `signals` keyword macro would rewrite CollectionRoots::signals.
+#pragma push_macro("signals")
+#undef signals
+#include "nobion/arar/store_loader.hpp"
+#include "nobion/experiment/store/store_persister.hpp"
+#include "nobion/processing/store_source.hpp"
+#pragma pop_macro("signals")
+#include "entry_actions.hpp"
+#include "fit_actions.hpp"
+#include "publish_actions.hpp"
+#include "store_identifier_source.hpp"
+#endif
+#include "nobion/sim/spectrometer/beam_model.hpp"
+#include "nobion/systems/event_log.hpp"
+#include "nobion/systems/extraction_line.hpp"
+#include "nobion/systems/spectrometer/bringup.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
+#include "nobion/systems/spectrometer/scan_service.hpp"
+#include "spectrometer_bridge.hpp"
+#include "theme.hpp"
+#include "update_checker.hpp"
+#include "update_ui.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/earthbank/http.hpp"
+#include "nobion/transport/endpoints.hpp"
+#include "nobion/update/update.hpp"
+
+namespace {
+
+namespace fs = std::filesystem;
+namespace setup = nobion::setup;
+
+int fatal(const std::string& what) {
+  std::fprintf(stderr, "nobion: %s\n", what.c_str());
+  nobion::ui::show_error(nullptr, "startup", QStringLiteral("nobion"), QString::fromStdString(what));
+  return 1;
+}
+
+// The update check of `window` (update check spec 2.3): its indicator and
+// Help > Check for Updates…, then the automatic check if one is due. `now`
+// is the window's wall clock; failed automatic checks go to `log`, if any.
+// Null when this program's version is not one (nothing is checked).
+std::unique_ptr<nobion::ui::UpdateChecker> start_update_check(QMainWindow& window, QSettings& settings,
+                                                               nobion::ui::UpdateChecker::Now now,
+                                                               const std::function<void(const QString&)>& log) {
+  const auto running = nobion::update::parse_version(nobion::build_info().version);
+  if (!running) {
+    const QString why = QStringLiteral("no update check: ") + QString::fromStdString(running.error().what);
+    if (log) {
+      log(QStringLiteral("WARN [update] ") + why);
+    } else {
+      std::fprintf(stderr, "nobion: %s\n", why.toUtf8().constData());
+    }
+    return nullptr;
+  }
+  auto checker = std::make_unique<nobion::ui::UpdateChecker>(settings, *running, std::move(now),
+                                                              [] { return nobion::earthbank::make_http_client(); });
+  checker->set_log(log);
+  nobion::ui::install_update_check(&window, *checker);
+  checker->check_on_startup();
+  return checker;
+}
+
+// Which install to open: the one named, else the default, else the wizard
+// (nothing installed, or --setup), else File > Installations' choice.
+// nullopt with rc: quit with rc. nullopt with rc < 0: the shipped examples.
+struct Choice {
+  std::optional<setup::SiteInstall> install;
+  int rc = -1;
+};
+
+Choice choose_install(const nobion::ui::CommandLine& cli, const setup::Resources& resources) {
+  const fs::path site_path = setup::default_site_path();
+  auto site = setup::load_site(site_path);
+  if (!site) return {std::nullopt, fatal(site.error().what)};
+  if (cli.install) {
+    if (const auto* i = site->find(*cli.install)) return {*i, 0};
+    return {std::nullopt, fatal("no installation named '" + *cli.install + "' in " + site_path.string())};
+  }
+  if (!cli.setup) {
+    if (const auto* i = site->pick()) return {*i, 0};
+    if (site->installs.empty() && cli.sim) return {};  // development: the examples
+  }
+  auto library = setup::ProfileLibrary::load(resources.profiles, resources.examples);
+  if (cli.setup || site->installs.empty()) {
+    if (!library) return {std::nullopt, fatal(library.error().what)};
+    nobion::ui::SetupWizard wizard(*library,
+                                    {site_path, nobion::ui::database_opener(), {}, {}, nobion::ui::database_seeder()});
+    if (wizard.exec() != QDialog::Accepted || !wizard.open_now()) return {std::nullopt, 0};
+    return {wizard.installed(), 0};
+  }
+  nobion::ui::InstallationsDialog dialog(site_path, library ? &*library : nullptr, nobion::ui::database_opener(), {});
+  dialog.set_seed_database(nobion::ui::database_seeder());
+  if (dialog.exec() != QDialog::Accepted || !dialog.to_open()) return {std::nullopt, 0};
+  auto again = setup::load_site(site_path);
+  const auto* i = again ? again->find(*dialog.to_open()) : nullptr;
+  if (i == nullptr) return {std::nullopt, fatal("installation '" + *dialog.to_open() + "' is gone")};
+  return {*i, 0};
+}
+
+// File > Installations from an open window: switching closes this one and
+// starts nobion again on the other install.
+std::function<void()> installations_handler(QWidget* window, const setup::Resources& resources, std::string current) {
+  return [window, resources, current = std::move(current)] {
+    auto library = setup::ProfileLibrary::load(resources.profiles, resources.examples);
+    nobion::ui::InstallationsDialog dialog(setup::default_site_path(), library ? &*library : nullptr,
+                                            nobion::ui::database_opener(), current, window);
+    dialog.set_seed_database(nobion::ui::database_seeder());
+    if (dialog.exec() != QDialog::Accepted || !dialog.to_open() || *dialog.to_open() == current) return;
+    if (!window->close()) return;  // e.g. unsaved queue edits, and the user chose Cancel
+    if (!nobion::ui::start_install(*dialog.to_open())) {
+      nobion::ui::show_error(nullptr, "startup", QStringLiteral("nobion"), QStringLiteral("could not start nobion"));
+    }
+  };
+}
+
+// Preferences > Data source for install `name`: the install as the site file
+// has it when the dialog opens, the store-common questions, and this build's
+// openers. `session_database`: --db, which overrides the install for this run.
+nobion::ui::DataSourceDepsFactory data_source_deps(std::string name, const setup::Resources& resources,
+                                                    std::optional<std::string> session_database) {
+  return [name = std::move(name), resources, session_database = std::move(session_database)]()
+             -> std::optional<nobion::ui::DataSourcePageDeps> {
+    const fs::path site_path = setup::default_site_path();
+    auto site = setup::load_site(site_path);
+    const auto* install = site ? site->find(name) : nullptr;
+    if (install == nullptr) return std::nullopt;
+    auto library = setup::ProfileLibrary::load(resources.profiles, resources.examples);
+    const auto* store = library ? library->find("store-common") : nullptr;
+    if (store == nullptr) return std::nullopt;
+    nobion::ui::DataSourcePageDeps deps;
+    deps.install = *install;
+    deps.site_path = site_path;
+    deps.questions = store->questions;
+    deps.openers.open_database = nobion::ui::database_opener();
+    deps.openers.seed_database = nobion::ui::database_seeder();
+    deps.session_database = session_database;
+    return deps;
+  };
+}
+
+// Reopens on install `name` after its data source changed: as File >
+// Installations switches, once the dialog that asked has returned. The
+// window's own close guards (unsaved queue edits) still apply.
+std::function<void()> reopen_on(QWidget* window, std::string name) {
+  return [window, name = std::move(name)] {
+    QTimer::singleShot(0, window, [window, name] {
+      if (!window->close()) return;
+      if (!nobion::ui::start_install(name)) {
+        nobion::ui::show_error(nullptr, "startup", QStringLiteral("nobion"), QStringLiteral("could not start nobion"));
+      }
+    });
+  };
+}
+
+// The records directory's analyses carry the domain's data: Ar-Ar's from the
+// references.toml beside the records. noble_gas adds none.
+void wire_extension(nobion::processing::RecordDirectorySource& records, const nobion::processing::Domain& domain) {
+  if (domain.id() == "arar")
+    records.set_extension_loader(nobion::arar::record_extension_loader(records.root() / "references.toml"));
+}
+
+#ifdef NOBION_UI_HAS_STORE
+// How the data window's store source opens under `domain` (domain seam spec
+// 3.3): its reduction version, and its extension loader (Ar-Ar's; noble_gas
+// has none).
+nobion::processing::StoreSourceOptions store_options(const nobion::processing::Domain& domain) {
+  nobion::processing::StoreSourceOptions options;
+  options.reduction_version = std::string(domain.reduction_version());
+  if (domain.id() == "arar") options.extension_loader = nobion::arar::store_extension_loader();
+  return options;
+}
+#endif
+
+// A data-reduction install: the data browser on its database, nothing else.
+int run_data_reduction(const setup::SiteInstall& install, const nobion::processing::Domain& domain,
+                       const nobion::ui::CommandLine& cli, const setup::Resources& resources) {
+  nobion::processing::RecordDirectorySource records(install.path(install.data.empty() ? "data" : install.data) /
+                                                     "records");
+  wire_extension(records, domain);
+  std::unique_ptr<nobion::processing::IAnalysisSource> store_source;
+  const auto chosen = nobion::ui::choose_database(cli, &install);
+  if (!chosen) return fatal(chosen.error().what);
+  const std::string url = chosen->value_or(std::string{});
+  if (!url.empty()) {
+#ifdef NOBION_UI_HAS_STORE
+    auto opened =
+        nobion::processing::StoreSource::open(nobion::persistence::StoreConfig{url, false}, store_options(domain));
+    if (!opened) {
+      return fatal("installation '" + install.name + "': database " + install.database + ": " +
+                   nobion::to_string(opened.error()) + "\n\nelctl doctor --install " + install.name +
+                   " says more; nobion --setup can set it up again.");
+    }
+    store_source = std::move(*opened);
+#else
+    std::fprintf(stderr, "nobion: built without the DVC store; browsing the records folder instead\n");
+#endif
+  }
+  nobion::processing::IAnalysisSource& source =
+      store_source ? *store_source : static_cast<nobion::processing::IAnalysisSource&>(records);
+  nobion::ui::MenuHub::instance().set_experiment_shown(false);  // this install runs no experiment
+  nobion::processing::PresetStore presets(
+      fs::path(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation).toStdString()) / "presets",
+      install.root / "figures");
+  nobion::ui::DataMainWindow window(source, presets, domain, QString::fromStdString(install.name));
+  window.set_installations_handler(installations_handler(&window, resources, install.name));
+  window.set_data_source(data_source_deps(install.name, resources, cli.db), reopen_on(&window, install.name));
+#ifdef NOBION_UI_HAS_STORE
+  // Entry: samples and packages in the install's database; Fit: the flux of a
+  // level. Both parented to the window, Entry made first (fit_actions.hpp).
+  if (!url.empty()) {
+    auto* entry = new nobion::ui::EntryActions(&window, url);
+    new nobion::ui::FitActions(&window, url, *entry, presets,
+                                [&window](const QString& uuid) { window.workspace()->open_recall(uuid); });
+    // View > Publish…: releases of this database, made of the browser's selection.
+    auto* publish = new nobion::ui::PublishActions(&window, url, [&window] {
+      const auto* browser = window.workspace()->existing_browser();
+      return browser != nullptr ? browser->selection_uuids() : QStringList();
+    });
+    window.workspace()->set_publish_handler([publish](const QStringList& ids) { publish->open_dialog_new(ids); });
+  }
+#endif
+  window.apply_preferences(nobion::ui::load_preferences(QSettings()));
+  window.resize(1200, 800);
+  window.show();
+  // Help > Collect Diagnostics… and the unclean-exit dialog's Collect: no
+  // line here, so no live state, and system time (as the window's clock).
+  nobion::ui::DiagnosticsDeps diagnostics;
+  diagnostics.install = install;
+  diagnostics.hub = nobion::process_log_hub();
+  auto* collector = new nobion::ui::DiagnosticsCollector(&window, std::move(diagnostics));
+  if (auto* notice = nobion::ui::show_unclean_exit_notice(&window)) {
+    QObject::connect(notice, &nobion::ui::UncleanExitDialog::collectRequested, collector,
+                     &nobion::ui::DiagnosticsCollector::collect);
+  }
+  // No line here, so no line clock: the computer's. Made after the window,
+  // so the checker goes first; a failed automatic check is not shown.
+  QSettings update_settings;
+  const nobion::SteadyClock wall;
+  const auto updates = start_update_check(window, update_settings, [&wall] { return wall.wall_now(); }, {});
+  return QApplication::exec();
+}
+
+// --laser: one extraction device's laser window and nothing else, for a
+// laser PC. The line is loaded as usual (its drivers are the laser's), with
+// no spectrometer and no experiment session: nothing here runs a queue.
+int run_laser(nobion::systems::ExtractionLine& line, const nobion::ui::CommandLine& cli, const fs::path& lab_dir,
+              const fs::path& lab_state, const fs::path& system_file, nobion::ui::SplashScreen& splash) {
+  namespace lab = nobion::experiment::lab;
+  splash.status(QStringLiteral("Starting the extraction line"));
+  if (const auto started = line.start(); !started) {
+    splash.close();
+    return fatal("the extraction line did not start: " + nobion::to_string(started.error()));
+  }
+  splash.status(QStringLiteral("Loading the lab: %1").arg(QString::fromStdString(lab_dir.string())));
+  lab::Lab the_lab = lab::load_lab({lab_dir, system_file, fs::path(), lab_state});
+  for (const auto& problem : the_lab.problems) std::fprintf(stderr, "nobion: lab: %s\n", problem.c_str());
+  lab::Lasers lasers(the_lab, line);
+  for (const auto& problem : lasers.problems()) std::fprintf(stderr, "nobion: laser: %s\n", problem.c_str());
+  // What stops nothing is still said: a camera for looking that did not open.
+  for (const auto& note : lasers.notes()) std::fprintf(stderr, "nobion: laser: %s\n", note.c_str());
+
+  const std::vector<std::string> names = lasers.names();
+  std::string known;
+  for (const auto& name : names) known += (known.empty() ? "" : ", ") + name;
+  std::string device;
+  if (cli.device) {
+    if (lasers.find(*cli.device) == nullptr) {
+      splash.close();
+      return fatal("--device " + *cli.device + ": no such extraction device in " + system_file.string() + " (it has: " +
+                   (known.empty() ? "none" : known) + ")");
+    }
+    device = *cli.device;
+  } else if (names.size() == 1) {
+    device = names.front();
+  } else {
+    splash.close();
+    return fatal(names.empty() ? "--laser: " + system_file.string() + " has no extraction device (a laser's driver)"
+                               : "--laser: say which with --device (" + known + ")");
+  }
+
+  int rc = 0;
+  {
+    nobion::ui::LaserBridge bridge(nobion::ui::LaserBridgeDeps{lasers, the_lab, device, {}});
+    const bool simulated = line.sim() != nullptr && line.sim()->chromium(device) != nullptr;
+    nobion::ui::LaserWindow window(bridge, simulated);
+    nobion::ui::PatternMakerWindow maker(the_lab.patterns, lab_dir / "patterns", &window);
+    maker.setWindowFlag(Qt::Window, true);
+    QObject::connect(&maker, &nobion::ui::PatternMakerWindow::saved, &window, [&window] { window.refresh_patterns(); });
+    window.set_pattern_maker([&maker] {
+      maker.show();
+      maker.raise();
+      maker.activateWindow();
+    });
+    window.resize(1100, 760);
+    window.show();
+    splash.finish_after(&window, std::chrono::milliseconds(1200));
+    rc = QApplication::exec();
+  }  // the window, then its bridge: a motion being waited for is stopped
+  return rc;
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+  const nobion::LogContext::Thread log_thread("ui");
+  nobion::LogHub::install_crash_handlers();
+#ifdef _WIN32
+  // A GUI program has no console: --version and --self-test print to the one
+  // they were started from.
+  for (int i = 1; i < argc; ++i) {
+    const std::string_view a(argv[i]);
+    if ((a == "--version" || a == "--self-test" || a == "--write-icons") && AttachConsole(ATTACH_PARENT_PROCESS)) {
+      // cppcheck-suppress ignoredReturnValue ; no console after all: nowhere to say so
+      std::freopen("CONOUT$", "w", stdout);
+      // cppcheck-suppress ignoredReturnValue ; as above
+      std::freopen("CONOUT$", "w", stderr);
+    }
+  }
+#endif
+  // --version needs no display.
+  for (int i = 1; i < argc; ++i) {
+    if (std::string_view(argv[i]) == "--version") {
+      std::printf("nobion %s\n", nobion::build_id().c_str());
+      return 0;
+    }
+  }
+  QApplication app(argc, argv);
+  QCoreApplication::setOrganizationName(QStringLiteral("PychronLabs"));
+  QApplication::setApplicationName(QStringLiteral("nobion"));
+  nobion::ui::style::apply(app);
+  QApplication::setWindowIcon(nobion::ui::brand::app_icon());
+
+  const auto cli = nobion::ui::parse_command_line(QApplication::arguments().mid(1));
+  if (!cli) {
+    std::fprintf(stderr, "nobion: %s\n", cli.error().what.c_str());
+    return 2;
+  }
+  if (cli->self_test) return nobion::ui::self_test(std::cout);
+  if (cli->write_icons) return nobion::ui::write_icons(*cli->write_icons, std::cout);
+  const setup::Resources resources = setup::find_resources();
+  const fs::path examples = resources.examples;
+
+  std::optional<setup::SiteInstall> install;
+  if (cli->files.empty() && !cli->examples) {
+    Choice choice = choose_install(*cli, resources);
+    if (!choice.install && choice.rc >= 0) return choice.rc;
+    install = std::move(choice.install);
+  }
+  // An instrument install fills in what the command line leaves out.
+  const bool sim = cli->sim || (install && install->simulation);
+  // Not a usage error until here: only now is it known whether the install simulates.
+  if (cli->sim_speed > 0 && !sim) {
+    std::fprintf(stderr, "nobion: --sim-speed needs --sim\n");
+    return 2;
+  }
+  if (cli->sim_endpoints && sim) {
+    std::fprintf(stderr, "nobion: --sim-endpoints cannot be used with an install set up for simulation\n");
+    return 2;
+  }
+  // The process log hub, before anything that can say something: on the
+  // simulated clock when there is one (made here, so the hub is on it from its
+  // first record), else the computer's. Declared before the line and
+  // everything else that is given the clock or the hub, so they are the last
+  // to go; the guard clears the process hub first of all.
+  const nobion::SteadyClock steady_clock;
+  // Simulated time: a VirtualClock paced to the speed asked for, starting at
+  // the real time of day. The line's threads take part in it; this one (the
+  // UI's) does not, so time never waits for the event loop.
+  std::unique_ptr<nobion::VirtualClock> sim_clock;
+  const bool reduction = install && install->kind == "data_reduction";
+  if (cli->sim_speed > 0 && !reduction) {
+    nobion::VirtualClock::Options clock_options;
+    clock_options.speed = cli->sim_speed;
+    clock_options.epoch = std::chrono::system_clock::now();
+    // The hub is cleared before this clock goes, so a stall report is also in the log.
+    clock_options.on_stall = [](const std::string& report) {
+      std::fprintf(stderr, "nobion: %s\n", report.c_str());
+      nobion::process_logger("clock").warn(report);
+    };
+    sim_clock = std::make_unique<nobion::VirtualClock>(std::move(clock_options));
+  }
+  const nobion::Clock& process_clock = sim_clock ? static_cast<const nobion::Clock&>(*sim_clock) : steady_clock;
+  std::optional<fs::path> log_line_config;
+  if (install) {
+    if (!install->line.empty()) log_line_config = install->path(install->line);
+  } else if (cli->files.empty()) {
+    log_line_config = examples / "extraction_line.toml";
+  } else {
+    log_line_config = cli->files[0];
+  }
+  std::string clock_name = "steady";
+  if (sim_clock) {
+    std::array<char, 32> speed{};
+    std::snprintf(speed.data(), speed.size(), "%g", cli->sim_speed);
+    clock_name = std::string("virtual x") + speed.data();
+  }
+  const nobion::ui::ProcessLog process_log = nobion::ui::open_process_log(
+      install, log_line_config, process_clock, sim, nobion::host_os(), nobion::process_env(), clock_name);
+  const std::shared_ptr<nobion::LogHub> hub = process_log.hub;
+  nobion::set_process_log_hub(hub);
+  struct ProcessHubGuard {
+    ~ProcessHubGuard() { nobion::set_process_log_hub(nullptr); }
+  } const hub_guard;
+  std::optional<nobion::ui::QtLogHandler> qt_log;
+  if (hub) qt_log.emplace(*hub);
+
+
+  // The domain every data window of this run reduces in; the registry outlives the windows.
+  nobion::processing::DomainRegistry domains;
+  std::string domain_error;
+  const nobion::processing::Domain* chosen_domain =
+      nobion::ui::choose_domain(domains, install ? install->domain : std::string("arar"), domain_error);
+  if (chosen_domain == nullptr) return fatal(domain_error);
+  const nobion::processing::Domain& domain = *chosen_domain;
+  if (install && install->kind == "data_reduction") return run_data_reduction(*install, domain, *cli, resources);
+
+  std::optional<fs::path> spectrometer_file = cli->spectrometer_file;
+  if (install && !spectrometer_file && !install->spectrometer.empty() &&
+      fs::exists(install->path(install->spectrometer))) {
+    spectrometer_file = install->path(install->spectrometer);
+  }
+
+  // Shown from here until the main window is up (after any installation
+  // choice, which it would cover); loading blocks the event loop, so each step
+  // repaints it explicitly.
+  nobion::ui::SplashScreen splash(sim);
+  splash.show();
+  splash.status(QStringLiteral("Starting"));
+
+  // Reports a silent UI thread, scheduler or transport call (spec
+  // 2026-11-06-field-diagnostics, 6). Made before the line, so the line's
+  // transports are watched from their first call; attached to the line's
+  // bus and the flight recorder once those exist (below), detached before
+  // they go. Outlives the line; the beats it hands out may outlive it.
+  nobion::HangMonitor hang_monitor;
+
+  nobion::systems::ExtractionLine::Options options;
+  options.hang_monitor = &hang_monitor;
+  options.force_sim = sim;
+  options.sim_endpoints = cli->sim_endpoints;
+  options.sim_endpoints_any = cli->sim_endpoints_any;
+  options.log_hub = hub;
+  if (sim_clock) options.clock = sim_clock.get();
+  const std::vector<fs::path>& files = cli->files;
+
+  fs::path system_file;
+  std::optional<fs::path> canvas_file;
+  if (install) {
+    system_file = install->path(install->line);
+    if (!install->canvas.empty()) canvas_file = install->path(install->canvas);
+  } else if (files.empty()) {
+    system_file = examples / "extraction_line.toml";
+    canvas_file = examples / "canvas.toml";
+  } else {
+    system_file = files[0];
+    if (files.size() > 1) canvas_file = files[1];
+  }
+
+  const fs::path lab_dir = cli->lab ? *cli->lab : install ? install->root : system_file.parent_path();
+  // How the links recover (executor.toml [links]) is wanted before they are
+  // made; the lab, which reports a file that does not load, comes later.
+  const auto executor_config = nobion::experiment::lab::ExecutorConfig::load(lab_dir / "executor.toml");
+  const nobion::LinkPolicy link_defaults =
+      executor_config ? executor_config->link_defaults() : nobion::LinkPolicy{};
+  options.link_defaults = link_defaults;
+  // What running writes (the line's state, holes found, camera scales,
+  // snapshots, the default data folder) is kept beside the lab, except for
+  // the shipped examples, which are never written to (setup::lab_state_dir).
+  const fs::path user_examples = nobion::default_examples_state_dir(nobion::host_os(), nobion::process_env());
+  const fs::path line_folder = system_file.parent_path().empty() ? fs::path(".") : system_file.parent_path();
+  const fs::path line_state = setup::lab_state_dir(line_folder, examples, user_examples);
+  const fs::path lab_folder = lab_dir.empty() ? fs::path(".") : lab_dir;
+  const fs::path lab_state = setup::lab_state_dir(lab_folder, examples, user_examples);
+  options.state_file = line_state / fs::path(system_file.filename()).replace_extension(".state.toml");
+  if (lab_state != lab_folder) {
+    nobion::process_logger("nobion").info("examples: runtime state in " + lab_state.string());
+  } else if (line_state != line_folder) {
+    nobion::process_logger("nobion").info("examples: runtime state in " + line_state.string());
+  }
+
+  splash.status(QStringLiteral("Loading the extraction line: %1").arg(QString::fromStdString(system_file.filename().string())));
+  auto line = nobion::systems::ExtractionLine::load(system_file, canvas_file, options);
+  if (!line) {
+    std::string what = nobion::to_string(line.error());
+    if (install) what = "installation '" + install->name + "': " + what + "\n\nelctl doctor --install " + install->name + " says more.";
+    splash.close();  // it would sit over the message box
+    return fatal(what);
+  }
+  // The line's bus carries the spectrometer's and the session's events too:
+  // one recorder of each kind, declared after the line so they go before its
+  // bus (the line is destroyed on return).
+  const nobion::EventRecorder core_events((*line)->bus());
+  const nobion::systems::SystemsEventRecorder systems_events((*line)->bus());
+  const nobion::experiment::ExperimentEventRecorder experiment_events((*line)->bus());
+  // Writes out the flight recorder on a critical alarm, a failed run or an
+  // unsafe queue end (spec 2026-11-06-field-diagnostics, 5.3). After the hub
+  // and the line, so it goes before them, on return, once the session and
+  // everything else that publishes has been reset; its subscriptions first.
+  std::optional<nobion::FlightRecorderTriggers> flight_recorder;
+  if ((*line)->log_hub()) flight_recorder.emplace(*(*line)->log_hub(), (*line)->bus());
+  std::vector<nobion::SignalBus::Subscription> flight_recorder_subs;
+  if (flight_recorder) flight_recorder_subs = nobion::experiment::wire_flight_recorder((*line)->bus(), *flight_recorder);
+  // The hang monitor reports from here on: a log record, a flight recorder
+  // dump, a warning alarm on the line's bus. Detached before the recorder
+  // and the line go, on every way out.
+  const bool hang_attached = flight_recorder.has_value();
+  if (hang_attached) hang_monitor.attach(*(*line)->log_hub(), *flight_recorder, (*line)->bus(), &(*line)->clock());
+  const nobion::HangMonitor::DetachOnExit hang_detach(hang_monitor);
+  // The scheduler's beat: a job pulses it every second. Only on a
+  // SteadyClock: under a VirtualClock the job's period is simulated time.
+  std::shared_ptr<nobion::HangMonitor::Beat> scheduler_beat;
+  std::optional<nobion::JobId> scheduler_beat_job;
+
+  // The spectrometer shares the line's clock, scheduler and bus. None of these
+  // is left to declaration order: the teardown after the event loop resets
+  // each one explicitly, and that order is the one that matters.
+  std::unique_ptr<nobion::spectrometer::Spectrometer> spectrometer;
+  std::unique_ptr<nobion::spectrometer::ScanService> scan;
+  std::unique_ptr<nobion::ui::SpectrometerBridge> spectrometer_bridge;
+  std::optional<std::string> spectrometer_error;
+  // What was actually loaded decides the window's "(Simulation)" title and the
+  // table-following sim beam; --sim only demands it (require_sim).
+  bool simulation = false;
+  // The experiment session is built once the line has started (below).
+  if (cli->laser) {
+    const int laser_rc = run_laser(**line, *cli, lab_dir, lab_state, system_file, splash);
+    (*line)->stop();
+    return laser_rc;
+  }
+
+  const fs::path spectrometer_config =
+      spectrometer_file ? *spectrometer_file : sim ? examples / "spectrometer.sim-integrated.toml" : fs::path();
+  // Where its field tables are read and saved: beside it, except for the
+  // shipped examples' (setup::field_table_root).
+  const nobion::Result<fs::path> table_root =
+      spectrometer_config.empty() ? nobion::Result<fs::path>(fs::path())
+                                  : setup::field_table_root(spectrometer_config.parent_path(), examples, user_examples);
+  const fs::path spectrometer_tables = table_root ? *table_root : fs::path();
+  if (!spectrometer_config.empty()) {
+    const fs::path& file = spectrometer_config;
+    splash.status(QStringLiteral("Bringing up the spectrometer: %1").arg(QString::fromStdString(file.filename().string())));
+    // Written only when a simulated beam was fed from a simulated line.
+    auto fed = nobion::spectrometer::BeamFeed::LineGas;
+    auto loaded = [&]() -> nobion::Result<std::unique_ptr<nobion::spectrometer::Spectrometer>> {
+      if (!table_root) return nobion::fail(table_root.error());
+      std::shared_ptr<const std::map<std::string, nobion::Endpoint>> served_endpoints;
+      if (cli->sim_endpoints) {
+        auto served = nobion::client_spectrometer_endpoints(*cli->sim_endpoints, file, cli->sim_endpoints_any);
+        if (!served) return nobion::fail(served.error());
+        served_endpoints = std::make_shared<const std::map<std::string, nobion::Endpoint>>(std::move(*served));
+      }
+      auto data = nobion::spectrometer::cfg::load_spectrometer(file, spectrometer_tables);
+      if (!data) return nobion::fail(data.error());
+      simulation = nobion::spectrometer::is_simulated(*data);
+      return nobion::spectrometer::load_spectrometer_for_app(
+          std::move(*data),
+          nobion::spectrometer::SpectrometerContext{(*line)->clock(), (*line)->scheduler(), (*line)->bus(),
+                                                    &hang_monitor, (*line)->log_hub()},
+          // A simulated spectrometer measures the simulated line's gas.
+          nobion::spectrometer::SpectrometerBringup{
+              .sim_beam_from_table = simulation,
+              .require_sim = sim,
+              .line_sim = (*line)->sim(),
+              .fed = &fed,
+              .link_defaults = link_defaults,
+              .sim_endpoints = served_endpoints});
+    }();
+    if (loaded && fed == nobion::spectrometer::BeamFeed::FixedGas) {
+      std::fprintf(stderr, "nobion: the simulated spectrometer is not joined to the line: %s\n",
+                   (*line)->canvas() != nullptr ? "the canvas has no spectrometer stage"
+                                                : "the line was loaded without its canvas");
+    }
+    if (loaded) {
+      spectrometer = std::move(*loaded);
+      scan = std::make_unique<nobion::spectrometer::ScanService>(*spectrometer, (*line)->bus(), (*line)->clock());
+      spectrometer_bridge = std::make_unique<nobion::ui::SpectrometerBridge>(*spectrometer, *scan, (*line)->bus());
+    } else {
+      spectrometer_error = nobion::to_string(loaded.error());
+    }
+  }
+
+  // Whose runs are a simulator's: marked in their records, and kept out of
+  // shared databases (one rule for every program).
+  const bool simulated_session = nobion::spectrometer::simulated_session(
+      sim, spectrometer ? std::optional<bool>(simulation) : std::nullopt, (*line)->config());
+
+  std::unique_ptr<nobion::experiment::lab::Lab> lab;
+  // The lab's lasers are shared by the session (queues) and the laser
+  // windows (an operator): one drives at a time.
+  std::unique_ptr<nobion::experiment::lab::Lasers> lasers;
+#ifdef NOBION_UI_HAS_STORE
+  // Where a queue's runs go when there is a database: the acquisition's own
+  // store, or, when the database could not be opened, a persister that refuses
+  // every queue with the reason. The session saves through one of them, so
+  // they are declared before it and go after it: the teardown below resets
+  // the session by hand (joining a running queue), these on return.
+  std::unique_ptr<nobion::experiment::store::Acquisition> acquisition;
+  std::unique_ptr<nobion::ui::NoDatabasePersister> no_database;
+#endif
+  std::unique_ptr<nobion::experiment::lab::LabSession> session;
+  std::unique_ptr<nobion::ui::ExperimentBridge> experiment_bridge;
+  std::vector<std::unique_ptr<nobion::ui::LaserBridge>> laser_bridges;
+
+  // Data browsing: the records the experiment writes, and figure presets.
+  const fs::path data_dir = cli->data            ? *cli->data
+                            : install && !install->data.empty() ? install->path(install->data)
+                                                                : lab_state / "data";
+  nobion::processing::RecordDirectorySource records(data_dir / "records");
+  wire_extension(records, domain);
+  std::unique_ptr<nobion::processing::IAnalysisSource> store_source;
+#ifdef NOBION_UI_HAS_STORE
+  // One database for the data window, Entry, Fit, the run factory and the
+  // runs a queue saves: --db, else the install's. `database` is its url once
+  // the data window's source has opened it; `database_error` is why there is
+  // none to use although one was named. --db that does not open is a usage
+  // error; an install's is not, since the line can still be worked.
+  std::string database;
+  std::optional<std::string> database_error;
+  if (const auto chosen = nobion::ui::choose_database(*cli, install ? &*install : nullptr); !chosen) {
+    database_error = chosen.error().what;
+  } else if (chosen->has_value()) {
+    splash.status(QStringLiteral("Opening the DVC store"));
+    auto opened = nobion::processing::StoreSource::open(nobion::persistence::StoreConfig{**chosen, false},
+                                                         store_options(domain));
+    if (opened) {
+      store_source = std::move(*opened);
+      database = **chosen;
+    } else if (cli->db) {
+      std::fprintf(stderr, "nobion: --db: %s\n", nobion::to_string(opened.error()).c_str());
+      return 2;
+    } else {
+      database_error = opened.error().what;
+    }
+  }
+  if (cli->sim_save && database.empty() && !database_error) {
+    std::fprintf(stderr, "nobion: --sim-save: there is no database to save to (--db, or an install that has one)\n");
+    return 2;
+  }
+  // Said in the log once the window is up: a simulated session that does not
+  // save to the database (it goes on reading it) writes record files.
+  std::string run_saving_note;
+  if (!database.empty()) {
+    const auto saving = nobion::ui::choose_run_saving(*cli, database, simulated_session, data_dir);
+    if (!saving.to_database) {
+      run_saving_note = saving.note;
+    } else if (auto opened = nobion::experiment::store::open_acquisition(database, data_dir, std::string(nobion::build_info().version))) {
+      acquisition = std::move(*opened);
+    } else {
+      no_database = std::make_unique<nobion::ui::NoDatabasePersister>(opened.error().what);
+    }
+  } else if (database_error) {
+    no_database = std::make_unique<nobion::ui::NoDatabasePersister>(*database_error);
+  }
+#else
+  if (cli->db) {
+    std::fprintf(stderr, "nobion: --db: built without the DVC store (NOBION_PERSISTENCE=OFF or no Qt Sql)\n");
+    return 2;
+  }
+  if (cli->sim_save) {
+    std::fprintf(stderr, "nobion: --sim-save: there is no database to save to (built without the DVC store)\n");
+    return 2;
+  }
+  // The install has a database and this build cannot write to one: said here
+  // and in the log, not left for the operator to find out.
+  std::string no_store_warning;
+  if (install && install->kind == "instrument" && !install->database.empty()) {
+    no_store_warning = "built without the DVC store: runs are written to " + (data_dir / "records").string() +
+                       ", not to the installation's database";
+    std::fprintf(stderr, "nobion: warning: %s\n", no_store_warning.c_str());
+  }
+#endif
+  nobion::processing::IAnalysisSource& data_source =
+      store_source ? *store_source : static_cast<nobion::processing::IAnalysisSource&>(records);
+  nobion::processing::PresetStore presets(
+      std::filesystem::path(QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation).toStdString()) / "presets",
+      lab_dir / "figures");
+
+  // `[metrics]`: the endpoint the lab's Prometheus scrapes (docs/observability.md).
+  // Built before the line starts, so the start-up Snapshot reaches it too.
+#ifdef NOBION_EXPERIMENT_HAS_METRICS
+  std::unique_ptr<nobion::experiment::metrics::MetricsService> metrics;
+#endif
+
+  int rc = 0;
+  {
+    // The window (and its CoreBridge) subscribes before start() so the
+    // start-up Snapshot paints the canvas before the first scan.
+    nobion::ui::MainWindow window(**line, std::make_unique<QSettings>());
+    window.apply_preferences(nobion::ui::load_preferences(QSettings()));
+    window.set_line_mode({sim, sim_clock != nullptr ? cli->sim_speed : 0.0});
+    // Preferences keeps the line's logging and metrics beside this file. Not
+    // for the examples that come with the application: they are part of it
+    // (inside the bundle on macOS), and nothing is written there.
+    if (install || !files.empty()) window.set_line_config_file(system_file);
+    if (install) window.set_install_root(install->root);
+    window.set_installations_handler(installations_handler(&window, resources, install ? install->name : std::string{}));
+    // Not for the examples that come with the application: no install to change.
+    if (install) window.set_data_source(data_source_deps(install->name, resources, cli->db), reopen_on(&window, install->name));
+
+    // Runtime level changes go to the process hub; without one (creation
+    // failed) the "Set logger level..." action stays hidden.
+    if (hub) {
+      window.log_dock()->set_level_callback(nobion::ui::hub_level_callback(hub));
+      hub->flush();  // records from load() are on disk before history is read
+      if (const auto path = hub->file_path(); !path.empty()) {
+        window.log_dock()->load_history(path, 1000, hub->dock_level());
+      }
+    }
+    // What logging had to say before there was a window (a logging.toml that
+    // does not load, no folder for the file): once, in the panel.
+    for (const auto& [level, text] : process_log.notices) {
+      window.log_dock()->append_log(nobion::Log{level, "logging", text, {}});
+    }
+    // The experiment window shows the recent references only when what the
+    // data window reads is where the session saves its runs: the store, with
+    // the session saving to it (not the records folder, not a database that
+    // could not be opened, not a simulated session that writes files).
+#ifdef NOBION_UI_HAS_STORE
+    const bool session_store = store_source != nullptr && acquisition != nullptr;
+#else
+    const bool session_store = false;
+#endif
+    window.set_data(&data_source, &presets, &domain, session_store);
+#ifdef NOBION_UI_HAS_STORE
+    // The Entry and Fit menus, parented to the window, Entry made first (fit_actions.hpp).
+    if (!database.empty()) {
+      auto* entry = new nobion::ui::EntryActions(&window, database);
+      // The run factory picks identifiers from the same store, through Entry's bridge.
+      window.set_identifier_source(new nobion::ui::StoreIdentifierSource(*entry));
+      new nobion::ui::FitActions(&window, database, *entry, presets,
+                                  [&window](const QString& uuid) { window.open_recall(uuid); });
+      // View > Publish…: releases of this database, made of the Data browser's selection.
+      auto* publish = new nobion::ui::PublishActions(&window, database, [&window] {
+        const auto* browser = window.data_window();
+        return browser != nullptr ? browser->selection_uuids() : QStringList();
+      });
+      window.set_publish_handler([publish](const QStringList& ids) { publish->open_dialog_new(ids); });
+    }
+    if (database_error) {
+      // The data window shows the records folder, and says so and what is missing.
+      const QString why =
+          QStringLiteral("The database could not be opened: ") + QString::fromStdString(*database_error);
+      window.set_data_unavailable(why + QStringLiteral("\nShowing the records folder %1.")
+                                            .arg(QString::fromStdString((data_dir / "records").string())));
+      window.log_dock()->append_error("startup", QStringLiteral("database"), why);
+    } else if (no_database) {
+      // It can be read, and not written to: said here, and again to whoever starts a queue.
+      window.log_dock()->append_error("startup", QStringLiteral("database"), QString::fromStdString(no_database->why()));
+    }
+    if (!run_saving_note.empty()) {
+      window.log_dock()->append_line(QStringLiteral("INFO [ui] ") + QString::fromStdString(run_saving_note));
+    }
+#else
+    if (!no_store_warning.empty()) {
+      window.log_dock()->append_line(QStringLiteral("WARN [ui] ") + QString::fromStdString(no_store_warning));
+    }
+#endif
+    window.show();
+    // Help > Collect Diagnostics… and the unclean-exit dialog's Collect. The
+    // live state is read on the main thread when asked: the line's
+    // transports and pressures, the standing alarms, the executor (once the
+    // session below exists), the Log dock's level. Stamps on the line's clock.
+    nobion::ui::DiagnosticsDeps diagnostics;
+    diagnostics.install = install;
+    diagnostics.hub = hub;
+    diagnostics.clock = &(*line)->clock();
+    diagnostics.snapshot = [&window, &experiment_bridge, hub] {
+      nobion::ui::LiveSources sources;
+      sources.core = &window.bridge();
+      sources.alarms = window.alarm_dock();
+      sources.experiment = experiment_bridge.get();
+      sources.hub = hub.get();
+      return nobion::ui::live_state_json(sources);
+    };
+    auto* collector = new nobion::ui::DiagnosticsCollector(&window, std::move(diagnostics));
+    if (auto* notice = nobion::ui::show_unclean_exit_notice(&window)) {
+      QObject::connect(notice, &nobion::ui::UncleanExitDialog::collectRequested, collector,
+                       &nobion::ui::DiagnosticsCollector::collect);
+    }
+    if (spectrometer_error) {
+      window.log_dock()->append_error("startup", QStringLiteral("spectrometer not loaded"),
+                                      QString::fromStdString(*spectrometer_error));
+    }
+    // After the window, so the checker goes first. The line's wall clock, so
+    // a simulated session's last check is in simulated time.
+    QSettings update_settings;
+    const auto updates = start_update_check(
+        window, update_settings,
+        [&window] {
+          return std::chrono::system_clock::time_point(
+              std::chrono::milliseconds(window.bridge().wall_now().toMSecsSinceEpoch()));
+        },
+        [&window](const QString& text) { window.log_dock()->append_line(text); });
+#ifdef NOBION_EXPERIMENT_HAS_METRICS
+    metrics = nobion::experiment::metrics::MetricsService::start(
+        (*line)->config().metrics, (*line)->bus(), (*line)->scheduler(), (*line)->clock(), (*line)->log_hub(),
+        std::string(nobion::build_info().version));
+    if (metrics) {
+      // Each transport's reconnects and repeats, read from its link at each
+      // scrape: the line's, and the spectrometer's (both outlive `metrics`).
+      std::vector<nobion::Link*> links = (*line)->links();
+      if (spectrometer) {
+        const std::vector<nobion::Link*> more = spectrometer->links();
+        links.insert(links.end(), more.begin(), more.end());
+      }
+      metrics->watch_links(links);
+    }
+    // For the Metrics page of File > Preferences.
+    if (!metrics) {
+      window.set_metrics_status(QStringLiteral("Off"));
+    } else if (metrics->listening()) {
+      window.set_metrics_status(QStringLiteral("Listening on %1:%2")
+                                    .arg(QString::fromStdString((*line)->config().metrics.bind))
+                                    .arg(metrics->port()));
+    } else {
+      // The error names its subject for the log ("metrics: cannot bind..."); here the page already does.
+      QString why = QString::fromStdString(metrics->error());
+      if (why.startsWith(QStringLiteral("metrics: "))) why.remove(0, 9);
+      window.set_metrics_status(QStringLiteral("Not listening: %1").arg(why));
+    }
+#else
+    window.set_metrics_status(QStringLiteral("This build has no metrics"));
+    if ((*line)->config().metrics.enabled) {
+      window.log_dock()->append_line(
+          QStringLiteral("WARN [ui] metrics: this build has no metrics (NOBION_METRICS=OFF)"));
+    }
+#endif
+    splash.status(QStringLiteral("Starting the extraction line"));
+    const auto started = (*line)->start();
+    if (!started) {
+      window.log_dock()->append_error("startup", QStringLiteral("start failed"),
+                                      QString::fromStdString(nobion::to_string(started.error())));
+    }
+    // The spectrometer polls on the line's scheduler, which only runs once the
+    // line has started. Without it a scan would report success and never
+    // produce a reading, so the window is not offered at all.
+    if (spectrometer_bridge) {
+      if (started) {
+        window.set_rise_rate_file(data_dir / "rise_rates.csv");
+        window.set_peak_center_file(lab_dir / "peak_center.toml");
+        window.set_spectrometer(spectrometer_bridge.get(), simulation);
+      } else {
+        window.log_dock()->append_line(QStringLiteral(
+            "ERROR [ui] spectrometer unavailable: extraction line did not start (shared scheduler not running)"));
+      }
+    }
+    if (started && hang_attached && dynamic_cast<const nobion::VirtualClock*>(&(*line)->clock()) == nullptr) {
+      scheduler_beat =
+          std::make_shared<nobion::HangMonitor::Beat>(hang_monitor.beat("scheduler", std::chrono::seconds(30)));
+      auto job = (*line)->scheduler().every("hang.beat", std::chrono::seconds(1),
+                                            [beat = scheduler_beat] { beat->pulse(); });
+      if (job) scheduler_beat_job = *job;
+    }
+    if (started) {
+      splash.status(QStringLiteral("Loading the lab: %1").arg(QString::fromStdString(lab_dir.string())));
+      lab = std::make_unique<nobion::experiment::lab::Lab>(nobion::experiment::lab::load_lab(
+          {lab_dir, system_file, spectrometer ? spectrometer_config : fs::path(), lab_state, spectrometer_tables}));
+      for (const auto& problem : lab->problems) {
+        window.log_dock()->append_line(QStringLiteral("WARN [ui] lab: ") + QString::fromStdString(problem));
+      }
+      lasers = std::make_unique<nobion::experiment::lab::Lasers>(*lab, **line);
+      nobion::experiment::lab::SessionOptions session_options{data_dir, {}, {}};
+#ifdef NOBION_UI_HAS_STORE
+      if (acquisition) {
+        session_options.persister = &acquisition->persister();
+      } else if (no_database) {
+        session_options.persister = no_database.get();
+      }
+#endif
+      const bool saves_to_database = session_options.persister != nullptr;
+      session = std::make_unique<nobion::experiment::lab::LabSession>(
+          *lab,
+          nobion::experiment::lab::SessionHardware{**line, spectrometer.get(), scan.get(), {}, lasers.get(),
+                                                    simulated_session},
+          std::move(session_options));
+      for (const auto& note : lasers->notes()) {
+        window.log_dock()->append_line(QStringLiteral("WARN [ui] laser: ") + QString::fromStdString(note));
+      }
+      for (const auto& problem : session->problems()) {
+        window.log_dock()->append_line(QStringLiteral("WARN [ui] experiment: ") + QString::fromStdString(problem));
+      }
+      experiment_bridge = std::make_unique<nobion::ui::ExperimentBridge>(*session, (*line)->bus());
+      experiment_bridge->set_saves_to_database(saves_to_database);
+      window.set_experiment(experiment_bridge.get(), sim, cli->queue);
+      // A laser window per extraction device; its emergency stop aborts the queue.
+      std::vector<nobion::ui::LaserBridge*> bridges;
+      bool lasers_simulated = !lasers->names().empty();
+      for (const auto& name : lasers->names()) {
+        laser_bridges.push_back(std::make_unique<nobion::ui::LaserBridge>(nobion::ui::LaserBridgeDeps{
+            *lasers, *lab, name, [raw = session.get()] { raw->abort(); }}));
+        bridges.push_back(laser_bridges.back().get());
+        lasers_simulated = lasers_simulated && (*line)->sim() != nullptr && (*line)->sim()->chromium(name) != nullptr;
+      }
+      window.set_lasers(bridges, lasers_simulated, &lab->patterns, lab_dir / "patterns");
+    } else {
+      window.log_dock()->append_line(
+          QStringLiteral("ERROR [ui] experiment unavailable: extraction line did not start"));
+    }
+    splash.finish_after(&window, std::chrono::milliseconds(1200));
+    // The main thread's beat: a 1 s timer pulses it while the event loop
+    // runs (Qt timers are real time, so under any clock). Not before: a
+    // startup step may hold the thread longer, and is not a hang.
+    std::optional<nobion::HangMonitor::Beat> ui_beat;
+    QTimer ui_beat_timer;
+    if (hang_attached) {
+      ui_beat.emplace(hang_monitor.beat("ui.main", std::chrono::seconds(10)));
+      QObject::connect(&ui_beat_timer, &QTimer::timeout, [&ui_beat] { ui_beat->pulse(); });
+      ui_beat_timer.start(std::chrono::seconds(1));
+    }
+    rc = QApplication::exec();
+    // Closing windows and joining a running queue may hold the main thread.
+    ui_beat_timer.stop();
+    ui_beat.reset();
+    window.set_lasers({}, false);             // the laser windows go before their bridges
+    window.set_data(nullptr, nullptr, nullptr);  // data windows go before the data source
+    window.set_experiment(nullptr, false);    // the experiment window goes before its bridge
+    window.set_spectrometer(nullptr, false);  // closes the spectrometer window before the bridge goes
+  }
+  // Teardown order (explicit; not the reverse of declaration):
+  //   0. the laser windows (above) and their bridges (a motion being waited
+  //      for is stopped); the experiment window (above), its bridge, then the
+  //      session, which aborts and joins a running queue before anything it
+  //      uses goes (its persister among them: the acquisition store, declared
+  //      before the session, goes on return); then the lasers the two shared;
+  //   1. the spectrometer window, then the main window (the block above);
+  //   2. the bridge, whose executor finishes the command in flight; the scan
+  //      stop the closing window asked for happens even if it was queued
+  //      behind it;
+  //   3. the scan service, which stops the acquisition if it is still running;
+  //   4. the line: stop() halts the shared scheduler and waits for a poll
+  //      already on a worker, so nothing is still using the spectrometer;
+  //   5. the spectrometer;
+  //   6. the beam registry, whose models refer to the line's clock (and read
+  //      the line's simulated gas, through a handle that outlives it), before
+  //      the line itself is destroyed on return.
+  // When the line never started, step 4 does nothing: the scheduler never ran
+  // and the spectrometer was never offered, so no poll or command has touched
+  // it and the same order is safe.
+  laser_bridges.clear();
+  experiment_bridge.reset();
+  session.reset();
+  lasers.reset();
+  spectrometer_bridge.reset();
+  scan.reset();
+  // The scheduler stops with the line: its beat is let go first.
+  if (scheduler_beat_job) (void)(*line)->scheduler().cancel_and_wait(*scheduler_beat_job);
+  if (scheduler_beat) scheduler_beat->disarm();
+  (*line)->stop();
+#ifdef NOBION_EXPERIMENT_HAS_METRICS
+  metrics.reset();  // its heartbeat is a job of the line's scheduler: before the line goes
+#endif
+  spectrometer.reset();
+  nobion::sim::BeamModelRegistry::global().clear();
+  return rc;
+}

@@ -1,36 +1,126 @@
-#include "pychron/experiment/plan/plan.hpp"
+#include "nobion/experiment/plan/plan.hpp"
 
 #include <algorithm>
+#include <array>
+#include <iterator>
+#include <utility>
 
-namespace pychron::experiment::plan {
+namespace nobion::experiment::plan {
 
-std::optional<HopTarget> hop_target(const MeasurementPlan& plan, const Hop& hop) {
-  if (hop.position) {
-    HopTarget t{hop.position->isotope, std::nullopt, hop.position->detector};
-    if (hop.baseline && hop.mass) t = {"", hop.mass, hop.position->detector};
-    return t;
+namespace {
+
+constexpr std::array<std::pair<When, std::string_view>, 6> kWhenNames{{
+    {When::DuringExtraction, "during_extraction"},
+    {When::BeforeInlet, "before_inlet"},
+    {When::DuringEquilibration, "during_equilibration"},
+    {When::AfterInlet, "after_inlet"},
+    {When::AfterMain, "after_main"},
+    {When::AfterRun, "after_run"},
+}};
+
+constexpr std::array<std::pair<SegmentKind, std::string_view>, 10> kSegmentKindNames{{
+    {SegmentKind::Signal, "signal"},
+    {SegmentKind::Baseline, "baseline"},
+    {SegmentKind::Sniff, "sniff"},
+    {SegmentKind::Whiff, "whiff"},
+    {SegmentKind::PeakCenter, "peak_center"},
+    {SegmentKind::Set, "set"},
+    {SegmentKind::BlankBeam, "blank_beam"},
+    {SegmentKind::Park, "park"},
+    {SegmentKind::Delay, "delay"},
+    {SegmentKind::TimeZero, "time_zero"},
+}};
+
+template <typename E, std::size_t N>
+std::string_view name_of(const std::array<std::pair<E, std::string_view>, N>& names, E value) {
+  const auto it = std::find_if(names.begin(), names.end(), [&](const auto& e) { return e.first == value; });
+  return it == names.end() ? std::string_view{} : it->second;
+}
+
+template <typename E, std::size_t N>
+std::optional<E> value_of(const std::array<std::pair<E, std::string_view>, N>& names, std::string_view s) {
+  const auto it = std::find_if(names.begin(), names.end(), [&](const auto& e) { return e.second == s; });
+  if (it == names.end()) return std::nullopt;
+  return it->first;
+}
+
+}  // namespace
+
+std::string_view to_string(When w) { return name_of(kWhenNames, w); }
+std::optional<When> parse_when(std::string_view s) { return value_of(kWhenNames, s); }
+
+std::string_view to_string(SegmentKind k) { return name_of(kSegmentKindNames, k); }
+std::optional<SegmentKind> parse_segment_kind(std::string_view s) { return value_of(kSegmentKindNames, s); }
+
+bool is_step(SegmentKind k) {
+  switch (k) {
+    case SegmentKind::Signal:
+    case SegmentKind::Baseline:
+    case SegmentKind::Sniff:
+    case SegmentKind::Whiff:
+      return false;
+    case SegmentKind::PeakCenter:
+    case SegmentKind::Set:
+    case SegmentKind::BlankBeam:
+    case SegmentKind::Park:
+    case SegmentKind::Delay:
+    case SegmentKind::TimeZero:
+      return true;
   }
-  const auto& ref = plan.detectors.reference;
-  for (const auto& [iso, det] : hop.positions) {
-    if (det != ref) continue;
-    if (hop.baseline && hop.mass) return HopTarget{"", hop.mass, det};
-    return HopTarget{iso, std::nullopt, det};
+  return false;
+}
+
+std::optional<At> position_target(const MeasurementPlan& plan, const Position& position,
+                                  std::string_view spectrometer_reference) {
+  if (position.at) return position.at;
+  const bool plan_names_one = !plan.detectors.reference.empty();
+  const std::string_view ref = plan_names_one ? std::string_view(plan.detectors.reference) : spectrometer_reference;
+  if (ref.empty()) return std::nullopt;
+  const auto& c = position.collect;
+  if (const auto it = std::find_if(c.begin(), c.end(), [&](const CollectEntry& e) { return e.detector == ref; });
+      it != c.end())
+    return AtLabel{it->label, it->detector};
+  // A mode of the reference: collector H2 in CDD mode is "H2(CDD)" (spec 3.6).
+  const auto mode = [&](const CollectEntry& e) {
+    return e.detector.size() > ref.size() && e.detector.starts_with(ref) && e.detector[ref.size()] == '(';
+  };
+  if (const auto it = std::find_if(c.begin(), c.end(), mode); it != c.end()) return AtLabel{it->label, it->detector};
+  // The plan names no reference and the spectrometer's is not collected
+  // here: the first active entry positions the magnet, as a legacy hop's
+  // first isotope:detector did. A plan that names a reference needs `at`
+  // instead (checked at load).
+  if (!plan_names_one) {
+    if (const auto it = std::find_if(c.begin(), c.end(), [](const CollectEntry& e) { return e.active; });
+        it != c.end())
+      return AtLabel{it->label, it->detector};
   }
   return std::nullopt;
 }
 
-std::optional<HopTarget> baseline_target(const MeasurementPlan& plan) {
-  if (!plan.baseline.mass) return std::nullopt;
-  const auto& det = plan.baseline.detector.empty() ? plan.detectors.reference : plan.baseline.detector;
-  return HopTarget{"", plan.baseline.mass, det};
+std::vector<CollectEntry> collecting(const Position& position) {
+  std::vector<CollectEntry> out;
+  std::copy_if(position.collect.begin(), position.collect.end(), std::back_inserter(out),
+               [](const CollectEntry& e) { return e.active; });
+  return out;
 }
 
-std::vector<ActiveDetector> active_detectors(const MeasurementPlan& plan, const Hop& hop) {
-  std::vector<ActiveDetector> out;
-  const auto& ex = plan.detectors.exclude;
-  for (const auto& [iso, det] : hop.positions)
-    if (std::find(ex.begin(), ex.end(), det) == ex.end()) out.push_back({iso, det});
+bool is_model_file(std::string_view model) { return model.ends_with(".csv"); }
+
+std::vector<std::size_t> segments_at(const Gas& gas, When when) {
+  std::vector<std::size_t> out;
+  for (std::size_t i = 0; i < gas.segments.size(); ++i)
+    if (gas.segments[i].when == when) out.push_back(i);
+  if (when == When::AfterInlet)
+    std::stable_partition(out.begin(), out.end(),
+                          [&](std::size_t i) { return gas.segments[i].kind == SegmentKind::Whiff; });
   return out;
+}
+
+const Segment* main_segment(const Gas& gas) {
+  const auto it = std::find_if(gas.segments.begin(), gas.segments.end(), [](const Segment& s) {
+    return s.kind == SegmentKind::Signal && s.when == When::AfterInlet;
+  });
+  return it == gas.segments.end() ? nullptr : &*it;
 }
 
 namespace {
@@ -47,6 +137,41 @@ reduction::FitSpec fit_for(const std::map<std::string, reduction::FitKind>& kind
 
 }  // namespace
 
+reduction::FitSpec fit_for(const MeasurementPlan& plan, const Gas& gas, const Segment* segment, std::string_view kind,
+                           std::string_view label, std::string_view detector) {
+  const Fits& fits = gas.fits ? *gas.fits : plan.fits;
+  const bool baseline = kind == "baseline";
+  const auto& kinds = baseline ? fits.baseline : fits.signal;
+  std::vector<std::string> keys;
+  if (!label.empty()) keys.push_back(std::string(label) + "@" + std::string(detector));
+  keys.emplace_back(baseline ? detector : label);
+  keys.emplace_back("default");
+
+  reduction::FitSpec spec;
+  spec.error = fits.error;
+  spec.outliers = fits.outliers;
+  const auto found = std::find_if(keys.begin(), keys.end(), [&](const std::string& k) { return kinds.contains(k); });
+  if (found != keys.end()) spec.kind = kinds.at(*found);
+  else if (baseline) spec.kind = reduction::FitKind::Average;
+
+  if (segment != nullptr) {
+    std::vector<std::string> over;
+    if (!label.empty()) over.push_back(std::string(label) + "@" + std::string(detector));
+    if (!label.empty()) over.emplace_back(label);
+    over.emplace_back(detector);
+    over.emplace_back("default");
+    for (const auto& k : over) {
+      const auto it = segment->fits.find(k);
+      if (it == segment->fits.end()) continue;
+      if (it->second.fit) spec.kind = *it->second.fit;
+      if (it->second.error) spec.error = *it->second.error;
+      if (it->second.outliers) spec.outliers = *it->second.outliers;
+      break;
+    }
+  }
+  return spec;
+}
+
 reduction::FitSpec signal_fit(const Fits& fits, const std::string& isotope) {
   return fit_for(fits.signal, fits, isotope);
 }
@@ -58,4 +183,4 @@ reduction::FitSpec baseline_fit(const Fits& fits, const std::string& detector) {
   return spec;
 }
 
-}  // namespace pychron::experiment::plan
+}  // namespace nobion::experiment::plan

@@ -3,10 +3,10 @@
 
 #include <memory>
 
-#include "pychron/earthbank/http.hpp"
+#include "nobion/earthbank/http.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 std::unique_ptr<IHttpClient> make_http_client() { return nullptr; }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

@@ -6,12 +6,12 @@
 #include <utility>
 
 #include "legacy_json.hpp"
-#include "pychron/dvc/legacy_layout.hpp"
-#include "pychron/persistence/blob.hpp"
+#include "nobion/dvc/legacy_layout.hpp"
+#include "nobion/persistence/blob.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 
 namespace {
 
@@ -346,4 +346,4 @@ Result<ParsedRevision> parse_revision(FileKind kind, std::string_view json) try 
   return fail(unexpected_content(e));
 }
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

@@ -1,10 +1,10 @@
-#include "pychron/processing/scene.hpp"
+#include "nobion/processing/scene.hpp"
 
 #include <cctype>
 #include <cstdio>
 #include <utility>
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
@@ -58,9 +58,12 @@ std::string color_hex(const Color& c) {
   return buf;
 }
 
+std::span<const Color> default_palette() noexcept { return kPalette; }
+
 Color palette_color(int index) {
-  constexpr int n = static_cast<int>(std::size(kPalette));
-  return kPalette[((index % n) + n) % n];
+  const auto palette = default_palette();
+  const int n = static_cast<int>(palette.size());
+  return palette[static_cast<std::size_t>(((index % n) + n) % n)];
 }
 
 std::string_view to_string(MarkerShape s) noexcept {
@@ -122,4 +125,4 @@ std::size_t Scene::point_count() const {
   return n;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

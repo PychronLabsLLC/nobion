@@ -1,4 +1,4 @@
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/transport/sim_transport.hpp"
 
 #include <gtest/gtest.h>
 
@@ -10,10 +10,10 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/core/virtual_clock.hpp"
+#include "nobion/core/virtual_clock.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {
@@ -37,7 +37,7 @@ std::unique_ptr<SimTransport> open_scripted(std::vector<SimStep> steps, int retr
 // A read that waits past the clock leaves time standing and the test asleep
 // in it. Each test on a VirtualClock runs under a real-time bound: when it is
 // exceeded the process says so and aborts, well inside the ctest timeout.
-class SimTransportVirtual : public pychron::testing::VirtualTimeTest {};
+class SimTransportVirtual : public nobion::testing::VirtualTimeTest {};
 
 }  // namespace
 
@@ -114,7 +114,7 @@ TEST(SimTransportFaults, DropNextCausesTimeoutThenRetrySucceeds) {
   auto t = open_scripted({{to_bytes("A"), to_bytes("r1\r\n")}, {to_bytes("A"), to_bytes("r2\r\n")}},
                          /*retries=*/1);
   t->drop_next();
-  auto r = t->exchange(to_bytes("A"), kCrLf);
+  auto r = t->exchange(to_bytes("A"), kCrLf, Transport::kDefaultTimeout, Resend::Allowed);
   ASSERT_TRUE(r);
   EXPECT_EQ(to_string(*r), "r2\r\n");
   EXPECT_TRUE(t->verify());
@@ -358,4 +358,102 @@ TEST_F(SimTransportVirtual, UnsolicitedReadSeesLateInput) {
   EXPECT_EQ(*r, to_bytes(std::string("EVENT\r\n")));
   EXPECT_GE(clock.now(), kStart + 1s);
   EXPECT_LE(clock.now(), kStart + 1s + 2ms);
+}
+
+// An outage: the peer is gone, so every call fails Io, and the Io closes the
+// channel (each call below starts from an open() made while the link is up).
+// Nothing reaches the hook and nothing is recorded as written.
+TEST(SimTransportFaults, WhileDownEveryCallFailsIo) {
+  int hook_calls = 0;  // worker thread only, read after the calls return
+  auto t = SimTransport::hooked(
+      [&](const Bytes&) {
+        ++hook_calls;
+        return to_bytes("ok\r\n");
+      },
+      opts());
+  ASSERT_TRUE(t->open());
+  t->set_down(true);
+  const auto exchanged = t->exchange(to_bytes("a"), kCrLf);
+  ASSERT_FALSE(exchanged);
+  EXPECT_EQ(exchanged.error().kind, ErrorKind::Io);
+  const auto closed = t->exchange(to_bytes("a"), kCrLf);
+  ASSERT_FALSE(closed);
+  EXPECT_EQ(closed.error().kind, ErrorKind::NotConnected);
+  EXPECT_EQ(t->health().state, HealthState::Down);
+  const auto reopened = t->open();
+  ASSERT_FALSE(reopened);
+  EXPECT_EQ(reopened.error().kind, ErrorKind::Io);
+
+  t->set_down(false);
+  ASSERT_TRUE(t->open());
+  t->set_down(true);
+  const auto written = t->write(to_bytes("b"));
+  ASSERT_FALSE(written);
+  EXPECT_EQ(written.error().kind, ErrorKind::Io);
+
+  t->set_down(false);
+  ASSERT_TRUE(t->open());
+  t->set_down(true);
+  const auto read = t->read(kCrLf);
+  ASSERT_FALSE(read);
+  EXPECT_EQ(read.error().kind, ErrorKind::Io);
+  EXPECT_EQ(hook_calls, 0);
+  EXPECT_TRUE(t->written().empty());
+
+  t->set_down(false);
+  ASSERT_TRUE(t->open());
+  const auto answered = t->exchange(to_bytes("c"), kCrLf);
+  ASSERT_TRUE(answered) << answered.error().what;
+  EXPECT_EQ(to_string(*answered), "ok\r\n");
+  EXPECT_EQ(hook_calls, 1);
+}
+
+TEST(SimTransportFaults, GoingDownDoesNotConsumeAScriptedStep) {
+  auto t = open_scripted({{to_bytes("PR1\r\n"), to_bytes("0, 1.0E-08\r\n")}});
+  t->set_down(true);
+  const auto down = t->exchange(to_bytes("PR1\r\n"), kCrLf);
+  ASSERT_FALSE(down);
+  EXPECT_EQ(down.error().kind, ErrorKind::Io);
+  EXPECT_TRUE(t->written().empty());
+  t->set_down(false);
+  ASSERT_TRUE(t->open());
+  const auto r = t->exchange(to_bytes("PR1\r\n"), kCrLf);
+  ASSERT_TRUE(r) << r.error().what;
+  EXPECT_EQ(to_string(*r), "0, 1.0E-08\r\n");
+  EXPECT_TRUE(t->verify());
+}
+
+TEST_F(SimTransportVirtual, DownForEndsOnTheTransportsClock) {
+  VirtualClock clock;
+  Clock::Participant main(clock, "test");
+  auto o = opts();
+  o.clock = &clock;
+  auto t = SimTransport::hooked([](const Bytes&) { return to_bytes("ok\r\n"); }, o);
+  ASSERT_TRUE(t->open());
+  t->down_for(5s);
+  clock.sleep_for(4900ms);
+  const auto exchanged = t->exchange(to_bytes("a"), kCrLf);
+  ASSERT_FALSE(exchanged);
+  EXPECT_EQ(exchanged.error().kind, ErrorKind::Io);
+  const auto early = t->open();
+  ASSERT_FALSE(early);
+  EXPECT_EQ(early.error().kind, ErrorKind::Io);
+  clock.sleep_for(100ms);
+  ASSERT_TRUE(t->open());
+  const auto r = t->exchange(to_bytes("b"), kCrLf);
+  ASSERT_TRUE(r) << r.error().what;
+  EXPECT_EQ(to_string(*r), "ok\r\n");
+}
+
+TEST_F(SimTransportVirtual, SetDownFalseEndsADownFor) {
+  VirtualClock clock;
+  Clock::Participant main(clock, "test");
+  auto o = opts();
+  o.clock = &clock;
+  auto t = SimTransport::hooked([](const Bytes&) { return to_bytes("ok\r\n"); }, o);
+  t->down_for(1h);
+  EXPECT_FALSE(t->open());
+  t->set_down(false);
+  ASSERT_TRUE(t->open());
+  EXPECT_TRUE(t->exchange(to_bytes("a"), kCrLf));
 }

@@ -1,9 +1,9 @@
-#include "pychron/systems/spectrometer/molecular_weights.hpp"
+#include "nobion/systems/spectrometer/molecular_weights.hpp"
 
 #include <gtest/gtest.h>
 
-namespace ps = pychron::spectrometer;
-using pychron::ErrorKind;
+namespace ps = nobion::spectrometer;
+using nobion::ErrorKind;
 
 TEST(MolecularWeights, DefaultsCoverArgon) {
   const auto& mw = ps::MolecularWeights::defaults();
@@ -23,7 +23,7 @@ TEST(MolecularWeights, UnknownIsotopeIsConfigError) {
 
 TEST(MolecularWeights, ParsesFlatToml) {
   auto mw = ps::parse_molecular_weights("Ar40 = 39.9623831\nHCl = 36\n");
-  ASSERT_TRUE(mw.has_value()) << pychron::to_string(mw.error());
+  ASSERT_TRUE(mw.has_value()) << nobion::to_string(mw.error());
   EXPECT_DOUBLE_EQ(*mw->mass("Ar40"), 39.9623831);
   EXPECT_DOUBLE_EQ(*mw->mass("HCl"), 36.0);  // integers accepted
 }

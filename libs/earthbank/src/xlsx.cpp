@@ -1,4 +1,4 @@
-#include "pychron/earthbank/xlsx.hpp"
+#include "nobion/earthbank/xlsx.hpp"
 
 #include <algorithm>
 #include <array>
@@ -24,13 +24,13 @@
 
 #include "ooxml.hpp"
 #include "xlsx_detail.hpp"
-#include "pychron/core/env.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/core/process.hpp"
-#include "pychron/earthbank/model.hpp"
-#include "pychron/earthbank/vocab.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/core/process.hpp"
+#include "nobion/earthbank/model.hpp"
+#include "nobion/earthbank/vocab.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 
 namespace fs = std::filesystem;
 using nlohmann::json;
@@ -221,16 +221,16 @@ constexpr std::string_view kStepHeating = "step-heating";
 
 // ---------------------------------------------------------------- the records
 
-#define PYCHRON_EARTHBANK_FIELD_NAME(kind, name) std::string_view(#name),
-constexpr auto kSampleFields = std::to_array<std::string_view>({PYCHRON_EARTHBANK_SAMPLE_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)});
-constexpr auto kLocationFields = std::to_array<std::string_view>({PYCHRON_EARTHBANK_LOCATION_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)});
-constexpr auto kDataPointFields = std::to_array<std::string_view>({PYCHRON_EARTHBANK_DATA_POINT_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)});
-constexpr auto kAliquotFields = std::to_array<std::string_view>({PYCHRON_EARTHBANK_ALIQUOT_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)});
+#define NOBION_EARTHBANK_FIELD_NAME(kind, name) std::string_view(#name),
+constexpr auto kSampleFields = std::to_array<std::string_view>({NOBION_EARTHBANK_SAMPLE_FIELDS(NOBION_EARTHBANK_FIELD_NAME)});
+constexpr auto kLocationFields = std::to_array<std::string_view>({NOBION_EARTHBANK_LOCATION_FIELDS(NOBION_EARTHBANK_FIELD_NAME)});
+constexpr auto kDataPointFields = std::to_array<std::string_view>({NOBION_EARTHBANK_DATA_POINT_FIELDS(NOBION_EARTHBANK_FIELD_NAME)});
+constexpr auto kAliquotFields = std::to_array<std::string_view>({NOBION_EARTHBANK_ALIQUOT_FIELDS(NOBION_EARTHBANK_FIELD_NAME)});
 constexpr auto kMeasurementFields = std::to_array<std::string_view>({
-    PYCHRON_EARTHBANK_MEASUREMENT_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)});
-constexpr auto kAgeCalcFields = std::to_array<std::string_view>({PYCHRON_EARTHBANK_AGE_CALC_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)});
-constexpr auto kAgeSummaryFields = std::to_array<std::string_view>({PYCHRON_EARTHBANK_AGE_SUMMARY_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)});
-#undef PYCHRON_EARTHBANK_FIELD_NAME
+    NOBION_EARTHBANK_MEASUREMENT_FIELDS(NOBION_EARTHBANK_FIELD_NAME)});
+constexpr auto kAgeCalcFields = std::to_array<std::string_view>({NOBION_EARTHBANK_AGE_CALC_FIELDS(NOBION_EARTHBANK_FIELD_NAME)});
+constexpr auto kAgeSummaryFields = std::to_array<std::string_view>({NOBION_EARTHBANK_AGE_SUMMARY_FIELDS(NOBION_EARTHBANK_FIELD_NAME)});
+#undef NOBION_EARTHBANK_FIELD_NAME
 
 std::span<const std::string_view> fields_of(Rec record) {
   switch (record) {
@@ -1009,7 +1009,7 @@ Result<std::vector<const Records*>> samples_of(const std::vector<Records>& recor
 Result<fs::path> template_dir_of(const XlsxOptions& options) {
   if (!options.template_dir.empty()) return options.template_dir;
   const detail::TemplateSearch search = detail::find_templates(
-      env_var("PYCHRON_EARTHBANK_TEMPLATES"), executable_dir(), fs::path(PYCHRON_EARTHBANK_SOURCE_TEMPLATE_DIR));
+      env_var("NOBION_EARTHBANK_TEMPLATES"), executable_dir(), fs::path(NOBION_EARTHBANK_SOURCE_TEMPLATE_DIR));
   if (search.found.empty()) return fail(ErrorKind::Io, detail::templates_not_found(search));
   return search.found;
 }
@@ -1077,7 +1077,7 @@ namespace detail {
 
 TemplateSearch find_templates(const std::optional<std::string>& named, const fs::path& program_dir,
                               const fs::path& source_dir) {
-  constexpr std::string_view kNamed = "the directory PYCHRON_EARTHBANK_TEMPLATES names";
+  constexpr std::string_view kNamed = "the directory NOBION_EARTHBANK_TEMPLATES names";
   TemplateSearch out;
   if (named && !named->empty()) {
     out.tried.push_back(std::string(kNamed) + " (" + *named + ")");
@@ -1090,9 +1090,9 @@ TemplateSearch find_templates(const std::optional<std::string>& named, const fs:
   if (program_dir.empty()) {
     out.tried.emplace_back("beside the program (where it runs from is not known)");
   } else {
-    // As cmake/PychronInstall.cmake lays an install out: share/pychron beside
+    // As cmake/NobionInstall.cmake lays an install out: share/nobion beside
     // bin, or the Resources of a macOS bundle.
-    for (const fs::path& base : {program_dir / ".." / "share" / "pychron", program_dir / ".." / "Resources"}) {
+    for (const fs::path& base : {program_dir / ".." / "share" / "nobion", program_dir / ".." / "Resources"}) {
       fs::path dir = base / "earthbank" / "templates";
       if (const fs::path canonical = fs::weakly_canonical(dir, ec); !ec) dir = canonical;
       out.tried.push_back(dir.string());
@@ -1134,8 +1134,8 @@ std::vector<fs::path> take_back(const std::vector<fs::path>& written) {
 fs::path default_template_dir() { return default_template_dir(executable_dir()); }
 
 fs::path default_template_dir(const fs::path& program_dir) {
-  return detail::find_templates(env_var("PYCHRON_EARTHBANK_TEMPLATES"), program_dir,
-                                fs::path(PYCHRON_EARTHBANK_SOURCE_TEMPLATE_DIR))
+  return detail::find_templates(env_var("NOBION_EARTHBANK_TEMPLATES"), program_dir,
+                                fs::path(NOBION_EARTHBANK_SOURCE_TEMPLATE_DIR))
       .found;
 }
 
@@ -1203,4 +1203,4 @@ Result<XlsxResult> export_xlsx(const std::vector<Submission>& submissions, const
   return result;
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

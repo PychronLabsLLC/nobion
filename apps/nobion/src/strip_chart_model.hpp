@@ -1,0 +1,107 @@
+#pragma once
+
+// StripChartModel: the data and view settings behind the live strip chart, with
+// no widgets. One TimeSeriesRing per detector, x = seconds since the first
+// reading after construction or clear(). Plain C++ plus QColor/QString value
+// types so it is testable without a window.
+//
+// A detector whose value is nullopt in a row gets a NaN-valued point at that x
+// (TimeSeriesRing::range skips NaN) so the view can break the line there. Rows
+// whose values are all nullopt still advance latest_x(). Readings carry values
+// that are already gain-corrected; none is applied here.
+
+#include <cstddef>
+#include <map>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include <QColor>
+#include <QString>
+
+#include "nobion/core/clock.hpp"
+#include "nobion/core/time_series_ring.hpp"
+#include "nobion/systems/spectrometer/acquisition.hpp"
+
+namespace nobion::ui {
+
+struct DetectorSeries {
+  std::string name;
+  QColor color;  // invalid: use StripChartModel::palette_color(index)
+  QString units;
+  QString isotope;
+  bool visible = true;
+  // Set: the colour is the live palette's slot (plot_series_color) and
+  // follows a change of it (restyle). Unset: the colour is the config's and is
+  // never changed. A model given an invalid colour sets it to the index.
+  std::optional<std::size_t> palette_slot = std::nullopt;
+};
+
+enum class YScale { Linear, Log };
+
+struct AxisRange {
+  double lo;
+  double hi;
+};
+
+class StripChartModel {
+ public:
+  static QColor palette_color(std::size_t index);  // the live palette, cycled
+
+  explicit StripChartModel(std::vector<DetectorSeries> detectors);
+
+  const std::vector<DetectorSeries>& detectors() const { return detectors_; }
+  // The palette series take the current plot_style()'s colours again.
+  void restyle();
+  const TimeSeriesRing& series(std::size_t i) const { return rings_[i]; }
+
+  // A timestamp earlier than the previous row's resets the chart. Detector
+  // names the model does not know are ignored; a row with none is dropped.
+  void append(const spectrometer::IntensityReading& r);
+  void clear();
+  // Counts the times the chart's time began again (clear(), or a reading
+  // earlier than the last): an x taken before means nothing after.
+  unsigned epoch() const noexcept { return epoch_; }
+  double latest_x() const { return latest_x_; }  // 0 when empty
+  // The x a reading of that time has, or would have, on this chart; nullopt
+  // while the chart is empty (it has no origin).
+  std::optional<double> x_of(TimePoint ts) const;
+
+  // Seconds, minimum 1; the ring span follows as 1.8 * width.
+  void set_scan_width(double seconds);
+  double scan_width() const { return scan_width_; }
+
+  // Hidden series keep buffering.
+  void set_visible(std::size_t i, bool v);
+
+  void set_scale(YScale s);
+  YScale scale() const { return scale_; }
+  void set_autoscale(bool on);
+  bool autoscale() const { return autoscale_; }
+  // False and unchanged unless lo < hi (and lo > 0 on Log).
+  bool set_manual_y(double lo, double hi);
+
+  AxisRange x_range() const;
+  // Autoscale is recomputed at most every 0.5 s of `now`; the first call
+  // always computes. Empty data keeps the previous range.
+  AxisRange y_range(TimePoint now);
+
+ private:
+  AxisRange compute_autoscale() const;
+
+  std::vector<DetectorSeries> detectors_;
+  std::vector<TimeSeriesRing> rings_;
+  std::map<std::string, std::size_t> index_;
+  double scan_width_ = 60.0;
+  YScale scale_ = YScale::Linear;
+  bool autoscale_ = true;
+  AxisRange manual_{0.0, 1.0};
+  AxisRange auto_{0.0, 1.0};
+  std::optional<TimePoint> last_auto_;
+  std::optional<TimePoint> origin_;
+  TimePoint last_ts_{};
+  unsigned epoch_ = 0;
+  double latest_x_ = 0.0;
+};
+
+}  // namespace nobion::ui

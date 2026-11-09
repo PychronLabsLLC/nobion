@@ -1,14 +1,17 @@
-#include "pychron/processing/options.hpp"
+#include "nobion/processing/options.hpp"
 
 #include <gtest/gtest.h>
 
 #include <filesystem>
 #include <fstream>
+#include <functional>
 
-#include "pychron/processing/time_series.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/processing/isotope_evolution_fit.hpp"
+#include "nobion/processing/reference_fit.hpp"
+#include "nobion/processing/time_series.hpp"
+#include "nobion/processing/units.hpp"
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 namespace fs = std::filesystem;
 
 namespace {
@@ -59,7 +62,10 @@ TEST(Options, SetValidates) {
   auto row = o.new_row("panels");
   EXPECT_TRUE(row.set("quantity", std::string("Ar40.ic_corrected")));
   EXPECT_EQ(row.get_string("quantity"), "Ar40");  // canonical form
-  EXPECT_FALSE(row.set("quantity", std::string("Ar40.bad")));
+  // Malformed: options know no domain, so a stage that is a name parses (as
+  // a domain's) and only text that is no quantity is refused.
+  EXPECT_FALSE(row.set("quantity", std::string("Ar40.b ad")));
+  EXPECT_FALSE(row.set("quantity", std::string("Ar40/Ar36/Ar38")));
   EXPECT_TRUE(o.set_rows("panels", {row, row}));
   EXPECT_EQ(o.rows("panels").size(), 2u);
   EXPECT_FALSE(o.set_rows("panels", {}));  // at least one panel
@@ -181,6 +187,29 @@ TEST(Options, MigrationsRunFromTheFileVersion) {
   EXPECT_FALSE(v9->warnings.empty());
 }
 
+// The program writes "color" (as the data browser's "Color by" and the
+// detector table's "Color" do): no label, help text or message of an options
+// schema says "colour". The Ar-Ar schemas: tests/arar/test_options_arar.cpp.
+TEST(Options, EverySchemaSaysColor) {
+  const std::function<void(const pp::Schema&, const std::string&)> check = [&](const pp::Schema& schema,
+                                                                               const std::string& where) {
+    for (const auto& f : schema.fields) {
+      for (const std::string* text : {&f.label, &f.help, &f.section}) {
+        EXPECT_EQ(text->find("olour"), std::string::npos) << where << " " << f.key << ": " << *text;
+      }
+    }
+    for (const auto& l : schema.lists) {
+      EXPECT_EQ(l.label.find("olour"), std::string::npos) << where << " " << l.key << ": " << l.label;
+      if (l.row) check(*l.row, where + " " + l.key);
+    }
+  };
+  for (const pp::SchemaPtr& schema : {pp::time_series_schema(), pp::blank_fit_schema(), pp::icfactor_fit_schema(),
+                                      pp::isotope_evolution_fit_schema()}) {
+    ASSERT_TRUE(schema);
+    check(*schema, schema->kind);
+  }
+}
+
 TEST(Options, FactoryPresetsAreClean) {
   pp::PresetStore store(fs::temp_directory_path() / "pp_no_such_dir");
   for (const auto& [name, _] : ts()->factory_presets) {
@@ -188,9 +217,11 @@ TEST(Options, FactoryPresetsAreClean) {
     ASSERT_TRUE(f) << name;
     EXPECT_TRUE(f->warnings.empty()) << name;  // legacy W4: factory sets naming missing fields
   }
-  // Every unit's schema defaults are valid values.
-  for (const auto& kind : pp::UnitRegistry::builtin().kinds()) {
-    const auto& schema = pp::UnitRegistry::builtin().find(kind)->schema();
+  // Every unit's schema defaults are valid values (with a default quantity
+  // that is one).
+  const pp::UnitRegistry registry = pp::UnitRegistry::core("Ar40");
+  for (const auto& kind : registry.kinds()) {
+    const auto& schema = registry.find(kind)->schema();
     for (const auto& field : schema->fields) {
       if (std::holds_alternative<std::monostate>(field.default_value)) continue;
       EXPECT_TRUE(pp::validate(field, field.default_value)) << kind << "." << field.key;
@@ -206,7 +237,7 @@ TEST(Options, PresetStoreLayers) {
     for (const auto& p : store.list(ts())) out.push_back(p.name);
     return out;
   };
-  EXPECT_EQ(names(), (std::vector<std::string>{"Air monitor", "Blanks", "Default", "Spectrometer", "Unknowns"}));
+  EXPECT_EQ(names(), (std::vector<std::string>{"Air monitor", "Blanks", "Default", "Presentation", "Spectrometer", "Unknowns"}));
 
   // A lab preset, then a user preset that shadows a factory one.
   {
@@ -220,7 +251,7 @@ TEST(Options, PresetStoreLayers) {
   ASSERT_TRUE(store.save("Default", mine));
   ASSERT_TRUE(store.save("My Blanks", mine));
   const auto list = store.list(ts());
-  ASSERT_EQ(list.size(), 7u);
+  ASSERT_EQ(list.size(), 8u);
   for (const auto& p : list) {
     if (p.name == "Default") {
       EXPECT_EQ(p.origin, pp::PresetOrigin::User);

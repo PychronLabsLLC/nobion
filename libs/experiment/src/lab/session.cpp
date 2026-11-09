@@ -1,24 +1,29 @@
-#include "pychron/experiment/lab/session.hpp"
+#include "nobion/experiment/lab/session.hpp"
 
 #include <chrono>
 #include <map>
 #include <string>
 #include <utility>
 
-#include "pychron/core/events.hpp"
-#include "pychron/experiment/measurement/adapters.hpp"
-#include "pychron/devices/extraction/interfaces.hpp"
-#include "pychron/experiment/persist/persister.hpp"
-#include "pychron/experiment/lab/lasers.hpp"
-#include "pychron/scripting/script_host.hpp"
-#include "pychron/sim/sim_system.hpp"
-#include "pychron/systems/extraction_line.hpp"
-#include "pychron/systems/spectrometer/scan_service.hpp"
-#include "pychron/systems/line_cryo_service.hpp"
-#include "pychron/systems/line_pressure_service.hpp"
-#include "pychron/systems/switch_valve_service.hpp"
+#include "nobion/core/build_info.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/log_error.hpp"
+#include "nobion/core/log_context.hpp"
+#include "nobion/experiment/executor/links.hpp"
+#include "nobion/experiment/lab/script_actor.hpp"
+#include "nobion/experiment/measurement/adapters.hpp"
+#include "nobion/devices/extraction/interfaces.hpp"
+#include "nobion/experiment/persist/persister.hpp"
+#include "nobion/experiment/lab/lasers.hpp"
+#include "nobion/scripting/script_host.hpp"
+#include "nobion/sim/sim_system.hpp"
+#include "nobion/systems/extraction_line.hpp"
+#include "nobion/systems/spectrometer/scan_service.hpp"
+#include "nobion/systems/line_cryo_service.hpp"
+#include "nobion/systems/line_pressure_service.hpp"
+#include "nobion/systems/switch_valve_service.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 namespace fs = std::filesystem;
 
@@ -31,7 +36,7 @@ struct LabSession::Services {
   Services(const Lab& lab, const SessionHardware& hw, const fs::path& data, Lasers& lasers,
            persist::IAnalysisPersister* given)
       : host(scripting::make_script_host()),
-        script_valves(hw.line.switches(), "script"),
+        script_valves(hw.line.switches(), std::string(kScriptActor)),
         script_pressure(hw.line),
         script_cryo(hw.line),
         valves(hw.line, "measurement"),
@@ -39,7 +44,20 @@ struct LabSession::Services {
         files(data / "records"),
         spool(data / "spool"),
         save(spool, given != nullptr ? *given : static_cast<persist::IAnalysisPersister&>(files)),
-        aliquots(given != nullptr ? *given : static_cast<persist::IAnalysisPersister&>(files)) {
+        flusher(save, hw.line.scheduler(), hw.line.clock(), &hw.line.bus()),
+        aliquots(given != nullptr ? *given : static_cast<persist::IAnalysisPersister&>(files)),
+        // The links each run needs (spec 4.3), and a spool the queue can rely on (4.6).
+        links_up([line = &hw.line, spec = hw.spectrometer](const RunSpec& run) {
+          return executor::required_links(run, line->links(), spec != nullptr ? spec->links() : std::vector<Link*>{});
+        }),
+        spool_writable({lab.executor.spool.min_free_mb, static_cast<std::size_t>(lab.executor.spool.max_pending)},
+                       [dir = data / "spool"]() -> std::optional<double> {
+                         std::error_code ec;
+                         const auto space = fs::space(fs::exists(dir, ec) ? dir : dir.parent_path(), ec);
+                         if (ec) return std::nullopt;
+                         return static_cast<double>(space.available) / (1024.0 * 1024.0);
+                       },
+                       [this] { return save.pending(); }) {
     if (hw.spectrometer != nullptr) {
       port.emplace(*hw.spectrometer);
       jobs::PeakCenterOptions pc;
@@ -59,6 +77,11 @@ struct LabSession::Services {
     s.valves = &valves;
     s.peak_center = peak_center ? &*peak_center : nullptr;
     s.instrument_metrics = &instrument;
+    if (lab.spectrometer) {
+      s.detector_timing = measurement::detector_timing(lab.spectrometer->config);
+      s.reference_detector = lab.spectrometer->config.system.reference_detector;
+      for (const auto& i : lab.spectrometer->config.interferences) s.interferences.emplace_back(i.monitor, i.corrects);
+    }
     if (auto* spec = hw.spectrometer) {
       s.spectrometer_info = [spec] {
         const auto st = spec->snapshot();
@@ -67,11 +90,24 @@ struct LabSession::Services {
       };
     }
     s.plans = lab.plans.get();
+    s.plan_dir = lab.paths.dir / "plans";
     s.conditionals = lab.conditionals.get();
     s.aliquots = &aliquots;
+    // executor.toml: how a measurement and a failed run ride out a link.
+    s.engine.max_gap = lab.executor.max_gap();
+    s.engine.min_counts_fraction = lab.executor.measurement.min_counts_fraction;
+    s.engine.critical_window = lab.executor.critical_window();
+    s.critical_window = lab.executor.critical_window();
     s.persister = given != nullptr ? given : &files;
     s.save = &save;
+    ctx.flusher = &flusher;
+    ctx.spectrometer = hw.spectrometer;  // holds the field table while a queue runs
     ctx.pre_run_metrics = &instrument;
+    ctx.checks = {&links_up, &spool_writable};
+    ctx.links = [line = &hw.line, spec = hw.spectrometer](const RunSpec& run) {
+      return executor::required_links(run, line->links(), spec != nullptr ? spec->links() : std::vector<Link*>{})
+          .required;
+    };
     ctx.blank = default_blank_factory(lab.ids);
   }
 
@@ -86,17 +122,35 @@ struct LabSession::Services {
   persist::FilePersister files;
   persist::Spool spool;
   persist::SavePipeline save;
+  persist::SpoolFlusher flusher;  // spec 4.8: after every run, and while anything is pending
   persist::AliquotAllocator aliquots;
+  executor::LinksUp links_up;
+  executor::SpoolWritable spool_writable;
   executor::ExecutorContext ctx;
 };
 
 LabSession::LabSession(const Lab& lab, SessionHardware hardware, SessionOptions options)
-    : lab_(lab), hardware_(hardware), options_(std::move(options)) {
+    : lab_(lab), peak_centers_(lab.peak_centers), hardware_(std::move(hardware)), options_(std::move(options)) {
   if (options_.executor.state_file.empty()) options_.executor.state_file = options_.data / "executor_state.json";
+  {
+    // executor.toml [hold] (spec 4.10).
+    const auto& h = lab_.executor.hold;
+    const auto seconds = [](double s) {
+      return std::chrono::duration_cast<nobion::Duration>(std::chrono::duration<double>(s));
+    };
+    options_.executor.hold.settle = seconds(h.settle_s);
+    options_.executor.hold.probe_interval = seconds(h.probe_interval_s);
+    options_.executor.hold.limit = seconds(h.limit_s);
+    options_.executor.hold.end_after_link_failure = h.after_link_failure == AfterLinkFailure::End;
+  }
   if (hardware_.lasers == nullptr) own_lasers_ = std::make_unique<Lasers>(lab_, hardware_.line, hardware_.simulated);
   lasers_ = hardware_.lasers != nullptr ? hardware_.lasers : own_lasers_.get();
   services_ = std::make_unique<Services>(lab_, hardware_, options_.data, *lasers_, options_.persister);
-  notifier_ = std::make_unique<Notifier>(hardware_.line.bus(), lab_.notifications, options_.notify);
+  NotifierOptions notify;
+  if (!options_.data.empty()) notify.outbox = options_.data / "outbox";
+  notify.runner = options_.notify;
+  notify.clock = &hardware_.line.clock();
+  notifier_ = std::make_unique<Notifier>(hardware_.line.bus(), lab_.notifications, std::move(notify));
 }
 
 LabSession::~LabSession() {
@@ -122,6 +176,15 @@ bool LabSession::has_spectrometer() const noexcept { return hardware_.spectromet
 
 Result<void> LabSession::start(QueueSpec queue, std::size_t from_row) {
   if (running()) return fail(ErrorKind::Config, "a queue is already running", "experiment");
+  // A set saved since the last queue (the spectrometer window's) is seen by
+  // this one; a file that does not parse refuses the start.
+  {
+    auto sets = read_peak_center_file(lab_.paths.dir / "peak_center.toml");
+    if (!sets) return fail(ErrorKind::Config, sets.error().what, "experiment");
+    if (services_->peak_center) services_->peak_center->set_configs(*sets);
+    std::lock_guard lock(mutex_);
+    peak_centers_ = std::move(*sets);
+  }
   if (auto ok = check(queue); !ok) return ok;
   // Of what will run: the rows before `from_row` are not, and what the
   // persister already holds of them is no reason to refuse the rest.
@@ -158,6 +221,8 @@ Result<void> LabSession::start(QueueSpec queue, std::size_t from_row) {
   auto ctx = services_->ctx;
   ctx.services.instrument.mass_spectrometer = queue.mass_spectrometer;
   ctx.services.instrument.analyst = queue.username;
+  ctx.services.instrument.software_version = std::string(nobion::build_info().version);
+  ctx.services.instrument.software_git_sha = std::string(nobion::build_info().git_sha);
   ctx.services.instrument.simulated = hardware_.simulation;  // travels with each record
   {
     std::lock_guard lock(mutex_);
@@ -175,6 +240,7 @@ Result<void> LabSession::start(QueueSpec queue, std::size_t from_row) {
   auto hold = std::make_shared<Clock::Hold>(clock);
   thread_ = std::thread([this, &clock, hold, queue = std::move(queue), from_row]() mutable {
     Clock::Participant participant(clock, "lab.session");
+    const LogContext::Thread log_thread("queue");
     hold.reset();
     run(std::move(queue), from_row);
     // Said while this thread is still a participant.
@@ -185,8 +251,33 @@ Result<void> LabSession::start(QueueSpec queue, std::size_t from_row) {
   return {};
 }
 
+LabCheck LabSession::check_queue(const QueueSpec& queue) const {
+  std::map<std::string, jobs::PeakCenterConfig> sets;
+  {
+    std::lock_guard lock(mutex_);
+    sets = peak_centers_;
+  }
+  std::optional<std::string> unreadable;
+  if (!running()) {
+    auto fresh = read_peak_center_file(lab_.paths.dir / "peak_center.toml");
+    if (fresh) {
+      sets = std::move(*fresh);
+    } else {
+      unreadable = fresh.error().what;
+    }
+  }
+  auto out = check_lab_queue(lab_, queue, &sets);
+  if (unreadable) out.extra.insert(out.extra.begin(), Diagnostic{Severity::Error, -1, "lab", *unreadable});
+  return out;
+}
+
 Result<void> LabSession::check(const QueueSpec& queue) const {
-  const auto c = check_lab_queue(lab_, queue);
+  std::map<std::string, jobs::PeakCenterConfig> sets;
+  {
+    std::lock_guard lock(mutex_);
+    sets = peak_centers_;
+  }
+  const auto c = check_lab_queue(lab_, queue, &sets);
   if (c.ok()) return {};
   int errors = 0;
   std::string first;
@@ -244,8 +335,8 @@ void LabSession::run(QueueSpec spec, std::size_t from_row) {
   auto& bus = hardware_.line.bus();
   if (paused_here) {
     if (auto r = scan->resume(); !r) {
-      bus.publish(Log{LogLevel::Warn, "experiment", "scan did not resume: " + to_string(r.error()),
-                      hardware_.line.clock().now()});
+      log_and_publish(log_, &bus, "experiment", LogLevel::Warn, "scan did not resume: " + to_string(r.error()),
+                      hardware_.line.clock().now());
     }
   }
   {
@@ -274,6 +365,15 @@ void LabSession::abort() {
 
 void LabSession::truncate(bool quick) {
   if (auto ex = active()) ex->truncate(quick);
+}
+
+void LabSession::resume() {
+  if (auto ex = active()) ex->resume();
+}
+
+Result<void> LabSession::skip() {
+  if (auto ex = active()) return ex->skip();
+  return fail(ErrorKind::Config, "no queue is running");
 }
 
 std::shared_ptr<executor::Executor> LabSession::active() const {
@@ -312,4 +412,4 @@ Result<std::size_t> LabSession::resume_row(const fs::path& data) {
   return executor::Executor::resume_row(data / "executor_state.json");
 }
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

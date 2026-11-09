@@ -7,10 +7,10 @@
 
 #include "catalog_fixture.hpp"
 
-using namespace pychron;
-using namespace pychron::persistence;
-using namespace pychron::persistence::testing;
-namespace pd = pychron::persistence::detail;
+using namespace nobion;
+using namespace nobion::persistence;
+using namespace nobion::persistence::testing;
+namespace pd = nobion::persistence::detail;
 
 namespace {
 
@@ -45,7 +45,7 @@ TEST_P(CatalogEditTest, InsertUpdateDeleteRoundTrip) {
   const Uuid pkg = Uuid::v7(), level = Uuid::v7(), position = Uuid::v7();
   CatalogEditBatch batch;
   batch.edits = {
-      CatalogInsert{CatalogTable::PrincipalInvestigator, pi, {{"last_name", text("Doe")}, {"first_initial", text("A")}, {"email", text("a@b")}}},
+      CatalogInsert{CatalogTable::PrincipalInvestigator, pi, {{"family_name", text("Doe")}, {"given_name", text("A")}, {"email", text("a@b")}}},
       CatalogInsert{CatalogTable::Project, project, {{"name", text("Delta")}, {"pi_uuid", pi}, {"checkin_date", text("2026-10-04")}}},
       CatalogInsert{CatalogTable::Material, material, {{"name", text("plagioclase")}}},
       CatalogInsert{CatalogTable::Sample, sample,

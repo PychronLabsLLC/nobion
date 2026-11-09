@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cctype>
 
-namespace pychron::setup::legacy {
+namespace nobion::setup::legacy {
 
 std::string trim(std::string_view s) {
   std::size_t a = 0, b = s.size();
@@ -349,4 +349,4 @@ Ini parse_ini(std::string_view text) {
   return out;
 }
 
-}  // namespace pychron::setup::legacy
+}  // namespace nobion::setup::legacy

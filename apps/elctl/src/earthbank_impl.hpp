@@ -2,7 +2,7 @@
 
 // What the parts of `elctl earthbank` share (earthbank.cpp: the workbooks and
 // the pre-flight check; earthbank_account.cpp: login, account, packages,
-// import-profiles; earthbank_prompt.cpp: a password asked for at a terminal).
+// import-profiles; the password prompt is password_prompt.hpp's).
 // Internal to elctl; built with persistence only.
 
 #include <filesystem>
@@ -14,11 +14,12 @@
 
 #include "cli.hpp"
 #include "earthbank.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/http.hpp"
-#include "pychron/earthbank/profiles.hpp"
-#include "pychron/earthbank/secret_store.hpp"
-#include "pychron/earthbank/session.hpp"
+#include "password_prompt.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/http.hpp"
+#include "nobion/earthbank/profiles.hpp"
+#include "nobion/earthbank/secret_store.hpp"
+#include "nobion/earthbank/session.hpp"
 
 namespace elctl::earthbank_cli {
 
@@ -29,7 +30,7 @@ inline constexpr const char* kNoNetwork = "this build has no network support (Qt
 // `elctl earthbank: <message>`, exit 2. The library says `earthbank: ...`;
 // under this command's name that is said once.
 int fatal(Io io, std::string_view message);
-inline int fatal(Io io, const pychron::Error& error) { return fatal(io, error.what); }
+inline int fatal(Io io, const nobion::Error& error) { return fatal(io, error.what); }
 
 // The flags that say which profile and server: --profiles <file>, --profile
 // <name>, --base-url <url>.
@@ -39,17 +40,17 @@ struct ConnectFlags {
 
 // `args[i]` as one of them. True: it was one, and `i` is on its value. False:
 // it is not one of these. A flag without its value is an error.
-pychron::Result<bool> take_connect_flag(ConnectFlags& flags, const std::vector<std::string>& args, std::size_t& i);
+nobion::Result<bool> take_connect_flag(ConnectFlags& flags, const std::vector<std::string>& args, std::size_t& i);
 
 // A session on the server of a profile, signed in when a password is to be had.
 struct Online {
-  std::unique_ptr<pychron::earthbank::IHttpClient> owned_http;
-  std::unique_ptr<pychron::earthbank::ISecretStore> owned_secrets;
-  std::unique_ptr<pychron::earthbank::Session> session;
+  std::unique_ptr<nobion::earthbank::IHttpClient> owned_http;
+  std::unique_ptr<nobion::earthbank::ISecretStore> owned_secrets;
+  std::unique_ptr<nobion::earthbank::Session> session;
   std::filesystem::path profiles_file;
-  pychron::earthbank::Profiles profiles;
+  nobion::earthbank::Profiles profiles;
   // The profile in use, if there is one (a pre-flight may go without).
-  std::optional<pychron::earthbank::Profile> profile;
+  std::optional<nobion::earthbank::Profile> profile;
   // Why the session is not signed in, when it is not, in a sentence.
   std::string not_signed_in;
   // It is not signed in because no password was to be had (none kept, none in
@@ -71,9 +72,8 @@ int account_command(const std::vector<std::string>& args, Io io, const Earthbank
 int packages_command(const std::vector<std::string>& args, Io io, const EarthbankDeps& deps);
 int import_profiles_command(const std::vector<std::string>& args, Io io);
 
-// Whether the program's input is a terminal a password can be typed at
-// without echo; and that password, read. Null if it could not be read.
-bool at_terminal(Io io);
-std::optional<std::string> read_password(Io io, std::string_view prompt);
+// The password prompt (password_prompt.hpp), shared with data-source.
+using elctl::at_terminal;
+using elctl::read_password;
 
 }  // namespace elctl::earthbank_cli

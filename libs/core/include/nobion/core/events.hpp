@@ -1,0 +1,139 @@
+#pragma once
+
+// Events published on the SignalBus. All are plain values: state leaves the
+// core only by copy, never by reference to a live object.
+
+#include <cstdint>
+#include <map>
+#include <optional>
+#include <set>
+#include <string>
+
+#include "nobion/core/clock.hpp"
+#include "nobion/core/device_state.hpp"
+#include "nobion/core/error.hpp"
+
+namespace nobion {
+
+enum class ValveState { Unknown, Open, Closed };
+
+enum class AlarmSeverity { Info, Warning, Critical };
+
+enum class LogLevel { Trace, Debug, Info, Warn, Error };
+
+// Emitted by the Scheduler for every successful periodic scan.
+struct Sample {
+  std::string device;
+  TimePoint ts{};
+  double value = 0.0;
+};
+
+struct ValveChanged {
+  std::string valve;
+  ValveState state = ValveState::Unknown;
+  TimePoint ts{};
+};
+
+struct PressureSample {
+  std::string gauge;
+  double value = 0.0;
+  std::string units;
+  TimePoint ts{};
+};
+
+// One reading of a temperature controller's input, in kelvin (the line's
+// cryostat scan).
+struct TemperatureSample {
+  std::string source;  // the controller's driver name
+  std::string input;   // "A", "B", ...
+  double kelvin = 0.0;
+  TimePoint ts{};
+};
+
+// One scan of a heater ([[heaters]]), in its configured units. A field the
+// heater's driver does not support is nullopt.
+struct HeaterSample {
+  std::string heater;
+  std::optional<double> readback;
+  std::optional<double> setpoint;
+  std::optional<bool> enabled;
+  std::optional<bool> use_pid;
+  TimePoint ts{};
+};
+
+struct Alarm {
+  std::string source;
+  AlarmSeverity severity = AlarmSeverity::Warning;
+  std::string message;
+  TimePoint ts{};
+};
+
+struct TransportHealth {
+  std::string transport;
+  bool connected = false;
+  std::uint64_t error_count = 0;
+  std::string last_error;
+  TimePoint ts{};
+};
+
+// A link came back: `attempts` reopens since a call found it gone, and how
+// long it was gone from that call's view.
+struct LinkReconnected {
+  std::string transport;
+  std::uint64_t attempts = 0;
+  Duration down_for{};
+  TimePoint ts{};
+};
+
+// A device's health changed state (spec 2026-11-06-field-diagnostics, 7):
+// published by nobion::Device on the thread that ran the operation (a
+// transport worker, a scheduler job, the caller of the driver), once per
+// change, never once per failure, in the order the changes were made. A
+// handler copies what it needs and returns: it never calls into a device or
+// a transport, which may be the very one publishing.
+struct DeviceHealthChanged {
+  std::string device;     // the configured driver name
+  std::string transport;  // the configured name of the transport it is on
+  DeviceState from = DeviceState::Unknown;
+  DeviceState to = DeviceState::Unknown;
+  std::uint64_t consecutive_failures = 0;
+  // Of the last failure; kept after a recovery, as DeviceHealth keeps it.
+  std::optional<ErrorKind> last_error_kind;
+  // The last failure's Error::what, cut to 512 bytes (truncate_for_log);
+  // empty on a change to Ok.
+  std::string last_error_text;
+  TimePoint ts{};  // the device's clock
+};
+
+struct Log {
+  LogLevel level = LogLevel::Info;
+  std::string logger;
+  std::string message;
+  TimePoint ts{};
+  // Thread tag of the writer (`executor`, or `t<n>` for an untagged thread)
+  // and its run id (empty outside a run scope): nobion::LogContext.
+  std::string thread{};
+  std::string run{};
+};
+
+// A valve or switch was software-locked or unlocked.
+struct SwitchLockChanged {
+  std::string name;
+  bool locked = false;
+  TimePoint ts{};
+};
+
+struct Snapshot {
+  std::map<std::string, ValveState> valves;
+  std::set<std::string> locked;  // software-locked valves and switches
+  std::map<std::string, double> pressures;
+  TimePoint ts{};
+};
+
+struct ActuationFailed {
+  std::string valve;
+  Error error;
+  TimePoint ts{};
+};
+
+}  // namespace nobion

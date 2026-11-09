@@ -4,12 +4,14 @@
 
 #include <algorithm>
 #include <cctype>
+#include <set>
 #include <utility>
 
+#include "catalog_impl.hpp"
 #include "sql/browse.hpp"
 #include "store_impl.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 
 namespace {
 
@@ -62,7 +64,33 @@ struct Where {
   QString sql() const { return clauses.isEmpty() ? QString() : QStringLiteral("WHERE ") + clauses.join(QStringLiteral(" AND ")); }
 };
 
-Result<Where> build_where(Db& db, Dialect dialect, const BrowseFilter& f, std::optional<BrowseFacet> ignore) {
+// The clause of the irradiation tree: one UNION branch per non-empty part.
+void add_positions(Where& w, const PositionFilter& p) {
+  QStringList branches;
+  auto branch = [&](const QString& select, std::size_t n) {
+    branches << select.arg(sql::placeholders(static_cast<qsizetype>(n)));
+  };
+  if (!p.irradiations.empty()) {
+    branch(sql::kPositionByIrradiation, p.irradiations.size());
+    for (const Uuid& id : p.irradiations) w.bindings << qv(id);
+  }
+  if (!p.levels.empty()) {
+    branch(sql::kPositionByLevel, p.levels.size());
+    for (const Uuid& id : p.levels) w.bindings << qv(id);
+  }
+  if (!p.identifiers.empty()) {
+    branch(sql::kPositionByIdentifier, p.identifiers.size());
+    for (const auto& id : p.identifiers) w.bindings << qv(id);
+  }
+  if (p.not_irradiated) branches << sql::kPositionNotIrradiated;
+  w.clauses << (branches.isEmpty() ? sql::kPositionNone
+                                   : sql::kPositionIn.arg(branches.join(QStringLiteral(" UNION "))));
+}
+
+// `with_positions` false: the listing of positions, which ignores its own
+// filter as a facet does.
+Result<Where> build_where(Db& db, Dialect dialect, const BrowseFilter& f, std::optional<BrowseFacet> ignore,
+                          bool with_positions = true) {
   Where w;
   auto list = [&](BrowseFacet facet, const std::vector<std::string>& values) {
     if (values.empty() || ignore == facet) return;
@@ -76,7 +104,11 @@ Result<Where> build_where(Db& db, Dialect dialect, const BrowseFilter& f, std::o
   list(BrowseFacet::Identifier, f.identifiers);
   list(BrowseFacet::Sample, f.samples);
   list(BrowseFacet::Project, f.projects);
-  list(BrowseFacet::PrincipalInvestigator, f.principal_investigators);
+  if (!f.principal_investigators.empty() && ignore != BrowseFacet::PrincipalInvestigator) {
+    w.clauses << sql::kBrowseIn.arg(sql::kColPrincipalInvestigator,
+                                    sql::placeholders(static_cast<qsizetype>(f.principal_investigators.size())));
+    for (const Uuid& id : f.principal_investigators) w.bindings << qv(id);
+  }
   list(BrowseFacet::Material, f.materials);
   list(BrowseFacet::AnalysisType, f.analysis_types);
   list(BrowseFacet::MassSpectrometer, f.mass_spectrometers);
@@ -112,7 +144,31 @@ Result<Where> build_where(Db& db, Dialect dialect, const BrowseFilter& f, std::o
     w.clauses << sql::kBrowseTagNotIn.arg(sql::placeholders(static_cast<qsizetype>(f.exclude_tags.size())));
     for (const auto& t : f.exclude_tags) w.bindings << qv(t);
   }
+  if (f.age_min) {
+    w.clauses << sql::kBrowseAgeMin;
+    w.bindings << *f.age_min;
+  }
+  if (f.age_max) {
+    w.clauses << sql::kBrowseAgeMax;
+    w.bindings << *f.age_max;
+  }
+  if (!f.uuids.empty()) {
+    w.clauses << sql::kBrowseUuidIn.arg(sql::placeholders(static_cast<qsizetype>(f.uuids.size())));
+    for (const Uuid& id : f.uuids) w.bindings << qv(id);
+  }
+  if (with_positions && f.positions) add_positions(w, *f.positions);
   return w;
+}
+
+bool has_age_bound(const BrowseFilter& f) noexcept { return f.age_min.has_value() || f.age_max.has_value(); }
+
+// The FROM clause of a page (always reads the cached age) or of a count or
+// facet (only when an age bound needs it). See kBrowseAgeJoin.
+QString from_for_page(const BrowseFilter& f) {
+  return sql::kBrowseFrom + (has_age_bound(f) ? sql::kBrowseAgeRangeJoin : sql::kBrowseAgeJoin);
+}
+QString from_for_aggregate(const BrowseFilter& f) {
+  return has_age_bound(f) ? sql::kBrowseFrom + sql::kBrowseAgeRangeJoin : sql::kBrowseFrom;
 }
 
 BrowseRow row_from(const Row& r) {
@@ -133,6 +189,9 @@ BrowseRow row_from(const Row& r) {
   b.project = to_std(r.value("project"));
   b.material = to_std(r.value("material"));
   b.principal_investigator = to_std(r.value("principal_investigator"));
+  b.principal_investigator_uuid = opt_uuid(r.value("principal_investigator_uuid"));
+  b.irradiation_uuid = opt_uuid(r.value("irradiation_uuid"));
+  b.level_uuid = opt_uuid(r.value("level_uuid"));
   b.extract_device = to_std(r.value("extract_device"));
   b.load = to_std(r.value("load_name"));
   b.irradiation = to_std(r.value("irradiation"));
@@ -142,31 +201,97 @@ BrowseRow row_from(const Row& r) {
   b.position = opt_int(r.value("position"));
   b.extract_value = opt_double(r.value("extract_value"));
   b.extract_units = to_std(r.value("extract_units"));
+  b.age = opt_double(r.value("age"));
+  b.age_err = opt_double(r.value("age_err"));
   return b;
+}
+
+// In parts: a statement takes a bounded number of values (999 on an older
+// SQLite). Every part is a whole page of its own, so the rows are merged into
+// the order of one page; no total and no cursor (count_total is ignored).
+constexpr std::size_t kUuidPart = 500;
+
+Result<BrowseResult> browse_uuids_in_parts(Db& db, Dialect dialect, const BrowseRequest& req) {
+  BrowseResult out;
+  const auto& all = req.filter.uuids;
+  for (std::size_t at = 0; at < all.size(); at += kUuidPart) {
+    const auto n = std::min(kUuidPart, all.size() - at);
+    BrowseRequest part = req;
+    part.filter.uuids.assign(all.begin() + static_cast<std::ptrdiff_t>(at),
+                             all.begin() + static_cast<std::ptrdiff_t>(at + n));
+    part.after.reset();
+    part.limit = static_cast<int>(n);
+    part.count_total = false;
+    auto st = browse_page_statement(db, dialect, part);
+    if (!st) return fail(st.error());
+    auto rows = db.select(st->sql, st->bindings);
+    if (!rows) return fail(rows.error());
+    for (const auto& r : *rows) out.rows.push_back(row_from(r));
+  }
+  std::ranges::sort(out.rows, [](const BrowseRow& a, const BrowseRow& b) {
+    if (a.summary.timestamp != b.summary.timestamp) return a.summary.timestamp > b.summary.timestamp;
+    return a.summary.uuid > b.summary.uuid;
+  });
+  return out;
 }
 
 }  // namespace
 
-Result<BrowseResult> browse(Db& db, Dialect dialect, const BrowseRequest& req) {
-  if (req.limit <= 0) return fail(ErrorKind::Protocol, "browse: limit must be positive");
+Result<BrowseStatement> browse_page_statement(Db& db, Dialect dialect, const BrowseRequest& req) {
   auto where = build_where(db, dialect, req.filter, std::nullopt);
   if (!where) return fail(where.error());
-  BrowseResult out;
-  if (req.count_total) {
-    auto n = db.select_one(sql::kBrowseCount + sql::kBrowseFrom + where->sql(), where->bindings);
-    if (!n) return fail(n.error());
-    if (*n) out.total = (*n)->value("n").toLongLong();
-  }
-  Where paged = *where;
+  Where paged = std::move(*where);
   if (req.after) {
     paged.clauses << sql::kBrowseBefore;
     paged.bindings << qv(req.after->timestamp) << qv(req.after->timestamp) << qv(req.after->uuid);
   }
-  Bindings b = paged.bindings;
-  b << req.limit + 1;
-  auto rows = db.select(sql::kBrowseSelect.arg(sql::ts(dialect, QStringLiteral("a.timestamp_utc"))) + sql::kBrowseFrom +
-                            paged.sql() + sql::kBrowseOrder,
-                        b);
+  BrowseStatement st;
+  st.sql = sql::kBrowseSelect.arg(sql::ts(dialect, QStringLiteral("a.timestamp_utc"))) + from_for_page(req.filter) +
+           paged.sql() + sql::kBrowseOrder;
+  st.bindings = std::move(paged.bindings);
+  st.bindings << req.limit + 1;
+  return st;
+}
+
+Result<BrowseStatement> browse_count_statement(Db& db, Dialect dialect, const BrowseFilter& filter) {
+  auto where = build_where(db, dialect, filter, std::nullopt);
+  if (!where) return fail(where.error());
+  return BrowseStatement{sql::kBrowseCount + from_for_aggregate(filter) + where->sql(), std::move(where->bindings)};
+}
+
+Result<BrowseStatement> facet_statement(Db& db, Dialect dialect, BrowseFacet f, const BrowseFilter& filter) {
+  auto where = build_where(db, dialect, filter, f);
+  if (!where) return fail(where.error());
+  if (f == BrowseFacet::Repository)
+    return BrowseStatement{sql::kRepositoryFacet.arg(from_for_aggregate(filter), where->sql()), std::move(where->bindings)};
+  Where w = std::move(*where);
+  const QString& not_null = f == BrowseFacet::PrincipalInvestigator ? sql::kFacetUuidNotNull : sql::kFacetNotNull;
+  w.clauses << not_null.arg(facet_column(f));
+  return BrowseStatement{sql::kFacetSelect.arg(facet_column(f)) + from_for_aggregate(filter) + w.sql() + sql::kFacetTail,
+                         std::move(w.bindings)};
+}
+
+Result<BrowseStatement> positions_statement(Db& db, Dialect dialect, const BrowseFilter& filter) {
+  auto where = build_where(db, dialect, filter, std::nullopt, false);
+  if (!where) return fail(where.error());
+  return BrowseStatement{sql::kPositionsSelect + from_for_aggregate(filter) + where->sql() + sql::kPositionsOrder,
+                         std::move(where->bindings)};
+}
+
+Result<BrowseResult> browse(Db& db, Dialect dialect, const BrowseRequest& req) {
+  if (req.limit <= 0) return fail(ErrorKind::Protocol, "browse: limit must be positive");
+  if (req.filter.uuids.size() > kUuidPart) return browse_uuids_in_parts(db, dialect, req);
+  BrowseResult out;
+  if (req.count_total) {
+    auto count = browse_count_statement(db, dialect, req.filter);
+    if (!count) return fail(count.error());
+    auto n = db.select_one(count->sql, count->bindings);
+    if (!n) return fail(n.error());
+    if (*n) out.total = (*n)->value("n").toLongLong();
+  }
+  auto page = browse_page_statement(db, dialect, req);
+  if (!page) return fail(page.error());
+  auto rows = db.select(page->sql, page->bindings);
   if (!rows) return fail(rows.error());
   const bool more = std::cmp_greater(rows->size(), req.limit);
   if (more) rows->pop_back();
@@ -176,29 +301,51 @@ Result<BrowseResult> browse(Db& db, Dialect dialect, const BrowseRequest& req) {
   return out;
 }
 
-Result<std::vector<std::string>> facet(Db& db, Dialect dialect, BrowseFacet f, const BrowseFilter& filter) {
-  auto where = build_where(db, dialect, filter, f);
-  if (!where) return fail(where.error());
-  Result<std::vector<Row>> rows = std::vector<Row>{};
-  if (f == BrowseFacet::Repository) {
-    rows = db.select(sql::kRepositoryFacet.arg(sql::kBrowseFrom, where->sql()), where->bindings);
-  } else {
-    Where w = *where;
-    w.clauses << sql::kFacetNotNull.arg(facet_column(f));
-    rows = db.select(sql::kFacetSelect.arg(facet_column(f)) + sql::kBrowseFrom + w.sql() + sql::kFacetTail, w.bindings);
-  }
+Result<std::vector<FacetValue>> facet(Db& db, Dialect dialect, BrowseFacet f, const BrowseFilter& filter) {
+  auto st = facet_statement(db, dialect, f, filter);
+  if (!st) return fail(st.error());
+  auto rows = db.select(st->sql, st->bindings);
   if (!rows) return fail(rows.error());
-  std::vector<std::string> out;
+  std::vector<FacetValue> out;
+  if (f == BrowseFacet::PrincipalInvestigator) {
+    // The statement says which PIs; their rows come from the one listing, so
+    // the order is that of every PI list and a label does not change with
+    // what the other filters leave. Once per facet, and a lab's PIs are few.
+    std::set<std::string> present;
+    for (const auto& r : *rows) present.insert(to_uuid(r.value("v")).str());
+    auto all = principal_investigators(db);
+    if (!all) return fail(all.error());
+    for (const auto& pi : *all)
+      if (present.contains(pi.uuid.str())) out.push_back({pi.uuid.str(), pi_listing_label(pi, *all)});
+    return out;
+  }
   for (const auto& r : *rows) {
     auto v = to_std(r.value("v"));
-    if (!v.empty()) out.push_back(std::move(v));
+    if (!v.empty()) {
+      auto label = v;
+      out.push_back({std::move(v), std::move(label)});
+    }
   }
+  return out;
+}
+
+Result<std::vector<PositionListing>> positions(Db& db, Dialect dialect, const BrowseFilter& filter) {
+  auto st = positions_statement(db, dialect, filter);
+  if (!st) return fail(st.error());
+  auto rows = db.select(st->sql, st->bindings);
+  if (!rows) return fail(rows.error());
+  std::vector<PositionListing> out;
+  out.reserve(rows->size());
+  for (const auto& r : *rows)
+    out.push_back({opt_uuid(r.value("irradiation_uuid")), opt_uuid(r.value("level_uuid")), to_std(r.value("irradiation")),
+                   to_std(r.value("level")), to_std(r.value("identifier")), to_std(r.value("sample")),
+                   to_std(r.value("project"))});
   return out;
 }
 
 Result<std::optional<AnalysisDetail>> load_analysis_detail(Db& db, Dialect dialect, Uuid analysis) {
   auto head = db.select_one(sql::kBrowseSelect.arg(sql::ts(dialect, QStringLiteral("a.timestamp_utc"))) +
-                                sql::kBrowseFrom + QStringLiteral("WHERE a.uuid = ?"),
+                                sql::kBrowseFrom + sql::kBrowseAgeJoin + QStringLiteral("WHERE a.uuid = ?"),
                             {qv(analysis)});
   if (!head) return fail(head.error());
   if (!*head) return std::optional<AnalysisDetail>{};
@@ -279,4 +426,4 @@ Result<ChangeSeq> latest_change_seq(Db& db) {
   return *row ? (*row)->value("n").toLongLong() : ChangeSeq{0};
 }
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

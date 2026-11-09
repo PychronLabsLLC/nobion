@@ -1,11 +1,11 @@
-# Example queue (written by pychron setup):
+# Example queue (written by nobion setup):
 #   elctl --install {{ install_name }} exp run experiment.toml
 # Three air shots between two blanks.
 
 [queue]
 name = "first-queue"
 mass_spectrometer = "{{ family }}"
-username = "pychron"
+username = "nobion"
 
 [queue.delays]
 before_analyses = 5

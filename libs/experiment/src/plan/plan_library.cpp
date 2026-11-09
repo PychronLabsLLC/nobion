@@ -1,10 +1,15 @@
-#include "pychron/experiment/plan/plan_library.hpp"
+#include "nobion/experiment/plan/plan_library.hpp"
 
-namespace pychron::experiment::plan {
+#include <algorithm>
+#include <cmath>
+#include <utility>
+
+namespace nobion::experiment::plan {
 
 void PlanLibrary::add(PlanTemplate tmpl) {
   auto name = tmpl.name;
   templates_.insert_or_assign(std::move(name), std::move(tmpl));
+  cache_.clear();
 }
 
 std::vector<std::string> PlanLibrary::names() const {
@@ -22,7 +27,17 @@ Result<LoadedPlan> PlanLibrary::load(std::string_view name, const ParamOverrides
                                      const LoadOptions& options) const {
   const auto* t = find(name);
   if (!t) return fail(ErrorKind::Config, "unknown measurement plan '" + std::string(name) + "'");
-  return load_plan(*t, overrides, resolvers_, options);
+  // A NaN does not order, so overrides holding one are not a key.
+  const bool keyable = std::ranges::none_of(overrides, [](const auto& kv) {
+    const auto* d = std::get_if<double>(&kv.second);
+    return d != nullptr && std::isnan(*d);
+  });
+  if (!keyable) return load_plan(*t, overrides, resolvers_, options);
+  LoadKey key{std::string(name), overrides, options.advanced};
+  if (auto kept = cache_.find(key)) return std::move(*kept);
+  auto loaded = load_plan(*t, overrides, resolvers_, options);
+  cache_.insert(std::move(key), loaded);
+  return loaded;
 }
 
 bool PlanLibrary::has_plan(std::string_view name) const { return find(name) != nullptr; }
@@ -34,4 +49,40 @@ std::optional<Duration> PlanLibrary::plan_duration(std::string_view name, const 
   return estimate_duration(loaded->plan, durations_);
 }
 
-}  // namespace pychron::experiment::plan
+std::optional<bool> PlanLibrary::holds_extraction_line(std::string_view name, const ParamOverrides& overrides) const {
+  // As advanced: a queue may set any key; what holds the line is the gases' prepare.
+  auto loaded = load(name, overrides, LoadOptions{true});
+  if (!loaded) return std::nullopt;
+  const auto& gases = loaded->plan.gases;
+  return std::any_of(gases.begin(), gases.end(), [](const Gas& g) { return g.prepare.has_value(); });
+}
+
+PlanLibrary::LoadCache& PlanLibrary::LoadCache::operator=(const LoadCache& other) {
+  if (this != &other) clear();
+  return *this;
+}
+
+PlanLibrary::LoadCache& PlanLibrary::LoadCache::operator=(LoadCache&& other) noexcept {
+  if (this != &other) clear();
+  return *this;
+}
+
+std::optional<Result<LoadedPlan>> PlanLibrary::LoadCache::find(const LoadKey& key) const {
+  const std::lock_guard lock(mutex_);
+  auto it = loads_.find(key);
+  if (it == loads_.end()) return std::nullopt;
+  return it->second;
+}
+
+void PlanLibrary::LoadCache::insert(LoadKey key, const Result<LoadedPlan>& loaded) {
+  const std::lock_guard lock(mutex_);
+  if (loads_.size() >= kMaxKeptLoads) loads_.clear();
+  loads_.insert_or_assign(std::move(key), loaded);
+}
+
+void PlanLibrary::LoadCache::clear() {
+  const std::lock_guard lock(mutex_);
+  loads_.clear();
+}
+
+}  // namespace nobion::experiment::plan

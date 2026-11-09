@@ -1,9 +1,9 @@
-#include "pychron/core/time_series_ring.hpp"
+#include "nobion/core/time_series_ring.hpp"
 
 #include <algorithm>
 #include <cmath>
 
-namespace pychron {
+namespace nobion {
 
 namespace {
 constexpr double kMinSpan = 1e-9;
@@ -45,4 +45,4 @@ std::optional<std::pair<double, double>> TimeSeriesRing::range(double t0, double
   return out;
 }
 
-}  // namespace pychron
+}  // namespace nobion

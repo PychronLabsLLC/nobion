@@ -1,11 +1,13 @@
-#include "pychron/vision/live_feed.hpp"
+#include "nobion/vision/live_feed.hpp"
 
 #include <condition_variable>
 #include <mutex>
 #include <thread>
 #include <utility>
 
-namespace pychron::vision {
+#include "nobion/core/log_context.hpp"
+
+namespace nobion::vision {
 
 namespace {
 
@@ -54,6 +56,7 @@ LiveFeed::LiveFeed(Opener open, LiveFeedOptions options) : state_(std::make_shar
   state_->options = std::move(options);
   if (!state_->options.stamp) state_->options.stamp = &Steady::now;
   state_->thread = std::thread([state = state_] {
+    const LogContext::Thread log_thread("camera");
     State& s = *state;
     // The camera's clock, for as long as the feed is there.
     const ClockFn stamp = [state] {
@@ -241,4 +244,4 @@ LiveFeed::Latest LiveFeed::latest() const {
   return out;
 }
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

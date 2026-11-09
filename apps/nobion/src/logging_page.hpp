@@ -1,0 +1,67 @@
+#pragma once
+
+// File > Preferences, Logging: logging on this computer (an install's
+// logging.local.toml, else the line's `[logging]`). The
+// levels take effect when applied; where the log file goes and how it is
+// kept are read when the application starts.
+
+#include <QWidget>
+
+#include "nobion/core/config/logging_config.hpp"
+
+class QCheckBox;
+class QComboBox;
+class QLabel;
+class QLineEdit;
+class QPushButton;
+class QSpinBox;
+class QTableWidget;
+
+namespace nobion::ui {
+
+class LoggingPage : public QWidget {
+  Q_OBJECT
+
+ public:
+  explicit LoggingPage(QWidget* parent = nullptr);
+
+  void set(const config::LoggingConfig& logging);
+  // Why the install's logging files are not read (empty: they are); shown
+  // at the top of the page while not empty. `saved` false: changes here are
+  // not written until the file is mended.
+  void set_problem(const QString& problem, bool saved = true);
+  QLabel* problem() const noexcept { return problem_; }
+  // What the fields hold. A row with no pattern is not a level; of two rows
+  // with one pattern the lower wins.
+  config::LoggingConfig value() const;
+
+  QComboBox* default_level() const noexcept { return default_level_; }
+  QComboBox* dock_level() const noexcept { return dock_level_; }
+  QCheckBox* no_file() const noexcept { return no_file_; }
+  QTableWidget* levels() const noexcept { return levels_; }  // pattern, level
+  QComboBox* level_at(int row) const;
+  QPushButton* add_level() const noexcept { return add_; }
+  QPushButton* remove_level() const noexcept { return remove_; }
+  QLineEdit* folder() const noexcept { return folder_; }
+  QSpinBox* max_size() const noexcept { return max_size_; }
+  QSpinBox* max_files() const noexcept { return max_files_; }
+  QCheckBox* echo() const noexcept { return echo_; }
+
+ private:
+  void add_row(const QString& pattern, LogLevel level);
+
+  config::LoggingConfig base_;  // what set() was given: the fields overwrite a copy of it
+  QComboBox* default_level_;
+  QComboBox* dock_level_;
+  QTableWidget* levels_;
+  QPushButton* add_;
+  QPushButton* remove_;
+  QLineEdit* folder_;
+  QSpinBox* max_size_;
+  QSpinBox* max_files_;
+  QCheckBox* echo_;
+  QCheckBox* no_file_;
+  QLabel* problem_;
+};
+
+}  // namespace nobion::ui

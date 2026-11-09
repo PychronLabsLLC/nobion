@@ -1,11 +1,18 @@
-#include "pychron/processing/units.hpp"
+#include "nobion/processing/units.hpp"
 
 #include <gtest/gtest.h>
 
-#include "fixtures.hpp"
-#include "pychron/processing/time_series.hpp"
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
 
-namespace pp = pychron::processing;
+#include "fixtures.hpp"
+#include "nobion/processing/time_series.hpp"
+
+namespace pp = nobion::processing;
 using pp::test::make_air;
 using pp::test::make_unknown;
 
@@ -18,7 +25,13 @@ std::unique_ptr<pp::MemorySource> source() {
   return s;
 }
 
-const pp::UnitRegistry& reg() { return pp::UnitRegistry::builtin(); }
+// One registry for building and running: a pipeline is built from the
+// registry it runs on. Its group_stats and filter default to a quantity core
+// evaluates.
+const pp::UnitRegistry& reg() {
+  static const pp::UnitRegistry registry = pp::UnitRegistry::core("Ar40");
+  return registry;
+}
 
 pp::Pipeline air_pipeline() {
   pp::Pipeline p;
@@ -37,6 +50,24 @@ const pp::Dataset& dataset(const std::vector<pp::PortValue>& v) { return *std::g
 TEST(Units, BuiltinsRegistered) {
   for (const char* k : {"select", "reduce", "filter", "group", "edits", "group_stats", "time_series"})
     EXPECT_NE(reg().find(k), nullptr) << k;
+}
+
+// group_stats' and a filter rule's default quantity is the domain's default.
+TEST(Units, CoreRegistryTakesTheDefaultQuantity) {
+  const pp::UnitRegistry he = pp::UnitRegistry::core("He4");
+  const pp::Unit* stats = he.find("group_stats");
+  ASSERT_NE(stats, nullptr);
+  const pp::FieldSpec* field = stats->schema()->field("quantity");
+  ASSERT_NE(field, nullptr);
+  EXPECT_EQ(std::get<std::string>(field->default_value), "He4");
+  const pp::Unit* filter = he.find("filter");
+  ASSERT_NE(filter, nullptr);
+  const pp::ListSpec* rules = filter->schema()->list("rules");
+  ASSERT_NE(rules, nullptr);
+  EXPECT_EQ(std::get<std::string>(rules->row->field("quantity")->default_value), "He4");
+  // A fresh registry each time: its own units, its own schemas.
+  const pp::UnitRegistry other = pp::UnitRegistry::core("He4");
+  EXPECT_NE(other.find("group_stats"), stats);
 }
 
 TEST(Units, ValidateNamesTheProblem) {
@@ -72,7 +103,7 @@ TEST(Units, SelectReduceGroup) {
   ASSERT_TRUE(out) << out.error().what;
   const auto& d = dataset(*out);
   EXPECT_EQ(d.size(), 6u);
-  EXPECT_TRUE(d.items().front().analysis->arar.has_value());
+  EXPECT_FALSE(d.items().front().analysis->isotopes.empty());
   EXPECT_LT(d.items().front().analysis->analysis->timestamp, d.items().back().analysis->analysis->timestamp);
   ASSERT_EQ(d.group_names.size(), 1u);
   EXPECT_EQ(d.group_names[0], "air");
@@ -110,6 +141,395 @@ TEST(Units, ChangingAnOptionRecomputesOnlyDownstream) {
   auto out = runner.run(p, "figure");
   ASSERT_TRUE(out);
   EXPECT_EQ(runner.executions(), 13u);
+}
+
+// A pipeline whose figure draws hours from now, beside one on a time axis.
+pp::Pipeline now_pipeline() {
+  auto p = air_pipeline();
+  for (const char* id : {"figure", "absolute"}) {
+    pp::NodeSpec& fig = id == std::string("figure") ? *p.find("figure") : p.add(reg(), id, "time_series", {"edits"});
+    auto row = fig.options.new_row("panels");
+    EXPECT_TRUE(row.set("quantity", std::string("Ar40")));
+    EXPECT_TRUE(fig.options.set_rows("panels", {row}));
+  }
+  EXPECT_TRUE(p.find("figure")->options.set("x.kind", std::string("relative")));
+  EXPECT_TRUE(p.find("figure")->options.set("x.origin", std::string("now")));
+  return p;
+}
+
+double first_x(const std::vector<pp::PortValue>& out) {
+  const auto& scene = *std::get<pp::ScenePtr>(out.at(0));
+  for (const auto& layer : scene.graphs.at(0).panels.at(0).layers)
+    if (const auto* points = std::get_if<pp::PointLayer>(&layer)) return points->x.at(0);
+  ADD_FAILURE() << "no points";
+  return 0;
+}
+
+TEST(Runner, ALaterTimeRunsATimeDependentNodeAgain) {
+  auto src = source();
+  pp::Runner runner(reg(), src.get());
+  const auto p = now_pipeline();
+  constexpr double t0 = 1'700'000'000.0;  // the first air's time
+  auto first = runner.run(p, "figure", nullptr, t0 + 1000 * 3600.0);
+  ASSERT_TRUE(first) << first.error().what;
+  EXPECT_DOUBLE_EQ(first_x(*first), -1000.0);
+  auto second = runner.run(p, "figure", nullptr, t0 + 2000 * 3600.0);
+  ASSERT_TRUE(second) << second.error().what;
+  EXPECT_DOUBLE_EQ(first_x(*second), -2000.0);  // drawn again, not the cached scene
+}
+
+// Loads analyses from a MemorySource and counts them.
+class CountingSource : public pp::MemorySource {
+ public:
+  using MemorySource::MemorySource;
+  nobion::Result<pp::AnalysisPtr> load(const std::string& uuid) override {
+    ++loads;
+    return MemorySource::load(uuid);
+  }
+  nobion::Result<pp::BrowsePage> browse(const pp::BrowseQuery& query) override {
+    queries.push_back(query);
+    return MemorySource::browse(query);
+  }
+  int loads = 0;
+  std::vector<pp::BrowseQuery> queries;
+};
+
+TEST(Runner, ALaterTimeDoesNotRunTheOthersAgain) {
+  CountingSource src;
+  for (int i = 0; i < 6; ++i) src.add(make_air(i, 295.0 + i));
+  pp::Runner runner(reg(), &src);
+  const auto p = now_pipeline();
+  ASSERT_TRUE(runner.run(p, "figure", nullptr, 1000.0));
+  ASSERT_TRUE(runner.run(p, "absolute", nullptr, 1000.0));
+  const int loads = src.loads;
+  EXPECT_EQ(loads, 6);
+  ASSERT_TRUE(runner.run(p, "figure", nullptr, 2000.0));
+  for (const auto& n : runner.last_run()) EXPECT_EQ(n.executed, n.id == "figure") << n.id;
+  ASSERT_TRUE(runner.run(p, "absolute", nullptr, 2000.0));
+  for (const auto& n : runner.last_run()) EXPECT_FALSE(n.executed) << n.id;  // its axis is not now
+  EXPECT_EQ(src.loads, loads);
+}
+
+TEST(SelectUnit, AsksForNoMoreRowsThanItsLimit) {
+  CountingSource src;
+  for (int i = 0; i < 20; ++i) src.add(make_air(i, 295.0));
+  pp::Runner runner(reg(), &src);
+  pp::Pipeline p;
+  auto& sel = p.add(reg(), "select", "select");
+  ASSERT_TRUE(sel.options.set("analysis_types", std::vector<std::string>{"air"}));
+  ASSERT_TRUE(sel.options.set("limit", std::int64_t{5}));
+  auto out = runner.run(p, "select");
+  ASSERT_TRUE(out) << out.error().what;
+  EXPECT_EQ(dataset(*out).size(), 5u);
+  ASSERT_EQ(src.queries.size(), 1u);
+  EXPECT_EQ(src.queries[0].limit, 5);
+  EXPECT_EQ(src.loads, 5);
+}
+
+// A source with no sink (a MemorySource): reduce runs as before and puts
+// nothing anywhere.
+TEST(Units, ReduceOverASourceWithNoSinkRunsAsBefore) {
+  auto src = source();
+  ASSERT_EQ(src->derived(), nullptr);
+  pp::Runner runner(reg(), src.get());
+  auto out = runner.run(air_pipeline(), "reduce");
+  ASSERT_TRUE(out) << out.error().what;
+  EXPECT_EQ(dataset(*out).size(), 6u);
+  EXPECT_TRUE(runner.diagnostics().empty());
+}
+
+// Core's reduce has nothing to choose and nothing of a domain's: its stages
+// end at the IC-corrected one, built on one signal per isotope.
+TEST(Units, ReduceHasNoOptionsAndNoDomain) {
+  const pp::Unit* reduce = reg().find("reduce");
+  ASSERT_NE(reduce, nullptr);
+  EXPECT_TRUE(reduce->schema()->fields.empty());
+  const auto reduced = pp::reduce_analysis(make_unknown(0));
+  EXPECT_EQ(reduced->domain, nullptr);
+  EXPECT_TRUE(reduced->reduction_error.empty());
+  ASSERT_EQ(reduced->isotopes.size(), 5u);
+  EXPECT_EQ(reduced->isotope_signals.size(), reduced->isotopes.size());
+  for (const auto& iso : reduced->isotopes) {
+    ASSERT_FALSE(iso.values.empty());
+    EXPECT_EQ(iso.values.rbegin()->first, pp::Stage::IcCorrected) << iso.key;
+  }
+}
+
+// A MemorySource keeps the ages set_age gives it as a store keeps its cache:
+// browse shows them, and an age bound matches only analyses that have one.
+TEST(MemorySource, AgeBoundsMatchTheCachedAge) {
+  auto src = source();
+  auto all = src->browse(pp::BrowseQuery{});
+  ASSERT_TRUE(all) << all.error().what;
+  ASSERT_EQ(all->rows.size(), 9u);
+  for (const auto& r : all->rows) EXPECT_FALSE(r.age) << r.uuid;
+  std::vector<std::string> unknowns;
+  for (const auto& r : all->rows)
+    if (r.analysis_type == "unknown") unknowns.push_back(r.uuid);
+  ASSERT_EQ(unknowns.size(), 3u);
+  const std::uint64_t before = src->generation();
+  src->set_age(unknowns[0], 10.0, 0.1);
+  src->set_age(unknowns[1], 20.0, 0.2);
+  src->set_age(unknowns[2], 30.0, 0.3);
+  EXPECT_GT(src->generation(), before) << "a browse cached on the generation sees the ages";
+
+  auto uuids = [&](std::optional<double> min, std::optional<double> max) {
+    pp::BrowseQuery q;
+    q.age_min = min;
+    q.age_max = max;
+    auto page = src->browse(q);
+    EXPECT_TRUE(page) << (page ? "" : page.error().what);
+    std::vector<std::string> out;
+    if (page)
+      for (const auto& r : page->rows) out.push_back(r.uuid);
+    std::sort(out.begin(), out.end());
+    return out;
+  };
+  auto sorted = [](std::vector<std::string> v) {
+    std::sort(v.begin(), v.end());
+    return v;
+  };
+  EXPECT_EQ(uuids(15.0, std::nullopt), sorted({unknowns[1], unknowns[2]}));
+  EXPECT_EQ(uuids(std::nullopt, 20.0), sorted({unknowns[0], unknowns[1]}));
+  EXPECT_EQ(uuids(20.0, 20.0), sorted({unknowns[1]})) << "both ends are inclusive";
+  // The airs have no age: no bound, however wide, matches them.
+  EXPECT_EQ(uuids(-1e9, 1e9), sorted(unknowns));
+  std::string air;
+  for (const auto& r : all->rows)
+    if (r.analysis_type == "air") air = r.uuid;
+  src->set_age(air, std::nan(""), 0.0);
+  EXPECT_EQ(uuids(-1e9, 1e9), sorted(unknowns)) << "an age that is not a number is no age";
+  EXPECT_EQ(uuids(std::nullopt, std::nullopt).size(), 9u);
+
+  pp::BrowseQuery young;
+  young.age_max = 15.0;
+  auto page = src->browse(young);
+  ASSERT_TRUE(page);
+  ASSERT_EQ(page->rows.size(), 1u);
+  EXPECT_EQ(page->rows[0].age, 10.0);
+  EXPECT_EQ(page->rows[0].age_err, 0.1);
+  EXPECT_EQ(page->total, 1u);
+  auto types = src->facet(pp::Facet::AnalysisType, young);
+  ASSERT_TRUE(types);
+  EXPECT_EQ(*types, (std::vector<pp::FacetValue>{{"unknown", "unknown"}}));
+}
+
+// A memory source keeps no PIs: a PI's name is the facet's value and label,
+// and what the filter takes (PI spec 7).
+TEST(MemorySource, APiIsItsNameWithoutAStore) {
+  pp::MemorySource src;
+  for (const auto& [uuid, pi] : {std::pair{"u1", "J Ross"}, std::pair{"u2", "A Smith"}, std::pair{"u3", ""}}) {
+    auto a = std::make_shared<pp::Analysis>();
+    a->uuid = uuid;
+    a->principal_investigator = pi;
+    src.add(a);
+  }
+  auto facet = src.facet(pp::Facet::PrincipalInvestigator, {});
+  ASSERT_TRUE(facet);
+  EXPECT_EQ(*facet, (std::vector<pp::FacetValue>{{"A Smith", "A Smith"}, {"J Ross", "J Ross"}}));
+  pp::BrowseQuery q;
+  q.principal_investigators = {"J Ross"};
+  auto page = src.browse(q);
+  ASSERT_TRUE(page);
+  ASSERT_EQ(page->rows.size(), 1u);
+  EXPECT_EQ(page->rows[0].uuid, "u1");
+  EXPECT_TRUE(page->rows[0].principal_investigator_uuid.empty());
+}
+
+// In summaries that do carry a PI's uuid (the in-memory facet and filter are
+// the same code for every source) the uuid is the value, the name the label.
+TEST(MemorySource, ASummaryWithAPiUuidFiltersByIt) {
+  pp::AnalysisSummary a;
+  a.uuid = "u1";
+  a.principal_investigator = "J Ross";
+  a.principal_investigator_uuid = "pi-b";
+  pp::AnalysisSummary b = a;
+  b.uuid = "u2";
+  b.principal_investigator_uuid = "pi-a";
+  const std::vector<pp::AnalysisSummary> rows{a, b};
+  EXPECT_EQ(pp::facet_values(rows, pp::Facet::PrincipalInvestigator, {}),
+            (std::vector<pp::FacetValue>{{"pi-a", "J Ross"}, {"pi-b", "J Ross"}}));
+  pp::BrowseQuery q;
+  q.principal_investigators = {"pi-b"};
+  const auto page = pp::browse_summaries(rows, q);
+  ASSERT_EQ(page.rows.size(), 1u);
+  EXPECT_EQ(page.rows[0].uuid, "u1");
+}
+
+// A list of uuids narrows browse to those analyses: the Selected list of the
+// data browser asks for its members by uuid.
+TEST(MemorySource, BrowsesByUuid) {
+  auto src = std::make_unique<pp::MemorySource>();
+  std::vector<std::string> u;
+  for (int i = 0; i < 5; ++i) {
+    auto a = make_air(i, 295.0 + i);
+    a->timestamp = 1000.0 + i;
+    if (i == 3) a->tag = "invalid";
+    u.push_back(a->uuid);
+    src->add(a);
+  }
+  pp::BrowseQuery q;
+  q.uuids = {u[1], u[4], u[2]};
+  auto page = src->browse(q);
+  ASSERT_TRUE(page) << page.error().what;
+  ASSERT_EQ(page->rows.size(), 3u);
+  EXPECT_EQ(page->rows[0].uuid, u[4]);
+  EXPECT_EQ(page->rows[1].uuid, u[2]);
+  EXPECT_EQ(page->rows[2].uuid, u[1]);
+  EXPECT_EQ(page->total, 3u);
+
+  pp::BrowseQuery invalid;
+  invalid.uuids = {u[3]};
+  auto hidden = src->browse(invalid);
+  ASSERT_TRUE(hidden);
+  EXPECT_TRUE(hidden->rows.empty()) << "the default still hides invalid analyses";
+  invalid.exclude_tags = {};
+  auto shown = src->browse(invalid);
+  ASSERT_TRUE(shown);
+  ASSERT_EQ(shown->rows.size(), 1u);
+  EXPECT_EQ(shown->rows[0].uuid, u[3]);
+
+  pp::BrowseQuery none;
+  none.uuids = {"nope"};
+  auto empty = src->browse(none);
+  ASSERT_TRUE(empty);
+  EXPECT_TRUE(empty->rows.empty());
+  EXPECT_EQ(empty->total, 0u);
+}
+
+// Three identifiers on an irradiation tree: 77000 in NM-300/A, 88000 in
+// NM-301/A and 66574, an air, in none.
+std::unique_ptr<pp::MemorySource> positioned_source() {
+  auto src = std::make_unique<pp::MemorySource>();
+  auto add = [&](int index, const char* identifier, const char* type, const char* irradiation, const char* level) {
+    auto a = make_air(index, 295.5, type, identifier);
+    a->irradiation = irradiation;
+    a->level = level;
+    src->add(a);
+  };
+  add(0, "77000", "unknown", "NM-300", "A");
+  add(1, "88000", "unknown", "NM-301", "A");
+  add(2, "66574", "air", "", "");
+  return src;
+}
+
+std::vector<std::string> identifiers_of(const pp::BrowsePage& page) {
+  std::vector<std::string> ids;
+  ids.reserve(page.rows.size());
+  for (const auto& r : page.rows) ids.push_back(r.identifier);
+  std::sort(ids.begin(), ids.end());
+  return ids;
+}
+
+TEST(MemorySource, AKeyIsTheNameWithoutAStore) {
+  pp::AnalysisSummary s;
+  s.identifier = "77000";
+  s.irradiation = "NM-300";
+  s.level = "A";
+  EXPECT_EQ(pp::irradiation_key(s), "NM-300");
+  EXPECT_EQ(pp::level_key(s), "NM-300/A");
+  s.level_uuid = "u1";
+  s.irradiation_uuid = "u0";
+  EXPECT_EQ(pp::level_key(s), "u1");
+  EXPECT_EQ(pp::irradiation_key(s), "u0");
+  pp::AnalysisSummary none;
+  EXPECT_TRUE(pp::irradiation_key(none).empty());
+  EXPECT_TRUE(pp::level_key(none).empty());
+}
+
+TEST(MemorySource, PositionsFilterByLevelKeyNotName) {
+  auto src = positioned_source();
+  pp::BrowseQuery q;
+  q.positions = pp::PositionSelection{.levels = {"NM-300/A"}};
+  auto page = src->browse(q);
+  ASSERT_TRUE(page) << page.error().what;
+  EXPECT_EQ(identifiers_of(*page), (std::vector<std::string>{"77000"}));
+  q.positions = pp::PositionSelection{.levels = {"A"}};  // a name is no key
+  page = src->browse(q);
+  ASSERT_TRUE(page);
+  EXPECT_TRUE(page->rows.empty());
+}
+
+TEST(MemorySource, PositionsBranchesCombineByOrAndTheTreeByAnd) {
+  auto src = positioned_source();
+  pp::BrowseQuery q;
+  q.positions = pp::PositionSelection{.irradiations = {"NM-301"}, .not_irradiated = true};
+  auto page = src->browse(q);
+  ASSERT_TRUE(page) << page.error().what;
+  EXPECT_EQ(identifiers_of(*page), (std::vector<std::string>{"66574", "88000"}));
+  q.analysis_types = {"air"};
+  page = src->browse(q);
+  ASSERT_TRUE(page);
+  EXPECT_EQ(identifiers_of(*page), (std::vector<std::string>{"66574"}));
+  q.analysis_types.clear();
+  q.positions = pp::PositionSelection{.identifiers = {"77000"}, .not_irradiated = true};
+  page = src->browse(q);
+  ASSERT_TRUE(page);
+  EXPECT_EQ(identifiers_of(*page), (std::vector<std::string>{"66574", "77000"}));
+}
+
+TEST(MemorySource, AnEmptyPositionSelectionMatchesNothing) {
+  auto src = positioned_source();
+  pp::BrowseQuery q;
+  q.positions = pp::PositionSelection{};
+  auto page = src->browse(q);
+  ASSERT_TRUE(page);
+  EXPECT_TRUE(page->rows.empty());
+  q.positions.reset();
+  page = src->browse(q);
+  ASSERT_TRUE(page);
+  EXPECT_EQ(page->rows.size(), 3u);
+}
+
+TEST(MemorySource, PositionRowsIgnoreTheTreeAndPutNotIrradiatedLast) {
+  auto src = positioned_source();
+  {
+    auto a = make_air(6, 295.5, "unknown", "77000");  // a second analysis of 77000, in the same place
+    a->irradiation = "NM-300";
+    a->level = "A";
+    src->add(a);
+  }
+  pp::BrowseQuery q;
+  q.positions = pp::PositionSelection{.levels = {"NM-300/A"}};
+  const auto rows = src->positions(q);
+  ASSERT_TRUE(rows) << rows.error().what;
+  ASSERT_EQ(rows->size(), 3u);
+  EXPECT_EQ((*rows)[0].irradiation_key, "NM-300");
+  EXPECT_EQ((*rows)[0].irradiation, "NM-300");
+  EXPECT_EQ((*rows)[0].level_key, "NM-300/A");
+  EXPECT_EQ((*rows)[0].level, "A");
+  EXPECT_EQ((*rows)[0].identifier, "77000");
+  EXPECT_EQ((*rows)[1].irradiation_key, "NM-301");
+  EXPECT_EQ((*rows)[1].identifier, "88000");
+  EXPECT_EQ((*rows)[2].identifier, "66574");
+  EXPECT_TRUE((*rows)[2].irradiation_key.empty());
+  EXPECT_TRUE((*rows)[2].irradiation.empty());
+  EXPECT_TRUE((*rows)[2].level_key.empty());
+  EXPECT_TRUE((*rows)[2].level.empty());
+}
+
+TEST(MemorySource, RemoveDropsTheAnalysisAndMovesTheGeneration) {
+  auto src = source();
+  auto all = src->browse(pp::BrowseQuery{});
+  ASSERT_TRUE(all);
+  const std::string gone = all->rows[2].uuid;
+  src->set_age(gone, 5.0, 0.1);
+  pp::RawData raw;
+  raw.series.emplace_back();
+  src->add(*src->load(gone), raw);
+  ASSERT_EQ(src->load_raw(gone)->series.size(), 1u);
+  const std::uint64_t before = src->generation();
+  src->remove(gone);
+  EXPECT_EQ(src->generation(), before + 1);
+  auto after = src->browse(pp::BrowseQuery{});
+  ASSERT_TRUE(after);
+  EXPECT_EQ(after->rows.size(), all->rows.size() - 1);
+  for (const auto& r : after->rows) EXPECT_NE(r.uuid, gone);
+  EXPECT_FALSE(src->load(gone));
+  EXPECT_TRUE(src->load_raw(gone)->series.empty());
+
+  src->remove("nope");
+  EXPECT_EQ(src->generation(), before + 1) << "an unknown uuid moves nothing";
 }
 
 TEST(Units, StatsHonourExclusions) {
@@ -175,7 +595,7 @@ TEST(Units, CancelStops) {
   std::atomic<bool> cancel{true};
   auto out = runner.run(air_pipeline(), "figure", &cancel);
   ASSERT_FALSE(out);
-  EXPECT_EQ(out.error().kind, pychron::ErrorKind::Cancelled);
+  EXPECT_EQ(out.error().kind, nobion::ErrorKind::Cancelled);
 }
 
 TEST(Units, PipelineTomlRoundTrip) {
@@ -202,6 +622,25 @@ TEST(Units, PipelineTomlRoundTrip) {
   EXPECT_EQ(back->find("figure")->preset, "Air monitor");
 
   EXPECT_FALSE(pp::pipeline_from_toml(reg(), "schema = \"pipeline\"\n[[units]]\nid = \"a\"\nkind = \"warp\"\n"));
+}
+
+// A reduce node saved before the domain seam split the reduction carries the
+// Ar-Ar options. Over core's registry no unit owns them: nothing moves, and
+// they are kept unread and written back unchanged, as any unknown key
+// (tests/arar/test_preset_migration.cpp: over the Ar-Ar registry they move).
+TEST(Pipeline, ReducePresetKeysStayOverCore) {
+  const auto core = pp::UnitRegistry::core("");
+  const std::string text =
+      "schema = \"pipeline\"\n[[units]]\nid = \"select\"\nkind = \"select\"\n"
+      "[[units]]\nid = \"reduce\"\nkind = \"reduce\"\ninputs = [\"select\"]\n"
+      "[units.options]\nconstants = \"legacy\"\n";
+  std::vector<std::string> warnings;
+  auto p = pp::pipeline_from_toml(core, text, &warnings);
+  ASSERT_TRUE(p) << p.error().what;
+  EXPECT_TRUE(warnings.empty()) << warnings.front();
+  ASSERT_EQ(p->find("reduce")->options.extra.count("constants"), 1u);
+  const std::string saved = pp::pipeline_to_toml(*p);
+  EXPECT_NE(saved.find("constants = 'legacy'"), std::string::npos) << saved;
 }
 
 }  // namespace

@@ -1,4 +1,4 @@
-#include "pychron/systems/extraction_line.hpp"
+#include "nobion/systems/extraction_line.hpp"
 
 #include <chrono>
 #include <cmath>
@@ -8,24 +8,34 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <random>
+#include <regex>
 #include <set>
 #include <string>
 #include <vector>
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/log_hub.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/sim/gas.hpp"
-#include "pychron/sim/sim_system.hpp"
-#include "pychron/systems/canvas/loader.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/sim/gas.hpp"
+#include "nobion/sim/sim_system.hpp"
+#include "nobion/systems/canvas/loader.hpp"
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::systems;
+using namespace nobion;
+using namespace nobion::systems;
 using namespace std::chrono_literals;
+
+// A fresh name under the temp folder: two checkouts running ctest at once
+// never share (or remove) each other's folder.
+std::filesystem::path unique_temp_dir(const std::string& stem) {
+  std::random_device rd;
+  std::mt19937_64 gen(rd());
+  return std::filesystem::temp_directory_path() / (stem + "_" + std::to_string(gen()));
+}
 
 constexpr const char* kSystem = R"(
 [system]
@@ -139,6 +149,64 @@ TEST(ExtractionLine, BuildsManagersFromConfig) {
   ASSERT_NE(l.sim(), nullptr);
   EXPECT_TRUE(l.sim()->has_volume("left"));
   EXPECT_FALSE(l.running());
+}
+
+TEST(ExtractionLine, EveryDriverOnATransportIsGivenItsOneLink) {
+  const std::string toml = std::string(kSystem) + "\n[drivers.relay2]\nkind = \"proxr_relay\"\ntransport = \"bus\"\n";
+  ManualClock clock;
+  auto line = ExtractionLine::create(system_config(toml.c_str()), canvas_model(), manual(clock));
+  ASSERT_TRUE(line) << line.error().what;
+  auto& l = **line;
+  Link* bus = l.link("bus");
+  Link* gnet = l.link("gnet");
+  ASSERT_NE(bus, nullptr);
+  ASSERT_NE(gnet, nullptr);
+  EXPECT_NE(bus, gnet);
+  EXPECT_EQ(l.device("relay")->link(), bus);
+  EXPECT_EQ(l.device("relay2")->link(), bus);
+  EXPECT_EQ(l.device("ig")->link(), gnet);
+  EXPECT_EQ(l.link("nope"), nullptr);
+  // No [transports.<name>.recovery]: the default policy.
+  EXPECT_EQ(bus->policy(), LinkPolicy{});
+}
+
+TEST(ExtractionLine, ATransportsLinkTakesItsRecoveryTable) {
+  const std::string toml = std::string(kSystem) +
+                           "\n[transports.gnet.recovery]\nreconnect = false\noptional = true\ncall_window_s = 45\n";
+  ManualClock clock;
+  auto line = ExtractionLine::create(system_config(toml.c_str()), canvas_model(), manual(clock));
+  ASSERT_TRUE(line) << line.error().what;
+  const LinkPolicy& gnet = (*line)->link("gnet")->policy();
+  EXPECT_FALSE(gnet.reconnect);
+  EXPECT_TRUE(gnet.optional);
+  EXPECT_EQ(gnet.call_window, std::chrono::seconds(45));
+  EXPECT_EQ((*line)->link("bus")->policy(), LinkPolicy{});
+}
+
+// executor.toml [links], given to the line, is every link's policy where the
+// transport's own table does not say otherwise.
+TEST(ExtractionLine, ALinkTakesTheLabsDefaultsForWhatItsTableDoesNotSay) {
+  const std::string toml = std::string(kSystem) + "\n[transports.gnet.recovery]\ncall_window_s = 45\n";
+  ManualClock clock;
+  auto options = manual(clock);
+  options.link_defaults.call_window = std::chrono::seconds(90);
+  options.link_defaults.backoff_max = std::chrono::seconds(10);
+  auto line = ExtractionLine::create(system_config(toml.c_str()), canvas_model(), options);
+  ASSERT_TRUE(line) << line.error().what;
+  EXPECT_EQ((*line)->link("bus")->policy(), options.link_defaults);
+  const LinkPolicy& gnet = (*line)->link("gnet")->policy();
+  EXPECT_EQ(gnet.call_window, std::chrono::seconds(45));
+  EXPECT_EQ(gnet.backoff_max, std::chrono::seconds(10));
+}
+
+TEST(ExtractionLine, ALinkTransportHasNoLinkOfItsOwn) {
+  // Its drivers are recovered by the connection it names, where that is owned.
+  const std::string toml = std::string(kSystem) + "\n[transports.shared]\nkind = \"link\"\nlink = \"ngx\"\n";
+  ManualClock clock;
+  auto line = ExtractionLine::create(system_config(toml.c_str()), canvas_model(), manual(clock));
+  ASSERT_TRUE(line) << line.error().what;
+  EXPECT_NE((*line)->transport("shared"), nullptr);
+  EXPECT_EQ((*line)->link("shared"), nullptr);
 }
 
 TEST(ExtractionLine, CanvasNamingUnknownValveIsConfigError) {
@@ -269,7 +337,7 @@ TEST(ExtractionLine, TransportOpenFailureFailsStartAndClosesAll) {
   ManualClock clock;
   std::string toml = std::string(kSystem);
   toml.replace(toml.find("[transports.bus]\nkind = \"sim\""), std::string("[transports.bus]\nkind = \"sim\"").size(),
-               "[transports.bus]\nkind = \"serial\"\nport = \"/dev/pychron-no-such-port\"");
+               "[transports.bus]\nkind = \"serial\"\nport = \"/dev/nobion-no-such-port\"");
   auto line = ExtractionLine::create(system_config(toml.c_str()), std::nullopt, manual(clock));
   ASSERT_TRUE(line) << line.error().what;
   auto started = (*line)->start();
@@ -283,7 +351,7 @@ TEST(ExtractionLine, ForceSimReplacesHardwareTransports) {
   ManualClock clock;
   std::string toml = std::string(kSystem);
   toml.replace(toml.find("[transports.bus]\nkind = \"sim\""), std::string("[transports.bus]\nkind = \"sim\"").size(),
-               "[transports.bus]\nkind = \"serial\"\nport = \"/dev/pychron-no-such-port\"");
+               "[transports.bus]\nkind = \"serial\"\nport = \"/dev/nobion-no-such-port\"");
   auto opts = manual(clock);
   opts.force_sim = true;
   auto line = ExtractionLine::create(system_config(toml.c_str()), std::nullopt, opts);
@@ -306,16 +374,49 @@ TEST(ExtractionLine, NoSimTransportsMeansNoSimSystem) {
 }
 
 TEST(ExtractionLine, LoadsExampleFiles) {
-  const std::filesystem::path dir = PYCHRON_EXAMPLE_CONFIGS_DIR;
+  const std::filesystem::path dir = NOBION_EXAMPLE_CONFIGS_DIR;
   ManualClock clock;
   auto opts = manual(clock);
   // Not the valve states of somebody's run in the examples folder.
-  opts.state_file = std::filesystem::temp_directory_path() / "pychron-test-example-files.state.toml";
+  opts.state_file = std::filesystem::temp_directory_path() / "nobion-test-example-files.state.toml";
   std::filesystem::remove(opts.state_file);
   auto line = ExtractionLine::load(dir / "extraction_line.toml", dir / "canvas.toml", opts);
   ASSERT_TRUE(line) << line.error().what;
   EXPECT_TRUE((*line)->switches().contains("pump_power"));
   EXPECT_NE((*line)->canvas(), nullptr);
+}
+
+// The example line shows [transports.<name>.recovery] commented out, each key
+// at its default: uncommented, it is the policy a transport has without it.
+TEST(ExtractionLine, TheExampleRecoveryTableIsTheDefaults) {
+  const std::filesystem::path file = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "extraction_line.toml";
+  std::ifstream in(file);
+  ASSERT_TRUE(in) << file;
+  std::string text;
+  std::string table;
+  std::set<std::string> keys;
+  bool inside = false;
+  for (std::string line; std::getline(in, line);) {
+    if (line.starts_with("# [transports.") && line.find(".recovery]") != std::string::npos) {
+      inside = true;
+      table = line.substr(3, line.size() - 4);
+      line = line.substr(2);
+    } else if (inside && line.starts_with("# ") && line.find(" = ") != std::string::npos) {
+      line = line.substr(2);
+      keys.insert(line.substr(0, line.find(' ')));
+    } else {
+      inside = false;
+    }
+    text += line + '\n';
+  }
+  ASSERT_FALSE(table.empty()) << "no commented-out recovery table in " << file;
+  EXPECT_EQ(keys, (std::set<std::string>{"reconnect", "optional", "call_window_s"}));
+  auto cfg = config::load_system_config_from_string(text, file.string());
+  ASSERT_TRUE(cfg) << cfg.error().what;
+  const std::string transport = table.substr(table.find('.') + 1, table.rfind('.') - table.find('.') - 1);
+  const config::RecoveryConfig& shown = cfg->transports.at(transport).recovery;
+  EXPECT_EQ(shown.path, table);  // the table was read, not left out
+  EXPECT_EQ(link_policy(shown), LinkPolicy{});
 }
 
 TEST(ExtractionLine, LoadReportsMissingFile) {
@@ -326,7 +427,7 @@ TEST(ExtractionLine, LoadReportsMissingFile) {
 
 TEST(ExtractionLine, TransportWireLogsWhenHubAndTraceSet) {
   ManualClock clock;
-  auto dir = std::filesystem::temp_directory_path() / "pychron_line_wire_test";
+  auto dir = unique_temp_dir("nobion_line_wire_test");
   std::filesystem::create_directories(dir);
 
   auto cfg = system_config();
@@ -336,6 +437,7 @@ TEST(ExtractionLine, TransportWireLogsWhenHubAndTraceSet) {
   opts.trace_dir = dir;
   config::LoggingConfig lc;
   lc.default_level = LogLevel::Trace;
+  lc.dock_level = LogLevel::Trace;  // the wire records are read off the bus
 
   // The hub logs to its own bus so the test can observe the wire records.
   SignalBus hub_bus;
@@ -360,13 +462,14 @@ TEST(ExtractionLine, TransportWireLogsWhenHubAndTraceSet) {
 
 TEST(ExtractionLine, BuildsOwnHubFromLoggingConfigAndWireLogs) {
   ManualClock clock;
-  auto dir = std::filesystem::temp_directory_path() / "pychron_line_ownhub_test";
+  auto dir = unique_temp_dir("nobion_line_ownhub_test");
   std::filesystem::create_directories(dir);
 
   auto cfg = system_config();
   cfg.transports["gnet"].trace = true;
   cfg.logging.dir = dir / "logs";
   cfg.logging.default_level = LogLevel::Trace;
+  cfg.logging.dock_level = LogLevel::Trace;  // the wire records are read off the bus
 
   auto opts = manual(clock);
   opts.trace_dir = dir;
@@ -383,7 +486,7 @@ TEST(ExtractionLine, BuildsOwnHubFromLoggingConfigAndWireLogs) {
     (*line)->stop();
     EXPECT_FALSE(wire.empty());
   }
-  EXPECT_TRUE(std::filesystem::exists(dir / "logs" / "pychron.log"));
+  EXPECT_TRUE(std::filesystem::exists(dir / "logs" / "nobion.log"));
   std::filesystem::remove_all(dir);
 }
 
@@ -397,17 +500,20 @@ channel = 1
 units = "torr"
 )";
 
+// Lines of `p` holding `needle`, read without their thread field and run id
+// (`[warn] [t3] run=X core: m` is matched as `[warn] core: m`).
 std::size_t lines_containing(const std::filesystem::path& p, const std::string& needle) {
+  static const std::regex context(R"((\[(?:trace|debug|info|warn|error)\]) \[[^\]]*\] (?:run=\S+ )?)");
   std::ifstream in(p);
   std::size_t n = 0;
   for (std::string line; std::getline(in, line);)
-    if (line.find(needle) != std::string::npos) ++n;
+    if (std::regex_replace(line, context, "$1 ").find(needle) != std::string::npos) ++n;
   return n;
 }
 
 TEST(ExtractionLine, LineWarningReachesLogFileAndBusOnce) {
   ManualClock clock;
-  auto dir = std::filesystem::temp_directory_path() / "pychron_line_log_test";
+  auto dir = unique_temp_dir("nobion_line_log_test");
   std::filesystem::remove_all(dir);
 
   auto cfg = system_config((std::string(kSystem) + kBadGauge).c_str());
@@ -425,7 +531,7 @@ TEST(ExtractionLine, LineWarningReachesLogFileAndBusOnce) {
     ASSERT_EQ(got.size(), 1u);
     EXPECT_EQ(got[0].level, LogLevel::Warn);
     EXPECT_NE(got[0].message.find("initial read of gauge 'BAD' failed"), std::string::npos);
-    EXPECT_EQ(lines_containing(dir / "pychron.log", "[warn] extraction_line: initial read of gauge 'BAD' failed"),
+    EXPECT_EQ(lines_containing(dir / "nobion.log", "[warn] extraction_line: initial read of gauge 'BAD' failed"),
               1u);
   }
   std::filesystem::remove_all(dir);
@@ -433,7 +539,7 @@ TEST(ExtractionLine, LineWarningReachesLogFileAndBusOnce) {
 
 TEST(ExtractionLine, ActuationAndFailureAreLoggedOnceToBusAndFile) {
   ManualClock clock;
-  auto dir = std::filesystem::temp_directory_path() / "pychron_line_act_log";
+  auto dir = unique_temp_dir("nobion_line_act_log");
   std::filesystem::remove_all(dir);
   auto cfg = system_config();
   cfg.logging.dir = dir;
@@ -452,7 +558,7 @@ TEST(ExtractionLine, ActuationAndFailureAreLoggedOnceToBusAndFile) {
     ASSERT_EQ(got.size(), 1u);
     EXPECT_EQ(got[0].level, LogLevel::Info);
     EXPECT_EQ(got[0].message, "valve A open");
-    EXPECT_EQ(lines_containing(dir / "pychron.log", "[info] switches: valve A open"), 1u);
+    EXPECT_EQ(lines_containing(dir / "nobion.log", "[info] switches: valve A open"), 1u);
 
     got.clear();
     ASSERT_TRUE((*line)->set_locked("A", true));
@@ -465,7 +571,7 @@ TEST(ExtractionLine, ActuationAndFailureAreLoggedOnceToBusAndFile) {
     }
     EXPECT_TRUE(locked_info);
     EXPECT_TRUE(failed_warn);
-    EXPECT_EQ(lines_containing(dir / "pychron.log", "[warn] switches: actuate 'A' failed"), 1u);
+    EXPECT_EQ(lines_containing(dir / "nobion.log", "[warn] switches: actuate 'A' failed"), 1u);
   }
   std::filesystem::remove_all(dir);
 }
@@ -497,7 +603,7 @@ TEST(ExtractionLine, InjectedHubOnAnotherBusStillFeedsLineBus) {
 // a test writes beside them.
 class SimLab {
  public:
-  explicit SimLab(const std::string& name) : dir_(std::filesystem::temp_directory_path() / ("pychron-sim-lab-" + name)) {
+  explicit SimLab(const std::string& name) : dir_(std::filesystem::temp_directory_path() / ("nobion-sim-lab-" + name)) {
     std::filesystem::remove_all(dir_);
     std::filesystem::create_directories(dir_);
     write("extraction_line.toml", kSystem);
@@ -1069,7 +1175,7 @@ TEST(ExtractionLine, ValvesWithoutPhysicsAreReportedOnce) {
 //   G, NP-10CRough, GP50Manual_Rough    one side (CO2, NP-10C, GP502): the roughing side is not drawn
 //   RDiode                              one side (the Diode tee): likewise
 TEST(ExtractionLine, TheNmgrlExampleModelsItsValveToValveJoins) {
-  const std::filesystem::path dir = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "nmgrl";
+  const std::filesystem::path dir = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "nmgrl";
   ManualClock clock;
   BuildLog log(clock);
   ExtractionLine::Options opts;
@@ -1078,7 +1184,7 @@ TEST(ExtractionLine, TheNmgrlExampleModelsItsValveToValveJoins) {
   opts.run_scheduler = false;
   opts.log_hub = log.hub;
   opts.sim.noise = 0.0;
-  opts.state_file = std::filesystem::temp_directory_path() / "pychron-test-nmgrl-pipes.state.toml";
+  opts.state_file = std::filesystem::temp_directory_path() / "nobion-test-nmgrl-pipes.state.toml";
   std::filesystem::remove(opts.state_file);
   auto loaded = ExtractionLine::load(dir / "extraction_line.toml", dir / "canvas.toml", opts);
   ASSERT_TRUE(loaded) << loaded.error().what;
@@ -1157,7 +1263,7 @@ TEST(ExtractionLine, WarnsOnceOfASecondSpectrometerStage) {
 // with its sim.toml or with no file at all. The file changes numbers only:
 // the air in the tank, what a pumped volume holds, the inlet, the walls.
 void expect_the_example_lab(bool with_sim_toml) {
-  const std::filesystem::path dir = PYCHRON_EXAMPLE_CONFIGS_DIR;
+  const std::filesystem::path dir = NOBION_EXAMPLE_CONFIGS_DIR;
   ASSERT_TRUE(std::filesystem::is_regular_file(dir / "sim.toml"));
   ManualClock clock;
   BuildLog log(clock);
@@ -1167,7 +1273,7 @@ void expect_the_example_lab(bool with_sim_toml) {
   opts.run_scheduler = false;
   opts.log_hub = log.hub;
   if (!with_sim_toml) opts.sim_file = std::filesystem::path{};
-  opts.state_file = std::filesystem::temp_directory_path() / "pychron-test-example-sim-toml.state.toml";
+  opts.state_file = std::filesystem::temp_directory_path() / "nobion-test-example-sim-toml.state.toml";
   std::filesystem::remove(opts.state_file);
   auto loaded = ExtractionLine::load(dir / "extraction_line.toml", dir / "canvas.toml", opts);
   ASSERT_TRUE(loaded) << loaded.error().what;
@@ -1255,5 +1361,30 @@ TEST(ExtractionLine, TheExampleLabLoadsWithItsSimToml) { expect_the_example_lab(
 
 // The roles are the canvas's, not the file's.
 TEST(ExtractionLine, TheExampleLabIsTheSameLabWithNoSimToml) { expect_the_example_lab(false); }
+
+TEST(ExtractionLine, GivenHubGetsTheLinesBus) {
+  ManualClock clock;
+  config::LoggingConfig lc;  // no dir: no file, the bus is what is observed
+  lc.dock_level = LogLevel::Info;
+  auto hub = LogHub::create(lc, clock);  // created without a bus
+  ASSERT_TRUE(hub);
+  auto opts = manual(clock);
+  opts.log_hub = *hub;
+
+  std::vector<Log> seen;
+  {
+    auto line = ExtractionLine::create(system_config(), canvas_model(), opts);
+    ASSERT_TRUE(line) << line.error().what;
+    EXPECT_EQ((*hub)->bus(), &(*line)->bus());
+    auto sub = (*line)->bus().subscribe<Log>([&](const Log& e) { seen.push_back(e); });
+    (*hub)->logger("extraction_line").info("from the line's logger");
+    EXPECT_FALSE(seen.empty());
+  }
+  // The line is gone; the hub goes on writing.
+  EXPECT_EQ((*hub)->bus(), nullptr);
+  (*hub)->logger("extraction_line").error("after the line");
+  (*hub)->flush();
+}
+
 
 }  // namespace

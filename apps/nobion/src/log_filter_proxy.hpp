@@ -1,0 +1,37 @@
+#pragma once
+
+// LogFilterProxy: level / logger-pattern / text filter over LogModel (the
+// text is looked for in the message, the thread and the run id).
+
+#include <string>
+
+#include <QSortFilterProxyModel>
+#include <QString>
+
+#include "nobion/core/events.hpp"
+
+namespace nobion::ui {
+
+class LogFilterProxy : public QSortFilterProxyModel {
+  Q_OBJECT
+
+ public:
+  explicit LogFilterProxy(QObject* parent = nullptr);
+
+  void set_min_level(LogLevel level);
+  // Empty = all loggers. Otherwise nobion::log_name_matches (a bare name
+  // includes its dotted children; '*' makes it a glob).
+  void set_logger_pattern(const QString& pattern);
+  // Case-insensitive substring of the message.
+  void set_text(const QString& text);
+
+ protected:
+  bool filterAcceptsRow(int source_row, const QModelIndex& source_parent) const override;
+
+ private:
+  LogLevel min_level_ = LogLevel::Trace;
+  std::string logger_pattern_;  // cached UTF-8 so filterAcceptsRow does not convert per row
+  QString text_;
+};
+
+}  // namespace nobion::ui

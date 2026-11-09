@@ -5,15 +5,15 @@
 # "Try it without a box", has the steps.
 #
 #   docker compose up -d          (or: docker-compose up -d)
-#   Grafana      http://localhost:3000   no sign-in; dashboards under Pychron
+#   Grafana      http://localhost:3000   no sign-in; dashboards under Nobion
 #   Prometheus   http://localhost:9090   Status > Targets shows the scrape
 #
 # Both listen on this computer only. Grafana lets anyone who reaches it
 # administer it, which is why: do not publish these ports.
 #
-# What it scrapes is in targets.yml: by default a pychron on this computer.
+# What it scrapes is in targets.yml: by default a nobion on this computer.
 
-name: pychron-obs-box
+name: nobion-obs-box
 
 services:
   prometheus:
@@ -40,9 +40,9 @@ services:
     depends_on:
       - prometheus
     environment:
-      # The alert rules name their data source by this (pychron-deadman.yml);
+      # The alert rules name their data source by this (nobion-deadman.yml);
       # datasource.yml gives the Prometheus above the same uid.
-      PYCHRON_PROM_UID: pychron-prometheus
+      NOBION_PROM_UID: nobion-prometheus
       # A box of your own, on this computer only: no sign-in.
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
@@ -51,11 +51,11 @@ services:
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
     volumes:
-      - ./datasource.yml:/etc/grafana/provisioning/datasources/pychron.yml:ro
+      - ./datasource.yml:/etc/grafana/provisioning/datasources/nobion.yml:ro
       # The files a real box gets, as they are.
-      - ../grafana/provisioning/dashboards/pychron.yml:/etc/grafana/provisioning/dashboards/pychron.yml:ro
-      - ../grafana/provisioning/alerting/pychron-deadman.yml:/etc/grafana/provisioning/alerting/pychron-deadman.yml:ro
-      - ../grafana/dashboards:/var/lib/grafana/dashboards/pychron:ro
+      - ../grafana/provisioning/dashboards/nobion.yml:/etc/grafana/provisioning/dashboards/nobion.yml:ro
+      - ../grafana/provisioning/alerting/nobion-deadman.yml:/etc/grafana/provisioning/alerting/nobion-deadman.yml:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards/nobion:ro
       - grafana-data:/var/lib/grafana
     ports:
       - "127.0.0.1:3000:3000"

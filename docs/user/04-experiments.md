@@ -22,13 +22,16 @@ directory**, a folder of plain files that every program in the package reads:
 
 ```
 <lab>/
-  experiment.toml            a queue (any name, you choose where to keep queues)
+  queues/*.toml              queues (any name; the program looks and saves here first,
+                             but a queue may be kept anywhere)
   plans/*.toml               measurement plans (how the spectrometer measures)
-  scripts/                   extraction, post_equilibration, post_measurement, measurement_hooks
+  scripts/                   extraction, post_equilibration, post_measurement, measurement_hooks;
+                             safe_state.py, the lab's safe state (optional)
   conditionals/*.toml        named sets of conditionals (system.toml is always applied)
   identifiers.toml           special identifiers such as "bu" (optional)
   defaults.toml              what the run factory starts a new run with (optional)
-  blocks/*.toml              reusable run sequences for the run factory (optional)
+  queues/blocks/*.toml       reusable run sequences for the run factory (optional)
+  queues/step_heats/*.toml   step heat templates for the run factory (optional)
   notifications.toml         email / webhook / command messages (optional)
   tray_maps/*.txt            laser sample trays (see the laser chapter)
   patterns/*.toml            laser patterns
@@ -37,7 +40,7 @@ directory**, a folder of plain files that every program in the package reads:
   data/                      written by the program: records/, spool/, executor_state.json
 ```
 
-`pychron-ui` takes the lab directory from `--lab <dir>`; without it, it uses
+`nobion` takes the lab directory from `--lab <dir>`; without it, it uses
 the install folder, or the folder of the extraction line config. The data
 folder is `--data <dir>`, by default `<lab>/data` (an install may name its own
 data folder). Finished runs go to the install's database when it has one, and
@@ -59,7 +62,7 @@ Experiment window and save it. The window writes a canonical form of the file:
 keys in a fixed order, defaults left out, **comments removed**. If you keep
 notes in a hand-written queue, keep them in the `comment` field of each run.
 
-Here is the example queue shipped in `configs/examples/experiment.toml`:
+Here is the example queue shipped in `configs/examples/queues/experiment.toml`:
 
 ```toml
 [queue]
@@ -132,7 +135,7 @@ Each `[[runs]]` entry is one analysis.
 | Key | Meaning |
 |---|---|
 | `identifier` | The sample or special identifier, for example `66001` or `bu`. Decides the run type (section 4). |
-| `aliquot`, `step` | Normally leave these out: the program assigns the next free aliquot when the run starts, and a step letter only if you give one (`A`, `B`, `AA`: at most two letters). A fixed `aliquot` is allowed for unknowns, and the same identifier, aliquot and step may not appear twice. |
+| `aliquot`, `step` | Normally leave these out: the program assigns the next free aliquot when the run starts (the `B`, `C` ... of a step heat take the aliquot its `A` was given, so the steps of one heating are one aliquot; a step heat resumed after a restart, or continued in a later queue, joins the aliquot of the identifier's last saved run when its step comes after that run's step (`B`, `C` ... after a saved `A`); otherwise the run takes the next free aliquot), and a step letter only if you give one (`A`, `B`, `AA`: at most two letters). A fixed `aliquot` is allowed for unknowns, and the same identifier, aliquot and step may not appear twice. |
 | `extraction` | The extraction (table, see below). |
 | `measurement` | `plan` (the plan name), `overrides` (values that change a plan for this run), `hook`, `advanced`. |
 | `post_equilibration` | Name of a script that starts when the inlet closes, while the measurement goes on. |
@@ -196,7 +199,7 @@ Every time you load or edit a queue it is checked, all problems at once:
 A queue with an error will not start. From a terminal:
 
 ```bash
-elctl -c extraction_line.toml exp validate experiment.toml --lab .
+elctl -c extraction_line.toml exp validate queues/experiment.toml --lab .
 ```
 
 prints the queue, the estimated time (`ETA`) and every problem.
@@ -209,10 +212,43 @@ Open it from **View > Experiment** (Ctrl+Shift+E). Its menus are the submenus of
 
 | Area | What it is |
 |---|---|
-| Centre | The queue table, one row per run. Above it, the queue's conditionals file and an Edit button. |
+| Centre | Two tables, one row per run: **Executed** above, **Queue** below (see "Executed and Queue" below). Above them, the queue's conditionals file and an Edit button. |
 | Left (tabs) | **Run Factory** (section 5) and **Measurement** (the plan and parameters of the selected run). |
 | Bottom | **Executor**: the Start / Stop / Cancel / Abort / Truncate buttons, status, a timeline, a table of events (each with the time it happened, on the line's clock) and tripped conditionals. |
-| Right | **Evolutions**: the isotope signals of the run being measured, with fits, and a table of their intercepts (isotope, detector, fit, intercept, error, percent error, points used). |
+| Right | **Evolutions**: the run being measured, one tab a kind (Signal, Baseline, Sniff). Each series of the tab has a panel of its own, stacked in the order the series began on one time axis, each scaled to its own readings, with its live fit and intercept; with many series the panels scroll. Signals and baselines are a panel an isotope on a detector (an isotope peak-hopped onto a second detector has two), sniffs a panel an isotope. Below, a table of the intercepts (isotope, detector, fit, intercept, error, percent error, points used). A last tab, **Peak center**, draws the run's peak center (below). The panels cannot be zoomed or saved yet. |
+| Right, behind Evolutions | **References**: the recent blanks and airs of this spectrometer as time series, redrawn after each saved run (section 3.5). Only when runs are saved to a database. |
+
+**The Peak center tab.** When a run centres a peak (the plan's `peak_center`
+block, see "Peak centring" in [the spectrometer chapter](03-spectrometer.md)),
+the Evolutions pane switches to its **Peak center** tab by itself and draws
+the sweep as it goes: intensity against the magnet position, one point a
+step. The reference detector is drawn heavy and named with a star in the
+legend (`*H1`). Each of the config's `additional_detectors` is drawn in its
+own color, scaled so that its lowest and highest readings span the same
+range as the reference's: the graph compares the shapes and positions of the
+peaks, not their sizes. Hovering over a point gives its detector, magnet
+position and raw intensity. The title names the isotope, the detector and
+the try (`Ar40 on H1, try 1 of 2`). When the centring succeeds the title
+gives the centre (`center 5.123456, table updated`), circles mark the low,
+centre and high points of the peak and a diamond its maximum. Dashed rules
+mark where the sweep was centred when it began and the centre found, and,
+when the config has a `dac_offset`, the centre without that offset. When it
+fails, the points stay, nothing is marked and the title gives the reason
+(`failed: ...`). A second try draws over the first, which stays behind it,
+thin and faint, without markers or a legend entry.
+
+A peak center skipped because the signal was below `min_signal` draws
+nothing (the run's record says it was skipped). One that was cancelled or
+stopped by a hardware fault keeps the points it had and its title ends in
+`not finished`. When the next run starts, the pane returns to the Signal tab;
+the last graph stays in the Peak center tab until another peak center
+replaces it. Each finished peak center adds a line to the **Peak centers**
+list at the bottom of the pane; clicking a line draws that peak center again
+and selects the tab. The list holds the lines of the run being measured
+(a plan with a peak center before and after has two) and is emptied when
+the next run starts. The graphs of the last 20 peak centers of the queue are
+kept in memory only: starting a queue clears them, and the sweep is not
+saved with the run.
 
 The panels around the table can be closed, moved and floated (the Executor
 can be moved but not closed). **Window > Panels**, **Window > Reset Layout**
@@ -220,8 +256,22 @@ and **Window > Arrangements** bring them back, restore the installed layout
 and keep layouts under a name: see "Panels and arrangements" in
 [the extraction line chapter](02-extraction-line.md).
 
-Rows that have a problem are coloured, and hovering over them lists the
-problems. A row that is running or finished has a coloured Status
+**Executed and Queue.** The queue is one list of runs, shown in two tables.
+**Queue**, the lower one, holds the runs still to do: it is the one you edit,
+and the one Start begins at. **Executed**, above it, holds the runs the
+executor has reached, oldest first: a run moves there the moment it starts
+(and a skipped row the executor has passed moves too, greyed). Executed is
+read-only. Its header reads **Executed (N)**, N the number of runs in it;
+the arrow beside it folds the table to its header line and opens it again.
+The table is hidden while it is empty. It follows the newest run as runs
+arrive, unless you have scrolled up in it. Drag the bar between the two
+tables to share the room; the fold and the sizes are kept for the next
+time the window opens. Both tables have the same columns, and widening a
+column in Queue widens it in Executed. A run keeps its number (`#`) in both
+tables: runs never change place in the queue, only which table shows them.
+
+Rows that have a problem are colored, and hovering over them lists the
+problems. A row that is running or finished has a colored Status
 (success, failed, cancelled or aborted).
 
 Table columns: `#`, Status, Identifier, Aliquot, Step, Type, Position,
@@ -234,8 +284,22 @@ Comment.
 
 **File > Open > Open Queue…** (Ctrl+O) loads a queue; **File > Save Queue**
 (Ctrl+S) and **Save Queue As…** write it; **File > New > New Queue** (Ctrl+N)
-starts an empty one with no file. Open and New work from any window and
-bring the Experiment window up. **Experiment > Queue > Revalidate** checks the queue again. You
+starts an empty one with no file. Open starts in the folder of the last queue
+you opened, or in the lab's `queues/` folder when there is none (or that folder
+is gone). Saving a queue that has no file yet starts in `queues/`, which is
+made if missing; you type the name. `--queue` at start takes a name in that
+folder too: `--queue experiment.toml` finds `<lab>/queues/experiment.toml`,
+then `<lab>/experiment.toml`. Open and New work from any window and
+bring the Experiment window up.
+
+**File > Open Recent**, while the Experiment window is in front, lists the
+last ten queues you opened or saved, newest first; the menu shows each file's
+name, and hovering shows its full path. Choosing one opens it as Open does,
+asking first about unsaved changes. A queue whose file has been deleted or
+moved drops out of the list. **Clear Menu** at the bottom empties it; the
+submenu is greyed while it is empty.
+
+**Experiment > Queue > Revalidate** checks the queue again. You
 cannot open or start another queue while one is running. Closing the window asks about unsaved changes and,
 if a queue is running, whether to stop it after the current run. If you
 simply hide the window the queue keeps running.
@@ -257,19 +321,131 @@ Conditionals...** lists the lab's conditionals files, with a tick for files
 all selected rows have, no tick for none, and a half tick where they differ
 (a half-ticked file is left as each row has it).
 
+These commands act on the rows selected in the **Queue** table only; a
+selection in Executed is not read. Executed has its own right-click menu:
+
+| Command | What it does |
+|---|---|
+| Repeat | Same as **Queue > Repeat Last Run** (section 3.4): copies the selected executed runs, or the last one when none is selected, to the front of Queue |
+| Open Extraction Script / Open Post-Measurement Script | opens the selected run's script in the script editor, to read (one row selected) |
+
 ### 3.3 Editing while the queue runs
 
-You may edit rows the executor has not reached yet. Rows that have started,
-a pause being waited, and a skipped row already passed are frozen: a change
-to them is refused ("rows the executor has reached cannot change"). A row
-whose delay is still counting down is not yet frozen; the executor re-reads
-it when the delay ends. The queue-level settings cannot be changed while
-running.
+You may edit rows the executor has not reached yet: the rows of the Queue
+table. A run moves to Executed when it starts; rows in Executed (runs that
+have started, a pause being waited, a skipped row already passed) cannot be
+changed, and a change that would reach them is refused ("rows the executor
+has reached cannot change"). A row whose delay is still counting down is
+still in Queue and not yet frozen; the executor re-reads it when the delay
+ends. The queue-level settings cannot be changed while running.
+
+When the queue ends, or is stopped, its executed runs stay in Executed and
+stay read-only. Rows in Queue can be edited again. To edit an executed run,
+or run it again, use **Queue > Reset** (section 3.4).
 
 The executor can also change the queue itself, when a conditional asks it to
 skip a run or add a blank (section 7.5). Those changes show in the table
 and in the Events list. If you and the executor change the queue at the same
 moment, one of the edits is refused rather than lost; make it again.
+
+### 3.4 Reset, Clear Executed, Repeat and Resume (Experiment > Queue)
+
+| Command | What it does | While a queue runs |
+|---|---|---|
+| **Reset** | Puts every run back in Queue and clears their statuses. The queue file is not changed (runs never moved in it). | refused |
+| **Clear Executed...** | Asks "Remove N executed runs from the queue?", then deletes the executed runs from the queue; the queue is marked as changed, to be saved. | refused |
+| **Repeat Last Run** | Copies the last executed run (or the runs selected in Executed), aliquot and step cleared, to the front of Queue, so it runs next. | allowed |
+| **Resume...** | Offers to resume a queue that stopped before its end (below). | refused |
+
+A command that cannot run says why in a message: "A queue is running.", or
+"No run has been executed." for Repeat Last Run with an empty Executed
+table, or "Nothing to resume." for Resume....
+
+**Resuming a queue.** While a queue runs, the executor keeps how far it has
+got in `executor_state.json` in the data directory. When you open a queue
+(**File > Open**, or `nobion --queue <file>` at start-up), and when you
+choose **Queue > Resume...**, the window reads that file. If it is about the
+same queue (same name) and that queue stopped part way, it asks:
+
+> The queue *name* stopped at row N (*identifier*) at *date and time*.
+> Resume from row N?
+
+with a line beneath saying how it stopped: "It was stopped." after a Stop,
+Cancel or Abort, or "It did not finish (the program ended while it ran)."
+after a crash or a forced quit. **Resume** puts the rows before N in Executed,
+with the statuses they had, and starts the queue at row N. **Not now**
+changes nothing; Resume... stays in the menu for later. If the queue was
+changed since (a row inserted or removed before N), the window compares
+each executed row's identifier with the file's; on the first difference it
+says so ("Row 3 is 12345-02 now; the file has 12345-01.") and Resume cannot
+be pressed. A queue that ran to its end, or stopped before its first run,
+is not offered. Nor is it offered in the window that has just stopped the
+queue: there its executed runs are still in Executed, and Start goes on
+from the first row of Queue.
+
+Resuming does not yet give the remaining steps of a step heat the aliquot
+of its earlier steps when the run had none fixed; they are given a new one.
+
+### 3.5 References: recent blanks and airs
+
+The **References** panel shows how the instrument's references have been
+behaving while the queue runs: are the blanks falling, is the air steady. It
+sits on the right behind **Evolutions**; click its tab to bring it forward.
+Like the other panels it can be moved, floated or closed, and **Window >
+Panels** brings it back.
+
+It has two tabs, each a time series figure (the same figure as **Time
+series** in the data window, [Data analysis](06-data-analysis.md)):
+
+| Tab | Analyses | Starting preset |
+|---|---|---|
+| **Blanks** | Every kind of blank: `blank_unknown`, `blank_air`, `blank_cocktail`, `blank_extractionline`, and the plain `blank` of imported data. Each kind is a group of the figure, with its own color and legend entry. | Blanks |
+| **Airs** | `air` | Air monitor |
+
+Unknowns, cocktails, detector intercalibrations and other run types are in
+neither tab. A blank or air tagged invalid is not drawn.
+
+**Which analyses.** Each tab draws the newest analyses of its kind:
+
+* of the queue's mass spectrometer (a queue that names none shows those of
+  every spectrometer; opening a queue of another spectrometer reads again for
+  that one);
+* at most **Last** of them, per tab (default 50, from 5 to 500; the number
+  is remembered);
+* that started at or after the moment **Reset** was last pressed. Until you
+  press Reset there is no lower bound in time. Reset ("from now") empties
+  both tabs, and the next blank or air is the first point again. The reset
+  point is not remembered: a new Experiment window shows everything again.
+  An analysis's time is the time it started, so a run that began before you
+  pressed Reset and is saved after it is left out.
+
+**When it reads.** The panel reads the database the first time it is shown,
+after each run that was saved (a run whose save failed does not count), and
+when you press **Refresh**. Reading is done in the background and never
+holds up the queue. A run is sometimes not in the database yet when it
+finishes; if that read finds nothing new, the panel looks again 2 and 10
+seconds later (on the session's clock, so in a simulation at its speed),
+then stops: press **Refresh** if a point is still missing. A read that
+finds nothing new leaves the figures as they are.
+
+The note beside the buttons says when the panel last read (`read 14:02:11`,
+on the session's clock), or `could not read:` and why. A failed read keeps
+the figures it drew before and does not affect the queue.
+
+**Options and presets.** The **…** button on each tab opens that tab's
+options: the time series options and the bar of named presets that a figure
+window has ("Options and named presets" in
+[Data analysis](06-data-analysis.md#options-and-named-presets)). Choose what
+each tab plots (for example `Ar40/Ar36` for the airs) or pick a preset; a
+change redraws that tab only. The preset chosen for each tab is remembered;
+if it is later deleted the tab goes back to its starting preset. Each tab can
+be zoomed, panned, saved and copied as any figure can.
+
+**When there is no References panel.** The panel needs a database to read
+from, the one the session saves runs to. A queue that writes its runs only
+as record files (no database configured, a database that could not be
+opened, or a simulation writing files) has no References panel, not an
+empty one, and **Window > Panels** does not list it.
 
 ## 4. Run types
 
@@ -340,7 +516,7 @@ identifier. Enter the Identifier, and optionally Aliquot (leave blank for
 automatic) and Step. When the type changes, the form starts from the lab's
 defaults for that type (below).
 
-*Picking the identifier.* When `pychron-ui` was started with `--db`, the Run
+*Picking the identifier.* When `nobion` was started with `--db`, the Run
 group also has **Package** and **Level**, and the Identifier field has a
 dropdown. Choose a package (an irradiation) and the dropdown lists the
 identifiers of all its levels, each with its sample and where it sits:
@@ -359,9 +535,16 @@ again tries again. Without `--db` they are never shown.
 optional "id step" to advance the identifier for each), Value and its units,
 Duration, Cleanup, Script, and **Step heat**.
 
-*Step heat* makes one run per heating value, with steps A, B, C...: type the
-values (`5, 10, 15`) or `start:increment:count` (`5:2.5:4` gives 5, 7.5, 10,
-12.5). It needs a type that heats.
+*Step heat* makes one run per heating step, with steps A, B, C... Either pick
+a **Template** (one of the lab's step heat templates, section 5.2), or type
+the **Values** (`5, 10, 15`) or `start:increment:count` (`5:2.5:4` gives 5,
+7.5, 10, 12.5). Never both: picking a template clears the values and disables
+the field; typing values sets the template back to "none". Typed values all
+get the form's units, duration and cleanup. **Edit...** opens the step heat
+template editor, and **Save as template...** turns the typed values into a
+new template there. A step heat needs a type that heats; for other types the
+group is disabled. The line above the buttons says what Add will make, for
+example "12 runs, steps A to L, 0.5 to 6 W, 21 min extraction".
 
 **Measurement.** Plan, Post-equilibration, Post-measurement scripts,
 Conditionals (files every added run gets) and Comment.
@@ -409,11 +592,108 @@ Allowed keys are `template`, `script`, `post_equilibration`,
 makes the whole file fail to load, and the problem is shown in the Executor
 banner.
 
+### 5.2 Step heat templates
+
+A **step heat template** is a lab's named heating schedule: the steps of a
+step heat, each with its own value and, when it needs them, its own
+duration, cleanup, beam diameter and so on. Templates are files in
+`<lab>/queues/step_heats/`, one per template; the template's name is the file
+name without `.toml` and may use `a-z`, `0-9`, `_` and `-`. The folder is
+optional. `configs/examples/queues/step_heats/laser-12.toml` is an example.
+
+```toml
+[template]
+name = "laser-12"            # optional; must equal the file name when given
+description = "CO2, 12 steps, sanidine"
+units = "watts"              # default for steps: watts | temp | percent
+duration = 30                # s, default for steps
+cleanup = 15                 # s, default for steps
+
+[[steps]]
+value = 0.5
+
+[[steps]]
+value = 1.0
+duration = 45
+
+[[steps]]
+value = 1.5
+beam_diameter = 2.0
+ramp_rate = 0.1
+```
+
+The steps are taken in the order written: the first is step A, the next B,
+and so on, 1 to 1000 steps. A step must have a `value` above 0 and may have
+`units`, `duration`, `cleanup`, `pre_cleanup`, `post_cleanup`,
+`beam_diameter`, `ramp_rate`, `ramp` and `cryo_temp`, with the same meaning
+and units as in a queue run's `extraction` (section 2.3). A template holds
+only a heating schedule: device, position, pattern, script, plan, identifier
+and aliquot come from the run factory's form.
+
+Where a step leaves a setting out, the run gets it from the `[template]`
+table when that has it, and from the run factory's form when not. In short,
+the step wins over the template, and the template wins over the form.
+
+An unknown key, a value of 0 or less, an unknown unit, or a template with no
+steps makes the file unusable; the problem is listed as a lab problem naming
+the file and the step (`step 3 (C): ...`), and the other templates still
+load.
+
+**Using a template.** In the run factory, pick the template, fill in the rest
+of the form and press **Add**: one run per step is inserted, steps A, B, C...
+With **One run per hole** on and a position of several holes, Add makes the
+whole schedule for each hole in turn (hole 1 steps A to L, then hole 2 steps
+A to L), advancing the identifier by "id step" per hole as usual. With it
+off, every step runs on the whole position.
+
+Templates are used by Add only: there is no way to apply one to rows already
+in the queue. Once added, the rows are ordinary rows; the queue file does not
+say which template made them, and changing or deleting the template later
+does not change a queue already made.
+
+**The editor.** Experiment > Scripts > **Step Heat Templates...**, or
+**Edit...** beside the template in the run factory, opens the editor. One
+template is open at a time.
+
+- Left: the lab's templates, with **+** (new, asks for a name),
+  **Duplicate** (a copy under a new name) and **−** (delete the file, after
+  asking).
+- Top right: the name (read only: to rename, Save As under the new name),
+  the description, and the template's default units, duration and cleanup.
+- The table: Step (the letter), Value, Units, Duration (s), Cleanup (s),
+  Beam diameter and Ramp rate. An empty cell inherits: it shows in grey the
+  value the run will get from the template or the form.
+- **Add** adds a step after the selected (or last) one, copying it; with two
+  or more steps the value goes up by the last increment. **Insert** puts a
+  copy before the selected step. **Delete**, **Up** and **Down** delete and
+  move the selected steps.
+- **Fill...** sets one column on the selected steps (every step when none is
+  selected); an empty entry makes them inherit again. **Fill from text...**
+  takes `5:2.5:4` or `1, 2, 3` and puts those values on the selected steps,
+  or appends them as new steps when none is selected.
+- Under the table: the number of steps and the total extraction time.
+- Diagnostics lists every problem at once; a template with problems cannot
+  be saved.
+- File > Save, Save As and Revert Step Heat Template. File > **New Step Heat Template from Run
+  Factory Text** makes a template from the values typed in the run factory
+  with the form's units, duration and cleanup (the run factory's **Save as
+  template...** does the same).
+
+Saving writes the file in a fixed layout and leaves out a step's setting
+that equals the template's default. Comments typed into the file by hand are
+lost on save; the editor asks first when the file has any. You are asked
+about unsaved changes when you close the editor or open another template.
+Saving updates the run factory's template list at once. The editor only
+writes files under `<lab>/queues/step_heats/`, and may be used while a queue
+runs: a running queue already holds its rows.
+
 ## 6. Blocks
 
 A **block** is a short reusable sequence of runs, for example a blank, an air
-and a second blank. Put a file in `<lab>/blocks/`; its runs use the same keys
-as `[[runs]]` in a queue. From `configs/examples/blocks/blank_pair.toml`:
+and a second blank. Put a file in `<lab>/queues/blocks/`; its runs use the same keys
+as `[[runs]]` in a queue. A lab's old `<lab>/blocks/` folder is not read: move
+its files to `<lab>/queues/blocks/`. From
+`configs/examples/queues/blocks/blank_pair.toml`:
 
 ```toml
 [block]
@@ -579,7 +859,11 @@ A check is a small formula that is true or false. Spaces do not matter.
   `extraction_line.toml`), `device.NAME`, and `param.NAME`.
 * **Functions over a series of readings:** `min(Ar40)`, `max`, `average`,
   `slope`, `std`, `rsd`, `count`, each optionally `window=N` for the last N
-  points: `average(Ar40, window=10)`, `slope(Ar40) > 100`.
+  points: `average(Ar40, window=10)`, `slope(Ar40) > 100`. After a gap in
+  the readings (section 8.2) a window starts again: it holds only the points
+  after the gap, and a check over it is not made until there are enough (two
+  for `slope`, `std` and `rsd`, one for the others). A function without a
+  window sees every point, and `elapsed()` counts through the gap.
   `between(value, low, high)`, `abs(value)` and `elapsed()` work on single
   values.
 
@@ -654,9 +938,13 @@ there; fix it in a text editor.
 ### 8.1 Start
 
 Check that the queue has no errors (the Start button stays disabled until it
-is runnable), optionally select the row to start from, and press **Start**
-(F5, or **Experiment > Executor > Start**). Start begins at the **selected row**, or row 0
-if none is selected. The window starts the queue on the instrument; to try
+is runnable) and press **Start** (F5, or **Experiment > Executor > Start**).
+Start begins at the **first row of the Queue table**, whatever row is
+selected: after a Stop, Start goes on from the run after the last one that
+started. Runs already in Executed are not run again; to run them again,
+choose **Experiment > Queue > Reset** and then Start. Once a queue has run
+to its end, Queue is empty and Start stays disabled until Reset (or until
+runs are added). The window starts the queue on the instrument; to try
 without hardware use a simulation (section 9).
 
 A queue will not start, and the Executor banner says why, when:
@@ -696,11 +984,115 @@ unfinished run may also end Failed, Cancelled or Aborted.
    extraction record is saved.
 5. **Equilibrating, Measuring.** The spectrometer measures according to the
    plan. The post-equilibration script starts when the inlet closes. The
-   Evolutions pane draws the signals.
+   Evolutions pane draws the signals, and a peak center, when the plan has
+   one, in its Peak center tab (section 3).
+
+   **When the spectrometer goes silent** (no reading within three
+   integrations plus 5 s, or its link drops), the measurement does not end:
+   it waits, for up to 2 minutes, for the readings to come back, and does
+   nothing else to the line meanwhile. Readings that resume continue the
+   block to its planned end time, so time zero and the block's end do not
+   move; the gap is kept in the record and said in the Executor pane. When
+   they do not resume, the acquisition is started once more; if that gives
+   nothing, the block ends. A main block left with fewer than 20 % of its
+   planned counts (and never fewer than its fit needs) fails the run (saved
+   as failed, section 8.2); with more, the run is truncated. During a
+   measurement, closing the inlet and unprotecting a detector keep trying
+   through a dropped link for 10 minutes, with an alarm after 20 s. These
+   limits are the lab's to change, in `executor.toml`
+   ([Configuration reference](07-configuration-reference.md)).
 6. **PostMeasuring.** The post-measurement script runs. A failure here is
    logged but the run still saves.
 7. **Saving.** The record is written (section 8.5), and then the `post_run`
    conditionals are checked.
+
+**A run that fails after its extraction script started** has spent its
+sample, so nothing it measured is thrown away: its record is saved with
+status `failed` and the reason, and stored with the tag `invalid` (left out
+of the browser and figures, as any invalid analysis is; the recall window
+still opens it). Its aliquot is not given again. A truncated run's record
+says `truncated`. A cancelled or aborted run is the operator's choice and is
+not saved, as before.
+
+Then the line is put in a **safe state**, in this order: the extraction
+device is stopped and disabled, the plan's inlet valve closed and the
+detectors the plan protects unprotected. A step that fails because a link is
+down keeps trying for 10 minutes; after 20 s an alarm says so, and if it
+still fails a critical alarm says the line may not be safe. The steps after a
+failed one still run. Last, when the lab has one, `scripts/safe_state.py`
+runs: the lab's own sequence to isolate and pump the line ([Scripting](09-scripting.md),
+section 1). A run whose post-measurement script failed is saved and then
+made safe the same way.
+
+**When a link drops, the queue holds.** Before each run the executor checks
+the links the run needs: every transport of the extraction line (its
+extraction device is one of them) and, for a run with a measurement plan,
+the spectrometer's; a transport marked `optional = true` is left out. It
+also checks that the spool's disk has room and that not too many records
+wait to be sent. When one of these is not so, or a run has just failed
+because of a link, the Executor pane says **Holding** and why. While it
+holds, each link that is down is tried again every 15 s; once every link
+the next run needs has been up for 30 s, the queue goes on. A run that
+failed before its extraction began spent nothing: it is started again, with
+the aliquot it was given. A run that failed after it is never run again.
+After 2 hours of holding the queue ends, failed, naming the links. Stop,
+Cancel and Abort work while it holds. A run whose safe state failed ends
+the queue at once, without holding. These times, and whether the queue
+goes on after a run failed for a link, are in `executor.toml`
+([Configuration reference](07-configuration-reference.md)).
+
+**What a dropped link costs, by where the run is.** A link that comes back
+within 20 s (the call window; `call_window_s` of the transport, or of
+`executor.toml`) costs nothing: the command is sent again when it is safe to
+send twice (a read, a valve to open, a setpoint), and the run goes on. A
+command whose second arrival would do more (fire the laser, start an
+acquisition) is never sent twice: the program reads back what happened
+instead. When the link stays away longer:
+
+| Where the run is | What happens |
+|---|---|
+| Waiting to start, or Preparing | The run has not started and spends nothing. The queue holds, and starts that same run, with the same aliquot, once the links are back. |
+| Extracting | The extraction script stops with an error and the run fails. Its record is saved as `failed`, the line is put in its safe state, and the queue holds before the next row. |
+| Equilibrating, Measuring: the spectrometer goes silent | The measurement waits up to 2 minutes for the readings, then goes on, truncates or fails, as described under step 5 above. Nothing is done to the line while it waits. |
+| Measuring: a valve (closing the inlet, unprotecting a detector) | The command keeps trying for 10 minutes, with an alarm after 20 s; if it still fails, as for Extracting. |
+| PostMeasuring | As before: the failure is noted and the run still saves; then the safe state. |
+| Saving | Never waits: the record goes to the spool, and is sent on when the store is back (section 8.5). |
+
+**What you see while it holds.** The health bar shows a chip, "holding:
+<reason> · ends in H:MM:SS", counting down to the hold's limit; the
+Executor pane's events say `holding: <reason> (<links>) until <time>`, then
+`resumed`, and each gap in the readings and each reconnect. Two buttons in
+the Executor pane, also in **Experiment > Executor**, act only while the queue
+holds:
+
+| Button | Effect |
+|---|---|
+| **Resume** | Try now: the queue goes on as soon as the links answer, without waiting the 30 s settle. If a link is still down, the queue holds again, with the limit it had. |
+| **Skip Held Run** | Drop the row the queue holds for (it asks first) and hold, if needed, for the next one. Only for a row that has not started: a run past the start of its extraction is never run again. |
+
+This Resume acts on a queue that is running and holds. **Queue > Resume...**
+(section 3.4) is another command: it takes up a queue that stopped.
+
+`elctl exp run` prints the same lines (`holding: ...`, `resumed`,
+`gap in <block>: <n> s`, `reconnected <transport> after <n> s`); it has no
+Resume or Skip: stop it and start again with `--resume`.
+
+**A failed run is never run again.** Its row in the queue table says
+`failed (saved)` and a notification goes out. When it failed because a link
+dropped, the queue holds and then goes on to the next row (with
+`after_link_failure = "end"` in `executor.toml`, it ends instead); any other
+failure ends the queue, as before. The program never puts the run back in the
+queue, a reference run (blank, air) included: add a row yourself if you want
+one.
+
+**The lab's safe state.** `<lab>/scripts/safe_state.py` is optional. It runs
+after the built-in steps, with the line only (no spectrometer acquisition),
+each time a safe state is applied, and may be applied more than once for one
+failure: write it with absolute targets (close this valve, open that pump
+valve), never toggles, so that running it twice does no harm. When a step of
+the safe state, built-in or the script, cannot be done, the queue ends at once
+with the reason `unsafe`, a critical alarm, and an `unsafe` notification:
+someone must look at the line.
 
 ### 8.3 Stop, Cancel, Abort, Truncate
 
@@ -740,16 +1132,17 @@ the Executor pane shows overlapping runs in separate lanes, and the
 time).
 
 The timeline does not try to show a long queue all at once. It follows the
-last six runs up to now, so the run in progress and the ones before it stay
-wide enough to read however long the queue has been running. To look further
-back:
+run in progress, from its start up to now, so its phases stay wide enough to
+read however long the queue has been running. When runs overlap it shows
+all that are in progress, and between runs the one that started last. To
+look further back:
 
 | Do this | To |
 |---|---|
 | Ctrl+wheel (Cmd+wheel on macOS) | Zoom in or out about the time under the pointer, from ten seconds to the whole queue. A plain wheel scrolls the pane as usual. |
 | Drag | Move the window earlier or later. |
 | Double-click, or the **Follow** button | Go back to the runs in progress. The button shows whenever the timeline is not following. |
-| Right-click | Follow the last 3, 6 or 12 runs, or show the **Whole queue**. The number of runs is remembered. |
+| Right-click | Follow the active run, the last 3, 6 or 12 runs, or show the **Whole queue**. The choice of what to follow is remembered. |
 
 A window you have moved stays where you put it while the queue runs on; the
 dashed line that marks now is drawn only when the window includes it.
@@ -761,10 +1154,10 @@ the bottom are elapsed time since the queue's first event.
 Where a finished run goes depends on whether the program has a database.
 
 **With a database.** An instrument install has one (the setup makes it, by
-default a SQLite file at `<install>/data/pychron.db`), and both `pychron-ui`
+default a SQLite file at `<install>/data/nobion.db`), and both `nobion`
 and `elctl exp run` use it; `--db <url>` names another. Each finished run is
 written to the database as one analysis before the run is reported as ended,
-and the data window of `pychron-ui` shows it when the run ends
+and the data window of `nobion` shows it when the run ends
 ([Data analysis](06-data-analysis.md)).
 No record file is written for it. These stay files under the data folder:
 
@@ -852,7 +1245,7 @@ and the failure is not silent:
   the reason, in the event log and, at the command line, under the run;
 * its row in the queue table is flagged, and its tooltip gives that line;
 * a notification goes out as for a failed run, with the subject
-  `pychron: run <id> not saved (queue <name>)`
+  `nobion: run <id> not saved (queue <name>)`
   ([notifications](#86-notifications));
 * the Executor pane shows "N run(s) waiting to be saved to the database"
   (without a database, "N record(s) in the spool"), followed by the reason
@@ -863,32 +1256,42 @@ and the failure is not silent:
 ```
 run 0 ba-1: success (not saved)
 ...
-5/5 run(s) succeeded; 0 of them in sqlite:/home/lab/Pychron/argus/data/pychron.db
-warning: 5 record(s) waiting in /home/lab/Pychron/argus/data/spool: <record id>: <the database's reason>
+5/5 run(s) succeeded; 0 of them in sqlite:/home/lab/Nobion/argus/data/nobion.db
+warning: 5 record(s) waiting in /home/lab/Nobion/argus/data/spool: <record id>: <the database's reason>
 ```
 
 A pending run is safe on this computer but is not yet in the database, so the
-data window does not show it. Pending runs are sent again when the next queue
-starts, and a run is never stored twice. One the database refuses for good (its
-identifier was removed, say) stays in the spool and is tried at each queue
-start until the missing entry is added.
+data window does not show it. Pending runs are sent again when a queue
+starts, after every run, and every 5 minutes while any wait (the wait
+doubles, up to 30 minutes, while sending keeps failing); no run waits for
+this, and a run is never stored twice. One the database refuses for good (its
+identifier was removed, say) stays in the spool and is tried again in the
+same way until the missing entry is added. When the spool's disk has less
+than 500 MB free, or more than 200 records wait, the queue holds before its
+next run (section 8.2; `[spool]` in `executor.toml`).
 
 Only one program at a time should run queues into a database.
 
 The executor also keeps `<data>/executor_state.json` up to date. It records
 the next row to run, so a queue can be resumed after a crash (a run that has
-started counts as consumed and is never repeated):
+started counts as consumed and is not repeated by `--resume`; a run that
+failed for a link before its extraction began is given back its row). While the queue holds, the file also
+says why, since when and for which row (`holding`), and it names the last row
+that failed (`last_failed_row`):
 
 ```bash
-elctl -c extraction_line.toml exp run experiment.toml --resume
+elctl -c extraction_line.toml exp run queues/experiment.toml --resume
 ```
 
 `--from <row>` starts at a given row instead.
 
 ### 8.6 Notifications
 
-Pychron can send a message when a run fails (or its record cannot be saved)
-and when the queue ends: email, a Slack-style webhook, or a local program.
+Nobion can send a message when a run fails (or its record cannot be saved),
+when the queue holds and goes on again, when a failed run left the line
+unsafe, and when the queue ends: email, a Slack-style webhook, or a local
+program. A message that cannot be sent (the network is down) waits on disk
+and is sent when it can, for up to 24 hours.
 Set it up in `<lab>/notifications.toml`; see [notifications](../notifications.md).
 The Executor pane's **Notify** line lists the configured channels ("off" when
 there is no file), and sent messages and failures appear in the Events list.
@@ -900,7 +1303,7 @@ every channel.
 Without an instrument you can try everything above on a simulated lab:
 
 ```bash
-pychron-ui --sim --lab configs/examples --queue configs/examples/experiment.toml
+nobion --sim --lab configs/examples --queue configs/examples/queues/experiment.toml
 ```
 
 `--sim` forces every transport in the extraction line to the built-in
@@ -910,13 +1313,13 @@ example run takes minutes, mostly waiting. **`--sim-speed <x>`** (with
 time:
 
 ```bash
-pychron-ui --sim --sim-speed 400 --lab configs/examples --queue configs/examples/experiment.toml
+nobion --sim --sim-speed 400 --lab configs/examples --queue configs/examples/queues/experiment.toml
 ```
 
 The same options exist at the command line, which needs no window:
 
 ```bash
-elctl -c configs/examples/extraction_line.toml --sim exp run configs/examples/experiment.toml \
+elctl -c configs/examples/extraction_line.toml --sim exp run configs/examples/queues/experiment.toml \
       --spectrometer configs/examples/spectrometer.sim-integrated.toml --sim-speed 50
 ```
 
@@ -930,13 +1333,13 @@ other database, a server, or any database given with `--db`, it writes record
 files under the data folder instead, and says so once:
 
 ```
-note: simulated runs are written to /home/lab/Pychron/argus/data/records, not to postgresql://lab@db.example.org/pychron; pass --sim-save to save them there
+note: simulated runs are written to /home/lab/Nobion/argus/data/records, not to postgresql://lab@db.example.org/nobion; pass --sim-save to save them there
 ```
 
-`pychron-ui` puts the same sentence in the log dock, and its data window goes
+`nobion` puts the same sentence in the log dock, and its data window goes
 on showing the database. To save simulated runs there all the same (a test
 database, a rehearsal), add **`--sim-save`** to `elctl exp run` or
-`pychron-ui`. A session is simulated when it is started with `--sim`, when its
+`nobion`. A session is simulated when it is started with `--sim`, when its
 install was set up for simulation, or when its spectrometer file names only
 simulators. A real instrument is never affected.
 
@@ -944,12 +1347,173 @@ The simulation uses the same queues, scripts, plans and conditionals as the
 real instrument, but its spectrometer, valves and lasers are models, so
 signal sizes and timings are not those of your instrument. The signals do
 follow the valves: gas goes from the example's air tank through the pipette
-and the inlet into the spectrometer, and `experiment.sim-air.toml` is a queue
+and the inlet into the spectrometer, and `queues/experiment.sim-air.toml` is a queue
 of air shots and blanks that shows it. A laser or furnace releases no gas in
 simulation. [The simulated lab](../simulator.md) has the details and the
 figures.
 
-## 10. Unverified / not yet implemented
+## 10. Measurement plans, version 2
+
+The hop-based plan of the [Configuration reference](07-configuration-reference.md)
+(`[main]`, `[[main.hops]]`, `[baseline] before/after`) still works and means
+what it always did. A version 2 plan writes the measurement out instead, as a
+list of **segments**, each a list of **positions**. Use it when the hop plan
+cannot say what you need: a baseline during the extraction, a baseline in the
+middle of a cycle, a per-run field table, an isotope on two detectors,
+per-cup deflections, optics presets, several gases in one run.
+
+A file is version 2 when it has `[[segment]]` or `[[gas]]` tables. It may not
+also have `[main]`, and `[baseline] before`/`after`, `[peak_center]
+before`/`after`, `[sniff] enabled` and `[whiff] enabled` are then refused:
+write the segment instead, so its place is the file's. `[plan]`, `hook`,
+`[detectors]`, `[equilibration]`, `[fits]`, `[conditionals]` and
+`[parameters]` are as in a hop plan.
+
+### 10.1 Segments
+
+```toml
+[[segment]]
+kind = "signal"           # signal (default), baseline, sniff, whiff, or a step
+when = "after_inlet"      # when it runs (below); after_inlet is the default
+cycles = 20               # repeats of its positions, default 1
+integration_s = 1         # default for its positions
+time_zero = "on_inlet_close"   # or "on_first_count", { offset_s = N }
+table = "argon"           # a field table for its positions
+[[segment.positions]]
+...
+```
+
+`when` places a segment in the run. Segments with the same `when` run in
+file order:
+
+| `when` | Runs |
+|---|---|
+| `during_extraction` | while the sample is extracted (the extraction script runs at the same time); only in plans of runs that extract, and no `signal` or `sniff` there |
+| `before_inlet` | after the extraction, before the inlet opens |
+| `during_equilibration` | while the gas equilibrates (a sniff) |
+| `after_inlet` | the measurement; the first `signal` segment is the main one, the one conditionals and `cycles` act on |
+| `after_main` | after the last `after_inlet` signal segment |
+| `after_run` | at the end of the run (with several gases: after the last) |
+
+A **step** is a segment of one action, written as a table named after its
+kind:
+
+| Step | Table |
+|---|---|
+| `peak_center` | `peak_center = { label, detector \| detectors = [...], extra_detectors = [...], config, write_table, min_signal }`; with `detectors` it centres on each in turn; `write_table = "ic_run"` keeps the centres in a field table of that name for this run only, which later positions can name as their `table` (never saved) |
+| `set` | `set = { deflection = { CDD = 2000 }, gain = { H1 = 1.0 }, hv = 4500, cdd_voltage = 1800, source = { ... }, integration_s = 2 }`; a `set` deflection stands until the run ends |
+| `blank_beam` | `blank_beam = true` or `false`; a blanked beam is unblanked when the run ends |
+| `park` | `park = { mass = 36.5, detector = "CDD" }` or `{ label, detector }` |
+| `delay` | `delay = { seconds = 30 }` |
+| `time_zero` | `time_zero = "now"` or `{ offset_s = N }`: sets the fits' time zero here |
+
+### 10.2 Positions
+
+| Key | Meaning |
+|---|---|
+| `collect` | `{ Ar40 = "H1", Ar36 = "CDD" }`, or a list `[ { label = "Ar40", detector = "H1" }, { label = "Ar36", detector = "CDD", deflection = 110 } ]` when an entry needs more. A list entry may have `deflection`, `protect = true` and `active = false` (kept deflected or protected, not read; it keeps its `label`). A detector at most once per position; the list form may read one label on several detectors |
+| `at` | where the magnet goes: `{ label, detector }`, `{ mass, detector }`, `{ dac }` or `{ hv, detector }`. Without it, the reference detector's entry positions it (`[detectors] reference`, else the spectrometer's `reference_detector`), else the first active entry |
+| `kind` | `signal` (default) or `baseline`: a baseline position inside a signal segment |
+| `counts` | readings per cycle; required |
+| `settle_s` | wait after the move; a detector that just read a large beam may make it longer (`large_beam_threshold`, `settle_after_large_beam_s` in `spectrometer.toml`), and so may a switch between the modes of one collector (`mode_switch_s`) |
+| `integration_s` | the segment's when not given |
+| `optics` | a preset of `spectrometer.toml` `[optics.<name>]`, applied by the driver; only on spectrometers whose driver applies presets |
+| `table` | a field table, the spectrometer's own or one a `peak_center` step wrote this run |
+
+Deflections given on a position are put back at the end of its segment. A
+label (`Ar40`, `HCl`, `Ar40H`, `mass35`) is an isotope or species of the
+spectrometer's mass table, or a name positioned by `at.mass`.
+
+Each series is kept under its label and detector: Ar40 read on H1 and on AX
+is two intercepts, `Ar40@H1` and `Ar40@AX`. Conditionals may name one
+(`Ar40@H1 > 1000`); a bare `Ar40` means what it did.
+
+### 10.3 Baselines
+
+A baseline segment, or a baseline position, reads each detector of its
+`collect` at its `at`. With several baselines per detector the intercept
+takes the one at the same position, else the nearest in time, else the
+average of the two that bracket it; the record says which it chose.
+`[baseline.modifier.<detector>]` (`variable`, `model`, `error`) models a
+detector's baseline on the run's own intercepts (`model` an expression in
+`x`, or a CSV of `x, baseline[, error]` in the plan's folder); it is stored
+with the run for reduction.
+
+### 10.4 Gases
+
+A plan without `[[gas]]` is one gas. `[[gas]]` tables (each with `name`,
+`inlet`, `outlet`, `equilibration`, `time_zero`, `fits`, `[[gas.segment]]`)
+are measured in file order in one run, each with its own inlet, time zero
+and segments; what a gas does not give comes from the top-level
+`[equilibration]` and `[fits]`. `source_dark_phase = true` keeps the source
+off while the gas is let in and switches it on at time zero (only on
+spectrometers that can). Two gases may not read the same label on the same
+detector as the same kind: the store keeps one such series a run.
+
+A gas may be released from a trap first and pumped away after:
+
+```toml
+[[gas]]
+name = "He"
+prepare = { script = "cryo:release", variables = { cryo_temp = 35, hold_s = 300 } }
+pump_out = { valve = "@valves.ion_pump", time_s = 120 }
+```
+
+`prepare` runs an extraction script (from `scripts/extraction`, with the
+run's variables and these on top) before the gas's inlet opens; `pump_out`
+opens the valve, waits and closes it after the gas's last segment. A plan
+with either holds the extraction line for the whole run, so such a run
+cannot overlap the next one's extraction (the queue check says so). If a
+`prepare` fails the run ends as a failed extraction does, and what earlier
+gases measured is saved.
+
+### 10.5 Examples
+
+The seven worked plans of the design notes are in
+`tests/experiment/fixtures/plans/valid/` and are run through the simulator by
+the tests:
+
+| File | What it shows |
+|---|---|
+| `v2_71_argus_syn_baseline.toml` | a baseline read during extraction, the main signal, a peak centre after the run, a CDD baseline modifier |
+| `v2_72_argus_hop_fifth.toml` | four isotopes static and a fifth hopped onto CDD, a Cl monitor at mass 35, a per-cup deflection, a baseline after the measurement |
+| `v2_73_argus_ic_table.toml` | detector intercalibration: a deflection step, a peak centre on three detectors written to a per-run table, Ar40 hopped onto every cup, a time zero step |
+| `v2_74_helix_hydride_hcl.toml` | hydride and HCl monitors on a Helix's CDD modes, an inactive protected cup, positions by `at` |
+| `v2_75_noblesse_optics.toml` | two optics presets alternating by position, with their own integration times |
+| `v2_76_helix_sft_he_ne_ar.toml` | helium, then neon, then argon in one run |
+| `v2_77_helix_xenon.toml` | three positions a cycle of xenon, a baseline before the inlet |
+
+### 10.6 Converting legacy scripts and hops
+
+`tools/pychron_measurement_import.py` turns a legacy measurement script (its
+`mx` docstring and the calls in `main()`), a hops file (Python tuples or
+YAML) and a `syn_extraction` YAML into a version 2 plan, and prints a report
+of every choice it made:
+
+```bash
+python3 tools/pychron_measurement_import.py unknown.py --syn-extraction syn_extraction/default.yaml -o plans/unknown.toml
+python3 tools/pychron_measurement_import.py jan_ic_peak_hop3.py --hops ic_hops.txt -o plans/ic.toml
+python3 tools/pychron_measurement_import.py argonH.yaml --reference H2 --cycles 10 --family thermo_helix -o plans/argonH.toml
+```
+
+A command it cannot map (a `gosub`, an `if` on a run value, a voltage
+change) goes into a measurement hook stub, `measurement_hooks/<plan>_hook.py`
+next to the output, with the original command in a comment, and the report
+names it (`line 17: gosub('warm_cdd'): hook stub`). The labels of a
+`multicollect` are worked out from the cup order (`--cups`, ARGUS by
+default): check them against your field table. Load the result with
+`elctl exp validate` before running it. The tool needs PyYAML.
+
+### 10.7 Not run yet
+
+A plan that uses one of these resolves only to be refused, with the path
+of the entry and `not run by this build yet`: segment `conditionals`; a
+sniff or whiff segment with several positions, `cycles`, an `at`, or
+per-position deflection, optics, table, integration or inactive entries; a
+second sniff or whiff in a gas; a whiff after the main segment; a gas with
+no `after_inlet` signal segment.
+
+## 11. Unverified / not yet implemented
 
 These points were found while reading the source. Test them on your system
 before relying on them.
@@ -961,7 +1525,7 @@ before relying on them.
 * **`options` / `script_options`.** The queue file reads `options` on a run
   and the scripts have an `opt` object, but the run does not pass the one to
   the other in this version, so `opt.<name>` is empty in an automated run.
-* **Script header values.** Lines such as `#! pychron: eqtime=20` in a script
+* **Script header values.** Lines such as `#! nobion: eqtime=20` in a script
   are checked for syntax, but no setting of the run reads them.
 * **`truncate` key on a run.** A run may carry `truncate = "..."` (alias
   `t_o`), but the loader treats each entry as the *name of a conditionals
@@ -971,12 +1535,12 @@ before relying on them.
   is accepted, but the lookup is by file name only.
 * **Queue `extract_delay`** is stored and written back, but nothing in the
   executor reads it (section 2.2).
-* **Spool recovery** happens when the next queue starts; there is no separate
-  command to resend spooled records.
+* **Spool recovery** happens only while a queue runs (section 8.5); there is
+  no separate command to resend spooled records.
 * **Runs in a database on PostgreSQL.** Writing a queue's runs to an
   install's database (section 8.5) has been tested on SQLite only.
 * **Peak center and measurement plan details** are outside this chapter; see
   the [Spectrometer](03-spectrometer.md) and
   [Configuration reference](07-configuration-reference.md) chapters.
-* **Measurement plans, version 2** are described in the design notes as a
-  draft and are not covered here.
+* **Measurement plans, version 2**: section 10 lists what a plan may say
+  that is not run yet.

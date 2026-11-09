@@ -13,10 +13,10 @@
 
 #include "store_fixture.hpp"
 
-using namespace pychron;
-using namespace pychron::persistence;
-using namespace pychron::persistence::testing;
-namespace pd = pychron::persistence::detail;
+using namespace nobion;
+using namespace nobion::persistence;
+using namespace nobion::persistence::testing;
+namespace pd = nobion::persistence::detail;
 
 TEST(Db, RejectsUnknownUrls) {
   auto db = pd::Db::open(StoreConfig{"mysql://localhost/x", false});
@@ -68,7 +68,7 @@ TEST(Db, FailedCommitIsRolledBackAndTheConnectionStaysUsable) {
 }
 
 TEST(Db, ConnectionLostInsideATransactionNeverCommitsHalfOfIt) {
-  if (pg_url().empty()) GTEST_SKIP() << "PYCHRON_TEST_PG_URL not set";
+  if (pg_url().empty()) GTEST_SKIP() << "NOBION_TEST_PG_URL not set";
   TestDatabase tdb("pg", false);
   auto admin = std::move(*pd::Db::open(StoreConfig{tdb.url(), false}));
   ASSERT_TRUE(admin->unprepared("CREATE TABLE t (x int PRIMARY KEY)"));

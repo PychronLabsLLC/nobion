@@ -12,20 +12,22 @@
 #include <utility>
 #include <variant>
 
-#include "pychron/core/number.hpp"
-#include "pychron/persistence/store.hpp"
-#include "pychron/processing/dataset.hpp"
-#include "pychron/reduction/arar_types.hpp"
+#include "nobion/core/number.hpp"
+#include "nobion/persistence/store.hpp"
+#include "nobion/processing/dataset.hpp"
+#include "nobion/arar/arar_types.hpp"
+#include "nobion/arar/domain.hpp"
+#include "nobion/arar/store_loader.hpp"
 
 namespace elctl {
 
 namespace fs = std::filesystem;
-namespace pp = pychron::processing;
-namespace ps = pychron::persistence;
-namespace r = pychron::reduction;
-using pychron::ErrorKind;
-using pychron::fail;
-using pychron::Result;
+namespace pp = nobion::processing;
+namespace ps = nobion::persistence;
+namespace r = nobion::reduction;
+using nobion::ErrorKind;
+using nobion::fail;
+using nobion::Result;
 
 namespace {
 
@@ -63,8 +65,8 @@ std::optional<int> parse_int(std::string_view text) {
   return value;
 }
 
-pp::ReductionSettings AgeFlags::reduction() const {
-  pp::ReductionSettings s;
+nobion::arar::ArArSettings AgeFlags::reduction() const {
+  nobion::arar::ArArSettings s;
   for (const auto p : {r::ConstantsPreset::Default, r::ConstantsPreset::Legacy, r::ConstantsPreset::LegacyPreferences})
     if (r::to_string(p) == constants) s.preset = p;
   s.include_decay_error = decay_error;
@@ -133,7 +135,7 @@ Result<bool> take_age_flag(AgeFlags& a, const std::vector<std::string>& args, st
     if (!n || *n < 2) return fail(ErrorKind::Config, "--plateau-steps takes a whole number of 2 or more");
     a.plateau_steps = *n;
   } else {
-    const auto pct = pychron::parse_double(value);
+    const auto pct = nobion::parse_double(value);
     if (!pct || !(*pct >= 0 && *pct <= 100)) return fail(ErrorKind::Config, "--plateau-gas takes a percent, 0 to 100");
     a.plateau_gas = *pct;
   }
@@ -145,21 +147,31 @@ Result<void> check_selection(const Selection& s) {
   return {};
 }
 
-Result<std::unique_ptr<pp::StoreSource>> open_source(const std::string& db_url) {
+pp::StoreSourceOptions store_options(const pp::Domain& domain) {
+  pp::StoreSourceOptions options;
+  options.reduction_version = std::string(domain.reduction_version());
+  if (domain.id() == "arar") options.extension_loader = nobion::arar::store_extension_loader();
+  return options;
+}
+
+pp::StoreSourceOptions arar_store_options() { return store_options(nobion::arar::shared_domain()); }
+
+Result<std::unique_ptr<pp::StoreSource>> open_source(const std::string& db_url, pp::StoreSourceOptions options) {
   // A mistyped SQLite path is an error, not a new empty store.
   constexpr std::string_view kSqlite = "sqlite:";
   if (db_url.starts_with(kSqlite) && db_url != "sqlite::memory:") {
     std::error_code code;
     const fs::path file(db_url.substr(kSqlite.size()));
     if (!fs::is_regular_file(file, code)) return fail(ErrorKind::Io, "no database at " + file.string());
-    if (fs::file_size(file, code) == 0 && !code) return fail(ErrorKind::Io, file.string() + " is empty: not a pychron store");
+    if (fs::file_size(file, code) == 0 && !code) return fail(ErrorKind::Io, file.string() + " is empty: not a nobion store");
   }
-  return pp::StoreSource::open(ps::StoreConfig{db_url, false}, pp::StoreSourceOptions{1, "", ""});
+  options.connections = 1;
+  return pp::StoreSource::open(ps::StoreConfig{db_url, false}, std::move(options));
 }
 
 Result<void> add_select(pp::Pipeline& pipeline, const pp::UnitRegistry& registry, const Selection& s) {
   auto& select = pipeline.add(registry, "select", "select");
-  std::optional<pychron::Error> bad;
+  std::optional<nobion::Error> bad;
   auto set = [&](std::string_view key, pp::OptionValue value) {
     auto ok = select.options.set(key, std::move(value));
     if (!ok && !bad) bad = ok.error();
@@ -179,10 +191,13 @@ Result<void> add_select(pp::Pipeline& pipeline, const pp::UnitRegistry& registry
 }
 
 Result<std::vector<pp::AnalysisPtr>> load_selection(const Selection& selection, const std::string& db_url,
+                                                    pp::StoreSourceOptions options,
                                                     std::vector<std::string>& warnings) {
-  auto source = open_source(db_url);
+  auto source = open_source(db_url, std::move(options));
   if (!source) return fail(source.error());
-  const auto& registry = pp::UnitRegistry::builtin();
+  // select only: core's units, built here and run here (a pipeline is built
+  // from the registry it runs on).
+  const pp::UnitRegistry registry = pp::UnitRegistry::core("");
   pp::Pipeline pipeline;
   pipeline.name = "selection";
   if (auto added = add_select(pipeline, registry, selection); !added) return fail(added.error());

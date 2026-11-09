@@ -1,11 +1,11 @@
-#include "pychron/experiment/record/builder.hpp"
+#include "nobion/experiment/record/builder.hpp"
 
 #include <set>
 
-#include "pychron/experiment/record/names.hpp"
-#include "pychron/experiment/record/serialize.hpp"
+#include "nobion/experiment/record/names.hpp"
+#include "nobion/experiment/record/serialize.hpp"
 
-namespace pychron::experiment::record {
+namespace nobion::experiment::record {
 
 std::string_view to_string(Phase p) noexcept {
   switch (p) {
@@ -35,7 +35,25 @@ RecordBuilder& RecordBuilder::set_baseline(const std::string& det, BaselineResul
   rec_.results.baselines[det] = std::move(v);
   return *this;
 }
+RecordBuilder& RecordBuilder::add_gas(GasRec v) { rec_.data.gases.push_back(std::move(v)); return *this; }
+RecordBuilder& RecordBuilder::add_baseline_position(BaselineRec v) {
+  rec_.results.baseline_positions.push_back(std::move(v));
+  return *this;
+}
+RecordBuilder& RecordBuilder::set_baseline_choice(const std::string& series, BaselineChoice v) {
+  rec_.results.baseline_choices[series] = std::move(v);
+  return *this;
+}
+RecordBuilder& RecordBuilder::set_baseline_modifier(const std::string& det, BaselineModifierRec v) {
+  rec_.results.baseline_modifiers[det] = std::move(v);
+  return *this;
+}
 RecordBuilder& RecordBuilder::set_blanks_ref(std::string ref) { rec_.results.blanks_ref = std::move(ref); return *this; }
+RecordBuilder& RecordBuilder::set_status(RecordStatus status, std::string failure) {
+  rec_.provenance.status = status;
+  rec_.provenance.failure = std::move(failure);
+  return *this;
+}
 RecordBuilder& RecordBuilder::set_icfactor(const std::string& det, double v) { rec_.results.icfactors[det] = v; return *this; }
 RecordBuilder& RecordBuilder::set_whiff(std::string result) { rec_.results.whiff = std::move(result); return *this; }
 RecordBuilder& RecordBuilder::set_conditionals(Conditionals v) { rec_.conditionals = std::move(v); return *this; }
@@ -93,8 +111,10 @@ std::vector<std::string> RecordBuilder::problems(Phase phase) const {
       }
       // One intercept an isotope; one a detector, under the acquisition's
       // name, for an isotope whose signal is on several (names.hpp).
+      // A v3 record has it under "<isotope>@<detector>".
       for (const auto& key : intercept_keys(r.data))
-        need(r.results.intercepts.count(key) == 1, "results.intercepts." + key + " missing");
+        need(r.results.intercepts.count(key) == 1 || r.results.intercepts.count(v3_intercept_key(r.data, key)) == 1,
+             "results.intercepts." + key + " missing");
       for (const auto& det : baseline_dets) need(r.results.baselines.count(det) == 1, "results.baselines." + det + " missing");
       break;
     }
@@ -112,13 +132,20 @@ Result<void> RecordBuilder::check(Phase phase) const {
 
 Result<AnalysisRecord> RecordBuilder::finalize() const {
   std::string msg;
-  for (auto phase : kAllPhases)
+  // A failed run's record has what the run got to (spec 4.5): only who it is
+  // is required, so the store can take it.
+  const bool failed = rec_.provenance.status == RecordStatus::Failed;
+  for (auto phase : kAllPhases) {
+    if (failed && phase != Phase::Identity) continue;
     for (const auto& s : problems(phase)) msg += (msg.empty() ? "" : "; ") + s;
+  }
   if (!msg.empty()) return fail(ErrorKind::Config, "incomplete record: " + msg);
   AnalysisRecord out = rec_;
-  out.provenance.schema_version = kRecordSchemaVersion;
+  // v3 only for what v2 cannot say: an ordinary run keeps its v2 bytes.
+  if (auto v2 = as_v2(out)) out = std::move(*v2);
+  else out.provenance.schema_version = kRecordSchemaVersion;
   out.provenance.sha = compute_sha(out);
   return out;
 }
 
-}  // namespace pychron::experiment::record
+}  // namespace nobion::experiment::record

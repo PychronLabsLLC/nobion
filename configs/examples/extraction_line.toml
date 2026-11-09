@@ -6,20 +6,9 @@
 name = "example"
 scan_interval_ms = 1000
 
-# Optional. With no `dir` there is no file sink. Levels: trace|debug|info|warn|error.
-[logging]
-# dir = "~/pychron-logs"
-# max_size_mb = 10
-# max_files = 5
-default_level = "info"
-# echo_stderr = false
-
-# Per-logger overrides, by name glob. Each transport logs its bytes at trace
-# to "<transport name>.wire" (e.g. "valve_bus.wire"), so this shows all wire
-# traffic; "scheduler" and "extraction_line" are the line's own loggers.
-# [logging.levels]
-# "*.wire" = "trace"
-# "scheduler" = "debug"
+# Logging is set in logging.toml in the install folder (see
+# configs/examples/logging.toml). A [logging] table here, and in
+# extraction_line.local.toml, is still read, and logging.toml overrides it.
 
 # Optional, and off unless enabled: an HTTP endpoint (GET /metrics) that the
 # lab's Prometheus scrapes. Read-only; see docs/observability.md.
@@ -38,13 +27,39 @@ default_level = "info"
 kind = "sim"
 timeout_ms = 500
 
+# How a transport's link recovers when it drops: every transport may have
+# this table; shown here with its defaults. reconnect = false: a failed call
+# is not tried again. optional = true: a run may start while this link is down
+# (a camera, a cryostat readout, a gauge that only watches). call_window_s:
+# how long one call keeps reconnecting and repeating what may be sent twice,
+# 0 to 3600. Not on a transport of kind = "link": the connection it names
+# recovers it.
+# [transports.valve_bus.recovery]
+# reconnect = true
+# optional = false
+# call_window_s = 20
+
 [transports.gauge_net]
+kind = "sim"
+timeout_ms = 500
+
+# A second gauge controller, of another make: the roughing side's Convectron.
+[transports.cg_controller]
 kind = "sim"
 timeout_ms = 500
 
 # The laser PC. With kind = "sim" the Chromium driver talks to a simulated
 # Chromium; a real one is kind = "tcp" (see laser.chromium.toml.example).
 [transports.laser_pc]
+kind = "sim"
+timeout_ms = 2000
+
+# The cryo trap's Lake Shore controller and the line's bakeout PLC.
+[transports.cryostat]
+kind = "sim"
+timeout_ms = 2000
+
+[transports.bakeout_plc]
 kind = "sim"
 timeout_ms = 2000
 
@@ -55,7 +70,13 @@ transport = "valve_bus"
 [drivers.ig_controller]
 kind = "pfeiffer_maxigauge"
 transport = "gauge_net"
-channels = [1, 2]
+channels = [1, 2, 3]
+
+[drivers.cg_controller]
+kind = "gp_microion"
+transport = "cg_controller"
+address = 1
+channels = [2]               # 1 is the Micro-Ion's ion gauge, 2 and 3 its Convectrons
 
 # An extraction device: a queue's extract_device = "co2" means this driver.
 # Trays are in tray_maps/, their place on this stage in stage_calibrations/.
@@ -63,12 +84,37 @@ channels = [1, 2]
 kind = "chromium"
 transport = "laser_pc"
 
+# The cryo trap's controller ([cryo] below). Simulated, it is a Lake Shore 335
+# whose inputs follow their outputs' setpoints.
+[drivers.cryostat]
+kind = "lakeshore"
+transport = "cryostat"
+model = "335"
+inputs = ["A", "B"]
+# The heater range each setpoint needs, per output; range 0 is the heater off.
+ranges = [
+  { output = 1, range = 0, min = 0.0, max = 1.0 },
+  { output = 1, range = 1, min = 1.0, max = 30.0 },
+  { output = 1, range = 3, min = 30.0, max = 325.0 },
+  { output = 2, range = 0, min = 0.0, max = 1.0 },
+  { output = 2, range = 2, min = 1.0, max = 325.0 },
+]
+
+# 1-based coils and registers, as in a legacy PLC2000Heater device file.
+[drivers.bakeout_plc]
+kind = "plc2000_heater"
+transport = "bakeout_plc"
+enable = 1
+use_pid = 2
+setpoint = 11
+readback = 21
+
 [[valves]]
 name = "A"
-description = "Furnace to prep"
+description = "Stage 1 to prep"
 actuator = "actuator1"
 address = "1"
-interlocks = ["C"]           # never expose the furnace to an open turbo line
+interlocks = ["C", "D"]      # never expose stage 1 to an open turbo line
 settle_ms = 500
 
 [[valves]]
@@ -98,9 +144,77 @@ actuator = "actuator1"
 address = "5"
 interlocks = ["P1"]
 
+[[valves]]
+name = "L"
+description = "Laser chamber to stage 1"
+actuator = "actuator1"
+address = "10"
+
+[[valves]]
+name = "D"
+description = "Stage 1 to turbo 2"
+actuator = "actuator1"
+address = "11"
+interlocks = ["A"]           # as C: stage 1 is never open to prep and a turbo at once
+
+[[valves]]
+name = "G1"
+description = "Getter 1 isolation"
+actuator = "actuator1"
+address = "12"
+
+[[valves]]
+name = "G2"
+description = "Getter 2 isolation"
+actuator = "actuator1"
+address = "13"
+
+[[valves]]
+name = "Y"
+description = "Cryo trap isolation"
+actuator = "actuator1"
+address = "14"
+
+[[valves]]
+name = "I"
+description = "Spectrometer to ion pump"
+actuator = "actuator1"
+address = "15"
+
+[[valves]]
+name = "Q1"
+description = "Cocktail pipette inner"
+actuator = "actuator1"
+address = "16"
+interlocks = ["Q2"]
+
+[[valves]]
+name = "Q2"
+description = "Cocktail pipette outer"
+actuator = "actuator1"
+address = "17"
+interlocks = ["Q1"]
+
+# Drawn as [[rough_valve]] on the canvas: to the line they are valves.
+[[valves]]
+name = "R1"
+description = "Turbo foreline"
+actuator = "actuator1"
+address = "18"
+
+[[valves]]
+name = "R2"
+description = "Turbo 2 foreline"
+actuator = "actuator1"
+address = "19"
+
 [[manual_valves]]
 name = "M1"
 description = "Turbo to roughing pump"
+
+[[manual_valves]]
+name = "M2"
+description = "Turbo 2 foreline to roughing pump"
 
 [[switches]]
 name = "pump_power"
@@ -121,10 +235,44 @@ driver = "ig_controller"
 channel = 2
 units = "torr"
 
+[[gauges]]
+name = "IG2"
+driver = "ig_controller"
+channel = 3
+units = "torr"
+
+[[gauges]]
+name = "CG1"
+driver = "cg_controller"
+channel = 2
+units = "torr"
+
 [[pipettes]]
 name = "air"
 inner = "P1"
 outer = "P2"
+
+[[pipettes]]
+name = "cocktail"
+inner = "Q1"
+outer = "Q2"
+
+# The cryo trap (stage "cryo" on the canvas, behind Y). A script's set_cryo
+# takes kelvin per output, or a name from [cryo.setpoints].
+[cryo]
+driver = "cryostat"
+tolerance_k = 1.0            # "at setpoint" band for a blocking set_cryo
+timeout_s = 600              # a blocking set_cryo not there by then fails
+
+[cryo.setpoints]
+Ar_freeze = [70.0, 0.0]      # kelvin for outputs 1 and 2
+Ar_release = [300.0, 0.0]
+
+[[heaters]]
+name = "bakeout"
+driver = "bakeout_plc"
+description = "Line bakeout tape"
+units = "C"
 
 # Lab-specific names measurement plans reference as '@key' (experiment spec
 # 4.1), so one shipped template serves every line of an instrument family.

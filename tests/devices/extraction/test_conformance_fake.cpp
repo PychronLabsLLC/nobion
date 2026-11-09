@@ -6,20 +6,20 @@
 
 namespace {
 
-using pychron::extraction::Capability;
-using pychron::extraction::CapabilitySet;
-using pychron::extraction::testing::FakeExtractionDevice;
+using nobion::extraction::Capability;
+using nobion::extraction::CapabilitySet;
+using nobion::extraction::testing::FakeExtractionDevice;
 
 struct FakeHarness {
   FakeExtractionDevice fake{"fake-laser",
                             CapabilitySet{Capability::Laser, Capability::Stage,
                                           Capability::Pattern, Capability::Furnace}};
-  pychron::extraction::IExtractionDevice& device() { return fake; }
+  nobion::extraction::IExtractionDevice& device() { return fake; }
 };
 
 struct BareHarness {
   FakeExtractionDevice fake{"bare"};
-  pychron::extraction::IExtractionDevice& device() { return fake; }
+  nobion::extraction::IExtractionDevice& device() { return fake; }
 };
 
 using Harnesses = ::testing::Types<FakeHarness, BareHarness>;

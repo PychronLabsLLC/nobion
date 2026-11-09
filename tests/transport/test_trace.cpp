@@ -1,10 +1,10 @@
-#include "pychron/transport/trace.hpp"
+#include "nobion/transport/trace.hpp"
 
 #include <gtest/gtest.h>
 
 #include <sstream>
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 TEST(Trace, FormatsRecords) {
@@ -49,4 +49,20 @@ TEST(Trace, LoadMissingFileIsConfigError) {
   auto r = load_trace("/nonexistent/dir/trace.txt");
   ASSERT_FALSE(r);
   EXPECT_EQ(r.error().kind, ErrorKind::Config);
+}
+
+// A tx the recorder withheld (a password) is written as its byte count only
+// and read back the same: no payload, the count kept.
+TEST(Trace, WithheldTxRoundTrips) {
+  TraceRecord withheld{5us, TraceRecord::Dir::Tx, {}, {}};
+  withheld.withheld = 11;
+  EXPECT_EQ(format_trace_record(withheld), "5 tx withheld 11");
+  std::istringstream in("5 tx withheld 11\n");
+  auto r = parse_trace(in);
+  ASSERT_TRUE(r) << to_string(r.error());
+  ASSERT_EQ(r->size(), 1u);
+  EXPECT_EQ((*r)[0], withheld);
+
+  std::istringstream bad("5 tx withheld x\n");
+  EXPECT_FALSE(parse_trace(bad));
 }

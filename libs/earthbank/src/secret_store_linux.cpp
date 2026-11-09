@@ -28,11 +28,11 @@
 #include <gio/gio.h>
 #include <libsecret/secret.h>
 
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/secret_store.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/secret_store.hpp"
 #include "secret_store_detail.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 constexpr std::string_view kBackend = "libsecret";
@@ -42,7 +42,7 @@ constexpr std::string_view kBackend = "libsecret";
 const SecretSchema& schema() {
   static const SecretSchema made = [] {
     SecretSchema s{};
-    s.name = "org.pychron.earthbank.Password";
+    s.name = "org.nobion.earthbank.Password";
     s.flags = SECRET_SCHEMA_NONE;
     s.attributes[0].name = "service";
     s.attributes[0].type = SECRET_SCHEMA_ATTRIBUTE_STRING;
@@ -150,7 +150,7 @@ class LibsecretSecretStore final : public ISecretStore {
     if (auto ok = detail::check_password(kBackend, password); !ok) return ok;
     const std::string name(account);
     // What a keyring's own window shows for the item; no secret in it.
-    const std::string label = "Pychron: EarthBank password of " + name;
+    const std::string label = "Nobion: EarthBank password of " + name;
     const std::string secret(password);
     GError* error = nullptr;
     const Limited limit(kCallLimit);
@@ -206,4 +206,4 @@ std::unique_ptr<ISecretStore> detail::make_system_secret_store(std::string_view 
   return std::make_unique<LibsecretSecretStore>(service);
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

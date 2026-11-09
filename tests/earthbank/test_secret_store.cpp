@@ -1,6 +1,6 @@
 // The password stores (secret_store.hpp). The memory store is tested as it
 // is. The system's store (the keychain here on a Mac) is tested only when
-// asked for, with PYCHRON_TEST_SECRET_STORE=1: it writes to the credential
+// asked for, with NOBION_TEST_SECRET_STORE=1: it writes to the credential
 // store of whoever runs the test, and a locked keychain answers with a
 // dialog. It uses a service name of its own, made up for the run, and takes
 // away what it put there. The account and the passwords are made up.
@@ -21,13 +21,13 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/env.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/profiles.hpp"
-#include "pychron/earthbank/secret_store.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/profiles.hpp"
+#include "nobion/earthbank/secret_store.hpp"
 #include "secret_store_detail.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 constexpr std::string_view kAccount = "fixture@earthbank.test";
@@ -116,7 +116,7 @@ TEST(SecretStore, AMemoryStoreOfItsOwnSharesNothing) {
 // What make_secret_store falls back to: one store a service for the process,
 // so that a password typed once is there for the rest of the session.
 TEST(SecretStore, TheProcessMemoryStoreIsOneAService) {
-  const std::string service = "pychron.earthbank.test." + random_word();
+  const std::string service = "nobion.earthbank.test." + random_word();
   {
     const auto first = detail::process_memory_secret_store(service);
     EXPECT_EQ(first->backend(), "memory");
@@ -133,7 +133,7 @@ TEST(SecretStore, TheProcessMemoryStoreIsOneAService) {
 TEST(SecretStore, TheBuildSaysWhichStoreItHas) {
   const std::set<std::string_view> names{"keychain", "credential-manager", "libsecret", "memory"};
   EXPECT_TRUE(names.contains(built_in_secret_store())) << built_in_secret_store();
-  // A build may be made with none (PYCHRON_EARTHBANK_SYSTEM_SECRET_STORE=OFF);
+  // A build may be made with none (NOBION_EARTHBANK_SYSTEM_SECRET_STORE=OFF);
   // with one, it is the platform's.
   if (built_in_secret_store() == "memory") return;
 #if defined(__APPLE__)
@@ -209,13 +209,13 @@ class DeadMan {
 };
 
 TEST(SecretStore, PlatformRoundTrip) {
-  if (env_var("PYCHRON_TEST_SECRET_STORE").value_or("") != "1")
-    GTEST_SKIP() << "not asked for: set PYCHRON_TEST_SECRET_STORE=1 to test the system's store (built in: "
+  if (env_var("NOBION_TEST_SECRET_STORE").value_or("") != "1")
+    GTEST_SKIP() << "not asked for: set NOBION_TEST_SECRET_STORE=1 to test the system's store (built in: "
                  << built_in_secret_store()
                  << "). It writes one item under a made-up service name to your own credential store and removes it.";
   if (env_var("CI").has_value()) GTEST_SKIP() << "CI is set: there is no session with a credential store to use";
 
-  const std::string service = "pychron.earthbank.test." + random_word();
+  const std::string service = "nobion.earthbank.test." + random_word();
   const DeadMan dead_man(service);
   const auto store = make_secret_store(service);
   ASSERT_NE(store, nullptr);
@@ -250,4 +250,4 @@ TEST(SecretStore, PlatformRoundTrip) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

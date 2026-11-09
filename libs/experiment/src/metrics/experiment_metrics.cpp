@@ -1,62 +1,76 @@
-#include "pychron/experiment/metrics/experiment_metrics.hpp"
+#include "nobion/experiment/metrics/experiment_metrics.hpp"
 
+#include <array>
 #include <algorithm>
 #include <chrono>
 #include <optional>
 #include <string_view>
 #include <utility>
 
-#include "pychron/experiment/executor/executor.hpp"
-#include "pychron/experiment/lab/notifier.hpp"
-#include "pychron/experiment/lab/session.hpp"
-#include "pychron/experiment/measurement/engine.hpp"
-#include "pychron/systems/jobs/job.hpp"
+#include "nobion/experiment/executor/executor.hpp"
+#include "nobion/experiment/lab/notifier.hpp"
+#include "nobion/experiment/lab/session.hpp"
+#include "nobion/experiment/measurement/engine.hpp"
+#include "nobion/experiment/persist/persister.hpp"
+#include "nobion/systems/jobs/job.hpp"
 
-namespace pychron::experiment::metrics {
+namespace nobion::experiment::metrics {
 
 namespace {
 
 using executor::ExecutorState;
 using executor::QueueEnd;
-using pychron::metrics::Labels;
-using pychron::metrics::MetricType;
+using nobion::metrics::Labels;
+using nobion::metrics::MetricType;
 using run::RunState;
 
-constexpr const char* kExecutorState = "pychron_executor_state";
+constexpr const char* kExecutorState = "nobion_executor_state";
 constexpr const char* kExecutorStateHelp = "1 for the state the executor is in, 0 for the others.";
-constexpr const char* kQueueActive = "pychron_queue_active";
+constexpr const char* kQueueActive = "nobion_queue_active";
 constexpr const char* kQueueActiveHelp = "1 while a queue is running.";
-constexpr const char* kQueueRuns = "pychron_queue_runs";
+constexpr const char* kQueueRuns = "nobion_queue_runs";
 constexpr const char* kQueueRunsHelp = "The running queue: the runs it has to do (total) and those finished (done).";
-constexpr const char* kQueuesEnded = "pychron_queues_ended_total";
+constexpr const char* kQueuesEnded = "nobion_queues_ended_total";
 constexpr const char* kQueuesEndedHelp = "Queues that ended, by how.";
-constexpr const char* kRunsStarted = "pychron_runs_started_total";
+constexpr const char* kRunsStarted = "nobion_runs_started_total";
 constexpr const char* kRunsStartedHelp = "Runs started.";
-constexpr const char* kRunsFinished = "pychron_runs_finished_total";
+constexpr const char* kRunsFinished = "nobion_runs_finished_total";
 constexpr const char* kRunsFinishedHelp = "Runs that ended, by their last state and whether they were truncated.";
-constexpr const char* kSaveErrors = "pychron_run_save_errors_total";
+constexpr const char* kSaveErrors = "nobion_run_save_errors_total";
 constexpr const char* kSaveErrorsHelp = "Runs whose record could not be saved.";
-constexpr const char* kStateDuration = "pychron_run_state_duration_seconds";
+constexpr const char* kStateDuration = "nobion_run_state_duration_seconds";
 constexpr const char* kStateDurationHelp =
     "How long runs spend in each state, on the line's clock. The saving state is the cost of writing the record.";
-constexpr const char* kBlocks = "pychron_measurement_blocks_total";
+constexpr const char* kBlocks = "nobion_measurement_blocks_total";
 constexpr const char* kBlocksHelp = "Measurement blocks finished, by block and whether it succeeded.";
-constexpr const char* kTrips = "pychron_conditional_trips_total";
+constexpr const char* kTrips = "nobion_conditional_trips_total";
 constexpr const char* kTripsHelp = "Conditionals that tripped, by kind and by where they were defined.";
-constexpr const char* kWaits = "pychron_executor_waits_total";
+constexpr const char* kWaits = "nobion_executor_waits_total";
 constexpr const char* kWaitsHelp = "Times the executor waited, by what for.";
-constexpr const char* kLastFinished = "pychron_last_run_finished_age_seconds";
+constexpr const char* kLastFinished = "nobion_last_run_finished_age_seconds";
 constexpr const char* kLastFinishedHelp = "Real seconds since a run last finished. Absent until one has.";
-constexpr const char* kNotifications = "pychron_notifications_total";
+constexpr const char* kNotifications = "nobion_notifications_total";
 constexpr const char* kNotificationsHelp = "Notifications handed to a channel, by event and whether it took them.";
-constexpr const char* kJobs = "pychron_spectrometer_jobs_total";
+constexpr const char* kJobs = "nobion_spectrometer_jobs_total";
 constexpr const char* kJobsHelp = "Spectrometer jobs (a sweep, a peak center) ended, by kind and how.";
-constexpr const char* kJobActive = "pychron_spectrometer_job_active";
+constexpr const char* kJobActive = "nobion_spectrometer_job_active";
 constexpr const char* kJobActiveHelp = "1 while a spectrometer job is running.";
-constexpr const char* kJobProgress = "pychron_spectrometer_job_progress_ratio";
+constexpr const char* kJobProgress = "nobion_spectrometer_job_progress_ratio";
 constexpr const char* kJobProgressHelp = "How far the running spectrometer job is, 0 to 1; 0 when none is running.";
-constexpr const char* kJobDuration = "pychron_spectrometer_job_duration_seconds";
+constexpr const char* kJobDuration = "nobion_spectrometer_job_duration_seconds";
 constexpr const char* kJobDurationHelp = "How long spectrometer jobs that ran took, by kind.";
+constexpr const char* kHolds = "nobion_executor_holds_total";
+constexpr const char* kHoldsHelp =
+    "Times the queue held, by why: a link the next run needs was down (link), the spool asked to wait (spool), "
+    "or the run before failed for a link (run_failed).";
+constexpr const char* kHolding = "nobion_executor_holding";
+constexpr const char* kHoldingHelp = "1 while the queue holds.";
+constexpr const char* kGaps = "nobion_measurement_gaps_total";
+constexpr const char* kGapsHelp = "Silences in a measurement's readings that were waited out or ended it.";
+constexpr const char* kSpoolPending = "nobion_spool_pending";
+constexpr const char* kSpoolPendingHelp = "Records in the spool, not yet taken by the store.";
+constexpr const char* kOutbox = "nobion_notifications_outbox";
+constexpr const char* kOutboxHelp = "Notifications in the outbox, not yet taken or given up by every channel.";
 
 // From one second to two hours: an extraction is tens of seconds, a
 // measurement tens of minutes, a save a second or two.
@@ -87,23 +101,28 @@ const char* bool_name(bool b) { return b ? "true" : "false"; }
 constexpr measurement::Block kBlocks_[] = {
     measurement::Block::PeakCenterBefore, measurement::Block::BaselineBefore, measurement::Block::PositionFirstHop,
     measurement::Block::Equilibrate,      measurement::Block::Main,           measurement::Block::BaselineAfter,
-    measurement::Block::PeakCenterAfter};
+    measurement::Block::PeakCenterAfter,  measurement::Block::Segment,        measurement::Block::Step,
+    measurement::Block::Prepare,          measurement::Block::PumpOut};
 constexpr ConditionalKind kKinds[] = {
     ConditionalKind::Truncation,   ConditionalKind::Termination,   ConditionalKind::Cancelation, ConditionalKind::Action,
     ConditionalKind::Modification, ConditionalKind::Equilibration, ConditionalKind::PreRun,      ConditionalKind::PostRun};
 constexpr ConditionalLevel kLevels[] = {ConditionalLevel::System, ConditionalLevel::Queue, ConditionalLevel::Plan,
                                         ConditionalLevel::Run, ConditionalLevel::Hook};
-constexpr lab::NotifyEvent kNotifyEvents[] = {lab::NotifyEvent::RunFailed, lab::NotifyEvent::QueueEnded,
-                                              lab::NotifyEvent::Test};
+constexpr std::array kNotifyEvents{lab::NotifyEvent::RunFailed,    lab::NotifyEvent::QueueEnded,
+                                   lab::NotifyEvent::Test,         lab::NotifyEvent::QueueHolding,
+                                   lab::NotifyEvent::QueueResumed, lab::NotifyEvent::Unsafe};
 
-constexpr ExecutorState kExecutorStates[] = {
-    ExecutorState::Idle,       ExecutorState::Preparing, ExecutorState::Running,   ExecutorState::StoppingAtBoundary,
-    ExecutorState::Cancelling, ExecutorState::Aborting,  ExecutorState::Finalizing};
+constexpr std::array kExecutorStates{ExecutorState::Idle,       ExecutorState::Preparing,
+                                     ExecutorState::Running,    ExecutorState::Holding,
+                                     ExecutorState::StoppingAtBoundary, ExecutorState::Cancelling,
+                                     ExecutorState::Aborting,   ExecutorState::Finalizing};
+constexpr std::array kHoldReasons{executor::HoldReason::Link, executor::HoldReason::Spool,
+                                  executor::HoldReason::RunFailed};
 
 }  // namespace
 
-ExperimentMetrics::ExperimentMetrics(pychron::metrics::Registry& registry, SignalBus& bus,
-                                     pychron::metrics::RealClock now)
+ExperimentMetrics::ExperimentMetrics(nobion::metrics::Registry& registry, SignalBus& bus,
+                                     nobion::metrics::RealClock now)
     : registry_(registry), now_(std::move(now)) {
   registry.declare(MetricType::Histogram, kStateDuration, kStateDurationHelp, duration_buckets());
   registry.declare(MetricType::Gauge, kLastFinished, kLastFinishedHelp);
@@ -139,6 +158,11 @@ ExperimentMetrics::ExperimentMetrics(pychron::metrics::Registry& registry, Signa
   }
   registry.counter(kRunsStarted, kRunsStartedHelp);
   registry.counter(kSaveErrors, kSaveErrorsHelp);
+  for (const executor::HoldReason r : kHoldReasons) registry.counter(kHolds, kHoldsHelp, {{"reason", label_of(to_string(r))}});
+  registry.gauge(kHolding, kHoldingHelp).set(0);
+  registry.counter(kGaps, kGapsHelp);
+  registry.gauge(kSpoolPending, kSpoolPendingHelp).set(0);
+  registry.gauge(kOutbox, kOutboxHelp).set(0);
   for (const RunState s : {RunState::Success, RunState::Failed, RunState::Cancelled, RunState::Aborted}) {
     for (const bool truncated : {false, true}) {
       registry.counter(kRunsFinished, kRunsFinishedHelp,
@@ -177,8 +201,20 @@ ExperimentMetrics::ExperimentMetrics(pychron::metrics::Registry& registry, Signa
     for (const ExecutorState s : kExecutorStates) {
       registry_.gauge(kExecutorState, kExecutorStateHelp, {{"state", label_of(to_string(s))}}).set(s == e.to ? 1.0 : 0.0);
     }
+    registry_.gauge(kHolding, kHoldingHelp).set(e.to == ExecutorState::Holding ? 1.0 : 0.0);
     // An executor driven without a session says nothing else about its queue.
     set_active(e.to != ExecutorState::Idle);
+  }));
+  subscriptions_.push_back(bus.subscribe<executor::ExecutorHolding>([this](const executor::ExecutorHolding& e) {
+    registry_.counter(kHolds, kHoldsHelp, {{"reason", label_of(to_string(e.kind))}}).inc();
+  }));
+  subscriptions_.push_back(bus.subscribe<measurement::MeasurementGap>(
+      [this](const measurement::MeasurementGap&) { registry_.counter(kGaps, kGapsHelp).inc(); }));
+  subscriptions_.push_back(bus.subscribe<persist::SpoolStatus>([this](const persist::SpoolStatus& e) {
+    registry_.gauge(kSpoolPending, kSpoolPendingHelp).set(static_cast<double>(e.pending));
+  }));
+  subscriptions_.push_back(bus.subscribe<lab::NotificationOutbox>([this](const lab::NotificationOutbox& e) {
+    registry_.gauge(kOutbox, kOutboxHelp).set(static_cast<double>(e.size));
   }));
   subscriptions_.push_back(bus.subscribe<lab::QueueStarted>([this](const lab::QueueStarted& e) {
     {
@@ -274,7 +310,7 @@ ExperimentMetrics::ExperimentMetrics(pychron::metrics::Registry& registry, Signa
   }));
 
   // At each scrape: how long ago, by this computer's clock.
-  collector_ = registry.add_collector([this](pychron::metrics::Registry& r) {
+  collector_ = registry.add_collector([this](nobion::metrics::Registry& r) {
     std::optional<double> at;
     {
       const std::lock_guard lock(mutex_);
@@ -309,4 +345,4 @@ void ExperimentMetrics::set_active(bool active) {
   registry_.gauge(kQueueActive, kQueueActiveHelp).set(active ? 1.0 : 0.0);
 }
 
-}  // namespace pychron::experiment::metrics
+}  // namespace nobion::experiment::metrics

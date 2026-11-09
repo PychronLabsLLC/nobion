@@ -1,4 +1,5 @@
-#include "pychron/setup/site.hpp"
+#include "nobion/setup/site.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -6,9 +7,9 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/core/env.hpp"
+#include "nobion/core/env.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 namespace fs = std::filesystem;
 
@@ -45,18 +46,23 @@ bool SiteConfig::remove(const std::string& name) {
 }
 
 fs::path default_site_path() {
-  if (auto p = env_var("PYCHRON_SITE_CONFIG"); p && !p->empty()) return *p;
+  if (auto p = env_var("NOBION_SITE_CONFIG"); p && !p->empty()) return *p;
 #if defined(_WIN32)
-  if (auto appdata = env_var("APPDATA")) return fs::path(*appdata) / "Pychron" / "site.toml";
-  return fs::path("Pychron") / "site.toml";
+  if (auto appdata = env_var("APPDATA")) return fs::path(*appdata) / "Nobion" / "site.toml";
+  return fs::path("Nobion") / "site.toml";
 #elif defined(__APPLE__)
   const fs::path home = env_var("HOME").value_or(".");
-  return home / "Library" / "Application Support" / "Pychron" / "site.toml";
+  return home / "Library" / "Application Support" / "Nobion" / "site.toml";
 #else
-  if (auto xdg = env_var("XDG_CONFIG_HOME"); xdg && !xdg->empty()) return fs::path(*xdg) / "pychron" / "site.toml";
+  if (auto xdg = env_var("XDG_CONFIG_HOME"); xdg && !xdg->empty()) return fs::path(*xdg) / "nobion" / "site.toml";
   const fs::path home = env_var("HOME").value_or(".");
-  return home / ".config" / "pychron" / "site.toml";
+  return home / ".config" / "nobion" / "site.toml";
 #endif
+}
+
+const std::vector<std::string>& known_domains() {
+  static const std::vector<std::string> ids{"arar", "noble_gas"};
+  return ids;
 }
 
 Result<SiteConfig> load_site(const fs::path& path) {
@@ -85,6 +91,7 @@ Result<SiteConfig> load_site(const fs::path& path) {
       s.data = (*i)["data"].value_or(std::string{});
       s.database = (*i)["database"].value_or(std::string{});
       s.simulation = (*i)["simulation"].value_or(false);
+      s.domain = (*i)["domain"].value_or(std::string("arar"));
       if (s.name.empty() || s.root.empty())
         return fail(ErrorKind::Config, path.string() + ": an install needs a name and a root");
       site.installs.push_back(std::move(s));
@@ -108,6 +115,7 @@ Result<void> save_site(const SiteConfig& site, const fs::path& path) {
              {"database", &s.database}}) {
       if (!v->empty()) i.insert(k, *v);
     }
+    i.insert("domain", s.domain);
     if (s.simulation) i.insert("simulation", true);
     installs.push_back(std::move(i));
   }
@@ -115,15 +123,11 @@ Result<void> save_site(const SiteConfig& site, const fs::path& path) {
   std::error_code ec;
   if (path.has_parent_path()) fs::create_directories(path.parent_path(), ec);
   if (ec) return fail(ErrorKind::Io, "cannot create " + path.parent_path().string() + ": " + ec.message());
-  const fs::path tmp = path.string() + ".tmp";
-  {
-    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-    out << "# pychron installs on this computer (written by setup; safe to edit)\n" << t << "\n";
-    if (!out) return fail(ErrorKind::Io, "cannot write " + tmp.string());
-  }
-  fs::rename(tmp, path, ec);
-  if (ec) return fail(ErrorKind::Io, "cannot write " + path.string() + ": " + ec.message());
+  std::ostringstream text;
+  text << "# nobion installs on this computer (written by setup; safe to edit)\n" << t << "\n";
+  if (auto written = write_file_atomic(path, text.str(), Durability::Power); !written)
+    return fail(ErrorKind::Io, "cannot write " + path.string() + ": " + written.error().what);
   return {};
 }
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

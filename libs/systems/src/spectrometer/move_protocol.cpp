@@ -1,4 +1,4 @@
-#include "pychron/systems/spectrometer/move_protocol.hpp"
+#include "nobion/systems/spectrometer/move_protocol.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -7,7 +7,7 @@
 #include <numbers>
 #include <ranges>
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 std::vector<double> af_demag_trajectory(double from, double target, const AfDemagSettings& af, Limits limits) {
   std::vector<double> out;
@@ -134,4 +134,4 @@ Result<MoveOutcome> execute_move(const MovePlan& plan, const MoveDeps& deps) {
   return out;
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

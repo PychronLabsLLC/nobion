@@ -6,8 +6,8 @@
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 
 struct DacHarness {
   fakes::FakeDac dac;

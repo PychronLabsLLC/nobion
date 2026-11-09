@@ -1,16 +1,16 @@
-#include "pychron/devices/spectrometer/legacy/pulse_counter.hpp"
+#include "nobion/devices/spectrometer/legacy/pulse_counter.hpp"
 
 #include <mutex>
 
-#include "pychron/codecs/pulse_counter.hpp"
+#include "nobion/codecs/pulse_counter.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace pc = codec::pulse_counter;
 
 PulseCounter::PulseCounter(std::string name, Transport& transport, std::vector<ChannelId> channels, double sample_hz,
-                           const Clock* clock)
-    : PolledAcquirer(std::move(name), std::move(channels), sample_hz, clock), transport_(transport) {}
+                           const Clock* clock, Link* link)
+    : PolledAcquirer(std::move(name), std::move(channels), sample_hz, clock, link), transport_(transport) {}
 
 DriverSchema PulseCounter::schema() {
   return {"",
@@ -25,12 +25,16 @@ Result<std::unique_ptr<PulseCounter>> PulseCounter::create(const DriverArgs& arg
   if (!channels) return fail(std::move(channels).error());
   auto hz = legacy::parse_sample_hz(args, 10.0);
   if (!hz) return fail(std::move(hz).error());
-  return std::make_unique<PulseCounter>(args.name, args.transport, std::move(*channels), *hz, args.clock);
+  return std::make_unique<PulseCounter>(args.name, args.transport, std::move(*channels), *hz, args.clock, args.link);
 }
 
 Result<std::vector<double>> PulseCounter::sample() {
   const auto cmd = pc::read_counts();
-  auto reply = transport_.exchange(cmd.tx, *cmd.reply);
+  // Unsafe: the read clears the count. A lost reply costs that interval's
+  // counts (outcome_unknown); the next poll does not ask for them again.
+  auto reply = relay<Bytes>("sample",
+      [&](Resend resend) { return transport_.exchange(cmd.tx, *cmd.reply, Transport::kDefaultTimeout, resend); },
+      Repeat::Unsafe);
   if (!reply) return fail(std::move(reply).error());
   auto counts = pc::decode_counts(channels().size(), *reply);
   if (!counts) return fail(std::move(counts).error());
@@ -68,4 +72,4 @@ SimTransport::Hook counter_sim_hook(CounterSimModel model) {
 
 REGISTER_DRIVER("pulse_counter", PulseCounter);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

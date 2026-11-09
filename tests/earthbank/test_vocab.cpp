@@ -14,14 +14,14 @@
 #include <gtest/gtest.h>
 
 #include "ooxml.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/model.hpp"
-#include "pychron/earthbank/vocab.hpp"
-#include "pychron/reduction/arar_types.hpp"
-#include "pychron/reduction/stats.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/model.hpp"
+#include "nobion/earthbank/vocab.hpp"
+#include "nobion/arar/arar_types.hpp"
+#include "nobion/reduction/stats.hpp"
 #include "records_support.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using reduction::ConstantsPreset;
@@ -163,7 +163,7 @@ TEST(Vocab, AgeTypeNames) {
   EXPECT_EQ(age_type_name(AgeKind::Integrated), "Total Gas Age");
 }
 
-// The words pychron-cpp has for the error of a mean each have an id: they
+// The words nobion has for the error of a mean each have an id: they
 // are what the mapping writes as an uncertainty type.
 TEST(Vocab, MeanErrorKindsAreUncertaintyTypes) {
   for (const reduction::MeanErrorKind kind :
@@ -266,7 +266,7 @@ using Kind = ListMatch::Kind;
 // The flux monitors as the Ar-Ar template lists them (sheet `Lookup Tables`,
 // C2:C17, the range its ArArAgeCalc sheet validates `fluxMonitor` against).
 std::vector<std::string> template_monitors() {
-  auto book = ooxml::Workbook::open(std::filesystem::path(PYCHRON_EARTHBANK_TEMPLATE_DIR) /
+  auto book = ooxml::Workbook::open(std::filesystem::path(NOBION_EARTHBANK_TEMPLATE_DIR) /
                                     "ArArDataPoint_Template2026.xlsx");
   if (!book) throw std::runtime_error(to_string(book.error()));
   auto values = book->column_values("Lookup Tables", 3, 2, 17);
@@ -709,4 +709,4 @@ TEST(Vocab, TheMonitorAliasesAreOfTheTemplatesList) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

@@ -4,7 +4,7 @@
 // that the same steps are run against the fake on every build (test_live.cpp
 // here): what a person runs once a year has been run by the suite that day.
 //
-// It makes a data package of its own, `pychron-test-<UTC date-time>`, says
+// It makes a data package of its own, `nobion-test-<UTC date-time>`, says
 // its name and id before anything else so that it can be removed by hand if
 // the process dies, uploads the two fixture samples into it, checks what came
 // back, uploads again to see that nothing is sent twice, and deletes the
@@ -28,16 +28,16 @@
 #include <gtest/gtest.h>
 
 #include "analyses.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/http.hpp"
-#include "pychron/earthbank/lookup.hpp"
-#include "pychron/earthbank/mapping.hpp"
-#include "pychron/earthbank/preflight.hpp"
-#include "pychron/earthbank/session.hpp"
-#include "pychron/earthbank/uploader.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/http.hpp"
+#include "nobion/earthbank/lookup.hpp"
+#include "nobion/earthbank/mapping.hpp"
+#include "nobion/earthbank/preflight.hpp"
+#include "nobion/earthbank/session.hpp"
+#include "nobion/earthbank/uploader.hpp"
 #include "upload_support.hpp"
 
-namespace pychron::earthbank::testing {
+namespace nobion::earthbank::testing {
 
 struct RoundTrip {
   std::string base_url, username, password;
@@ -46,7 +46,7 @@ struct RoundTrip {
   std::ostream* out = &std::cout;
 };
 
-// `pychron-test-20311005-142233`, UTC.
+// `nobion-test-20311005-142233`, UTC.
 inline std::string test_package_name(std::chrono::system_clock::time_point now = std::chrono::system_clock::now()) {
   const std::time_t t = std::chrono::system_clock::to_time_t(now);
   std::tm utc{};
@@ -57,7 +57,7 @@ inline std::string test_package_name(std::chrono::system_clock::time_point now =
 #endif
   std::string stamp(32, '\0');
   stamp.resize(std::strftime(stamp.data(), stamp.size(), "%Y%m%d-%H%M%S", &utc));
-  return "pychron-test-" + stamp;
+  return "nobion-test-" + stamp;
 }
 
 // Removes the package when it goes, pass or fail. A package that could not
@@ -103,13 +103,13 @@ inline void run_round_trip(IHttpClient& http, const RoundTrip& with) {
 
   const auto made = session.create_package(test_package_name(), with.institution_id);
   ASSERT_TRUE(made) << to_string(made.error())
-                    << "\n(a package may have been made all the same: look for one named pychron-test-...)";
+                    << "\n(a package may have been made all the same: look for one named nobion-test-...)";
   // Said before anything is put in it, so that it can be found if this dies.
   out << "made data package " << made->id << " '" << made->name << "'" << std::endl;
   const PackageGuard guard(session, *made, out);
 
   PublishOptions options;
-  options.software = "pychron-cpp live test";
+  options.software = "nobion live test";
   const auto submissions = build_submissions(both_samples(), options);
   ASSERT_TRUE(submissions) << to_string(submissions.error());
   ASSERT_EQ(submissions->size(), 2u);
@@ -174,4 +174,4 @@ inline void run_round_trip(IHttpClient& http, const RoundTrip& with) {
   out << "a second upload sent nothing new\n";
 }
 
-}  // namespace pychron::earthbank::testing
+}  // namespace nobion::earthbank::testing

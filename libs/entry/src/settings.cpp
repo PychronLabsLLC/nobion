@@ -1,8 +1,8 @@
-#include "pychron/entry/settings.hpp"
+#include "nobion/entry/settings.hpp"
 
 #include <nlohmann/json.hpp>
 
-namespace pychron::entry {
+namespace nobion::entry {
 
 namespace ps = persistence;
 using Json = nlohmann::json;
@@ -34,13 +34,6 @@ Result<EntrySettings> parse_settings(std::string_view text) {
         if (value != "allow" && value != "packet") return bad("allow or packet");
         s.null_identifier_rows = value;
       }
-    } else if (k == "pi_names_allowed") {
-      if (!v.is_array()) return bad("a list of text");
-      s.pi_names_allowed.clear();
-      for (const auto& e : v) {
-        if (!e.is_string()) return bad("a list of text");
-        s.pi_names_allowed.push_back(e.get<std::string>());
-      }
     } else if (k == "create_irradiation_project") {
       if (!v.is_boolean()) return bad("true or false");
       s.create_irradiation_project = v.get<bool>();
@@ -60,7 +53,6 @@ std::string to_json(const EntrySettings& s) {
   if (j.is_discarded() || !j.is_object()) j = Json::object();
   j["package_prefix"] = s.package_prefix;
   j["default_package_kind"] = s.default_package_kind;
-  j["pi_names_allowed"] = s.pi_names_allowed;
   j["monitor_sample"] = s.monitor_sample;
   j["monitor_material"] = s.monitor_material;
   j["irradiation_project_prefix"] = s.irradiation_project_prefix;
@@ -115,4 +107,4 @@ Result<ps::CommitOutcome> save_settings(ps::IStore& store, const ps::Actor& acto
   return (*uow)->commit(ps::ChangesetKind::Reference, "entry settings");
 }
 
-}  // namespace pychron::entry
+}  // namespace nobion::entry

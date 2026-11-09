@@ -59,7 +59,7 @@ calibrated on any stage as shipped.
 
 On the laser PC, in Chromium: **View > Control Panels > Show/Hide Remote
 Control Window**, tick **TCP/IP Interface** (port 1234). Chromium must be
-running; pychron keeps one connection open to it. Then add a transport and a
+running; nobion keeps one connection open to it. Then add a transport and a
 driver to the line's `extraction_line.toml` (see
 `configs/examples/laser.chromium.toml.example`):
 
@@ -105,9 +105,9 @@ with one entry each. A laser PC that runs no experiments can open only the
 laser window:
 
 ```bash
-pychron-ui --laser line.toml                      # the line's only laser
-pychron-ui --laser --device co2 line.toml         # one of several
-pychron-ui --examples --sim --laser               # the simulated example
+nobion --laser line.toml                      # the line's only laser
+nobion --laser --device co2 line.toml         # one of several
+nobion --examples --sim --laser               # the simulated example
 ```
 
 (`--laser` takes no `--queue` or `--spectrometer`.) The window refreshes four
@@ -124,7 +124,9 @@ is on hole N now: calibration point".
 
 **Camera.** What the camera sees, with the aim point as a crosshair, a faint
 circle the size a hole should be, and the target the finder sees outlined
-while a hole is being centered. Under it is the frame rate. If the camera
+while a hole is being centered or a dragonfly follows. On a simulated grain a
+short cross also marks where the grain really is (section 8.5). Under it is
+the frame rate. If the camera
 stops, the last picture stays, greyed, with its age and the reason, and the
 window tries to reopen it every second. **Autocenter** centers the hole the
 stage was last sent to; **Snapshot** saves the picture.
@@ -212,7 +214,7 @@ post_measurement = "sim_pump"
 
 Use `units = "percent"` with a Chromium. The queue's tray is set on the laser
 before any script runs, and a script moves with `move_to_position()`
-([Scripting](09-scripting.md)). See `configs/examples/experiment.laser.toml`.
+([Scripting](09-scripting.md)). See `configs/examples/queues/experiment.laser.toml`.
 
 ### 5.3 What stops a queue from starting
 
@@ -238,7 +240,7 @@ checked this way; the device name is then free text.
 
 ## 6. Stage calibration
 
-A calibration tells pychron where a tray sits on a laser's stage. It is a
+A calibration tells nobion where a tray sits on a laser's stage. It is a
 list of points: "the stage was at (x, y) when it was on hole H".
 
 * One point places the tray.
@@ -349,7 +351,7 @@ glow. A live camera may do that only over a real laser; a simulated one only
 over a simulated laser. `view` is a picture only: nothing it sees moves the
 stage, hole moves go to their calibrated positions, and queues run as before.
 To try a computer's own camera, set `source = "opencv"` and `use = "view"`.
-On macOS the system asks once whether Pychron may use the camera.
+On macOS the system asks once whether Nobion may use the camera.
 
 ```bash
 elctl -c extraction_line.toml laser cameras
@@ -544,11 +546,96 @@ A dragonfly needs a camera that follows the stage: a camera with `use =
 queue naming a dragonfly on a laser without one is not started. If the camera
 fails part way, the stage returns to where the pattern began and, by the
 camera's `on_failure`, holds there for the rest of the duration (and says so)
-or the run fails. A dragonfly cannot be run by hand (`elctl laser pattern`
+or the run fails. On a real laser a dragonfly cannot be run by hand (`elctl laser pattern`
 never fires the laser, so there is no glow, and the window lists it as "runs
-from a queue"). It is proven on the simulated camera only.
+from a queue"). On a simulated one, `elctl laser track` (section 8.3) runs it
+against a simulated grain and scores it, and the window's **Follow (simulated)**
+(section 8.5) lets you watch it. It is proven on the simulated camera only.
 
-### 8.3 The pattern maker
+### 8.3 Trying a dragonfly against a simulated grain
+
+`elctl laser track` runs the dragonfly against a simulated grain and scores
+how well it kept the beam on it, so that settings can be compared without a
+laser, a lab or a line: it needs no `-c` and touches no configured device.
+It builds a simulator of its own in a scratch folder, runs the real dragonfly
+on it, and removes the folder afterwards.
+
+```bash
+elctl laser track configs/examples/track/hot_spots.toml
+elctl laser track configs/examples/track/jumpy.toml --seeds 5 --trace jumpy.csv
+```
+
+A **scenario** is a small TOML file. `configs/examples/track/` has eight, each a
+grain that misbehaves in one way, so that a tracker's failure can be pinned on
+one cause: `steady` (nothing goes wrong), `hot_spots` (several wandering
+lobes of glow), `flicker` (flutter, flares, dropouts), `jumpy`, `cooling` (the
+grain cools and creeps), `big_grain` (a grain about a millimetre across,
+wider than the beam), `melting` (the same grain, shrinking and rounding to a
+bead as the beam heats it) and `everything`. A scenario gives the `output_percent`
+the laser fires at, the `duration` of a run in seconds, and how many `seeds`
+(runs) to score; a `[grain]` table with the keys of `[<laser>.sim.grain]` (see
+[the configuration reference](07-configuration-reference.md#camerastoml)), a
+`[pattern]` table with the keys of a dragonfly pattern file, and a `[camera]`
+table (`settle_ms`, `frames_per_step`, `noise`, `px_per_mm`, `width`,
+`height`). To compare settings, a `[sweep.pattern]`, `[sweep.grain]` or
+`[sweep.camera]` table lists several values of a key; every combination is run
+on the same seeds, so the same flares and jumps happen at the same times
+whatever the setting. A scenario with a mistake in it, or more than 10000 runs
+in all, is refused before anything runs.
+
+The result is one block per combination, best first by `on%`, with the mean
+and the worst of its runs:
+
+| Column | Meaning |
+|---|---|
+| `on%` | the share of the run the beam was on the grain (within `beam_radius_mm` of its center, plus the grain's radius when it has a size) |
+| `rms`, `max` | distance from beam to grain, mm |
+| `lock_s` | time to the first lock, one second unbroken on the grain; a run that never locked counts as the whole duration |
+| `lost` | how many times it was lost after locking, one second unbroken off the grain |
+| `back_s` | how long it took to lock again after a loss; a loss still open at the end counts to the end of the duration |
+| `moves` | stage moves |
+| `heat%` | how hot the grain was kept, against the beam dead on it |
+| `track%`, `hold%`, `sat%`, `search%` | how the tracker spent its looks: following the glow, holding still (inside the deadband, or nothing to follow), holding for a glow too bright, searching |
+
+A run that ended in a pattern error is counted, and its row says `failed N`
+with the first error. `--seeds N` replaces the scenario's number of runs;
+`--trace <file>` writes a CSV of every poll of every run (beam, grain, heat,
+brightness, why the tracker moved; its `combo` is the number of the combination in
+the order the table's labels expand, first sweep slowest, counted from 0, and the
+table's labels are not repeated in it); `--frames <dir>` writes every frame the
+tracker saw in one run as PNG files, the first combination's first run unless
+`--frames-seed S` names another (a seed that is not among the runs is
+refused); `--check` reads the scenario and checks every
+combination loads, and runs nothing. It does not start a pattern, so a setting
+that is refused only when a pattern starts (a `target_radius` of less than a
+pixel, say) passes `--check` and shows as `failed N` in the table.
+
+A grain has no size unless it is given one. With `grain_radius_mm` above 0 it
+is an irregular polygon of that radius (the radius of a circle of the same
+area): `grain_sides` corners (3 to 16), each straying from the mean radius by
+up to `grain_irregularity` (0 to 0.6). Its glow fills the outline, `body_glow`
+(0 to 1) being the share of the brightness spread evenly over the grain, the
+rest staying in the lobes; the beam heats it fully anywhere on its body, and
+the lobes sit within it, not at `lobe_spread_mm`. The beam counts as on the
+grain while it is within `beam_radius_mm` plus that radius of its center. With
+`melt_mm_per_s` above 0 the grain loses that much radius a second at full
+heat, down to `min_radius_mm`, and rounds as it shrinks into a bead; cooling
+does not restore it. A radius of 0 with melting on, a `min_radius_mm` of 0 or
+one not below the radius are refused, naming the key.
+
+Read these numbers as a comparison, not a measurement. The grain's heating,
+glow and motion are the program's judgement of what a grain might do, not
+fitted to a real one; the bench shows which of two settings follows a given
+kind of misbehaviour better, and which kind of misbehaviour a setting cannot
+follow. It says nothing about how a real grain behaves, and a setting that
+wins here still has to be tried on one.
+
+One thing the bench shows already: the tracker's search for the glow starts
+while the glow is still building. With the grain a little off the beam's first
+position, as in `steady`, that costs about half a second off the grain at the
+start of every run, so `steady` reads about 98 %, not 100.
+
+### 8.4 The pattern maker
 
 In the laser window, **Patterns tab > Pattern maker...** opens a form for
 making a pattern: choose the **Kind** and the **Name** (what a queue calls it)
@@ -564,6 +651,72 @@ The **Patterns tab** itself lists the lab's patterns with kind, length and
 time. **Run** runs the chosen pattern about where the stage is now, moving the
 stage only: the window does not fire the laser for the pattern. **Stop** stops
 it.
+
+### 8.5 Watching a dragonfly follow a simulated grain
+
+`elctl laser track` (section 8.3) gives a table; the laser window under
+`nobion --sim` shows the same tracker at work. Give the lab's camera a grain
+(`[co2.sim.grain]` in `cameras.toml`, without `glow_drift_mm_per_s` or
+`glow_sigma_mm`; a scenario's `[grain]` table pastes in unchanged), or leave
+the steady glow to follow that instead.
+
+1. Put the stage on a hole. A search that spirals out from anywhere near the
+   end of the stage's travel leaves it, and the pattern fails.
+2. Set the **Output** on the Control tab.
+3. On the Patterns tab choose a dragonfly and press **Follow (simulated)**.
+
+The window enables the laser, fires at that output and runs the pattern for
+its `duration`. When the pattern ends, on **Stop** (either tab's), on an
+emergency stop, on any error, and when the window is closed, the beam closes,
+the output goes to 0 and the laser is disabled, even if it was enabled before
+you pressed the button. The error goes in the status line.
+
+While it follows, the picture outlines what the finder sees, and a short cross
+marks where the grain really is. With hot spots the two differ, which is the
+point of them. The steady glow has no such truth and shows no cross; nor does
+a grain outside the picture.
+
+**Plots** (next to Stop, on any laser with a camera) opens a window with two
+halves. On the left the tray from above, on one scale both ways: where the stage
+has been, where the grain really was, a dot at each one's latest place, and the
+dashed fence, the circle the dragonfly keeps the stage inside: the pattern's
+`perimeter_radius` about where it started (or the **Fence** box on a simulated
+laser), less if the hole allows less. A hole allows the beam at most a third of
+its diameter past its edge, so the beam's center stays within hole radius minus
+beam radius plus a third of the beam's diameter, and short of the neighbours.
+The beam is `beam_diameter_mm` in `cameras.toml`, or a simulated grain's
+`beam_radius_mm` doubled; with neither its center stays in the hole. On the
+right three strips on one shared time axis, seconds since the dragonfly began:
+beam deviation, luminosity and grain size, what the finder saw ("seen") against
+the truth ("true"). The truth exists only on a simulated grain, so on a real
+laser the grain's track and the true lines are left out, and so is the true size
+of a point grain. A gap in a strip is a step where nothing was seen (a miss, or a
+search). Luminosity can pass 1 in the truth, where the glow is brighter than a
+picture can show. The plots are filled by every dragonfly on the laser, whoever
+started it, so a run begun before the window was opened shows whole; a new run
+clears the last one. Drag or scroll on a strip to zoom all three in time, and on
+the tray view to zoom in place: either stops that side following the run until
+the next run starts. A driver that runs its own patterns leaves the plots empty.
+Colours follow the plot palette in Preferences.
+
+A grain with a size lies in its hole with the beam off, and every grain keeps
+what happened to it when the stage goes to another hole: a melted grain is still
+melted when you come back. **Reset simulation**, beside the button, puts every
+grain back as it was first made, returns the stage to the hole it was last sent
+to (centering it if Center holes is ticked) and clears the plots. After a jog
+the stage stays where it is.
+
+`surface = "machined"` under `[<laser>.sim]` draws the tray as stainless steel
+at this magnification, with holes lit from one side: their floors are never
+black, and part of each is nearly as bright as the tray, so a threshold leaves a
+crescent. When a threshold gives no round hole, the finder looks for a ring of
+the hole's size that is darker inside than out, so Center holes works on this
+surface too, and on a real tray lit from one side. It lands up to about 0.15 mm
+toward the shadow of a hole's true center.
+
+The button exists only when the driver is simulated and the camera's `source`
+is `sim`: a real laser does not have it, and on one a dragonfly runs from a
+queue. What you see proves nothing about real grains (section 8.3).
 
 ## 9. Snapshots
 

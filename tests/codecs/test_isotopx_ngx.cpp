@@ -1,11 +1,11 @@
-#include "pychron/codecs/isotopx_ngx.hpp"
+#include "nobion/codecs/isotopx_ngx.hpp"
 
 #include <gtest/gtest.h>
 
 #include <cmath>
 
-using namespace pychron;
-namespace ngx = pychron::codec::ngx;
+using namespace nobion;
+namespace ngx = nobion::codec::ngx;
 
 // Wire literals mirror pychron's Python NGX driver (pychron/hardware/
 // isotopx_spectrometer_controller.py, pychron/spectrometer/isotopx/*).

@@ -1,4 +1,4 @@
-#include "pychron/processing/units.hpp"
+#include "nobion/processing/units.hpp"
 
 #include <algorithm>
 #include <functional>
@@ -6,9 +6,9 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/core/sha256.hpp"
+#include "nobion/core/sha256.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace {
 
@@ -28,6 +28,39 @@ std::optional<InputRef> parse_input(const std::string& text) {
     return std::nullopt;
   r.port = static_cast<std::size_t>(std::stoul(port));
   return r;
+}
+
+// An option a node does not own, that the one node taking its output does
+// own, moves there (domain seam spec 4, "Presets"): a unit split in two, as
+// reduce was into reduce and arar_reduce, leaves its old options in files
+// saved before. The moved value is validated by its new schema; a value the
+// new node sets itself wins. One warning per moved key.
+void move_split_options(Pipeline& p, std::vector<std::string>* warnings) {
+  for (auto& from : p.nodes) {
+    for (auto it = from.options.extra.begin(); it != from.options.extra.end();) {
+      NodeSpec* to = nullptr;
+      int owners = 0;
+      for (auto& n : p.nodes) {
+        const bool takes = std::any_of(n.inputs.begin(), n.inputs.end(), [&](const std::string& in) {
+          const auto ref = parse_input(in);
+          return ref && ref->node == from.id;
+        });
+        if (&n != &from && takes && n.options.schema() && n.options.schema()->field(it->first)) {
+          to = &n;
+          ++owners;
+        }
+      }
+      if (owners != 1) {
+        ++it;
+        continue;
+      }
+      std::string note = "'" + from.id + "': option '" + it->first + "' now belongs to " + to->kind;
+      if (!to->options.is_set(it->first))
+        if (auto ok = to->options.set(it->first, it->second); !ok) note += "; " + ok.error().what + "; using the default";
+      if (warnings) warnings->push_back(std::move(note));
+      it = from.options.extra.erase(it);
+    }
+  }
 }
 
 }  // namespace
@@ -204,6 +237,7 @@ Result<Pipeline> pipeline_from_toml(const UnitRegistry& registry, std::string_vi
     }
     p.nodes.push_back(std::move(n));
   }
+  move_split_options(p, warnings);
   if (auto ok = p.validate(registry); !ok) return fail(ok.error());
   return p;
 }
@@ -240,7 +274,7 @@ std::string pipeline_to_toml(const Pipeline& p) {
 // ---------------------------------------------------------------- runner
 
 Result<std::vector<PortValue>> Runner::run(const Pipeline& pipeline, std::string_view target,
-                                           const std::atomic<bool>* cancel) {
+                                           const std::atomic<bool>* cancel, std::optional<double> now) {
   last_.clear();
   diagnostics_.clear();
   if (auto ok = pipeline.validate(registry_); !ok) return fail(ok.error());
@@ -280,7 +314,8 @@ Result<std::vector<PortValue>> Runner::run(const Pipeline& pipeline, std::string
       inputs.push_back(cache_.at(ref.node).outputs.at(ref.port));
     }
     if (u.reads_source() && source_) text += "source " + source_->name() + " " + std::to_string(source_->generation()) + "\n";
-    const std::string fp = pychron::to_hex(sha256(text));
+    if (now && u.uses_time(n.options)) text += "now " + std::to_string(*now) + "\n";
+    const std::string fp = nobion::to_hex(sha256(text));
     fingerprints[id] = fp;
 
     if (upstream) {
@@ -296,7 +331,7 @@ Result<std::vector<PortValue>> Runner::run(const Pipeline& pipeline, std::string
       last_.push_back(std::move(nr));
       continue;
     }
-    RunContext ctx{source_, cancel, {}};
+    RunContext ctx{source_, cancel, {}, now, domain_};
     auto out = u.execute(inputs, n.options, ctx);
     ++executions_;
     nr.executed = true;
@@ -320,4 +355,4 @@ Result<std::vector<PortValue>> Runner::run(const Pipeline& pipeline, std::string
   return cache_.at(std::string(target)).outputs;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

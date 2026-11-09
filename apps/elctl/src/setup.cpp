@@ -4,23 +4,23 @@
 #include <iostream>
 #include <sstream>
 
-#include "pychron/core/env.hpp"
-#include "pychron/setup/doctor.hpp"
-#include "pychron/setup/install.hpp"
-#include "pychron/setup/installer.hpp"
-#include "pychron/setup/legacy_line.hpp"
-#include "pychron/setup/profile.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/setup/doctor.hpp"
+#include "nobion/setup/install.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/setup/legacy_line.hpp"
+#include "nobion/setup/profile.hpp"
 
-#ifdef PYCHRON_ELCTL_HAS_STORE
-#include "pychron/persistence/store.hpp"
+#ifdef NOBION_ELCTL_HAS_STORE
+#include "nobion/persistence/store.hpp"
 #include "entry.hpp"
 #endif
 
 namespace elctl {
 
 namespace fs = std::filesystem;
-using namespace pychron;
-using namespace pychron::setup;
+using namespace nobion;
+using namespace nobion::setup;
 
 namespace {
 
@@ -34,13 +34,6 @@ Resources resources(const std::optional<fs::path>& profiles) {
   Resources r = find_resources();
   if (profiles) r.profiles = *profiles;
   return r;
-}
-
-bool yes(std::istream& in, std::ostream& out, const std::string& question) {
-  out << question << " [Y/n] " << std::flush;
-  std::string line;
-  if (!std::getline(in, line)) return false;
-  return line.empty() || line == "y" || line == "Y" || line == "yes";
 }
 
 std::string shown(const Question& q, const Value& v) {
@@ -126,16 +119,6 @@ void print_plan(const InstallPlan& plan, Io io) {
   }
 }
 
-#ifdef PYCHRON_ELCTL_HAS_STORE
-Result<std::string> open_store(const std::string& url, bool migrate) {
-  auto store = persistence::open_store(persistence::StoreConfig{url, migrate});
-  if (!store) return fail(std::move(store).error());
-  auto status = (*store)->schema_status();
-  if (!status) return fail(std::move(status).error());
-  return "schema " + (status->empty() ? std::string("empty") : "version " + std::to_string(status->back().version));
-}
-#endif
-
 // An instrument install's database is made (a local one) and given what
 // <root>/seed.toml names: the references project, its samples and special
 // identifiers, the reactors. The instrument measures without any of it, so
@@ -146,7 +129,7 @@ void seed_instrument_database(const SiteInstall& entry, Io io) {
   const fs::path seed = entry.root / "seed.toml";
   std::error_code ec;
   if (!fs::exists(seed, ec)) return;
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
   // Only a database on this computer is made or migrated from here: the
   // lab's server is brought up to date by whoever looks after it.
   const bool local = entry.database.starts_with("sqlite:");
@@ -169,11 +152,30 @@ void seed_instrument_database(const SiteInstall& entry, Io io) {
 #endif
 }
 
+}  // namespace
+
+bool yes(std::istream& in, std::ostream& out, const std::string& question) {
+  out << question << " [Y/n] " << std::flush;
+  std::string line;
+  if (!std::getline(in, line)) return false;
+  return line.empty() || line == "y" || line == "Y" || line == "yes";
+}
+
+#ifdef NOBION_ELCTL_HAS_STORE
+Result<std::string> open_store(const std::string& url, bool migrate) {
+  auto store = persistence::open_store(persistence::StoreConfig{url, migrate});
+  if (!store) return fail(std::move(store).error());
+  auto status = (*store)->schema_status();
+  if (!status) return fail(std::move(status).error());
+  return "schema " + (status->empty() ? std::string("empty") : "version " + std::to_string(status->back().version));
+}
+#endif
+
 int report_doctor(const SiteInstall& install, const ProfileLibrary* library, bool strict, bool probe, Io io) {
   DoctorOptions options;
   options.library = library;
   options.probe = probe;
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
   options.open_database = [](const std::string& url) { return open_store(url, false); };
 #endif
   const auto checks = doctor(install, options);
@@ -185,8 +187,6 @@ int report_doctor(const SiteInstall& install, const ProfileLibrary* library, boo
   if (any_fail(checks) || (strict && any_warn(checks))) return kFailed;
   return kOk;
 }
-
-}  // namespace
 
 Result<SiteInstall> resolve_install(const std::optional<std::string>& name) {
   const auto path = default_site_path();
@@ -332,7 +332,7 @@ int init_command(const std::vector<std::string>& args, Io io) {
   io.out << "\n";
 
   SiteInstall entry = site_install(*plan, *name);
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
   if (entry.kind == "data_reduction" && entry.database.starts_with("sqlite:")) {
     // A local database: create it and bring its schema up to date.
     auto made = open_store(entry.database, true);

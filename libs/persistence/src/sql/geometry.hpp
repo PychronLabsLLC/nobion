@@ -20,10 +20,10 @@
 
 #include <QString>
 
-#include "pychron/persistence/store.hpp"
-#include "pychron/core/number.hpp"
+#include "nobion/persistence/store.hpp"
+#include "nobion/core/number.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 
 inline constexpr int kWgs84 = 4326;
 
@@ -130,4 +130,4 @@ inline std::optional<GeoPoint> parse_point(std::string_view text) {
   return geometry_detail::ewkb(text);
 }
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

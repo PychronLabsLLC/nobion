@@ -38,7 +38,7 @@ fixtures. `RecordedSource` replays a case in file order (`seq` from 1).
 
 ## External sequences
 
-Full sequences stay outside the repo. Set `PYCHRON_VISION_FIXTURES` to a
+Full sequences stay outside the repo. Set `NOBION_VISION_FIXTURES` to a
 directory holding case directories in the layout above; `ExternalCasesWithinTolerance`
 runs the same assertion on them and is skipped when the variable is unset.
 
@@ -215,7 +215,7 @@ blue merges the faint trail with the bright core.
 ## Legacy finder comparison
 
 `LegacyFinder` (the OpenCV port of the Python pipeline, built only with
-`PYCHRON_VISION_OPENCV`) and `SimpleFinder` on the same eight committed frames.
+`NOBION_VISION_OPENCV`) and `SimpleFinder` on the same eight committed frames.
 The test `LegacyFinder.RealFixtureComparison` prints this table; it runs both
 finders on every frame, including those marked `skip = true`, and asserts only
 that nothing crashes and results are finite. It is a report, not a gate. Neither

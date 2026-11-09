@@ -10,9 +10,9 @@
 #include <string_view>
 #include <vector>
 
-#include "pychron/ingest/batch.hpp"
+#include "nobion/ingest/batch.hpp"
 
-namespace pychron::ingest::detail {
+namespace nobion::ingest::detail {
 
 // The detail that holds `notes` under "rewrites", one entry per path, sorted
 // by path. It is built on `stored`, the detail the row has now (empty: there
@@ -24,4 +24,4 @@ namespace pychron::ingest::detail {
 std::optional<std::string> with_rewrites(std::string_view stored, std::string_view base,
                                          const std::vector<FileNote>& notes);
 
-}  // namespace pychron::ingest::detail
+}  // namespace nobion::ingest::detail

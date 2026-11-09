@@ -1,4 +1,5 @@
-#include "pychron/laser/camera_scale.hpp"
+#include "nobion/laser/camera_scale.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -11,10 +12,10 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/laser/calibration_store.hpp"
-#include "pychron/laser/laser_system.hpp"
+#include "nobion/laser/calibration_store.hpp"
+#include "nobion/laser/laser_system.hpp"
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 namespace {
 
@@ -199,9 +200,8 @@ Result<void> CameraScaleStore::save(std::string_view device, const ScaleMeasurem
   std::error_code ec;
   fs::create_directories(dir_, ec);
   if (ec) return fail(ErrorKind::Io, "cannot write " + path.string() + ": " + ec.message());
-  const fs::path tmp = fs::path(path).concat(".tmp");
+  std::ostringstream out;
   {
-    std::ofstream out(tmp, std::ios::trunc | std::ios::binary);
     // Only the map is read back; the rest is for the reader.
     out << "# The pixel scale of " << device << "'s camera, measured by jogging the stage.\n"
         << "# Used instead of px_per_mm, flip_x and flip_y in cameras.toml. Delete to go back to those.\n"
@@ -209,18 +209,9 @@ Result<void> CameraScaleStore::save(std::string_view device, const ScaleMeasurem
         << "   flip_y = " << (m.flip_y ? "true" : "false") << "   skew " << num(m.skew_deg, 2) << " deg\n"
         << "geometry = \"" << m.geometry << "\"\n"
         << m.map.to_toml();
-    out.flush();
-    if (!out) {
-      fs::remove(tmp, ec);
-      return fail(ErrorKind::Io, "cannot write " + path.string());
-    }
   }
-  fs::rename(tmp, path, ec);
-  if (ec) {
-    const std::string why = ec.message();
-    fs::remove(tmp, ec);
-    return fail(ErrorKind::Io, "cannot write " + path.string() + ": " + why);
-  }
+  if (auto written = write_file_atomic(path, out.str(), Durability::Power); !written)
+    return fail(ErrorKind::Io, "cannot write " + path.string() + ": " + written.error().what);
   return {};
 }
 
@@ -232,4 +223,4 @@ Result<void> CameraScaleStore::clear(std::string_view device) const {
   return {};
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

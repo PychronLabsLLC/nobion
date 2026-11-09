@@ -1,6 +1,6 @@
 # Run factory defaults for the example lab: what a new run of
 # [<analysis_type>.<extract_device>] starts with ("*" matches any device).
-# pychron-ui's run factory applies them when the identifier's type changes
+# nobion's run factory applies them when the identifier's type changes
 # (or on Defaults).
 
 [unknown."*"]

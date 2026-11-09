@@ -9,18 +9,18 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/systems/extraction_line.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/systems/extraction_line.hpp"
 #include "virtual_time.hpp"
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::systems;
+using namespace nobion;
+using namespace nobion::systems;
 
-const std::filesystem::path kDir = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "nmgrl";
+const std::filesystem::path kDir = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "nmgrl";
 
-using NmgrlLineSim = pychron::testing::VirtualTimeTest;
+using NmgrlLineSim = nobion::testing::VirtualTimeTest;
 
 TEST_F(NmgrlLineSim, LoadsAndActuatesOnEveryController) {
   VirtualClock clock;
@@ -29,7 +29,7 @@ TEST_F(NmgrlLineSim, LoadsAndActuatesOnEveryController) {
   // test out of the repo, and out of the state of anyone running this line.
   ExtractionLine::Options options;
   options.clock = &clock;
-  options.state_file = std::filesystem::temp_directory_path() / "pychron-test-nmgrl-line.state.toml";
+  options.state_file = std::filesystem::temp_directory_path() / "nobion-test-nmgrl-line.state.toml";
   std::filesystem::remove(options.state_file);
   auto made = ExtractionLine::load(kDir / "extraction_line.toml", kDir / "canvas.toml", options);
   ASSERT_TRUE(made) << made.error().what;
@@ -61,7 +61,7 @@ TEST_F(NmgrlLineSim, HasACryostatAndAHeater) {
   Clock::Participant test(clock, "test");
   ExtractionLine::Options options;
   options.clock = &clock;
-  options.state_file = std::filesystem::temp_directory_path() / "pychron-test-nmgrl-cryo.state.toml";
+  options.state_file = std::filesystem::temp_directory_path() / "nobion-test-nmgrl-cryo.state.toml";
   std::filesystem::remove(options.state_file);
   auto made = ExtractionLine::load(kDir / "extraction_line.toml", kDir / "canvas.toml", options);
   ASSERT_TRUE(made) << made.error().what;

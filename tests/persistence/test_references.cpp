@@ -1,13 +1,14 @@
 // Reference data, interpreted ages and the derived cache (DVC schema spec,
 // sections 4.3, 5.7, 6; invariant I14).
 
+#include <algorithm>
 #include <gtest/gtest.h>
 
 #include "store_fixture.hpp"
 
-using namespace pychron;
-using namespace pychron::persistence;
-using namespace pychron::persistence::testing;
+using namespace nobion;
+using namespace nobion::persistence;
+using namespace nobion::persistence::testing;
 
 namespace {
 
@@ -156,6 +157,37 @@ TEST_P(ReferenceTest, PinsFreezeAReferenceRevision) {
   EXPECT_FALSE(latest.refs[0].pinned);
 }
 
+// A loader that has read an analysis's heads and resolved its references
+// has the fingerprint without asking the store again.
+TEST_P(ReferenceTest, TheFingerprintOfWhatWasReadIsTheInputFingerprint) {
+  RefObjectSpec pos;
+  pos.position = lab_.position;
+  const Uuid fl = object(RefType::FluxPosition, "NM-300/A/1", pos);
+  publish(fl, flux(0.01));
+  const Uuid a = ingest(1);
+  const auto of_what_was_read = [&] {
+    auto heads = store_->heads(a);
+    EXPECT_TRUE(heads);
+    auto refs = store_->resolve_refs(a, RefPolicy{});
+    EXPECT_TRUE(refs);
+    return fingerprint_of(*heads, refs->refs, "red-1");
+  };
+  const Sha256Digest first = of_what_was_read();
+  EXPECT_EQ(first, *store_->input_fingerprint(a, "red-1"));
+  EXPECT_NE(first, *store_->input_fingerprint(a, "red-2"));
+
+  publish(fl, flux(0.02));
+  const Sha256Digest second = of_what_was_read();
+  EXPECT_NE(second, first);
+  EXPECT_EQ(second, *store_->input_fingerprint(a, "red-1"));
+
+  // The order the heads were read in is no part of it.
+  auto heads = *store_->heads(a);
+  ASSERT_GT(heads.size(), 1u);
+  std::reverse(heads.begin(), heads.end());
+  EXPECT_EQ(fingerprint_of(heads, store_->resolve_refs(a, RefPolicy{})->refs, "red-1"), second);
+}
+
 TEST_P(ReferenceTest, DerivedValuesAreServedOnlyForCurrentInputs) {
   RefObjectSpec pos;
   pos.position = lab_.position;
@@ -178,12 +210,12 @@ TEST_P(ReferenceTest, DerivedValuesAreServedOnlyForCurrentInputs) {
   // A new flux head changes the inputs: the cached age is no longer served (I14).
   publish(fl, flux(0.02));
   EXPECT_FALSE(*store_->get_derived(a, "red-1"));
-  EXPECT_EQ(*store_->prune_derived(a), 2);
-  EXPECT_EQ(*store_->prune_derived(a), 0);
 
-  // So does a new blank fit.
+  // So does a new blank fit. A put under the new fingerprint takes the old
+  // one's rows with it: nothing is left to prune.
   auto fp2 = *store_->input_fingerprint(a, "red-1");
   ASSERT_TRUE(store_->put_derived(a, fp2, "red-1", rows));
+  EXPECT_EQ(*store_->prune_derived(a), 0);
   auto uow = *store_->begin(reducer());
   BlankRow b;
   b.isotope = "Ar40";
@@ -191,6 +223,99 @@ TEST_P(ReferenceTest, DerivedValuesAreServedOnlyForCurrentInputs) {
   ASSERT_TRUE(uow->add_revision(a, Kind::Blanks, Blanks{b}, *store_->head(a, Kind::Blanks)));
   ASSERT_TRUE(std::holds_alternative<Committed>(*uow->commit(ChangesetKind::Reduction, "refit")));
   EXPECT_FALSE(*store_->get_derived(a, "red-1"));
+}
+
+// What the age sink asks before it writes: the fingerprint each of a batch of
+// analyses is cached under, in one read (age cache spec 4.5).
+TEST_P(ReferenceTest, TheCachedFingerprintsOfManyAnalysesAreReadTogether) {
+  RefObjectSpec pos;
+  pos.position = lab_.position;
+  publish(object(RefType::FluxPosition, "NM-300/A/1", pos), flux(0.01));
+  const Uuid a = ingest(1);
+  const Uuid b = ingest(2);
+  const Uuid never = ingest(3);
+  const std::vector<Uuid> all{a, b, never, Uuid::v7()};  // the last is no analysis at all
+
+  auto none = store_->derived_fingerprints(all);
+  ASSERT_TRUE(none) << to_string(none.error());
+  EXPECT_TRUE(none->empty());
+  EXPECT_TRUE(store_->derived_fingerprints({})->empty());
+
+  const auto fa = *store_->input_fingerprint(a, "red-1");
+  Sha256Digest fb{};
+  fb[0] = 7;
+  ASSERT_TRUE(store_->put_derived(a, fa, "red-1", {{"age", 28.1, 0.05, "Ma"}, {"kca", 12.0, 0.4, std::nullopt}}));
+  // "current, and there is no age" is cached too: a null age
+  ASSERT_TRUE(store_->put_derived(b, fb, "red-1", {{"age", std::nullopt, std::nullopt, "Ma"}}));
+
+  auto got = store_->derived_fingerprints(all);
+  ASSERT_TRUE(got) << to_string(got.error());
+  ASSERT_EQ(got->size(), 2u);
+  EXPECT_EQ(got->at(a), fa);
+  EXPECT_EQ(got->at(b), fb);
+  EXPECT_FALSE(got->contains(never));
+
+  // More analyses than one statement is given: read in parts, the same answer.
+  std::vector<Uuid> many;
+  many.reserve(1202);
+  for (int i = 0; i < 1200; ++i) many.push_back(Uuid::v7());
+  many.push_back(a);
+  many.insert(many.begin(), b);
+  got = store_->derived_fingerprints(many);
+  ASSERT_TRUE(got) << to_string(got.error());
+  EXPECT_EQ(got->size(), 2u);
+  EXPECT_EQ(got->at(a), fa);
+}
+
+// After any write the cache holds one fingerprint's rows for an analysis
+// (age cache spec 4.2): a join from an analysis to its age is one row or none.
+TEST_P(ReferenceTest, APutReplacesAnotherFingerprintsRows) {
+  RefObjectSpec pos;
+  pos.position = lab_.position;
+  const Uuid fl = object(RefType::FluxPosition, "NM-300/A/1", pos);
+  publish(fl, flux(0.01));
+  const Uuid a = ingest(1);
+  const Uuid other = ingest(2);
+  const auto fp1 = *store_->input_fingerprint(a, "red-1");
+  const auto other_fp = *store_->input_fingerprint(other, "red-1");
+  ASSERT_TRUE(store_->put_derived(a, fp1, "red-1", {{"age", 28.1, 0.05, "Ma"}, {"kca", 12.0, 0.4, std::nullopt}}));
+  ASSERT_TRUE(store_->put_derived(other, other_fp, "red-1", {{"age", 1.0, 0.1, "Ma"}}));
+
+  publish(fl, flux(0.02));
+  const auto fp2 = *store_->input_fingerprint(a, "red-1");
+  ASSERT_NE(fp2, fp1);
+  const std::vector<DerivedRow> second = {{"age", 56.0, 0.1, "Ma"}};
+  ASSERT_TRUE(store_->put_derived(a, fp2, "red-1", second));
+  auto got = store_->get_derived(a, "red-1");
+  ASSERT_TRUE(got && *got);
+  EXPECT_EQ(**got, second) << "the first fingerprint's kca went with its age";
+  EXPECT_EQ(*store_->prune_derived(a), 0) << "nothing of the first fingerprint was left";
+  // Another analysis's rows are not touched.
+  const auto other_fp2 = *store_->input_fingerprint(other, "red-1");
+  EXPECT_EQ(*store_->prune_derived(other), other_fp2 == other_fp ? 0 : 1);
+}
+
+TEST_P(ReferenceTest, ManyPutsAreOneTransaction) {
+  const Uuid a = ingest(1), b = ingest(2), c = ingest(3);
+  const auto fp = [&](Uuid u) { return *store_->input_fingerprint(u, "red-1"); };
+  const std::vector<DerivedRow> rows = {{"age", 28.1, 0.05, "Ma"}};
+  const std::vector<DerivedPut> three = {{a, fp(a), rows}, {b, fp(b), rows}, {c, fp(c), {{"age", 3.0, 0.3, "Ma"}}}};
+  ASSERT_TRUE(store_->put_derived_many(three, "red-1"));
+  for (const Uuid u : {a, b, c}) {
+    auto got = store_->get_derived(u, "red-1");
+    ASSERT_TRUE(got && *got);
+    EXPECT_EQ((*got)->size(), 1u);
+  }
+  EXPECT_EQ((**store_->get_derived(c, "red-1"))[0].value, std::optional<double>(3.0));
+
+  // One put that cannot be made fails the call and leaves none of it.
+  const Uuid d = ingest(4), e = ingest(5);
+  const Uuid nobody = Uuid::v7();
+  const std::vector<DerivedPut> bad = {{d, fp(d), rows}, {nobody, fp(d), rows}, {e, fp(e), rows}};
+  EXPECT_FALSE(store_->put_derived_many(bad, "red-1"));
+  EXPECT_FALSE(*store_->get_derived(d, "red-1"));
+  EXPECT_FALSE(*store_->get_derived(e, "red-1"));
+  ASSERT_TRUE(store_->put_derived_many({}, "red-1")) << "nothing to put is not an error";
 }
 
 TEST_P(ReferenceTest, InterpretedAgeRevisions) {

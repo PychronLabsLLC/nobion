@@ -1,0 +1,74 @@
+#pragma once
+
+// SpectrometerAssembler (spectrometer spec sections 2.2, 7.3): config ->
+// transports -> drivers -> role bindings -> Spectrometer.
+//
+// The config rules of config_validate.hpp run first; binding then checks what
+// only live drivers can answer (does the named driver implement the role,
+// does the positioner's native axis match, does every configured channel
+// exist on the acquirer). All problems are collected into one Config error.
+
+#include <filesystem>
+#include <functional>
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "nobion/core/error.hpp"
+#include "nobion/devices/device.hpp"
+#include "nobion/devices/link.hpp"
+#include "nobion/systems/spectrometer/config.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
+#include "nobion/systems/spectrometer/spectrometer.hpp"
+#include "nobion/transport/endpoints.hpp"
+#include "nobion/transport/transport.hpp"
+
+namespace nobion::spectrometer {
+
+using TransportMaker =
+    std::function<Result<std::unique_ptr<Transport>>(const cfg::TransportConfig&, const SpectrometerContext&)>;
+// The Link is the driver's transport's (none for kind "link"), shared by
+// every driver on it.
+using DriverMaker = std::function<Result<std::unique_ptr<Device>>(const cfg::DriverConfig&, Transport&,
+                                                                  const SpectrometerContext&, Link*)>;
+
+struct AssemblerOptions {
+  TransportMaker make_transport;  // default: nobion::make_transport
+  DriverMaker make_driver;        // default: DriverRegistry::global()
+  Spectrometer::Options spectrometer;
+  // What a transport's [transports.<name>.recovery] does not say: the lab's
+  // executor.toml [links].
+  LinkPolicy link_defaults;
+  // A line served by sim serve (endpoints.hpp), for the default transports:
+  // each but kind "sim" and "link" connects to its entry, and one with none
+  // fails. Null: as configured.
+  std::shared_ptr<const std::map<std::string, Endpoint>> sim_endpoints;
+};
+
+class SpectrometerAssembler {
+ public:
+  using Options = AssemblerOptions;
+
+  // load_spectrometer(config_file) then assemble().
+  static Result<std::unique_ptr<Spectrometer>> load(const std::filesystem::path& config_file,
+                                                    SpectrometerContext context, Options options = {});
+
+  static Result<std::unique_ptr<Spectrometer>> assemble(cfg::SpectrometerData data, SpectrometerContext context,
+                                                        Options options = {});
+
+  // Resolves role -> driver bindings over already-built devices (by driver
+  // name). Devices are not taken; the caller moves them into the result.
+  static Result<SpectrometerRoles> bind(const cfg::SpectrometerConfig& config,
+                                        const std::vector<std::pair<std::string, Device*>>& devices);
+
+  static Result<std::unique_ptr<Transport>> default_transport(const cfg::TransportConfig& config,
+                                                              const SpectrometerContext& context,
+                                                              const std::filesystem::path& trace_dir = "traces",
+                                                              const std::map<std::string, Endpoint>* endpoints = nullptr);
+  static Result<std::unique_ptr<Device>> default_driver(const cfg::DriverConfig& config, Transport& transport,
+                                                        const SpectrometerContext& context, Link* link = nullptr);
+};
+
+}  // namespace nobion::spectrometer

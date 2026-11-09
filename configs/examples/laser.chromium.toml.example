@@ -2,7 +2,7 @@
 #
 # On the laser PC, in Chromium: View > Control Panels > Show/Hide Remote
 # Control Window, then tick "TCP/IP Interface" (port 1234). Chromium must be
-# running; pychron keeps one connection open to it.
+# running; nobion keeps one connection open to it.
 #
 # Add the two tables below to a line's extraction_line.toml. With
 # kind = "sim" the driver talks to the built-in Chromium simulator instead.

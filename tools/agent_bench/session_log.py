@@ -29,7 +29,7 @@ BASH_KINDS = [
     ("build", re.compile(r"\bcmake\s+--build\b")),
     ("configure", re.compile(r"\bcmake\s+--preset\b")),
     ("ctest", re.compile(r"\bctest\b")),
-    ("test_binary", re.compile(r"pychron_\w+_tests?\b")),
+    ("test_binary", re.compile(r"nobion_\w+_tests?\b")),
     ("git_push", re.compile(r"\bgit\b[^|;&]*\bpush\b")),
     ("git_commit", re.compile(r"\bgit\b[^|;&]*\bcommit\b")),
     ("git_merge", re.compile(r"\bgit\b[^|;&]*\b(merge|fetch \. )")),

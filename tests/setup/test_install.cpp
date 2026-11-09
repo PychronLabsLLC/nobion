@@ -8,21 +8,21 @@
 #include <filesystem>
 #include <fstream>
 
-#include "pychron/setup/doctor.hpp"
-#include "pychron/setup/install.hpp"
-#include "pychron/setup/installer.hpp"
-#include "pychron/setup/profile.hpp"
-#include "pychron/setup/site.hpp"
+#include "nobion/setup/doctor.hpp"
+#include "nobion/setup/install.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/setup/profile.hpp"
+#include "nobion/setup/site.hpp"
 #include "temp_path.hpp"
 
-using namespace pychron;
-using namespace pychron::setup;
+using namespace nobion;
+using namespace nobion::setup;
 namespace fs = std::filesystem;
 
 namespace {
 
 struct Tmp {
-  fs::path dir = pychron::testing::unique_temp_path("pychron-setup-");
+  fs::path dir = nobion::testing::unique_temp_path("nobion-setup-");
   Tmp() { fs::create_directories(dir); }
   ~Tmp() { fs::remove_all(dir); }
   void write(const fs::path& rel, const std::string& text) const {
@@ -118,6 +118,30 @@ TEST_F(Fixture, InstallsOnceThenFindsEverythingInPlace) {
   for (const auto& f : again->files) EXPECT_EQ(f.action, PlannedFile::Action::Same) << f.to;
 }
 
+TEST_F(Fixture, AnInstallRecordWrittenAgainReadsBackTheSame) {
+  auto p = plan({});
+  ASSERT_TRUE(p) << p.error().what;
+  ASSERT_TRUE(apply_install(*p));
+  const fs::path lab = root.dir / "lab";
+  auto before = read_install_record(lab);
+  ASSERT_TRUE(before) << before.error().what;
+  InstallRecord changed = *before;
+  changed.answers["host"] = Value{std::string("10.0.0.9")};
+  ASSERT_TRUE(write_install_record(lab, changed));
+  auto after = read_install_record(lab);
+  ASSERT_TRUE(after) << after.error().what;
+  EXPECT_EQ(after->profile, before->profile);
+  EXPECT_EQ(after->versions, before->versions);
+  EXPECT_EQ(after->files, before->files);
+  EXPECT_EQ(to_text(after->answers.at("host")), "10.0.0.9");
+  ASSERT_EQ(after->answers.size(), before->answers.size());
+  for (const auto& [id, v] : before->answers) {
+    if (id == "host") continue;
+    ASSERT_TRUE(after->answers.count(id)) << id;
+    EXPECT_EQ(after->answers.at(id), v) << id;
+  }
+}
+
 TEST_F(Fixture, AnInstallNeverOverwritesAndAReconfigureOnlyRewritesUntouchedFiles) {
   ASSERT_TRUE(apply_install(*plan({})));
   root.write("lab/shared.txt", "edited by the lab\n");
@@ -150,7 +174,7 @@ TEST_F(Fixture, SecretsAreOwnerOnlyAndNeverRecorded) {
   EXPECT_EQ(fs::status(root.dir / "lab/secret.toml").permissions() & (fs::perms::group_all | fs::perms::others_all),
             fs::perms::none);
 #endif
-  EXPECT_EQ(root.read("lab/.pychron/install.toml").find("t0ken"), std::string::npos);
+  EXPECT_EQ(root.read("lab/.nobion/install.toml").find("t0ken"), std::string::npos);
   auto record = read_install_record(root.dir / "lab");
   ASSERT_TRUE(record);
   EXPECT_FALSE(record->answers.count("token"));
@@ -233,29 +257,115 @@ TEST(Site, SavesLoadsAndPicks) {
   EXPECT_TRUE(loaded->default_install.empty());
 }
 
+TEST(Site, DomainRoundTripsAndDefaultsToArAr) {
+  Tmp tmp;
+  const fs::path path = tmp.dir / "site.toml";
+  SiteInstall named;
+  named.name = "noble";
+  named.root = tmp.dir / "noble";
+  named.domain = "noble_gas";
+  SiteInstall plain;
+  plain.name = "plain";
+  plain.root = tmp.dir / "plain";
+  SiteConfig site;
+  site.upsert(named);
+  site.upsert(plain);
+  ASSERT_TRUE(save_site(site, path));
+  auto loaded = load_site(path);
+  ASSERT_TRUE(loaded) << loaded.error().what;
+  EXPECT_EQ(loaded->find("noble")->domain, "noble_gas");
+  EXPECT_EQ(loaded->find("plain")->domain, "arar");
+
+  // An entry written before the key existed.
+  {
+    std::ofstream out(path, std::ios::trunc);
+    out << "[[installs]]\nname = \"old\"\nroot = \"" << (tmp.dir / "old").generic_string() << "\"\n";
+  }
+  auto old = load_site(path);
+  ASSERT_TRUE(old) << old.error().what;
+  EXPECT_EQ(old->find("old")->domain, "arar");
+}
+
+TEST(Doctor, RefusesAnUnknownDomain) {
+  Tmp tmp;
+  SiteInstall site;
+  site.name = "x";
+  site.kind = "data_reduction";
+  site.root = tmp.dir;
+  auto domain_check = [](const SiteInstall& s) {
+    for (const auto& c : doctor(s))
+      if (c.name == "domain") return c;
+    ADD_FAILURE() << "no domain check";
+    return Check{};
+  };
+  site.domain = "u_pb";
+  const auto bad = domain_check(site);
+  EXPECT_EQ(bad.status, Check::Status::Fail);
+  EXPECT_NE(bad.detail.find("unknown domain 'u_pb'"), std::string::npos) << bad.detail;
+  EXPECT_NE(bad.detail.find("arar"), std::string::npos) << bad.detail;
+  EXPECT_NE(bad.detail.find("noble_gas"), std::string::npos) << bad.detail;
+  EXPECT_NE(bad.hint.find("--reconfigure"), std::string::npos) << bad.hint;
+  for (const char* id : {"arar", "noble_gas"}) {
+    site.domain = id;
+    EXPECT_EQ(domain_check(site).status, Check::Status::Ok) << id;
+  }
+}
+
 TEST(Site, TheLocationCanBeOverridden) {
 #ifdef _WIN32
-  _putenv_s("PYCHRON_SITE_CONFIG", "C:/somewhere/site.toml");
+  _putenv_s("NOBION_SITE_CONFIG", "C:/somewhere/site.toml");
   EXPECT_EQ(default_site_path(), fs::path("C:/somewhere/site.toml"));
-  _putenv_s("PYCHRON_SITE_CONFIG", "");
+  _putenv_s("NOBION_SITE_CONFIG", "");
 #else
-  setenv("PYCHRON_SITE_CONFIG", "/somewhere/site.toml", 1);
+  setenv("NOBION_SITE_CONFIG", "/somewhere/site.toml", 1);
   EXPECT_EQ(default_site_path(), fs::path("/somewhere/site.toml"));
-  unsetenv("PYCHRON_SITE_CONFIG");
+  unsetenv("NOBION_SITE_CONFIG");
 #endif
   EXPECT_EQ(default_site_path().filename(), "site.toml");
 }
 
 TEST(Installer, DatabaseUrlsFromTheAnswers) {
   const Answers local{{"data_source", Value{std::string("local")}}};
-  EXPECT_EQ(database_url_for(local, "/labs/dr", true), "sqlite:/labs/dr/data/pychron.db");
+  EXPECT_EQ(database_url_for(local, "/labs/dr", true), "sqlite:/labs/dr/data/nobion.db");
+  const fs::path root = fs::temp_directory_path() / "labs" / "dr";
+  EXPECT_EQ(database_url_for(local, root, true), "sqlite:" + (root / "data" / "nobion.db").generic_string());
+  Answers copy = local;
+  copy["db_file"] = Value{std::string("lab/copy.db")};
+  EXPECT_EQ(database_url_for(copy, root, true), "sqlite:" + (root / "lab/copy.db").generic_string());
+  const fs::path shared = fs::temp_directory_path() / "shared" / "nobion.db";
+  ASSERT_TRUE(shared.is_absolute());
+  copy["db_file"] = Value{shared.generic_string()};
+  EXPECT_EQ(database_url_for(copy, root, true), "sqlite:" + shared.generic_string());
   Answers server{{"data_source", Value{std::string("server")}}, {"db_user", Value{std::string("ar user")}},
                  {"db_host", Value{std::string("db.lab.edu")}}, {"db_port", Value{std::int64_t{5433}}},
-                 {"db_name", Value{std::string("pychron")}}, {"db_password", Value{std::string("p@ss:/")}}};
-  EXPECT_EQ(database_url_for(server, "/x", false), "postgresql://ar%20user@db.lab.edu:5433/pychron");
-  EXPECT_EQ(database_url_for(server, "/x", true), "postgresql://ar%20user:p%40ss%3A%2F@db.lab.edu:5433/pychron");
+                 {"db_name", Value{std::string("nobion")}}, {"db_password", Value{std::string("p@ss:/")}}};
+  EXPECT_EQ(database_url_for(server, "/x", false), "postgresql://ar%20user@db.lab.edu:5433/nobion");
+  EXPECT_EQ(database_url_for(server, "/x", true), "postgresql://ar%20user:p%40ss%3A%2F@db.lab.edu:5433/nobion");
   server["db_password"] = Value{std::string{}};
-  EXPECT_EQ(database_url_for(server, "/x", true), "postgresql://ar%20user@db.lab.edu:5433/pychron");
+  EXPECT_EQ(database_url_for(server, "/x", true), "postgresql://ar%20user@db.lab.edu:5433/nobion");
+}
+
+TEST(Installer, TheKeptPasswordIsReadFromTheCredentialsFile) {
+  Tmp tmp;
+  auto none = read_kept_password(tmp.dir);
+  ASSERT_TRUE(none) << none.error().what;
+  EXPECT_FALSE(none->has_value());
+
+  tmp.write(".nobion/credentials.toml", "[database]\nuser = \"ar\"\n");
+  auto no_key = read_kept_password(tmp.dir);
+  ASSERT_TRUE(no_key) << no_key.error().what;
+  EXPECT_FALSE(no_key->has_value());
+
+  tmp.write(".nobion/credentials.toml", "[database]\npassword = \"p@ss:w/rd\"\n");
+  auto kept = read_kept_password(tmp.dir);
+  ASSERT_TRUE(kept) << kept.error().what;
+  ASSERT_TRUE(kept->has_value());
+  EXPECT_EQ(**kept, "p@ss:w/rd");
+
+  tmp.write(".nobion/credentials.toml", "[database");
+  auto bad = read_kept_password(tmp.dir);
+  ASSERT_FALSE(bad);
+  EXPECT_EQ(bad.error().kind, ErrorKind::Config);
 }
 
 TEST(Installer, RegisteringAnInstallMakesTheFirstOneTheDefault) {
@@ -275,10 +385,73 @@ TEST(Installer, TheShippedProfilesAreFoundAndEnvironmentWins) {
   EXPECT_TRUE(fs::exists(r.examples / "extraction_line.toml")) << r.examples;
   // An installed layout next to the program wins over the source tree.
   Tmp tmp;
-  fs::create_directories(tmp.dir / "share" / "pychron" / "profiles");
-  fs::create_directories(tmp.dir / "share" / "pychron" / "examples");
+  fs::create_directories(tmp.dir / "share" / "nobion" / "profiles");
+  fs::create_directories(tmp.dir / "share" / "nobion" / "examples");
   fs::create_directories(tmp.dir / "bin");
-  EXPECT_EQ(find_resources(tmp.dir / "bin").profiles, fs::weakly_canonical(tmp.dir / "share" / "pychron") / "profiles");
+  EXPECT_EQ(find_resources(tmp.dir / "bin").profiles, fs::weakly_canonical(tmp.dir / "share" / "nobion") / "profiles");
+}
+
+TEST(Installer, TheExamplesKeepTheirStateInTheUserFolder) {
+  Tmp tmp;
+  const fs::path examples = tmp.dir / "res" / "examples";
+  fs::create_directories(examples / "nmgrl");
+  const fs::path user = tmp.dir / "user";
+  EXPECT_EQ(lab_state_dir(examples, examples, user), user);
+  EXPECT_EQ(lab_state_dir(examples / "nmgrl", examples, user), user / "nmgrl");
+  // Spelled another way, it is still the examples.
+  EXPECT_EQ(lab_state_dir(examples / "nmgrl" / ".." / ".", examples, user), user);
+  std::error_code ec;  // Windows makes a link only with developer mode or as administrator
+  fs::create_directory_symlink(examples, tmp.dir / "link", ec);
+  if (!ec) {
+    EXPECT_EQ(lab_state_dir(tmp.dir / "link" / "nmgrl", examples, user), user / "nmgrl");
+  }
+  // Other letter case, where the disk ignores it (macOS, Windows), is still the examples.
+  std::string upper = (tmp.dir / "res" / "EXAMPLES" / "nmgrl").string();
+  if (fs::exists(upper)) {
+    EXPECT_EQ(lab_state_dir(upper, examples, user), user / "nmgrl");
+  }
+  // Any other lab keeps its state beside it, one beside the examples included.
+  fs::create_directories(tmp.dir / "res" / "examples-copy");
+  EXPECT_EQ(lab_state_dir(tmp.dir / "res" / "examples-copy", examples, user), tmp.dir / "res" / "examples-copy");
+  EXPECT_EQ(lab_state_dir(tmp.dir / "lab", examples, user), tmp.dir / "lab");
+  EXPECT_EQ(lab_state_dir(tmp.dir / "lab", fs::path(), user), tmp.dir / "lab");
+  // No user folder: the system's temporary one, never the examples.
+  EXPECT_EQ(lab_state_dir(examples / "nmgrl", examples, fs::path()),
+            fs::temp_directory_path() / "nobion" / "examples" / "nmgrl");
+}
+
+TEST(Installer, TheExamplesKeepTheirStateInTheUserFolderFromARelativePath) {
+  // The working directory's examples, named relative to it.
+  const fs::path examples = find_resources().examples;
+  const fs::path relative = fs::relative(examples);
+  EXPECT_EQ(lab_state_dir(relative, examples, "/u"), fs::path("/u"));
+}
+
+TEST(Installer, TheExamplesFieldTablesAreCopiedOnceToTheUserFolder) {
+  Tmp tmp;
+  const fs::path examples = tmp.dir / "examples";
+  tmp.write("examples/tables/argon/current", "v1.toml\n");
+  tmp.write("examples/tables/argon/v1.toml", "shipped");
+  tmp.write("examples/tables/empty/notes.txt", "no current: not a table");
+  const fs::path user = tmp.dir / "user";
+  auto root = field_table_root(examples, examples, user);
+  ASSERT_TRUE(root) << root.error().what;
+  EXPECT_EQ(*root, user);
+  EXPECT_EQ(tmp.read("user/tables/argon/v1.toml"), "shipped");
+  EXPECT_FALSE(fs::exists(user / "tables" / "empty"));
+  // A session saved a version: a later start keeps it, whatever was shipped since.
+  tmp.write("user/tables/argon/v2.toml", "saved");
+  tmp.write("user/tables/argon/current", "v2.toml\n");
+  tmp.write("examples/tables/argon/v3.toml", "shipped later");
+  tmp.write("examples/tables/argon/current", "v3.toml\n");
+  ASSERT_TRUE(field_table_root(examples, examples, user));
+  EXPECT_EQ(tmp.read("user/tables/argon/current"), "v2.toml\n");
+  EXPECT_FALSE(fs::exists(user / "tables" / "argon" / "v3.toml"));
+  // Any other spectrometer folder keeps its tables where they are.
+  tmp.write("lab/tables/argon/current", "v1.toml\n");
+  auto own = field_table_root(tmp.dir / "lab", examples, user);
+  ASSERT_TRUE(own);
+  EXPECT_EQ(*own, tmp.dir / "lab");
 }
 
 TEST(Installer, ChoiceLabelsMatchTheChoices) {

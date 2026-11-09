@@ -50,9 +50,9 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/core/process.hpp"
+#include "nobion/core/process.hpp"
 
-namespace pychron::dvc::testing {
+namespace nobion::dvc::testing {
 
 class GitFixture {
  public:
@@ -161,7 +161,14 @@ class GitFixture {
       git({"tag", std::string(name)});
   }
 
-  std::string head() { return trimmed(git({"rev-parse", "HEAD"})); }
+  // The sha of HEAD. Read from the fixture's own git directory: a fixture commit
+  // is a good part of what the importer tests spend, and this saves it a
+  // process. Anything those files do not settle (no commit yet, another ref
+  // storage) goes to `git rev-parse HEAD`.
+  std::string head() {
+    if (auto sha = head_from_files()) return *std::move(sha);
+    return trimmed(git({"rev-parse", "HEAD"}));
+  }
 
   // `git -C path() <args>`; returns its output (stdout and stderr together).
   std::string git(std::vector<std::string> args, std::string_view date_iso = kNoDate,
@@ -190,6 +197,36 @@ class GitFixture {
   static std::string trimmed(std::string text) {
     while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) text.pop_back();
     return text;
+  }
+
+  static bool is_sha(std::string_view text) {
+    return (text.size() == 40 || text.size() == 64) && text.find_first_not_of("0123456789abcdef") == std::string_view::npos;
+  }
+
+  static std::string first_line(const std::filesystem::path& file) {
+    std::ifstream in(file, std::ios::binary);
+    std::string line;
+    std::getline(in, line);
+    return trimmed(std::move(line));
+  }
+
+  // HEAD holds a sha (detached) or names a ref. A ref is a file of its own, or,
+  // once packed and not written since, a "<sha> <ref>" line of packed-refs.
+  std::optional<std::string> head_from_files() const {
+    constexpr std::string_view kSymbolic = "ref: ";
+    const std::filesystem::path git_dir = path() / ".git";
+    std::string target = first_line(git_dir / "HEAD");
+    if (is_sha(target)) return target;
+    if (!target.starts_with(kSymbolic)) return std::nullopt;
+    const std::string ref = target.substr(kSymbolic.size());
+    if (std::string loose = first_line(git_dir / utf8(ref)); is_sha(loose)) return loose;
+    std::ifstream packed(git_dir / "packed-refs", std::ios::binary);
+    for (std::string line; std::getline(packed, line);) {
+      const auto space = line.find(' ');
+      if (space == std::string::npos || trimmed(line.substr(space + 1)) != ref) continue;
+      if (std::string sha = line.substr(0, space); is_sha(sha)) return sha;
+    }
+    return std::nullopt;
   }
 
   // git in directory `cwd`, on the repository at `git_dir` with work tree
@@ -245,4 +282,4 @@ class GitFixture {
   std::filesystem::path root_;
 };
 
-}  // namespace pychron::dvc::testing
+}  // namespace nobion::dvc::testing

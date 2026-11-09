@@ -1,10 +1,10 @@
-#include "pychron/codecs/hv_supply.hpp"
+#include "nobion/codecs/hv_supply.hpp"
 
 #include <cmath>
 #include <cstdio>
 #include <string>
 
-namespace pychron::codec::hv_supply {
+namespace nobion::codec::hv_supply {
 
 namespace {
 
@@ -68,4 +68,4 @@ Bytes encode_voltage(double volts) { return to_bytes(format_volts(volts) + "\r")
 
 Bytes encode_error(std::string_view message) { return to_bytes("ERR " + std::string(message) + "\r"); }
 
-}  // namespace pychron::codec::hv_supply
+}  // namespace nobion::codec::hv_supply

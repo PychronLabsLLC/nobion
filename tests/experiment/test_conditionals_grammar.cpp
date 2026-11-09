@@ -4,10 +4,10 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/experiment/conditionals/evaluator.hpp"
-#include "pychron/experiment/conditionals/expr.hpp"
+#include "nobion/experiment/conditionals/evaluator.hpp"
+#include "nobion/experiment/conditionals/expr.hpp"
 
-using namespace pychron::experiment;
+using namespace nobion::experiment;
 
 namespace {
 

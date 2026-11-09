@@ -1,14 +1,14 @@
 #include <gtest/gtest.h>
 
 #include "catalog_fixture.hpp"
-#include "pychron/entry/export.hpp"
-#include "pychron/entry/identifier_plan.hpp"
-#include "pychron/entry/positions_import.hpp"
+#include "nobion/entry/export.hpp"
+#include "nobion/entry/identifier_plan.hpp"
+#include "nobion/entry/positions_import.hpp"
 
-using namespace pychron;
-using namespace pychron::entry;
-using namespace pychron::persistence;
-using namespace pychron::persistence::testing;
+using namespace nobion;
+using namespace nobion::entry;
+using namespace nobion::persistence;
+using namespace nobion::persistence::testing;
 
 namespace {
 class ExportTest : public EntryTest {};
@@ -17,7 +17,7 @@ class ExportTest : public EntryTest {};
 TEST_P(ExportTest, ExportImportRoundTrip) {
   auto sheets = *package_sheets(*store_, cat_.nm301);
   const std::string csv = export_package_csv(sheets);
-  EXPECT_NE(csv.find("A,1,,FC-2,Alpha,\"Ross, J\",sanidine,,,P1,,,"), std::string::npos) << csv;
+  EXPECT_NE(csv.find("A,1,,FC-2,Alpha,J Ross,sanidine,,,P1,,,"), std::string::npos) << csv;
 
   // Import the exported rows into a fresh package with the same levels.
   const Uuid pkg = *store_->add_irradiation(client(), "NM-400");

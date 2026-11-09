@@ -1,8 +1,8 @@
-#include "pychron/devices/spectrometer/params.hpp"
+#include "nobion/devices/spectrometer/params.hpp"
 
 #include <array>
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 namespace {
 
 constexpr std::string_view kCustomPrefix = "custom:";
@@ -94,4 +94,4 @@ const ParamSpec* find_vendor(std::span<const ParamSpec> specs,
   return nullptr;
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

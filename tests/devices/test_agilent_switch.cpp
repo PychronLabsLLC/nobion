@@ -1,17 +1,17 @@
 // agilent_switch over the simulated 34970A (plan 2026-10-05, task A1).
 
-#include "pychron/devices/agilent_switch.hpp"
+#include "nobion/devices/agilent_switch.hpp"
 
 #include <gtest/gtest.h>
 
 #include <chrono>
 
-#include "pychron/devices/agilent_unit_sim.hpp"
-#include "pychron/devices/driver_registry.hpp"
+#include "nobion/devices/agilent_unit_sim.hpp"
+#include "nobion/devices/driver_registry.hpp"
 #include "valve_conformance.hpp"
 
-using namespace pychron;
-using namespace pychron::test;
+using namespace nobion;
+using namespace nobion::test;
 using namespace std::chrono_literals;
 
 namespace {

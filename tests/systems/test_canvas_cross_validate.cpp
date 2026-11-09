@@ -2,15 +2,17 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <ranges>
 #include <string>
 #include <string_view>
+#include <vector>
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/systems/canvas/cross_validate.hpp"
-#include "pychron/systems/canvas/loader.hpp"
-#include "pychron/systems/network_graph.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/systems/canvas/cross_validate.hpp"
+#include "nobion/systems/canvas/loader.hpp"
+#include "nobion/systems/network_graph.hpp"
 
-namespace pychron::canvas {
+namespace nobion::canvas {
 namespace {
 
 constexpr std::string_view kSystem = R"toml(
@@ -176,7 +178,7 @@ TEST(CanvasCrossValidate, ResultFormFailsOnErrorsOnly) {
 }
 
 TEST(ExampleConfigs, LoadCrossValidateAndBuildGraph) {
-  const std::filesystem::path dir = PYCHRON_EXAMPLE_CONFIGS_DIR;
+  const std::filesystem::path dir = NOBION_EXAMPLE_CONFIGS_DIR;
   auto sys = config::load_system_config(dir / "extraction_line.toml");
   ASSERT_TRUE(sys.has_value()) << sys.error().what;
   auto c = load_canvas(dir / "canvas.toml");
@@ -192,13 +194,52 @@ TEST(ExampleConfigs, LoadCrossValidateAndBuildGraph) {
     EXPECT_TRUE(g.is_valve(v.name)) << v.name;
     open[v.name] = ValveState::Open;
   }
-  EXPECT_FALSE(g.connected_to("bone", {}).contains("spec"));
-  EXPECT_TRUE(g.connected_to("bone", {{"A", ValveState::Open}, {"B", ValveState::Open}}).contains("spec"));
-  // Every actuated valve open joins every volume except those behind the
-  // manual valve.
-  EXPECT_FALSE(g.connected_to("bone", open).contains("rough"));
+  EXPECT_FALSE(g.connected_to("stage1", {}).contains("spec"));
+  EXPECT_TRUE(g.connected_to("stage1", {{"A", ValveState::Open}, {"B", ValveState::Open}}).contains("spec"));
+  // Every actuated valve open joins every volume except the roughing pump:
+  // it is reached only through a manual valve (M1 behind the turbo, M2
+  // behind the second turbo).
+  EXPECT_FALSE(g.connected_to("stage1", open).contains("rough"));
   open["M1"] = ValveState::Open;
+  EXPECT_TRUE(g.connected_to("stage1", open).contains("rough"));
   EXPECT_EQ(g.connected_volumes(open).size(), 1u);
+}
+
+// The example shows one of every element the canvas and the line config
+// offer (spec 2026-10-13-example-line-elements-design, section 5.1).
+TEST(ExampleConfigs, TheExampleHasEveryElementKind) {
+  const std::filesystem::path dir = NOBION_EXAMPLE_CONFIGS_DIR;
+  const auto sys = config::load_system_config(dir / "extraction_line.toml");
+  ASSERT_TRUE(sys.has_value()) << sys.error().what;
+  const auto c = load_canvas(dir / "canvas.toml");
+  ASSERT_TRUE(c.has_value()) << c.error().what;
+
+  const auto of_kind = [&c](ValveKind k) { return std::ranges::count(c->valves, k, &ValveElement::kind); };
+  EXPECT_EQ(of_kind(ValveKind::Valve), 13);
+  EXPECT_EQ(of_kind(ValveKind::Rough), 2);
+  EXPECT_EQ(of_kind(ValveKind::Manual), 2);
+  EXPECT_EQ(of_kind(ValveKind::Switch), 1);
+  EXPECT_EQ(c->gauges.size(), 4u);
+  EXPECT_EQ(c->stages.size(), 13u);
+  EXPECT_EQ(c->pipettes.size(), 2u);
+  EXPECT_EQ(c->labels.size(), 3u);
+  EXPECT_GE(c->elbows.size(), 1u);
+  EXPECT_GE(c->tees.size(), 1u);
+  EXPECT_EQ(sys->valves.size(), 15u);
+  EXPECT_EQ(sys->manual_valves.size(), 2u);
+  EXPECT_EQ(sys->gauges.size(), 4u);
+  EXPECT_EQ(sys->pipettes.size(), 2u);
+  EXPECT_EQ(sys->heaters.size(), 1u);
+  ASSERT_TRUE(sys->cryo.has_value());
+  const auto setpoint_names = std::views::keys(sys->cryo->setpoints);
+  EXPECT_EQ(std::vector<std::string>(setpoint_names.begin(), setpoint_names.end()),
+            (std::vector<std::string>{"Ar_freeze", "Ar_release"}));
+  // every stage kind the canvas offers
+  for (const auto k : {SourceKind::Pump, SourceKind::Laser, SourceKind::Tank, SourceKind::Spectrometer,
+                       SourceKind::Getter}) {
+    EXPECT_TRUE(std::ranges::any_of(c->stages, [k](const StageElement& s) { return source_kind(s) == k; }))
+        << static_cast<int>(k);
+  }
 }
 
 TEST(CanvasCrossValidate, CanvasSwitchMissingFromSystemIsError) {
@@ -219,4 +260,4 @@ TEST(CanvasCrossValidate, SystemSwitchNotDrawnIsWarning) {
 }
 
 }  // namespace
-}  // namespace pychron::canvas
+}  // namespace nobion::canvas

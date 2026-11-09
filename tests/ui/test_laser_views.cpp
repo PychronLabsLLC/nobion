@@ -5,12 +5,17 @@
 #include <QSignalSpy>
 #include <QtTest/QtTest>
 
+#include <qcustomplot.h>
+
 #include "camera_view.hpp"
+#include "follow_plot_model.hpp"
+#include "follow_plot_view.hpp"
+#include "plot_style.hpp"
 #include "theme.hpp"
 #include "tray_view.hpp"
 
-using namespace pychron;
-using namespace pychron::ui;
+using namespace nobion;
+using namespace nobion::ui;
 
 namespace {
 
@@ -43,10 +48,69 @@ laser::CameraView seen(bool with_target) {
 
 }  // namespace
 
+namespace {
+
+// A followed step: a grain at (3,4), a blob seen, `with_grain` off for a real laser.
+nobion::laser::FollowSample follow_sample(double t, bool with_grain = true) {
+  nobion::laser::FollowSample s;
+  s.step.stage_mm = {1 + t, 2};
+  s.step.elapsed_s = t;
+  s.step.saturation = 0.5;
+  s.step.reason = nobion::vision::DragonflyStep::Reason::Track;
+  s.step.seen = nobion::vision::DragonflySeen{{0.3, 0.4}, 3.0};
+  if (with_grain) {
+    nobion::laser::GrainView g;
+    g.grain_mm = {3, 4};
+    g.beam_mm = {0, 0};
+    g.truth.brightness = 0.7;
+    g.truth.radius_mm = 0.5;
+    s.grain = g;
+  }
+  return s;
+}
+
+int legend_entries(const nobion::ui::FollowPlotView& view, int strip) {
+  auto* legend = qobject_cast<QCPLegend*>(view.plot()->axisRect(strip)->insetLayout()->elementAt(0));
+  return legend != nullptr ? legend->itemCount() : -1;
+}
+
+}  // namespace
+
 class LaserViewsTest : public QObject {
   Q_OBJECT
 
  private slots:
+  void the_grain_is_a_cross_where_it_really_is() {
+    CameraView view;
+    view.resize(400, 400);
+    laser::CameraView with = seen(false);
+    with.grain_px = laser::StageXY{20, 70};
+    view.set_view(with);
+    QVERIFY(view.has_grain());
+    const QImage drawn = view.grab().toImage();
+    const QPointF at = view.to_widget({20, 70});
+    QVERIFY(close(drawn.pixelColor(at.toPoint()), theme().warning));
+    QVERIFY(close(drawn.pixelColor((at + QPointF(5, 0)).toPoint()), theme().warning));
+    QVERIFY(close(drawn.pixelColor((at + QPointF(0, -5)).toPoint()), theme().warning));
+    QVERIFY(!close(drawn.pixelColor((at + QPointF(5, 5)).toPoint()), theme().warning));
+
+    view.set_view(seen(false));
+    QVERIFY(!view.has_grain());
+    view.set_view(with);
+    view.set_failed(QStringLiteral("gone"));
+    QVERIFY(!view.has_grain());
+  }
+
+  void a_grain_off_the_picture_is_not_drawn_beside_it() {
+    CameraView view;
+    view.resize(400, 200);  // the frame is a square in the middle
+    laser::CameraView with = seen(false);
+    with.grain_px = laser::StageXY{-10, 50};
+    view.set_view(with);
+    const QImage drawn = view.grab().toImage();
+    QVERIFY(!close(drawn.pixelColor(view.to_widget({-10, 50}).toPoint()), theme().warning));
+  }
+
   void tray_maps_holes_to_scale() {
     const auto map = nine();
     TrayView view;
@@ -212,6 +276,138 @@ class LaserViewsTest : public QObject {
     QVERIFY(view.image().isNull());
     QCOMPARE(view.message(), QStringLiteral("co2 has no camera"));
     view.grab();
+  }
+
+  void follow_plot_has_three_strips() {
+    nobion::ui::FollowPlotModel model;
+    nobion::ui::FollowPlotView view(model);
+    QCOMPARE(view.strip_count(), 3);
+    QCOMPARE(view.plot()->axisRectCount(), 3);
+    const QStringList titles = {QStringLiteral("Beam deviation (mm)"), QStringLiteral("Luminosity"),
+                                QStringLiteral("Grain size (diameter, mm)")};
+    for (int i = 0; i < 3; ++i) QCOMPARE(view.plot()->axisRect(i)->axis(QCPAxis::atLeft)->label(), titles[i]);
+    QCOMPARE(view.windowTitle(), QStringLiteral("Follow plots"));
+    view.grab();  // empty model: nothing non-finite handed to the plot
+  }
+
+  void follow_plot_draws_the_model() {
+    nobion::ui::FollowPlotModel model;
+    nobion::ui::FollowPlotView view(model);
+    for (int i = 0; i < 3; ++i) model.append(follow_sample(i * 0.5));
+    view.refresh();
+    QCOMPARE(view.point_count(nobion::ui::FollowLine::StageX), 3);
+    QCOMPARE(view.point_count(nobion::ui::FollowLine::GrainX), 3);
+    QVERIFY(view.line_visible(nobion::ui::FollowLine::SizeTrue));
+    QCOMPARE(legend_entries(view, 0), 2);
+    QCOMPARE(legend_entries(view, 2), 2);
+    view.grab();
+    view.resize(400, 500);
+    model.clear();
+    model.append(follow_sample(0));  // one row: a range of nothing
+    view.refresh();
+    const QCPRange x = view.plot()->axisRect(0)->axis(QCPAxis::atBottom)->range();
+    QVERIFY(std::isfinite(x.lower) && std::isfinite(x.upper) && x.upper > x.lower);
+    for (int i = 0; i < 3; ++i) {
+      const QCPRange y = view.plot()->axisRect(i)->axis(QCPAxis::atLeft)->range();
+      QVERIFY(std::isfinite(y.lower) && std::isfinite(y.upper) && y.upper > y.lower);
+    }
+  }
+
+  void follow_plane_shows_the_tracks_on_one_scale() {
+    nobion::ui::FollowPlotModel model;
+    nobion::ui::FollowPlotView view(model);
+    view.resize(900, 500);
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    for (int i = 0; i < 4; ++i) {
+      auto s = follow_sample(i * 0.5);
+      s.step.start_mm = {1, 2};
+      s.step.perimeter_mm = 3;
+      model.append(s);
+    }
+    view.refresh();
+    view.xy_plot()->replot();
+    QCOMPARE(view.fence_point_count(), nobion::ui::FollowPlotView::kFencePoints);
+    QCOMPARE(view.xy_plot()->legend->itemCount(), 3);
+    const auto* rect = view.xy_plot()->axisRect();
+    const double x_scale = rect->width() / view.xy_plot()->xAxis->range().size();
+    const double y_scale = rect->height() / view.xy_plot()->yAxis->range().size();
+    QVERIFY(std::abs(x_scale - y_scale) < 0.01 * x_scale);
+    QVERIFY(view.xy_plot()->xAxis->range().contains(-2));  // the fence's whole width
+    QVERIFY(view.xy_plot()->xAxis->range().contains(4));
+    QVERIFY(view.xy_plot()->yAxis->range().contains(5));   // and height
+    QVERIFY(view.xy_plot()->yAxis->range().contains(-1));
+    view.grab();
+    model.clear();
+    view.refresh();
+    QCOMPARE(view.fence_point_count(), 0);
+    QCOMPARE(view.point_count(nobion::ui::FollowLine::StageX), 0);
+    view.grab();
+  }
+
+  void follow_plane_joins_across_a_missing_row() {
+    nobion::ui::FollowPlotModel model;
+    nobion::ui::FollowPlotView view(model);
+    model.append(follow_sample(0));
+    model.append(follow_sample(1, false));  // no grain in this row
+    model.append(follow_sample(2));
+    view.refresh();
+    QCOMPARE(view.point_count(nobion::ui::FollowLine::StageX), 3);
+    QCOMPARE(view.point_count(nobion::ui::FollowLine::GrainX), 2);
+    view.grab();
+  }
+
+  void follow_plot_hides_lines_with_no_values() {
+    nobion::ui::FollowPlotModel model;
+    nobion::ui::FollowPlotView view(model);
+    for (int i = 0; i < 3; ++i) model.append(follow_sample(i * 0.5, false));
+    view.refresh();
+    QVERIFY(view.line_visible(nobion::ui::FollowLine::StageX));
+    QVERIFY(view.line_visible(nobion::ui::FollowLine::DeviationSeen));
+    QVERIFY(!view.line_visible(nobion::ui::FollowLine::GrainX));
+    QVERIFY(!view.line_visible(nobion::ui::FollowLine::SizeTrue));
+    QCOMPARE(legend_entries(view, 0), 1);
+    QCOMPARE(legend_entries(view, 2), 1);
+    QCOMPARE(view.xy_plot()->legend->itemCount(), 1);  // the stage alone
+    view.grab();
+  }
+
+  void follow_plot_strips_share_time() {
+    nobion::ui::FollowPlotModel model;
+    nobion::ui::FollowPlotView view(model);
+    for (int i = 0; i < 20; ++i) model.append(follow_sample(i));
+    view.refresh();
+    view.plot()->axisRect(0)->axis(QCPAxis::atBottom)->setRange(4, 9);
+    for (int i = 0; i < 3; ++i) {
+      const QCPRange r = view.plot()->axisRect(i)->axis(QCPAxis::atBottom)->range();
+      QCOMPARE(r.lower, 4.0);
+      QCOMPARE(r.upper, 9.0);
+    }
+    view.refresh();  // a zoom stays through new rows
+    QCOMPARE(view.plot()->axisRect(2)->axis(QCPAxis::atBottom)->range().lower, 4.0);
+  }
+
+  void follow_plot_follows_the_palette() {
+    nobion::ui::FollowPlotModel model;
+    nobion::ui::FollowPlotView view(model);
+    model.append(follow_sample(0));
+    view.refresh();
+    using nobion::ui::plot_series_color;
+    QCOMPARE(view.plot()->graph(0)->pen().color(), plot_series_color(0));
+    QCOMPARE(view.plot()->graph(1)->pen().color(), plot_series_color(1));
+    QCOMPARE(view.plot()->graph(4)->pen().color(), plot_series_color(0));
+    QCOMPARE(view.plot()->graph(5)->pen().color(), plot_series_color(1));
+
+    const nobion::ui::PlotStyle before = nobion::ui::plot_style();  // NOLINT(performance-unnecessary-copy-initialization): a copy; set_plot_style replaces the original
+    nobion::ui::PlotStyle changed = before;
+    changed.series[0] = QColor(QStringLiteral("#123456"));
+    changed.series[1] = QColor(QStringLiteral("#654321"));
+    changed.plot_background = QColor(QStringLiteral("#eeeeee"));
+    nobion::ui::set_plot_style(changed);
+    QCOMPARE(view.plot()->graph(0)->pen().color(), QColor(QStringLiteral("#123456")));
+    QCOMPARE(view.plot()->graph(3)->pen().color(), QColor(QStringLiteral("#654321")));
+    QCOMPARE(view.plot()->axisRect(2)->backgroundBrush().color(), QColor(QStringLiteral("#eeeeee")));
+    nobion::ui::set_plot_style(before);
   }
 };
 

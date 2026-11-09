@@ -1,6 +1,6 @@
-#include "pychron/core/config/diagnostic.hpp"
+#include "nobion/core/config/diagnostic.hpp"
 
-namespace pychron::config {
+namespace nobion::config {
 
 std::string to_string(const Diagnostic& d) {
   std::string out = d.loc.file.empty() ? std::string("<unknown>") : d.loc.file;
@@ -22,4 +22,4 @@ Error to_error(const std::vector<Diagnostic>& diagnostics) {
   return Error{ErrorKind::Config, std::move(what), {}};
 }
 
-}  // namespace pychron::config
+}  // namespace nobion::config

@@ -14,7 +14,7 @@
 #include <set>
 #include <string>
 
-#include "pychron/core/error.hpp"
+#include "nobion/core/error.hpp"
 
 namespace elctl {
 
@@ -32,6 +32,6 @@ std::filesystem::path trace_dir(const std::filesystem::path& config_file);
 // Missing state file = tracing off.
 TraceSettings load_trace_settings(const std::filesystem::path& config_file);
 // Removes the state file when `settings` is off. Io error if it cannot write.
-pychron::Result<void> save_trace_settings(const std::filesystem::path& config_file, const TraceSettings& settings);
+nobion::Result<void> save_trace_settings(const std::filesystem::path& config_file, const TraceSettings& settings);
 
 }  // namespace elctl

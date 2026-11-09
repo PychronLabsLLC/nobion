@@ -1,6 +1,6 @@
-#include "pychron/transport/link_transport.hpp"
+#include "nobion/transport/link_transport.hpp"
 
-namespace pychron {
+namespace nobion {
 
 LinkTransport::LinkTransport(std::string name, std::string link) : name_(std::move(name)), link_(std::move(link)) {}
 
@@ -10,7 +10,7 @@ Unexpected<Error> LinkTransport::misuse() const {
               name_);
 }
 
-Result<Bytes> LinkTransport::exchange(Bytes, ReadSpec, Duration) { return misuse(); }
+Result<Bytes> LinkTransport::exchange(Bytes, ReadSpec, Duration, Resend) { return misuse(); }
 Result<void> LinkTransport::write(Bytes) { return misuse(); }
 Result<Bytes> LinkTransport::read(ReadSpec, Duration) { return misuse(); }
 Result<std::optional<Bytes>> LinkTransport::poll(ReadSpec, Duration) { return misuse(); }
@@ -22,4 +22,4 @@ Health LinkTransport::health() const {
   return h;
 }
 
-}  // namespace pychron
+}  // namespace nobion

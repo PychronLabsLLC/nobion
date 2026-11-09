@@ -1,6 +1,7 @@
 // Per-hole corrections on disk (laser autocenter design, section 5).
 
-#include "pychron/laser/correction_store.hpp"
+#include "nobion/core/atomic_file.hpp"
+#include "nobion/laser/correction_store.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -11,14 +12,23 @@
 
 #include <gtest/gtest.h>
 
-#include "pychron/core/sha256.hpp"
-#include "pychron/laser/calibration_store.hpp"
+#include "nobion/core/sha256.hpp"
+#include "nobion/laser/calibration_store.hpp"
 
-using namespace pychron;
-using namespace pychron::laser;
+using namespace nobion;
+using namespace nobion::laser;
 namespace fs = std::filesystem;
 
 namespace {
+
+// Turns the injection off again however the test ends.
+struct FailAtomicWrite {
+  explicit FailAtomicWrite(int step) { nobion::testing::fail_atomic_write_at(step); }
+  ~FailAtomicWrite() { nobion::testing::fail_atomic_write_at(0); }
+  FailAtomicWrite(const FailAtomicWrite&) = delete;
+  FailAtomicWrite& operator=(const FailAtomicWrite&) = delete;
+};
+
 
 const char* kMap = "circle,1.0\n\n2,3,4,5,1\n1,0,0\n2,0,5\n3,5,0\n4,0,-5\n5,-5,0\nA,1,1\n";
 
@@ -33,7 +43,7 @@ class CorrectionStoreTest : public ::testing::Test {
  protected:
   void SetUp() override {
     std::random_device rd;
-    dir_ = fs::temp_directory_path() / ("pychron_corr_" + std::to_string(rd()) + std::to_string(rd()));
+    dir_ = fs::temp_directory_path() / ("nobion_corr_" + std::to_string(rd()) + std::to_string(rd()));
     fs::create_directories(dir_);
   }
   void TearDown() override { fs::remove_all(dir_); }
@@ -76,7 +86,7 @@ TEST(Fingerprint, ChangesWithAnyPoint) {
 TEST(Fingerprint, IsTheSameEverywhere) {
   const std::vector<CalibrationPoint> points{{"5", 25.0, 25.0}, {"6", 30.0, 25.0}};
   const std::string spelled = "1:5\t4039000000000000\t4039000000000000\n1:6\t403e000000000000\t4039000000000000\n";
-  EXPECT_EQ(fingerprint(points), to_hex(pychron::sha256(std::string_view(spelled))));
+  EXPECT_EQ(fingerprint(points), to_hex(nobion::sha256(std::string_view(spelled))));
 }
 
 TEST_F(CorrectionStoreTest, TheCalibrationStatusCarriesItsFingerprint) {
@@ -192,11 +202,11 @@ TEST_F(CorrectionStoreTest, RefusesUnsafeNames) {
   EXPECT_FALSE(fs::exists(dir_ / "corr"));
 }
 
-TEST_F(CorrectionStoreTest, SaveGoesThroughATemporaryFile) {
+TEST_F(CorrectionStoreTest, AFailedSaveLeavesTheOldFile) {
   const auto s = store();
   ASSERT_TRUE(s.put(map(), "co2", "cal1", "3", three_));
   const std::string before = slurp(s.file("co2", "small"));
-  fs::create_directories(dir_ / "corr" / "co2.small.toml.tmp");  // in the way
+  const FailAtomicWrite fail_rename(4);  // the rename fails
   const auto put = s.put(map(), "co2", "cal1", "2", three_);
   ASSERT_FALSE(put);
   EXPECT_EQ(put.error().kind, ErrorKind::Io);

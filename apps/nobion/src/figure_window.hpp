@@ -1,0 +1,136 @@
+#pragma once
+
+// FigureWindow (data browsing and visualization design, section 11.4): a
+// figure pipeline (time series, ideogram, spectrum, inverse isochron) for a
+// set of analyses,
+//
+//   select(uuids) -> reduce -> group -> edits -> figure
+//
+// run on the ProcessingBridge. The scene is drawn by SceneView; the options
+// dock is generated from the figure's schema and backed by named presets;
+// the analyses dock shows each analysis's group, the group's colour, and
+// whether it is included.
+// Clicking a point (or toggling it in the table) edits the `edits` unit's
+// options and reruns; only edits and the figure recompute.
+
+#include <functional>
+#include <optional>
+#include <set>
+
+#include <QMainWindow>
+#include <QStringList>
+#include <QTimer>
+
+#include "nobion/processing/options.hpp"
+#include "nobion/processing/units.hpp"
+#include "processing_bridge.hpp"
+#include "scene_view.hpp"
+
+class QComboBox;
+class QDockWidget;
+class QLabel;
+class QTableWidget;
+
+namespace nobion::ui {
+
+class OptionsEditor;
+class PresetBar;
+class RValuesPanel;
+
+class FigureWindow : public QMainWindow {
+  Q_OBJECT
+
+ public:
+  // `bridge` and `presets` must outlive the window. `entry` is one of the
+  // bridge's domain's figures(): its kind is a figure unit kind, and its group
+  // key the one a new window starts with. The window keeps a copy.
+  FigureWindow(ProcessingBridge& bridge, processing::PresetStore& presets, const processing::FigureEntry& entry,
+               const QStringList& uuids, QWidget* parent = nullptr);
+  // A time series (the domain's time_series entry).
+  FigureWindow(ProcessingBridge& bridge, processing::PresetStore& presets, const QStringList& uuids,
+               QWidget* parent = nullptr);
+
+  const std::string& kind() const noexcept { return kind_; }
+  ~FigureWindow() override;
+
+  const processing::Pipeline& pipeline() const noexcept { return pipeline_; }
+  // Applies new figure options (as the dock does) and reruns.
+  void set_figure_options(const processing::Options& options);
+  void set_group_key(const QString& key);
+  // Which groups share a graph: "none" (all on one), "same as group" (a graph
+  // per group) or a key of the group unit, when the groups of one sample, say,
+  // are to be drawn together. The graphs are laid out by the figure's
+  // "Graphs per row".
+  void set_graph_key(const QString& key);
+  static QString same_as_group();
+  // Writes a graph's ranges on show into the figure's limit options (x.min,
+  // x.max; y.min, y.max; y_min, y_max of the panels rows) and reruns, so the
+  // view is saved with a preset and outlives a rebuild. False, with a word in
+  // the status line and nothing changed, when the options hold no such field.
+  bool use_view_limits(const SceneView::ViewLimits& limits);
+  void toggle_exclusion(const QStringList& uuids);
+  void select_preset(const QString& name);
+  bool export_figure(const QString& path);  // .pdf or .png by extension
+  // The figure's analyses as a Schaen et al. (2021) data report (.json, else
+  // CSV), with this window's grouping and exclusions; a spectrum's plateau
+  // options decide the plateau. False before the first run or when the file
+  // cannot be written.
+  bool export_report(const QString& path);
+
+  // Dialog hooks for tests: the name for "Save as" (empty: cancelled).
+  std::function<QString()> ask_preset_name;
+
+  // For tests.
+  SceneView* view() const noexcept { return view_; }
+  OptionsEditor* options_editor() const noexcept { return editor_; }
+  QComboBox* preset_combo() const noexcept;
+  QComboBox* group_combo() const noexcept { return group_; }
+  QComboBox* graph_combo() const noexcept { return graph_; }
+  QTableWidget* analyses_table() const noexcept { return analyses_; }
+  // The R-values of an ideogram (null for other kinds): the dock shows when
+  // the "show_rvalues" option is set and some graph has two groups or more.
+  QDockWidget* r_values_dock() const noexcept { return r_values_dock_; }
+  RValuesPanel* r_values_panel() const noexcept { return r_values_; }
+  QLabel* status_label() const noexcept { return status_; }
+  int runs_completed() const noexcept { return runs_; }
+  const processing::DatasetPtr& dataset() const noexcept { return dataset_; }
+
+ signals:
+  void recall_requested(const QString& uuid);
+  void figure_updated();
+
+ private:
+  void run();
+  void schedule();
+  void on_result(const PipelineResult& r);
+  void fill_analyses();
+  void update_title();
+  void update_r_values();
+  void apply_graph_key();  // the graph unit's key from the two combos
+  static QString limits_of(const processing::Options& options);
+
+  ProcessingBridge& bridge_;
+  processing::PresetStore& store_;
+  std::string kind_;
+  processing::SchemaPtr schema_;
+  int channel_;
+  processing::Pipeline pipeline_;
+  processing::DatasetPtr dataset_;
+  SceneView* view_;
+  OptionsEditor* editor_;
+  PresetBar* presets_;
+  QComboBox* group_;
+  QComboBox* graph_;
+  QTableWidget* analyses_;
+  QLabel* status_;
+  QDockWidget* r_values_dock_ = nullptr;
+  RValuesPanel* r_values_ = nullptr;
+  bool r_values_shown_ = false;  // had tables last run: a dock the user closed stays closed
+  QTimer debounce_;
+  int runs_ = 0;
+  std::optional<QString> shown_limits_;  // of the scene in the view; nullopt before the first
+  bool quantities_set_ = false;
+  bool filling_ = false;
+};
+
+}  // namespace nobion::ui

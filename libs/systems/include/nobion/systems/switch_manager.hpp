@@ -1,0 +1,241 @@
+#pragma once
+
+// SwitchManager: owns every valve, manual valve and switch of one system and
+// is the only path by which they are actuated.
+//
+// actuate(name, op, actor) runs, in order:
+//   1. software lock   locked switches refuse every actor
+//   2. owner           a claimed switch accepts only its owner
+//   3. interlocks      opening a valve requires, per the manager's recorded
+//                      states:
+//                        - no negative interlock partner is open or Unknown.
+//                          Negative interlocks are enforced both ways: if A
+//                          lists B, A cannot open while B is not Closed and
+//                          B cannot open while A is not Closed, so A and B
+//                          are never open together.
+//                        - every positive interlock is Open (checked when
+//                          opening only; closing a prerequisite later is
+//                          allowed).
+//                      Closing is never interlocked.
+//   4. command         IValveActuator::open/close at the switch's address
+//                      (close/open when the switch is `inverted`)
+//   5. settle          wait settle time on the injected Clock
+//   6. read back       IValveActuator::read must report the commanded state
+//                      (skipped when `verify` is false)
+// and publishes ValveChanged on success or ActuationFailed on any failure.
+// Refusals in steps 1-3 are ErrorKind::Interlock and send nothing.
+//
+// Recorded state starts Unknown (which blocks as an interlock partner) until
+// refresh() reads the hardware or an actuation reads it back. A failed
+// command or read-back leaves the switch Unknown; a read-back that disagrees
+// records what the hardware reported and fails with Protocol.
+//
+// A command that fails with code outcome_unknown (a lost Unsafe call, see
+// nobion/devices/link.hpp) may have reached the valve. The switch is Unknown
+// until that is settled: after the settle time the valve is read back; at its
+// target, the actuation succeeded; elsewhere, the command is sent once more
+// and goes on as above. A `verify = false` switch has nothing to read and is
+// sent once more. A read that fails returns the lost command's error.
+//
+// Wiring (valves and switches):
+//   - `inverted`: the actuator's channel is wired backwards. Opening sends
+//     close(), and the actuator's read-back is inverted, so the recorded
+//     state is always the valve's, never the channel's.
+//   - `state_source`: read-back and refresh() read another device at another
+//     address instead of the actuator, inverted when the source says so (the
+//     switch's own `inverted` describes its actuator channel, not the source).
+//   - `verify` false: nothing is read back. The commanded state is recorded
+//     as if read, and refresh() leaves the switch as it is. Interlocks then
+//     rest on the commanded state (legacy query_state = false).
+//
+// Manual valves have no actuator: actuate() records the operator's report
+// after the lock/owner checks, so they can take part in interlocks.
+// Switches (pump power, heaters, ...) are actuated like valves but carry no
+// interlocks of their own.
+//
+// Actuations are serialized: the interlock check, command, settle and
+// read-back of one actuation are atomic with respect to every other, so two
+// callers can never open mutually interlocked valves concurrently. Queries
+// (state(), info(), ...) may be called from any thread at any time.
+// Locks and ownership are in memory only.
+
+#include <chrono>
+#include <cstdint>
+#include <functional>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "nobion/core/clock.hpp"
+#include "nobion/core/clock_mutex.hpp"
+#include "nobion/core/config/system_config.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/devices/types.hpp"
+#include "nobion/systems/switch_rules.hpp"
+
+namespace nobion::systems {
+
+enum class SwitchOp { Open, Close };
+enum class SwitchKind { Valve, ManualValve, Switch };
+
+std::string_view to_string(SwitchOp op) noexcept;
+std::string_view to_string(SwitchKind kind) noexcept;
+
+// Where a switch's state is read when not from its actuator.
+struct StateSource {
+  std::string driver;  // resolved through the same ActuatorLookup
+  ValveAddress address;
+  bool inverted = false;  // reads Open when the switch is closed
+};
+
+struct SwitchSpec {
+  std::string name;
+  std::string description;
+  SwitchKind kind = SwitchKind::Valve;
+  std::string actuator;  // driver name; empty for manual valves
+  ValveAddress address;
+  std::vector<std::string> interlocks;           // Valve only
+  std::vector<std::string> positive_interlocks;  // Valve only
+  Duration settle{};
+  bool inverted = false;                    // not for manual valves
+  std::optional<StateSource> state_source;  // not for manual valves; not with verify = false
+  bool verify = true;                       // not for manual valves
+};
+
+// Calendar time, to the second: what a switch's history is kept in, so it
+// means the same after a restart.
+using WallTime = std::chrono::sys_seconds;
+
+// What a switch has done. The manager counts from zero; whoever keeps the
+// history between runs (ExtractionLine's state file) hands it back with
+// seed_stats().
+struct SwitchStats {
+  std::int64_t opens = 0;     // commands carried out (a manual valve: reports taken)
+  std::int64_t closes = 0;
+  std::int64_t failures = 0;  // commands sent that failed or read back wrong; a refusal sends nothing and is not one
+  std::int64_t refusals = 0;  // commands not sent: the switch was locked, another's, or interlocked
+  std::optional<WallTime> last_actuation;  // the last command carried out
+  // When the recorded state last changed. Unset when that is not known: the
+  // state is a first reading, or came out of Unknown.
+  std::optional<WallTime> since;
+  // Time recorded open, over spells that have ended: one still running is
+  // `since` to now, and one whose start is not known is not counted.
+  std::chrono::seconds open_time{0};
+  friend bool operator==(const SwitchStats&, const SwitchStats&) = default;
+};
+
+// Point-in-time copy of one switch, safe to hand across threads.
+struct SwitchInfo {
+  std::string name;
+  std::string description;
+  SwitchKind kind = SwitchKind::Valve;
+  ValveState state = ValveState::Unknown;
+  bool locked = false;
+  std::string owner;  // empty if unclaimed
+  SwitchStats stats;
+};
+
+// Resolves an actuator (driver) name to its IValveActuator, or nullptr. The
+// actuators must outlive the manager.
+using ActuatorLookup = std::function<IValveActuator*(const std::string& name)>;
+
+struct SwitchManagerOptions {
+  const Clock* clock = nullptr;  // settle waits and event stamps; SteadyClock if null
+  SignalBus* bus = nullptr;      // events are dropped if null
+  std::function<WallTime()> wall = {};  // stamps SwitchStats; the clock's wall_now() if empty
+};
+
+class SwitchManager {
+ public:
+  using Options = SwitchManagerOptions;
+
+  // Valves and manual valves from `config`. Config error (all problems
+  // together) if an actuator cannot be resolved or a spec is invalid.
+  static Result<std::unique_ptr<SwitchManager>> from_config(const config::SystemConfig& config,
+                                                             const ActuatorLookup& lookup,
+                                                             Options options = {});
+
+  // Every spec is checked before any is added: unique non-empty names,
+  // interlocks naming known switches, no self- or mixed interlock, only
+  // valves carry interlocks, actuators resolve for valves and switches.
+  static Result<std::unique_ptr<SwitchManager>> create(std::vector<SwitchSpec> specs,
+                                                        const ActuatorLookup& lookup,
+                                                        Options options = {});
+
+  SwitchManager(const SwitchManager&) = delete;
+  SwitchManager& operator=(const SwitchManager&) = delete;
+  ~SwitchManager();
+
+  // See the header comment for the full sequence. Unknown name is Config.
+  Result<void> actuate(std::string_view name, SwitchOp op, std::string_view actor);
+
+  // Puts a switch back in a state it held before (a line resuming where it
+  // left off): actuate() without the software lock and ownership checks,
+  // which guard against commands. Interlocks still apply.
+  Result<void> restore(std::string_view name, SwitchOp op);
+
+  // Reads every actuated switch back from hardware and records the result;
+  // publishes ValveChanged for each state that changed. Read errors leave
+  // that switch Unknown and are returned together (first kind wins).
+  Result<void> refresh();
+
+  // Software lock. Config error for an unknown name.
+  Result<void> lock(std::string_view name);
+  Result<void> unlock(std::string_view name);
+
+  // Ownership. claim() succeeds if unowned or already owned by `actor`;
+  // otherwise Interlock. release() by a non-owner is Interlock.
+  Result<void> claim(std::string_view name, std::string_view actor);
+  Result<void> release(std::string_view name, std::string_view actor);
+
+  Result<ValveState> state(std::string_view name) const;
+  Result<SwitchInfo> info(std::string_view name) const;
+  std::vector<SwitchInfo> list() const;              // config order
+  std::map<std::string, ValveState> states() const;  // for Snapshot
+  bool contains(std::string_view name) const;
+
+  // Each switch's interlock partners by name. Fixed when the manager is
+  // made, so it needs no lock.
+  std::map<std::string, InterlockSet, std::less<>> interlock_sets() const;
+
+  // Replaces a switch's history with one kept from an earlier run. Unknown
+  // names are ignored.
+  void seed_stats(std::string_view name, SwitchStats stats);
+
+ private:
+  struct Entry;
+  SwitchManager(std::vector<std::unique_ptr<Entry>> entries, Options options);
+
+  Entry* find(std::string_view name) const;
+  Result<void> command(std::string_view name, SwitchOp op, const std::string_view* actor);
+  Result<void> check_access(const Entry& e, std::string_view actor) const;
+  Result<void> check_interlocks(const Entry& e) const;
+  Result<void> drive(Entry& e, SwitchOp op);
+  // The switch is at op's target: recorded, counted, published.
+  Result<void> reached(Entry& e, SwitchOp op);
+  void settle(Duration d) const;
+  // The switch's state as its read-back device reports it, inversion applied.
+  Result<ValveState> read_back(const Entry& e) const;
+  bool record(Entry& e, ValveState s);  // true if the state changed
+  void count(Entry& e, std::int64_t SwitchStats::* what);
+  Result<void> failed(const Entry& e, Error error);
+
+  const Clock* clock_;
+  SignalBus* bus_;
+  std::function<WallTime()> wall_;
+  std::vector<std::unique_ptr<Entry>> entries_;
+  std::map<std::string, Entry*, std::less<>> by_name_;
+  // One actuation (or refresh) at a time. Held across the command, the settle
+  // time and the read-back, all of which wait in clock time: a ClockMutex.
+  ClockMutex actuation_;
+  mutable std::mutex state_;  // guards recorded state, locks and owners; never held across a wait
+};
+
+}  // namespace nobion::systems

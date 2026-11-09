@@ -1,6 +1,6 @@
 // UFloat core (spec 4.1-4.5): derivative tracking, identity, tags, and parity
 // with `uncertainties` on the arithmetic-only golden programs (spec 9.3).
-#include "pychron/reduction/ufloat.hpp"
+#include "nobion/reduction/ufloat.hpp"
 
 #include <gtest/gtest.h>
 
@@ -12,13 +12,13 @@
 #include <thread>
 #include <vector>
 
-#include "golden.hpp"
+#include "golden_json.hpp"
 
-namespace golden = pychron::reduction::golden;
-using pychron::reduction::intern_tag;
-using pychron::reduction::tag_name;
-using pychron::reduction::UFloat;
-using pychron::reduction::VariableId;
+namespace golden = nobion::reduction::golden;
+using nobion::reduction::intern_tag;
+using nobion::reduction::tag_name;
+using nobion::reduction::UFloat;
+using nobion::reduction::VariableId;
 
 TEST(UFloat, VariableHasUnitDerivativeAndUniqueId) {
   const UFloat a = UFloat::variable(1, 0.1);
@@ -261,9 +261,9 @@ TEST(UFloat, DomainIsIeee) {
 }
 
 TEST(UFloat, CovarianceViaSharedVariables) {
-  using pychron::reduction::correlation;
-  using pychron::reduction::covariance;
-  using pychron::reduction::covariance_matrix;
+  using nobion::reduction::correlation;
+  using nobion::reduction::covariance;
+  using nobion::reduction::covariance_matrix;
   const double sx = 0.1;
   const double sy = 0.2;
   const UFloat x = UFloat::variable(2.0, sx);
@@ -293,11 +293,11 @@ TEST(UFloat, CovarianceViaSharedVariables) {
 }
 
 TEST(UFloat, ExclusionAndComponents) {
-  using pychron::reduction::error_components;
-  using pychron::reduction::std_dev_excluding;
-  using pychron::reduction::std_dev_excluding_tags;
-  using pychron::reduction::TagId;
-  using pychron::reduction::variance_percent;
+  using nobion::reduction::error_components;
+  using nobion::reduction::std_dev_excluding;
+  using nobion::reduction::std_dev_excluding_tags;
+  using nobion::reduction::TagId;
+  using nobion::reduction::variance_percent;
   const TagId tx = intern_tag("budget_x");
   const TagId ty = intern_tag("budget_y");
   const UFloat x = UFloat::variable(2.0, 0.1, tx);
@@ -340,7 +340,7 @@ TEST(UFloat, ExclusionAndComponents) {
 }
 
 TEST(UFloat, CopiesShareVariables) {
-  using pychron::reduction::covariance;
+  using nobion::reduction::covariance;
   const UFloat j = UFloat::variable(0.01, 1e-5, "J");
   const UFloat j_copy = j;  // NOLINT(performance-unnecessary-copy-initialization)
   const UFloat a = j * 2.0 + UFloat::variable(1.0, 0.1);
@@ -434,7 +434,7 @@ Env run_program(const golden::Json& in) {
 constexpr const char* kPowAtZeroNonInteger = "ufloat/func/pow_at_zero_non_integer";
 
 void check_case(const golden::Json& c) {
-  using pychron::reduction::covariance;
+  using nobion::reduction::covariance;
   const std::string& name = c["name"].as_string();
   SCOPED_TRACE(name);
   const golden::Tol tol = golden::tol_of(c);

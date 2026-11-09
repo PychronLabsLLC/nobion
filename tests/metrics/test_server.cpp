@@ -1,6 +1,6 @@
 // MetricsServer over a real socket on the loopback interface. Every server
 // asks the OS for its port: tests run in parallel.
-#include "pychron/metrics/server.hpp"
+#include "nobion/metrics/server.hpp"
 
 #include <gtest/gtest.h>
 
@@ -11,10 +11,10 @@
 
 #include "http_client.hpp"
 #include "metrics_text.hpp"
-#include "pychron/metrics/registry.hpp"
+#include "nobion/metrics/registry.hpp"
 
-using namespace pychron;
-using namespace pychron::metrics;
+using namespace nobion;
+using namespace nobion::metrics;
 using namespace std::chrono_literals;
 using http_client::body;
 using http_client::get;
@@ -29,7 +29,7 @@ MetricsServer::Options loopback() {
   return o;
 }
 
-double bad_requests(Registry& r) { return metrics_text::value(r.render(), "pychron_metrics_bad_requests_total"); }
+double bad_requests(Registry& r) { return metrics_text::value(r.render(), "nobion_metrics_bad_requests_total"); }
 
 // The counter is bumped on the server's thread just after it closes.
 bool eventually(const std::function<bool()>& what) {
@@ -44,7 +44,7 @@ bool eventually(const std::function<bool()>& what) {
 
 TEST(MetricsServer, ServesTheRegistry) {
   Registry registry;
-  registry.gauge("pychron_pressure", "h", {{"gauge", "IG1"}, {"unit", "torr"}}).set(2);
+  registry.gauge("nobion_pressure", "h", {{"gauge", "IG1"}, {"unit", "torr"}}).set(2);
   auto server = MetricsServer::start(registry, loopback());
   ASSERT_TRUE(server.has_value()) << to_string(server.error());
   ASSERT_NE((*server)->port(), 0);
@@ -55,7 +55,7 @@ TEST(MetricsServer, ServesTheRegistry) {
   EXPECT_NE(response.find("Connection: close\r\n"), std::string::npos);
   const std::string b = body(response);
   EXPECT_NE(response.find("Content-Length: " + std::to_string(b.size()) + "\r\n"), std::string::npos);
-  EXPECT_DOUBLE_EQ(metrics_text::value(b, "pychron_pressure{gauge=\"IG1\",unit=\"torr\"}"), 2.0);
+  EXPECT_DOUBLE_EQ(metrics_text::value(b, "nobion_pressure{gauge=\"IG1\",unit=\"torr\"}"), 2.0);
 }
 
 TEST(MetricsServer, AnswersARequestThatArrivesInPieces) {
@@ -143,7 +143,7 @@ TEST(MetricsServer, ASilentClientIsDropped) {
 // The deadline is for the request to arrive; one that arrived just in time is answered whole.
 TEST(MetricsServer, ARequestThatArrivesAtTheDeadlineIsAnsweredWhole) {
   Registry registry;
-  for (int i = 0; i < 200; ++i) registry.gauge("pychron_g", "h", {{"n", std::to_string(i)}}).set(i);
+  for (int i = 0; i < 200; ++i) registry.gauge("nobion_g", "h", {{"n", std::to_string(i)}}).set(i);
   MetricsServer::Options o = loopback();
   o.read_timeout = 60ms;
   auto server = MetricsServer::start(registry, o);
@@ -251,14 +251,14 @@ TEST(MetricsServer, RecordsTheScrapeDuration) {
   ASSERT_TRUE(server.has_value());
   (void)get((*server)->port(), "/metrics");
   const std::string second = body(get((*server)->port(), "/metrics"));
-  ASSERT_TRUE(metrics_text::has(second, "pychron_metrics_scrape_duration_seconds"));
-  EXPECT_GE(metrics_text::value(second, "pychron_metrics_scrape_duration_seconds"), 0.0);
-  EXPECT_LT(metrics_text::value(second, "pychron_metrics_scrape_duration_seconds"), 5.0);
+  ASSERT_TRUE(metrics_text::has(second, "nobion_metrics_scrape_duration_seconds"));
+  EXPECT_GE(metrics_text::value(second, "nobion_metrics_scrape_duration_seconds"), 0.0);
+  EXPECT_LT(metrics_text::value(second, "nobion_metrics_scrape_duration_seconds"), 5.0);
 }
 
 TEST(MetricsServer, ManyScrapesInARow) {
   Registry registry;
-  registry.gauge("pychron_g", "h").set(1);
+  registry.gauge("nobion_g", "h").set(1);
   auto server = MetricsServer::start(registry, loopback());
   ASSERT_TRUE(server.has_value());
   for (int i = 0; i < 50; ++i) {

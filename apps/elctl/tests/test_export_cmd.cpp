@@ -10,7 +10,7 @@ using elctl::testing::contains;
 using elctl::testing::Outcome;
 using elctl::testing::run_raw;
 
-#ifndef PYCHRON_ELCTL_HAS_STORE
+#ifndef NOBION_ELCTL_HAS_STORE
 
 TEST(ExportCmd, StubWithoutPersistence) {
   const Outcome o = run_raw({"export", "--db", "sqlite::memory:", "--out", "x.csv"});
@@ -90,11 +90,20 @@ TEST_F(ExportCmd, WritesTheCsvReportForTheUnknowns) {
   EXPECT_TRUE(contains(csv, "77000-01B"));
   EXPECT_FALSE(contains(csv, "66574"));  // the air is not an unknown
   // The catalog's sample row, the flux monitor and the reactor.
-  EXPECT_TRUE(contains(csv, "77000,FC-2,sanidine,Fish Canyon,\"Doe, A\",37.75,-106.9,2850,ash-flow tuff,,,IEFC20001,NM-300,A,3,Triga,"))
+  EXPECT_TRUE(contains(csv, "77000,FC-2,sanidine,Fish Canyon,A Doe,37.75,-106.9,2850,ash-flow tuff,,,IEFC20001,NM-300,A,3,Triga,"))
       << csv;
   EXPECT_TRUE(contains(csv, "FC-2,sanidine,28.201,0.046,0.001,2e-06"));
   // Two heating steps of one aliquot: a step-heated group with an integrated age.
   EXPECT_TRUE(contains(csv, "77000-1,FC-2,77000,sanidine,2,2,yes,"));
+}
+
+TEST_F(ExportCmd, ANobleGasInstallHasNoReportToWrite) {
+  const fs::path out = path("report.csv");
+  const Outcome o = run_raw({"--domain", "noble_gas", "export", "--db", db_, "--out", out.string()});
+  EXPECT_EQ(o.code, elctl::kUsage);
+  EXPECT_EQ(o.err, "elctl export: needs domain arar (this install: noble_gas)\n");
+  EXPECT_TRUE(o.out.empty()) << o.out;
+  EXPECT_FALSE(fs::exists(out));
 }
 
 TEST_F(ExportCmd, JsonByExtensionAndFiltersThatMatchNothing) {

@@ -1,4 +1,4 @@
-#! pychron: eqtime=20
+#! nobion: eqtime=20
 # Example extraction for the simulated lab: isolate the prep section from
 # the turbo, "heat" for the run's duration, then let the gas settle.
 #

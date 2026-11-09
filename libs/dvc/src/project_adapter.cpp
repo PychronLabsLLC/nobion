@@ -21,7 +21,7 @@
 // At the end of the walk the analyses still pending are folded with what they
 // have. A later run that resumes from an "+end" token treats them as folded.
 
-#include "pychron/dvc/project_adapter.hpp"
+#include "nobion/dvc/project_adapter.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -29,9 +29,9 @@
 
 #include "commit_walk.hpp"
 #include "project_import.hpp"
-#include "pychron/ingest/ids.hpp"
+#include "nobion/ingest/ids.hpp"
 
-namespace pychron::dvc {
+namespace nobion::dvc {
 
 namespace {
 
@@ -235,4 +235,4 @@ Result<std::optional<std::int64_t>> ProjectRepoAdapter::order_of(std::string_vie
   });
 }
 
-}  // namespace pychron::dvc
+}  // namespace nobion::dvc

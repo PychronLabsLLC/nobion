@@ -1,4 +1,4 @@
-#include "pychron/processing/options.hpp"
+#include "nobion/processing/options.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -12,9 +12,9 @@
 
 #include <toml++/toml.hpp>
 
-#include "pychron/processing/quantity.hpp"
+#include "nobion/processing/quantity.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 
 namespace fs = std::filesystem;
 
@@ -147,7 +147,7 @@ Result<OptionValue> validate(const FieldSpec& f, const OptionValue& v) {
     }
     case FieldType::Color: {
       const auto* s = std::get_if<std::string>(&v);
-      if (!s || !is_color(*s)) return opt_fail(where + "expected a colour (#rrggbb, #rrggbbaa or a name)");
+      if (!s || !is_color(*s)) return opt_fail(where + "expected a color (#rrggbb, #rrggbbaa or a name)");
       return v;
     }
     case FieldType::Quantity: {
@@ -630,4 +630,4 @@ Result<void> PresetStore::rename(const SchemaPtr& schema, std::string_view from,
   return save(to, loaded->options);
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

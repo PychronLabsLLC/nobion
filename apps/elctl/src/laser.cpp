@@ -12,27 +12,33 @@
 #include <sstream>
 #include <thread>
 
-#include "pychron/laser/camera_scale.hpp"
-#include "pychron/vision/camera_backend.hpp"
-#include "pychron/codecs/codec.hpp"
-#include "pychron/devices/extraction/interfaces.hpp"
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/laser/calibration_store.hpp"
-#include "pychron/laser/laser_system.hpp"
-#include "pychron/laser/pattern.hpp"
-#include "pychron/laser/tray_camera.hpp"
-#include "pychron/vision/finder.hpp"
-#include "pychron/laser/tray_map.hpp"
-#include "pychron/sim/sim_system.hpp"
-#include "pychron/systems/extraction_line.hpp"
+#include <cstdint>
+
+#include "nobion/laser/camera_scale.hpp"
+#include "nobion/laser/track_bench.hpp"
+#include "nobion/vision/camera_backend.hpp"
+#include "nobion/codecs/codec.hpp"
+#include "nobion/devices/extraction/interfaces.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/laser/calibration_store.hpp"
+#include "nobion/laser/laser_system.hpp"
+#include "nobion/laser/pattern.hpp"
+#include "nobion/laser/tray_camera.hpp"
+#include "nobion/vision/finder.hpp"
+#include "nobion/laser/tray_map.hpp"
+#include "nobion/sim/sim_system.hpp"
+#include "nobion/core/event_recorder.hpp"
+#include "nobion/experiment/event_log.hpp"
+#include "nobion/systems/event_log.hpp"
+#include "nobion/systems/extraction_line.hpp"
 
 namespace elctl {
 
 namespace {
 
 namespace fs = std::filesystem;
-using namespace pychron;
-namespace lab = pychron::experiment::lab;
+using namespace nobion;
+namespace lab = nobion::experiment::lab;
 
 constexpr const char* kLaserUsage =
     "usage: elctl [-c <extraction_line.toml>] [--sim] laser <command> [--lab <dir>]\n"
@@ -57,7 +63,10 @@ constexpr const char* kLaserUsage =
     "  patterns                                          the lab's patterns: kind, points, length, time\n"
     "  pattern <device> <name> [--dry-run] [--timeout <s>]\n"
     "                                                    run a pattern about where the stage is (the laser is\n"
-    "                                                    not fired); --dry-run prints its points instead\n";
+    "                                                    not fired); --dry-run prints its points instead\n"
+    "  track <scenario.toml> [--seeds N] [--trace <file>] [--frames <dir>] [--frames-seed S] [--check]\n"
+    "                                                    run dragonfly against a simulated grain and score it;\n"
+    "                                                    needs no line, lab or device (--check: validate only)\n";
 
 // Locale-free fixed-point text.
 std::string num(double value, int places = 3) {
@@ -86,15 +95,18 @@ std::string describe(const laser::Solution& s) {
 struct Args {
   std::vector<std::string> words;  // everything that is not an option
   fs::path lab;
+  fs::path state;  // state_dir_for(lab): corrections, scales, snapshots
   std::optional<double> x, y, timeout, step;
   std::optional<std::string> tray;  // --tray, for look
   bool dry_run = false;
+  laser::TrackOptions track;  // --seeds, --trace, --frames, --frames-seed, --check
+  bool track_flag = false;    // any of them given
 };
 
 class Laser {
  public:
   Laser(Args args, const ExpGlobals& globals, Io io) : a_(std::move(args)), g_(globals), io_(io) {
-    lab_ = lab::load_lab({a_.lab, g_.config, {}});
+    lab_ = lab::load_lab({a_.lab, g_.config, {}, a_.state});
   }
 
   int trays() {
@@ -351,7 +363,7 @@ class Laser {
     if (!opened) return failed(opened.error().what);
     laser::LaserSystem system(device_, **opened, lab_.trays, *lab_.calibrations, nullptr, &line_->clock());
     if (!look_through(system)) return kFailed;
-    system.set_snapshot_dir(a_.lab / "snapshots" / device_);
+    system.set_snapshot_dir(a_.state / "snapshots" / device_);
     // A live camera has only just been opened: its first picture is waited for.
     if (auto first = system.view(true); !first) return failed(first.error().what);
     const auto saved = system.snapshot(a_.words.size() > 2 ? a_.words[2] : std::string{});
@@ -740,9 +752,17 @@ class Laser {
   Result<extraction::IExtractionDevice*> open() {
     systems::ExtractionLine::Options options;
     options.force_sim = g_.sim;
+    if (!g_.sim_endpoints.empty()) {
+      options.sim_endpoints = g_.sim_endpoints;
+      options.sim_endpoints_any = g_.sim_endpoints_any;
+    }
+    options.state_file = line_state_file(g_.config);
     auto line = systems::ExtractionLine::load(g_.config, std::nullopt, options);
     if (!line) return fail(line.error());
     line_ = std::move(*line);
+    core_events_.emplace(line_->bus());
+    systems_events_.emplace(line_->bus());
+    experiment_events_.emplace(line_->bus());
     if (auto r = line_->start(); !r) return fail(r.error());
     auto* device = dynamic_cast<extraction::IExtractionDevice*>(line_->device(device_));
     if (device == nullptr) return fail(ErrorKind::Config, device_ + " is not an extraction device");
@@ -759,6 +779,10 @@ class Laser {
   std::optional<laser::CameraConfig> described_;  // camera(), once asked
   const laser::TrayMap* map_ = nullptr;
   std::unique_ptr<systems::ExtractionLine> line_;
+  // Its bus's events to the process log; after line_, so they go before it.
+  std::optional<EventRecorder> core_events_;
+  std::optional<systems::SystemsEventRecorder> systems_events_;
+  std::optional<experiment::ExperimentEventRecorder> experiment_events_;
 };
 
 }  // namespace
@@ -792,7 +816,28 @@ int laser_command(const std::vector<std::string>& args, const ExpGlobals& global
   Args a;
   for (std::size_t i = 0; i < args.size(); ++i) {
     const std::string& x = args[i];
-    if (x == "--lab" || x == "--x" || x == "--y" || x == "--timeout" || x == "--step") {
+    if (x == "--seeds" || x == "--frames-seed") {
+      if (i + 1 >= args.size()) return usage(x + " needs a value");
+      const std::string& v = args[++i];
+      const auto number = codec::parse_decimal(v);
+      const bool whole = number && *number == std::floor(*number) && *number < 1e9;
+      if (!whole) return usage(std::string(x).append(" needs a whole number, not '").append(v).append("'"));
+      if (x == "--seeds") {
+        if (*number < 1 || *number > 10000) return usage("--seeds is from 1 to 10000");
+        a.track.seeds = static_cast<int>(*number);
+      } else {
+        if (*number < 0) return usage("--frames-seed needs a number of 0 or more");
+        a.track.frames_seed = static_cast<std::uint64_t>(*number);
+      }
+      a.track_flag = true;
+    } else if (x == "--trace" || x == "--frames") {
+      if (i + 1 >= args.size()) return usage(x + " needs a value");
+      (x == "--trace" ? a.track.trace : a.track.frames) = args[++i];
+      a.track_flag = true;
+    } else if (x == "--check") {
+      a.track.check_only = true;
+      a.track_flag = true;
+    } else if (x == "--lab" || x == "--x" || x == "--y" || x == "--timeout" || x == "--step") {
       if (i + 1 >= args.size()) return usage(x + " needs a value");
       const std::string& v = args[++i];
       if (x == "--lab") {
@@ -818,9 +863,20 @@ int laser_command(const std::vector<std::string>& args, const ExpGlobals& global
     }
   }
   if (a.words.empty()) return usage("");
+  if (a.track_flag && a.words[0] != "track") {
+    return usage("--seeds, --trace, --frames, --frames-seed and --check go with track");
+  }
+  if (a.words[0] == "track") {
+    if (a.words.size() != 2) return usage("track needs <scenario.toml>");
+    if (a.x || a.y || a.timeout || a.step || a.tray || a.dry_run || !a.lab.empty()) {
+      return usage("track takes only --seeds, --trace, --frames, --frames-seed and --check");
+    }
+    return laser_track(a.words, a.track, io);  // its own simulator: no lab, no line, no device
+  }
   if (a.x.has_value() != a.y.has_value()) return usage("--x and --y go together");
   if (a.lab.empty()) a.lab = !globals.lab.empty() ? globals.lab : globals.config.parent_path();
   if (a.lab.empty()) a.lab = ".";
+  a.state = state_dir_for(a.lab);
 
   const std::string verb = a.words[0];
   if (a.dry_run && verb != "pattern") return usage("--dry-run goes with pattern");

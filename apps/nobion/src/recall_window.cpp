@@ -1,0 +1,804 @@
+#include "recall_window.hpp"
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <memory>
+
+#include <QCheckBox>
+#include <QCloseEvent>
+#include <QComboBox>
+#include <QDateTime>
+#include <QDoubleSpinBox>
+#include <QFormLayout>
+#include <QGroupBox>
+#include <QHBoxLayout>
+#include <QHeaderView>
+#include <QLabel>
+#include <QMessageBox>
+#include <QProgressBar>
+#include <QPushButton>
+#include <QSpinBox>
+#include <QSignalBlocker>
+#include <QTabBar>
+#include <QTabWidget>
+#include <QTableWidget>
+#include <QTimeZone>
+#include <QVBoxLayout>
+#include <utility>
+
+#include "error_report.hpp"
+#include "scene_view.hpp"
+#include "theme.hpp"
+
+namespace nobion::ui {
+
+namespace pp = nobion::processing;
+namespace r = nobion::reduction;
+
+namespace {
+
+QString qs(const std::string& s) { return QString::fromStdString(s); }
+
+QString num(double v, int sig = 7) { return QString::number(v, 'g', sig); }
+
+QString percent(const pp::Value& v) {
+  if (v.value == 0) return {};
+  return QString::number(std::abs(v.error / v.value) * 100.0, 'f', 3);
+}
+
+QTableWidget* make_table(const QStringList& headers) {
+  auto* t = new QTableWidget;
+  t->setColumnCount(static_cast<int>(headers.size()));
+  t->setHorizontalHeaderLabels(headers);
+  t->verticalHeader()->setVisible(false);
+  t->setEditTriggers(QAbstractItemView::NoEditTriggers);
+  t->setSelectionBehavior(QAbstractItemView::SelectRows);
+  t->horizontalHeader()->setStretchLastSection(true);
+  return t;
+}
+
+void set_cell(QTableWidget* t, int row, int col, const QString& text, const QString& tip = {}) {
+  auto* item = new QTableWidgetItem(text);
+  if (!tip.isEmpty()) item->setToolTip(tip);
+  if (col > 0) item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+  t->setItem(row, col, item);
+}
+
+// Name | Value | ±1σ | % | Units
+void fill_section(QTableWidget* t, const pp::RecallSection& s) {
+  t->setRowCount(static_cast<int>(s.rows.size()));
+  for (int i = 0; std::cmp_less(i, s.rows.size()); ++i) {
+    const auto& r = s.rows[static_cast<std::size_t>(i)];
+    set_cell(t, i, 0, qs(r.name), qs(r.note));
+    if (r.value) {
+      set_cell(t, i, 1, num(r.value->value));
+      set_cell(t, i, 2, r.value->error != 0 ? num(r.value->error, 4) : QString());
+      set_cell(t, i, 3, r.value->error != 0 ? percent(*r.value) : QString());
+    } else {
+      set_cell(t, i, 1, qs(r.text));
+      set_cell(t, i, 2, {});
+      set_cell(t, i, 3, {});
+    }
+    set_cell(t, i, 4, qs(r.units));
+  }
+  t->resizeColumnsToContents();
+}
+
+// The core stages; a domain's own (Ar-Ar's decay and interference corrected)
+// show in its Summary sections.
+constexpr std::array kStages{pp::Stage::Intercept,      pp::Stage::Baseline,  pp::Stage::BaselineCorrected,
+                             pp::Stage::Blank,          pp::Stage::BlankCorrected, pp::Stage::IcFactor,
+                             pp::Stage::IcCorrected};
+
+const char* stage_title(pp::Stage s) {
+  switch (s) {
+    case pp::Stage::Intercept:
+      return "I";
+    case pp::Stage::Baseline:
+      return "Bs";
+    case pp::Stage::BaselineCorrected:
+      return "I-Bs";
+    case pp::Stage::Blank:
+      return "Bk";
+    case pp::Stage::BlankCorrected:
+      return "I-Bs-Bk";
+    case pp::Stage::IcFactor:
+      return "IC";
+    case pp::Stage::IcCorrected:
+      return "×IC";
+  }
+  return "";
+}
+
+constexpr r::FitKind kFitKinds[] = {r::FitKind::Average, r::FitKind::Linear, r::FitKind::Parabolic, r::FitKind::Cubic,
+                                    r::FitKind::Exponential};
+
+}  // namespace
+
+RecallWindow::RecallWindow(pp::IAnalysisSource& source, const pp::Domain& domain, QWidget* parent)
+    : QWidget(parent, Qt::Window), source_(source), domain_(domain) {
+  resize(900, 650);
+  auto* layout = new QVBoxLayout(this);
+  title_ = new QLabel;
+  title_->setFont(style::title_font(title_->font()));
+  title_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  layout->addWidget(title_);
+  tabs_ = new QTabWidget;
+  layout->addWidget(tabs_);
+
+  const QStringList value_headers{tr("Name"), tr("Value"), tr("±1σ"), tr("%"), tr("Units")};
+  auto* summary = new QWidget;
+  summary_layout_ = new QVBoxLayout(summary);  // a table per section of the domain, once there is an analysis
+  tabs_->addTab(summary, tr("Summary"));
+
+  auto* iso_page = new QWidget;
+  auto* il = new QVBoxLayout(iso_page);
+  stage_ = new QComboBox;
+  stage_->addItem(tr("All stages"), -1);
+  for (const auto s : kStages) stage_->addItem(QString::fromUtf8(stage_title(s)) + QStringLiteral("  (") + qs(std::string(pp::to_string(s))) + QStringLiteral(")"), static_cast<int>(s));
+  il->addWidget(stage_);
+  isotopes_ = make_table({});
+  il->addWidget(isotopes_);
+  connect(stage_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this] { fill_isotopes(); });
+  tabs_->addTab(iso_page, tr("Isotopes"));
+
+  auto* evo_page = new QWidget;
+  auto* el = new QVBoxLayout(evo_page);
+  kind_ = new QTabBar;
+  kind_->addTab(tr("Signal"));
+  kind_->addTab(tr("Baseline"));
+  kind_->addTab(tr("Sniff"));
+  el->addWidget(kind_);
+  auto* evo_row = new QHBoxLayout;
+  el->addLayout(evo_row, 1);
+  evolutions_ = new SceneView;
+  evo_row->addWidget(evolutions_, 1);
+
+  fit_box_ = new QGroupBox(tr("Fit"));
+  auto* fl = new QFormLayout(fit_box_);
+  fit_isotope_ = new QComboBox;
+  fit_kind_ = new QComboBox;
+  for (const auto k : kFitKinds) fit_kind_->addItem(qs(std::string(r::to_string(k))), static_cast<int>(k));
+  fit_error_ = new QComboBox;
+  fit_error_->addItem(QStringLiteral("SEM"), static_cast<int>(r::ErrorType::Sem));
+  fit_error_->addItem(QStringLiteral("SD"), static_cast<int>(r::ErrorType::Sd));
+  fit_outliers_ = new QCheckBox(tr("Filter outliers"));
+  fit_iterations_ = new QSpinBox;
+  fit_iterations_->setRange(1, 10);
+  fit_std_devs_ = new QDoubleSpinBox;
+  fit_std_devs_->setRange(0.5, 10.0);
+  fit_std_devs_->setSingleStep(0.5);
+  fit_std_devs_->setDecimals(1);
+  clear_excluded_ = new QPushButton(tr("Include all points"));
+  fit_key_label_ = new QLabel(tr("Isotope"));
+  fl->addRow(fit_key_label_, fit_isotope_);
+  fl->addRow(tr("Fit"), fit_kind_);
+  fl->addRow(tr("Error"), fit_error_);
+  fl->addRow(fit_outliers_);
+  fl->addRow(tr("Iterations"), fit_iterations_);
+  fl->addRow(tr("Std devs"), fit_std_devs_);
+  fl->addRow(clear_excluded_);
+  auto* hint = new QLabel(tr("Click a point (or drag a box) to leave it out of the fit or put it back."));
+  hint->setWordWrap(true);
+  fl->addRow(hint);
+  edit_status_ = new QLabel;
+  edit_status_->setWordWrap(true);
+  edit_status_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  fl->addRow(edit_status_);
+  auto* buttons = new QHBoxLayout;
+  revert_ = new QPushButton(tr("Revert"));
+  save_ = new QPushButton(tr("Save"));
+  buttons->addWidget(revert_);
+  buttons->addWidget(save_);
+  fl->addRow(buttons);
+  fit_box_->setMaximumWidth(260);
+  evo_row->addWidget(fit_box_);
+
+  connect(kind_, &QTabBar::currentChanged, this, [this] {
+    fill_evolutions();
+    fit_box_->setVisible(current_kind() != pp::SeriesKind::Sniff);
+    fill_fit_keys();
+    fill_fit_editor();
+  });
+  connect(fit_isotope_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this] { fill_fit_editor(); });
+  for (auto* combo : {fit_kind_, fit_error_})
+    connect(combo, qOverload<int>(&QComboBox::currentIndexChanged), this, [this] { fit_controls_changed(); });
+  connect(fit_outliers_, &QCheckBox::toggled, this, [this] { fit_controls_changed(); });
+  connect(fit_iterations_, qOverload<int>(&QSpinBox::valueChanged), this, [this] { fit_controls_changed(); });
+  connect(fit_std_devs_, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this] { fit_controls_changed(); });
+  connect(clear_excluded_, &QPushButton::clicked, this, [this] {
+    const std::string key = fit_isotope_->currentText().toStdString();
+    if (key.empty()) return;
+    auto e = current_edit(current_kind(), key);
+    e.user_excluded.clear();
+    edits_[{e.kind, key}] = e;
+    recompute();
+    fill_fit_editor();
+  });
+  connect(revert_, &QPushButton::clicked, this, [this] { revert_edits(); });
+  connect(save_, &QPushButton::clicked, this, [this] { save_edits(); });
+  connect(evolutions_, &SceneView::point_clicked, this, [this](const QString& ref) { toggle_points({ref}); });
+  connect(evolutions_, &SceneView::points_toggled, this, [this](const QStringList& refs) { toggle_points(refs); });
+  tabs_->addTab(evo_page, tr("Evolutions"));
+  evolutions_page_ = evo_page;
+
+  budget_ = make_table({tr("Component"), tr("% of age variance"), QString()});  // added to tabs_ when there is a budget
+  budget_->setParent(this);
+  budget_->hide();
+  identity_ = make_table(value_headers);
+  tabs_->addTab(identity_, tr("Identity"));
+  extraction_ = make_table(value_headers);
+  tabs_->addTab(extraction_, tr("Extraction"));
+  spectrometer_ = make_table(value_headers);
+  tabs_->addTab(spectrometer_, tr("Spectrometer"));
+
+  history_page_ = new QWidget;
+  auto* hl = new QVBoxLayout(history_page_);
+  auto* hrow = new QHBoxLayout;
+  history_kind_ = new QComboBox;
+  for (const auto k : pp::kRevisionKinds) history_kind_->addItem(qs(std::string(pp::title(k))), static_cast<int>(k));
+  hrow->addWidget(new QLabel(tr("Revisions of")));
+  hrow->addWidget(history_kind_);
+  hrow->addStretch(1);
+  restore_ = new QPushButton(tr("Restore selected"));
+  restore_->setEnabled(false);
+  hrow->addWidget(restore_);
+  connect(restore_, &QPushButton::clicked, this, [this] { restore_selected(true); });
+  hl->addLayout(hrow);
+  revisions_ = make_table({tr("Seq"), tr("Date (UTC)"), tr("Author"), tr("Host"), tr("Change"), tr("Message")});
+  revisions_->setSelectionMode(QAbstractItemView::ExtendedSelection);
+  hl->addWidget(revisions_, 2);
+  history_note_ = new QLabel;
+  history_note_->setWordWrap(true);
+  hl->addWidget(history_note_);
+  revision_content_ = make_table({});
+  hl->addWidget(revision_content_, 3);
+  tabs_->addTab(history_page_, tr("History"));
+  connect(history_kind_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this] {
+    history_stale_ = true;
+    fill_history();
+  });
+  connect(revisions_, &QTableWidget::itemSelectionChanged, this, [this] { show_revisions(); });
+  connect(tabs_, &QTabWidget::currentChanged, this, [this] {
+    if (tabs_->currentWidget() == history_page_) fill_history();
+  });
+}
+
+bool RecallWindow::show_analysis(const QString& uuid) {
+  uuid_ = uuid;
+  edits_.clear();
+  edited_.clear();
+  history_stale_ = true;
+  auto a = source_.load(uuid.toStdString());
+  if (!a) {
+    analysis_.reset();
+    shown_.reset();
+    log_shown("recall", tr("Load %1").arg(uuid), a.error());
+    title_->setText(tr("Cannot load %1: %2").arg(uuid, qs(a.error().what)));
+    setWindowTitle(tr("Recall"));
+    update_edit_state();
+    return false;
+  }
+  analysis_ = *a;
+  shown_ = analysis_;
+  auto raw = source_.load_raw(uuid.toStdString());
+  raw_ = raw ? std::move(*raw) : pp::RawData{};
+
+  fill_fit_keys();
+  edit_status_->clear();
+  display();
+  fill_fit_editor();
+  if (tabs_->currentWidget() == history_page_) fill_history();
+  return true;
+}
+
+void RecallWindow::display() {
+  // The domain's reduction chain over the analysis as shown. Its units write
+  // what they derive from the stored fits to the source's cache (age cache
+  // spec 4.5); one with unsaved fit edits is not the analysis's, so that run
+  // has no source and writes nothing.
+  auto unreduced = std::make_shared<pp::ReducedAnalysis>();
+  unreduced->analysis = shown_;
+  pp::Dataset one;
+  one.mutable_items().emplace_back();
+  one.mutable_items().back().analysis = std::move(unreduced);
+  pp::RunContext context;
+  context.source = edits_.empty() ? &source_ : nullptr;
+  context.domain = &domain_;
+  auto chain = pp::run_reduction_chain(domain_, pp::make_dataset(std::move(one)), context);
+  if (!chain) log_shown("recall", tr("Reduce %1").arg(qs(shown_->runid)), chain.error());
+  const pp::ReducedPtr reduced = chain && !(*chain)->empty() ? (*chain)->items().front().analysis
+                                                              : pp::reduce_analysis(shown_);
+  model_ = pp::make_recall_model(*reduced);
+
+  setWindowTitle(tr("Recall — %1").arg(qs(shown_->runid)) + (edits_.empty() ? QString() : QStringLiteral(" *")));
+  QStringList header;
+  for (const auto& h : model_.header)
+    if (!h.empty()) header << qs(h);
+  title_->setText(qs(model_.title) + QStringLiteral("\n") + header.join(QStringLiteral("  ·  ")) +
+                  (model_.reduction_note.empty() ? QString() : QStringLiteral("\n") + qs(model_.reduction_note)) +
+                  (edits_.empty() ? QString() : QStringLiteral("\n") + tr("Unsaved fit edits")));
+  fill_summary(domain_.recall_sections(*reduced));
+  fill_section(identity_, model_.identity);
+  fill_section(extraction_, model_.extraction);
+  fill_section(spectrometer_, model_.spectrometer);
+  fill_isotopes();
+  fill_evolutions();
+
+  fill_budget(domain_.error_budget(*reduced));
+  update_edit_state();
+}
+
+std::vector<QTableWidget*> RecallWindow::section_tables() const {
+  std::vector<QTableWidget*> tables;
+  tables.reserve(sections_.size());
+  for (const auto& s : sections_) tables.push_back(s.table);
+  return tables;
+}
+
+// One labelled table per section; the widgets stay while the sections' titles
+// do, which is every display() of a window.
+void RecallWindow::fill_summary(const std::vector<pp::RecallSection>& sections) {
+  const bool same = sections.size() == sections_.size() &&
+                    std::ranges::equal(sections, sections_, {}, &pp::RecallSection::title,
+                                       [](const Section& s) { return s.title->text().toStdString(); });
+  if (!same) {
+    for (auto& s : sections_) {
+      delete s.title;
+      delete s.table;
+    }
+    sections_.clear();
+    const QStringList value_headers{tr("Name"), tr("Value"), tr("±1σ"), tr("%"), tr("Units")};
+    sections_.reserve(sections.size());
+    for (std::size_t i = 0; i < sections.size(); ++i) {
+      Section s{new QLabel(qs(sections[i].title)), make_table(value_headers)};
+      summary_layout_->addWidget(s.title);
+      summary_layout_->addWidget(s.table, std::max(1, 3 - static_cast<int>(i)));  // the first gets the most room
+      sections_.push_back(s);
+    }
+  }
+  for (std::size_t i = 0; i < sections.size(); ++i) fill_section(sections_[i].table, sections[i]);
+}
+
+// The tab is there only while there is a budget: after Evolutions, as it was.
+void RecallWindow::fill_budget(const std::vector<pp::RecallErrorComponent>& budget) {
+  const int at = tabs_->indexOf(budget_);
+  if (budget.empty()) {
+    if (at >= 0) tabs_->removeTab(at);
+    return;
+  }
+  if (at < 0) tabs_->insertTab(tabs_->indexOf(evolutions_page_) + 1, budget_, tr("Error budget"));
+  budget_->setRowCount(static_cast<int>(budget.size()));
+  for (int i = 0; std::cmp_less(i, budget.size()); ++i) {
+    const auto& c = budget[static_cast<std::size_t>(i)];
+    set_cell(budget_, i, 0, qs(c.name));
+    set_cell(budget_, i, 1, QString::number(c.percent, 'f', 3));
+    auto* bar = new QProgressBar;
+    bar->setRange(0, 1000);
+    bar->setValue(static_cast<int>(std::lround(c.percent * 10)));
+    bar->setTextVisible(false);
+    budget_->setCellWidget(i, 2, bar);
+  }
+  budget_->resizeColumnsToContents();
+}
+
+void RecallWindow::fill_isotopes() {
+  const int stage = stage_->currentData().toInt();
+  QStringList headers{tr("Isotope"), tr("Det."), tr("Fit"), tr("N")};
+  std::vector<pp::Stage> shown;
+  if (stage < 0) {
+    shown.assign(std::begin(kStages), std::end(kStages));
+    for (const auto s : shown) headers << QString::fromUtf8(stage_title(s)) << tr("±1σ");
+  } else {
+    shown.push_back(static_cast<pp::Stage>(stage));
+    headers << tr("Value") << tr("±1σ") << tr("%");
+  }
+  headers << tr("Bk source");
+  isotopes_->clear();
+  isotopes_->setColumnCount(static_cast<int>(headers.size()));
+  isotopes_->setHorizontalHeaderLabels(headers);
+  isotopes_->setRowCount(static_cast<int>(model_.isotopes.size()));
+  for (int r = 0; std::cmp_less(r, model_.isotopes.size()); ++r) {
+    const auto& iso = model_.isotopes[static_cast<std::size_t>(r)];
+    int c = 0;
+    set_cell(isotopes_, r, c++, qs(iso.key));
+    set_cell(isotopes_, r, c++, qs(iso.detector));
+    set_cell(isotopes_, r, c++, qs(iso.fit) + (iso.baseline_fit.empty() ? QString() : QStringLiteral(" / ") + qs(iso.baseline_fit)));
+    set_cell(isotopes_, r, c++, QString::number(iso.n));
+    for (const auto s : shown) {
+      auto it = iso.stages.find(s);
+      if (it == iso.stages.end()) {
+        set_cell(isotopes_, r, c++, {});
+        set_cell(isotopes_, r, c++, {});
+        if (stage >= 0) set_cell(isotopes_, r, c++, {});
+        continue;
+      }
+      set_cell(isotopes_, r, c++, num(it->second.value));
+      set_cell(isotopes_, r, c++, num(it->second.error, 4));
+      if (stage >= 0) set_cell(isotopes_, r, c++, percent(it->second));
+    }
+    set_cell(isotopes_, r, c++, qs(iso.blank_source));
+  }
+  isotopes_->resizeColumnsToContents();
+}
+
+void RecallWindow::fill_evolutions() {
+  if (!shown_) return;
+  const pp::SeriesKind kinds[] = {pp::SeriesKind::Signal, pp::SeriesKind::Baseline, pp::SeriesKind::Sniff};
+  const int i = std::clamp(kind_->currentIndex(), 0, 2);
+  evolutions_->set_scene(std::make_shared<const pp::Scene>(pp::make_evolution_scene(*shown_, raw_, kinds[i])));
+}
+
+// ---------------------------------------------------------------- fit editing
+
+pp::SeriesKind RecallWindow::current_kind() const {
+  const pp::SeriesKind kinds[] = {pp::SeriesKind::Signal, pp::SeriesKind::Baseline, pp::SeriesKind::Sniff};
+  return kinds[std::clamp(kind_->currentIndex(), 0, 2)];
+}
+
+void RecallWindow::fill_fit_keys() {
+  const pp::SeriesKind kind = current_kind();
+  fit_key_label_->setText(kind == pp::SeriesKind::Baseline ? tr("Detector") : tr("Isotope"));
+  const QString keep = fit_isotope_->currentText();
+  const QSignalBlocker block(fit_isotope_);
+  fit_isotope_->clear();
+  if (!analysis_ || kind == pp::SeriesKind::Sniff) return;
+  for (const auto& s : raw_.series)
+    if (s.kind == kind && pp::stored_fit(*analysis_, kind, s.key)) fit_isotope_->addItem(qs(s.key));
+  const int at = fit_isotope_->findText(keep);
+  fit_isotope_->setCurrentIndex(at >= 0 ? at : 0);
+}
+
+pp::FitEdit RecallWindow::current_edit(pp::SeriesKind kind, const std::string& key) const {
+  if (auto it = edits_.find({kind, key}); it != edits_.end()) return it->second;
+  pp::FitEdit e;
+  e.kind = kind;
+  e.key = key;
+  // Baselines are usually averages; signals default to a line.
+  e.fit.kind = kind == pp::SeriesKind::Baseline ? r::FitKind::Average : r::FitKind::Linear;
+  if (const auto stored = shown_ ? pp::stored_fit(*shown_, kind, key) : std::nullopt) {
+    if (stored->fit) e.fit = *stored->fit;
+    e.user_excluded = stored->user_excluded;
+  }
+  if (e.fit.kind == r::FitKind::CustomPoly) e.fit.kind = r::FitKind::Linear;  // not editable here
+  return e;
+}
+
+void RecallWindow::fill_fit_editor() {
+  const std::string key = fit_isotope_->currentText().toStdString();
+  const bool any = !key.empty() && shown_;
+  for (QWidget* w : std::initializer_list<QWidget*>{fit_kind_, fit_error_, fit_outliers_, fit_iterations_, fit_std_devs_,
+                                                     clear_excluded_})
+    w->setEnabled(any);
+  if (!any) {
+    update_edit_state();
+    return;
+  }
+  const pp::FitEdit e = current_edit(current_kind(), key);
+  const QSignalBlocker b1(fit_kind_), b2(fit_error_), b3(fit_outliers_), b4(fit_iterations_), b5(fit_std_devs_);
+  fit_kind_->setCurrentIndex(std::max(0, fit_kind_->findData(static_cast<int>(e.fit.kind))));
+  fit_error_->setCurrentIndex(std::max(0, fit_error_->findData(static_cast<int>(e.fit.error))));
+  fit_outliers_->setChecked(e.fit.outliers.enabled);
+  fit_iterations_->setValue(e.fit.outliers.iterations);
+  fit_std_devs_->setValue(e.fit.outliers.std_devs);
+  fit_iterations_->setEnabled(e.fit.outliers.enabled);
+  fit_std_devs_->setEnabled(e.fit.outliers.enabled);
+  update_edit_state();
+}
+
+void RecallWindow::fit_controls_changed() {
+  const std::string key = fit_isotope_->currentText().toStdString();
+  if (key.empty() || !shown_) return;
+  pp::FitEdit e = current_edit(current_kind(), key);
+  e.fit.kind = static_cast<r::FitKind>(fit_kind_->currentData().toInt());
+  e.fit.error = static_cast<r::ErrorType>(fit_error_->currentData().toInt());
+  e.fit.outliers.enabled = fit_outliers_->isChecked();
+  e.fit.outliers.iterations = fit_iterations_->value();
+  e.fit.outliers.std_devs = fit_std_devs_->value();
+  fit_iterations_->setEnabled(e.fit.outliers.enabled);
+  fit_std_devs_->setEnabled(e.fit.outliers.enabled);
+  edits_[{e.kind, key}] = e;
+  recompute();
+}
+
+void RecallWindow::toggle_points(const QStringList& refs) {
+  const pp::SeriesKind kind = current_kind();
+  if (!shown_ || kind == pp::SeriesKind::Sniff) return;
+  std::string last;
+  for (const auto& ref : refs) {
+    const auto parsed = pp::parse_evolution_ref(ref.toStdString());
+    if (!parsed || !pp::stored_fit(*shown_, kind, parsed->first)) continue;
+    pp::FitEdit e = current_edit(kind, parsed->first);
+    pp::toggle_index(e.user_excluded, parsed->second);
+    edits_[{kind, parsed->first}] = e;
+    last = parsed->first;
+  }
+  if (last.empty()) return;
+  {
+    const QSignalBlocker block(fit_isotope_);
+    fit_isotope_->setCurrentIndex(std::max(0, fit_isotope_->findText(qs(last))));
+  }
+  recompute();
+  fill_fit_editor();
+}
+
+void RecallWindow::recompute() {
+  if (!analysis_) return;
+  // An edit equal to what was loaded is no edit.
+  for (auto it = edits_.begin(); it != edits_.end();)
+    it = pp::same_as_stored(*analysis_, it->second) ? edits_.erase(it) : std::next(it);
+  if (edits_.empty()) {
+    shown_ = analysis_;
+    edited_.clear();
+    edit_status_->clear();
+    display();
+    return;
+  }
+  std::vector<pp::FitEdit> list;
+  for (const auto& [_, e] : edits_) list.push_back(e);
+  auto result = pp::apply_fit_edits(*analysis_, raw_, list);
+  if (!result) {
+    log_shown("recall", tr("Refit"), result.error());
+    edit_status_->setText(tr("Cannot refit: %1").arg(qs(result.error().what)));
+    update_edit_state();
+    return;
+  }
+  shown_ = result->analysis;
+  edited_ = std::move(result->fits);
+  edit_status_->clear();
+  display();
+}
+
+void RecallWindow::update_edit_state() {
+  pp::IRevisionSource* revisions = source_.revisions();
+  bool has_heads = analysis_ != nullptr;
+  for (const auto& e : edited_)
+    if (analysis_ && !analysis_->heads.contains(e.kind == pp::SeriesKind::Baseline ? "baselines" : "intercepts"))
+      has_heads = false;
+  const bool pending = !edits_.empty() && !edited_.empty();
+  revert_->setEnabled(!edits_.empty());
+  save_->setEnabled(pending && revisions && has_heads);
+  if (!revisions) {
+    save_->setToolTip(tr("Saving needs a source that keeps revisions (nobion --db)"));
+  } else if (!has_heads) {
+    save_->setToolTip(tr("This analysis has no revision to build the edit on"));
+  } else {
+    save_->setToolTip(tr("Save the edited fits as new intercepts / baselines revisions"));
+  }
+  if (pending && edit_status_->text().isEmpty()) {
+    QStringList keys;
+    for (const auto& e : edited_) keys << qs(e.key) + (e.kind == pp::SeriesKind::Baseline ? tr(" baseline") : QString());
+    edit_status_->setText(tr("Edited: %1 (not saved)").arg(keys.join(QStringLiteral(", "))));
+  }
+  update_restore_state();
+}
+
+void RecallWindow::revert_edits() {
+  edits_.clear();
+  recompute();
+  fill_fit_editor();
+}
+
+bool RecallWindow::save_edits() {
+  pp::IRevisionSource* revisions = source_.revisions();
+  if (!revisions || !analysis_ || edited_.empty() || !save_->isEnabled()) return false;
+  const std::string message = pp::describe_fit_edits(*analysis_, edited_);
+  auto outcome = revisions->save_fits(analysis_->uuid, analysis_->heads, edited_, message);
+  if (!outcome) {
+    log_shown("recall", tr("Save"), outcome.error());
+    edit_status_->setText(tr("Save failed: %1").arg(qs(outcome.error().what)));
+    return false;
+  }
+  if (!outcome->saved) {
+    edit_status_->setText(tr("Not saved: %1").arg(qs(outcome->conflict)));
+    return false;
+  }
+  QStringList saved;
+  for (const auto& [kind, id] : outcome->revisions) saved << qs(kind) + QStringLiteral(" ") + qs(id).left(8);
+  show_analysis(uuid_);
+  edit_status_->setText(tr("Saved: %1").arg(saved.join(QStringLiteral(", "))));
+  return true;
+}
+
+void RecallWindow::closeEvent(QCloseEvent* event) {
+  if (edits_.empty()) {
+    event->accept();
+    return;
+  }
+  const auto answer = QMessageBox::question(
+      this, tr("Unsaved fit edits"), tr("Save the edited fits of %1?").arg(qs(analysis_->runid)),
+      save_->isEnabled() ? QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel
+                         : QMessageBox::Discard | QMessageBox::Cancel);
+  if (answer == QMessageBox::Cancel || (answer == QMessageBox::Save && !save_edits())) {
+    event->ignore();
+    return;
+  }
+  edits_.clear();
+  event->accept();
+}
+
+// ---------------------------------------------------------------- history
+
+void RecallWindow::fill_history() {
+  if (!history_stale_) return;
+  history_stale_ = false;
+  history_.clear();
+  revisions_->setRowCount(0);
+  revision_content_->clear();
+  revision_content_->setRowCount(0);
+  revision_content_->setColumnCount(0);
+  pp::IRevisionSource* revisions = source_.revisions();
+  if (!revisions) {
+    history_note_->setText(tr("History needs a source that keeps revisions (nobion --db)."));
+    return;
+  }
+  if (!analysis_) return;
+  const auto kind = static_cast<pp::RevisionKind>(history_kind_->currentData().toInt());
+  auto list = revisions->history(analysis_->uuid, kind);
+  if (!list) {
+    log_shown("recall", tr("Read history"), list.error());
+    history_note_->setText(tr("Cannot read the history: %1").arg(qs(list.error().what)));
+    return;
+  }
+  history_ = std::move(*list);
+  const QSignalBlocker block(revisions_);
+  revisions_->setRowCount(static_cast<int>(history_.size()));
+  for (int i = 0; std::cmp_less(i, history_.size()); ++i) {
+    const auto& h = history_[static_cast<std::size_t>(i)];
+    set_cell(revisions_, i, 0, QString::number(h.seq) + (h.head ? QStringLiteral(" ●") : QString()),
+             h.head ? tr("current (head)") : QString());
+    const auto when = QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(std::llround(h.created * 1000.0)), QTimeZone::utc());
+    set_cell(revisions_, i, 1, when.toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")));
+    set_cell(revisions_, i, 2, qs(h.author));
+    set_cell(revisions_, i, 3, qs(h.host));
+    set_cell(revisions_, i, 4, qs(h.changeset_kind));
+    set_cell(revisions_, i, 5, qs(h.message), qs(h.id));
+    for (int c = 1; c < 6; ++c) revisions_->item(i, c)->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+  }
+  revisions_->resizeColumnsToContents();
+  history_note_->setText(history_.empty() ? tr("No revisions of this kind.")
+                                          : tr("Select a revision to see it, or two to compare them."));
+  if (!history_.empty()) revisions_->selectRow(0);
+  show_revisions();
+}
+
+void RecallWindow::show_revisions() {
+  update_restore_state();
+  pp::IRevisionSource* revisions = source_.revisions();
+  if (!revisions) return;
+  std::vector<int> rows;
+  for (const auto& range : revisions_->selectedRanges())
+    for (int r = range.topRow(); r <= range.bottomRow(); ++r) rows.push_back(r);
+  std::sort(rows.begin(), rows.end());
+  revision_content_->clear();
+  revision_content_->setRowCount(0);
+  revision_content_->setColumnCount(0);
+  if (rows.empty() || rows.size() > 2) {
+    if (rows.size() > 2) history_note_->setText(tr("Select one revision, or two to compare."));
+    return;
+  }
+  auto table_of = [&](int row) { return revisions->revision_table(history_[static_cast<std::size_t>(row)].id); };
+  if (rows.size() == 1) {
+    auto t = table_of(rows[0]);
+    if (!t) {
+      log_shown("recall", tr("Read revision"), t.error());
+      history_note_->setText(tr("Cannot read the revision: %1").arg(qs(t.error().what)));
+      return;
+    }
+    QStringList headers{tr("Key")};
+    for (const auto& c : t->columns) headers << qs(c);
+    revision_content_->setColumnCount(static_cast<int>(headers.size()));
+    revision_content_->setHorizontalHeaderLabels(headers);
+    revision_content_->setRowCount(static_cast<int>(t->rows.size()));
+    for (int i = 0; std::cmp_less(i, t->rows.size()); ++i) {
+      const auto& row = t->rows[static_cast<std::size_t>(i)];
+      set_cell(revision_content_, i, 0, qs(row.key));
+      for (int c = 0; std::cmp_less(c, row.cells.size()); ++c) set_cell(revision_content_, i, c + 1, qs(row.cells[static_cast<std::size_t>(c)]));
+    }
+    const auto& h = history_[static_cast<std::size_t>(rows[0])];
+    history_note_->setText(tr("%1 by %2, %3").arg(qs(h.message.empty() ? h.changeset_kind : h.message), qs(h.author),
+                                                    qs(h.id).left(8)));
+    revision_content_->resizeColumnsToContents();
+    return;
+  }
+  // The list is newest first: the lower row is the older revision.
+  auto before = table_of(rows[1]);
+  auto after = table_of(rows[0]);
+  if (!before || !after) {
+    history_note_->setText(tr("Cannot read the revisions"));
+    return;
+  }
+  const auto diff = pp::diff_revisions(*before, *after);
+  QStringList headers{tr("Key")};
+  for (const auto& c : diff.columns) headers << qs(c);
+  revision_content_->setColumnCount(static_cast<int>(headers.size()));
+  revision_content_->setHorizontalHeaderLabels(headers);
+  revision_content_->setRowCount(static_cast<int>(diff.rows.size()));
+  for (int i = 0; std::cmp_less(i, diff.rows.size()); ++i) {
+    const auto& row = diff.rows[static_cast<std::size_t>(i)];
+    set_cell(revision_content_, i, 0, qs(row.key), qs(std::string(pp::to_string(row.state))));
+    const QColor row_color = row.state == pp::DiffState::Added     ? theme().diff_added
+                             : row.state == pp::DiffState::Removed ? theme().diff_removed
+                                                                   : QColor();
+    if (row_color.isValid()) revision_content_->item(i, 0)->setBackground(row_color);
+    for (std::size_t c = 0; c < diff.columns.size(); ++c) {
+      QString text;
+      if (row.state == pp::DiffState::Removed) {
+        text = qs(row.before[c]);
+      } else if (row.changed[c] && row.state == pp::DiffState::Changed) {
+        text = qs(row.before[c]) + QStringLiteral(" → ") + qs(row.after[c]);
+      } else {
+        text = qs(row.after[c]);
+      }
+      set_cell(revision_content_, i, static_cast<int>(c) + 1, text);
+      auto* item = revision_content_->item(i, static_cast<int>(c) + 1);
+      if (row_color.isValid()) {
+        item->setBackground(row_color);
+      } else if (row.changed[c]) {
+        item->setBackground(theme().diff_changed);
+      }
+    }
+  }
+  revision_content_->resizeColumnsToContents();
+  history_note_->setText(tr("%n row(s) differ between %1 and %2.", nullptr, diff.changed_rows())
+                             .arg(QString::number(history_[static_cast<std::size_t>(rows[1])].seq),
+                                  QString::number(history_[static_cast<std::size_t>(rows[0])].seq)));
+}
+
+void RecallWindow::update_restore_state() {
+  const auto selected = revisions_->selectionModel() ? revisions_->selectionModel()->selectedRows() : QModelIndexList{};
+  QString why;
+  if (!source_.revisions()) {
+    why = tr("Restoring needs a source that keeps revisions (nobion --db)");
+  } else if (!edits_.empty()) {
+    why = tr("Save or revert the pending fit edits first");
+  } else if (selected.size() != 1) {
+    why = tr("Select one revision to restore");
+  } else if (const auto row = static_cast<std::size_t>(selected.front().row());
+             row >= history_.size() || history_[row].head) {
+    why = tr("That revision is already the current one");
+  } else if (!analysis_ || !analysis_->heads.contains(std::string(pp::to_string(history_[row].kind)))) {
+    why = tr("This analysis has no current revision of that kind");
+  }
+  restore_->setEnabled(why.isEmpty());
+  restore_->setToolTip(why.isEmpty() ? tr("Make the selected revision the current one; newer revisions stay in the history")
+                                     : why);
+}
+
+bool RecallWindow::restore_selected(bool confirm) {
+  update_restore_state();
+  if (!restore_->isEnabled()) {
+    history_note_->setText(restore_->toolTip());
+    return false;
+  }
+  const auto row = static_cast<std::size_t>(revisions_->selectionModel()->selectedRows().front().row());
+  const pp::RevisionSummary target = history_[row];
+  const std::string kind(pp::to_string(target.kind));
+  if (confirm &&
+      QMessageBox::question(this, tr("Restore revision"),
+                            tr("Make revision %1 (%2) the current %3 of %4?")
+                                .arg(QString::number(target.seq), qs(target.message.empty() ? target.changeset_kind : target.message),
+                                     qs(std::string(pp::title(target.kind))).toLower(), qs(analysis_->runid))) != QMessageBox::Yes)
+    return false;
+  const std::string message = "<ROLLBACK> " + kind + " to revision " + std::to_string(target.seq) + " (" +
+                              target.id.substr(0, 8) + ")";
+  auto outcome = source_.revisions()->restore_revision(analysis_->uuid, target.kind, analysis_->heads.at(kind), target.id,
+                                                       message);
+  if (!outcome) {
+    log_shown("recall", tr("Restore"), outcome.error());
+    history_note_->setText(tr("Restore failed: %1").arg(qs(outcome.error().what)));
+    return false;
+  }
+  if (!outcome->saved) {
+    history_note_->setText(tr("Not restored: %1").arg(qs(outcome->conflict)));
+    return false;
+  }
+  show_analysis(uuid_);
+  fill_history();
+  history_note_->setText(tr("Restored revision %1 as the current %2.")
+                             .arg(QString::number(target.seq), qs(std::string(pp::title(target.kind))).toLower()));
+  return true;
+}
+
+}  // namespace nobion::ui

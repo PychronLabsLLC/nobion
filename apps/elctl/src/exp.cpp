@@ -1,5 +1,6 @@
 #include "exp.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
@@ -15,32 +16,84 @@
 #include <string>
 
 #include "exp_store.hpp"
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/process.hpp"
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/experiment/executor/executor.hpp"
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/experiment/lab/session.hpp"
-#include "pychron/experiment/measurement/adapters.hpp"
-#include "pychron/experiment/model/identifiers.hpp"
-#include "pychron/experiment/model/queue_file.hpp"
-#include "pychron/experiment/model/queue_validation.hpp"
-#include "pychron/experiment/persist/persister.hpp"
-#include "pychron/sim/spectrometer/beam_model.hpp"
-#include "pychron/systems/extraction_line.hpp"
-#include "pychron/systems/spectrometer/assembler.hpp"
-#include "pychron/systems/spectrometer/bringup.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/event_recorder.hpp"
+#include "nobion/core/flight_recorder_triggers.hpp"
+#include "nobion/core/hang_monitor.hpp"
+#include "nobion/core/log_dir.hpp"
+#include "nobion/core/process.hpp"
+#include "nobion/core/process_log.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/experiment/event_log.hpp"
+#include "nobion/experiment/executor/executor.hpp"
+#include "nobion/experiment/flight_recorder_wiring.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/lab/session.hpp"
+#include "nobion/experiment/measurement/adapters.hpp"
+#include "nobion/experiment/measurement/engine.hpp"
+#include "nobion/experiment/model/identifiers.hpp"
+#include "nobion/experiment/model/queue_file.hpp"
+#include "nobion/experiment/model/queue_validation.hpp"
+#include "nobion/experiment/persist/persister.hpp"
+#include "nobion/sim/spectrometer/beam_model.hpp"
+#include "nobion/systems/event_log.hpp"
+#include "nobion/systems/extraction_line.hpp"
+#include "nobion/systems/spectrometer/assembler.hpp"
+#include "nobion/systems/spectrometer/bringup.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
+#include "nobion/transport/endpoints.hpp"
 
 namespace elctl {
 
 namespace fs = std::filesystem;
-using namespace pychron;
-using namespace pychron::experiment;
+using namespace nobion;
+using namespace nobion::experiment;
 
 std::atomic<int>& interrupt_count() {
   static std::atomic<int> n{0};
   return n;
+}
+
+namespace {
+
+// Seconds, to a tenth below ten ("0.4", "9.5"), whole above ("21").
+std::string seconds_text(double s) {
+  std::ostringstream out;
+  if (s < 9.95) out << std::fixed << std::setprecision(1) << std::max(s, 0.0);
+  else out << std::llround(s);
+  return out.str();
+}
+
+}  // namespace
+
+std::string holding_line(const experiment::executor::ExecutorHolding& hold, std::chrono::system_clock::time_point until) {
+  std::string line = "holding: " + hold.reason;
+  if (!hold.links.empty()) {
+    std::string names;
+    for (const auto& l : hold.links) names += (names.empty() ? "" : ", ") + l;
+    line += " (" + names + ")";
+  }
+  using namespace std::chrono;
+  const auto t = floor<seconds>(until);
+  const auto day = floor<days>(t);
+  const year_month_day ymd{day};
+  const hh_mm_ss hms{t - day};
+  std::ostringstream at;
+  at << std::setfill('0') << static_cast<int>(ymd.year()) << '-' << std::setw(2) << static_cast<unsigned>(ymd.month())
+     << '-' << std::setw(2) << static_cast<unsigned>(ymd.day()) << ' ' << std::setw(2) << hms.hours().count() << ':'
+     << std::setw(2) << hms.minutes().count() << ':' << std::setw(2) << hms.seconds().count() << " UTC";
+  return line + " until " + at.str();
+}
+
+std::string gap_line(const experiment::measurement::MeasurementGap& gap) {
+  return "gap in " + std::string(experiment::measurement::to_string(gap.block)) + ": " +
+         seconds_text(gap.to - gap.from) + " s";
+}
+
+std::string reconnected_line(const nobion::LinkReconnected& link) {
+  return "reconnected " + link.transport + " after " +
+         seconds_text(std::chrono::duration<double>(link.down_for).count()) + " s";
 }
 
 void answer_interrupts(int& handled, int count, const std::function<void(const std::string&)>& say,
@@ -106,6 +159,8 @@ struct ExpArgs {
   std::optional<std::size_t> from;
   bool resume = false, dry_run = false;
   double sim_speed = 0;  // 0: real time; infinity: --sim-speed max
+  fs::path state;        // where corrections, scales and default data go (state_dir_for(lab))
+  fs::path spectrometer_tables;  // setup::field_table_root of the spectrometer's folder
 };
 
 class Exp {
@@ -113,7 +168,7 @@ class Exp {
   Exp(ExpArgs args, ExpGlobals globals, Io io) : a_(std::move(args)), g_(std::move(globals)), io_(io) {}
 
   int run() {
-    lab_ = lab::load_lab({a_.lab, g_.config, a_.spectrometer});
+    lab_ = lab::load_lab({a_.lab, g_.config, a_.spectrometer, a_.state, a_.spectrometer_tables});
     if (a_.verb == "notify") return notify();
     auto q = load_queue_file(a_.queue_file.string(), lab_.ids);
     if (!q) {
@@ -232,7 +287,7 @@ class Exp {
       io_.err << "error: no notifications are configured (" << (a_.lab / "notifications.toml").string() << ")\n";
       return kFailed;
     }
-    const auto sent = lab::deliver(lab_.notifications, lab::test_notification(a_.lab.string()), pychron::run_process);
+    const auto sent = lab::deliver(lab_.notifications, lab::test_notification(a_.lab.string()), nobion::run_process);
     bool ok = true;
     for (const auto& d : sent) {
       ok = ok && d.ok;
@@ -264,17 +319,46 @@ class Exp {
     // (VirtualClock), which starts at the real time of day. Declared before
     // everything that is given it, so it is the last to go.
     std::unique_ptr<VirtualClock> sim_clock;
+    // After the clock, so destroyed first: the hub stops using the clock before it goes.
+    std::optional<LogHub::ClockAttachment> clock_attachment;
     if (a_.sim_speed > 0) {
       VirtualClock::Options clock_options;
       clock_options.speed = a_.sim_speed;
       clock_options.epoch = std::chrono::system_clock::now();
-      clock_options.on_stall = [this](std::string report) { complain("elctl: " + report); };
+      clock_options.on_stall = [this](const std::string& report) {
+        complain("elctl: " + report);
+        process_logger("clock").warn(report);
+      };
       sim_clock = std::make_unique<VirtualClock>(std::move(clock_options));
+      // The process log stamps its lines with the simulated time for as long as the clock lives.
+      if (const auto hub = process_log_hub()) {
+        clock_attachment.emplace(hub->attach_clock(*sim_clock));
+        std::ostringstream said;
+        if (std::isinf(a_.sim_speed)) said << "clock virtual max";
+        else said << "clock virtual x" << a_.sim_speed;
+        hub->logger("nobion").info(said.str());
+      }
     }
 
+    // Reports a scheduler or transport call gone silent (spec
+    // 2026-11-06-field-diagnostics, 6). Made before the line, so its
+    // transports are watched from their first call; attached once the line's
+    // bus and the flight recorder exist, detached before they go. Nothing is
+    // watched on a VirtualClock (the transports and the scheduler's beat
+    // check).
+    HangMonitor hang_monitor;
+
     systems::ExtractionLine::Options line_options;
+    line_options.hang_monitor = &hang_monitor;
     line_options.clock = sim_clock.get();
     line_options.force_sim = g_.sim;
+    if (!g_.sim_endpoints.empty()) {
+      line_options.sim_endpoints = g_.sim_endpoints;
+      line_options.sim_endpoints_any = g_.sim_endpoints_any;
+    }
+    line_options.state_file = line_state_file(g_.config);
+    line_options.log_hub = process_log_hub();  // null without one: the line builds its own
+    line_options.link_defaults = lab_.executor.link_defaults();  // executor.toml [links]
     std::optional<fs::path> canvas;
     if (!a_.canvas.empty()) canvas = a_.canvas;
     else if (fs::exists(g_.config.parent_path() / "canvas.toml")) canvas = g_.config.parent_path() / "canvas.toml";
@@ -283,6 +367,28 @@ class Exp {
       complain("error: " + line.error().what);
       return kFailed;
     }
+    // The line's bus carries the spectrometer's and the session's events too:
+    // one recorder of each kind, after the line so they go before its bus.
+    const EventRecorder core_events((*line)->bus());
+    const systems::SystemsEventRecorder systems_events((*line)->bus());
+    const ExperimentEventRecorder experiment_events((*line)->bus());
+    // Writes out the flight recorder on a critical alarm, a failed run or an
+    // unsafe queue end (spec 2026-11-06-field-diagnostics, 5.3). Before the
+    // session, so it outlives every publisher of those; its subscriptions
+    // after it, so they go first.
+    const std::shared_ptr<LogHub> flight_hub = (*line)->log_hub();
+    std::optional<FlightRecorderTriggers> flight_recorder;
+    if (flight_hub) flight_recorder.emplace(*flight_hub, (*line)->bus());
+    std::vector<SignalBus::Subscription> flight_subs;
+    if (flight_recorder) flight_subs = wire_flight_recorder((*line)->bus(), *flight_recorder);
+    if (flight_recorder) hang_monitor.attach(*flight_hub, *flight_recorder, (*line)->bus(), &(*line)->clock());
+    const HangMonitor::DetachOnExit hang_detach(hang_monitor);
+    // The scheduler's beat, on a SteadyClock only: under a VirtualClock a
+    // job's period is simulated time.
+    const bool watch_scheduler =
+        flight_recorder.has_value() && dynamic_cast<const VirtualClock*>(&(*line)->clock()) == nullptr;
+    std::shared_ptr<HangMonitor::Beat> scheduler_beat;
+    std::optional<JobId> scheduler_beat_job;
     const Clock& clock = (*line)->clock();
     // A spectrometer is simulated when --sim says so or when its own file
     // is (every transport and driver a simulator's), as the line is when its
@@ -310,6 +416,13 @@ class Exp {
       complain("error: " + r.error().what);
       return kFailed;
     }
+    if (watch_scheduler) {
+      // A Beat may outlive the monitor: the job's copy is harmless on a way out.
+      scheduler_beat = std::make_shared<HangMonitor::Beat>(hang_monitor.beat("scheduler", std::chrono::seconds(30)));
+      auto job = (*line)->scheduler().every("hang.beat", std::chrono::seconds(1),
+                                            [beat = scheduler_beat] { beat->pulse(); });
+      if (job) scheduler_beat_job = *job;
+    }
 
     // Spectrometer.
     std::unique_ptr<spectrometer::Spectrometer> spec;
@@ -330,8 +443,20 @@ class Exp {
         beam_guard.registered = true;  // before the registry and the drivers have one
         sim::BeamModelRegistry::global().set("default", sim_beam);
       }
+      spectrometer::SpectrometerAssembler::Options assembly;
+      assembly.link_defaults = lab_.executor.link_defaults();
+      if (!g_.sim_endpoints.empty()) {
+        auto served = client_spectrometer_endpoints(g_.sim_endpoints, a_.spectrometer, g_.sim_endpoints_any);
+        if (!served) {
+          complain("error: " + served.error().what);
+          return kFailed;
+        }
+        assembly.sim_endpoints = std::make_shared<const std::map<std::string, Endpoint>>(std::move(*served));
+      }
       auto assembled = spectrometer::SpectrometerAssembler::assemble(
-          std::move(data), spectrometer::SpectrometerContext{clock, (*line)->scheduler(), (*line)->bus()});
+          std::move(data), spectrometer::SpectrometerContext{clock, (*line)->scheduler(), (*line)->bus(), &hang_monitor,
+                                                    (*line)->log_hub()},
+          std::move(assembly));
       if (!assembled) {
         complain("error: " + assembled.error().what);
         return kFailed;
@@ -399,6 +524,7 @@ class Exp {
                               r.step + ": " + std::string(run::to_string(r.state));
       if (r.truncated) line_text += " (truncated)";
       if (r.save_error && r.state == run::RunState::Success) line_text += " (not saved)";  // the run said why
+      if (r.status == record::RecordStatus::Failed && !r.save_error) line_text += " (saved)";
       if (r.error) line_text += ": " + *r.error;
       say(line_text);
       for (const auto& c : r.queue_changes) say("  queue: " + c);
@@ -406,6 +532,21 @@ class Exp {
     subs.push_back(bus.subscribe<executor::ExecutorWaiting>([&](const executor::ExecutorWaiting& e) {
       if (e.duration > experiment::Duration::zero()) say("waiting " + clock_text(e.duration) + ": " + e.reason);
     }));
+    subs.push_back(bus.subscribe<executor::ExecutorHolding>([&](const executor::ExecutorHolding& e) {
+      say(holding_line(e, session.wall_now() + std::chrono::duration_cast<WallTime::duration>(e.until - session.now())));
+    }));
+    subs.push_back(bus.subscribe<executor::ExecutorStateChanged>([&](const executor::ExecutorStateChanged& e) {
+      if (e.from == executor::ExecutorState::Holding && e.to == executor::ExecutorState::Running) say("resumed");
+    }));
+    subs.push_back(bus.subscribe<measurement::MeasurementGap>([&](const measurement::MeasurementGap& e) {
+      std::string id;
+      {
+        std::lock_guard lock(names_mutex);
+        id = names[e.run_id];
+      }
+      say("  " + id + ": " + gap_line(e));
+    }));
+    subs.push_back(bus.subscribe<LinkReconnected>([&](const LinkReconnected& e) { say(reconnected_line(e)); }));
     subs.push_back(bus.subscribe<measurement::ConditionalTripped>([&](const measurement::ConditionalTripped& e) {
       say("  conditional " + e.trip.name + " tripped: " + e.trip.check);
     }));
@@ -443,6 +584,9 @@ class Exp {
       }
     }
     const executor::QueueResult result = *session.wait();
+    // The scheduler stops with the line: its beat is let go first.
+    if (scheduler_beat_job) (void)(*line)->scheduler().cancel_and_wait(*scheduler_beat_job);
+    if (scheduler_beat) scheduler_beat->disarm();
     // Nothing is left to poll for, and the queue-end message may take a while.
     (*line)->stop();
     {
@@ -487,6 +631,41 @@ class Exp {
 };
 
 }  // namespace
+
+namespace {
+
+// The shipped examples and the user's folder for what running them writes.
+struct ExampleDirs {
+  fs::path examples, user;
+};
+ExampleDirs example_dirs() {
+  return {nobion::setup::find_resources().examples,
+          nobion::default_examples_state_dir(nobion::host_os(), nobion::process_env())};
+}
+
+}  // namespace
+
+nobion::Result<fs::path> spectrometer_table_root(const fs::path& spectrometer) {
+  const ExampleDirs dirs = example_dirs();
+  return nobion::setup::field_table_root(spectrometer.parent_path(), dirs.examples, dirs.user);
+}
+
+fs::path state_dir_for(const fs::path& folder) {
+  const fs::path where = folder.empty() ? fs::path(".") : folder;
+  const ExampleDirs dirs = example_dirs();
+  fs::path state = nobion::setup::lab_state_dir(where, dirs.examples, dirs.user);
+  if (state != where) {
+    static std::once_flag said;
+    std::call_once(said, [&state] {
+      if (const auto hub = process_log_hub()) hub->logger("nobion").info("examples: runtime state in " + state.string());
+    });
+  }
+  return state;
+}
+
+fs::path line_state_file(const fs::path& config) {
+  return state_dir_for(config.parent_path()) / config.filename().replace_extension(".state.toml");
+}
 
 int exp_command(const std::vector<std::string>& args, const ExpGlobals& globals, Io io) {
   if (args.empty() || (args[0] != "run" && args[0] != "validate" && args[0] != "notify")) {
@@ -558,18 +737,29 @@ int exp_command(const std::vector<std::string>& args, const ExpGlobals& globals,
   if (a.verb == "notify") {
     if (!a.queue_file.empty()) return usage("notify takes no experiment.toml");
     if (a.lab.empty()) a.lab = ".";
+    a.state = state_dir_for(a.lab);
     return Exp(std::move(a), globals, io).run();
   }
   if (a.queue_file.empty()) return usage("needs an experiment.toml");
-  // With an install, a queue named relative to its folder is found there.
-  if (!globals.lab.empty() && a.queue_file.is_relative() && !fs::exists(a.queue_file) &&
-      fs::exists(globals.lab / a.queue_file))
-    a.queue_file = globals.lab / a.queue_file;
+  // With an install, a queue named relative to its folder is found in its
+  // queues/ directory, then in the folder itself.
+  if (!globals.lab.empty()) a.queue_file = lab::find_queue(a.queue_file, globals.lab);
   if (a.resume && a.from) return usage("--from and --resume are exclusive");
+  if (a.sim_speed > 0 && !globals.sim_endpoints.empty())
+    return usage("--sim-endpoints runs in real time; --sim-speed is refused");
   if (a.sim_speed > 0 && !globals.sim) return usage("--sim-speed needs --sim");
-  if (a.lab.empty()) a.lab = a.queue_file.has_parent_path() ? a.queue_file.parent_path() : fs::path(".");
-  if (a.data.empty()) a.data = a.lab / "data";
+  if (a.lab.empty()) a.lab = lab::lab_for_queue(a.queue_file);
+  a.state = state_dir_for(a.lab);
+  if (a.data.empty()) a.data = a.state / "data";
   if (a.spectrometer.empty() && fs::exists(a.lab / "spectrometer.toml")) a.spectrometer = a.lab / "spectrometer.toml";
+  if (!a.spectrometer.empty()) {
+    auto tables = spectrometer_table_root(a.spectrometer);
+    if (!tables) {
+      io.err << "error: " << tables.error().what << '\n';
+      return kFailed;
+    }
+    a.spectrometer_tables = *tables;
+  }
   return Exp(std::move(a), globals, io).run();
 }
 

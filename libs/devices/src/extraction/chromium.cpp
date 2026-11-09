@@ -1,13 +1,13 @@
-#include "pychron/devices/extraction/chromium.hpp"
+#include "nobion/devices/extraction/chromium.hpp"
 
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
 
-#include "pychron/devices/extraction/capability.hpp"
+#include "nobion/devices/extraction/capability.hpp"
 
-namespace pychron::extraction {
+namespace nobion::extraction {
 
 namespace cr = codec::chromium;
 
@@ -40,7 +40,7 @@ std::optional<int> scan_number(std::string_view position) {
 
 // The command as sent, without its terminator, for error messages.
 std::string text_of(const codec::Command& command) {
-  std::string text = pychron::to_string(command.tx);
+  std::string text = nobion::to_string(command.tx);
   while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) text.pop_back();
   return text;
 }
@@ -48,7 +48,7 @@ std::string text_of(const codec::Command& command) {
 // A percentage for a message: as the codec would send it (no locale).
 std::string percent(double value) {
   if (auto command = cr::laser_output(std::clamp(value, 0.0, 100.0)); command && value >= 0 && value <= 100) {
-    std::string text = pychron::to_string(command->tx);
+    std::string text = nobion::to_string(command->tx);
     text.pop_back();  // the LF
     return text.substr(text.find(' ') + 1);
   }
@@ -131,6 +131,7 @@ Result<std::unique_ptr<ChromiumLaser>> ChromiumLaser::create(const DriverArgs& a
   o.use_enable = args.options["use_enable"].value_or(true);
   DeviceOptions device;
   device.clock = args.clock;
+  device.link = args.link;
   return std::make_unique<ChromiumLaser>(args.name, args.transport, o, device);
 }
 
@@ -147,13 +148,24 @@ Unexpected<Error> ChromiumLaser::refuse(ErrorKind kind, std::string what) const 
 }
 
 Result<Bytes> ChromiumLaser::query(const codec::Command& q) {
-  auto reply = transport_.exchange(q.tx, *q.reply);
-  if (!reply) return fail(std::move(reply).error());
-  if (const auto code = cr::error_code(*reply)) return fail(cr::to_error(*code, text_of(q)));
-  return reply;
+  // A query: Safe.
+  return relay<Bytes>("query",
+      [&](Resend resend) -> Result<Bytes> {
+        auto reply = transport_.exchange(q.tx, *q.reply, Transport::kDefaultTimeout, resend);
+        if (!reply) return fail(std::move(reply).error());
+        if (const auto code = cr::error_code(*reply)) return fail(cr::to_error(*code, text_of(q)));
+        return reply;
+      },
+      Repeat::Safe);
 }
 
-Result<Bytes> ChromiumLaser::act(const codec::Command& action, const codec::Command& confirm) {
+Result<Bytes> ChromiumLaser::act(const codec::Command& action, const codec::Command& confirm, Repeat repeat,
+                                 std::optional<Duration> window) {
+  // The whole transaction is the unit repeated: drain, action, confirm.
+  return relay<Bytes>("act", [&](Resend) { return act_once(action, confirm); }, repeat, window);
+}
+
+Result<Bytes> ChromiumLaser::act_once(const codec::Command& action, const codec::Command& confirm) {
   return transact(transport_, [&]() -> Result<Bytes> {
     // Anything unread would be taken for this action's verdict.
     for (int i = 0; i < kDrainLimit; ++i) {
@@ -193,6 +205,7 @@ Result<void> ChromiumLaser::check_interlocks(std::string_view doing) {
 }
 
 Result<std::vector<std::string>> ChromiumLaser::tripped_interlocks() {
+  const Operation op = begin("tripped_interlocks");
   auto run = [&]() -> Result<std::vector<std::string>> {
     auto reply = query(cr::laser_status());
     if (!reply) return fail(std::move(reply).error());
@@ -207,10 +220,11 @@ Result<std::vector<std::string>> ChromiumLaser::tripped_interlocks() {
     if (names->empty()) names->emplace_back("unknown");
     return std::move(*names);
   };
-  return observe(run());
+  return observe(op, run());
 }
 
 Result<void> ChromiumLaser::prepare() {
+  const Operation op = begin("prepare");
   auto run = [&]() -> Result<void> {
     auto reply = query(cr::sys_id());
     if (!reply) return fail(std::move(reply).error());
@@ -225,10 +239,11 @@ Result<void> ChromiumLaser::prepare() {
     if (!verbose && !refused(verbose.error())) return fail(std::move(verbose).error());
     return {};
   };
-  return observe(run());
+  return observe(op, run());
 }
 
 Result<void> ChromiumLaser::enable() {
+  const Operation op = begin("enable");
   auto run = [&]() -> Result<void> {
     if (auto ok = check_interlocks("enable the laser"); !ok) return ok;
     if (options_.use_enable) {
@@ -242,7 +257,7 @@ Result<void> ChromiumLaser::enable() {
     enabled_ = true;
     return {};
   };
-  return observe(run());
+  return observe(op, run());
 }
 
 Result<void> ChromiumLaser::zero_output() {
@@ -259,6 +274,7 @@ Result<void> ChromiumLaser::zero_output() {
 }
 
 Result<void> ChromiumLaser::disable() {
+  const Operation op = begin("disable");
   // Everything is tried; the first failure is what is reported.
   Result<void> first;
   auto keep = [&](Result<void> r) {
@@ -291,10 +307,11 @@ Result<void> ChromiumLaser::disable() {
     firing_ = false;
     output_ = 0;
   }
-  return observe(std::move(first));
+  return observe(op, std::move(first));
 }
 
 Result<bool> ChromiumLaser::is_enabled() {
+  const Operation op = begin("is_enabled");
   if (!options_.use_enable) {
     std::lock_guard lock(state_);
     return enabled_;
@@ -304,7 +321,7 @@ Result<bool> ChromiumLaser::is_enabled() {
     if (!reply) return fail(std::move(reply).error());
     return cr::decode_flag(*reply);
   };
-  auto on = observe(run());
+  auto on = observe(op, run());
   if (on) {
     std::lock_guard lock(state_);
     enabled_ = *on;
@@ -313,6 +330,7 @@ Result<bool> ChromiumLaser::is_enabled() {
 }
 
 Result<void> ChromiumLaser::extract(double value, ExtractUnits units) {
+  const Operation op = begin("extract");
   if (!supports(units)) {
     return fail(not_supported("extract in " + std::string(to_string(units)) + " (a Chromium takes percent)", name()));
   }
@@ -343,10 +361,11 @@ Result<void> ChromiumLaser::extract(double value, ExtractUnits units) {
     std::lock_guard lock(state_);
     output_ = 0;
   }
-  return observe(std::move(result));
+  return observe(op, std::move(result));
 }
 
 Result<void> ChromiumLaser::end_extract() {
+  const Operation op = begin("end_extract");
   Result<void> first;
   if (auto stopped = act(cr::laser_stop(), cr::sys_id()); !stopped) first = fail(std::move(stopped).error());
   if (auto zeroed = zero_output(); !zeroed && first) first = std::move(zeroed);
@@ -355,7 +374,7 @@ Result<void> ChromiumLaser::end_extract() {
     firing_ = false;
     output_ = 0;
   }
-  return observe(std::move(first));
+  return observe(op, std::move(first));
 }
 
 Result<double> ChromiumLaser::output() {
@@ -368,9 +387,11 @@ Result<void> ChromiumLaser::fire_laser() {
     std::lock_guard lock(state_);
     if (!enabled_) return refuse(ErrorKind::Interlock, "the laser is not enabled");
   }
-  if (auto ok = observe(check_interlocks("fire")); !ok) return ok;
+  if (auto ok = observe(begin("check_interlocks"), check_interlocks("fire")); !ok) return ok;
+  const Operation op = begin("fire_laser");
   auto run = [&]() -> Result<void> {
-    auto reply = act(cr::laser_fire(), cr::laser_status());
+    // The one Unsafe command: a second Laser.Fire would start the output again.
+    auto reply = act(cr::laser_fire(), cr::laser_status(), Repeat::Unsafe);
     if (!reply) return fail(std::move(reply).error());
     // An interlock can trip between the check and the command, and a Chromium
     // that then simply does not fire says so only here.
@@ -383,26 +404,33 @@ Result<void> ChromiumLaser::fire_laser() {
   if (!result) {
     // Laser.Fire may have gone out. Whatever went wrong after it, the beam
     // is not left on behind an error (a refused Laser.Fire never opened it).
-    if (!action_refused(result.error())) (void)act(cr::laser_stop(), cr::sys_id());
+    // When the link lost it, or lost what came after it, the Stop is kept
+    // trying for the critical window, not the call's: the beam may be on.
+    if (result.error().code == kOutcomeUnknown || is_transient(result.error().kind)) {
+      (void)act(cr::laser_stop(), cr::sys_id(), Repeat::Safe, kCriticalWindow);
+    } else if (!action_refused(result.error())) {
+      (void)act(cr::laser_stop(), cr::sys_id());
+    }
     std::lock_guard lock(state_);
     firing_ = false;
-    return observe(std::move(result));
+    return observe(op, std::move(result));
   }
   {
     std::lock_guard lock(state_);
     firing_ = true;
   }
-  return observe(std::move(result));
+  return observe(op, std::move(result));
 }
 
 Result<void> ChromiumLaser::stop_laser() {
+  const Operation op = begin("stop_laser");
   auto reply = act(cr::laser_stop(), cr::sys_id());
   {
     std::lock_guard lock(state_);
     firing_ = false;
   }
-  if (!reply) return observe(Result<void>(fail(std::move(reply).error())));
-  return observe(Result<void>{});
+  if (!reply) return observe(op, Result<void>(fail(std::move(reply).error())));
+  return observe(op, Result<void>{});
 }
 
 Result<bool> ChromiumLaser::is_firing() {
@@ -430,7 +458,10 @@ Result<StagePosition> ChromiumLaser::read_position() {
   return from_wire(*at);
 }
 
-Result<StagePosition> ChromiumLaser::position() { return observe(read_position()); }
+Result<StagePosition> ChromiumLaser::position() {
+  const Operation op = begin("position");
+  return observe(op, read_position());
+}
 
 Result<void> ChromiumLaser::check_travel(std::size_t axis, double mm) const {
   const auto [low, high] = options_.limits_mm[axis];
@@ -441,6 +472,7 @@ Result<void> ChromiumLaser::check_travel(std::size_t axis, double mm) const {
 }
 
 Result<void> ChromiumLaser::start_move(const StagePosition& to, double speed_mm_s, const StagePosition* from) {
+  const Operation op = begin("start_move");
   const std::array<double, 3> wanted{to.x, to.y, to.z};
   for (std::size_t i = 0; i < 3; ++i) {
     if (auto ok = check_travel(i, wanted[i]); !ok) return ok;
@@ -470,11 +502,11 @@ Result<void> ChromiumLaser::start_move(const StagePosition& to, double speed_mm_
     speed.y = std::clamp<std::int64_t>(whole(um_per_s * share_y), 1, std::max<std::int64_t>(1, options_.move_speed.y));
   }
   auto reply = act(cr::stage_move_to(wire, speed), cr::stage_position());
-  if (!reply) return observe(Result<void>(fail(std::move(reply).error())));
+  if (!reply) return observe(op, Result<void>(fail(std::move(reply).error())));
   std::lock_guard lock(state_);
   target_ = Target{std::nullopt, wire};
   good_polls_ = 0;
-  return observe(Result<void>{});
+  return observe(op, Result<void>{});
 }
 
 Result<void> ChromiumLaser::set_xy(double x, double y, double speed_mm_s) {
@@ -485,12 +517,13 @@ Result<void> ChromiumLaser::set_xy(double x, double y, double speed_mm_s) {
   if (auto ok = check_travel(0, x); !ok) return ok;
   if (auto ok = check_travel(1, y); !ok) return ok;
   // z stays where it is: read, not remembered.
-  auto at = observe(read_position());
+  auto at = observe(begin("position"), read_position());
   if (!at) return fail(std::move(at).error());
   return start_move({x, y, at->z}, speed_mm_s, &*at);
 }
 
 Result<void> ChromiumLaser::stop() {
+  const Operation op = begin("stop");
   auto reply = act(cr::stage_stop(), cr::stage_position());
   // Whatever Chromium said, the driver no longer knows where the stage is
   // going: moving() must not go on reporting a move it cannot vouch for.
@@ -499,13 +532,13 @@ Result<void> ChromiumLaser::stop() {
     target_.reset();
     good_polls_ = 0;
   }
-  if (!reply) return observe(Result<void>(fail(std::move(reply).error())));
-  return observe(Result<void>{});
+  if (!reply) return observe(op, Result<void>(fail(std::move(reply).error())));
+  return observe(op, Result<void>{});
 }
 
 Result<void> ChromiumLaser::set_axis(Axis axis, double value) {
   if (auto ok = check_travel(axis == Axis::X ? 0 : axis == Axis::Y ? 1 : 2, value); !ok) return ok;
-  auto at = observe(read_position());
+  auto at = observe(begin("position"), read_position());
   if (!at) return fail(std::move(at).error());
   StagePosition to = *at;
   (axis == Axis::X ? to.x : axis == Axis::Y ? to.y : to.z) = value;
@@ -513,22 +546,24 @@ Result<void> ChromiumLaser::set_axis(Axis axis, double value) {
 }
 
 Result<void> ChromiumLaser::move_to_position(std::string_view position, bool /*autocenter*/) {
+  const Operation op = begin("move_to_position");
   if (const auto scan = scan_number(position)) {
     auto move = cr::scan_move_to(*scan);
     auto in_position = cr::scan_in_position(*scan);
     if (!move || !in_position) return refuse(ErrorKind::Config, "no scan " + std::string(position));
     auto reply = act(*move, *in_position);
-    if (!reply) return observe(Result<void>(fail(std::move(reply).error())));
+    if (!reply) return observe(op, Result<void>(fail(std::move(reply).error())));
     std::lock_guard lock(state_);
     target_ = Target{*scan, {}};
     good_polls_ = 0;
-    return observe(Result<void>{});
+    return observe(op, Result<void>{});
   }
   // A hole on a tray is the laser system's to resolve (pychron/laser).
   return refuse(ErrorKind::Config, "'" + std::string(position) + "' is not a scan position (s<n>)");
 }
 
 Result<bool> ChromiumLaser::moving() {
+  const Operation op = begin("moving");
   std::optional<Target> target;
   {
     std::lock_guard lock(state_);
@@ -581,7 +616,7 @@ Result<bool> ChromiumLaser::moving() {
     good_polls_ = 0;
     return false;
   };
-  return observe(run());
+  return observe(op, run());
 }
 
 // Trays are the laser system's; the driver keeps the name and nothing else.
@@ -593,6 +628,6 @@ Result<void> ChromiumLaser::set_tray(std::string_view tray) {
 
 std::vector<std::string> ChromiumLaser::positions() const { return {}; }
 
-}  // namespace pychron::extraction
+}  // namespace nobion::extraction
 
-REGISTER_DRIVER("chromium", pychron::extraction::ChromiumLaser);
+REGISTER_DRIVER("chromium", nobion::extraction::ChromiumLaser);

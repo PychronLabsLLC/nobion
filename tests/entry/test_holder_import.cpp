@@ -1,12 +1,12 @@
 #include <gtest/gtest.h>
 
-#include "pychron/entry/holder_import.hpp"
+#include "nobion/entry/holder_import.hpp"
 #include "store_fixture.hpp"
 
-using namespace pychron;
-using namespace pychron::entry;
-using namespace pychron::persistence;
-using namespace pychron::persistence::testing;
+using namespace nobion;
+using namespace nobion::entry;
+using namespace nobion::persistence;
+using namespace nobion::persistence::testing;
 
 TEST(HolderImport, LegacyFiles) {
   auto plain = read_holder("circle,0.0175\n0,0\n0.1,0\n# a comment\n0.2,0,0.02\n");

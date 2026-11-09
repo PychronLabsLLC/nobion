@@ -1,4 +1,4 @@
-#include "pychron/metrics/scheduler_metrics.hpp"
+#include "nobion/metrics/scheduler_metrics.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -7,16 +7,16 @@
 #include <string>
 #include <utility>
 
-namespace pychron::metrics {
+namespace nobion::metrics {
 
 namespace {
 
-constexpr const char* kRuns = "pychron_scheduler_job_runs_total";
-constexpr const char* kFailures = "pychron_scheduler_job_failures_total";
-constexpr const char* kSkipped = "pychron_scheduler_job_skipped_overlaps_total";
+constexpr const char* kRuns = "nobion_scheduler_job_runs_total";
+constexpr const char* kFailures = "nobion_scheduler_job_failures_total";
+constexpr const char* kSkipped = "nobion_scheduler_job_skipped_overlaps_total";
 constexpr const char* kRunsHelp = "Completed executions of a scheduler job.";
 constexpr const char* kFailuresHelp = "Executions of a scheduler job that failed: a scan's error, a task that threw.";
-constexpr const char* kHeartbeatAge = "pychron_scheduler_heartbeat_age_seconds";
+constexpr const char* kHeartbeatAge = "nobion_scheduler_heartbeat_age_seconds";
 constexpr const char* kHeartbeatAgeHelp =
     "Real seconds since the scheduler last ran its heartbeat job. It grows when the scheduler has stopped.";
 constexpr const char* kSkippedHelp = "Times a scheduler job was due while its previous run was still going.";
@@ -62,4 +62,4 @@ SchedulerMetrics::~SchedulerMetrics() {
   if (heartbeat_) scheduler_.cancel(*heartbeat_);
 }
 
-}  // namespace pychron::metrics
+}  // namespace nobion::metrics

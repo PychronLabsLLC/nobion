@@ -6,7 +6,7 @@
 
 #include "registry_impl.hpp"
 
-namespace pychron::metrics::detail {
+namespace nobion::metrics::detail {
 
 namespace {
 
@@ -116,4 +116,4 @@ std::string render_text(const std::map<std::string, Family, std::less<>>& famili
   return out;
 }
 
-}  // namespace pychron::metrics::detail
+}  // namespace nobion::metrics::detail

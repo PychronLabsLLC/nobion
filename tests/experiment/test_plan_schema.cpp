@@ -1,27 +1,35 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <atomic>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <map>
 #include <set>
 #include <sstream>
 #include <string>
+#include <thread>
+#include <variant>
+#include <vector>
 
-#include "pychron/experiment/plan/duration.hpp"
-#include "pychron/experiment/plan/plan_library.hpp"
-#include "pychron/experiment/plan/plan_loader.hpp"
+#include "nobion/experiment/plan/duration.hpp"
+#include "nobion/experiment/plan/plan_library.hpp"
+#include "nobion/experiment/plan/plan_loader.hpp"
+// Internal to the plan loader (libs/experiment/src on the test target's
+// include path): worked v2 plans load past the unbuilt-feature gate.
+#include "plan/plan_parse.hpp"
 
 namespace fs = std::filesystem;
-using namespace pychron;
-using namespace pychron::experiment;
-using namespace pychron::experiment::plan;
+using namespace nobion;
+using namespace nobion::experiment;
+using namespace nobion::experiment::plan;
 
 namespace {
 
 // Given by the build, not taken from __FILE__: a generator that compiles with
 // relative paths (Ninja) makes that one relative to the build directory.
-const fs::path kFixtures = PYCHRON_PLAN_FIXTURES_DIR;
+const fs::path kFixtures = NOBION_PLAN_FIXTURES_DIR;
 
 std::string read_file(const fs::path& p) {
   std::ifstream in(p);
@@ -47,11 +55,35 @@ class FakeSpectrometer : public ISpectrometerCatalog {
     static const std::set<std::string, std::less<>> dets{"H2", "H1", "AX", "L1", "L2", "CDD"};
     return dets.contains(name);
   }
+  std::optional<std::string> isotope_of(std::string_view detector) const override {
+    if (detector == "CDD") return "Ar36";
+    return std::nullopt;
+  }
+  std::optional<double> mass_of(std::string_view label) const override {
+    static const std::map<std::string, double, std::less<>> masses{
+        {"Ar36", 35.968}, {"Ar37", 36.967}, {"Ar38", 37.963}, {"Ar39", 38.964}, {"Ar40", 39.962}, {"Ar41", 40.965}};
+    if (const auto it = masses.find(label); it != masses.end()) return it->second;
+    return std::nullopt;
+  }
+  bool supports_deflection(std::string_view detector) const override { return detector == "CDD"; }
+  bool has_optics(std::string_view /*name*/) const override { return false; }
+  bool has_table(std::string_view name) const override { return name == "argon"; }
+  bool positions_by_dac() const override { return true; }
+  bool positions_by_hv() const override { return false; }
+  bool has_source_output() const override { return false; }
+};
+
+// The lab's scripts: a gas's prepare names "cryo:release" (v2_prepare_unknown_script.toml).
+class FakeScripts final : public IScriptResolver {
+ public:
+  bool has_script(std::string_view name) const override { return name == "cryo:release"; }
 };
 
 const FakeExtractionLine kLine;
 const FakeSpectrometer kSpec;
-const PlanResolvers kResolvers{&kLine, &kSpec};
+const FakeScripts kScripts;
+// An air analysis has no extraction here (v2_during_extraction_no_extraction.toml).
+const PlanResolvers kResolvers{&kLine, &kSpec, [](std::string_view type) { return type != "air"; }, &kScripts};
 
 PlanTemplate fixture_template(const std::string& name) {
   auto t = parse_plan_template(read_file(kFixtures / "valid" / name), name);
@@ -89,6 +121,38 @@ MeasurementPlan minimal(int cycles, int counts) {
   return p.value_or(MeasurementPlan{});
 }
 
+
+// The first segment of `kind` at `when` in the plan's first gas; nullptr when none.
+const Segment* segment_of(const MeasurementPlan& p, SegmentKind kind, When when) {
+  if (p.gases.empty()) return nullptr;
+  const auto& segs = p.gases.front().segments;
+  const auto it =
+      std::find_if(segs.begin(), segs.end(), [&](const Segment& s) { return s.kind == kind && s.when == when; });
+  return it == segs.end() ? nullptr : &*it;
+}
+
+// The plan's main segment (v1 [main]); an empty one when it has none.
+const Segment& main_of(const MeasurementPlan& p) {
+  static const Segment none;
+  const auto* m = p.gases.empty() ? nullptr : main_segment(p.gases.front());
+  return m != nullptr ? *m : none;
+}
+
+// The detector a position collects `label` on; empty when it does not.
+std::string detector_of(const plan::Position& pos, std::string_view label) {
+  for (const auto& e : pos.collect)
+    if (e.label == label) return e.detector;
+  return {};
+}
+
+// The detectors a position protects, in collect order.
+std::vector<std::string> protected_of(const plan::Position& pos) {
+  std::vector<std::string> out;
+  for (const auto& e : pos.collect)
+    if (e.protect) out.push_back(e.detector);
+  return out;
+}
+
 }  // namespace
 
 // ---- valid templates --------------------------------------------------------
@@ -103,19 +167,25 @@ TEST(PlanSchema, MulticollectResolvesAliasesAndSections) {
   EXPECT_EQ(p.equilibration.outlet, "V13");
   EXPECT_DOUBLE_EQ(p.equilibration.time_s, 20);  // "@extraction.eqtime"
   EXPECT_DOUBLE_EQ(p.equilibration.inlet_delay_s, 3);
-  EXPECT_TRUE(p.sniff.enabled);
-  EXPECT_EQ(p.sniff.counts, 20);  // "@equilibration.time_s" -> "@extraction.eqtime"
-  EXPECT_TRUE(p.peak_center.after);
-  EXPECT_EQ(p.peak_center.isotope, "Ar40");
-  EXPECT_EQ(p.baseline.counts, 120);
-  ASSERT_TRUE(p.baseline.mass);
-  EXPECT_DOUBLE_EQ(*p.baseline.mass, 34.2);
-  EXPECT_EQ(p.main.cycles, 1);
-  EXPECT_EQ(p.main.time_zero.kind, TimeZeroKind::OnInletClose);
-  ASSERT_EQ(p.main.hops.size(), 1u);
-  EXPECT_EQ(p.main.hops[0].positions.size(), 5u);
-  EXPECT_EQ(p.main.hops[0].positions.at("Ar36"), "CDD");
-  EXPECT_EQ(p.main.hops[0].counts, 400);
+  const auto* sniff = segment_of(p, SegmentKind::Sniff, When::DuringEquilibration);
+  ASSERT_TRUE(sniff);
+  EXPECT_EQ(sniff->positions.at(0).counts, 20);  // "@equilibration.time_s" -> "@extraction.eqtime"
+  const auto* center = segment_of(p, SegmentKind::PeakCenter, When::AfterRun);
+  ASSERT_TRUE(center && center->peak_center);
+  EXPECT_EQ(center->peak_center->label, "Ar40");
+  const auto* baseline = segment_of(p, SegmentKind::Baseline, When::AfterMain);
+  ASSERT_TRUE(baseline);
+  EXPECT_EQ(baseline->positions.at(0).counts, 120);
+  ASSERT_TRUE(baseline->positions.at(0).at);
+  EXPECT_DOUBLE_EQ(std::get<AtMass>(*baseline->positions.at(0).at).mass, 34.2);
+  const auto& main = main_of(p);
+  EXPECT_EQ(main.cycles, 1);
+  ASSERT_TRUE(main.time_zero);
+  EXPECT_EQ(main.time_zero->kind, TimeZeroKind::OnInletClose);
+  ASSERT_EQ(main.positions.size(), 1u);
+  EXPECT_EQ(main.positions[0].collect.size(), 5u);
+  EXPECT_EQ(detector_of(main.positions[0], "Ar36"), "CDD");
+  EXPECT_EQ(main.positions[0].counts, 400);
   EXPECT_EQ(p.fits.signal.at("Ar40"), reduction::FitKind::Parabolic);
   EXPECT_EQ(signal_fit(p.fits, "Ar39").kind, reduction::FitKind::Linear);
   EXPECT_EQ(signal_fit(p.fits, "Ar40").kind, reduction::FitKind::Parabolic);
@@ -125,7 +195,7 @@ TEST(PlanSchema, MulticollectResolvesAliasesAndSections) {
   EXPECT_EQ(p.conditionals.include[0], "@conditionals.default_unknown");  // kept verbatim
   ASSERT_EQ(p.conditionals.truncations.size(), 1u);
   EXPECT_EQ(p.conditionals.truncations[0].start, 20);
-  EXPECT_FALSE(p.whiff.enabled);
+  EXPECT_FALSE(segment_of(p, SegmentKind::Whiff, When::AfterInlet));
   ASSERT_TRUE(p.hook);
   EXPECT_EQ(*p.hook, "scripts/measurement_hooks/whiff.py");
   ASSERT_EQ(p.expose.size(), 9u);
@@ -135,26 +205,56 @@ TEST(PlanSchema, MulticollectResolvesAliasesAndSections) {
 
 TEST(PlanSchema, PeakHopTargetsFollowReferenceOrExplicitPosition) {
   const auto p = load_fixture("peak_hop_cdd.toml");
-  EXPECT_EQ(p.main.cycles, 20);
-  EXPECT_EQ(p.main.time_zero.kind, TimeZeroKind::Offset);
-  EXPECT_DOUBLE_EQ(p.main.time_zero.offset_s, 5);
-  ASSERT_EQ(p.main.hops.size(), 3u);
-  EXPECT_EQ(hop_target(p, p.main.hops[0]), (HopTarget{"Ar40", std::nullopt, "H1"}));
-  EXPECT_EQ(hop_target(p, p.main.hops[1]), (HopTarget{"Ar39", std::nullopt, "CDD"}));
-  EXPECT_EQ(hop_target(p, p.main.hops[2]), (HopTarget{"", 34.2, "CDD"}));
-  EXPECT_TRUE(p.main.hops[2].baseline);
-  EXPECT_EQ(p.main.hops[0].protect, std::vector<std::string>{"CDD"});
-  EXPECT_EQ(baseline_target(p), (HopTarget{"", 34.2, "H1"}));
+  const auto& main = main_of(p);
+  EXPECT_EQ(main.cycles, 20);
+  ASSERT_TRUE(main.time_zero);
+  EXPECT_EQ(main.time_zero->kind, TimeZeroKind::Offset);
+  EXPECT_DOUBLE_EQ(main.time_zero->offset_s, 5);
+  ASSERT_EQ(main.positions.size(), 3u);
+  EXPECT_EQ(position_target(p, main.positions[0]), (At{AtLabel{"Ar40", "H1"}}));
+  EXPECT_EQ(position_target(p, main.positions[1]), (At{AtLabel{"Ar39", "CDD"}}));
+  EXPECT_EQ(position_target(p, main.positions[2]), (At{AtMass{34.2, "CDD"}}));
+  EXPECT_EQ(main.positions[2].kind, PositionKind::Baseline);
+  EXPECT_EQ(protected_of(main.positions[0]), std::vector<std::string>{"CDD"});
+  const auto* baseline = segment_of(p, SegmentKind::Baseline, When::AfterMain);
+  ASSERT_TRUE(baseline);
+  EXPECT_EQ(position_target(p, baseline->positions.at(0)), (At{AtMass{34.2, "H1"}}));
+}
+
+// A plan that names no reference (worked plan 7.2) is positioned by the
+// spectrometer's: its entry when the position collects on it, else the
+// position's first active entry, as a legacy hop's first isotope:detector.
+TEST(PlanSchema, SpectrometerReferencePositionsAPlanThatNamesNone) {
+  MeasurementPlan p;
+  const auto entry = [](const char* label, const char* detector, bool active = true) {
+    return CollectEntry{label, detector, active, std::nullopt, false};
+  };
+  plan::Position both;
+  both.collect = {entry("Ar36", "CDD"), entry("Ar40", "H1")};
+  plan::Position cdd;
+  cdd.collect = {entry("Ar40", "H2(CDD)", false), entry("Ar39", "CDD")};
+  plan::Position on_mode;
+  on_mode.collect = {entry("Ar39", "CDD"), entry("Ar40", "H1(CDD)")};
+  EXPECT_FALSE(position_target(p, both));  // no reference known at all
+  EXPECT_EQ(position_target(p, both, "H1"), (At{AtLabel{"Ar40", "H1"}}));
+  EXPECT_EQ(position_target(p, cdd, "H1"), (At{AtLabel{"Ar39", "CDD"}}));  // the inactive entry is skipped
+  EXPECT_EQ(position_target(p, on_mode, "H1"), (At{AtLabel{"Ar40", "H1(CDD)"}}));
+
+  // The plan's own reference wins; one it does not collect needs `at`.
+  p.detectors.reference = "CDD";
+  EXPECT_EQ(position_target(p, both, "H1"), (At{AtLabel{"Ar36", "CDD"}}));
+  p.detectors.reference = "L2";
+  EXPECT_FALSE(position_target(p, both, "H1"));
 }
 
 TEST(PlanSchema, ExcludedDetectorsDropOutOfEveryHop) {
   const auto p = load_fixture("multicollect.toml", {{"detectors.exclude", std::string("CDD, L2")}});
   EXPECT_EQ(p.detectors.exclude, (std::vector<std::string>{"CDD", "L2"}));
-  const auto act = active_detectors(p, p.main.hops[0]);
+  const auto act = collecting(main_of(p).positions.at(0));
   ASSERT_EQ(act.size(), 3u);
-  EXPECT_EQ(act[0], (ActiveDetector{"Ar38", "L1"}));
-  EXPECT_EQ(act[1], (ActiveDetector{"Ar39", "AX"}));
-  EXPECT_EQ(act[2], (ActiveDetector{"Ar40", "H1"}));
+  EXPECT_EQ(act[0], (CollectEntry{"Ar38", "L1", true, std::nullopt, false}));
+  EXPECT_EQ(act[1], (CollectEntry{"Ar39", "AX", true, std::nullopt, false}));
+  EXPECT_EQ(act[2], (CollectEntry{"Ar40", "H1", true, std::nullopt, false}));
 }
 
 TEST(PlanSchema, NullSpectrometerSkipsDetectorChecks) {
@@ -210,11 +310,33 @@ counts = 0
   EXPECT_NE(r.error().what.find("main.hops[0].counts: must be >= 1"), std::string::npos);
 }
 
+TEST(PlanSchema, PeakCenterMinimumSignal) {
+  const std::string head = std::string(kMinimal).replace(std::string(kMinimal).find("CYCLES"), 6, "1");
+  const std::string text = std::string(head).replace(head.find("COUNTS"), 6, "5");
+  auto none = resolve_plan(text + "[peak_center]\nafter = true\nisotope = \"Ar40\"\n", kResolvers);
+  ASSERT_TRUE(none.has_value()) << none.error().what;
+  const auto* step = segment_of(*none, SegmentKind::PeakCenter, When::AfterRun);
+  ASSERT_TRUE(step && step->peak_center);
+  EXPECT_DOUBLE_EQ(step->peak_center->min_signal, 0);  // no minimum: every peak center runs
+
+  auto set = resolve_plan(text + "[peak_center]\nafter = true\nisotope = \"Ar40\"\nmin_signal = 0.05\n", kResolvers);
+  ASSERT_TRUE(set.has_value()) << set.error().what;
+  step = segment_of(*set, SegmentKind::PeakCenter, When::AfterRun);
+  ASSERT_TRUE(step && step->peak_center);
+  EXPECT_DOUBLE_EQ(step->peak_center->min_signal, 0.05);
+
+  auto negative = resolve_plan(text + "[peak_center]\nafter = true\nisotope = \"Ar40\"\nmin_signal = -1\n", kResolvers,
+                               "neg.toml");
+  ASSERT_FALSE(negative);
+  EXPECT_NE(negative.error().what.find("peak_center.min_signal: must be >= 0"), std::string::npos)
+      << negative.error().what;
+}
+
 // ---- parameters.expose / overrides -------------------------------------------
 
 TEST(PlanOverrides, ExposedIndexedPathIsSettable) {
   const auto p = load_fixture("multicollect.toml", {{"main.hops[0].counts", std::int64_t{200}}});
-  EXPECT_EQ(p.main.hops[0].counts, 200);
+  EXPECT_EQ(main_of(p).positions.at(0).counts, 200);
 }
 
 TEST(PlanOverrides, NonExposedPathRejectedUnlessAdvanced) {
@@ -226,7 +348,7 @@ TEST(PlanOverrides, NonExposedPathRejectedUnlessAdvanced) {
 
   auto adv = load_plan(t, ov, kResolvers, LoadOptions{.advanced = true});
   ASSERT_TRUE(adv) << adv.error().what;
-  EXPECT_DOUBLE_EQ(adv->plan.main.hops[0].settle_s, 5.0);
+  EXPECT_DOUBLE_EQ(main_of(adv->plan).positions.at(0).settle_s, 5.0);
 }
 
 TEST(PlanOverrides, MissingPathRejectedEvenWhenAdvanced) {
@@ -256,8 +378,8 @@ TEST(PlanOverrides, TypeMustMatchTemplate) {
   // An int sets a float; an integral double sets an int.
   const auto p = load_fixture("multicollect.toml",
                               {{"main.integration_s", std::int64_t{2}}, {"main.cycles", 3.0}});
-  EXPECT_DOUBLE_EQ(p.main.integration_s, 2.0);
-  EXPECT_EQ(p.main.cycles, 3);
+  EXPECT_DOUBLE_EQ(main_of(p).integration_s, 2.0);
+  EXPECT_EQ(main_of(p).cycles, 3);
 }
 
 TEST(PlanOverrides, ChildOfExposedTableMaySetOrAddKey) {
@@ -281,7 +403,9 @@ TEST(PlanOverrides, ScalarMayReplaceAlias) {
   auto r = load_plan(t, {{"equilibration.time_s", std::int64_t{30}}}, kResolvers, LoadOptions{.advanced = true});
   ASSERT_TRUE(r) << r.error().what;
   EXPECT_DOUBLE_EQ(r->plan.equilibration.time_s, 30);
-  EXPECT_EQ(r->plan.sniff.counts, 30);  // self reference follows the override
+  const auto* sniff = segment_of(r->plan, SegmentKind::Sniff, When::DuringEquilibration);
+  ASSERT_TRUE(sniff);
+  EXPECT_EQ(sniff->positions.at(0).counts, 30);  // self reference follows the override
 }
 
 TEST(PlanOverrides, IndexedExposeOnArrayValue) {
@@ -289,9 +413,10 @@ TEST(PlanOverrides, IndexedExposeOnArrayValue) {
   auto r = load_plan(t, {{"main.hops[0].protect", std::string("CDD,L2")}, {"main.hops[1].counts", std::int64_t{25}}},
                      kResolvers);
   ASSERT_TRUE(r) << r.error().what;
-  EXPECT_EQ(r->plan.main.hops[0].protect, (std::vector<std::string>{"CDD", "L2"}));
-  EXPECT_EQ(r->plan.main.hops[1].counts, 25);
-  EXPECT_EQ(r->plan.main.hops[2].counts, 10);
+  const auto& main = main_of(r->plan);
+  EXPECT_EQ(protected_of(main.positions.at(0)), (std::vector<std::string>{"CDD", "L2"}));
+  EXPECT_EQ(main.positions.at(1).counts, 25);
+  EXPECT_EQ(main.positions.at(2).counts, 10);
 }
 
 // ---- effective-plan rendering ------------------------------------------------
@@ -307,8 +432,10 @@ TEST(PlanRender, EffectivePlanCarriesOverridesAndRoundTrips) {
   auto again = resolve_plan(loaded->effective_toml, kResolvers);
   ASSERT_TRUE(again) << again.error().what;
   EXPECT_EQ(*again, loaded->plan);
-  EXPECT_EQ(again->main.hops[0].counts, 250);
-  EXPECT_EQ(again->baseline.counts, 60);
+  EXPECT_EQ(main_of(*again).positions.at(0).counts, 250);
+  const auto* baseline = segment_of(*again, SegmentKind::Baseline, When::AfterMain);
+  ASSERT_TRUE(baseline);
+  EXPECT_EQ(baseline->positions.at(0).counts, 60);
 
   // Deterministic: same inputs, same text; rendering the effective plan with
   // no overrides reproduces it.
@@ -328,9 +455,10 @@ TEST(PlanRender, NoOverridesStillRendersTemplate) {
   ASSERT_TRUE(text);
   auto p = resolve_plan(*text, kResolvers);
   ASSERT_TRUE(p) << p.error().what;
-  EXPECT_EQ(p->main.hops.size(), 3u);
-  ASSERT_TRUE(p->baseline.mass);
-  EXPECT_EQ(*p->baseline.mass, 34.2);  // floats render at full precision
+  EXPECT_EQ(main_of(*p).positions.size(), 3u);
+  const auto* baseline = segment_of(*p, SegmentKind::Baseline, When::AfterMain);
+  ASSERT_TRUE(baseline && baseline->positions.at(0).at);
+  EXPECT_EQ(std::get<AtMass>(*baseline->positions.at(0).at).mass, 34.2);  // floats render at full precision
 }
 
 // ---- duration ------------------------------------------------------------------
@@ -359,8 +487,8 @@ TEST(PlanDuration, IntegrationScalesCounts) {
 
 TEST(PlanDuration, FullSequence) {
   const auto p = load_fixture("multicollect.toml");
-  // eq 20 (sniff concurrent) + main 403 + baseline.after (moves: 15 + 120) + peak_center.after 30
-  EXPECT_DOUBLE_EQ(estimate_duration(p, DurationOptions{Duration(30)}).count(), 20 + 403 + 135 + 30);
+  // inlet delay 3 + eq 20 (sniff concurrent) + main 403 + baseline.after (moves: 15 + 120) + peak_center.after 30
+  EXPECT_DOUBLE_EQ(estimate_duration(p, DurationOptions{Duration(30)}).count(), 3 + 20 + 403 + 135 + 30);
 
   const auto h = load_fixture("peak_hop_cdd.toml");
   // eq 15 + main 780 + baseline.after at 34.2 on H1 (last hop was 34.2 on CDD: move) 10 + 30
@@ -375,33 +503,220 @@ TEST(PlanLibrary, ResolvesPlansForQueueValidation) {
   const IPlanResolver& r = lib;
   auto d = r.plan_duration("argus_multicollect", {}, false);
   ASSERT_TRUE(d);
-  EXPECT_DOUBLE_EQ(d->count(), 588);
+  EXPECT_DOUBLE_EQ(d->count(), 591);
   d = r.plan_duration("argus_multicollect", {{"main.hops[0].counts", std::int64_t{100}}}, false);
   ASSERT_TRUE(d);
-  EXPECT_DOUBLE_EQ(d->count(), 288);
+  EXPECT_DOUBLE_EQ(d->count(), 291);
   EXPECT_FALSE(r.plan_duration("argus_multicollect", {{"main.hops[0].settle_s", 1.0}}, false));  // not exposed
   EXPECT_TRUE(r.plan_duration("argus_multicollect", {{"main.hops[0].settle_s", 1.0}}, true));    // advanced: any key
   EXPECT_FALSE(r.plan_duration("nope", {}, false));
   EXPECT_FALSE(lib.load("nope", {}));
 }
 
+// A queue check loads every run's plan; runs with the same plan and overrides
+// load it once. What a load gives does not change: a new template of the
+// name, or a copy of the library, loads again.
+TEST(PlanLibrary, LoadsAPlanOnceForEachOverrides) {
+  struct CountingLine : IAliasResolver {
+    mutable int calls = 0;
+    std::optional<ParamValue> resolve_alias(std::string_view key) const override {
+      ++calls;
+      return kLine.resolve_alias(key);
+    }
+  };
+  const CountingLine line;
+  PlanLibrary lib(PlanResolvers{&line, &kSpec});
+  lib.add(fixture_template("multicollect.toml"));
+  const ParamOverrides more{{"main.hops[0].counts", std::int64_t{100}}};
+
+  auto first = lib.load("argus_multicollect", {});
+  ASSERT_TRUE(first) << first.error().what;
+  const int once = line.calls;
+  ASSERT_GT(once, 0);
+  auto again = lib.load("argus_multicollect", {});
+  ASSERT_TRUE(again);
+  EXPECT_EQ(line.calls, once);
+  EXPECT_EQ(again->effective_toml, first->effective_toml);
+
+  auto other = lib.load("argus_multicollect", more);
+  ASSERT_TRUE(other);
+  EXPECT_EQ(line.calls, 2 * once);
+  EXPECT_NE(other->effective_toml, first->effective_toml);
+  EXPECT_FALSE(lib.load("argus_multicollect", {{"main.hops[0].settle_s", 1.0}}));  // an error is the same each time
+  EXPECT_FALSE(lib.load("argus_multicollect", {{"main.hops[0].settle_s", 1.0}}));
+
+  PlanLibrary copy = lib;
+  const int before_copy = line.calls;
+  ASSERT_TRUE(copy.load("argus_multicollect", {}));
+  EXPECT_EQ(line.calls, before_copy + once);
+
+  auto changed = fixture_template("multicollect.toml");
+  changed.text += "\n# a changed template\n";
+  lib.add(changed);
+  auto reloaded = lib.load("argus_multicollect", {});
+  ASSERT_TRUE(reloaded);
+  EXPECT_EQ(line.calls, before_copy + 2 * once);
+}
+
+// The advanced flag is part of what a load is kept by; overrides holding a
+// NaN load as they did, every time; a library assigned over another forgets
+// what the other kept.
+TEST(PlanLibrary, KeepsLoadsByFlagAndAssignmentForgets) {
+  struct CountingLine : IAliasResolver {
+    mutable int calls = 0;
+    std::optional<ParamValue> resolve_alias(std::string_view key) const override {
+      ++calls;
+      return kLine.resolve_alias(key);
+    }
+  };
+  const CountingLine line;
+  PlanLibrary lib(PlanResolvers{&line, &kSpec});
+  lib.add(fixture_template("multicollect.toml"));
+  ASSERT_TRUE(lib.load("argus_multicollect", {}));
+  const int once = line.calls;
+  ASSERT_TRUE(lib.load("argus_multicollect", {}, LoadOptions{true}));
+  EXPECT_EQ(line.calls, 2 * once);  // advanced is another key
+  ASSERT_TRUE(lib.load("argus_multicollect", {}, LoadOptions{true}));
+  EXPECT_EQ(line.calls, 2 * once);
+
+  const ParamOverrides nan{{"main.hops[0].settle_s", std::numeric_limits<double>::quiet_NaN()}};
+  const auto first = lib.load("argus_multicollect", nan, LoadOptions{true});
+  const auto second = lib.load("argus_multicollect", nan, LoadOptions{true});
+  ASSERT_EQ(first.has_value(), second.has_value());
+  if (!first) {
+    EXPECT_EQ(first.error().what, second.error().what);
+  }
+
+  PlanLibrary other(PlanResolvers{&line, &kSpec});
+  other.add(fixture_template("multicollect.toml"));
+  ASSERT_TRUE(other.load("argus_multicollect", {}));
+  other = lib;
+  const int calls = line.calls;
+  ASSERT_TRUE(other.load("argus_multicollect", {}));
+  EXPECT_EQ(line.calls, calls + once);
+}
+
+// A run loads its plan on the executor's thread while the window checks the
+// queue on its own: both may load from one library at once.
+TEST(PlanLibrary, LoadsFromSeveralThreadsAtOnce) {
+  PlanLibrary lib(kResolvers);
+  lib.add(fixture_template("multicollect.toml"));
+  const auto expected = lib.load("argus_multicollect", {});
+  ASSERT_TRUE(expected);
+  std::atomic<int> wrong{0};
+  std::vector<std::thread> threads;
+  threads.reserve(4);
+  for (int t = 0; t < 4; ++t) {
+    threads.emplace_back([&lib, &wrong, &expected, t] {
+      for (int i = 0; i < 50; ++i) {
+        const ParamOverrides o{{"main.hops[0].counts", std::int64_t{10 + ((i + t) % 5)}}};
+        if (!lib.load("argus_multicollect", o)) ++wrong;
+        auto same = lib.load("argus_multicollect", {});
+        if (!same || same->effective_toml != expected->effective_toml) ++wrong;
+      }
+    });
+  }
+  for (auto& th : threads) th.join();
+  EXPECT_EQ(wrong.load(), 0);
+}
+
 TEST(PlanDuration, BaselineAtSamePositionSkipsSettle) {
-  auto p = minimal(1, 10);
-  p.baseline.after = true;
-  p.baseline.counts = 5;
-  p.baseline.settle_s = 7;
-  p.equilibration.time_s = 0;
-  // Baseline at the last hop's position (Ar40 on H1) -> no move, no settle.
-  p.baseline.mass.reset();
-  EXPECT_DOUBLE_EQ(estimate_duration(p).count(), 13 + 5);
+  std::string text = kMinimal;
+  text.replace(text.find("CYCLES"), 6, "1");
+  text.replace(text.find("COUNTS"), 6, "10");
+  // Baseline without a mass: at the last hop's position (Ar40 on H1) -> no move, no settle.
+  text += "[equilibration]\ntime_s = 0\n[baseline]\nafter = true\ncounts = 5\nsettle_s = 7\n";
+  const auto p = resolve_plan(text, kResolvers);
+  ASSERT_TRUE(p.has_value()) << p.error().what;
+  EXPECT_DOUBLE_EQ(estimate_duration(*p).count(), 13 + 5);
+}
+
+// The v1 estimates, computed from the desugared gases, and the same for each
+// v1 file's v2 spelling. Only change from the v1 estimate: the inlet delay
+// the engine always waits before opening the inlet is counted.
+TEST(PlanDuration, V1DurationsUnchanged) {
+  const DurationOptions pc{Duration(30)};
+  for (const std::string stem : {"multicollect", "peak_hop_cdd"}) {
+    SCOPED_TRACE(stem);
+    const auto v1 = load_fixture(stem + ".toml");
+    const auto v2 = load_fixture("v2_spelling_of_" + stem + ".toml");
+    EXPECT_DOUBLE_EQ(main_duration(v1).count(), main_duration(v2).count());
+    EXPECT_DOUBLE_EQ(estimate_duration(v1, pc).count(), estimate_duration(v2, pc).count());
+  }
+  EXPECT_DOUBLE_EQ(main_duration(load_fixture("multicollect.toml")).count(), 403);
+  EXPECT_DOUBLE_EQ(estimate_duration(load_fixture("multicollect.toml"), pc).count(), 591);
+  EXPECT_DOUBLE_EQ(main_duration(load_fixture("peak_hop_cdd.toml")).count(), 780);
+  // whiff (4 x 0.5 s) runs inside the 15 s equilibration
+  EXPECT_DOUBLE_EQ(estimate_duration(load_fixture("peak_hop_cdd.toml"), pc).count(), 15 + 780 + 40);
+  EXPECT_DOUBLE_EQ(main_duration(minimal(4, 100)).count(), main_duration(minimal(1, 400)).count());
+}
+
+TEST(PlanDuration, WorkedPlan72) {
+  const std::string name = "v2_72_argus_hop_fifth.toml";
+  auto t = parse_plan_template(read_file(kFixtures / "valid" / name), name);
+  ASSERT_TRUE(t.has_value()) << t.error().what;
+  auto text = render_effective_plan(*t, {});
+  ASSERT_TRUE(text.has_value()) << text.error().what;
+  // Deflection on CDD is not run yet: the schema's resolve, past the gate.
+  auto p = plan::detail::resolve_plan_ungated(*text, kResolvers, name);
+  ASSERT_TRUE(p.has_value()) << p.error().what;
+  // No reference detector: every position is its own place, so every one settles.
+  EXPECT_DOUBLE_EQ(main_duration(*p).count(), 20 * ((6 + 15) + (5 + 15) + (3 + 8)));
+  // + after_main baseline at 34.2 on H1 (a move) 20 + 120, + inlet delay 3 and equilibration 20
+  EXPECT_DOUBLE_EQ(estimate_duration(*p).count(), 1040 + 140 + 3 + 20);
+}
+
+// A multi-gas plan: each gas's equilibration, positions carried across gases,
+// steps by their own cost.
+TEST(PlanDuration, StepsAndGases) {
+  const auto p = plan::detail::resolve_plan_ungated(R"(
+[plan]
+name = "gases"
+instrument_family = "generic"
+[detectors]
+reference = "H1"
+[[gas]]
+name = "a"
+equilibration = { time_s = 10, inlet_delay_s = 1 }
+[[gas.segment]]
+kind = "peak_center"
+when = "before_inlet"
+peak_center = { label = "Ar40", detectors = ["H1", "AX"] }
+[[gas.segment]]
+cycles = 2
+[[gas.segment.positions]]
+collect = { Ar40 = "H1" }
+counts = 5
+settle_s = 4
+[[gas.segment]]
+kind = "delay"
+when = "after_main"
+delay = { seconds = 7 }
+[[gas]]
+name = "b"
+equilibration = { time_s = 6 }
+[[gas.segment]]
+[[gas.segment.positions]]
+collect = { Ar39 = "H1" }
+at = { label = "Ar40", detector = "H1" }
+counts = 3
+settle_s = 4
+)",
+                                              kResolvers);
+  ASSERT_TRUE(p.has_value()) << p.error().what;
+  // main: gas a settles once then 2 x 5; gas b is at the same place: 3
+  EXPECT_DOUBLE_EQ(main_duration(*p).count(), 4 + 10 + 3);
+  // a: 2 peak centers x 30 + eq 11 + main 14 + delay 7; b: eq 6 + main 3
+  EXPECT_DOUBLE_EQ(estimate_duration(*p, DurationOptions{Duration(30)}).count(), 60 + 11 + 14 + 7 + 6 + 3);
 }
 
 TEST(PlanSchema, WhiffBlock) {
   const auto p = load_fixture("peak_hop_cdd.toml");
-  EXPECT_TRUE(p.whiff.enabled);
-  EXPECT_EQ(p.whiff.counts, 4);
-  EXPECT_DOUBLE_EQ(p.whiff.integration_s, 0.5);
-  ASSERT_EQ(p.whiff.checks.size(), 2u);
-  EXPECT_EQ(p.whiff.checks[0], (WhiffCheck{"Ar40.cur > 5e6", "abort"}));
-  EXPECT_EQ(p.whiff.checks[1].action, "pump");
+  const auto* whiff = segment_of(p, SegmentKind::Whiff, When::AfterInlet);
+  ASSERT_TRUE(whiff);
+  EXPECT_EQ(whiff->positions.at(0).counts, 4);
+  EXPECT_DOUBLE_EQ(whiff->integration_s, 0.5);
+  ASSERT_EQ(whiff->checks.size(), 2u);
+  EXPECT_EQ(whiff->checks[0], (WhiffCheck{"Ar40.cur > 5e6", "abort"}));
+  EXPECT_EQ(whiff->checks[1].action, "pump");
 }

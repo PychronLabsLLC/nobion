@@ -11,7 +11,7 @@
 #include <string_view>
 #include <vector>
 
-namespace pychron::earthbank::testing {
+namespace nobion::earthbank::testing {
 
 inline std::uint32_t crc32(std::string_view bytes) {
   std::uint32_t crc = 0xFFFFFFFFu;
@@ -117,4 +117,4 @@ inline std::string make_zip(const std::vector<Part>& parts) {
   return out;
 }
 
-}  // namespace pychron::earthbank::testing
+}  // namespace nobion::earthbank::testing

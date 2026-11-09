@@ -26,12 +26,12 @@
 #include <unistd.h>
 #endif
 
-#include "pychron/core/env.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/profiles.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/profiles.hpp"
 
 // A namespace of its own: the suite is called Profiles, as the type is.
-namespace pychron::earthbank::profiles_test {
+namespace nobion::earthbank::profiles_test {
 namespace {
 
 namespace fs = std::filesystem;
@@ -109,7 +109,7 @@ class Profiles : public ::testing::Test {
     const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
     // Per process as well as per test: two build trees may run at once.
     dir_ = fs::temp_directory_path() /
-           (std::string("pychron_profiles_") + info->name() + "_" + std::to_string(process_id()));
+           (std::string("nobion_profiles_") + info->name() + "_" + std::to_string(process_id()));
     fs::remove_all(dir_);
     fs::create_directories(dir_);
   }
@@ -300,7 +300,7 @@ TEST_F(Profiles, ALinkToNothingIsAnErrorNotEmpty) {
 }
 
 TEST_F(Profiles, SaveMakesTheDirectory) {
-  const fs::path deep = dir_ / "pychron" / "earthbank" / "profiles.toml";
+  const fs::path deep = dir_ / "nobion" / "earthbank" / "profiles.toml";
   earthbank::Profiles one;
   one.profiles = {profile("mylab", "r.fixture")};
   const auto saved = save_profiles(one, deep);
@@ -489,12 +489,12 @@ TEST_F(Profiles, TheFileIsItsOwnersOnly) {
 #endif
 
 TEST_F(Profiles, DefaultFileIsUnderTheUsersConfigDirectory) {
-  // The directory is the one libs/setup keeps the site file in: `Pychron` on
-  // macOS and Windows, `pychron` on Linux.
+  // The directory is the one libs/setup keeps the site file in: `Nobion` on
+  // macOS and Windows, `nobion` on Linux.
 #if defined(_WIN32) || defined(__APPLE__)
-  const fs::path tail = fs::path("Pychron") / "earthbank" / "profiles.toml";
+  const fs::path tail = fs::path("Nobion") / "earthbank" / "profiles.toml";
 #else
-  const fs::path tail = fs::path("pychron") / "earthbank" / "profiles.toml";
+  const fs::path tail = fs::path("nobion") / "earthbank" / "profiles.toml";
 #endif
 #if defined(_WIN32)
   const ScopedEnv appdata("APPDATA", dir_.string());
@@ -676,8 +676,8 @@ TEST_F(Profiles, ImportRefusesWhatIsNotLegacysFile) {
 // test or an example would be one edit from talking to it. Documentation
 // (Markdown) may name it.
 TEST_F(Profiles, TheServiceIsNamedInOneFileOnly) {
-  const fs::path root = PYCHRON_EARTHBANK_REPO_DIR;
-  const fs::path home = root / "libs" / "earthbank" / "include" / "pychron" / "earthbank" / "profiles.hpp";
+  const fs::path root = NOBION_EARTHBANK_REPO_DIR;
+  const fs::path home = root / "libs" / "earthbank" / "include" / "nobion" / "earthbank" / "profiles.hpp";
   ASSERT_TRUE(fs::exists(home)) << home;
   // Not spelled out here either.
   const std::string host(kDefaultBaseUrl.substr(kDefaultBaseUrl.find("://") + 3));
@@ -699,4 +699,4 @@ TEST_F(Profiles, TheServiceIsNamedInOneFileOnly) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank::profiles_test
+}  // namespace nobion::earthbank::profiles_test

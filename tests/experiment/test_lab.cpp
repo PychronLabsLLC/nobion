@@ -7,11 +7,13 @@
 #include <fstream>
 #include <string>
 
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/experiment/model/queue_file.hpp"
+#include "example_lab.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/experiment/model/queue_file.hpp"
+#include "nobion/experiment/factory/step_heat_template.hpp"
 #include "temp_path.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 namespace {
 
 namespace fs = std::filesystem;
@@ -19,15 +21,14 @@ namespace fs = std::filesystem;
 class LabTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    dir_ = pychron::testing::unique_temp_path("pychron-lab-");
-    fs::copy(fs::path(PYCHRON_EXAMPLE_CONFIGS_DIR), dir_, fs::copy_options::recursive);
-    fs::remove_all(dir_ / "data");
+    dir_ = nobion::testing::unique_temp_path("nobion-lab-");
+    nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_);
   }
   void TearDown() override { fs::remove_all(dir_); }
 
   LabPaths paths() const { return {dir_, dir_ / "extraction_line.toml", dir_ / "spectrometer.sim-integrated.toml"}; }
   QueueSpec example(const Lab& lab) const {
-    auto q = load_queue_file((dir_ / "experiment.toml").string(), lab.ids);
+    auto q = load_queue_file((dir_ / "queues" / "experiment.toml").string(), lab.ids);
     EXPECT_TRUE(q) << q.error().what;
     return q ? *q : QueueSpec{};
   }
@@ -49,6 +50,10 @@ TEST_F(LabTest, TheExampleLabLoadsAndItsQueueChecks) {
   EXPECT_TRUE(lab.scripts->has_script("sim_extract"));
   EXPECT_TRUE(lab.peak_centers.contains("default"));
   EXPECT_TRUE(lab.metric_catalog().detectors.contains("H1"));
+  EXPECT_TRUE(lab.step_heats.contains("laser-12"));
+  if (lab.step_heats.contains("laser-12")) {
+    EXPECT_EQ(lab.step_heats.at("laser-12").steps.size(), 12u);
+  }
 
   const auto q = example(lab);
   const auto check = check_lab_queue(lab, q);
@@ -121,5 +126,150 @@ TEST(LabDescribe, NamesTheRunOrTheQueue) {
   EXPECT_EQ(describe({Severity::Error, -1, "queue.queue_conditionals", "unknown"}), "queue.queue_conditionals: unknown");
 }
 
+TEST(LabPathsTest, QueuesAndBlocksAreUnderTheLab) {
+  const LabPaths p{fs::path("/l"), {}, {}};
+  EXPECT_EQ(p.queues(), fs::path("/l/queues"));
+  EXPECT_EQ(p.blocks(), fs::path("/l/queues/blocks"));
+}
+
+TEST(LabForQueueTest, AQueuesDirectoryBelongsToItsParent) {
+  EXPECT_EQ(lab_for_queue("/l/queues/x.toml"), fs::path("/l"));
+  EXPECT_EQ(lab_for_queue("/l/x.toml"), fs::path("/l"));
+  EXPECT_EQ(lab_for_queue("x.toml"), fs::path("."));
+  EXPECT_EQ(lab_for_queue("queues/x.toml"), fs::path("."));
+  EXPECT_EQ(lab_for_queue("/l/queues/sub/x.toml"), fs::path("/l/queues/sub"));  // no walk past one level
+}
+
+// find_queue against a lab in a fresh temporary directory. The working
+// directory is not changed; the names are unique so nothing in it matches.
+class FindQueueTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    t_ = nobion::testing::unique_temp_path("nobion-find-queue-");
+    fs::create_directories(t_ / "queues");
+  }
+  void TearDown() override { fs::remove_all(t_); }
+  static void touch(const fs::path& p) { std::ofstream(p) << "\n"; }
+
+  fs::path t_;
+};
+
+TEST_F(FindQueueTest, QueuesComesFirst) {
+  touch(t_ / "queues" / "t041-a.toml");
+  touch(t_ / "t041-a.toml");
+  EXPECT_EQ(find_queue("t041-a.toml", t_), t_ / "queues" / "t041-a.toml");
+}
+
+TEST_F(FindQueueTest, TheLabRootIsTheFallback) {
+  touch(t_ / "t041-b.toml");
+  EXPECT_EQ(find_queue("t041-b.toml", t_), t_ / "t041-b.toml");
+}
+
+TEST_F(FindQueueTest, NotFoundIsReturnedAsGiven) {
+  EXPECT_EQ(find_queue("t041-c.toml", t_), fs::path("t041-c.toml"));
+}
+
+TEST_F(FindQueueTest, AnAbsolutePathIsLeftAlone) {
+  touch(t_ / "x.toml");
+  EXPECT_EQ(find_queue(t_ / "queues" / "x.toml", t_), t_ / "queues" / "x.toml");
+}
+
+TEST_F(FindQueueTest, NoLabNoLookup) {
+  touch(t_ / "queues" / "t041-a.toml");
+  EXPECT_EQ(find_queue("t041-a.toml", fs::path()), fs::path("t041-a.toml"));
+}
+
 }  // namespace
-}  // namespace pychron::experiment::lab
+
+// <lab>/executor.toml (executor hardening, 4.10): read with the lab; a file
+// that does not load is a lab problem and leaves the defaults.
+TEST_F(LabTest, TheExecutorFileIsReadWithTheLab) {
+  EXPECT_EQ(load_lab(paths()).executor.hold.limit_s, 7200);  // the example's: all commented out
+  std::ofstream(dir_ / "executor.toml") << "[hold]\nlimit_s = 600\n[measurement]\nmax_gap_s = 30\n";
+  const Lab lab = load_lab(paths());
+  EXPECT_EQ(lab.executor.hold.limit_s, 600);
+  EXPECT_EQ(lab.executor.max_gap(), std::chrono::seconds(30));
+  std::ofstream(dir_ / "executor.toml") << "[hold]\nlimit_s = -1\n";
+  const Lab bad = load_lab(paths());
+  EXPECT_EQ(bad.executor.hold.limit_s, 7200);
+  ASSERT_FALSE(bad.problems.empty());
+  EXPECT_NE(bad.problems.back().find("hold.limit_s"), std::string::npos) << bad.problems.back();
+}
+// Blocks (queue-directory design, section 2): read from <lab>/queues/blocks
+// only. A lab's old <lab>/blocks/ is not read, and its absence is no problem.
+TEST_F(LabTest, BlocksAreReadFromQueuesBlocks) {
+  const Lab lab = load_lab(paths());
+  EXPECT_TRUE(lab.blocks.contains("blank_pair"));
+  EXPECT_TRUE(lab.problems.empty()) << lab.problems.front();
+}
+
+TEST_F(LabTest, AnOldBlocksDirectoryIsNotRead) {
+  std::ifstream in(dir_ / "queues" / "blocks" / "blank_pair.toml");
+  std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  const auto at = text.find("name = \"blank_pair\"");
+  ASSERT_NE(at, std::string::npos);
+  text.replace(at, 19, "name = \"old_pair\"");
+  fs::create_directories(dir_ / "blocks");
+  std::ofstream(dir_ / "blocks" / "old_pair.toml") << text;
+  const Lab lab = load_lab(paths());
+  EXPECT_FALSE(lab.blocks.contains("old_pair"));
+  EXPECT_TRUE(lab.problems.empty()) << lab.problems.front();
+}
+
+TEST_F(LabTest, NoBlocksDirectoryIsNoProblem) {
+  fs::remove_all(dir_ / "queues" / "blocks");
+  const Lab lab = load_lab(paths());
+  EXPECT_TRUE(lab.blocks.empty());
+  EXPECT_TRUE(lab.problems.empty()) << lab.problems.front();
+}
+
+// <lab>/queues/step_heats (step heat template spec, 4.1): read with the lab; a
+// file that does not load is a lab problem; nothing there is ever a queue.
+TEST_F(LabTest, StepHeatsLoadFromQueuesStepHeats) {
+  EXPECT_EQ(paths().step_heats(), dir_ / "queues" / "step_heats");
+  fs::create_directories(paths().step_heats());
+  std::ofstream(paths().step_heats() / "x.toml") << "[[steps]]\nvalue = 1\n[[steps]]\nvalue = 2\n";
+  const Lab lab = load_lab(paths());
+  EXPECT_TRUE(lab.problems.empty()) << lab.problems.front();
+  ASSERT_TRUE(lab.step_heats.contains("x"));
+  EXPECT_EQ(lab.step_heats.at("x").steps.size(), 2u);
+}
+
+TEST_F(LabTest, ABadStepHeatFileIsALabProblem) {
+  fs::create_directories(paths().step_heats());
+  const auto bad = paths().step_heats() / "bad.toml";
+  std::ofstream(bad) << "[[steps]]\nvalue = 0\n";
+  const Lab lab = load_lab(paths());
+  ASSERT_EQ(lab.problems.size(), 1u);
+  EXPECT_NE(lab.problems.front().find(bad.string()), std::string::npos) << lab.problems.front();
+  EXPECT_FALSE(lab.step_heats.contains("bad"));
+  EXPECT_TRUE(lab.step_heats.contains("laser-12"));  // the other templates still load
+  EXPECT_TRUE(lab.plans->find("sim_multicollect"));  // the rest of the lab still loads
+}
+
+TEST_F(LabTest, AStepHeatsDirectoryIsNotAQueueDirectory) {
+  fs::create_directories(paths().step_heats());
+  const auto q = paths().step_heats() / "q.toml";
+  fs::copy_file(dir_ / "queues" / "experiment.toml", q);
+  const Lab lab = load_lab(paths());
+  EXPECT_FALSE(lab.step_heats.contains("q"));
+  ASSERT_EQ(lab.problems.size(), 1u);
+  EXPECT_NE(lab.problems.front().find(q.string()), std::string::npos) << lab.problems.front();
+}
+
+// The shipped example template is written as the editor would write it.
+TEST_F(LabTest, TheExampleTemplateIsCanonical) {
+  const auto path = paths().step_heats() / "laser-12.toml";
+  std::ifstream in(path, std::ios::binary);
+  ASSERT_TRUE(in) << path;
+  const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  const auto t = load_step_heat(path);
+  ASSERT_TRUE(t) << t.error().what;
+  EXPECT_EQ(text, to_toml(*t));
+  EXPECT_EQ(t->description, "CO2, 12 steps, sanidine");
+  ASSERT_EQ(t->steps.size(), 12u);
+  for (std::size_t i = 0; i < t->steps.size(); ++i) {
+    EXPECT_DOUBLE_EQ(t->steps[i].value, 0.5 * static_cast<double>(i + 1)) << i;
+  }
+}
+}  // namespace nobion::experiment::lab

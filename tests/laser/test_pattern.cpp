@@ -1,7 +1,7 @@
 // Laser patterns: the files, and the points each kind generates (laser
 // patterns design, sections 3 to 5). The geometry is legacy pychron's.
 
-#include "pychron/laser/pattern.hpp"
+#include "nobion/laser/pattern.hpp"
 
 #include <cmath>
 #include <filesystem>
@@ -13,8 +13,8 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-using namespace pychron::laser;
+using namespace nobion;
+using namespace nobion::laser;
 namespace fs = std::filesystem;
 
 namespace {
@@ -44,7 +44,7 @@ const PatternKind kKinds[] = {PatternKind::Polygon,      PatternKind::Linear, Pa
 
 fs::path scratch() {
   std::random_device rd;
-  auto dir = fs::temp_directory_path() / ("pychron_patterns_" + std::to_string(rd()) + std::to_string(rd()));
+  auto dir = fs::temp_directory_path() / ("nobion_patterns_" + std::to_string(rd()) + std::to_string(rd()));
   fs::create_directories(dir);
   return dir;
 }

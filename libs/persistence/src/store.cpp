@@ -1,4 +1,4 @@
-#include "pychron/persistence/store.hpp"
+#include "nobion/persistence/store.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -10,13 +10,13 @@
 
 #include "catalog_impl.hpp"
 #include "migrate.hpp"
-#include "pychron/core/calendar.hpp"
+#include "nobion/core/calendar.hpp"
 #include "sql/errors.hpp"
 #include "sql/geometry.hpp"
 #include "sql/statements.hpp"
 #include "store_impl.hpp"
 
-namespace pychron::persistence {
+namespace nobion::persistence {
 
 std::string make_runid(const std::string& identifier, int aliquot, int increment) {
   char buf[16];
@@ -89,6 +89,8 @@ AnalysisSummary summary_from(const Row& r) {
   s.timestamp = to_time(r.value("ts"));
   s.mass_spectrometer = to_std(r.value("mass_spectrometer"));
   s.signals_state = to_std(r.value("signals_state"));
+  if (const QVariant sha = r.value("record_sha256"); !sha.isNull() && !sha.toByteArray().isEmpty())
+    s.record_sha256 = to_digest(sha);
   return s;
 }
 
@@ -208,13 +210,16 @@ class TinyStore final : public IStore {
 
   Result<Uuid> add_principal_investigator(Uuid client, const PrincipalInvestigatorSpec& spec) override {
     Row row;
-    row["last_name"] = qv(spec.last_name);
-    row["first_initial"] = qv(spec.first_initial);
+    row["kind"] = qv(std::string(pi_kind_name(spec.kind)));
+    row["family_name"] = qv(spec.family_name);
+    row["given_name"] = qv(spec.given_name);
+    row["orcid"] = qv(spec.orcid);
+    row["ror"] = qv(spec.ror);
     row["affiliation"] = qv(spec.affiliation);
     row["email"] = qv(spec.email);
     return ensure_catalog_row(client, "principal_investigator",
-                              {{"last_name", qv(spec.last_name)}, {"first_initial", qv(spec.first_initial)}}, spec.uuid,
-                              row, json_created({{"last_name", spec.last_name}, {"first_initial", spec.first_initial}}));
+                              {{"family_name", qv(spec.family_name)}, {"given_name", qv(spec.given_name)}}, spec.uuid,
+                              row, json_created({{"family_name", spec.family_name}, {"given_name", spec.given_name}}));
   }
 
   Result<Uuid> add_project(Uuid client, const ProjectSpec& spec) override {
@@ -403,7 +408,7 @@ class TinyStore final : public IStore {
     };
     const auto columns = [](CatalogTable t) -> Columns {
       switch (t) {
-        case CatalogTable::PrincipalInvestigator: return {"principal_investigator", {"last_name", "first_initial"}};
+        case CatalogTable::PrincipalInvestigator: return {"principal_investigator", {"family_name", "given_name"}};
         case CatalogTable::Project: return {"project", {"name", "pi_uuid"}};
         case CatalogTable::Material: return {"material", {"name", "grainsize"}};
         case CatalogTable::Sample: return {"sample", {"name", "project_uuid", "material_uuid"}};
@@ -445,6 +450,14 @@ class TinyStore final : public IStore {
 
   Result<std::vector<PrincipalInvestigatorRow>> principal_investigators() override {
     return detail::principal_investigators(*db_);
+  }
+  Result<std::vector<PrincipalInvestigatorRow>> principal_investigators_named(
+      const std::string& family_name, const std::string& given_initial) override {
+    return detail::principal_investigators_named(*db_, family_name, given_initial);
+  }
+  Result<std::optional<PrincipalInvestigatorRow>> find_principal_investigator_by_orcid(
+      const std::string& orcid) override {
+    return detail::find_principal_investigator_by_orcid(*db_, orcid);
   }
   Result<std::vector<ProjectRow>> projects(std::optional<Uuid> pi) override { return detail::projects(*db_, pi); }
   Result<std::vector<MaterialRow>> materials() override { return detail::materials(*db_); }
@@ -506,6 +519,51 @@ class TinyStore final : public IStore {
     return detail::rollback_to_collection(*db_, actor, analysis, std::move(message), std::move(kinds));
   }
 
+  // ------------------------------------------------------------ publishing
+
+  Result<Uuid> add_release(const Actor& actor, const ReleaseInsert& release) override {
+    return detail::add_release(*db_, actor, release);
+  }
+  Result<std::optional<ReleaseRow>> release(Uuid release) override { return detail::release(*db_, release); }
+  Result<std::optional<ReleaseRow>> find_release(const std::string& name, std::optional<int> version) override {
+    return detail::find_release(*db_, name, version);
+  }
+  Result<std::vector<ReleaseRow>> releases(const ReleaseQuery& query) override {
+    return detail::releases(*db_, query);
+  }
+  Result<void> update_release(const Actor& actor, const ReleaseUpdate& update) override {
+    return detail::update_release(*db_, actor, update);
+  }
+  Result<void> delete_release(const Actor& actor, Uuid release) override {
+    return detail::delete_release(*db_, actor, release);
+  }
+  Result<std::vector<Uuid>> release_samples(Uuid release) override { return detail::release_samples(*db_, release); }
+  Result<std::vector<ReleaseInterpretedAge>> release_interpreted_ages(Uuid release) override {
+    return detail::release_interpreted_ages(*db_, release);
+  }
+  Result<std::vector<InterpretedAgeRow>> interpreted_ages() override { return detail::interpreted_ages(*db_); }
+  Result<Uuid> add_embargo(const Actor& actor, const EmbargoInsert& embargo) override {
+    return detail::add_embargo(*db_, actor, embargo);
+  }
+  Result<void> lift_embargo(const Actor& actor, Uuid embargo) override {
+    return detail::lift_embargo(*db_, actor, embargo);
+  }
+  Result<std::vector<EmbargoRow>> embargoes(bool live_only, UtcTime at) override {
+    return detail::embargoes(*db_, live_only, at);
+  }
+  Result<std::vector<Uuid>> embargoed_samples(std::span<const Uuid> samples, UtcTime at) override {
+    return detail::embargoed_samples(*db_, samples, at);
+  }
+  Result<std::vector<Uuid>> embargoed_analyses(std::span<const Uuid> analyses, UtcTime at) override {
+    return detail::embargoed_analyses(*db_, analyses, at);
+  }
+  Result<Uuid> add_external_id(const Actor& actor, const ExternalIdInsert& id) override {
+    return detail::add_external_id(*db_, actor, id);
+  }
+  Result<std::vector<ExternalIdRow>> external_ids(std::string_view entity_type, Uuid entity) override {
+    return detail::external_ids(*db_, entity_type, entity);
+  }
+
   // ------------------------------------------------------------ references, derived cache
 
   Result<RefResolution> resolve_refs(Uuid analysis, const RefPolicy& policy) override {
@@ -518,11 +576,17 @@ class TinyStore final : public IStore {
                            const std::vector<DerivedRow>& rows) override {
     return detail::put_derived(*db_, analysis, fingerprint, reduction_version, rows);
   }
+  Result<void> put_derived_many(std::span<const DerivedPut> puts, const std::string& reduction_version) override {
+    return detail::put_derived_many(*db_, puts, reduction_version);
+  }
   Result<std::optional<std::vector<DerivedRow>>> get_derived(Uuid analysis,
                                                             const std::string& reduction_version) override {
     return detail::get_derived(*db_, analysis, reduction_version);
   }
   Result<int> prune_derived(Uuid analysis) override { return detail::prune_derived(*db_, analysis); }
+  Result<std::map<Uuid, Sha256Digest>> derived_fingerprints(std::span<const Uuid> analyses) override {
+    return detail::derived_fingerprints(*db_, analyses);
+  }
 
   // ------------------------------------------------------------ ingest
 
@@ -580,14 +644,36 @@ class TinyStore final : public IStore {
   }
 
   Result<std::optional<AnalysisView>> load_analysis(Uuid analysis) override {
+    auto hs = heads(analysis);
+    if (!hs) return fail(hs.error());
+    return view_with_heads(analysis, std::move(*hs));
+  }
+
+  Result<std::optional<AnalysisView>> load_analysis_at(Uuid analysis, Uuid bookmark) override {
+    auto rows = db_->select(sql::kBookmarkEntriesOfSubject, {qv(bookmark), qv(analysis)});
+    if (!rows) return fail(rows.error());
+    if (rows->empty()) return std::optional<AnalysisView>{};
+    std::vector<HeadInfo> hs;
+    for (const auto& r : *rows) {
+      const auto kind = parse_kind(to_std(r.value("kind")));
+      if (!kind) return fail(ErrorKind::Protocol, "unknown bookmark entry kind");
+      hs.push_back(HeadInfo{analysis, *kind, to_uuid(r.value("revision_uuid")), 0});
+    }
+    return view_with_heads(analysis, std::move(hs));
+  }
+
+  Result<RefResolution> resolve_refs_at(Uuid analysis, Uuid bookmark) override {
+    return detail::resolve_refs_at(*db_, analysis, bookmark);
+  }
+
+  // The analysis row with the given heads and their payloads.
+  Result<std::optional<AnalysisView>> view_with_heads(Uuid analysis, std::vector<HeadInfo> hs) {
     auto row = db_->select_one(summary_select() + QStringLiteral(" WHERE a.uuid = ?"), {qv(analysis)});
     if (!row) return fail(row.error());
     if (!*row) return std::optional<AnalysisView>{};
     AnalysisView view;
     view.summary = summary_from(**row);
-    auto hs = heads(analysis);
-    if (!hs) return fail(hs.error());
-    view.heads = std::move(*hs);
+    view.heads = std::move(hs);
     for (const auto& h : view.heads) {
       auto payload = read_payload(*db_, h.revision, h.kind);
       if (!payload) return fail(payload.error());
@@ -636,8 +722,12 @@ class TinyStore final : public IStore {
     return detail::browse(*db_, dialect(), request);
   }
 
-  Result<std::vector<std::string>> facet(BrowseFacet f, const BrowseFilter& filter) override {
+  Result<std::vector<FacetValue>> facet(BrowseFacet f, const BrowseFilter& filter) override {
     return detail::facet(*db_, dialect(), f, filter);
+  }
+
+  Result<std::vector<PositionListing>> positions(const BrowseFilter& filter) override {
+    return detail::positions(*db_, dialect(), filter);
   }
 
   Result<std::optional<AnalysisDetail>> load_analysis_detail(Uuid analysis) override {
@@ -704,6 +794,8 @@ class TinyStore final : public IStore {
         bindings.push_back(key[i].second);
       }
     }
+    // A PI's name is no key (migration 0006): of namesakes, the oldest.
+    if (std::string_view(table) == "principal_investigator") sql += QStringLiteral(" ORDER BY created_utc, uuid");
     auto found = db_->select_one(sql, bindings);
     if (!found) return fail(found.error());
     if (!*found) return std::optional<Uuid>{};
@@ -831,13 +923,18 @@ bool is_refused_catalog_fill(const Error& error) noexcept {
   return error.code == detail::kCodeRefusedFill;
 }
 
+bool is_schema_behind(const Error& error) noexcept {
+  return error.code == detail::kCodeSchemaBehind;
+}
+
 Result<std::unique_ptr<IStore>> open_store(const StoreConfig& config) {
   auto db = detail::Db::open(config);
   if (!db) return fail(db.error());
   if ((*db)->dialect() == Dialect::Sqlite)
     if (auto r = detail::check_sqlite(**db, config.url != "sqlite::memory:"); !r) return fail(r.error());
-  if (auto r = detail::migrate(**db, config.migrate); !r) return fail(r.error());
+  const detail::BackupPolicy backup{config.backup_before_migrate, config.on_backup};
+  if (auto r = detail::migrate(**db, config.migrate, std::nullopt, backup); !r) return fail(r.error());
   return std::unique_ptr<IStore>(std::make_unique<detail::TinyStore>(std::move(*db)));
 }
 
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence

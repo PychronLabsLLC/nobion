@@ -1,11 +1,11 @@
-#include "pychron/codecs/modbus_adc.hpp"
+#include "nobion/codecs/modbus_adc.hpp"
 
 #include <cmath>
 #include <string>
 
-#include "pychron/codecs/modbus.hpp"
+#include "nobion/codecs/modbus.hpp"
 
-namespace pychron::codec::modbus_adc {
+namespace nobion::codec::modbus_adc {
 
 Result<Command> read_input_registers(std::uint16_t tid, std::uint8_t unit, std::uint16_t start,
                                      std::uint16_t count) {
@@ -62,4 +62,4 @@ Bytes encode_exception(std::uint16_t tid, std::uint8_t unit, std::uint8_t functi
   return modbus::encode_exception(tid, unit, function, code);
 }
 
-}  // namespace pychron::codec::modbus_adc
+}  // namespace nobion::codec::modbus_adc

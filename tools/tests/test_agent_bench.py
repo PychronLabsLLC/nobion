@@ -58,7 +58,7 @@ class SessionLog(unittest.TestCase):
     def test_what_the_shell_was_used_for(self):
         self.assertEqual(session_log.bash_kinds("cmake --build --preset dev && ctest --preset dev"),
                          ["build", "ctest"])
-        self.assertEqual(session_log.bash_kinds("build/dev/tests/core/pychron_core_tests --gtest_filter=X.*"),
+        self.assertEqual(session_log.bash_kinds("build/dev/tests/core/nobion_core_tests --gtest_filter=X.*"),
                          ["test_binary"])
         self.assertEqual(session_log.bash_kinds("python3 tools/quality_check.py --json"), ["quality_check"])
         self.assertEqual(session_log.bash_kinds("git -C x push origin develop"), ["git_push"])
@@ -101,8 +101,8 @@ class SessionLog(unittest.TestCase):
         self.assertEqual(line["bash"], {})  # and its own commands
 
     def test_a_directorys_project_name(self):
-        self.assertEqual(session_log.project_slug(Path("/Users/a/pychron-cpp/.claude/x")),
-                         "-Users-a-pychron-cpp--claude-x")
+        self.assertEqual(session_log.project_slug(Path("/Users/a/nobion/.claude/x")),
+                         "-Users-a-nobion--claude-x")
 
 
 class Ledger(unittest.TestCase):

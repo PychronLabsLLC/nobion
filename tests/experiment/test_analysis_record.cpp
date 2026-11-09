@@ -1,14 +1,16 @@
 #include <gtest/gtest.h>
 
+#include <cstdlib>
 #include <fstream>
 #include <iterator>
 #include <string>
 
-#include "pychron/experiment/record/builder.hpp"
-#include "pychron/experiment/record/serialize.hpp"
-#include "pychron/experiment/record/sha256.hpp"
+#include "nobion/experiment/record/builder.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/experiment/record/serialize.hpp"
+#include "nobion/experiment/record/sha256.hpp"
 
-using namespace pychron::experiment::record;
+using namespace nobion::experiment::record;
 
 namespace {
 
@@ -48,7 +50,7 @@ RecordBuilder full_builder() {
   ir.intercept.error = 0.01;
   ir.intercept.n_used = 3;
   ir.intercept.filtered_idx = {1};
-  ir.fit.kind = pychron::reduction::FitKind::Parabolic;
+  ir.fit.kind = nobion::reduction::FitKind::Parabolic;
   b.set_intercept("Ar40", ir);
   BaselineResult br;
   br.value = 0.1;
@@ -108,6 +110,22 @@ TEST(RecordBuilder, EmptyFailsEveryPhase) {
   EXPECT_FALSE(b.finalize().has_value());
 }
 
+// A failed run's record (spec 4.5) has what the run got to: only who it is
+// is required, and it is finalized so that the store takes it.
+TEST(RecordBuilder, AFailedRecordNeedsOnlyItsIdentity) {
+  RecordBuilder b;
+  b.set_identity({"u-1", "12345", 2, "A", "unknown", "2026-09-30T12:00:00Z", 7, "q-1"});
+  b.set_instrument({"jan", "co2", "lab", "me", "0.1.0", "abc123"});
+  EXPECT_FALSE(b.finalize().has_value());
+  b.set_status(RecordStatus::Failed, "laser link down");
+  auto r = b.finalize();
+  ASSERT_TRUE(r.has_value()) << r.error().what;
+  EXPECT_TRUE(verify_sha(*r));
+  RecordBuilder nobody;
+  nobody.set_status(RecordStatus::Failed, "laser link down");
+  EXPECT_FALSE(nobody.finalize().has_value());
+}
+
 TEST(RecordBuilder, PhaseCheckIsIndependent) {
   auto b = full_builder();
   for (auto p : kAllPhases) EXPECT_TRUE(b.check(p).has_value()) << to_string(p);
@@ -152,7 +170,7 @@ TEST(RecordBuilder, DetectsTraceLengthMismatch) {
 TEST(RecordBuilder, FinalizeStampsVersionAndSha) {
   auto rec = full_builder().finalize();
   ASSERT_TRUE(rec.has_value()) << rec.error().what;
-  EXPECT_EQ(rec->provenance.schema_version, kRecordSchemaVersion);
+  EXPECT_EQ(rec->provenance.schema_version, kRecordSchemaV2);  // nothing in it needs v3
   EXPECT_EQ(rec->provenance.sha.size(), 64u);
   EXPECT_TRUE(verify_sha(*rec));
   auto tampered = *rec;
@@ -200,7 +218,7 @@ TEST(RecordSerialize, ShaChangesWithContent) {
 
 TEST(RecordSerialize, SchemaVersionBumpIsRejected) {
   auto rec = full_builder().finalize().value();
-  EXPECT_EQ(rec.provenance.schema_version, 2);  // bump kRecordSchemaVersion deliberately, with a migration
+  EXPECT_EQ(rec.provenance.schema_version, 2);  // a record v2 can say all of is v2
   rec.provenance.schema_version = kRecordSchemaVersion + 1;
   auto r = from_toml(to_toml(rec));
   ASSERT_FALSE(r.has_value());
@@ -245,7 +263,7 @@ TEST(RecordSerialize, CryoTemperaturesAreKeptAndOmittedWhenAbsent) {
 namespace {
 
 std::string fixture(const char* name) {
-  std::ifstream in(std::string(PYCHRON_TEST_DATA_DIR) + "/records/" + name, std::ios::binary);
+  std::ifstream in(std::string(NOBION_TEST_DATA_DIR) + "/records/" + name, std::ios::binary);
   return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 }
 
@@ -280,6 +298,7 @@ TEST(RecordSerialize, ARecordWrittenBeforeTheSimulatedMarkStillReadsWithItsSha) 
   EXPECT_EQ(*from_t, *from_j);
   // And what the code builds today for the same run is that record.
   EXPECT_EQ(full_builder().finalize()->provenance.sha, sha);
+  EXPECT_EQ(*full_builder().finalize(), *from_t);
 }
 
 // The mark is part of the record: it is in both renderings and in the sha,
@@ -291,7 +310,7 @@ TEST(RecordSerialize, ASimulatedRecordSaysSoAndKeepsSayingSo) {
   meta.simulated = true;
   b.set_instrument(meta);
   const auto simulated = b.finalize().value();
-  EXPECT_EQ(simulated.provenance.schema_version, 2);
+  EXPECT_EQ(simulated.provenance.schema_version, kRecordSchemaV2);
   EXPECT_NE(simulated.provenance.sha, real.provenance.sha);
   EXPECT_TRUE(verify_sha(simulated));
 
@@ -320,4 +339,231 @@ TEST(RecordSerialize, ASimulatedRecordSaysSoAndKeepsSayingSo) {
   // Not a boolean: refused, not read as real.
   text.replace(text.find("simulated = false"), std::string("simulated = false").size(), "simulated = \"yes\"");
   EXPECT_FALSE(from_toml(text).has_value());
+}
+
+// ---- how the run ended (executor hardening, spec 4.5) ------------------------
+
+// A complete record has neither key, so it keeps the bytes and the sha it had
+// before records could say how their run ended; the others say so.
+TEST(AnalysisRecord, StatusIsWrittenOnlyWhenNotComplete) {
+  auto b = full_builder();
+  const auto complete = b.finalize().value();
+  EXPECT_EQ(complete.provenance.status, RecordStatus::Complete);
+  for (const auto& text : {to_toml(complete), to_json(complete)}) {
+    EXPECT_EQ(text.find("status"), std::string::npos) << text;
+    EXPECT_EQ(text.find("failure"), std::string::npos);
+  }
+
+  b.set_status(RecordStatus::Truncated);
+  const auto truncated = b.finalize().value();
+  EXPECT_NE(to_toml(truncated).find("status = 'truncated'"), std::string::npos) << to_toml(truncated);
+  EXPECT_NE(to_json(truncated).find("\"status\" : \"truncated\""), std::string::npos);
+  EXPECT_EQ(to_toml(truncated).find("failure"), std::string::npos);  // empty: not written
+  EXPECT_NE(truncated.provenance.sha, complete.provenance.sha);
+
+  b.set_status(RecordStatus::Failed, "spectrometer link down");
+  const auto failed = b.finalize().value();
+  const auto toml = to_toml(failed);
+  EXPECT_NE(toml.find("status = 'failed'"), std::string::npos) << toml;
+  EXPECT_NE(toml.find("failure = 'spectrometer link down'"), std::string::npos) << toml;
+  EXPECT_NE(to_json(failed).find("\"failure\" : \"spectrometer link down\""), std::string::npos);
+}
+
+TEST(AnalysisRecord, StatusRoundTrips) {
+  for (const auto status : {RecordStatus::Complete, RecordStatus::Truncated, RecordStatus::Failed}) {
+    auto b = full_builder();
+    b.set_status(status, status == RecordStatus::Failed ? "lost" : "");
+    const auto rec = b.finalize().value();
+    auto t = from_toml(to_toml(rec));
+    ASSERT_TRUE(t.has_value()) << t.error().what;
+    EXPECT_EQ(*t, rec);
+    EXPECT_TRUE(verify_sha(*t));
+    auto j = from_json(to_json(rec));
+    ASSERT_TRUE(j.has_value()) << j.error().what;
+    EXPECT_EQ(*j, rec);
+    EXPECT_EQ(to_json(*j), to_json(rec));
+  }
+}
+
+TEST(AnalysisRecord, AnUnknownStatusIsRejected) {
+  auto b = full_builder();
+  b.set_status(RecordStatus::Truncated);
+  auto text = to_toml(b.finalize().value());
+  const auto at = text.find("'truncated'");
+  ASSERT_NE(at, std::string::npos);
+  text.replace(at, std::string("'truncated'").size(), "'half'");
+  auto r = from_toml(text);
+  ASSERT_FALSE(r.has_value());
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
+  EXPECT_NE(r.error().what.find("status"), std::string::npos) << r.error().what;
+}
+
+// Records written before the key read as complete, with their own sha.
+TEST(AnalysisRecord, ARecordWrittenBeforeStatusStillReadsWithItsSha) {
+  for (const char* name : {"v2.json", "v2.toml"}) {
+    const std::string text = fixture(name);
+    ASSERT_FALSE(text.empty()) << name;
+    EXPECT_EQ(text.find("status"), std::string::npos) << name;
+    auto rec = std::string(name).ends_with(".json") ? from_json(text) : from_toml(text);
+    ASSERT_TRUE(rec.has_value()) << rec.error().what;
+    EXPECT_EQ(rec->provenance.status, RecordStatus::Complete);
+    EXPECT_TRUE(rec->provenance.failure.empty());
+    EXPECT_TRUE(verify_sha(*rec));
+    EXPECT_EQ(rec->provenance.schema_version, kRecordSchemaV2);
+  }
+}
+
+// ---- v3 (measurement plan v2 spec 6.1) ----------------------------------------
+
+// A v2 record keeps its sha and its bytes: it is written back in the v2
+// layout, whatever v3 adds when it is read.
+TEST(AnalysisRecord, V2FixturesKeepTheirSha) {
+  for (const char* name : {"v2.json", "v2.toml"}) {
+    const std::string text = fixture(name);
+    ASSERT_FALSE(text.empty()) << name;
+    const bool json = std::string(name).ends_with(".json");
+    auto rec = json ? from_json(text) : from_toml(text);
+    ASSERT_TRUE(rec.has_value()) << rec.error().what;
+    EXPECT_TRUE(verify_sha(*rec)) << name;
+    EXPECT_EQ(json ? to_json(*rec) : to_toml(*rec), text) << name;
+  }
+}
+
+TEST(AnalysisRecord, V2LoadsAsOneImplicitGas) {
+  auto rec = from_toml(fixture("v2.toml"));
+  ASSERT_TRUE(rec.has_value()) << rec.error().what;
+  EXPECT_EQ(rec->provenance.schema_version, kRecordSchemaV2);
+  ASSERT_EQ(rec->data.gases.size(), 1u);
+  EXPECT_EQ(rec->data.gases[0].name, "");
+  EXPECT_EQ(rec->data.gases[0].time_zero, 3.5);
+  ASSERT_EQ(rec->data.gases[0].states.size(), 1u);
+  EXPECT_EQ(rec->data.gases[0].states[0].integration_time, 1.0);
+  for (const auto& s : rec->data.series) {
+    EXPECT_EQ(s.gas, "");
+    EXPECT_EQ(s.segment, 0);
+    EXPECT_EQ(s.position, 0);
+    EXPECT_EQ(s.state, 0);
+  }
+  ASSERT_EQ(rec->results.intercepts.size(), 1u);
+  EXPECT_EQ(rec->results.intercepts.begin()->first, "Ar40@H1");
+  ASSERT_EQ(rec->results.baseline_positions.size(), 1u);
+  EXPECT_EQ(rec->results.baseline_positions[0].detector, "H1");
+  EXPECT_EQ(rec->results.baseline_positions[0].result.value, 0.1);
+  EXPECT_TRUE(rec->results.baseline_choices.empty());
+}
+
+namespace {
+
+// Two gases, three states, two baseline positions on H1 and one choice.
+AnalysisRecord v3_record() {
+  RecordBuilder v3 = full_builder();
+  v3.add_series({"He4", "H1", "signal", {{0.f, 1.f}, {5.f, 4.f}, {}}, "He", 0, 0, 0});
+  v3.add_series({"Ne20", "H1", "signal", {{10.f, 11.f}, {2.f, 2.5f}, {}}, "Ne", 1, 0, 1});
+  v3.add_series({"Ne22", "AX", "signal", {{10.f, 11.f}, {0.5f, 0.6f}, {}}, "Ne", 1, 1, 0});
+  GasRec he{"He", 2.5, {{{{"CDD", 110.0}}, 1.0, "", ""}}, std::nullopt, PumpOutRec{"ion_pump", 120},
+            {{"Ar40++", "Ne20"}, {"CO2++", "Ne22"}}};
+  GasRec ne{"Ne", 9.75,
+            {{{}, 1.0, "ne_optics", "ic_run"}, {{{"CDD", 2000.0}}, 2.0, "", ""}},
+            PrepareRec{"cryo:release", {{"cryo_temp", "75"}, {"hold_s", "300"}}, "2026-09-30T12:01:00Z",
+                       "2026-09-30T12:06:00Z"},
+            std::nullopt,
+            {}};
+  v3.add_gas(GasRec{"", 3.5, {{{}, 1.0, "", ""}}, std::nullopt, std::nullopt, {}});  // full_builder's argon
+  v3.add_gas(he).add_gas(ne);
+  InterceptResult ir;
+  ir.intercept.value = 4.5;
+  v3.set_intercept("He4@H1", ir);
+  v3.set_intercept("Ne20@H1", ir);
+  v3.set_intercept("Ne22@AX", ir);
+  BaselineRec before{"H1", "Ne", 0, 0, "before_inlet", 34.2, 110.0, {0.05, 0.001, {}}};
+  BaselineRec after{"H1", "Ne", 2, 0, "after_main", std::nullopt, std::nullopt, {0.07, 0.002, {}}};
+  v3.add_baseline_position(before).add_baseline_position(after);
+  v3.set_baseline_choice("Ne20@H1", {"bracketing_average", {0, 1}, 0.06, 0.0011180339887498948});
+  v3.set_baseline_modifier("CDD", {"Ar40+Ar39", "0.01*x", "0.001", 1.5, 0.002});
+  return v3.finalize().value();
+}
+
+}  // namespace
+
+TEST(AnalysisRecord, V3RoundTrips) {
+  const auto rec = v3_record();
+  EXPECT_EQ(rec.provenance.schema_version, 3);
+  EXPECT_TRUE(verify_sha(rec));
+  const auto toml = to_toml(rec);
+  auto t = from_toml(toml);
+  ASSERT_TRUE(t.has_value()) << t.error().what;
+  EXPECT_EQ(*t, rec);
+  EXPECT_TRUE(verify_sha(*t));
+  EXPECT_EQ(to_toml(*t), toml);
+  const auto json = to_json(rec);
+  auto j = from_json(json);
+  ASSERT_TRUE(j.has_value()) << j.error().what;
+  EXPECT_EQ(*j, rec);
+  EXPECT_TRUE(verify_sha(*j));
+  EXPECT_EQ(to_json(*j), json);
+  // What is absent is not written.
+  EXPECT_EQ(t->data.gases[1].prepare, std::nullopt);   // He
+  EXPECT_EQ(t->data.gases[2].pump_out, std::nullopt);  // Ne
+  EXPECT_EQ(t->results.baseline_positions[1].magnet, std::nullopt);
+}
+
+// tests/data/records/v3.{toml,json} were written by this serializer on macOS:
+// a record written on one compiler reads with its sha on every other (Windows
+// CI checks these). NOBION_UPDATE_GOLDENS=1 rewrites them.
+TEST(AnalysisRecord, V3FixtureSha) {
+  const auto rec = v3_record();
+  if (nobion::env_var("NOBION_UPDATE_GOLDENS") == "1") {
+    for (const char* name : {"v3.toml", "v3.json"}) {
+      std::ofstream out(std::string(NOBION_TEST_DATA_DIR) + "/records/" + name, std::ios::binary);
+      out << (std::string(name).ends_with(".json") ? to_json(rec) : to_toml(rec));
+    }
+    FAIL() << "golden rewritten: review the diff";
+  }
+  for (const char* name : {"v3.toml", "v3.json"}) {
+    const std::string text = fixture(name);
+    ASSERT_FALSE(text.empty()) << name;
+    const bool json = std::string(name).ends_with(".json");
+    auto back = json ? from_json(text) : from_toml(text);
+    ASSERT_TRUE(back.has_value()) << back.error().what;
+    EXPECT_TRUE(verify_sha(*back)) << name;
+    EXPECT_EQ(back->provenance.sha, rec.provenance.sha) << name;
+    EXPECT_EQ(*back, rec) << name;
+    EXPECT_EQ(json ? to_json(*back) : to_toml(*back), text) << name;
+  }
+}
+
+// A state's optics and a gas's interferences go into the record and come back.
+TEST(AnalysisRecord, StateCarriesOptics) {
+  const auto rec = v3_record();
+  auto back = from_toml(to_toml(rec));
+  ASSERT_TRUE(back) << back.error().what;
+  EXPECT_EQ(back->data.gases[2].states[0].optics, "ne_optics");
+  EXPECT_EQ(back->data.gases[1].interferences,
+            (std::vector<std::pair<std::string, std::string>>{{"Ar40++", "Ne20"}, {"CO2++", "Ne22"}}));
+  EXPECT_TRUE(back->data.gases[2].interferences.empty());
+  EXPECT_NE(to_toml(rec).find("interferences"), std::string::npos);
+}
+
+// A v3 record whose indexes point at nothing is refused, not read.
+TEST(AnalysisRecord, AV3RecordWithIndexesToNothingIsRefused) {
+  const auto good = v3_record();
+  ASSERT_TRUE(from_toml(to_toml(good)));
+  const auto refused = [](const AnalysisRecord& r, const std::string& what) {
+    auto back = from_toml(to_toml(r));
+    ASSERT_FALSE(back) << what;
+    EXPECT_EQ(back.error().kind, nobion::ErrorKind::Config);
+    EXPECT_NE(back.error().what.find(what), std::string::npos) << back.error().what;
+  };
+  auto bad_state = good;
+  bad_state.data.series.back().state = 7;
+  refused(bad_state, "is not a state of gas");
+  auto bad_gas = good;
+  bad_gas.data.series.back().gas = "Xe";
+  refused(bad_gas, "no gas 'Xe'");
+  auto negative = good;
+  negative.data.series.back().position = -1;
+  refused(negative, "negative");
+  auto bad_choice = good;
+  bad_choice.results.baseline_choices["Ne20@H1"].baselines = {0, 9};
+  refused(bad_choice, "is not a baseline position");
 }

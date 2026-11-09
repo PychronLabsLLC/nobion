@@ -1,16 +1,16 @@
 // plc2000_heater over a simulated PLC (plan 2026-10-05, task E2).
-#include "pychron/devices/plc2000_heater.hpp"
+#include "nobion/devices/plc2000_heater.hpp"
 
 #include <gtest/gtest.h>
 
 #include <chrono>
 
-#include "pychron/devices/capabilities.hpp"
-#include "pychron/devices/extraction/capability.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/devices/extraction/capability.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
-namespace mb = pychron::codec::modbus;
+namespace mb = nobion::codec::modbus;
 
 namespace {
 

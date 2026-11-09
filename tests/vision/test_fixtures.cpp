@@ -11,16 +11,16 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/env.hpp"
-#include "pychron/vision/autocenter.hpp"
-#include "pychron/vision/dragonfly.hpp"
-#include "pychron/vision/finder.hpp"
-#include "pychron/vision/fixture.hpp"
-#include "pychron/vision/pgm.hpp"
-#include "pychron/vision/synth.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/vision/autocenter.hpp"
+#include "nobion/vision/dragonfly.hpp"
+#include "nobion/vision/finder.hpp"
+#include "nobion/vision/fixture.hpp"
+#include "nobion/vision/pgm.hpp"
+#include "nobion/vision/synth.hpp"
 
-using namespace pychron;
-using namespace pychron::vision;
+using namespace nobion;
+using namespace nobion::vision;
 
 namespace {
 
@@ -30,7 +30,7 @@ struct TempDir {
     static int n = 0;
     const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
     path = std::filesystem::temp_directory_path() /
-           (std::string("pychron_vision_") + info->test_suite_name() + "_" + info->name() + "_" + std::to_string(++n));
+           (std::string("nobion_vision_") + info->test_suite_name() + "_" + info->name() + "_" + std::to_string(++n));
     std::filesystem::remove_all(path);
     std::filesystem::create_directories(path);
   }
@@ -229,19 +229,19 @@ TEST(Fixture, SkippedFramesAreNotChecked) {
 }
 
 TEST(Fixture, CommittedCasesWithinTolerance) {
-  const auto r = check_cases(PYCHRON_VISION_DATA_DIR);
+  const auto r = check_cases(NOBION_VISION_DATA_DIR);
   EXPECT_GT(r.cases, 0) << "no committed cases found";
   EXPECT_GT(r.frames, 0) << "no committed frames were checked";
 }
 
 TEST(Fixture, ExternalCasesWithinTolerance) {
-  const auto set = pychron::env_var("PYCHRON_VISION_FIXTURES");
-  if (!set || set->empty()) GTEST_SKIP() << "PYCHRON_VISION_FIXTURES is not set";
+  const auto set = nobion::env_var("NOBION_VISION_FIXTURES");
+  if (!set || set->empty()) GTEST_SKIP() << "NOBION_VISION_FIXTURES is not set";
   const std::string& env = *set;
   std::error_code ec;
-  ASSERT_TRUE(std::filesystem::is_directory(env, ec)) << "PYCHRON_VISION_FIXTURES is not a directory: " << env;
+  ASSERT_TRUE(std::filesystem::is_directory(env, ec)) << "NOBION_VISION_FIXTURES is not a directory: " << env;
   const auto r = check_cases(env);
-  EXPECT_GT(r.cases, 0) << "PYCHRON_VISION_FIXTURES contains no case.toml directory: " << env;
+  EXPECT_GT(r.cases, 0) << "NOBION_VISION_FIXTURES contains no case.toml directory: " << env;
 }
 
 namespace {
@@ -249,7 +249,7 @@ namespace {
 // A deterministic counter clock: every call is 1 ms later than the last.
 RecordedSource::ClockFn counter_clock() {
   auto n = std::make_shared<int>(0);
-  return [n] { return pychron::TimePoint{} + std::chrono::milliseconds(++*n); };
+  return [n] { return nobion::TimePoint{} + std::chrono::milliseconds(++*n); };
 }
 
 // Records `n` frames of a scene at the origin into `dir` and loads the case back.
@@ -274,7 +274,7 @@ TEST(Fixture, RecordedSourceStampsFramesFromTheClock) {
   TempDir d;
   const FixtureCase c = record_case(d.path, HoleScene{}, FinderMode::Hole, 11.5, 3);
   RecordedSource src(c, counter_clock());
-  pychron::TimePoint prev{};
+  nobion::TimePoint prev{};
   for (int i = 0; i < 3; ++i) {
     auto f = src.grab();
     ASSERT_TRUE(f.has_value());

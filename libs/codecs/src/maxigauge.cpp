@@ -1,4 +1,4 @@
-#include "pychron/codecs/maxigauge.hpp"
+#include "nobion/codecs/maxigauge.hpp"
 
 #include <cctype>
 #include <cmath>
@@ -8,7 +8,7 @@
 #include <sstream>
 #include <string>
 
-namespace pychron::codec::maxigauge {
+namespace nobion::codec::maxigauge {
 
 namespace {
 
@@ -91,6 +91,11 @@ Command read_all_pressures() { return Command::ascii("PRX" + std::string(kTermin
 
 Command read_units() { return Command::ascii("UNI" + std::string(kTerminator), line_reply()); }
 
+std::optional<std::size_t> request_length(const Bytes& buffer) {
+  if (!buffer.empty() && buffer.front() == kEnq) return 1;
+  return frame_length(line_reply(), buffer);
+}
+
 Command enquiry() { return Command{Bytes{kEnq}, line_reply()}; }
 
 Result<void> decode_ack(const Bytes& reply) {
@@ -161,7 +166,7 @@ Result<Units> decode_units(const Bytes& reply) {
 Result<Request> decode_request(const Bytes& tx) {
   if (tx.size() == 1 && tx[0] == kEnq) return Request{Request::Kind::Enquiry, 0};
 
-  std::string text = pychron::to_string(tx);
+  std::string text = nobion::to_string(tx);
   if (text.ends_with("\r\n")) {
     text.resize(text.size() - 2);
   } else if (text.ends_with('\r')) {
@@ -200,4 +205,4 @@ Bytes encode_units(Units units) {
   return to_bytes(std::to_string(static_cast<int>(units)) + std::string(kTerminator));
 }
 
-}  // namespace pychron::codec::maxigauge
+}  // namespace nobion::codec::maxigauge

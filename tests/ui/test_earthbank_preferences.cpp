@@ -18,10 +18,12 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QPointer>
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QTableWidget>
 #include <QTemporaryDir>
+#include <QThread>
 #include <QTimer>
 #include <QtTest/QtTest>
 
@@ -30,17 +32,17 @@
 #include "earthbank_fixture.hpp"
 #include "earthbank_worker.hpp"
 #include "preferences_dialog.hpp"
-#include "pychron/earthbank/http.hpp"
-#include "pychron/earthbank/profiles.hpp"
-#include "pychron/earthbank/secret_store.hpp"
+#include "nobion/earthbank/http.hpp"
+#include "nobion/earthbank/profiles.hpp"
+#include "nobion/earthbank/secret_store.hpp"
 #include "settings_guard.hpp"
 
-using namespace pychron;
-namespace eb = pychron::earthbank;
-using pychron::ui::EarthbankPackageDialog;
-using pychron::ui::EarthbankPreferencesPage;
-using pychron::ui::EarthbankSetup;
-using Column = pychron::ui::EarthbankPreferencesPage::Column;
+using namespace nobion;
+namespace eb = nobion::earthbank;
+using nobion::ui::EarthbankPackageDialog;
+using nobion::ui::EarthbankPreferencesPage;
+using nobion::ui::EarthbankSetup;
+using Column = nobion::ui::EarthbankPreferencesPage::Column;
 
 namespace {
 
@@ -331,6 +333,55 @@ class EarthbankPreferencesTest : public QObject {
     QCOMPARE(dialog->packages()->rowCount(), 0);
   }
 
+  // A password is kept under `<profile>@<host>`: a profile given another
+  // name is the same account at the same server, and its password goes with it.
+  void renaming_a_profile_keeps_its_password() {
+    World w;
+    w.write(w.profile());
+    QVERIFY(w.store->set(eb::secret_account(w.profile()), "kept-through-a-rename"));
+    EarthbankPreferencesPage page(w.setup());
+    page.load();
+    eb::Profile renamed = w.profile();
+    renamed.name = "renamed";
+    QVERIFY(eb::secret_account(renamed) != eb::secret_account(w.profile()));
+    type(page.table(), 0, Column::Name, QStringLiteral("renamed"));
+    // not before it is applied: Cancel must be able to drop the rename
+    QCOMPARE(w.stored(w.profile()), std::optional<std::string>("kept-through-a-rename"));
+    QCOMPARE(w.stored(renamed), std::optional<std::string>());
+
+    QCOMPARE(page.apply(), QString());
+    QTRY_COMPARE(w.stored(renamed), std::optional<std::string>("kept-through-a-rename"));
+    QTRY_COMPARE(w.stored(w.profile()), std::optional<std::string>());
+    QCOMPARE(eb::load_profiles(w.file())->profiles.at(0).name, std::string("renamed"));
+
+    // Renamed again, with a password typed for it: the one typed is kept.
+    eb::Profile again = renamed;
+    again.name = "again";
+    type(page.table(), 0, Column::Name, QStringLiteral("again"));
+    page.table()->selectRow(0);
+    page.password()->setText(QStringLiteral("typed-with-the-rename"));
+    QCOMPARE(page.apply(), QString());
+    QTRY_COMPARE(w.stored(again), std::optional<std::string>("typed-with-the-rename"));
+    QTRY_COMPARE(w.stored(renamed), std::optional<std::string>());
+  }
+
+  // Another server is another account: the password does not follow there.
+  void a_profile_pointed_at_another_server_leaves_its_password_behind() {
+    World w;
+    w.write(w.profile());
+    QVERIFY(w.store->set(eb::secret_account(w.profile()), "for-the-first-server"));
+    EarthbankPreferencesPage page(w.setup());
+    page.load();
+    eb::Profile moved = w.profile();
+    moved.name = "renamed";
+    moved.base_url = "https://elsewhere.test";
+    type(page.table(), 0, Column::Name, QStringLiteral("renamed"));
+    type(page.table(), 0, Column::Server, QStringLiteral("https://elsewhere.test"));
+    QCOMPARE(page.apply(), QString());
+    QTRY_COMPARE(w.stored(w.profile()), std::optional<std::string>());
+    QCOMPARE(w.stored(moved), std::optional<std::string>());
+  }
+
   void removing_a_profile_erases_its_password() {
     World w;
     w.write(w.profile());
@@ -425,6 +476,34 @@ class EarthbankPreferencesTest : public QObject {
     page.reset();
     QVERIFY(clock.elapsed() < 5000);
     w.gate.release();  // the worker's thread ends on its own; it shares the service
+  }
+
+  // The thread of a worker that went while it waited for the service is
+  // deleted when the answer has come and the thread has ended.
+  void a_worker_left_waiting_takes_its_thread_with_it_when_the_answer_comes() {
+    World w;
+    const auto setup = w.setup();
+    auto worker = std::make_unique<ui::EarthbankWorker>(setup.http, setup.secrets());
+    w.gate.hold();
+    worker->test(w.profile(), QString::fromStdString(w.bank.password()));
+    QTRY_VERIFY(w.gate.waiting());
+    const QPointer<QThread> thread = worker->worker_thread();
+    worker.reset();
+    QVERIFY(!thread.isNull());  // not waited for
+    QVERIFY(thread->isRunning());
+    w.gate.release();
+    QTRY_VERIFY(thread.isNull());
+  }
+
+  void a_worker_with_nothing_outstanding_takes_its_thread_at_once() {
+    World w;
+    const auto setup = w.setup();
+    auto worker = std::make_unique<ui::EarthbankWorker>(setup.http, setup.secrets());
+    const QPointer<QThread> thread = worker->worker_thread();
+    QVERIFY(!thread.isNull());
+    worker.reset();
+    QVERIFY(thread.isNull());
+    QCoreApplication::processEvents();  // nothing is left queued for the thread that is gone
   }
 
   void the_preferences_dialog_has_the_page_and_ok_saves_it() {

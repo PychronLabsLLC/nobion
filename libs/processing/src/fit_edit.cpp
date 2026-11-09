@@ -1,11 +1,11 @@
-#include "pychron/processing/fit_edit.hpp"
+#include "nobion/processing/fit_edit.hpp"
 
 #include <algorithm>
 #include <charconv>
 
-namespace pychron::processing {
+namespace nobion::processing {
 
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 
 Result<SeriesFit> fit_series(const RawSeries& s, const r::FitSpec& spec, const std::vector<std::size_t>& user_excluded,
                              double origin) {
@@ -45,6 +45,9 @@ std::optional<StoredFit> stored_fit(const Analysis& a, SeriesKind kind, const st
 
 Result<FitEditResult> apply_fit_edits(const Analysis& analysis, const RawData& raw, const std::vector<FitEdit>& edits) {
   auto copy = std::make_shared<Analysis>(analysis);
+  // The fingerprint names what is stored; an edited copy is not that, and an
+  // age reduced from it must not reach the age cache under the stored key.
+  copy->input_fingerprint.clear();
   FitEditResult result;
   for (const auto& e : edits) {
     const std::string what = e.kind == SeriesKind::Baseline ? e.key + " baseline" : e.key;
@@ -135,4 +138,4 @@ std::string describe_fit_edits(const Analysis& before, const std::vector<EditedF
   return out;
 }
 
-}  // namespace pychron::processing
+}  // namespace nobion::processing

@@ -14,22 +14,22 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/clock.hpp"
-#include "pychron/core/scheduler.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/sim/gas.hpp"
-#include "pychron/sim/sim_system.hpp"
-#include "pychron/sim/spectrometer/beam_model.hpp"
-#include "pychron/systems/extraction_line.hpp"
-#include "pychron/systems/spectrometer/bringup.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/scheduler.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/sim/gas.hpp"
+#include "nobion/sim/sim_system.hpp"
+#include "nobion/sim/spectrometer/beam_model.hpp"
+#include "nobion/systems/extraction_line.hpp"
+#include "nobion/systems/spectrometer/bringup.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace std::chrono_literals;
 
 namespace {
 
-const std::filesystem::path kDir(PYCHRON_EXAMPLE_CONFIGS_DIR);
+const std::filesystem::path kDir(NOBION_EXAMPLE_CONFIGS_DIR);
 
 double mean_on(const std::vector<Reading>& readings, const DetectorId& det) {
   double sum = 0.0;
@@ -170,7 +170,7 @@ class SpectrometerBringupLine : public ::testing::Test {
     options.sim_file = sim_file_;
     // And the valve states of nobody's earlier run in the examples folder.
     state_file_ = std::filesystem::temp_directory_path() /
-                  ("pychron-bringup-line-" + std::to_string(std::random_device{}()) + ".state.toml");
+                  ("nobion-bringup-line-" + std::to_string(std::random_device{}()) + ".state.toml");
     options.state_file = state_file_;
     auto line = systems::ExtractionLine::load(kDir / "extraction_line.toml", kDir / "canvas.toml", options);
     ASSERT_TRUE(line) << line.error().what;
@@ -210,7 +210,7 @@ class SpectrometerBringupLine : public ::testing::Test {
   // A sim.toml of its own for the line to read.
   void write_sim_file(const std::string& text) {
     sim_file_ = std::filesystem::temp_directory_path() /
-                ("pychron-bringup-sim-" + std::to_string(std::random_device{}()) + ".toml");
+                ("nobion-bringup-sim-" + std::to_string(std::random_device{}()) + ".toml");
     std::ofstream(sim_file_) << text;
   }
 

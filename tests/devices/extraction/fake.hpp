@@ -10,10 +10,10 @@
 #include <string_view>
 #include <vector>
 
-#include "pychron/devices/extraction/interfaces.hpp"
-#include "pychron/devices/extraction/services.hpp"
+#include "nobion/devices/extraction/interfaces.hpp"
+#include "nobion/devices/extraction/services.hpp"
 
-namespace pychron::extraction::testing {
+namespace nobion::extraction::testing {
 
 class FakeExtractionDevice final : public IExtractionDevice,
                                    public ILaserDevice,
@@ -208,4 +208,4 @@ class FakeValveService final : public IValveService {
   std::map<std::string, bool> open_;
 };
 
-}  // namespace pychron::extraction::testing
+}  // namespace nobion::extraction::testing

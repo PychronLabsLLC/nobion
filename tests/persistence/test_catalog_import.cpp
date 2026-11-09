@@ -15,10 +15,10 @@
 #include "sql/geometry.hpp"
 #include "store_fixture.hpp"
 
-using namespace pychron;
-using namespace pychron::persistence;
-using namespace pychron::persistence::testing;
-namespace pd = pychron::persistence::detail;
+using namespace nobion;
+using namespace nobion::persistence;
+using namespace nobion::persistence::testing;
+namespace pd = nobion::persistence::detail;
 using pd::Row;
 
 namespace {
@@ -159,7 +159,7 @@ TEST_P(CatalogImportTest, AddExtractDeviceTwice) {
 }
 
 TEST_P(CatalogImportTest, AddPrincipalInvestigatorTwice) {
-  expect_ensure([&] { return store_->add_principal_investigator(client(), {.last_name = "Smith", .first_initial = "J", .affiliation = "NMT"}); });
+  expect_ensure([&] { return store_->add_principal_investigator(client(), {.family_name = "Smith", .given_name = "J", .affiliation = "NMT"}); });
 }
 
 TEST_P(CatalogImportTest, AddProjectTwice) {
@@ -167,12 +167,12 @@ TEST_P(CatalogImportTest, AddProjectTwice) {
 }
 
 TEST_P(CatalogImportTest, AddProjectWithPiTwice) {
-  const Uuid pi = *store_->add_principal_investigator(client(), {.last_name = "Smith", .first_initial = "J"});
+  const Uuid pi = *store_->add_principal_investigator(client(), {.family_name = "Smith", .given_name = "J"});
   expect_ensure([&] { return store_->add_project(client(), {.name = "Alpha", .principal_investigator = pi}); });
 }
 
 TEST_P(CatalogImportTest, ProjectNameUnderDifferentPiIsADifferentProject) {
-  const Uuid pi = *store_->add_principal_investigator(client(), {.last_name = "Smith", .first_initial = "J"});
+  const Uuid pi = *store_->add_principal_investigator(client(), {.family_name = "Smith", .given_name = "J"});
   EXPECT_NE(*store_->add_project(client(), {.name = "Alpha", .principal_investigator = pi}), *store_->add_project(client(), {.name = "Alpha"}));
 }
 
@@ -185,7 +185,63 @@ TEST_P(CatalogImportTest, AddMaterialWithEmptyGrainsizeTwice) {
 }
 
 TEST_P(CatalogImportTest, AddPrincipalInvestigatorWithEmptyInitialTwice) {
-  expect_ensure([&] { return store_->add_principal_investigator(client(), {.last_name = "Smith"}); });
+  expect_ensure([&] { return store_->add_principal_investigator(client(), {.family_name = "Smith"}); });
+}
+
+// Namesakes are candidates, not one row: every PI of that family name (case
+// ignored) whose given name starts with the initial, oldest first. Each is
+// added under its own uuid, since a name is no key.
+TEST_P(CatalogImportTest, PrincipalInvestigatorsNamedGivesEveryNamesakeOldestFirst) {
+  auto add = [&](PrincipalInvestigatorSpec spec) {
+    spec.uuid = Uuid::v7();
+    auto made = store_->add_principal_investigator(client(), spec);
+    EXPECT_TRUE(made) << (made ? "" : to_string(made.error()));
+    return made ? *made : Uuid{};
+  };
+  const Uuid jake = add({.family_name = "Ross", .given_name = "Jake"});
+  const Uuid j = add({.family_name = "ross", .given_name = "J"});
+  const Uuid john = add({.family_name = "ROSS", .given_name = "john"});
+  add({.family_name = "Ross", .given_name = "Kate"});
+  const Uuid bare = add({.family_name = "Ross"});
+  add({.family_name = "Rossi", .given_name = "Jake"});
+
+  auto named = store_->principal_investigators_named("Ross", "J");
+  ASSERT_TRUE(named) << to_string(named.error());
+  std::vector<Uuid> uuids;
+  for (const auto& p : *named) uuids.push_back(p.uuid);
+  EXPECT_EQ(uuids, (std::vector<Uuid>{jake, j, john}));
+
+  auto lower = store_->principal_investigators_named("ross", "j");
+  ASSERT_TRUE(lower) << to_string(lower.error());
+  EXPECT_EQ(lower->size(), 3u);
+
+  // No initial: only those without a given name, as legacy "Ross" was its own PI.
+  auto alone = store_->principal_investigators_named("Ross", "");
+  ASSERT_TRUE(alone) << to_string(alone.error());
+  ASSERT_EQ(alone->size(), 1u);
+  EXPECT_EQ(alone->front().uuid, bare);
+
+  auto none = store_->principal_investigators_named("Smith", "J");
+  ASSERT_TRUE(none) << to_string(none.error());
+  EXPECT_TRUE(none->empty());
+}
+
+TEST_P(CatalogImportTest, APrincipalInvestigatorIsFoundByOrcid) {
+  const Uuid with = *store_->add_principal_investigator(
+      client(), {.family_name = "Ross", .given_name = "Jake", .uuid = Uuid::v7(), .orcid = "0000-0002-1825-0097"});
+  ASSERT_TRUE(store_->add_principal_investigator(client(),
+                                                 {.family_name = "Ross", .given_name = "J", .uuid = Uuid::v7()}));
+
+  auto found = store_->find_principal_investigator_by_orcid("0000-0002-1825-0097");
+  ASSERT_TRUE(found) << to_string(found.error());
+  ASSERT_TRUE(found->has_value());
+  EXPECT_EQ((*found)->uuid, with);
+  EXPECT_EQ((*found)->display_name, "Jake Ross");
+  EXPECT_EQ((*found)->orcid, std::optional<std::string>("0000-0002-1825-0097"));
+
+  auto unknown = store_->find_principal_investigator_by_orcid("0000-0001-5109-3700");
+  ASSERT_TRUE(unknown) << to_string(unknown.error());
+  EXPECT_FALSE(unknown->has_value());
 }
 
 TEST_P(CatalogImportTest, AddSampleTwice) {
@@ -256,7 +312,7 @@ TEST_P(CatalogImportTest, CreatedRowUsesSuppliedUuid) {
   const Uuid a = Uuid::v7(), b = Uuid::v7(), c = Uuid::v7(), d = Uuid::v7(), e = Uuid::v7(), f = Uuid::v7(),
              g = Uuid::v7(), h = Uuid::v7(), i = Uuid::v7(), j = Uuid::v7();
   EXPECT_EQ(*store_->add_mass_spectrometer(client(), {.name = "ms-x", .uuid = a}), a);
-  const Uuid pi = *store_->add_principal_investigator(client(), {.last_name = "Jones", .first_initial = "K", .uuid = b});
+  const Uuid pi = *store_->add_principal_investigator(client(), {.family_name = "Jones", .given_name = "K", .uuid = b});
   EXPECT_EQ(pi, b);
   const Uuid proj = *store_->add_project(client(), {.name = "P", .principal_investigator = pi, .uuid = c});
   EXPECT_EQ(proj, c);
@@ -414,7 +470,7 @@ TEST_P(CatalogImportTest, FindCatalogRowByNaturalKey) {
   EXPECT_FALSE(find(T::Project, {std::string("Alpha"), std::monostate{}}));
   EXPECT_EQ(*store_->latest_change_seq(), before_reads);
 
-  const Uuid pi = *store_->add_principal_investigator(c, {.last_name = "Smith", .first_initial = "J"});
+  const Uuid pi = *store_->add_principal_investigator(c, {.family_name = "Smith", .given_name = "J"});
   const Uuid bare = *store_->add_project(c, {.name = "Alpha"});
   const Uuid owned = *store_->add_project(c, {.name = "Alpha", .principal_investigator = pi});
   const Uuid mat = *store_->add_material(c, {.name = "sanidine"});
@@ -566,7 +622,7 @@ TEST_P(CatalogImportTest, ProjectCreatedBareIsFilledByALaterSpec) {
   EXPECT_EQ(pd::to_std(r.value("institution")), "NMT");
   // The principal investigator is part of a project's key: it is not filled,
   // the project under one is another project.
-  const Uuid pi = *s.store->add_principal_investigator(c, {.last_name = "Smith", .first_initial = "J"});
+  const Uuid pi = *s.store->add_principal_investigator(c, {.family_name = "Smith", .given_name = "J"});
   EXPECT_NE(*s.store->add_project(c, {.name = "Beta", .principal_investigator = pi}), id);
   EXPECT_TRUE(s.row("project", id).value("pi_uuid").isNull());
 }

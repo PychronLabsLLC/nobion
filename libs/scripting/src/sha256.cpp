@@ -5,9 +5,9 @@
 #include <string>
 #include <string_view>
 
-#include "pychron/scripting/script.hpp"
+#include "nobion/scripting/script.hpp"
 
-namespace pychron::scripting {
+namespace nobion::scripting {
 namespace {
 
 constexpr std::array<std::uint32_t, 64> kK = {
@@ -70,4 +70,4 @@ std::string sha256_hex(std::string_view text) {
   return out;
 }
 
-}  // namespace pychron::scripting
+}  // namespace nobion::scripting

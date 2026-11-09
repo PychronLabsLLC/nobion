@@ -6,10 +6,11 @@
 #include <string_view>
 #include <vector>
 
-#include "pychron/persistence/store.hpp"
+#include "nobion/persistence/publish.hpp"
+#include "nobion/persistence/store.hpp"
 #include "tiny/db.hpp"
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 
 // ---------------------------------------------------------------- change cursor (9.1)
 
@@ -81,13 +82,34 @@ Result<CommitOutcome> rollback_to_collection(Db& db, const Actor& actor, Uuid an
 
 // Reference resolution and the derived cache (refs.cpp).
 Result<RefResolution> resolve_refs(Db& db, Uuid analysis, const RefPolicy& policy);
+Result<RefResolution> resolve_refs_at(Db& db, Uuid analysis, Uuid bookmark);
 Result<Sha256Digest> input_fingerprint(Db& db, Uuid analysis, const std::string& reduction_version);
 Result<void> put_derived(Db& db, Uuid analysis, const Sha256Digest& fingerprint, const std::string& reduction_version,
                          const std::vector<DerivedRow>& rows);
+Result<void> put_derived_many(Db& db, std::span<const DerivedPut> puts, const std::string& reduction_version);
 Result<std::optional<std::vector<DerivedRow>>> get_derived(Db& db, Uuid analysis, const std::string& reduction_version);
 Result<int> prune_derived(Db& db, Uuid analysis);
+Result<std::map<Uuid, Sha256Digest>> derived_fingerprints(Db& db, std::span<const Uuid> analyses);
 
 Result<std::vector<HeadInfo>> read_heads(Db& db, Uuid subject);
+
+// Releases, embargoes and external ids (publish.cpp; data publishing spec 4).
+Result<Uuid> add_release(Db& db, const Actor& actor, const ReleaseInsert& release);
+Result<std::optional<ReleaseRow>> release(Db& db, Uuid uuid);
+Result<std::optional<ReleaseRow>> find_release(Db& db, const std::string& name, std::optional<int> version);
+Result<std::vector<ReleaseRow>> releases(Db& db, const ReleaseQuery& query);
+Result<void> update_release(Db& db, const Actor& actor, const ReleaseUpdate& update);
+Result<void> delete_release(Db& db, const Actor& actor, Uuid release);
+Result<std::vector<Uuid>> release_samples(Db& db, Uuid release);
+Result<std::vector<ReleaseInterpretedAge>> release_interpreted_ages(Db& db, Uuid release);
+Result<std::vector<InterpretedAgeRow>> interpreted_ages(Db& db);
+Result<Uuid> add_embargo(Db& db, const Actor& actor, const EmbargoInsert& embargo);
+Result<void> lift_embargo(Db& db, const Actor& actor, Uuid embargo);
+Result<std::vector<EmbargoRow>> embargoes(Db& db, bool live_only, UtcTime at);
+Result<std::vector<Uuid>> embargoed_samples(Db& db, std::span<const Uuid> samples, UtcTime at);
+Result<std::vector<Uuid>> embargoed_analyses(Db& db, std::span<const Uuid> analyses, UtcTime at);
+Result<Uuid> add_external_id(Db& db, const Actor& actor, const ExternalIdInsert& id);
+Result<std::vector<ExternalIdRow>> external_ids(Db& db, std::string_view entity_type, Uuid entity);
 
 // Import source, provenance and conflict bookkeeping (import.cpp).
 Result<ImportSourceInfo> begin_import(Db& db, Dialect dialect, const ImportSourceSpec& spec);
@@ -102,10 +124,21 @@ Result<bool> has_conflict(Db& db, Uuid source, std::string_view path, const Sha2
 Result<std::optional<std::string>> imported_head_blob_sha(Db& db, Uuid source, Uuid subject, Kind kind);
 
 // Browsing reads (browse.cpp).
+// One browse statement and its bindings, as browse() and facet() run it; the
+// plan tests (SchemaIndexes) read these, so they test the real text.
+struct BrowseStatement {
+  QString sql;
+  Bindings bindings;
+};
+Result<BrowseStatement> browse_page_statement(Db& db, Dialect dialect, const BrowseRequest& request);
+Result<BrowseStatement> browse_count_statement(Db& db, Dialect dialect, const BrowseFilter& filter);
+Result<BrowseStatement> facet_statement(Db& db, Dialect dialect, BrowseFacet facet, const BrowseFilter& filter);
+Result<BrowseStatement> positions_statement(Db& db, Dialect dialect, const BrowseFilter& filter);
 Result<BrowseResult> browse(Db& db, Dialect dialect, const BrowseRequest& request);
-Result<std::vector<std::string>> facet(Db& db, Dialect dialect, BrowseFacet facet, const BrowseFilter& filter);
+Result<std::vector<FacetValue>> facet(Db& db, Dialect dialect, BrowseFacet facet, const BrowseFilter& filter);
+Result<std::vector<PositionListing>> positions(Db& db, Dialect dialect, const BrowseFilter& filter);
 Result<std::optional<AnalysisDetail>> load_analysis_detail(Db& db, Dialect dialect, Uuid analysis);
 Result<std::optional<BlobData>> load_blob(Db& db, const Sha256Digest& sha);
 Result<ChangeSeq> latest_change_seq(Db& db);
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

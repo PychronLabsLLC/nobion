@@ -2,13 +2,14 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <set>
 #include <string>
 #include <string_view>
 
-#include "pychron/systems/spectrometer/config_loader.hpp"
+#include "nobion/systems/spectrometer/config_loader.hpp"
 
-namespace pychron::spectrometer::cfg {
+namespace nobion::spectrometer::cfg {
 namespace {
 
 // Spec section 7.1 verbatim, plus one detector and the acquirer channel list.
@@ -178,6 +179,63 @@ TEST(SpectrometerConfig, ParsesIntegratedSpecExample) {
   EXPECT_TRUE(cdd.active);
 }
 
+// Measurement plan v2 spec 3.6: large-beam settle per detector, and logical
+// detectors that are one collector in two modes.
+TEST(SpectrometerConfig, LargeBeamAndModeKeys) {
+  const std::string toml = with("saturation = 4.9e6", "saturation = 4.9e6\nlarge_beam_threshold = 5.0\nsettle_after_large_beam_s = 20") +
+                           "\n[[detectors]]\nname = \"H2(CDD)\"\nkind = \"cdd\"\nchannel = \"qtegra:CDD\"\n"
+                           "collector = \"H2\"\nmode = \"CDD\"\nmode_switch_s = 2\n";
+  auto r = parse(toml);
+  ASSERT_TRUE(r.ok()) << dump(r);
+  const auto& c = *r.config;
+  const auto* h1 = c.detector("H1");
+  ASSERT_NE(h1, nullptr);
+  EXPECT_EQ(h1->large_beam_threshold, 5.0);
+  EXPECT_DOUBLE_EQ(h1->settle_after_large_beam_s, 20);
+  EXPECT_TRUE(h1->collector.empty());
+  EXPECT_DOUBLE_EQ(h1->mode_switch_s, 0);
+  const auto* cdd = c.detector("CDD");
+  ASSERT_NE(cdd, nullptr);
+  EXPECT_FALSE(cdd->large_beam_threshold);
+  EXPECT_DOUBLE_EQ(cdd->settle_after_large_beam_s, 0);
+  const auto* h2 = c.detector("H2(CDD)");
+  ASSERT_NE(h2, nullptr);
+  EXPECT_EQ(h2->collector, "H2");
+  EXPECT_EQ(h2->mode, "CDD");
+  EXPECT_DOUBLE_EQ(h2->mode_switch_s, 2);
+
+  const auto bad = parse(with("saturation = 4.9e6", "saturation = 4.9e6\nsettle_after_large_beam_s = -1"));
+  EXPECT_FALSE(bad.ok());
+  EXPECT_TRUE(mentions(bad, "detectors[0].settle_after_large_beam_s", "detector 'H1'")) << dump(bad);
+  EXPECT_TRUE(mentions(parse(with("saturation = 4.9e6", "saturation = 4.9e6\nmode_switch_s = -2")),
+                       "detectors[0].mode_switch_s", "must be >= 0"));
+  EXPECT_TRUE(mentions(parse(with("saturation = 4.9e6", "saturation = 4.9e6\nlarge_beam_threshold = 0")),
+                       "detectors[0].large_beam_threshold", "must be > 0"));
+}
+
+// Measurement plan v2 spec 3.6: presets as text in file order, interference
+// relations, and the "optics" role.
+TEST(SpectrometerConfig, OpticsAndInterferences) {
+  const std::string toml = with("saturation = 4.9e6", "saturation = 4.9e6") +
+                           "\n[optics.ar_config_a]\nzoom = 2.5\nsubcup = \"IC\"\nalpha = true\n"
+                           "\n[optics.ar_config_b]\nzoom = 1\n"
+                           "\n[interferences]\n\"Ar40++\" = \"Ne20\"\n\"CO2++\" = \"Ne22\"\n";
+  auto r = parse(toml);
+  ASSERT_TRUE(r.ok()) << dump(r);
+  const auto& c = *r.config;
+  ASSERT_EQ(c.optics.size(), 2u);
+  EXPECT_EQ(c.optics.at("ar_config_a").params,
+            (std::vector<std::pair<std::string, std::string>>{{"zoom", "2.5"}, {"subcup", "IC"}, {"alpha", "true"}}));
+  EXPECT_EQ(c.optics.at("ar_config_b").params, (std::vector<std::pair<std::string, std::string>>{{"zoom", "1"}}));
+  ASSERT_EQ(c.interferences.size(), 2u);
+  EXPECT_EQ(c.interferences[0], (cfg::Interference{"Ar40++", "Ne20"}));
+  EXPECT_EQ(c.interferences[1], (cfg::Interference{"CO2++", "Ne22"}));
+  EXPECT_EQ(cfg::role_from_string("optics"), cfg::Role::Optics);
+  EXPECT_FALSE(parse(toml + "\n[interferences]\n").ok());  // a section once
+  const auto bad = parse(with("saturation = 4.9e6", "saturation = 4.9e6") + "\n[optics.x]\nzoom = [1, 2]\n");
+  EXPECT_TRUE(mentions(bad, "optics.x.zoom", "expected a string, number or boolean")) << dump(bad);
+}
+
 TEST(SpectrometerConfig, DriverKeepsExtraKeysAsOptions) {
   auto r = parse(with(R"(channels = ["H1", "CDD"])", "channels = [\"H1\", \"CDD\"]\nsample_hz = 100"));
   ASSERT_TRUE(r.ok()) << dump(r);
@@ -324,6 +382,82 @@ TEST(SpectrometerConfig, LocalFileCannotSetRetriesOrTrace) {
   EXPECT_TRUE(mentions(r, "transports.qtegra.trace", "may not be overridden")) << dump(r);
 }
 
+TEST(SpectrometerConfig, ATransportsRecoveryTableIsRead) {
+  auto r = parse(with("timeout_ms = 2000",
+                      "timeout_ms = 2000\n[transports.qtegra.recovery]\n"
+                      "reconnect = false\noptional = true\ncall_window_s = 45.5"));
+  ASSERT_TRUE(r.ok()) << dump(r);
+  const auto& recovery = r.config->transports.at("qtegra").recovery;
+  EXPECT_FALSE(recovery.reconnect);
+  EXPECT_TRUE(recovery.optional);
+  EXPECT_EQ(recovery.call_window_s, 45.5);
+}
+
+TEST(SpectrometerConfig, WithoutARecoveryTableATransportHasTheDefaults) {
+  auto r = parse(kIntegrated);
+  ASSERT_TRUE(r.ok()) << dump(r);
+  const auto& recovery = r.config->transports.at("qtegra").recovery;
+  EXPECT_TRUE(recovery.reconnect);
+  EXPECT_FALSE(recovery.optional);
+  EXPECT_FALSE(recovery.call_window_s);  // the lab's default
+}
+
+TEST(SpectrometerConfig, ARecoveryTableIsRangeChecked) {
+  for (const char* window : {"-1", "3600.5", "nan"}) {
+    auto r = parse(with("timeout_ms = 2000",
+                        std::string("timeout_ms = 2000\n[transports.qtegra.recovery]\ncall_window_s = ") + window));
+    EXPECT_TRUE(mentions(r, "transports.qtegra.recovery.call_window_s", "out of range")) << window << "\n" << dump(r);
+  }
+  for (const char* window : {"0", "3600"}) {
+    auto r = parse(with("timeout_ms = 2000",
+                        std::string("timeout_ms = 2000\n[transports.qtegra.recovery]\ncall_window_s = ") + window));
+    EXPECT_TRUE(r.ok()) << window << "\n" << dump(r);
+  }
+  auto unknown = parse(with("timeout_ms = 2000", "timeout_ms = 2000\n[transports.qtegra.recovery]\nbackoff_s = 1"));
+  EXPECT_TRUE(mentions(unknown, "transports.qtegra.recovery.backoff_s", "")) << dump(unknown);
+  EXPECT_FALSE(unknown.ok());
+  auto typed = parse(with("timeout_ms = 2000", "timeout_ms = 2000\n[transports.qtegra.recovery]\noptional = \"yes\""));
+  EXPECT_TRUE(mentions(typed, "transports.qtegra.recovery.optional", "boolean")) << dump(typed);
+}
+
+TEST(SpectrometerConfig, ALinkTransportMayNotHaveARecoveryTable) {
+  auto r = parse(with("kind = \"tcp\"\nhost = \"192.168.0.10\"\nport = 1069\ntimeout_ms = 2000",
+                      "kind = \"link\"\nlink = \"ngx\"\n[transports.qtegra.recovery]\noptional = true"));
+  EXPECT_TRUE(mentions(r, "transports.qtegra.recovery", "transport 'qtegra' is recovered by the connection it names"))
+      << dump(r);
+}
+
+// The Qtegra example shows the table commented out, each key at its default.
+TEST(SpectrometerConfig, TheExampleRecoveryTableIsTheDefaults) {
+  const auto file = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "spectrometer.qtegra.toml";
+  std::ifstream in(file);
+  ASSERT_TRUE(in) << file;
+  std::string text;
+  int uncommented = 0;
+  bool inside = false;
+  for (std::string line; std::getline(in, line);) {
+    if (line == "# [transports.qtegra.recovery]") {
+      inside = true;
+    } else if (!(inside && line.starts_with("# ") && line.find(" = ") != std::string::npos)) {
+      inside = false;
+    }
+    if (inside) {
+      line = line.substr(2);
+      ++uncommented;
+    }
+    text += line + '\n';
+  }
+  ASSERT_EQ(uncommented, 4) << "the table and its three keys, in " << file;
+  auto r = parse(text);
+  ASSERT_TRUE(r.ok()) << dump(r);
+  const auto& shown = r.config->transports.at("qtegra").recovery;
+  EXPECT_EQ(shown.path, "transports.qtegra.recovery");
+  const config::RecoveryConfig defaults;
+  EXPECT_EQ(shown.reconnect, defaults.reconnect);
+  EXPECT_EQ(shown.optional, defaults.optional);
+  EXPECT_EQ(shown.call_window_s.value_or(-1), 20.0);  // the default, shown
+}
+
 TEST(SpectrometerConfig, ParseChannelRef) {
   auto ref = parse_channel_ref("faradays:H1");
   ASSERT_TRUE(ref);
@@ -367,7 +501,7 @@ TEST(DetectorColor, BadDetectorColorIsDiagnosticWithLine) {
 
 TEST(DetectorColor, ExampleConfigsHaveDistinctColors) {
   for (const char* name : {"spectrometer.sim-integrated.toml", "spectrometer.sim-legacy.toml"}) {
-    const auto r = parse_config(std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / name);
+    const auto r = parse_config(std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / name);
     ASSERT_TRUE(r.ok()) << name << "\n" << dump(r);
     std::set<std::string> seen;
     for (const auto& d : r.config->detectors) {
@@ -378,4 +512,4 @@ TEST(DetectorColor, ExampleConfigsHaveDistinctColors) {
 }
 
 }  // namespace
-}  // namespace pychron::spectrometer::cfg
+}  // namespace nobion::spectrometer::cfg

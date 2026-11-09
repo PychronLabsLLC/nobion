@@ -24,14 +24,16 @@
 
 #include "data_main_window.hpp"
 #include "installations_dialog.hpp"
-#include "pychron/processing/record_source.hpp"
-#include "pychron/setup/installer.hpp"
-#include "pychron/setup/site.hpp"
+#include "nobion/arar/domain.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/record_source.hpp"
+#include "nobion/setup/installer.hpp"
+#include "nobion/setup/site.hpp"
 #include "setup_support.hpp"
 #include "setup_wizard.hpp"
 
-using namespace pychron;
-using namespace pychron::ui;
+using namespace nobion;
+using namespace nobion::ui;
 namespace fs = std::filesystem;
 
 namespace {
@@ -96,7 +98,7 @@ class TestSetupWizard : public QObject {
     w.next();
     QCOMPARE(w.currentId(), int(SetupWizard::kLocation));
     QCOMPARE(w.name_edit()->text(), QStringLiteral("data-reduction"));
-    QVERIFY(w.root_edit()->text().endsWith(QStringLiteral("Pychron")));
+    QVERIFY(w.root_edit()->text().endsWith(QStringLiteral("Nobion")));
     w.root_edit()->setText(QString::fromStdString(dir("dr").string()));
     w.next();
     QCOMPARE(w.currentId(), int(SetupWizard::kFirstGroup));  // Data
@@ -105,14 +107,14 @@ class TestSetupWizard : public QObject {
     w.next();
     QCOMPARE(w.currentId(), int(SetupWizard::kReady));
     QVERIFY2(w.ready_error()->isHidden(), qPrintable(w.ready_error()->text()));
-    QVERIFY(w.summary()->toPlainText().contains(QStringLiteral("pychron.db")));
+    QVERIFY(w.summary()->toPlainText().contains(QStringLiteral("nobion.db")));
     w.next();  // Install
     QCOMPARE(w.currentId(), int(SetupWizard::kDone));
     QVERIFY(w.installed());
     QCOMPARE(QString::fromStdString(w.installed()->kind), QStringLiteral("data_reduction"));
     QVERIFY(fs::exists(dir("dr") / "README.md"));
-    QVERIFY(!fs::exists(dir("dr") / ".pychron" / "credentials.toml"));
-    if (database_opener()) QVERIFY(fs::exists(dir("dr") / "data" / "pychron.db"));
+    QVERIFY(!fs::exists(dir("dr") / ".nobion" / "credentials.toml"));
+    if (database_opener()) QVERIFY(fs::exists(dir("dr") / "data" / "nobion.db"));
     QVERIFY(!setup::any_fail(w.checks()));
     QVERIFY(w.open_now());
     auto loaded = setup::load_site(site);
@@ -144,7 +146,7 @@ class TestSetupWizard : public QObject {
     w.test_button()->click();
     QCOMPARE(opened.size(), std::size_t{1});
     QCOMPARE(QString::fromStdString(opened[0].first),
-             QStringLiteral("postgresql://pychron:p%40ss%20word@db.lab.edu:5432/pychron"));
+             QStringLiteral("postgresql://nobion:p%40ss%20word@db.lab.edu:5432/nobion"));
     QVERIFY(!opened[0].second);  // never migrated from a test
     QVERIFY(w.test_result()->text().contains(QStringLiteral("schema version 7")));
     succeed = false;
@@ -155,7 +157,7 @@ class TestSetupWizard : public QObject {
     w.next();
     QCOMPARE(w.currentId(), int(SetupWizard::kReady));
     QVERIFY(!w.summary()->toPlainText().contains(QStringLiteral("p@ss")));  // the password is never shown
-    QVERIFY(w.summary()->toPlainText().contains(QStringLiteral("postgresql://pychron@db.lab.edu:5432/pychron")));
+    QVERIFY(w.summary()->toPlainText().contains(QStringLiteral("postgresql://nobion@db.lab.edu:5432/nobion")));
     opened.clear();
     w.next();
     QCOMPARE(w.currentId(), int(SetupWizard::kDone));
@@ -163,8 +165,8 @@ class TestSetupWizard : public QObject {
     QCOMPARE(opened.size(), std::size_t{1});
     QVERIFY(opened[0].first.find("p%40ss%20word") != std::string::npos);
     QVERIFY(!opened[0].second);
-    QVERIFY(fs::exists(dir("dr-server") / ".pychron" / "credentials.toml"));
-    QCOMPARE(QString::fromStdString(w.installed()->database), QStringLiteral("postgresql://pychron@db.lab.edu:5432/pychron"));
+    QVERIFY(fs::exists(dir("dr-server") / ".nobion" / "credentials.toml"));
+    QCOMPARE(QString::fromStdString(w.installed()->database), QStringLiteral("postgresql://nobion@db.lab.edu:5432/nobion"));
   }
 
   // Install defaults: an instrument's database is made, then given the seed.
@@ -181,7 +183,7 @@ class TestSetupWizard : public QObject {
       return std::string("seeded 1 project");
     };
     const fs::path root = dir("argus-seeded");
-    const std::string db = "sqlite:" + (root / "data" / "pychron.db").generic_string();
+    const std::string db = "sqlite:" + (root / "data" / "nobion.db").generic_string();
     {
       SetupWizard w(library_, {dir("site-s.toml"), open, QStringLiteral("argus"), {}, seed});
       w.restart();
@@ -245,7 +247,7 @@ class TestSetupWizard : public QObject {
       qobject_cast<QLineEdit*>(w.editor(QStringLiteral("db_host")))->setText(QStringLiteral("db.lab.edu"));
       qobject_cast<QLineEdit*>(w.editor(QStringLiteral("db_password")))->setText(QStringLiteral("s3cret-Zq9"));
       QVERIFY(walk_to(w, SetupWizard::kDone));
-      QCOMPARE(calls, (std::vector<std::string>{"seed postgresql://pychron:s3cret-Zq9@db.lab.edu:5432/pychron"}));
+      QCOMPARE(calls, (std::vector<std::string>{"seed postgresql://nobion:s3cret-Zq9@db.lab.edu:5432/nobion"}));
       for (const auto& c : w.checks()) {
         if (c.name != "seed") continue;
         QVERIFY(c.detail.find("s3cret") == std::string::npos && c.hint.find("s3cret") == std::string::npos);
@@ -525,7 +527,7 @@ class TestSetupWizard : public QObject {
     std::ostringstream log;
     QCOMPARE(write_icons(out, log), 0);
     for (const int size : {16, 24, 32, 48, 64, 128, 256, 512, 1024}) {
-      const QImage img(QString::fromStdString((out / ("pychron-" + std::to_string(size) + ".png")).string()));
+      const QImage img(QString::fromStdString((out / ("nobion-" + std::to_string(size) + ".png")).string()));
       QCOMPARE(img.width(), size);
       QCOMPARE(img.height(), size);
       QVERIFY(img.hasAlphaChannel());
@@ -538,7 +540,8 @@ class TestSetupWizard : public QObject {
     fs::create_directories(dir("records"));
     processing::RecordDirectorySource records(dir("records"));
     processing::PresetStore presets(dir("presets"), dir("lab-presets"));
-    DataMainWindow w(records, presets, QStringLiteral("data-reduction"));
+    const auto domain = nobion::arar::make_domain();
+    DataMainWindow w(records, presets, *domain, QStringLiteral("data-reduction"));
     QVERIFY(w.browser() != nullptr);
     QCOMPARE(w.centralWidget(), static_cast<QWidget*>(w.browser()));
     QVERIFY(!w.browser()->isWindow());

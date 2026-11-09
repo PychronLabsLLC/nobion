@@ -1,13 +1,17 @@
-#include "pychron/processing/time_series.hpp"
+#include "nobion/processing/time_series.hpp"
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <cmath>
+#include <memory>
+#include <optional>
+#include <vector>
 
 #include "fixtures.hpp"
-#include "pychron/processing/units.hpp"
+#include "nobion/processing/units.hpp"
 
-namespace pp = pychron::processing;
+namespace pp = nobion::processing;
 using pp::test::make_air;
 
 namespace {
@@ -17,7 +21,7 @@ pp::Dataset airs(int groups = 1) {
   pp::Dataset d;
   for (int i = 0; i < 6; ++i) {
     pp::DatasetItem item;
-    item.analysis = pp::reduce_analysis(make_air(i, 295.0 + i), {});
+    item.analysis = pp::reduce_analysis(make_air(i, 295.0 + i));
     item.path.group = i % groups;
     d.mutable_items().push_back(item);
   }
@@ -193,6 +197,46 @@ TEST(TimeSeries, DeviationAndHiddenExcluded) {
   for (double y : pts[0]->y) sum += y;
   EXPECT_NEAR(sum / 6, 0.0, 0.01);  // percent deviations around the mean
   EXPECT_NE(s->graphs[0].panels[0].y.title.find("Δ%"), std::string::npos);
+}
+
+// The unit draws "hours from now" against the run's time when the run gives
+// one, and against the system clock when not.
+pp::Options hours_from_now() {
+  auto o = with_panels({{"Ar40", "none"}});
+  EXPECT_TRUE(o.set("x.kind", std::string("relative")));
+  EXPECT_TRUE(o.set("x.origin", std::string("now")));
+  return o;
+}
+
+std::vector<double> unit_x(const pp::Options& o, std::optional<double> now) {
+  const pp::UnitRegistry registry = pp::UnitRegistry::core("");
+  const pp::Unit* unit = registry.find("time_series");
+  pp::RunContext ctx;
+  ctx.now = now;
+  auto out = unit->execute({pp::PortValue(std::make_shared<const pp::Dataset>(airs()))}, o, ctx);
+  EXPECT_TRUE(out);
+  if (!out) return {};
+  const auto& scene = *std::get<pp::ScenePtr>(out->at(0));
+  return layers<pp::PointLayer>(scene.graphs.at(0).panels.at(0)).at(0)->x;
+}
+
+TEST(TimeSeriesUnit, UsesTheRunsTimeWhenGiven) {
+  // airs at 1.7e9 + 0..5 h; the run's time 10 h after the first
+  const auto x = unit_x(hours_from_now(), 1'700'000'000.0 + 10 * 3600.0);
+  ASSERT_EQ(x.size(), 6u);
+  EXPECT_DOUBLE_EQ(x.front(), -10.0);
+  EXPECT_DOUBLE_EQ(x.back(), -5.0);
+}
+
+TEST(TimeSeriesUnit, UsesTheSystemClockWhenNot) {
+  const auto o = hours_from_now();
+  const auto x = unit_x(o, std::nullopt);
+  const double now = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+  auto expected = pp::build_time_series(airs(), o, now);
+  ASSERT_TRUE(expected);
+  const auto want = layers<pp::PointLayer>(expected->graphs.at(0).panels.at(0)).at(0)->x;
+  ASSERT_EQ(x.size(), want.size());
+  for (std::size_t i = 0; i < x.size(); ++i) EXPECT_NEAR(x[i], want[i], 1.0 / 3600.0);  // within a second
 }
 
 TEST(TimeSeries, NoPanelsIsAnError) {

@@ -1,4 +1,4 @@
-#include "pychron/metrics/registry.hpp"
+#include "nobion/metrics/registry.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -6,7 +6,7 @@
 
 #include "registry_impl.hpp"
 
-namespace pychron::metrics {
+namespace nobion::metrics {
 
 namespace {
 
@@ -203,7 +203,7 @@ struct Registry::Impl {
 };
 
 Registry::Registry() : impl_(std::make_unique<Impl>()) {
-  impl_->dropped = &counter("pychron_metrics_dropped_series_total",
+  impl_->dropped = &counter("nobion_metrics_dropped_series_total",
                             "Series refused by the registry: an invalid name, a name used for two types, or a full family.");
 }
 
@@ -283,4 +283,4 @@ std::vector<std::string> Registry::names() const {
   return out;
 }
 
-}  // namespace pychron::metrics
+}  // namespace nobion::metrics

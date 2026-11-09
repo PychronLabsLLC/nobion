@@ -1,7 +1,8 @@
 // Calibrations on disk, one file per device and tray (laser system design,
 // section 3.3).
 
-#include "pychron/laser/calibration_store.hpp"
+#include "nobion/core/atomic_file.hpp"
+#include "nobion/laser/calibration_store.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -12,11 +13,20 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-using namespace pychron::laser;
+using namespace nobion;
+using namespace nobion::laser;
 namespace fs = std::filesystem;
 
 namespace {
+
+// Turns the injection off again however the test ends.
+struct FailAtomicWrite {
+  explicit FailAtomicWrite(int step) { nobion::testing::fail_atomic_write_at(step); }
+  ~FailAtomicWrite() { nobion::testing::fail_atomic_write_at(0); }
+  FailAtomicWrite(const FailAtomicWrite&) = delete;
+  FailAtomicWrite& operator=(const FailAtomicWrite&) = delete;
+};
+
 
 std::string slurp(const fs::path& file) {
   std::ifstream in(file, std::ios::binary);
@@ -31,7 +41,7 @@ class CalibrationStoreTest : public ::testing::Test {
  protected:
   void SetUp() override {
     std::random_device rd;
-    dir_ = fs::temp_directory_path() / ("pychron_cal_" + std::to_string(rd()) + std::to_string(rd()));
+    dir_ = fs::temp_directory_path() / ("nobion_cal_" + std::to_string(rd()) + std::to_string(rd()));
     fs::create_directories(dir_);
   }
   void TearDown() override { fs::remove_all(dir_); }
@@ -178,13 +188,12 @@ TEST_F(CalibrationStoreTest, AHalfWrittenTemporaryIsNeverRead) {
   EXPECT_EQ(store.status(map(), "co2").state, CalibrationState::Ok);
 }
 
-// The new file is written beside the target and renamed over it: when the
-// temporary cannot be written, the save fails and the old file is whole.
-TEST_F(CalibrationStoreTest, SaveGoesThroughATemporaryFile) {
+// When the write fails, the save fails and the old file is whole.
+TEST_F(CalibrationStoreTest, AFailedSaveLeavesTheOldFile) {
   const CalibrationStore store(dir_ / "cal");
   ASSERT_TRUE(store.save(map(), "co2", three_));
   const std::string before = slurp(store.file("co2", "small"));
-  fs::create_directories(dir_ / "cal" / "co2.small.toml.tmp");  // in the way
+  const FailAtomicWrite fail_rename(4);  // the rename fails
   const std::vector<CalibrationPoint> one{{"1", 1, 2}};
   const auto saved = store.save(map(), "co2", one);
   ASSERT_FALSE(saved);

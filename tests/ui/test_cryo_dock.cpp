@@ -4,17 +4,21 @@
 #include <memory>
 #include <optional>
 
+#include <QLabel>
 #include <QSignalSpy>
 #include <QtTest/QtTest>
+
+#include <qcustomplot.h>
 
 #include "core_bridge.hpp"
 #include "cryo_dock.hpp"
 #include "main_window.hpp"
+#include "plot_style.hpp"
 #include "ui_fixture.hpp"
 
-using namespace pychron;
-using pychron::ui::CoreBridge;
-using pychron::ui::CryoDock;
+using namespace nobion;
+using nobion::ui::CoreBridge;
+using nobion::ui::CryoDock;
 
 class TestCryoDock : public QObject {
   Q_OBJECT
@@ -26,9 +30,24 @@ class TestCryoDock : public QObject {
   }
 
   void cleanup() {
+    ui::set_plot_style(ui::default_plot_style());
     line_->stop();
     bridge_.reset();
     line_.reset();
+  }
+
+  void name_labels_follow_a_palette_change() {
+    CryoDock dock(*bridge_);
+    auto* name = dock.findChild<QLabel*>(QStringLiteral("cryo_name_B"));
+    QVERIFY(name != nullptr);
+    QVERIFY(name->styleSheet().contains(ui::plot_series_color(1).name()));
+    ui::PlotStyle style = ui::default_plot_style();
+    style.plot_background = QColor("#fafad2");
+    for (std::size_t i = 0; i < style.series.size(); ++i) style.series[i] = QColor::fromHsv(static_cast<int>(i) * 25, 200, 150);
+    ui::set_plot_style(style);
+    QVERIFY(name->styleSheet().contains(QColor::fromHsv(25, 200, 150).name()));
+    QCOMPARE(dock.chart()->plot()->graph(1)->pen().color().name(), QColor::fromHsv(25, 200, 150).name());
+    QCOMPARE(dock.chart()->plot()->axisRect()->backgroundBrush().color().name(), QStringLiteral("#fafad2"));
   }
 
   void showsEveryInputAndOutput() {
@@ -103,7 +122,7 @@ class TestCryoDock : public QObject {
   }
 
   void aLineWithoutACryostatAnswersEveryCommandWithAnError() {
-    auto plain = ui::test::make_example_line();
+    auto plain = ui::test::make_heater_line();
     CoreBridge bridge(*plain);
     QVERIFY(bridge.cryo_inputs().empty());
     QCOMPARE(bridge.cryo_outputs(), 0);
@@ -125,9 +144,15 @@ class TestCryoDock : public QObject {
       ui::MainWindow window(*line_);
       QVERIFY(window.cryo_dock() != nullptr);
     }
-    auto plain = ui::test::make_example_line();
+    auto plain = ui::test::make_heater_line();
     ui::MainWindow window(*plain);
     QVERIFY(window.cryo_dock() == nullptr);
+  }
+
+  void theExampleLineHasTheDock() {
+    auto example = ui::test::make_example_line();
+    ui::MainWindow window(*example);
+    QVERIFY(window.cryo_dock() != nullptr);
   }
 
  private:

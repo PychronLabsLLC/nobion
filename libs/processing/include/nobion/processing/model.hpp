@@ -1,0 +1,164 @@
+#pragma once
+
+// The analysis model for browsing, recall and figures (data browsing and
+// visualization design, section 7.3). Plain immutable values: a source builds
+// an Analysis once and every consumer shares it as shared_ptr<const Analysis>.
+
+#include <cmath>
+#include <map>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "nobion/reduction/fits.hpp"
+
+namespace nobion::processing {
+
+// A value with a 1-sigma error. A number the source does not have (a NULL in
+// the store, which is how a legacy NaN is kept) is NaN here, never 0: nothing
+// computed from it is finite, and reduce_analysis() refuses to reduce with it.
+struct Value {
+  double value = 0.0;
+  double error = 0.0;
+  // Both the value and its error are numbers.
+  bool known() const noexcept { return std::isfinite(value) && std::isfinite(error); }
+  friend bool operator==(const Value&, const Value&) = default;
+};
+
+// The stored state of one isotope (dvc intercepts/baselines/blanks/icfactors
+// rows, or an AnalysisRecord's results).
+struct IsotopeData {
+  std::string key;       // unique per analysis: "Ar40", or "H1:Ar40" for multi-detector runs
+  std::string isotope;   // "Ar40"
+  std::string detector;  // "H1"
+  Value intercept;
+  Value baseline;
+  Value blank;
+  Value ic_factor{1.0, 0.0};
+  std::optional<reduction::FitSpec> fit;
+  std::optional<reduction::FitSpec> baseline_fit;
+  int n = 0;  // points in the intercept fit
+  std::vector<std::size_t> user_excluded;  // raw signal indices left out of the fit, ascending
+  std::vector<std::size_t> baseline_user_excluded;  // raw baseline indices left out, ascending
+  bool include_baseline_error = false;
+  std::string blank_source;  // fit name or reference run id
+  bool intercept_reviewed = false;  // the stored intercept was marked reviewed
+  bool baseline_reviewed = false;   // the stored baseline of this detector was marked reviewed
+  bool blank_reviewed = false;  // the stored blank was marked reviewed
+  bool ic_reviewed = false;     // the stored IC factor of this detector was marked reviewed
+  // The optics preset of the spectrometer state its signal was measured
+  // under (a v3 record's; empty when none was applied or the source does
+  // not say).
+  std::string optics;
+};
+
+struct ExtractionInfo {
+  std::optional<double> value, duration, cleanup, weight, beam_diameter;
+  std::optional<double> cryo_temperature;         // requested, kelvin
+  std::map<std::string, double> cryo_measured;    // cryostat input -> kelvin as extraction ended
+  std::string units, pattern;
+  std::vector<int> positions;
+};
+
+// Where the sample came from, as the catalog has it (Schaen et al. 2021
+// reporting standard, sample metadata). Every part may be absent: a record
+// directory knows none of it.
+struct SampleInfo {
+  std::optional<double> latitude, longitude, elevation;  // degrees, degrees, metres
+  std::string lithology, unit, location, igsn;
+  friend bool operator==(const SampleInfo&, const SampleInfo&) = default;
+};
+
+// The fluence monitor the J of the analysis was measured against
+// (flux_position monitor_*). Empty when the source does not say.
+struct MonitorInfo {
+  std::string name, material;
+  std::optional<Value> age;  // in the lab's age units (Ma)
+  friend bool operator==(const MonitorInfo&, const MonitorInfo&) = default;
+};
+
+struct PeakCenterInfo {
+  std::string detector;
+  double center = 0.0;
+  std::optional<double> resolution;
+};
+
+// What a domain adds to an analysis beyond the neutral model (domain seam spec
+// 3.3): Ar-Ar's flux, production ratios and chronology, say. The source's
+// extension loader, which the application wires for the active domain, makes
+// it; the domain's own units read it back by casting to their type.
+struct DomainAnalysisData {
+  DomainAnalysisData() = default;
+  DomainAnalysisData(const DomainAnalysisData&) = default;
+  DomainAnalysisData(DomainAnalysisData&&) = default;
+  DomainAnalysisData& operator=(const DomainAnalysisData&) = default;
+  DomainAnalysisData& operator=(DomainAnalysisData&&) = default;
+  virtual ~DomainAnalysisData() = default;
+  // The id of the domain the data is of ("arar").
+  [[nodiscard]] virtual std::string_view domain() const = 0;
+};
+
+struct Analysis {
+  std::string uuid;
+  std::string identifier;
+  int aliquot = 0;
+  int increment = -1;  // -1: no step
+  std::string runid;   // identifier-aliquot[step]
+  // What the store's derived cache keys a reduction of this analysis by: a
+  // SHA-256 (lower-case hex) over its head revisions, its resolved
+  // references and the reduction version. Empty from a source that has none.
+  std::string input_fingerprint;
+  std::string analysis_type;
+  double timestamp = 0.0;  // UTC epoch seconds
+  std::string mass_spectrometer, extract_device;
+  std::string sample, project, material, principal_investigator;
+  std::string irradiation, level, position, load;
+  std::string repository, analyst, comment;
+  std::string tag = "ok";
+
+  ExtractionInfo extraction;
+  SampleInfo sample_info;
+  MonitorInfo monitor;
+  std::vector<IsotopeData> isotopes;
+  std::map<std::string, double> gains, deflections, source;
+  std::map<std::string, double> environmentals;  // lab_temperature, lab_humidity, ...
+  std::vector<PeakCenterInfo> peak_centers;
+  // The active domain's data of this analysis; null when no loader was wired
+  // (noble_gas wires none).
+  std::shared_ptr<const DomainAnalysisData> extension;
+  // Head revision id per revision kind ("intercepts", "blanks", ...), from
+  // sources that keep revisions; edits are saved on top of these.
+  std::map<std::string, std::string> heads;
+
+  const IsotopeData* find_isotope(std::string_view key) const;
+  // The first isotope named `isotope` (exact key preferred).
+  const IsotopeData* find_by_isotope(std::string_view isotope) const;
+  // Step letters for `increment` ("" for -1, "A" for 0, ..., "AA" for 26).
+  std::string step() const;
+};
+
+using AnalysisPtr = std::shared_ptr<const Analysis>;
+
+// Raw series of one analysis, loaded on demand (IAnalysisSource::load_raw).
+enum class SeriesKind { Signal, Baseline, Sniff };
+std::string_view to_string(SeriesKind kind) noexcept;
+
+struct RawSeries {
+  SeriesKind kind = SeriesKind::Signal;
+  std::string key;       // isotope key; the detector for baselines
+  std::string detector;
+  std::vector<double> t, v;
+};
+
+struct RawData {
+  std::vector<RawSeries> series;
+  const RawSeries* find(SeriesKind kind, std::string_view key) const;
+};
+
+// identifier-aliquot(2 digits)[step letters], legacy make_runid.
+std::string make_runid(const std::string& identifier, int aliquot, int increment);
+std::string step_letters(int increment);
+
+}  // namespace nobion::processing

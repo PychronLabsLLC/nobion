@@ -1,4 +1,4 @@
-#include "pychron/devices/modbus_ids.hpp"
+#include "nobion/devices/modbus_ids.hpp"
 
 #include <gtest/gtest.h>
 
@@ -7,7 +7,7 @@
 #include <thread>
 #include <vector>
 
-using namespace pychron;
+using namespace nobion;
 
 TEST(ModbusIds, DriversOnOneConnectionNeverShareAnId) {
   // Four drivers taking ids at once, as valves, gauges and a heater on one

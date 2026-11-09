@@ -1,10 +1,10 @@
-#include "pychron/vision/autocenter.hpp"
+#include "nobion/vision/autocenter.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <vector>
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 namespace {
 
@@ -143,4 +143,4 @@ std::string_view to_string(AutocenterReason reason) noexcept {
   return "invalid";
 }
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

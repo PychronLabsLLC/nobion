@@ -1,12 +1,12 @@
-#include "pychron/devices/spectrometer/legacy/serial_hv.hpp"
+#include "nobion/devices/spectrometer/legacy/serial_hv.hpp"
 
 #include <cmath>
 #include <mutex>
 
-#include "pychron/codecs/hv_supply.hpp"
-#include "pychron/devices/spectrometer/legacy/polled_acquirer.hpp"
+#include "nobion/codecs/hv_supply.hpp"
+#include "nobion/devices/spectrometer/legacy/polled_acquirer.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace hv = codec::hv_supply;
 
@@ -22,8 +22,8 @@ Error unsupported_param(const ParamId& id) {
 
 }  // namespace
 
-SerialHv::SerialHv(std::string name, Transport& transport, double max_hv, const Clock* clock)
-    : Device(std::move(name), DeviceOptions{clock}),
+SerialHv::SerialHv(std::string name, Transport& transport, double max_hv, const Clock* clock, Link* link)
+    : Device(std::move(name), DeviceOptions{clock, DeviceOptions{}.fault_after, link}),
       transport_(transport),
       params_{ParamSpec{kHv, Unit::Volts, {0.0, max_hv}, true, true, "HV"}} {}
 
@@ -36,51 +36,63 @@ DriverSchema SerialHv::schema() {
 Result<std::unique_ptr<SerialHv>> SerialHv::create(const DriverArgs& args) {
   const double max_hv = args.options["max_hv"].value_or(10000.0);
   if (!(max_hv > 0.0) || !std::isfinite(max_hv)) return fail(ErrorKind::Config, "max_hv must be positive");
-  return std::make_unique<SerialHv>(args.name, args.transport, max_hv, args.clock);
+  return std::make_unique<SerialHv>(args.name, args.transport, max_hv, args.clock, args.link);
 }
 
 Result<void> SerialHv::set_hv(double volts) {
+  const Operation op = begin("set_hv");
   const Range range = params_.front().range;
   if (!std::isfinite(volts) || !range.contains(volts)) {
-    return observe(Result<void>(fail(ErrorKind::Config, "serial_hv: " + std::to_string(volts) +
-                                                            " V is outside 0.." + std::to_string(range.max))));
+    return observe(op, Result<void>(fail(ErrorKind::Config, "serial_hv: " + std::to_string(volts) +
+                                                                " V is outside 0.." + std::to_string(range.max))));
   }
   auto cmd = hv::set_voltage(volts);
-  if (!cmd) return observe(Result<void>(fail(std::move(cmd).error())));
-  auto reply = transport_.exchange(cmd->tx, *cmd->reply);
-  if (!reply) return observe(Result<void>(fail(std::move(reply).error())));
-  return observe(hv::decode_ok(*reply));
+  if (!cmd) return observe(op, Result<void>(fail(std::move(cmd).error())));
+  auto reply = relay<Bytes>("set_hv",
+      [&](Resend resend) { return transport_.exchange(cmd->tx, *cmd->reply, Transport::kDefaultTimeout, resend); },
+      Repeat::Safe);
+  if (!reply) return observe(op, Result<void>(fail(std::move(reply).error())));
+  return observe(op, hv::decode_ok(*reply));
 }
 
 Result<double> SerialHv::read_hv() {
+  const Operation op = begin("read_hv");
   const auto cmd = hv::read_output();
-  auto reply = transport_.exchange(cmd.tx, *cmd.reply);
-  if (!reply) return observe(Result<double>(fail(std::move(reply).error())));
-  return observe(hv::decode_voltage(*reply));
+  auto reply = relay<Bytes>("read_hv",
+      [&](Resend resend) { return transport_.exchange(cmd.tx, *cmd.reply, Transport::kDefaultTimeout, resend); },
+      Repeat::Safe);
+  if (!reply) return observe(op, Result<double>(fail(std::move(reply).error())));
+  return observe(op, hv::decode_voltage(*reply));
 }
 
 Result<void> SerialHv::set_param(const ParamId& id, double value) {
-  if (!is_hv(id)) return observe(Result<void>(fail(unsupported_param(id))));
+  const Operation op = begin("set_param");
+  if (!is_hv(id)) return observe(op, Result<void>(fail(unsupported_param(id))));
   return set_hv(value);
 }
 
 Result<Readback> SerialHv::read_param(const ParamId& id) {
-  if (!is_hv(id)) return observe(Result<Readback>(fail(unsupported_param(id))));
+  const Operation op = begin("read_param");
+  if (!is_hv(id)) return observe(op, Result<Readback>(fail(unsupported_param(id))));
   // Setpoint and output as one bus step so no other command interleaves.
-  auto rb = transact(transport_, [&]() -> Result<Readback> {
-    const auto set_cmd = hv::read_setpoint();
-    auto set_reply = transport_.exchange(set_cmd.tx, *set_cmd.reply);
-    if (!set_reply) return fail(std::move(set_reply).error());
-    auto setpoint = hv::decode_voltage(*set_reply);
-    if (!setpoint) return fail(std::move(setpoint).error());
-    const auto out_cmd = hv::read_output();
-    auto out_reply = transport_.exchange(out_cmd.tx, *out_cmd.reply);
-    if (!out_reply) return fail(std::move(out_reply).error());
-    auto output = hv::decode_voltage(*out_reply);
-    if (!output) return fail(std::move(output).error());
-    return Readback{*setpoint, *output};
-  });
-  return observe(std::move(rb));
+  auto rb = relay<Readback>("read_param",
+      [&](Resend resend) {
+        return transact(transport_, [&]() -> Result<Readback> {
+          const auto set_cmd = hv::read_setpoint();
+          auto set_reply = transport_.exchange(set_cmd.tx, *set_cmd.reply, Transport::kDefaultTimeout, resend);
+          if (!set_reply) return fail(std::move(set_reply).error());
+          auto setpoint = hv::decode_voltage(*set_reply);
+          if (!setpoint) return fail(std::move(setpoint).error());
+          const auto out_cmd = hv::read_output();
+          auto out_reply = transport_.exchange(out_cmd.tx, *out_cmd.reply, Transport::kDefaultTimeout, resend);
+          if (!out_reply) return fail(std::move(out_reply).error());
+          auto output = hv::decode_voltage(*out_reply);
+          if (!output) return fail(std::move(output).error());
+          return Readback{*setpoint, *output};
+        });
+      },
+      Repeat::Safe);
+  return observe(op, std::move(rb));
 }
 
 SimTransport::Hook hv_sim_hook(HvSimModel model) {
@@ -115,4 +127,4 @@ SimTransport::Hook hv_sim_hook(HvSimModel model) {
 
 REGISTER_DRIVER("serial_hv", SerialHv);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

@@ -15,6 +15,9 @@
 # pylon: a Basler GigE or USB3 camera (see [co2.pylon]); read and checked
 # here, but its driver is not part of this build yet.
 source = "sim"
+# the beam, mm: a dragonfly keeps it at most a third of its diameter past the
+# hole's edge
+# beam_diameter_mm = 0.6
 # center: the camera may center holes and follow the glow. A live camera
 # does that only over a real laser, a simulated one only over a simulated
 # laser.
@@ -23,7 +26,7 @@ source = "sim"
 #   source = "opencv"
 #   use = "view"
 # (`elctl laser cameras` lists what there is; macOS asks once whether
-# Pychron may use the camera).
+# Nobion may use the camera).
 use = "center"
 px_per_mm = 23.0
 # which way the picture moves when the stage does: the usual camera shows
@@ -61,11 +64,48 @@ timeout_ms = 1000
 # has to find
 tray_error_mm = [0.15, -0.10]
 noise = 0.01
+# "machined": the tray as stainless steel, its holes lit from one side
+# surface = "machined"
 # while the simulated laser fires the camera sees the sample glow: this far
 # from its hole's center, creeping this fast as it is heated (what a
 # dragonfly pattern follows)
 grain_offset_mm = [0.2, 0.1]
 glow_drift_mm_per_s = [0.0, 0.0]
+
+# A grain that heats under the beam, flares, wanders and jumps, instead of
+# the steady glow above (glow_sigma_mm and glow_drift_mm_per_s then cannot be
+# set; grain_offset_mm still places the grain). Every key is optional and its
+# default is off. The numbers are judgement, not measurement: they test a
+# tracker against stated behaviour, they prove nothing about a real grain.
+# [co2.sim.grain]
+# beam_radius_mm = 0.4             overlap's width
+# reference_output_percent = 20    output where heat reaches 1
+# heat_tau_s = 0.5                 lag rising
+# cool_tau_s = 1.0                 lag falling
+# glow_exponent = 4                how steeply glow follows heat
+# glow_peak = 0.6                  peak at heat 1
+# lobes = 1                        lobe slots, 1 to 16
+# lobe_sigma_mm = 0.3              size of one lobe
+# lobe_spread_mm = 0               how far lobes sit from the grain's center
+# grain_radius_mm = 0              grain's size (radius of equal area), 0 to 100; 0: a point
+# grain_sides = 6                  corners of its outline, 3 to 16
+# grain_irregularity = 0.3         how far a corner strays, 0 to 0.6
+# body_glow = 0.4                  share of brightness over the whole grain, 0 to 1
+# melt_mm_per_s = 0                radius lost a second at full heat; 0: no melting
+# min_radius_mm = 0.1              radius melting stops at
+# lobe_wander_mm_per_rt_s = 0      a lobe's random walk
+# lobe_life_s = 0                  mean life of a lobe; 0: they never die
+# flicker = 0                      brightness's slow flutter, 0 to 1
+# flicker_tau_s = 0.3
+# flares_per_s = 0                 mean rate of flares
+# flare_gain = 3                   brightness multiple at a flare's top
+# flare_tau_s = 0.3
+# dropouts_per_s = 0               mean rate of the glow going dark
+# dropout_s = 0.5                  how long dark
+# creep_mm_per_s = [0, 0]          steady creep at heat 1
+# wander_mm_per_rt_s = 0           the grain's random walk at heat 1
+# jumps_per_s = 0                  mean rate, while heat is 0.5 or more
+# jump_mm = 0.3                    mean size of a jump
 
 [co2.autocenter]
 tolerance_mm = 0.03

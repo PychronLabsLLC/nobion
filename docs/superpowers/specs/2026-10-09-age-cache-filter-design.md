@@ -1,7 +1,8 @@
 # Cached ages and the browser's age filter: design
 
 Date: 2026-10-09. Status: approved 2026-10-09 (acquisition deferred, section
-4.6). Not implemented.
+4.6). Implemented 2026-10-16 (plan `docs/superpowers/plans/2026-10-10-age-cache-filter.md`);
+where code departed from first text, this text was changed to match.
 
 Second of two specs. First:
 `2026-10-09-data-browser-search-display-design.md` (browser's date range,
@@ -130,8 +131,11 @@ filed under the new fingerprint.
     std::optional<DerivedAge> derived_age(const ReducedAnalysis&, const ReductionSettings&);
 
 - `StoreSource` implements the sink: posts one task to its pool (no future
-  waited on) that calls `put_derived_many`. A write that fails is logged
+  waited on) that calls `put_derived_many`. A write that fails is counted
   and dropped: it is a cache, next reduction or backfill fills it.
+  `StoreSource::flush_derived()` waits for the queued writes and returns the
+  counts since the last flush (written, current, failed, last error): the
+  source has no logger, so that is where a failure is reported.
 - `MemorySource`, record source: no sink.
 - Sink is on real time and on StoreSource's own threads, like the rest of
   StoreSource; no simulated path waits on it.
@@ -140,21 +144,36 @@ filed under the new fingerprint.
 
 1. **Every reduction the application makes.** `ReduceUnit::execute`: after
    reducing its analyses, one `put` with all that are cacheable.
-   `RecallWindow::display`: one `put` for its analysis. Export goes through
+   `RecallWindow::display`: one `put` for its analysis, only while it has no
+   unsaved fit edits (edited analysis keeps stored fingerprint: its age is
+   not the analysis's). Export goes through
    `ReduceUnit`. `flux_store.cpp` `reduce_monitor` reduces without flux on
    purpose: never cached.
    - Not written when nothing changed: `StoreSource::load` cannot know
      without a statement, so the sink's task asks first, one statement for
-     the batch (`SELECT analysis_uuid, fingerprint FROM derived_value WHERE name = 'age' AND analysis_uuid IN (...)`),
+     the batch (`SELECT analysis_uuid, fingerprint FROM derived_value WHERE analysis_uuid IN (...) AND name || '' = 'age'`:
+     written `name = 'age'`, SQLite searches `derived_value_name_ix` and reads
+     every cached age; the concatenation leaves it the primary key),
      and writes only analyses whose cached fingerprint differs. Opening a
      figure of 2000 current analyses costs that one read and no write.
 2. **Backfill.** `elctl db derive --db <url> [--all] [--limit N] [--quiet]`.
    `libs/processing/adapters/store` `derive.hpp`:
 
-       struct DeriveOptions { bool all = false; std::optional<int> limit; };
-       struct DeriveStats { int seen, current, written, no_age, failed; };
-       Result<DeriveStats> derive_ages(StoreSource&, const DeriveOptions&,
+       struct DeriveOptions { bool all = false; std::optional<int> limit; int page_size = 200; };
+       struct DeriveStats { int seen, current, written, no_age, failed;
+                            std::vector<std::string> failures; };  // "<run id>: <why>"
+       class IDeriveSource;  // browse, fingerprints, load, write, drop_loaded
+       Result<DeriveStats> derive_ages(IDeriveSource&, const DeriveOptions&,
                                        const std::function<bool(const DeriveStats&)>& keep_going);
+       Result<DeriveStats> derive_ages(StoreSource&, ...);  // same, over StoreSource
+
+   - `IDeriveSource`: what walk needs of a store source, so a test can make
+     one load fail. `StoreSource` behind it gains `fingerprints` (cached and
+     current, one page), `write_derived_now` (the `--all` write, whatever is
+     cached) and `drop_loaded` (walk holds no more than a page of analyses:
+     load cache has no bound).
+   - `written` counts those without an age too; `no_age` says how many.
+     `page_size` lets a test walk pages of one.
 
    - Walks analyses newest first by keyset `(timestamp_utc, uuid)`, pages of
      200 through `browse`.
@@ -166,8 +185,13 @@ filed under the new fingerprint.
      interrupt. One at a time per database is not required: two runs write
      the same rows.
    - An analysis that fails to load is counted `failed`, reported by run
-     id, and does not stop the walk.
-   - Exit status 0; 1 when any failed. Opens store with `migrate = false`.
+     id, and does not stop the walk. A page the store refuses to read or
+     write stops walk with that error; what earlier pages wrote stays.
+   - Exit status 0; 1 when any failed; 2 on usage error or a store that
+     cannot be opened, read or written. Opens store with `migrate = false`.
+   - Output: a line a page unless `--quiet`, then always
+     `derived: <n> seen, <n> written (<n> without an age), <n> current, <n> failed`
+     (`apps/elctl/src/derive_summary.hpp`, shared with import).
    - `elctl db` gains the subcommand in `db.cpp`; `db_stub.cpp` unchanged.
 3. **Import.** `elctl import run` calls `derive_ages` after the walk ends
    (not per batch), unless `--no-derive`. In `apps/elctl`, not `libs/ingest`:
@@ -175,6 +199,12 @@ filed under the new fingerprint.
    at every batch (`same_at_every_cut`, `OneHistoryOneResult`) never see
    `derived_value` written. Flux and production imported later in the same
    walk are in place by then.
+   - Run cut short by `--limit` (import has no `--max-batches`) or an
+     interrupt, and a dry run: no pass. A source that could not be opened
+     does not stop it (walk went through the others; exit code stays 2).
+   - Summary line follows import's, same text as `db derive`. A failed
+     analysis or a failed pass is reported and never changes import's exit
+     code.
 4. **Reference edits.** Saving a flux fit, blanks, IC factors or a
    production changes fingerprints of many analyses at once. Nothing is
    recomputed at save. Their cached ages stay, stale, until those analyses
@@ -183,6 +213,18 @@ filed under the new fingerprint.
    date; run elctl db derive` only if `n` can be had from what the save
    already knows (flux: positions of the level); else no message. User
    guide states the rule.
+   - Flux: `n` = `FluxSaveOutcome::outdated_ages`, sum of
+     `FittedPosition::analysis_count` over positions written (not unchanged,
+     not skipped; 0 on conflict). `LevelPosition::analysis_count` counts
+     every analysis of position, monitor or unknown, any tag. `load_level`
+     browses all identifiers of level in its one browse (was: monitors
+     only); unknowns' rows counted, never loaded or reduced. Text
+     `flux_outdated_ages_line(n)` (`flux_view.hpp`): nullopt for `n <= 0`;
+     `n == 1` reads `cached age of 1 analysis is now out of date; run elctl db derive`.
+     `elctl flux fit --save`: own line after `saved ...`. Window:
+     save text gains `; cached ages of ...`.
+   - Blank and IC factor fit windows: save through revisions, hold no count
+     of analyses that depend on what they saved: no message.
 
 ### 4.6 Acquisition
 
@@ -203,15 +245,31 @@ Store (`libs/persistence`):
 - `BrowseFilter` gains `std::optional<double> age_min, age_max` (Ma,
   inclusive). `BrowseRow` gains `std::optional<double> age, age_err`.
 - `sql/browse.hpp`:
-  - `kBrowseAgeJoin` =
-    `LEFT JOIN derived_value dv ON dv.analysis_uuid = a.uuid AND dv.name = 'age' `
+  - Two joins, one per plan (found on lab's store, 8716 analyses, no
+    statistics):
+    - `kBrowseAgeJoin` =
+      `LEFT JOIN derived_value dv ON dv.analysis_uuid = a.uuid AND dv.name || '' = 'age' `,
+      page with no age bound and `load_analysis_detail`. Written
+      `dv.name = 'age'`, SQLite searched `derived_value_name_ix` and read
+      every cached age per row of page: 0.38 to 0.51 s a page, against 3 ms
+      by PK. Concatenation leaves it PK (same trick as
+      `kDerivedFingerprints`, 4.5).
+    - `kBrowseAgeRangeJoin` =
+      `LEFT JOIN derived_value dv ON dv.analysis_uuid = a.uuid AND dv.name = 'age' `,
+      page, count and facet whenever an age bound is set: bound becomes range
+      on `derived_value_name_ix (name, value)`, which drives statement; each
+      match finds its analysis by PK. With `|| ''` there, SQLite scanned
+      `derived_value` whole instead.
   - `kBrowseSelect` gains `dv.value AS age, dv.error AS age_err`.
   - `kBrowseAgeMin` = `dv.value >= ?`, `kBrowseAgeMax` = `dv.value <= ?`.
-- Page statement always has the join (one PK probe per row of a page).
-  Count and facet statements have it only when an age bound is set: they
+- Page statement always has a join (one PK probe per row of a page).
+  Count and facet statements have one only when an age bound is set: they
   run over every matching analysis and must not pay a probe per row for a
   filter that is off.
-- `load_analysis_detail` uses `kBrowseSelect`: gets the join too.
+- `load_analysis_detail` uses `kBrowseSelect`: gets `kBrowseAgeJoin` too.
+- Statements built by `detail::browse_page_statement`,
+  `browse_count_statement`, `facet_statement` (`store_impl.hpp`); plan
+  tests read those, not a copy of the text.
 - Standard SQL; same text on both engines.
 
 Processing: `BrowseQuery::age_min`, `age_max`; `AnalysisSummary::age`,
@@ -222,8 +280,10 @@ fields.
 
 Browser (`apps/pychron-ui`), on top of first spec:
 
-- Table column `Age (Ma)`: `value ± error`, 4 significant figures of the
-  error's scale; empty when none. Shown by default, after Extract.
+- Table column `Age (Ma)`: `value ± error`, both to error's fourth
+  significant figure; value alone (`g`, 6 digits) when error absent, not
+  finite or not above 0; empty when no age. Shown by default, after
+  Extract.
 - Filter column, under the date controls: `[x] Age from [ ] Ma`,
   `[x] to [ ] Ma`, same pattern as the date range (checkbox per end,
   `editingFinished`, low above high = no query and a status message).
@@ -232,7 +292,9 @@ Browser (`apps/pychron-ui`), on top of first spec:
   change of flux, blanks or IC factors it is out of date until then; a
   figure always recomputes.
 - With an age bound set, status line: `<shown> of <total> analyses with a
-  cached age in range`.
+  cached age in range` (`<shown> analyses with a cached age in range` when
+  source gives no total). Ticking or unticking an end reloads, as a date
+  end does. Spin boxes: 4 decimals, -10000 to 10000 Ma.
 
 ## 5. Rules that must hold
 
@@ -264,7 +326,8 @@ Browser (`apps/pychron-ui`), on top of first spec:
   `ReduceUnit` over a store source fills the cache; second run writes
   nothing; a flux change then a reduction replaces the row; non-default
   settings write nothing; summary carries the age.
-- `tests/processing/test_derive.cpp`: fills an empty cache; second run all
+- `tests/processing/test_store_source.cpp` (on its seeded store; no
+  `test_derive.cpp`), backfill: fills an empty cache; second run all
   `current`; after a flux change only that level's analyses are written;
   blank gets a NULL age and is `current` next time; `--limit`; a failing
   load counted and passed over.

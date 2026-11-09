@@ -1,8 +1,8 @@
-#include "pychron/vision/source.hpp"
+#include "nobion/vision/source.hpp"
 
 #include <utility>
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 SyntheticSource::SyntheticSource(std::variant<HoleScene, GlowScene> scene, StageFn stage, ClockFn clock)
     : scene_(std::move(scene)), stage_(std::move(stage)), clock_(std::move(clock)) {}
@@ -31,4 +31,4 @@ FrameInfo SyntheticSource::info() const {
 
 Truth SyntheticSource::last_truth() const { return truth_; }
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision

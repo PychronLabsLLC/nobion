@@ -1,11 +1,11 @@
-#include "pychron/core/virtual_clock.hpp"
+#include "nobion/core/virtual_clock.hpp"
 
 #include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <utility>
 
-namespace pychron {
+namespace nobion {
 
 namespace {
 
@@ -353,4 +353,4 @@ void VirtualClock::watch() {
   }
 }
 
-}  // namespace pychron
+}  // namespace nobion

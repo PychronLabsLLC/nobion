@@ -11,7 +11,7 @@ using elctl::testing::contains;
 using elctl::testing::Outcome;
 using elctl::testing::run_raw;
 
-#ifndef PYCHRON_ELCTL_HAS_STORE
+#ifndef NOBION_ELCTL_HAS_STORE
 
 TEST(ElctlEarthbank, StubWithoutPersistence) {
   const Outcome o = run_raw({"earthbank", "export-xlsx", "--db", "sqlite::memory:", "--out", "x"});
@@ -27,7 +27,7 @@ TEST(ElctlEarthbank, TheNetworkCommandsWithoutPersistence) {
     const Outcome o = run_raw({"earthbank", sub});
     EXPECT_EQ(o.code, elctl::kUsage) << sub;
     EXPECT_EQ(o.out, "") << sub;
-#ifdef PYCHRON_ELCTL_HAS_NETWORK
+#ifdef NOBION_ELCTL_HAS_NETWORK
     EXPECT_TRUE(contains(o.err, "elctl was built without persistence")) << o.err;
 #else
     EXPECT_TRUE(contains(o.err, "this build has no network support (Qt6 Network was not found)")) << o.err;
@@ -54,16 +54,20 @@ TEST(ElctlEarthbank, TheNetworkCommandsWithoutPersistence) {
 
 #include "fake_earthbank.hpp"
 #include "ooxml.hpp"
-#include "pychron/earthbank/profiles.hpp"
-#include "pychron/earthbank/secret_store.hpp"
+#include "nobion/earthbank/profiles.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/earthbank/secret_store.hpp"
+#include "nobion/publish/build.hpp"
+#include "nobion/publish/publication.hpp"
+#include "nobion/publish/release.hpp"
 #include "session_support.hpp"
 #include "store_fixture.hpp"
 
 namespace {
 
 namespace fs = std::filesystem;
-namespace ps = pychron::persistence;
-namespace ooxml = pychron::earthbank::ooxml;
+namespace ps = nobion::persistence;
+namespace ooxml = nobion::earthbank::ooxml;
 
 std::string slurp(const fs::path& path) {
   std::ifstream in(path, std::ios::binary);
@@ -85,6 +89,28 @@ std::vector<fs::path> named(const std::vector<fs::path>& files, const std::strin
   for (const auto& f : files)
     if (f.filename().string().starts_with(start)) found.push_back(f);
   return found;
+}
+
+// A release of `analyses`, as `elctl publish create` leaves it: a private
+// draft; or, with `published`, published and public.
+nobion::Result<ps::Uuid> make_release(ps::IStore& store, const ps::Actor& actor, const std::vector<ps::Uuid>& analyses,
+                                       bool published) {
+  namespace pb = nobion::publish;
+  pb::ReleaseSpec spec;
+  spec.name = "rel";
+  spec.title = "Release rel";
+  spec.authors = {{"J. Ross", std::nullopt, "NMT"}};
+  for (const auto& a : analyses) spec.analyses.push_back(a.str());
+  spec.options_json = pb::release_options_json(pb::ReleaseOptions{});
+  spec.reduction_version = "arar-1";
+  spec.software_version = "test";
+  auto created = pb::create_release(store, actor, spec);
+  if (!created) return nobion::fail(created.error());
+  if (published) {
+    auto done = pb::publish_release(store, actor, created->release, nobion::sha256(std::string_view{"manifest"}), true);
+    if (!done) return nobion::fail(done.error());
+  }
+  return created->release;
 }
 
 // The data rows of a sheet of a written workbook: row 4 names the columns,
@@ -123,7 +149,7 @@ class ElctlEarthbank : public elctl::testing::StoreTest {
     StoreTest::SetUp();
     // The templates the source tree holds, whatever the environment says;
     // what it said is put back afterwards.
-    if (const char* was = std::getenv(kTemplatesVariable)) templates_were_ = was;
+    templates_were_ = nobion::env_var(kTemplatesVariable);
     set_templates_variable(std::nullopt);
     fused_ = *store_->add_sample(acq_, {.name = "S-FUS", .project = project_, .material = material_});
     unknown_at(4, fused_, "77001");
@@ -164,7 +190,7 @@ class ElctlEarthbank : public elctl::testing::StoreTest {
     return path("overrides.toml").string();
   }
 
-  static constexpr const char* kTemplatesVariable = "PYCHRON_EARTHBANK_TEMPLATES";
+  static constexpr const char* kTemplatesVariable = "NOBION_EARTHBANK_TEMPLATES";
   std::optional<std::string> templates_were_;
   ps::Uuid fused_;
   fs::path out_;
@@ -190,7 +216,7 @@ TEST_F(ElctlEarthbank, HelpNamesTheCommandAndTheOverrides) {
   // environment's templates come before the installed ones.
   const std::string text = run_raw({"earthbank", "help"}).out;
   EXPECT_TRUE(contains(text, "--group-by sample --sigma 1")) << text;
-  EXPECT_LT(text.find("$PYCHRON_EARTHBANK_TEMPLATES"), text.find("installed ones")) << text;
+  EXPECT_LT(text.find("$NOBION_EARTHBANK_TEMPLATES"), text.find("installed ones")) << text;
   EXPECT_TRUE(contains(text, "UTC")) << text;
 }
 
@@ -256,8 +282,48 @@ TEST_F(ElctlEarthbank, ExportXlsxWritesBothWorkbooks) {
   EXPECT_EQ(files_in(out_).size(), 4u);
 }
 
+TEST_F(ElctlEarthbank, ExportXlsxFromDraftRelease) {
+  // Only the three of FC-2 and S-FUS that are in the release: a draft may be
+  // exported, and the one unknown left out is not in the workbook.
+  const std::vector<ps::Uuid> members(unknowns_.begin() + 1, unknowns_.end());
+  const auto release = make_release(*store_, ps::Actor{reducer_, red_}, members, false);
+  ASSERT_TRUE(release) << to_string(release.error());
+  const Outcome o = to_out({"--release", "rel"});
+  EXPECT_EQ(o.code, elctl::kOk) << o.err;
+  EXPECT_EQ(o.err, "");
+  const auto arar = named(files_in(out_), "ArArDataPoint_");
+  ASSERT_EQ(arar.size(), 1u) << o.out;
+  const auto measurements = rows_of(arar[0], "ArArMeasurement");
+  EXPECT_EQ(measurements.size(), 3u);
+  EXPECT_TRUE(contains(o.out, "S-FUS: 2 analyses")) << o.out;
+  EXPECT_TRUE(contains(o.out, "FC-2: 1 analysis")) << o.out;
+}
+
+// Every selection flag, with a value that parses: --release takes none.
+const std::vector<std::vector<std::string>>& selection_flags() {
+  static const std::vector<std::vector<std::string>> flags{
+      {"--sample", "x"},          {"--identifier", "x"}, {"--project", "x"}, {"--irradiation", "x"},
+      {"--type", "unknown"},      {"--uuid", "x"},       {"--from", "2026-01-01"}, {"--to", "2026-12-31"},
+      {"--include-invalid"},      {"--limit", "7"}};
+  return flags;
+}
+
+TEST_F(ElctlEarthbank, ReleaseWithSelectionIsUsageError) {
+  const auto release = make_release(*store_, ps::Actor{reducer_, red_}, unknowns_, false);
+  ASSERT_TRUE(release) << to_string(release.error());
+  for (const auto& flag : selection_flags()) {
+    std::vector<std::string> args{"--release", "rel"};
+    args.insert(args.end(), flag.begin(), flag.end());
+    const Outcome o = to_out(args);
+    EXPECT_EQ(o.code, elctl::kUsage) << flag[0];
+    EXPECT_TRUE(contains(o.err, "--release names the analyses itself: it cannot be given with")) << o.err;
+    EXPECT_EQ(o.out, "");
+  }
+  EXPECT_EQ(to_out({"--release", "nobody"}).code, elctl::kUsage);  // no such release: fatal, as any other
+}
+
 TEST_F(ElctlEarthbank, PerSampleAndNoSamples) {
-  const Outcome o = to_out({"--per-sample", "--no-samples", "--templates", PYCHRON_EARTHBANK_TEMPLATE_DIR});
+  const Outcome o = to_out({"--per-sample", "--no-samples", "--templates", NOBION_EARTHBANK_TEMPLATE_DIR});
   EXPECT_EQ(o.code, elctl::kOk) << o.err;
   const auto files = files_in(out_);
   ASSERT_EQ(files.size(), 2u) << o.out;
@@ -439,7 +505,7 @@ TEST_F(ElctlEarthbank, EverySettingANoteNamesIsAKeyOfTheOverridesFile) {
   std::set<std::string> settings;
   const std::regex named_setting("`([a-z_]+)` setting");
   for (const char* source : {"mapping.cpp", "xlsx.cpp"}) {
-    const std::string text = slurp(fs::path(PYCHRON_EARTHBANK_SOURCE_DIR) / source);
+    const std::string text = slurp(fs::path(NOBION_EARTHBANK_SOURCE_DIR) / source);
     ASSERT_FALSE(text.empty()) << source;
     for (std::sregex_iterator it(text.begin(), text.end(), named_setting), end; it != end; ++it)
       settings.insert((*it)[1].str());
@@ -676,7 +742,7 @@ class ElctlEarthbankAccount : public ElctlEarthbank {
  protected:
   void SetUp() override {
     ElctlEarthbank::SetUp();
-    if (const char* was = std::getenv(kPasswordVariable)) password_was_ = was;
+    password_was_ = nobion::env_var(kPasswordVariable);
     set_variable(std::nullopt);
     profiles_ = path("profiles.toml");
   }
@@ -725,16 +791,16 @@ class ElctlEarthbankAccount : public ElctlEarthbank {
   }
 
   std::string kept_password(const std::string& name) {
-    const auto profiles = pychron::earthbank::load_profiles(profiles_);
+    const auto profiles = nobion::earthbank::load_profiles(profiles_);
     if (!profiles || profiles->find(name) == nullptr) return "(no profile)";
-    const auto kept = secrets_->get(pychron::earthbank::secret_account(*profiles->find(name)));
+    const auto kept = secrets_->get(nobion::earthbank::secret_account(*profiles->find(name)));
     return kept && *kept ? **kept : "(none)";
   }
 
   static constexpr const char* kPasswordVariable = "EARTHBANK_PASSWORD";
-  pychron::earthbank::testing::FakeEarthBank bank_;
-  pychron::earthbank::testing::Spy spy_{bank_};
-  std::unique_ptr<pychron::earthbank::ISecretStore> secrets_ = pychron::earthbank::make_memory_secret_store();
+  nobion::earthbank::testing::FakeEarthBank bank_;
+  nobion::earthbank::testing::Spy spy_{bank_};
+  std::unique_ptr<nobion::earthbank::ISecretStore> secrets_ = nobion::earthbank::make_memory_secret_store();
   fs::path profiles_;
   std::optional<std::string> password_was_;
   std::vector<std::string> outputs_;  // everything every command printed
@@ -747,7 +813,7 @@ TEST_F(ElctlEarthbankAccount, LoginStoresThePasswordAndTheProfile) {
   EXPECT_TRUE(contains(o.out, "profile 'mylab' saved")) << o.out;
   EXPECT_EQ(o.err, "");
 
-  const auto profiles = pychron::earthbank::load_profiles(profiles_);
+  const auto profiles = nobion::earthbank::load_profiles(profiles_);
   ASSERT_TRUE(profiles) << profiles.error().what;
   EXPECT_EQ(profiles->active, "mylab");
   ASSERT_EQ(profiles->profiles.size(), 1u);
@@ -768,7 +834,7 @@ TEST_F(ElctlEarthbankAccount, LoginStoresThePasswordAndTheProfile) {
   const Outcome again = with_profiles({"login", "--profile", "mylab"});
   set_variable(std::nullopt);
   ASSERT_EQ(again.code, elctl::kOk) << again.err;
-  const auto reread = pychron::earthbank::load_profiles(profiles_);
+  const auto reread = nobion::earthbank::load_profiles(profiles_);
   ASSERT_TRUE(reread);
   ASSERT_EQ(reread->profiles.size(), 1u);
   EXPECT_EQ(reread->profiles[0], p);
@@ -784,13 +850,13 @@ TEST_F(ElctlEarthbankAccount, LoginWithAWrongPasswordStoresNothing) {
   EXPECT_FALSE(o.err.empty());
   EXPECT_FALSE(contains(o.err, wrong)) << o.err;
   EXPECT_FALSE(fs::exists(profiles_)) << "a profile was saved";
-  const pychron::earthbank::Profile mine = [&] {
-    pychron::earthbank::Profile p;
+  const nobion::earthbank::Profile mine = [&] {
+    nobion::earthbank::Profile p;
     p.name = "mylab";
     p.base_url = bank_.base_url();
     return p;
   }();
-  const auto kept = secrets_->get(pychron::earthbank::secret_account(mine));
+  const auto kept = secrets_->get(nobion::earthbank::secret_account(mine));
   ASSERT_TRUE(kept);
   EXPECT_FALSE(kept->has_value());
 }
@@ -835,7 +901,7 @@ TEST_F(ElctlEarthbankAccount, AccountPrintsTheName) {
   EXPECT_TRUE(contains(o.out, "account: Robin Example (robin.example), id 4107")) << o.out;
   EXPECT_TRUE(contains(o.out, "profile: mylab (https://earthbank.test)")) << o.out;
   // Without a login there is nothing to ask as.
-  secrets_ = pychron::earthbank::make_memory_secret_store();
+  secrets_ = nobion::earthbank::make_memory_secret_store();
   const Outcome none = with_profiles({"account"});
   EXPECT_EQ(none.code, elctl::kUsage);
   EXPECT_TRUE(contains(none.err, "no password is kept")) << none.err;
@@ -852,15 +918,15 @@ TEST_F(ElctlEarthbankAccount, AccountPrintsTheName) {
 // A keyring that cannot be opened (locked, no session) does not stop a script
 // that gives the password in the variable.
 TEST_F(ElctlEarthbankAccount, AStoreThatFailsDoesNotBlockTheVariable) {
-  class Broken final : public pychron::earthbank::ISecretStore {
+  class Broken final : public nobion::earthbank::ISecretStore {
    public:
     std::string backend() const override { return "broken"; }
     bool persistent() const override { return true; }
-    pychron::Result<std::optional<std::string>> get(std::string_view) override {
-      return pychron::fail(pychron::ErrorKind::Io, "broken: the keyring is locked");
+    nobion::Result<std::optional<std::string>> get(std::string_view) override {
+      return nobion::fail(nobion::ErrorKind::Io, "broken: the keyring is locked");
     }
-    pychron::Result<void> set(std::string_view, std::string_view) override { return {}; }
-    pychron::Result<void> erase(std::string_view) override { return {}; }
+    nobion::Result<void> set(std::string_view, std::string_view) override { return {}; }
+    nobion::Result<void> erase(std::string_view) override { return {}; }
   } broken;
   ASSERT_EQ(log_in().code, elctl::kOk);
   const auto run = [&](std::vector<std::string> args) {
@@ -907,7 +973,7 @@ TEST_F(ElctlEarthbankAccount, PackagesListsAndCreates) {
   EXPECT_TRUE(contains(made.out, std::to_string(id))) << made.out;
 
   // The profile uploads to it from now on, and the list marks it.
-  const auto profiles = pychron::earthbank::load_profiles(profiles_);
+  const auto profiles = nobion::earthbank::load_profiles(profiles_);
   ASSERT_TRUE(profiles);
   EXPECT_EQ(profiles->find("mylab")->data_package_id, std::optional<std::int64_t>(id));
   EXPECT_EQ(profiles->find("mylab")->institution_id, std::optional<std::int64_t>(9301));
@@ -920,7 +986,7 @@ TEST_F(ElctlEarthbankAccount, PackagesListsAndCreates) {
   const Outcome misnamed = with_profiles({"packages", "--create", "Asked for"});
   EXPECT_EQ(misnamed.code, elctl::kFailed);
   EXPECT_TRUE(contains(misnamed.err, "Another name")) << misnamed.err;
-  EXPECT_EQ(pychron::earthbank::load_profiles(profiles_)->find("mylab")->data_package_id, std::optional<std::int64_t>(id));
+  EXPECT_EQ(nobion::earthbank::load_profiles(profiles_)->find("mylab")->data_package_id, std::optional<std::int64_t>(id));
   EXPECT_EQ(with_profiles({"packages", "--institution", "x"}).code, elctl::kUsage);
 }
 
@@ -977,7 +1043,7 @@ TEST_F(ElctlEarthbankAccount, ImportProfiles) {
   ASSERT_EQ(o.code, elctl::kOk) << o.err;
   EXPECT_TRUE(contains(o.out, "imported 2 profiles")) << o.out;
   EXPECT_TRUE(contains(o.out, "passwords are not imported")) << o.out;
-  const auto profiles = pychron::earthbank::load_profiles(profiles_);
+  const auto profiles = nobion::earthbank::load_profiles(profiles_);
   ASSERT_TRUE(profiles) << profiles.error().what;
   ASSERT_EQ(profiles->profiles.size(), 2u);
   EXPECT_EQ(profiles->active, "other");
@@ -1033,7 +1099,7 @@ TEST_F(ElctlEarthbankAccount, HelpListsTheAccountCommands) {
   EXPECT_TRUE(contains(run_raw({"help"}).out, "earthbank login|account|packages|preflight|upload|import-profiles"));
 }
 
-#ifndef PYCHRON_ELCTL_HAS_NETWORK
+#ifndef NOBION_ELCTL_HAS_NETWORK
 // A build with persistence and no Qt6 Network: the commands that need the
 // network say so and exit 2, before they ask for anything.
 TEST_F(ElctlEarthbankAccount, WithoutNetworkSupportTheNetworkCommandsSayNo) {
@@ -1329,9 +1395,9 @@ TEST_F(ElctlEarthbankUpload, AChangedSubmissionPrintsTheCommandThatSendsItAsNew)
 }
 
 TEST_F(ElctlEarthbankUpload, NoStoredPasswordAndNoTerminalExitsTwoHavingSentNothing) {
-  const auto profiles = pychron::earthbank::load_profiles(profiles_);
+  const auto profiles = nobion::earthbank::load_profiles(profiles_);
   ASSERT_TRUE(profiles);
-  ASSERT_TRUE(secrets_->erase(pychron::earthbank::secret_account(*profiles->find("mylab"))));
+  ASSERT_TRUE(secrets_->erase(nobion::earthbank::secret_account(*profiles->find("mylab"))));
   const std::size_t requests = bank_.requests().size();
   const Outcome o = upload({"--yes"});
   EXPECT_EQ(o.code, elctl::kUsage) << o.err << o.out;
@@ -1365,6 +1431,64 @@ TEST_F(ElctlEarthbankUpload, UsageAndSelectionErrors) {
   EXPECT_EQ(bank_.requests().size(), requests);
   // Nothing matched: as for the workbooks.
   EXPECT_EQ(upload({"--sample", "nobody", "--yes"}).code, elctl::kFailed);
+  EXPECT_EQ(posts(), 0u);
+}
+
+// The brief's EarthBank upload from a release: the rule is the Publish
+// dialog's (publication.hpp), applied before any request is made.
+class ElctlEarthbankUploadRelease : public ElctlEarthbankUpload {
+ protected:
+  ps::Uuid release(bool published) {
+    auto made = make_release(*store_, ps::Actor{reducer_, red_}, unknowns_, published);
+    EXPECT_TRUE(made) << (made ? "" : to_string(made.error()));
+    return made ? *made : ps::Uuid{};
+  }
+};
+
+TEST_F(ElctlEarthbankUploadRelease, UploadRefusedOnPrivateRelease) {
+  const ps::Uuid id = release(false);
+  const auto expected = nobion::publish::earthbank_upload_refusal(*store_, id, false, ps::UtcTime::now());
+  ASSERT_TRUE(expected && *expected) << "a draft release is refused";
+  const std::size_t requests = bank_.requests().size();
+  const Outcome o = upload({"--release", "rel", "--yes"});
+  EXPECT_NE(o.code, elctl::kOk);
+  EXPECT_EQ(o.err, **expected + "\n");
+  EXPECT_EQ(o.out, "");
+  EXPECT_EQ(bank_.requests().size(), requests);
+  EXPECT_EQ(posts(), 0u);
+  EXPECT_EQ(journals(), 0u);
+}
+
+TEST_F(ElctlEarthbankUploadRelease, UploadFromPublicReleaseSends) {
+  release(true);
+  const Outcome o = upload({"--release", "rel", "--yes"});
+  EXPECT_EQ(o.code, elctl::kOk) << o.err << o.out;
+  EXPECT_GT(posts(), 0u);
+  EXPECT_TRUE(contains(o.out, "FC-2: complete")) << o.out;
+  EXPECT_TRUE(contains(o.out, "S-FUS: complete")) << o.out;
+}
+
+TEST_F(ElctlEarthbankUploadRelease, ReleaseWithSelectionIsUsageErrorOnPreflightAndUpload) {
+  release(true);
+  const std::size_t requests = bank_.requests().size();
+  for (const char* sub : {"preflight", "upload"}) {
+    for (const auto& flag : selection_flags()) {
+      std::vector<std::string> args{sub, "--db", db_, "--release", "rel", "--yes"};
+      if (std::string(sub) == "preflight") args.pop_back();
+      args.insert(args.end(), flag.begin(), flag.end());
+      const Outcome o = with_profiles(args);
+      EXPECT_EQ(o.code, elctl::kUsage) << sub << ' ' << flag[0];
+      EXPECT_TRUE(contains(o.err, "--release names the analyses itself: it cannot be given with")) << o.err;
+    }
+  }
+  EXPECT_EQ(bank_.requests().size(), requests);
+}
+
+TEST_F(ElctlEarthbankUploadRelease, PreflightReadsTheRelease) {
+  release(false);  // preflight asks the service nothing that needs the rule
+  const Outcome o = with_profiles({"preflight", "--db", db_, "--release", "rel"});
+  EXPECT_EQ(o.code, elctl::kOk) << o.err << o.out;
+  EXPECT_TRUE(contains(o.out, "every term the upload would send is known")) << o.out;
   EXPECT_EQ(posts(), 0u);
 }
 

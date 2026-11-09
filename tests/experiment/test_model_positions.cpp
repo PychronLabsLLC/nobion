@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 
-#include "pychron/experiment/model/positions.hpp"
+#include "nobion/experiment/model/positions.hpp"
 
-using namespace pychron::experiment;
+using namespace nobion::experiment;
 
 TEST(Positions, ParsesListsAndRanges) {
   auto p = parse_position("1,3-5; 9");

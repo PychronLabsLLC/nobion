@@ -1,0 +1,62 @@
+#pragma once
+
+// LogModel: bounded ring of log records (columns Time, Level, Logger,
+// Message, Thread, Run) for the log view. Qt::UserRole on any cell yields the
+// level (int); history records (loaded from nobion.log at start-up) are drawn
+// dimmed.
+
+#include <vector>
+
+#include <QAbstractTableModel>
+#include <QDateTime>
+#include <QString>
+
+#include "nobion/core/clock.hpp"
+#include "nobion/core/events.hpp"
+
+namespace nobion::ui {
+
+// "TRACE" .. "ERROR".
+QString log_level_name(LogLevel level);
+
+// Maps a steady_clock TimePoint to local wall time using a steady->system
+// anchor captured once (on first use; LogDock's constructor forces it).
+QDateTime log_wall_time(TimePoint ts);
+// Inverse of log_wall_time: the steady TimePoint that displays as `wall`.
+TimePoint log_steady_time(const QDateTime& wall);
+
+struct LogRecord {
+  TimePoint ts;
+  LogLevel level;
+  QString logger;
+  QString message;
+  bool history = false;
+  QString thread{};  // thread tag (`executor`, `t3`); empty when unknown
+  QString run{};  // run id; empty outside a run
+};
+
+class LogModel : public QAbstractTableModel {
+  Q_OBJECT
+
+ public:
+  static constexpr int kCapacity = 10000;
+  enum Column { TimeCol = 0, LevelCol, LoggerCol, MessageCol, ThreadCol, RunCol, ColumnCount };
+
+  explicit LogModel(int capacity = kCapacity, QObject* parent = nullptr);
+
+  // Appends records, evicting the oldest beyond capacity.
+  void append(std::vector<LogRecord> batch);
+  void clear();
+  const LogRecord& record(int row) const;
+
+  int rowCount(const QModelIndex& parent = {}) const override;
+  int columnCount(const QModelIndex& parent = {}) const override;
+  QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
+  QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
+
+ private:
+  int capacity_;
+  std::vector<LogRecord> records_;
+};
+
+}  // namespace nobion::ui

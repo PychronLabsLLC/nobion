@@ -1,9 +1,9 @@
-#include "pychron/codecs/pulse_counter.hpp"
+#include "nobion/codecs/pulse_counter.hpp"
 
 #include <limits>
 #include <string>
 
-namespace pychron::codec::pulse_counter {
+namespace nobion::codec::pulse_counter {
 
 namespace {
 
@@ -58,4 +58,4 @@ Bytes encode_counts(const std::vector<std::uint64_t>& counts) {
 
 Bytes encode_error(std::string_view message) { return to_bytes("E " + std::string(message) + "\r"); }
 
-}  // namespace pychron::codec::pulse_counter
+}  // namespace nobion::codec::pulse_counter

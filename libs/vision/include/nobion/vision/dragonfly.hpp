@@ -1,0 +1,82 @@
+#pragma once
+
+#include <optional>
+#include <span>
+
+#include "nobion/core/clock.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/vision/calibration.hpp"
+#include "nobion/vision/finder.hpp"
+#include "nobion/vision/frame.hpp"
+#include "nobion/vision/spiral.hpp"
+#include "nobion/vision/types.hpp"
+
+namespace nobion::vision {
+
+struct DragonflyParams {
+  Duration total_duration{};
+  double perimeter_radius_mm = 2.5;
+  double saturation_threshold = 0.75;  // in (0, 1]; 0 would make every dark frame "saturated"
+  double aggressiveness = 1.0;
+  double move_threshold_mm = 0.033;
+  double max_step_mm = 0.5;
+  SpiralKind spiral = SpiralKind::Hexagon;
+  double spiral_base_mm = 0.5;
+  int frames_per_step = 1;  // hint for the caller; step() uses whatever span it is given
+  int miss_frames_before_search = 3;
+  Vec2 aim_offset_px{};  // crosshair offset from image center; the crop and the measured offset follow it
+  double target_radius_mm = 0.5;  // sizes the crop (2.5x diameter) and the mask (1.05x diameter)
+};
+
+// What the tracker measured in a step: the glow's offset from the aim point
+// (before aggressiveness) and the blob's mean area.
+struct DragonflySeen {
+  Vec2 offset_mm{};
+  double area_mm2 = 0;
+};
+
+struct DragonflyStep {
+  enum class Action { Hold, Move, Done } action = Action::Hold;
+  Vec2 target_mm{};  // offset from the start position, not from the current one
+  double saturation = 0;
+  enum class Reason { Saturated, Deadband, Track, Search, PerimeterClamp, Miss, Elapsed, Invalid } reason =
+      Reason::Invalid;
+  Vec2 stage_mm{};                    // stage position given to step()
+  double elapsed_s = 0;               // since start()
+  std::optional<DragonflySeen> seen;  // unset: no blob in any frame
+  Vec2 start_mm{};                    // the fence's center: the stage at start()
+  double perimeter_mm = 0;            // the fence's radius
+};
+
+// Keeps a glowing sample under the aim point. Takes frames, returns a
+// decision, never moves a stage and never touches laser power. After a Move
+// the caller waits for the stage to settle and passes only frames captured
+// after that; older frames are an error.
+class Dragonfly {
+ public:
+  Dragonfly(ITargetFinder& finder, CameraStageMap map, double px_per_mm, DragonflyParams params);
+
+  void start(TimePoint now, Vec2 stage_pos_mm);
+  Result<DragonflyStep> step(std::span<const FrameView> frames, TimePoint now, Vec2 stage_pos_mm);
+
+ private:
+  bool params_ok() const;
+
+  ITargetFinder& finder_;
+  CameraStageMap map_;
+  double px_per_mm_;
+  DragonflyParams params_;
+  bool started_ = false;
+  TimePoint start_time_{};
+  Vec2 start_pos_{};
+  Vec2 anchor_{};  // spiral anchor, offset from start_pos_
+  int misses_ = 0;
+  bool have_move_ = false;
+  TimePoint last_move_now_{};
+  // Search bookkeeping: a ring with no point inside the perimeter restarts the spiral.
+  int prev_ring_ = 0;
+  bool ring_inside_ = false;
+  Spiral spiral_;
+};
+
+}  // namespace nobion::vision

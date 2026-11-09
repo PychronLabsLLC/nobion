@@ -1,25 +1,34 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <filesystem>
 #include <functional>
 #include <future>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
 
-#include "pychron/core/events.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/transport/sim_transport.hpp"
-#include "pychron/transport/transport.hpp"
+#include "nobion/core/config/logging_config.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/flight_recorder_triggers.hpp"
+#include "nobion/core/hang_monitor.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/transport/sim_transport.hpp"
+#include "nobion/transport/transport.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {
@@ -75,12 +84,12 @@ TransportOptions opts(int retries = 0, std::uint64_t down_after = 3) {
 
 const ReadSpec kCr = ReadSpec::until("\r");
 
-using pychron::testing::await_waiters;
+using nobion::testing::await_waiters;
 
 // A transport that waits past the clock leaves time standing and the test
 // asleep in it. Each test on a VirtualClock runs under a real-time bound: when
 // it is exceeded the process says so and aborts, well inside the ctest timeout.
-class QueuedTransportVirtual : public pychron::testing::VirtualTimeTest {};
+class QueuedTransportVirtual : public nobion::testing::VirtualTimeTest {};
 
 }  // namespace
 
@@ -124,13 +133,13 @@ TEST(QueuedTransport, ZeroTimeoutUsesConfiguredDefault) {
   EXPECT_EQ(t.last_timeout, Duration(40ms));
 }
 
-TEST(QueuedTransport, RetriesTimeoutThenSucceeds) {
+TEST(QueuedTransport, ResendsAfterATimeoutWhenAskedThenSucceeds) {
   FakeChannel t(opts(/*retries=*/2));
   ASSERT_TRUE(t.open());
   t.reads.emplace_back(fail(ErrorKind::Timeout, "t1"));
-  t.reads.emplace_back(fail(ErrorKind::Io, "glitch"));
+  t.reads.emplace_back(fail(ErrorKind::Timeout, "t2"));
   t.reads.emplace_back(to_bytes("OK\r"));
-  auto r = t.exchange(to_bytes("q"), kCr);
+  auto r = t.exchange(to_bytes("q"), kCr, Transport::kDefaultTimeout, Resend::Allowed);
   ASSERT_TRUE(r);
   EXPECT_EQ(t.write_calls, 3);
   EXPECT_EQ(t.discard_calls, 3);
@@ -140,7 +149,7 @@ TEST(QueuedTransport, RetriesTimeoutThenSucceeds) {
 TEST(QueuedTransport, RetriesExhaustedReportsLastErrorOnce) {
   FakeChannel t(opts(/*retries=*/1));
   ASSERT_TRUE(t.open());
-  auto r = t.exchange(to_bytes("q"), kCr);
+  auto r = t.exchange(to_bytes("q"), kCr, Transport::kDefaultTimeout, Resend::Allowed);
   ASSERT_FALSE(r);
   EXPECT_EQ(r.error().kind, ErrorKind::Timeout);
   EXPECT_EQ(r.error().device, "bus1");
@@ -155,18 +164,110 @@ TEST(QueuedTransport, ProtocolErrorsAreNotRetried) {
   FakeChannel t(opts(/*retries=*/3));
   ASSERT_TRUE(t.open());
   t.writes.emplace_back(fail(ErrorKind::Protocol, "rejected"));
-  auto r = t.exchange(to_bytes("q"), kCr);
+  auto r = t.exchange(to_bytes("q"), kCr, Transport::kDefaultTimeout, Resend::Allowed);
   ASSERT_FALSE(r);
   EXPECT_EQ(r.error().kind, ErrorKind::Protocol);
   EXPECT_EQ(t.write_calls, 1);
   EXPECT_EQ(t.read_calls, 0);
 }
 
-TEST(QueuedTransport, WriteIsRetriedOnIo) {
-  FakeChannel t(opts(/*retries=*/1));
+// A write has no reply to tell "not sent" from "sent and lost": the caller,
+// who knows whether the command may arrive twice, is the one to send it again.
+TEST(QueuedTransport, WriteIsNeverSentTwice) {
+  FakeChannel t(opts(/*retries=*/3));
   ASSERT_TRUE(t.open());
-  t.writes.emplace_back(fail(ErrorKind::Io, "EAGAIN"));
-  EXPECT_TRUE(t.write(to_bytes("w")));
+  t.writes.emplace_back(fail(ErrorKind::Timeout, "stalled"));
+  auto r = t.write(to_bytes("w"));
+  ASSERT_FALSE(r);
+  EXPECT_EQ(r.error().kind, ErrorKind::Timeout);
+  EXPECT_EQ(t.write_calls, 1);
+}
+
+TEST(QueuedTransport, ExchangeRepeatsOnlyWhenAsked) {
+  {
+    FakeChannel t(opts(/*retries=*/3));
+    ASSERT_TRUE(t.open());
+    EXPECT_FALSE(t.exchange(to_bytes("q"), kCr));
+    EXPECT_EQ(t.write_calls, 1);
+  }
+  {
+    FakeChannel t(opts(/*retries=*/3));
+    ASSERT_TRUE(t.open());
+    auto r = t.exchange(to_bytes("q"), kCr, Transport::kDefaultTimeout, Resend::Allowed);
+    ASSERT_FALSE(r);
+    EXPECT_EQ(r.error().kind, ErrorKind::Timeout);
+    EXPECT_EQ(t.write_calls, 4);
+  }
+  {
+    // The channel is closed by the Io: there is nothing left to resend on.
+    FakeChannel t(opts(/*retries=*/3));
+    ASSERT_TRUE(t.open());
+    t.reads.emplace_back(fail(ErrorKind::Io, "reset by peer"));
+    auto r = t.exchange(to_bytes("q"), kCr, Transport::kDefaultTimeout, Resend::Allowed);
+    ASSERT_FALSE(r);
+    EXPECT_EQ(r.error().kind, ErrorKind::Io);
+    EXPECT_EQ(t.write_calls, 1);
+  }
+}
+
+TEST(QueuedTransport, AnIoErrorClosesTheChannel) {
+  FakeChannel t(opts());
+  ASSERT_TRUE(t.open());
+  t.reads.emplace_back(fail(ErrorKind::Io, "reset by peer"));
+  auto r = t.exchange(to_bytes("q"), kCr);
+  ASSERT_FALSE(r);
+  EXPECT_EQ(r.error().kind, ErrorKind::Io);
+  EXPECT_EQ(t.close_calls, 1);
+  EXPECT_EQ(t.health().state, HealthState::Down);
+
+  auto next = t.exchange(to_bytes("q"), kCr);
+  ASSERT_FALSE(next);
+  EXPECT_EQ(next.error().kind, ErrorKind::NotConnected);
+  EXPECT_EQ(t.write_calls, 1);
+  EXPECT_EQ(t.close_calls, 1);
+
+  // It can be opened again, which is how a link comes back.
+  ASSERT_TRUE(t.open());
+  t.reads.emplace_back(to_bytes("OK\r"));
+  EXPECT_TRUE(t.exchange(to_bytes("q"), kCr));
+  EXPECT_EQ(t.health().state, HealthState::Connected);
+}
+
+TEST(QueuedTransport, AnIoErrorOnAWriteOrAReadClosesTheChannel) {
+  {
+    FakeChannel t(opts());
+    ASSERT_TRUE(t.open());
+    t.writes.emplace_back(fail(ErrorKind::Io, "broken pipe"));
+    EXPECT_FALSE(t.write(to_bytes("w")));
+    EXPECT_EQ(t.close_calls, 1);
+    EXPECT_EQ(t.write(to_bytes("w")).error().kind, ErrorKind::NotConnected);
+  }
+  {
+    FakeChannel t(opts());
+    ASSERT_TRUE(t.open());
+    t.reads.emplace_back(fail(ErrorKind::Io, "eof"));
+    EXPECT_FALSE(t.read(kCr));
+    EXPECT_EQ(t.close_calls, 1);
+    EXPECT_EQ(t.read(kCr).error().kind, ErrorKind::NotConnected);
+  }
+  {
+    FakeChannel t(opts());
+    ASSERT_TRUE(t.open());
+    t.reads.emplace_back(fail(ErrorKind::Io, "eof"));
+    EXPECT_FALSE(t.poll(kCr));
+    EXPECT_EQ(t.close_calls, 1);
+    EXPECT_EQ(t.health().state, HealthState::Down);
+  }
+}
+
+TEST(QueuedTransport, ATimeoutLeavesTheChannelOpen) {
+  FakeChannel t(opts());
+  ASSERT_TRUE(t.open());
+  EXPECT_EQ(t.exchange(to_bytes("q"), kCr).error().kind, ErrorKind::Timeout);
+  EXPECT_EQ(t.close_calls, 0);
+  EXPECT_EQ(t.health().state, HealthState::Degraded);
+  t.reads.emplace_back(to_bytes("OK\r"));
+  EXPECT_TRUE(t.exchange(to_bytes("q"), kCr));
   EXPECT_EQ(t.write_calls, 2);
 }
 
@@ -342,4 +443,218 @@ TEST_F(QueuedTransportVirtual, ShutdownCancelsAPendingCall) {
   EXPECT_EQ(to_string(*r1), "OK\r");
   destroyer.join();
   EXPECT_EQ(clock.now(), kStart + 2s);
+}
+
+// Hang monitor (spec 2026-11-06-field-diagnostics, 6): a call that does not
+// return is reported as `transport.<name>`; an idle transport, or one on a
+// VirtualClock, is not watched. Real time; each wait for a report is bounded
+// at 5 s, there only to tell a report from none.
+namespace {
+
+std::shared_ptr<LogHub> hang_hub(const Clock& clock) {
+  config::LoggingConfig cfg;
+  cfg.dir = std::filesystem::path{};  // no file: nothing to clean up
+  auto hub = LogHub::create(cfg, clock);
+  EXPECT_TRUE(hub.has_value());
+  return hub.has_value() ? *hub : nullptr;
+}
+
+// The dumps the monitor asked for.
+class HangRequests final : public IDumpRequester {
+ public:
+  void request(std::string reason) override {
+    {
+      const std::lock_guard lock(mutex_);
+      reasons_.push_back(std::move(reason));
+    }
+    cv_.notify_all();
+  }
+  bool await(const std::string& reason) {
+    std::unique_lock lock(mutex_);
+    return cv_.wait_for(lock, 5s, [&] { return count_locked(reason) > 0; });
+  }
+  std::size_t count(const std::string& reason) {
+    const std::lock_guard lock(mutex_);
+    return count_locked(reason);
+  }
+
+ private:
+  std::size_t count_locked(const std::string& reason) const {
+    return static_cast<std::size_t>(std::count(reasons_.begin(), reasons_.end(), reason));
+  }
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  std::vector<std::string> reasons_;
+};
+
+// Holds a hook until opened.
+class Gate {
+ public:
+  void open() {
+    {
+      const std::lock_guard lock(mutex_);
+      open_ = true;
+    }
+    cv_.notify_all();
+  }
+  void pass() {
+    std::unique_lock lock(mutex_);
+    entered_ = true;
+    cv_.notify_all();
+    cv_.wait(lock, [this] { return open_; });
+  }
+  // Waits, at most 5 s, until a hook is held.
+  bool await_entered() {
+    std::unique_lock lock(mutex_);
+    return cv_.wait_for(lock, 5s, [this] { return entered_; });
+  }
+
+ private:
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  bool open_ = false;
+  bool entered_ = false;
+};
+
+}  // namespace
+
+TEST(QueuedTransport, AStuckCallIsReported) {
+  const SteadyClock clock;
+  SignalBus bus;
+  auto hub = hang_hub(clock);
+  ASSERT_TRUE(hub);
+  HangRequests requests;
+  HangMonitor monitor(*hub, requests, bus, HangMonitor::Options{50ms});
+  Gate gate;
+  auto o = opts();
+  o.hang_monitor = &monitor;
+  o.hang_limit = 200ms;
+  auto t = SimTransport::hooked(
+      [&gate](const Bytes&) {
+        gate.pass();
+        return to_bytes("OK\r");
+      },
+      o);
+  ASSERT_TRUE(t->open());
+
+  auto call = std::async(std::launch::async, [raw = t.get()] { return raw->exchange(to_bytes("Q\r"), kCr); });
+  const bool reported = requests.await("hang-transport.bus1");
+  gate.open();
+  EXPECT_TRUE(reported);
+  const auto r = call.get();
+  ASSERT_TRUE(r) << r.error().what;
+  EXPECT_EQ(to_string(*r), "OK\r");
+  EXPECT_EQ(requests.count("hang-transport.bus1"), 1U);
+}
+
+TEST(QueuedTransport, AnIdleTransportIsNotWatched) {
+  const SteadyClock clock;
+  SignalBus bus;
+  auto hub = hang_hub(clock);
+  ASSERT_TRUE(hub);
+  HangRequests requests;
+  HangMonitor monitor(*hub, requests, bus, HangMonitor::Options{50ms});
+  auto o = opts();
+  o.hang_monitor = &monitor;
+  o.hang_limit = 50ms;
+  FakeChannel t(o);
+  const auto control = monitor.beat("control", 50ms);
+
+  ASSERT_TRUE(requests.await("hang-control"));
+  EXPECT_EQ(requests.count("hang-transport.bus1"), 0U);
+}
+
+// Under a VirtualClock a simulated wait has no fixed real-time length: the
+// transport registers no beat, however long a call takes in real time.
+TEST(QueuedTransport, ATransportOnAVirtualClockIsNotWatched) {
+  const SteadyClock steady;
+  VirtualClock clock;
+  SignalBus bus;
+  auto hub = hang_hub(steady);
+  ASSERT_TRUE(hub);
+  HangRequests requests;
+  HangMonitor monitor(*hub, requests, bus, HangMonitor::Options{50ms});
+  Gate gate;
+  auto o = opts();
+  o.clock = &clock;
+  o.hang_monitor = &monitor;
+  o.hang_limit = 50ms;
+  auto t = SimTransport::hooked(
+      [&gate](const Bytes&) {
+        gate.pass();
+        return to_bytes("OK\r");
+      },
+      o);
+  ASSERT_TRUE(t->open());
+
+  auto call = std::async(std::launch::async, [raw = t.get()] { return raw->exchange(to_bytes("Q\r"), kCr); });
+  const bool entered = gate.await_entered();
+  const auto control = monitor.beat("control", 50ms);
+  const bool control_reported = requests.await("hang-control");
+  gate.open();
+  EXPECT_TRUE(entered);
+  EXPECT_TRUE(control_reported);
+  EXPECT_EQ(requests.count("hang-transport.bus1"), 0U);
+  const auto r = call.get();
+  ASSERT_TRUE(r) << r.error().what;
+}
+
+// The beat measures silence between wire calls, not a job's length: a
+// transaction of short exchanges that together outlast the limit is not a
+// hang. Each exchange takes 150 ms against a 600 ms limit; six take 900 ms.
+TEST(QueuedTransport, ATransactionOfShortExchangesIsNotReported) {
+  const SteadyClock clock;
+  SignalBus bus;
+  auto hub = hang_hub(clock);
+  ASSERT_TRUE(hub);
+  HangRequests requests;
+  HangMonitor monitor(*hub, requests, bus, HangMonitor::Options{50ms});
+  auto o = opts();
+  o.hang_monitor = &monitor;
+  o.hang_limit = 600ms;
+  auto t = SimTransport::hooked(
+      [](const Bytes&) {
+        std::this_thread::sleep_for(150ms);  // the instrument takes its time
+        return to_bytes("OK\r");
+      },
+      o);
+  ASSERT_TRUE(t->open());
+  SimTransport* const raw = t.get();
+  const auto started = std::chrono::steady_clock::now();
+  const auto r = raw->transaction([raw]() -> Result<void> {
+    for (int i = 0; i < 6; ++i) {
+      auto reply = raw->exchange(to_bytes("Q\r"), kCr);
+      if (!reply) return fail(reply.error());
+    }
+    return {};
+  });
+  ASSERT_TRUE(r) << r.error().what;
+  EXPECT_GT(std::chrono::steady_clock::now() - started, 600ms);  // the job did outlast the limit
+
+  const auto control = monitor.beat("control", 50ms);  // the monitor has looked again since
+  ASSERT_TRUE(requests.await("hang-control"));
+  EXPECT_EQ(requests.count("hang-transport.bus1"), 0U);
+}
+
+// A read given a timeout longer than the configured one is allowed ten times
+// its own: waiting it out is not a hang.
+TEST(QueuedTransport, ALongExplicitTimeoutIsNotAHang) {
+  const SteadyClock clock;
+  SignalBus bus;
+  auto hub = hang_hub(clock);
+  ASSERT_TRUE(hub);
+  HangRequests requests;
+  HangMonitor monitor(*hub, requests, bus, HangMonitor::Options{50ms});
+  auto o = opts();
+  o.hang_monitor = &monitor;
+  o.hang_limit = 100ms;
+  auto t = SimTransport::hooked([](const Bytes&) { return Bytes{}; }, o, [] { return Bytes{}; });
+  ASSERT_TRUE(t->open());
+  const auto r = t->read(kCr, 600ms);  // nothing comes: waits the whole 600 ms
+  ASSERT_FALSE(r);
+  EXPECT_EQ(r.error().kind, ErrorKind::Timeout);
+
+  const auto control = monitor.beat("control", 50ms);
+  ASSERT_TRUE(requests.await("hang-control"));
+  EXPECT_EQ(requests.count("hang-transport.bus1"), 0U);
 }

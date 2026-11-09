@@ -2,7 +2,7 @@
 
 // Engine-parameterised store fixture. Every test gets a fresh database: an
 // in-memory or temp-file SQLite database, or a fresh PostgreSQL schema when
-// PYCHRON_TEST_PG_URL is set.
+// NOBION_TEST_PG_URL is set.
 
 #include <gtest/gtest.h>
 
@@ -18,17 +18,17 @@
 
 #include <QCoreApplication>
 
-#include "pychron/core/env.hpp"
-#include "pychron/persistence/store.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/persistence/store.hpp"
 #include "tiny/db.hpp"
 
-namespace pychron::persistence::testing {
+namespace nobion::persistence::testing {
 
 inline std::string pg_url() {
-  return env_var("PYCHRON_TEST_PG_URL").value_or("");
+  return env_var("NOBION_TEST_PG_URL").value_or("");
 }
 
-// "sqlite" always; "pg" when PYCHRON_TEST_PG_URL is set.
+// "sqlite" always; "pg" when NOBION_TEST_PG_URL is set.
 inline std::vector<std::string> engines() {
   std::vector<std::string> e{"sqlite"};
   if (!pg_url().empty()) e.emplace_back("pg");
@@ -42,14 +42,14 @@ class TestDatabase {
   TestDatabase(const std::string& engine, bool file_backed) {
     const std::string tag = unique_tag();
     if (engine == "pg") {
-      schema_ = "pychron_t_" + tag;
+      schema_ = "nobion_t_" + tag;
       const std::string base = pg_url();
       url_ = base + (base.find('?') == std::string::npos ? "?" : "&") + "search_path=" + schema_;
       admin_ = std::move(*detail::Db::open(StoreConfig{base, false}));
       (void)admin_->unprepared(detail::qs("DROP SCHEMA IF EXISTS " + schema_ + " CASCADE"));
       (void)admin_->unprepared(detail::qs("CREATE SCHEMA " + schema_));
     } else if (file_backed) {
-      path_ = std::filesystem::temp_directory_path() / ("pychron_store_" + tag + ".sqlite");
+      path_ = std::filesystem::temp_directory_path() / ("nobion_store_" + tag + ".sqlite");
       remove_sqlite_files(path_);  // a file a killed test left under the same name
       url_ = "sqlite:" + path_.string();
     } else {
@@ -59,7 +59,10 @@ class TestDatabase {
 
   ~TestDatabase() {
     if (admin_) (void)admin_->unprepared(detail::qs("DROP SCHEMA IF EXISTS " + schema_ + " CASCADE"));
-    if (!path_.empty()) remove_sqlite_files(path_);
+    if (!path_.empty()) {
+      remove_sqlite_files(path_);
+      remove_backups(path_);
+    }
   }
 
   // "<pid>_<64 random bits, hex>_<n>": a name no other database of this
@@ -85,6 +88,18 @@ class TestDatabase {
       std::error_code ignored;
       std::filesystem::remove(database.string() + suffix, ignored);
     }
+  }
+
+  // The copies a migration made beside the database before changing it
+  // ("<stem>.pre-<from>-to-<to>-<stamp>.sqlite", field diagnostics spec 11).
+  static void remove_backups(const std::filesystem::path& database) {
+    const std::string prefix = database.stem().string() + ".pre-";
+    std::error_code code;
+    std::vector<std::filesystem::path> found;
+    for (std::filesystem::directory_iterator it(database.parent_path(), code), end; !code && it != end;
+         it.increment(code))
+      if (it->path().filename().string().starts_with(prefix)) found.push_back(it->path());
+    for (const auto& f : found) std::filesystem::remove(f, code);
   }
 
   const std::string& url() const { return url_; }
@@ -207,16 +222,16 @@ inline IngestItem analysis_item(const Lab& lab, int aliquot, const Bytes& signal
 inline Result<void> break_updates_of(detail::Db& db, const char* table) {
   const QString name = QString::fromUtf8(table);
   if (db.dialect() == Dialect::Sqlite)
-    return db.unprepared(QStringLiteral("CREATE TRIGGER pychron_test_break BEFORE UPDATE ON %1 BEGIN "
-                                        "INSERT INTO pychron_test_nowhere VALUES (1); END")
+    return db.unprepared(QStringLiteral("CREATE TRIGGER nobion_test_break BEFORE UPDATE ON %1 BEGIN "
+                                        "INSERT INTO nobion_test_nowhere VALUES (1); END")
                              .arg(name));
   if (auto r = db.unprepared(QStringLiteral(
-          "CREATE FUNCTION pychron_test_break() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN "
-          "INSERT INTO pychron_test_nowhere VALUES (1); RETURN NEW; END $$"));
+          "CREATE FUNCTION nobion_test_break() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN "
+          "INSERT INTO nobion_test_nowhere VALUES (1); RETURN NEW; END $$"));
       !r)
     return r;
-  return db.unprepared(QStringLiteral("CREATE TRIGGER pychron_test_break BEFORE UPDATE ON %1 FOR EACH ROW "
-                                      "EXECUTE FUNCTION pychron_test_break()")
+  return db.unprepared(QStringLiteral("CREATE TRIGGER nobion_test_break BEFORE UPDATE ON %1 FOR EACH ROW "
+                                      "EXECUTE FUNCTION nobion_test_break()")
                            .arg(name));
 }
 
@@ -235,4 +250,4 @@ class StoreTest : public ::testing::TestWithParam<std::string> {
   Lab lab_;
 };
 
-}  // namespace pychron::persistence::testing
+}  // namespace nobion::persistence::testing

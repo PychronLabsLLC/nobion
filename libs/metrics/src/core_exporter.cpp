@@ -1,43 +1,56 @@
-#include "pychron/metrics/core_exporter.hpp"
+#include "nobion/metrics/core_exporter.hpp"
+
+#include "nobion/core/build_info.hpp"
 
 #include <optional>
 #include <utility>
 
-namespace pychron::metrics {
+namespace nobion::metrics {
 
 namespace {
 
-constexpr const char* kPressure = "pychron_pressure";
+constexpr const char* kPressure = "nobion_pressure";
 constexpr const char* kPressureHelp = "The last reading of a pressure gauge, in the unit the gauge is configured with.";
-constexpr const char* kTemperature = "pychron_temperature_kelvin";
+constexpr const char* kTemperature = "nobion_temperature_kelvin";
 constexpr const char* kTemperatureHelp = "The last reading of a temperature controller's input.";
-constexpr const char* kHeaterReadback = "pychron_heater_readback";
+constexpr const char* kHeaterReadback = "nobion_heater_readback";
 constexpr const char* kHeaterReadbackHelp = "A heater's last readback, in its configured unit.";
-constexpr const char* kHeaterSetpoint = "pychron_heater_setpoint";
+constexpr const char* kHeaterSetpoint = "nobion_heater_setpoint";
 constexpr const char* kHeaterSetpointHelp = "A heater's setpoint, in its configured unit.";
-constexpr const char* kHeaterEnabled = "pychron_heater_enabled";
+constexpr const char* kHeaterEnabled = "nobion_heater_enabled";
 constexpr const char* kHeaterEnabledHelp = "1 while a heater's output is enabled.";
-constexpr const char* kValveState = "pychron_valve_state";
+constexpr const char* kValveState = "nobion_valve_state";
 constexpr const char* kValveStateHelp = "1 for the state a valve is in, 0 for the others.";
-constexpr const char* kValveTransitions = "pychron_valve_transitions_total";
+constexpr const char* kValveTransitions = "nobion_valve_transitions_total";
 constexpr const char* kValveTransitionsHelp = "Times a valve changed state.";
-constexpr const char* kActuationFailures = "pychron_actuation_failures_total";
+constexpr const char* kActuationFailures = "nobion_actuation_failures_total";
 constexpr const char* kActuationFailuresHelp = "Valve actuations that failed.";
-constexpr const char* kLastSampleAge = "pychron_last_sample_age_seconds";
+constexpr const char* kLastSampleAge = "nobion_last_sample_age_seconds";
 constexpr const char* kLastSampleAgeHelp = "Real seconds since a source was last read. A reading is only as fresh as this.";
-constexpr const char* kUptime = "pychron_process_uptime_seconds";
+constexpr const char* kUptime = "nobion_process_uptime_seconds";
 constexpr const char* kUptimeHelp = "Real seconds since the application started.";
-constexpr const char* kAlarms = "pychron_alarms_total";
+constexpr const char* kAlarms = "nobion_alarms_total";
 constexpr const char* kAlarmsHelp = "Alarms raised.";
-constexpr const char* kLogRecords = "pychron_log_records_total";
+constexpr const char* kLogRecords = "nobion_log_records_total";
 constexpr const char* kLogRecordsHelp = "Log records, by level and by the first part of the logger's name.";
-constexpr const char* kTransportConnected = "pychron_transport_connected";
+constexpr const char* kTransportConnected = "nobion_transport_connected";
 constexpr const char* kTransportConnectedHelp = "1 while a transport is up (working or degraded), 0 while it is down.";
-constexpr const char* kBusFailures = "pychron_bus_handler_failures_total";
+constexpr const char* kBusFailures = "nobion_bus_handler_failures_total";
 constexpr const char* kBusFailuresHelp =
     "Subscribers of the event bus that threw, by the event they were handling. The log has what each said.";
-constexpr const char* kTransportOutages = "pychron_transport_outages_total";
+constexpr const char* kTransportOutages = "nobion_transport_outages_total";
 constexpr const char* kTransportOutagesHelp = "Times a transport went down.";
+constexpr const char* kLinkReconnects = "nobion_link_reconnects_total";
+constexpr const char* kLinkReconnectsHelp = "Times a transport's link reconnected after a failure.";
+constexpr const char* kLinkRepeats = "nobion_link_repeats_total";
+constexpr const char* kLinkRepeatsHelp =
+    "Commands a transport's link sent again after a failure, being safe to send twice.";
+constexpr const char* kDeviceState = "nobion_device_state";
+constexpr const char* kDeviceStateHelp = "A device's health: 0 unknown, 1 ok, 2 degraded, 3 faulted.";
+constexpr const char* kDeviceFailures = "nobion_device_consecutive_failures";
+constexpr const char* kDeviceFailuresHelp =
+    "A device's failed operations in a row at the last state change of its health; not updated between changes. "
+    "The log has what each said.";
 
 constexpr AlarmSeverity kSeverities[] = {AlarmSeverity::Info, AlarmSeverity::Warning, AlarmSeverity::Critical};
 constexpr LogLevel kLevels[] = {LogLevel::Trace, LogLevel::Debug, LogLevel::Info, LogLevel::Warn, LogLevel::Error};
@@ -49,6 +62,16 @@ const char* state_name(ValveState s) {
     case ValveState::Unknown: return "unknown";
   }
   return "unknown";
+}
+
+double state_value(DeviceState s) {
+  switch (s) {
+    case DeviceState::Unknown: return 0;
+    case DeviceState::Ok: return 1;
+    case DeviceState::Degraded: return 2;
+    case DeviceState::Faulted: return 3;
+  }
+  return 0;
 }
 
 const char* severity_name(AlarmSeverity s) {
@@ -92,6 +115,7 @@ void set_or_remove(Registry& r, const char* name, const char* help, const Labels
 BuildInfo build_info(std::string version) {
   BuildInfo b;
   b.version = std::move(version);
+  b.git_sha = std::string(nobion::build_info().git_sha);
 #if defined(_WIN32)
   b.os = "windows";
 #elif defined(__APPLE__)
@@ -129,10 +153,14 @@ CoreExporter::CoreExporter(Registry& registry, SignalBus& bus, BuildInfo build, 
   registry.declare(MetricType::Counter, kBusFailures, kBusFailuresHelp);
   registry.declare(MetricType::Gauge, kTransportConnected, kTransportConnectedHelp);
   registry.declare(MetricType::Counter, kTransportOutages, kTransportOutagesHelp);
+  registry.declare(MetricType::Counter, kLinkReconnects, kLinkReconnectsHelp);
+  registry.declare(MetricType::Counter, kLinkRepeats, kLinkRepeatsHelp);
+  registry.declare(MetricType::Gauge, kDeviceState, kDeviceStateHelp);
+  registry.declare(MetricType::Gauge, kDeviceFailures, kDeviceFailuresHelp);
 
   registry
-      .gauge("pychron_build_info", "Always 1; the labels say which build is running.",
-             {{"version", build.version}, {"os", build.os}, {"compiler", build.compiler}})
+      .gauge("nobion_build_info", "Always 1; the labels say which build is running.",
+             {{"version", build.version}, {"os", build.os}, {"compiler", build.compiler}, {"git_sha", build.git_sha}})
       .set(1);
   started_ = now_();
   registry.gauge(kUptime, kUptimeHelp).set(0);
@@ -210,11 +238,35 @@ CoreExporter::CoreExporter(Registry& registry, SignalBus& bus, BuildInfo build, 
     Counter& outages = registry_.counter(kTransportOutages, kTransportOutagesHelp, labels);
     if (went_down) outages.inc();
   }));
+  // Published on the device's own thread when its state changes (spec
+  // 2026-11-06-field-diagnostics, 7): set two gauges and return. Like a
+  // transport's, a device's series stay for the life of the exporter.
+  subscriptions_.push_back(bus.subscribe<DeviceHealthChanged>([this](const DeviceHealthChanged& e) {
+    registry_.gauge(kDeviceState, kDeviceStateHelp, {{"device", e.device}, {"transport", e.transport}})
+        .set(state_value(e.to));
+    registry_.gauge(kDeviceFailures, kDeviceFailuresHelp, {{"device", e.device}, {"transport", e.transport}})
+        .set(static_cast<double>(e.consecutive_failures));
+  }));
 }
 
 CoreExporter::~CoreExporter() {
   collector_.reset();
   for (SignalBus::Subscription& s : subscriptions_) s.reset();
+}
+
+void CoreExporter::watch_links(LinkSource source) {
+  const std::lock_guard lock(links_mutex_);
+  links_ = std::move(source);
+  if (links_) read_links(registry_, links_);
+}
+
+// The links count for themselves; a counter follows their totals.
+void CoreExporter::read_links(Registry& registry, const LinkSource& source) {
+  for (const LinkTotals& l : source()) {
+    const Labels labels{{"transport", l.transport}};
+    registry.counter(kLinkReconnects, kLinkReconnectsHelp, labels).set_total(static_cast<double>(l.reconnects));
+    registry.counter(kLinkRepeats, kLinkRepeatsHelp, labels).set_total(static_cast<double>(l.repeats));
+  }
 }
 
 void CoreExporter::on_valve(const std::string& valve, ValveState state, bool count_transition) {
@@ -259,9 +311,13 @@ void CoreExporter::collect(Registry& registry) {
     read_at = read_at_;
   }
   registry.gauge(kUptime, kUptimeHelp).set(now - started_);
+  {
+    const std::lock_guard lock(links_mutex_);
+    if (links_) read_links(registry, links_);
+  }
   for (const auto& [key, at] : read_at) {
     registry.gauge(kLastSampleAge, kLastSampleAgeHelp, {{"kind", key.first}, {"source", key.second}}).set(now - at);
   }
 }
 
-}  // namespace pychron::metrics
+}  // namespace nobion::metrics

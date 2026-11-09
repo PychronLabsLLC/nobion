@@ -18,7 +18,6 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
-#include <QPointer>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QSettings>
@@ -33,22 +32,30 @@
 #include "data_workspace.hpp"
 #include "earthbank_fixture.hpp"
 #include "earthbank_package_dialog.hpp"
-#include "earthbank_publish_dialog.hpp"
+#include "earthbank_publish_panel.hpp"
 #include "earthbank_worker.hpp"
-#include "pychron/processing/options.hpp"
-#include "pychron/processing/source.hpp"
+#include "nobion/processing/options.hpp"
+#include "nobion/arar/domain.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/source.hpp"
 #include "settings_guard.hpp"
 
-using namespace pychron;
-namespace eb = pychron::earthbank;
-namespace pp = pychron::processing;
+using namespace nobion;
+namespace eb = nobion::earthbank;
+namespace pp = nobion::processing;
 using eb::testing::AnalysisList;
-using pychron::ui::DataBrowserWindow;
-using pychron::ui::EarthbankPublishDialog;
-using Action = pychron::ui::EarthbankPublishDialog::Action;
-using Column = pychron::ui::EarthbankPublishDialog::Column;
+using nobion::ui::DataBrowserWindow;
+using nobion::ui::EarthbankPublishPanel;
+using Action = nobion::ui::EarthbankPublishPanel::Action;
+using Column = nobion::ui::EarthbankPublishPanel::Column;
 
 namespace {
+
+// The Ar-Ar domain: what a browser's toolbar is built from.
+const pp::Domain& arar_domain() {
+  static const std::unique_ptr<pp::Domain> domain = nobion::arar::make_domain();
+  return *domain;
+}
 
 // The two fixture samples with every term one the fake's lists hold: the
 // heated sample's stratigraphic unit is not, and is taken off.
@@ -67,35 +74,50 @@ class EarthbankPublishTest : public QObject {
         return std::make_unique<QSettings>(path, QSettings::IniFormat);
       };
     }
-    // A dialog on `analyses`, surveyed, that says yes to an upload.
-    std::unique_ptr<EarthbankPublishDialog> dialog(const AnalysisList& analyses = publishable()) const {
-      auto d = std::make_unique<EarthbankPublishDialog>(analyses, setup(), settings());
+    // A panel on `analyses`, surveyed, that says yes to an upload.
+    std::unique_ptr<EarthbankPublishPanel> dialog(const AnalysisList& analyses = publishable()) const {
+      auto d = std::make_unique<EarthbankPublishPanel>(analyses, setup(), settings());
       d->ask_confirm = [](const QString&) { return true; };
       d->setup_name()->setText(QStringLiteral("Noble gas lab"));
       return d;
     }
   };
 
-  static int row_of(const EarthbankPublishDialog& d, const QString& sample) {
+  static int row_of(const EarthbankPublishPanel& d, const QString& sample) {
     for (int r = 0; r < d.table()->rowCount(); ++r) {
       if (d.table()->item(r, static_cast<int>(Column::Sample))->text() == sample) return r;
     }
     return -1;
   }
-  static QString cell(const EarthbankPublishDialog& d, int row, Column column) {
+  static QString cell(const EarthbankPublishPanel& d, int row, Column column) {
     return d.table()->item(row, static_cast<int>(column))->text();
   }
-  static void set_action(EarthbankPublishDialog& d, Action action) {
+  static void set_action(EarthbankPublishPanel& d, Action action) {
     d.action()->setCurrentIndex(d.action()->findData(static_cast<int>(action)));
   }
-  // Presses Run and waits for the dialog to be done with it.
-  static void run(EarthbankPublishDialog& d) {
-    QVERIFY(d.run_button()->isEnabled());
-    d.run_button()->click();
+  // Starts the chosen action and waits for the panel to be done with it.
+  static void run(EarthbankPublishPanel& d) {
+    QVERIFY(d.can_run());
+    d.start(d.current_action());
     QTRY_VERIFY_WITH_TIMEOUT(d.ready(), 20000);
   }
   static std::size_t record_posts(const eb::testing::FakeEarthBank& bank) {
     return bank.count("POST", "/api/arar/") + bank.count("POST", "/api/core/");
+  }
+  // An in-doubt button only asks the host to resume (the host runs the upload
+  // gate first): it sends nothing itself. Then the host's resume, with what
+  // the button asked for.
+  static void answer_in_doubt(EarthbankPublishPanel& d, const eb::testing::FakeEarthBank& bank, QPushButton* button,
+                              const std::string& expected) {
+    QSignalSpy asked(&d, &EarthbankPublishPanel::resume_requested);
+    const std::size_t posts = record_posts(bank);
+    button->click();
+    QCOMPARE(asked.count(), 1);
+    QCOMPARE(asked.first().first().value<std::string>(), expected);
+    QVERIFY(d.ready());
+    QCOMPARE(record_posts(bank), posts);
+    d.resume(expected);
+    QTRY_VERIFY_WITH_TIMEOUT(d.ready(), 20000);
   }
 
   ui::test::ApplicationSettingsGuard app_settings_;
@@ -103,19 +125,21 @@ class EarthbankPublishTest : public QObject {
  private slots:
   void the_action_is_enabled_only_with_a_selection() {
     pp::MemorySource source(eb::testing::both_samples());
-    DataBrowserWindow w(source);
+    DataBrowserWindow w(source, arar_domain());
     QVERIFY(w.publish_action() != nullptr);
     QVERIFY(!w.publish_action()->isEnabled());
     QSignalSpy asked(&w, &DataBrowserWindow::publish_requested);
 
     w.select_rows({0, 1});
+    QVERIFY(!w.publish_action()->isEnabled());  // highlighted is not selected
+    w.add_highlighted();
     QVERIFY(w.publish_action()->isEnabled());
     w.publish_action()->trigger();
     QCOMPARE(asked.count(), 1);
-    QCOMPARE(asked.first().first().toStringList(), w.selected_uuids());
-    QCOMPARE(w.selected_uuids().size(), 2);
+    QCOMPARE(asked.first().first().toStringList(), w.selection_uuids());
+    QCOMPARE(w.selection_uuids().size(), 2);
 
-    w.select_rows({});
+    w.clear_selected();
     QVERIFY(!w.publish_action()->isEnabled());
   }
 
@@ -124,7 +148,7 @@ class EarthbankPublishTest : public QObject {
     w.signed_up();
     auto d = w.dialog();
     QVERIFY(!d->ready());  // the survey is on the worker's thread
-    QVERIFY(!d->run_button()->isEnabled());
+    QVERIFY(!d->can_run());
     QTRY_VERIFY(d->ready());
 
     QCOMPARE(d->table()->rowCount(), 2);
@@ -173,11 +197,11 @@ class EarthbankPublishTest : public QObject {
     auto d = w.dialog();
     QTRY_VERIFY(d->ready());
     set_action(*d, Action::Upload);
-    QVERIFY(!d->run_button()->isEnabled());
+    QVERIFY(!d->can_run());
     QVERIFY(d->hint()->text().contains(QStringLiteral("Preferences")));
     set_action(*d, Action::ExportXlsx);
     d->folder()->setText(w.dir.filePath(QStringLiteral("out")));
-    QVERIFY(d->run_button()->isEnabled());
+    QVERIFY(d->can_run());
   }
 
   void preflight_marks_the_rows_with_misses() {
@@ -241,7 +265,7 @@ class EarthbankPublishTest : public QObject {
     QTRY_VERIFY(d->ready());
     set_action(*d, Action::ExportXlsx);
     d->folder()->clear();
-    QVERIFY(!d->run_button()->isEnabled());
+    QVERIFY(!d->can_run());
   }
 
   void upload_asks_first_and_writes_on_yes() {
@@ -277,7 +301,7 @@ class EarthbankPublishTest : public QObject {
              qPrintable(said));
     QVERIFY(said.contains(QStringLiteral("S-STEP: complete, data point %1").arg(store.data_points[1].id)));
     QVERIFY(said.contains(QStringLiteral("S-STEP: age summary: saved, id ")));  // a line for each record
-    QCOMPARE(d->progress()->value(), d->progress()->maximum());
+    QCOMPARE(d->progress_bar()->value(), d->progress_bar()->maximum());
 
     // Again: it is all there, and nothing is sent twice.
     const std::size_t sent = record_posts(w.bank);
@@ -359,10 +383,10 @@ class EarthbankPublishTest : public QObject {
     QVERIFY(!d->cancel_button()->isEnabled());
 
     w.gate.hold_at("POST", "/api/arar/ArArMeasurement");
-    d->run_button()->click();
+    d->start(d->current_action());
     QTRY_VERIFY_WITH_TIMEOUT(w.gate.waiting(), 20000);  // the first measurement is on its way
     QVERIFY(d->cancel_button()->isEnabled());
-    QVERIFY(!d->run_button()->isEnabled());
+    QVERIFY(!d->can_run());
     d->cancel_button()->click();
     w.gate.release();
     QTRY_VERIFY_WITH_TIMEOUT(d->ready(), 20000);
@@ -412,10 +436,10 @@ class EarthbankPublishTest : public QObject {
       asked_again = true;
       return true;
     };
-    d->in_doubt_id()->setText(QString::number(w.bank.store().aliquots[0].id));
+    const auto id = w.bank.store().aliquots[0].id;
+    d->in_doubt_id()->setText(QString::number(id));
     QVERIFY(d->there_button()->isEnabled());
-    d->there_button()->click();
-    QTRY_VERIFY_WITH_TIMEOUT(d->ready(), 20000);
+    answer_in_doubt(*d, w.bank, d->there_button(), "written:" + std::to_string(id));
     QVERIFY(!asked_again);  // it finishes the upload that was agreed to
     QCOMPARE(w.bank.store().aliquots.size(), std::size_t{7});  // the one in doubt was not sent again
     QVERIFY(d->result_pane()->toPlainText().contains(QStringLiteral("S-FUS: complete")));
@@ -433,8 +457,7 @@ class EarthbankPublishTest : public QObject {
     QVERIFY(d->result_pane()->toPlainText().contains(QStringLiteral("S-FUS: in doubt")));
     QCOMPARE(w.bank.store().aliquots.size(), std::size_t{1});  // the other sample's
 
-    d->not_there_button()->click();
-    QTRY_VERIFY_WITH_TIMEOUT(d->ready(), 20000);
+    answer_in_doubt(*d, w.bank, d->not_there_button(), "not-written");
     QCOMPARE(w.bank.store().aliquots.size(), std::size_t{7});
     QVERIFY(d->result_pane()->toPlainText().contains(QStringLiteral("S-FUS: complete")));
   }
@@ -486,8 +509,7 @@ class EarthbankPublishTest : public QObject {
     }
     // Untouched since, the answer finishes it without another question.
     QVERIFY(d->not_there_button()->isVisibleTo(d.get()));
-    d->not_there_button()->click();
-    QTRY_VERIFY_WITH_TIMEOUT(d->ready(), 20000);
+    answer_in_doubt(*d, w.bank, d->not_there_button(), "not-written");
     QCOMPARE(asked, 1 + static_cast<int>(changes.size()));
     QVERIFY(d->result_pane()->toPlainText().contains(QStringLiteral("S-FUS: complete")));
   }
@@ -507,9 +529,9 @@ class EarthbankPublishTest : public QObject {
     QTRY_VERIFY(d->package_dialog() == nullptr);
 
     // Nothing is run while a request is out: its answer is not the run's.
-    QVERIFY(!d->run_button()->isEnabled());
+    QVERIFY(!d->can_run());
     w.gate.release();
-    QTRY_VERIFY(d->run_button()->isEnabled());
+    QTRY_VERIFY(d->can_run());
     QVERIFY2(!d->result_pane()->toPlainText().contains(QStringLiteral("EarthBank does not let")),
              qPrintable(d->result_pane()->toPlainText()));
     run(*d);
@@ -539,6 +561,44 @@ class EarthbankPublishTest : public QObject {
     const QStringList files = QDir(out).entryList({QStringLiteral("ArArDataPoint_*")}, QDir::Files);
     QCOMPARE(files, QStringList({QStringLiteral("ArArDataPoint_S-FUS.xlsx")}));
     QVERIFY(d->result_pane()->toPlainText().contains(QStringLiteral("S-STEP: left out")));
+  }
+
+  // An emptied Flux monitor cell names no other monitor: the analyses' own is
+  // sent, nothing is kept for the sample, and the cell shows it again.
+  void an_emptied_flux_monitor_is_the_analyses_own() {
+    World w;
+    QString found;
+    {
+      auto d = w.dialog();
+      QTRY_VERIFY(d->ready());
+      const int step = row_of(*d, QStringLiteral("S-STEP"));
+      found = cell(*d, step, Column::FluxMonitor);
+      QVERIFY(!found.isEmpty());
+      d->table()->item(step, static_cast<int>(Column::FluxMonitor))->setText(QStringLiteral("  "));
+      set_action(*d, Action::ExportXlsx);
+      d->folder()->setText(w.dir.filePath(QStringLiteral("out")));
+      run(*d);
+    }
+    QVERIFY(w.settings()()->allKeys().filter(QStringLiteral("flux_monitor")).isEmpty());
+    {
+      auto d = w.dialog();
+      QTRY_VERIFY(d->ready());
+      QCOMPARE(cell(*d, row_of(*d, QStringLiteral("S-STEP")), Column::FluxMonitor), found);
+    }
+    // What an earlier build kept for an emptied cell is read as nothing kept.
+    {
+      const auto kept = w.settings()();
+      kept->setValue(QStringLiteral("earthbank/setup"), QStringLiteral("x"));
+      for (const QString& key : kept->allKeys()) {
+        if (key.endsWith(QStringLiteral("/interpretation"))) {
+          kept->setValue(key.left(key.size() - 14) + QStringLiteral("flux_monitor"), QString());
+        }
+      }
+      QVERIFY(!kept->allKeys().filter(QStringLiteral("flux_monitor")).isEmpty());
+    }
+    auto d = w.dialog();
+    QTRY_VERIFY(d->ready());
+    QCOMPARE(cell(*d, row_of(*d, QStringLiteral("S-STEP")), Column::FluxMonitor), found);
   }
 
   void choices_are_remembered_per_sample() {
@@ -643,7 +703,7 @@ class EarthbankPublishTest : public QObject {
     QVERIFY(ticks > 0);
     QCOMPARE(progressed.count(), 300);
     QCOMPARE(d->table()->rowCount(), 300);
-    QCOMPARE(d->progress()->value(), d->progress()->maximum());
+    QCOMPARE(d->progress_bar()->value(), d->progress_bar()->maximum());
   }
 
   void closing_during_the_survey_does_not_wait_for_it() {
@@ -661,75 +721,132 @@ class EarthbankPublishTest : public QObject {
     QVERIFY(clock.elapsed() < 5000);
   }
 
-  void the_workspace_opens_the_dialog_on_the_selection() {
+  void panel_finished_signal_carries_the_result() {
     World w;
-    pp::MemorySource source(eb::testing::both_samples());
-    pp::PresetStore presets(w.folder() / "presets");
-    QWidget owner;
-    ui::DataWorkspace workspace(&owner, {});
-    workspace.set_source(&source, &presets);
-    workspace.set_settings(w.settings());
-    workspace.set_earthbank_setup(w.setup());
-    DataBrowserWindow* browser = workspace.browser();
-    QVERIFY(browser != nullptr);
-    QVERIFY(workspace.publish_dialog() == nullptr);
-
-    QList<int> rows;
-    for (int r = 0; r < 16; ++r) rows << r;
-    browser->select_rows(rows);
-    QCOMPARE(browser->selected_uuids().size(), 16);
-    browser->publish_action()->trigger();
-    QTRY_VERIFY(workspace.publish_dialog() != nullptr);
-    EarthbankPublishDialog* d = workspace.publish_dialog();
+    auto d = w.dialog();
     QTRY_VERIFY(d->ready());
-    QCOMPARE(d->table()->rowCount(), 2);
-    QCOMPARE(cell(*d, row_of(*d, QStringLiteral("S-STEP")), Column::Analyses), QStringLiteral("10"));
+    QTemporaryDir out;
+    QVERIFY(out.isValid());
+    d->folder()->setText(out.path());
+    QSignalSpy done(d.get(), &EarthbankPublishPanel::finished);
+    d->start(Action::ExportXlsx);
+    QTRY_VERIFY_WITH_TIMEOUT(d->ready(), 20000);
+    QTest::qWait(50);
+    QCOMPARE(done.count(), 1);
+    QCOMPARE(done.first().at(0).toBool(), true);
+    QCOMPARE(done.first().at(1).toString(), d->result_pane()->toPlainText().section(QLatin1Char('\n'), -1, -1));
+    QVERIFY(done.first().at(1).toString().contains(QStringLiteral("workbook")));
+    QCOMPARE(d->action()->currentData().toInt(), static_cast<int>(Action::ExportXlsx));
   }
 
-  void a_second_publish_does_not_replace_a_dialog_that_is_uploading() {
+  void panel_finished_once_on_a_failed_run() {
     World w;
     w.signed_up();
-    pp::MemorySource source(publishable());
-    pp::PresetStore presets(w.folder() / "presets");
-    QWidget owner;
-    ui::DataWorkspace workspace(&owner, {});
-    workspace.set_source(&source, &presets);
-    workspace.set_settings(w.settings());
-    workspace.set_earthbank_setup(w.setup());
-    DataBrowserWindow* browser = workspace.browser();
-    QList<int> rows;
-    for (int r = 0; r < 16; ++r) rows << r;
-    browser->select_rows(rows);
-    browser->publish_action()->trigger();
-    QTRY_VERIFY(workspace.publish_dialog() != nullptr);
-    QPointer<EarthbankPublishDialog> d = workspace.publish_dialog();
+    auto d = w.dialog();
     QTRY_VERIFY(d->ready());
-    d->ask_confirm = [](const QString&) { return true; };
-    d->setup_name()->setText(QStringLiteral("Noble gas lab"));
-    set_action(*d, Action::Upload);
+    d->password()->setText(QStringLiteral("not-the-password"));
+    QSignalSpy done(d.get(), &EarthbankPublishPanel::finished);
+    d->start(Action::Upload);
+    QTRY_VERIFY_WITH_TIMEOUT(d->ready(), 20000);
+    QTest::qWait(50);
+    QCOMPARE(done.count(), 1);
+    QCOMPARE(done.first().at(0).toBool(), false);
+  }
+
+  void panel_finished_once_on_a_declined_upload() {
+    World w;
+    w.signed_up();
+    auto d = w.dialog();
+    QTRY_VERIFY(d->ready());
+    d->ask_confirm = [](const QString&) { return false; };
+    QSignalSpy done(d.get(), &EarthbankPublishPanel::finished);
+    d->start(Action::Upload);
+    QTRY_VERIFY_WITH_TIMEOUT(d->ready(), 20000);
+    QTest::qWait(50);
+    QCOMPARE(done.count(), 1);
+    QCOMPARE(done.first().at(0).toBool(), false);
+    QCOMPARE(done.first().at(1).toString(), QStringLiteral("Nothing was sent."));
+  }
+
+  void panel_finished_once_on_cancel_and_start_while_running_is_refused() {
+    World w;
+    w.signed_up();
+    auto d = w.dialog();
+    QTRY_VERIFY(d->ready());
+    QSignalSpy done(d.get(), &EarthbankPublishPanel::finished);
     w.gate.hold_at("POST", "/api/arar/ArArMeasurement");
-    d->run_button()->click();
+    d->start(Action::Upload);
     QTRY_VERIFY_WITH_TIMEOUT(w.gate.waiting(), 20000);
-
-    browser->select_rows({0, 1});
-    browser->publish_action()->trigger();
-    QTRY_VERIFY2(browser->status()->text().contains(QStringLiteral("still running")), qPrintable(browser->status()->text()));
-    QVERIFY(!d.isNull());
-    QCOMPARE(workspace.publish_dialog(), d.data());
-
+    d->start(Action::Preflight);  // while the upload is out
+    QCOMPARE(done.count(), 1);
+    QCOMPARE(done.first().at(0).toBool(), false);
+    QCOMPARE(done.first().at(1).toString(), QStringLiteral("Already running."));
+    QVERIFY(d->busy());
+    d->cancel();
     w.gate.release();
     QTRY_VERIFY_WITH_TIMEOUT(d->ready(), 20000);
-    QCOMPARE(w.bank.store().measurements.size(), std::size_t{16});
-    QVERIFY(d->result_pane()->toPlainText().contains(QStringLiteral("S-STEP: complete")));
+    QTest::qWait(50);
+    QCOMPARE(done.count(), 2);
+    QCOMPARE(done.last().at(0).toBool(), false);
+  }
 
-    // Idle, it is replaced by one on the new selection.
-    browser->publish_action()->trigger();
-    QTRY_VERIFY(workspace.publish_dialog() != nullptr && workspace.publish_dialog() != d.data());
-    EarthbankPublishDialog* next = workspace.publish_dialog();
-    QTRY_VERIFY(next->ready());
-    int analyses = 0;
-    for (int r = 0; r < next->table()->rowCount(); ++r) analyses += cell(*next, r, Column::Analyses).toInt();
-    QCOMPARE(analyses, 2);
+  void panel_start_that_cannot_run_finishes_false_and_runs_nothing() {
+    World w;
+    auto d = w.dialog();
+    QTRY_VERIFY(d->ready());
+    d->folder()->clear();
+    QSignalSpy done(d.get(), &EarthbankPublishPanel::finished);
+    d->start(Action::ExportXlsx);
+    QCOMPARE(done.count(), 1);
+    QCOMPARE(done.first().at(0).toBool(), false);
+    QCOMPARE(done.first().at(1).toString(), QStringLiteral("Name the folder the workbooks go in."));
+    QVERIFY(!d->busy());
+    QVERIFY(d->result_pane()->toPlainText().isEmpty());
+  }
+
+  void panel_start_before_the_rows_are_in_finishes_false() {
+    World w;
+    auto d = w.dialog();
+    QVERIFY(!d->ready());
+    QSignalSpy done(d.get(), &EarthbankPublishPanel::finished);
+    d->start(Action::ExportXlsx);
+    QCOMPARE(done.count(), 1);
+    QCOMPARE(done.first().at(0).toBool(), false);
+    QCOMPARE(done.first().at(1).toString(), QStringLiteral("Not ready."));
+    QTRY_VERIFY(d->ready());
+    d->set_analyses(publishable());  // not surveyed again yet
+    d->start(Action::ExportXlsx);
+    QCOMPARE(done.count(), 2);
+    QCOMPARE(done.last().at(1).toString(), QStringLiteral("Not ready."));
+    QTRY_VERIFY(d->ready());
+  }
+
+  void panel_set_analyses_fills_the_table() {
+    World w;
+    auto d = w.dialog(AnalysisList{});
+    QTRY_VERIFY(d->ready());
+    QCOMPARE(d->table()->rowCount(), 0);
+    d->set_analyses(publishable());
+    QTRY_VERIFY(d->table()->rowCount() == 2 && d->ready());
+    QVERIFY(row_of(*d, QStringLiteral("S-FUS")) >= 0);
+  }
+
+  void panel_read_only_disables_the_cells_and_options() {
+    World w;
+    auto d = w.dialog();
+    QTRY_VERIFY(d->ready());
+    const int row = row_of(*d, QStringLiteral("S-STEP"));
+    QVERIFY(d->preferred_age(row)->isEnabled());
+    QVERIFY(d->setup_name()->isEnabled());
+    d->set_read_only(true);
+    QVERIFY(!d->preferred_age(row)->isEnabled());
+    QVERIFY(!d->setup_name()->isEnabled());
+    QVERIFY(!d->per_sample()->isEnabled());
+    QVERIFY(d->result_pane()->isEnabled());
+    QVERIFY(d->table()->editTriggers() == QAbstractItemView::NoEditTriggers);
+    d->set_read_only(false);
+    QVERIFY(d->preferred_age(row)->isEnabled());
+    QVERIFY(d->setup_name()->isEnabled());
   }
 
   void cleanupTestCase() { QCOMPARE(app_settings_.keys(), QStringList()); }

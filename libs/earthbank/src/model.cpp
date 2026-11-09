@@ -1,4 +1,4 @@
-#include "pychron/earthbank/model.hpp"
+#include "nobion/earthbank/model.hpp"
 
 #include <cmath>
 #include <cstdint>
@@ -8,9 +8,9 @@
 #include <string_view>
 #include <vector>
 
-#include "pychron/core/sha256.hpp"
+#include "nobion/core/sha256.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 template <typename T>
@@ -37,24 +37,24 @@ nlohmann::json array_of(const std::vector<Record>& records) {
 
 }  // namespace
 
-#define PYCHRON_EARTHBANK_PUT(kind, name) put(out, #name, record.name);
-#define PYCHRON_EARTHBANK_TO_JSON(Record, FIELDS)   \
+#define NOBION_EARTHBANK_PUT(kind, name) put(out, #name, record.name);
+#define NOBION_EARTHBANK_TO_JSON(Record, FIELDS)   \
   nlohmann::json to_json(const Record& record) {    \
     nlohmann::json out = nlohmann::json::object();  \
-    FIELDS(PYCHRON_EARTHBANK_PUT)                   \
+    FIELDS(NOBION_EARTHBANK_PUT)                   \
     return out;                                     \
   }
 
-PYCHRON_EARTHBANK_TO_JSON(Sample, PYCHRON_EARTHBANK_SAMPLE_FIELDS)
-PYCHRON_EARTHBANK_TO_JSON(Location, PYCHRON_EARTHBANK_LOCATION_FIELDS)
-PYCHRON_EARTHBANK_TO_JSON(DataPoint, PYCHRON_EARTHBANK_DATA_POINT_FIELDS)
-PYCHRON_EARTHBANK_TO_JSON(Aliquot, PYCHRON_EARTHBANK_ALIQUOT_FIELDS)
-PYCHRON_EARTHBANK_TO_JSON(Measurement, PYCHRON_EARTHBANK_MEASUREMENT_FIELDS)
-PYCHRON_EARTHBANK_TO_JSON(AgeCalc, PYCHRON_EARTHBANK_AGE_CALC_FIELDS)
-PYCHRON_EARTHBANK_TO_JSON(AgeSummary, PYCHRON_EARTHBANK_AGE_SUMMARY_FIELDS)
+NOBION_EARTHBANK_TO_JSON(Sample, NOBION_EARTHBANK_SAMPLE_FIELDS)
+NOBION_EARTHBANK_TO_JSON(Location, NOBION_EARTHBANK_LOCATION_FIELDS)
+NOBION_EARTHBANK_TO_JSON(DataPoint, NOBION_EARTHBANK_DATA_POINT_FIELDS)
+NOBION_EARTHBANK_TO_JSON(Aliquot, NOBION_EARTHBANK_ALIQUOT_FIELDS)
+NOBION_EARTHBANK_TO_JSON(Measurement, NOBION_EARTHBANK_MEASUREMENT_FIELDS)
+NOBION_EARTHBANK_TO_JSON(AgeCalc, NOBION_EARTHBANK_AGE_CALC_FIELDS)
+NOBION_EARTHBANK_TO_JSON(AgeSummary, NOBION_EARTHBANK_AGE_SUMMARY_FIELDS)
 
-#undef PYCHRON_EARTHBANK_TO_JSON
-#undef PYCHRON_EARTHBANK_PUT
+#undef NOBION_EARTHBANK_TO_JSON
+#undef NOBION_EARTHBANK_PUT
 
 std::string content_hash(const Submission& submission) {
   nlohmann::json records = nlohmann::json::array();
@@ -72,4 +72,4 @@ std::string content_hash(const Submission& submission) {
   return to_hex(std::span<const std::uint8_t>(digest));
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

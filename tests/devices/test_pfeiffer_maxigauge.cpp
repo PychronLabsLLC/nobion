@@ -1,17 +1,17 @@
-#include "pychron/devices/pfeiffer_maxigauge.hpp"
+#include "nobion/devices/pfeiffer_maxigauge.hpp"
 
 #include <gtest/gtest.h>
 
 #include <atomic>
 #include <thread>
 
-#include "pychron/devices/capabilities.hpp"
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/transport/sim_transport.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
-namespace mg = pychron::codec::maxigauge;
+namespace mg = nobion::codec::maxigauge;
 
 namespace {
 
@@ -269,7 +269,7 @@ TEST(PfeifferMaxiGaugeRegistry, RejectsBadChannels) {
 // --- replay -----------------------------------------------------------------------
 
 TEST(PfeifferMaxiGaugeReplay, ReplaysCommittedTrace) {
-  auto sim = SimTransport::replay(std::string(PYCHRON_TRACE_DIR) + "/pfeiffer/maxigauge_read_channels.trace",
+  auto sim = SimTransport::replay(std::string(NOBION_TRACE_DIR) + "/pfeiffer/maxigauge_read_channels.trace",
                                   bus_options());
   ASSERT_TRUE(sim) << to_string(sim.error());
   ASSERT_TRUE((*sim)->open());

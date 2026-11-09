@@ -2,7 +2,7 @@
 
 #include <cstdlib>
 
-namespace pychron::persistence::detail {
+namespace nobion::persistence::detail {
 namespace {
 
 ErrorKind classify_sqlstate(const std::string& s) {
@@ -51,4 +51,4 @@ Error sql_error(Dialect dialect, const std::string& native_code, bool connection
   return error;
 }
 
-}  // namespace pychron::persistence::detail
+}  // namespace nobion::persistence::detail

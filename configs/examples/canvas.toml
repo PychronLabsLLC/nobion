@@ -1,21 +1,37 @@
 # Example canvas for extraction_line.toml (spec section 6). Presentation and
 # connectivity only; valve state and gauge readings arrive via the SignalBus.
 #
-#   bone --A-- prep --B-- spec
-#               |  \
-#              P1   C --+-- turbo --+-- M1 -- rough
-#               |       |           |
-#              air     IG1         PG1
-#               |
-#              P2
-#               |
-#            air_tank
+#                     getter1         getter2  cryo        pump_power
+#                        |               |       |
+#                       G1   IG2        G2       Y
+#                        |   |           |       |
+#   laser --L-- stage1 --+---+--A-- [     prep     ] --B-- spec --I-- ion
+#                  |                  |    |     |
+#                  D                 P1   Q1     C --+-- turbo --+-- R1 -- M1 --+
+#                  |                  |    |         |           |              |
+#                  |                 air  cocktail  IG1         PG1       M2 -- rough
+#                  |                  |    |                              |     |
+#                  |                 P2   Q2                              |    CG1
+#                  |                  |    |                              |
+#                  |           air_tank  cocktail_tank                    |
+#                  |                                                      |
+#               turbo2 ------------------------------------ R2 -----------+
+#
+# Every valve starts closed, and the shipped queue's scripts move only B, C,
+# P1 and P2 (sim_cocktail.py, in no queue, moves Q1 and Q2): the getters, the
+# cryo trap, the second turbo, the ion pump, the laser chamber and the
+# cocktail pipette are there to be seen and tried, and leave the shipped
+# queue's gas where it is. The roughing pump is reached only
+# through a manual valve (M1 or M2).
 
 [canvas]
 origin = [0, 0]
-size = [1000, 700]
+size = [1240, 630]
 connection_width = 6
-# open valves: "green" (default) or "inherit" the colour of the region they join
+# valve boxes: "hmi" (default; open in the colour of the region it joins,
+# closed grey) or "redgreen" (open green, closed red)
+# valve_style = "redgreen"
+# with "redgreen": "green" (default) or "inherit" the colour of the region
 # open_valve_color = "inherit"
 
 [colors]
@@ -24,37 +40,96 @@ pipette = "#cccccc"
 # what is behind the drawing; left out: the application's own
 # background = "#f4f6f8"
 
+# Main row: laser chamber, stage 1, prep, spectrometer, ion pump.
+[[valve]]
+name = "L"
+pos = [190, 200]
+
 [[valve]]
 name = "A"
-pos = [250, 200]
+pos = [420, 200]
 
 [[valve]]
 name = "B"
-pos = [550, 200]
+pos = [780, 200]
 
 [[valve]]
-name = "C"
-pos = [500, 300]
+name = "I"
+pos = [1030, 200]
+
+# Cleanup, above the main row: two getters and a cryo trap.
+[[valve]]
+name = "G1"
+pos = [275, 140]
+
+[[valve]]
+name = "G2"
+pos = [520, 140]
+
+[[valve]]
+name = "Y"
+pos = [680, 140]
+
+# Below the main row: stage 1's own turbo, the two pipettes, prep's turbo.
+[[valve]]
+name = "D"
+pos = [330, 300]
 
 [[valve]]
 name = "P1"
-pos = [400, 330]
+pos = [540, 330]
 
 [[valve]]
 name = "P2"
-pos = [400, 510]
+pos = [540, 460]
+
+[[valve]]
+name = "Q1"
+pos = [640, 330]
+
+[[valve]]
+name = "Q2"
+pos = [640, 460]
+
+[[valve]]
+name = "C"
+pos = [700, 300]
+
+# Roughing side: the turbos' forelines (rough valves, in extraction_line.toml
+# as [[valves]]) and the manual valves to the roughing pump.
+[[rough_valve]]
+name = "R1"
+pos = [1000, 300]
+
+[[rough_valve]]
+name = "R2"
+pos = [990, 590]
 
 [[manual_valve]]
 name = "M1"
-pos = [750, 300]
+pos = [1070, 300]
+
+[[manual_valve]]
+name = "M2"
+pos = [1070, 400]
+
+# A gauge's chip is centred on its pos, about 60 px either side once it shows
+# a reading and 10 px up and down: no valve is drawn under one.
+[[gauge]]
+name = "IG2"
+pos = [370, 140]
 
 [[gauge]]
 name = "IG1"
-pos = [450, 380]
+pos = [770, 370]
 
 [[gauge]]
 name = "PG1"
-pos = [650, 380]
+pos = [940, 370]
+
+[[gauge]]
+name = "CG1"
+pos = [1160, 470]
 
 # A region of the line takes the colour of the source connected to it with
 # the highest precedence: a pump (120) over a tank (110), a pipette or a
@@ -62,53 +137,127 @@ pos = [650, 380]
 # and a pipette wears the colour of the tank across its valve (`tank = "<name>"`
 # on the pipette names it outright; `tank = ""` gives the pipette its own). `kind` says what a stage is
 # (a `symbol` says it too); `precedence` and `color = "#rrggbb"` override.
-# A plain stage, like bone, is not a source and has no colour of its own.
+# A plain stage, like stage1, is not a source and has no colour of its own.
+
+# The chamber of driver `co2` (extraction_line.toml): a canvas stage names no
+# driver, so the two share only the laser's place at the head of the line.
 [[stage]]
-name = "bone"
-pos = [100, 200]
+name = "laser"
+pos = [90, 200]
+size = [80, 60]
+display_name = "CO2 laser"
+use_symbol = true
+symbol = "laser"
+kind = "laser"
+
+[[stage]]
+name = "stage1"
+pos = [300, 200]
 size = [80, 40]
 volume = 12.5
 fill = true
 
 [[stage]]
 name = "prep"
-pos = [400, 200]
-size = [80, 40]
+pos = [600, 200]
+size = [240, 40]
 display_name = "Prep"
 
 [[stage]]
 name = "spec"
-pos = [800, 200]
+pos = [920, 200]
 size = [120, 60]
 display_name = "Spectrometer"
 use_symbol = true
 kind = "spectrometer"
 
 [[stage]]
-name = "turbo"
-pos = [650, 300]
+name = "ion"
+pos = [1110, 200]
 size = [60, 40]
-kind = "pump"
+display_name = "Ion pump"
+use_symbol = true
+symbol = "ion_pump"
+
+[[stage]]
+name = "getter1"
+pos = [275, 80]
+size = [60, 40]
+use_symbol = true
+symbol = "getter"
+kind = "getter"
+
+[[stage]]
+name = "getter2"
+pos = [520, 80]
+size = [60, 40]
+use_symbol = true
+symbol = "getter"
+kind = "getter"
+
+# The cryo trap: its cryostat is [cryo] in extraction_line.toml.
+[[stage]]
+name = "cryo"
+pos = [680, 80]
+size = [80, 40]
+display_name = "Cryo trap"
+use_symbol = true
+symbol = "cryo"
+
+[[stage]]
+name = "turbo2"
+pos = [330, 590]
+size = [60, 40]
+use_symbol = true
+symbol = "turbo"
+
+[[stage]]
+name = "turbo"
+pos = [850, 300]
+size = [60, 40]
+use_symbol = true
+symbol = "turbo"
 
 [[stage]]
 name = "rough"
-pos = [880, 300]
+pos = [1150, 400]
 size = [60, 40]
-kind = "pump"
+use_symbol = true
+symbol = "roughing_pump"
 
 [[stage]]
 name = "air_tank"
-pos = [400, 600]
+pos = [540, 525]
+size = [80, 40]
+kind = "tank"
+
+[[stage]]
+name = "cocktail_tank"
+pos = [640, 525]
 size = [80, 40]
 kind = "tank"
 
 [[pipette]]
 name = "air"
-pos = [400, 420]
+pos = [540, 395]
 vlabel = "Air Pipette"
 
+[[pipette]]
+name = "cocktail"
+pos = [640, 395]
+vlabel = "Cocktail Pipette"
+
+# Main row.
 [[connection]]
-start = "bone"
+start = "laser"
+end = "L"
+
+[[connection]]
+start = "L"
+end = "stage1"
+
+[[connection]]
+start = "stage1"
 end = "A"
 
 [[connection]]
@@ -123,29 +272,71 @@ end = "B"
 start = "B"
 end = "spec"
 
-[[elbow]]
-start = "prep"
-end = "C"
-corner = "ll"
-
-[[tee]]
-left = "C"
-right = "turbo"
-mid = "IG1"
-
-[[tee]]
-left = "turbo"
-right = "M1"
-mid = "PG1"
+[[connection]]
+start = "spec"
+end = "I"
 
 [[connection]]
-start = "M1"
-end = "rough"
+start = "I"
+end = "ion"
+
+# Cleanup, above.
+[[connection]]
+start = "stage1"
+end = "G1"
+orientation = "v"
+start_offset = [-25, 0]
+
+[[connection]]
+start = "G1"
+end = "getter1"
+orientation = "v"
+
+[[connection]]
+start = "stage1"
+end = "IG2"
+orientation = "v"
+start_offset = [25, 0]
+
+[[connection]]
+start = "prep"
+end = "G2"
+orientation = "v"
+start_offset = [-80, 0]
+
+[[connection]]
+start = "G2"
+end = "getter2"
+orientation = "v"
+
+[[connection]]
+start = "prep"
+end = "Y"
+orientation = "v"
+start_offset = [80, 0]
+
+[[connection]]
+start = "Y"
+end = "cryo"
+orientation = "v"
+
+# Below: stage 1's turbo and the pipettes.
+[[connection]]
+start = "stage1"
+end = "D"
+orientation = "v"
+start_offset = [30, 0]
+
+[[connection]]
+start = "D"
+end = "turbo2"
+orientation = "v"
 
 [[connection]]
 start = "prep"
 end = "P1"
 orientation = "v"
+start_offset = [-60, 0]
 
 [[connection]]
 start = "P1"
@@ -162,14 +353,89 @@ start = "P2"
 end = "air_tank"
 orientation = "v"
 
+[[connection]]
+start = "prep"
+end = "Q1"
+orientation = "v"
+start_offset = [40, 0]
+
+[[connection]]
+start = "Q1"
+end = "cocktail"
+orientation = "v"
+
+[[connection]]
+start = "cocktail"
+end = "Q2"
+orientation = "v"
+
+[[connection]]
+start = "Q2"
+end = "cocktail_tank"
+orientation = "v"
+
+[[connection]]
+start = "prep"
+end = "C"
+orientation = "v"
+start_offset = [100, 0]
+
+# Roughing. PG1 reads turbo's foreline ahead of R1.
+[[tee]]
+left = "C"
+right = "turbo"
+mid = "IG1"
+
+[[tee]]
+left = "turbo"
+right = "R1"
+mid = "PG1"
+
+[[connection]]
+start = "R1"
+end = "M1"
+
+[[elbow]]
+start = "M1"
+end = "rough"
+corner = "ur"
+
+[[connection]]
+start = "rough"
+end = "CG1"
+orientation = "v"
+
+[[connection]]
+start = "turbo2"
+end = "R2"
+
+[[elbow]]
+start = "R2"
+end = "M2"
+corner = "lr"
+
+[[connection]]
+start = "M2"
+end = "rough"
+
 [[label]]
-text = "Furnace side"
+text = "Extraction"
 pos = [100, 50]
 font = "Arial 12"
 
+[[label]]
+text = "Cleanup"
+pos = [560, 20]
+font = "Arial 12"
+
+[[label]]
+text = "Roughing"
+pos = [1100, 515]
+font = "Arial 12"
+
 [legend]
-pos = [20, 650]
+pos = [20, 630]
 
 [[switch]]
 name = "pump_power"
-pos = [500, 100]
+pos = [850, 80]

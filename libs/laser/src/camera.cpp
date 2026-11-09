@@ -1,4 +1,4 @@
-#include "pychron/laser/camera.hpp"
+#include "nobion/laser/camera.hpp"
 
 #include <cmath>
 #include <fstream>
@@ -9,7 +9,7 @@
 
 #include <toml++/toml.hpp>
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 namespace {
 
@@ -140,6 +140,59 @@ class Reader {
   std::set<std::string, std::less<>> seen_;
 };
 
+// [<device>.sim.grain]: each key with its range (the dragonfly grain
+// simulator design, section 3).
+void read_grain(Reader& g, vision::GrainParams& p) {
+  g.number("beam_radius_mm", p.beam_radius_mm, 0, 100, true);
+  g.number("reference_output_percent", p.reference_output_percent, 0, 100, true);
+  g.number("heat_tau_s", p.heat_tau_s, 0.01, 60);
+  g.number("cool_tau_s", p.cool_tau_s, 0.01, 60);
+  g.number("glow_exponent", p.glow_exponent, 1, 12);
+  g.number("glow_peak", p.glow_peak, 0, 5, true);
+  g.whole("lobes", p.lobes, 1, 16);
+  g.number("lobe_sigma_mm", p.lobe_sigma_mm, 0, 100, true);
+  g.number("lobe_spread_mm", p.lobe_spread_mm, 0, 100);
+  g.number("lobe_wander_mm_per_rt_s", p.lobe_wander_mm_per_rt_s, 0, 10);
+  g.number("lobe_life_s", p.lobe_life_s, 0, 600);
+  if (g.ok() && p.lobe_life_s != 0 && p.lobe_life_s < 0.1) g.fail("lobe_life_s", "must be 0 or from 0.1 to 600");
+  g.number("flicker", p.flicker, 0, 1);
+  g.number("flicker_tau_s", p.flicker_tau_s, 0.01, 60);
+  g.number("flares_per_s", p.flares_per_s, 0, 50);
+  g.number("flare_gain", p.flare_gain, 1, 100);
+  g.number("flare_tau_s", p.flare_tau_s, 0.01, 60);
+  g.number("dropouts_per_s", p.dropouts_per_s, 0, 50);
+  g.number("dropout_s", p.dropout_s, 0.01, 60);
+  StageXY creep{p.creep_mm_per_s.x, p.creep_mm_per_s.y};
+  g.pair("creep_mm_per_s", creep);
+  p.creep_mm_per_s = {creep.x, creep.y};
+  g.number("wander_mm_per_rt_s", p.wander_mm_per_rt_s, 0, 10);
+  g.number("jumps_per_s", p.jumps_per_s, 0, 50);
+  g.number("jump_mm", p.jump_mm, 0, 100, true);
+  g.number("grain_radius_mm", p.grain_radius_mm, 0, 100);
+  g.whole("grain_sides", p.grain_sides, 3, 16);
+  g.number("grain_irregularity", p.grain_irregularity, 0, 0.6);
+  g.number("body_glow", p.body_glow, 0, 1);
+  g.number("melt_mm_per_s", p.melt_mm_per_s, 0, 10);
+  g.number("min_radius_mm", p.min_radius_mm, 0, 100);
+  if (g.ok() && p.melt_mm_per_s > 0) {
+    if (p.grain_radius_mm <= 0) g.fail("melt_mm_per_s", "needs grain_radius_mm above 0: a point grain has nothing to melt");
+    else if (p.min_radius_mm <= 0) g.fail("min_radius_mm", "must be above 0 when melt_mm_per_s is above 0");
+    else if (p.min_radius_mm >= p.grain_radius_mm) g.fail("min_radius_mm", "must be below grain_radius_mm when melting");
+  }
+  g.finish();
+}
+
+}  // namespace
+
+double hole_fence_mm(double hole_radius_mm, double beam_diameter_mm) noexcept {
+  constexpr double kPastTheEdge = 1.0 / 3.0;  // of the beam's diameter
+  constexpr double kHeldStill = 1e-3;         // mm: a perimeter must be above 0
+  const double beam = beam_diameter_mm > 0 ? beam_diameter_mm : 0.0;
+  return std::max(hole_radius_mm - beam / 2 + kPastTheEdge * beam, kHeldStill);
+}
+
+namespace {
+
 // Empty when `table` is a camera; else what is wrong with it.
 std::string read_camera(const toml::table& table, CameraConfig& c) {
   Reader r(table, c.device);
@@ -162,6 +215,7 @@ std::string read_camera(const toml::table& table, CameraConfig& c) {
   int settle_ms = 200;
   r.whole("settle_ms", settle_ms, 0, 10000);
   c.settle = std::chrono::milliseconds(settle_ms);
+  r.number("beam_diameter_mm", c.beam_diameter_mm, 0, 1000);
   if (const auto frames = r.word("frames")) c.frames = *frames;
   if (r.ok() && c.source == CameraSource::Recorded && c.frames.empty()) {
     r.fail("frames", "a recorded source needs the directory of its frames");
@@ -172,9 +226,24 @@ std::string read_camera(const toml::table& table, CameraConfig& c) {
     s.number("noise", c.sim_noise, 0, 1);
     s.whole("width", c.sim_width, 16, 4096);
     s.whole("height", c.sim_height, 16, 4096);
+    if (const auto surface = s.word("surface")) {
+      if (*surface == "machined") c.sim_machined = true;
+      else if (*surface != "plain") s.fail("surface", "must be plain or machined");
+    }
     s.pair("grain_offset_mm", c.sim_grain_offset_mm);
     s.pair("glow_drift_mm_per_s", c.sim_glow_drift_mm_per_s);
     s.number("glow_sigma_mm", c.sim_glow_sigma_mm, 0, 100, true);
+    if (const toml::table* grain = s.sub("grain")) {
+      // Two grains would be drawn: the old keys describe the first.
+      for (const char* old : {"glow_sigma_mm", "glow_drift_mm_per_s"}) {
+        if (sim->contains(old)) s.fail(old, std::string("cannot be set with ") + c.device + ".sim.grain, which is the grain");
+      }
+      Reader g(*grain, c.device + ".sim.grain");
+      vision::GrainParams params;
+      read_grain(g, params);
+      s.adopt(g);
+      c.sim_grain = params;
+    }
     s.finish();
     r.adopt(s);
   }
@@ -401,4 +470,4 @@ std::vector<std::string> CameraLibrary::problems_of(std::string_view device) con
   return it == by_device_.end() ? std::vector<std::string>{} : it->second;
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

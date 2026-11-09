@@ -4,8 +4,8 @@
 
 #include "entry.hpp"
 
-#include "pychron/core/number.hpp"
-#include "pychron/core/user_file.hpp"
+#include "nobion/core/number.hpp"
+#include "nobion/core/user_file.hpp"
 
 #include <cctype>
 #include <charconv>
@@ -19,30 +19,30 @@
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/core/env.hpp"
-#include "pychron/core/host_name.hpp"
-#include "pychron/dvc/meta_files.hpp"
-#include "pychron/entry/csv.hpp"
-#include "pychron/entry/export.hpp"
-#include "pychron/entry/holder_import.hpp"
-#include "pychron/entry/identifier_plan.hpp"
-#include "pychron/entry/level_sheet.hpp"
-#include "pychron/entry/names.hpp"
-#include "pychron/entry/package_edit.hpp"
-#include "pychron/entry/positions_import.hpp"
-#include "pychron/entry/sample_import.hpp"
-#include "pychron/entry/seed.hpp"
-#include "pychron/entry/settings.hpp"
-#include "pychron/persistence/store.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/host_name.hpp"
+#include "nobion/dvc/meta_files.hpp"
+#include "nobion/entry/csv.hpp"
+#include "nobion/entry/export.hpp"
+#include "nobion/entry/holder_import.hpp"
+#include "nobion/entry/identifier_plan.hpp"
+#include "nobion/entry/level_sheet.hpp"
+#include "nobion/entry/names.hpp"
+#include "nobion/entry/package_edit.hpp"
+#include "nobion/entry/positions_import.hpp"
+#include "nobion/entry/sample_import.hpp"
+#include "nobion/entry/seed.hpp"
+#include "nobion/entry/settings.hpp"
+#include "nobion/persistence/store.hpp"
 
 namespace elctl {
 
 namespace {
 
-namespace ps = pychron::persistence;
-namespace en = pychron::entry;
-using pychron::Error;
-using pychron::Result;
+namespace ps = nobion::persistence;
+namespace en = nobion::entry;
+using nobion::Error;
+using nobion::Result;
 
 constexpr const char* kShortUsage =
     "usage: elctl entry <samples|package|positions|identifiers|holders|settings|seed> <action> [args] --db <url>\n"
@@ -81,7 +81,7 @@ constexpr const char* kHelp =
     "  seed <seed.toml> [--dry-run]\n"
     "        Add what the seed file names and the store does not have: the references\n"
     "        project, its samples and special identifiers, the reactors' production\n"
-    "        ratios. Nothing that is there is changed (pychron setup runs this).\n"
+    "        ratios. Nothing that is there is changed (nobion setup runs this).\n"
     "\n"
     "Exit codes: 0 ok; 1 nothing was written (a stale, refused or invalid row);\n"
     "            2 usage or fatal error.\n";
@@ -128,7 +128,7 @@ int usage(Io io, const std::string& message) {
 }
 
 int fatal(Io io, const Error& e) {
-  io.err << "elctl entry: " << pychron::to_string(e) << '\n';
+  io.err << "elctl entry: " << nobion::to_string(e) << '\n';
   return kUsage;
 }
 
@@ -139,7 +139,7 @@ int fatal(Io io, const std::string& what) {
 
 Result<std::string> read_file(const std::string& path) {
   std::ifstream in(path, std::ios::binary);
-  if (!in) return pychron::fail(pychron::ErrorKind::Io, "cannot read " + path);
+  if (!in) return nobion::fail(nobion::ErrorKind::Io, "cannot read " + path);
   std::ostringstream s;
   s << in.rdbuf();
   return s.str();
@@ -147,11 +147,11 @@ Result<std::string> read_file(const std::string& path) {
 
 Result<void> write_file(const std::string& path, const std::string& text) {
   std::ofstream out(path, std::ios::binary);
-  if (!out) return pychron::fail(pychron::ErrorKind::Io, "cannot write " + path);
+  if (!out) return nobion::fail(nobion::ErrorKind::Io, "cannot write " + path);
   out << text;
   out.close();
-  if (!out) return pychron::fail(pychron::ErrorKind::Io, "cannot write " + path);
-  pychron::mark_as_user_file(path);  // the user's own file: no quarantine on macOS
+  if (!out) return nobion::fail(nobion::ErrorKind::Io, "cannot write " + path);
+  nobion::mark_as_user_file(path);  // the user's own file: no quarantine on macOS
   return {};
 }
 
@@ -181,18 +181,18 @@ struct Context {
 
 Result<Context> open(Io io, const Args& a, bool writes) {
   const auto db = a.get("--db");
-  if (!db) return pychron::fail(pychron::ErrorKind::Config, "--db <url> is required");
+  if (!db) return nobion::fail(nobion::ErrorKind::Config, "--db <url> is required");
   // Never migrate from here: entry needs a store `elctl import` or an install made.
   auto store = ps::open_store(ps::StoreConfig{*db, false});
-  if (!store) return pychron::fail(store.error());
+  if (!store) return nobion::fail(store.error());
   Context ctx{io, std::move(*store), {}, a.has("--dry-run")};
   if (writes && !ctx.dry_run) {
-    const std::string host = pychron::host_name();
+    const std::string host = nobion::host_name();
     auto client = ctx.store->register_client({host, "reduction", std::nullopt, "elctl"});
-    if (!client) return pychron::fail(client.error());
-    const std::string user = a.get("--user").value_or(pychron::env_var("USER").value_or("pychron"));
+    if (!client) return nobion::fail(client.error());
+    const std::string user = a.get("--user").value_or(nobion::env_var("USER").value_or("nobion"));
     auto u = ctx.store->ensure_user(*client, user);
-    if (!u) return pychron::fail(u.error());
+    if (!u) return nobion::fail(u.error());
     ctx.actor = ps::Actor{*u, *client};
   }
   return ctx;
@@ -242,7 +242,7 @@ void print_edits(Io io, const ps::CatalogEditBatch& batch) {
 
 Result<std::optional<ps::IrradiationRow>> find_package(ps::IStore& store, const std::string& name) {
   auto rows = store.irradiations();
-  if (!rows) return pychron::fail(rows.error());
+  if (!rows) return nobion::fail(rows.error());
   for (const auto& r : *rows)
     if (r.name == name) return std::optional<ps::IrradiationRow>{r};
   return std::optional<ps::IrradiationRow>{};
@@ -258,11 +258,8 @@ int samples_import(Context& ctx, const Args& a) {
   if (!table) return fatal(ctx.io, table.error());
   auto catalog = en::read_snapshot(*ctx.store);
   if (!catalog) return fatal(ctx.io, catalog.error());
-  auto settings = en::load_settings(*ctx.store);
-  if (!settings) return fatal(ctx.io, settings.error());
   en::ImportOptions options;
   options.update_existing = a.has("--update-existing");
-  options.pi_names_allowed = settings->settings.pi_names_allowed;
   const auto plan = en::plan_sample_import(*table, en::default_mapping(table->header), *catalog, options);
   for (const auto& r : plan.rows) {
     ctx.io.out << "line " << r.line << ' ' << en::to_string(r.state) << ' ' << r.sample;
@@ -271,21 +268,38 @@ int samples_import(Context& ctx, const Args& a) {
       for (const auto& c : r.changed) ctx.io.out << " ~" << c;
     ctx.io.out << '\n';
   }
+  for (const auto& q : plan.questions) {
+    ctx.io.out << "principal investigator " << q.name << " (line";
+    if (q.lines.size() > 1) ctx.io.out << 's';
+    for (std::size_t i = 0; i < q.lines.size(); ++i) ctx.io.out << (i == 0 ? " " : ", ") << q.lines[i];
+    ctx.io.out << ") has namesakes:\n";
+    for (const auto& c : q.candidates)
+      ctx.io.out << "  " << c.display_name << '\t' << c.affiliation.value_or("") << '\t' << c.orcid.value_or("")
+                 << '\t' << c.uuid.str() << '\n';
+  }
   for (const auto& n : plan.new_principal_investigators) ctx.io.out << "new principal investigator " << n << '\n';
   for (const auto& n : plan.new_projects) ctx.io.out << "new project " << n << '\n';
   for (const auto& n : plan.new_materials) ctx.io.out << "new material " << n << '\n';
   ctx.io.out << plan.creates << " to create, " << plan.updates << " differing, " << plan.exists << " stored, "
-             << plan.errors << " in error\n";
+             << plan.errors << " in error";
+  if (plan.asks > 0) ctx.io.out << ", " << plan.asks << " asking which PI";
+  ctx.io.out << '\n';
   if (const auto errors = a.get("--errors"); errors && plan.errors > 0)
     if (auto r = write_file(*errors, en::errors_csv(plan)); !r) return fatal(ctx.io, r.error());
   if (plan.errors > 0) {
     ctx.io.err << "elctl entry: rows in error; nothing was written\n";
     return kFailed;
   }
+  if (!plan.ready()) {
+    ctx.io.err << "elctl entry: a principal investigator has namesakes; say which in a principal_investigator_orcid "
+                  "or principal_investigator_uuid column; nothing was written\n";
+    return kFailed;
+  }
   if (ctx.dry_run) return kOk;
   const auto batch = en::to_batch(plan, *catalog, options);
-  if (batch.edits.empty()) return kOk;
-  auto out = ctx.store->apply_catalog_edits(ctx.actor.client, batch);
+  if (!batch) return fatal(ctx.io, batch.error());
+  if (batch->edits.empty()) return kOk;
+  auto out = ctx.store->apply_catalog_edits(ctx.actor.client, *batch);
   if (!out) return fatal(ctx.io, out.error());
   return report(ctx.io, *out);
 }
@@ -321,7 +335,7 @@ Result<std::vector<std::string>> level_names(const std::string& spec) {
   std::string part;
   while (std::getline(s, part, ','))
     if (!en::trim(part).empty()) out.push_back(en::trim(part));
-  if (out.empty()) return pychron::fail(pychron::ErrorKind::Config, "--levels: write A-C or A,B,D");
+  if (out.empty()) return nobion::fail(nobion::ErrorKind::Config, "--levels: write A-C or A,B,D");
   return out;
 }
 
@@ -339,7 +353,7 @@ int package_add(Context& ctx, const Args& a) {
   }
   std::optional<double> z;
   if (const auto zt = a.get("--z")) {
-    z = pychron::parse_double(*zt);
+    z = nobion::parse_double(*zt);
     if (!z) return usage(ctx.io, "--z: not a number");
   }
   if (const auto levels = a.get("--levels")) {
@@ -353,7 +367,7 @@ int package_add(Context& ctx, const Args& a) {
       if (!tz) return usage(ctx.io, "--chronology needs --tz <IANA zone>");
       auto text = read_file(*file);
       if (!text) return fatal(ctx.io, text.error());
-      auto chronology = pychron::dvc::parse_chronology_text(*text, *tz);
+      auto chronology = nobion::dvc::parse_chronology_text(*text, *tz);
       if (!chronology) return fatal(ctx.io, chronology.error());
       p.doses = chronology->doses;
     }
@@ -434,13 +448,13 @@ int package_set_kind(Context& ctx, const Args& a) {
 
 Result<std::map<std::string, en::LevelSheetEdit>> package_edits(ps::IStore& store, ps::Uuid package) {
   auto sheets = en::package_sheets(store, package);
-  if (!sheets) return pychron::fail(sheets.error());
+  if (!sheets) return nobion::fail(sheets.error());
   std::map<std::string, en::LevelSheetEdit> out;
   for (auto& s : *sheets) {
     std::optional<ps::HolderValue> holder;
     if (s.level.holder) {
       auto h = en::load_holder(store, *s.level.holder);
-      if (!h) return pychron::fail(h.error());
+      if (!h) return nobion::fail(h.error());
       holder = *h;
     }
     const std::string name = s.level.name;
@@ -464,7 +478,7 @@ int positions_import(Context& ctx, const Args& a) {
   if (!edits) return fatal(ctx.io, edits.error());
   auto settings = en::load_settings(*ctx.store);
   if (!settings) return fatal(ctx.io, settings.error());
-  const auto result = en::apply_position_import(*table, *catalog, *edits, settings->settings.pi_names_allowed);
+  const auto result = en::apply_position_import(*table, *catalog, *edits);
   if (!result.errors.empty()) {
     for (const auto& e : result.errors) ctx.io.out << e << '\n';
     ctx.io.err << "elctl entry: rows in error; nothing was written\n";
@@ -551,6 +565,14 @@ int settings_command(Context& ctx, const Args& a) {
     return kOk;
   }
   if (a.positional.size() != 4) return usage(ctx.io, "settings set takes a key and a value");
+  // Only a key this version reads: another would be kept unread, and a
+  // former one (pi_names_allowed, PI spec 6.1) would look as if it still
+  // did something.
+  if (const auto known = nlohmann::json::parse(en::to_json(en::EntrySettings{})); !known.contains(a.positional[2])) {
+    std::string keys;
+    for (const auto& item : known.items()) keys += (keys.empty() ? "" : ", ") + item.key();
+    return usage(ctx.io, "unknown key '" + a.positional[2] + "'; the keys are " + keys);
+  }
   auto doc = nlohmann::json::parse(en::to_json(loaded->settings));
   auto value = nlohmann::json::parse(a.positional[3], nullptr, false);
   doc[a.positional[2]] = value.is_discarded() ? nlohmann::json(a.positional[3]) : value;
@@ -578,23 +600,23 @@ Result<std::string> seed_database(const std::string& url, const std::filesystem:
   if (!store) {
     Error e = store.error();
     e.what = "the database could not be opened: " + e.what;
-    return pychron::fail(std::move(e));
+    return nobion::fail(std::move(e));
   }
   auto text = read_file(seed_file.string());
-  if (!text) return pychron::fail(text.error());
+  if (!text) return nobion::fail(text.error());
   auto seed = en::parse_seed(*text, seed_file.string());
-  if (!seed) return pychron::fail(seed.error());
+  if (!seed) return nobion::fail(seed.error());
   ps::Actor actor;
   if (!dry_run) {
-    const std::string host = pychron::host_name();
+    const std::string host = nobion::host_name();
     auto client = (*store)->register_client({host, "reduction", std::nullopt, "elctl"});
-    if (!client) return pychron::fail(client.error());
-    auto u = (*store)->ensure_user(*client, user.empty() ? pychron::env_var("USER").value_or("pychron") : user);
-    if (!u) return pychron::fail(u.error());
+    if (!client) return nobion::fail(client.error());
+    auto u = (*store)->ensure_user(*client, user.empty() ? nobion::env_var("USER").value_or("nobion") : user);
+    if (!u) return nobion::fail(u.error());
     actor = ps::Actor{*u, *client};
   }
   auto report = en::apply_seed(**store, *seed, actor, dry_run);
-  if (!report) return pychron::fail(report.error());
+  if (!report) return nobion::fail(report.error());
   return (dry_run && report->changed() ? "would be " : "") + en::describe(*report);
 }
 

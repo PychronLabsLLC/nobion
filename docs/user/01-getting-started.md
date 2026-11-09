@@ -1,13 +1,13 @@
 # Getting started
 
-This page is for lab operators and lab managers. It explains what Pychron is,
+This page is for lab operators and lab managers. It explains what Nobion is,
 what its main ideas are, how to start it, what every menu does, and walks you
 through a 15-minute tour on the built-in simulator, so you can learn the
 program without touching an instrument.
 
-> **Status.** Pychron (the C++ rewrite) is in development. Everything runs
-> against the built-in simulator. No instrument driver has been run against a
-> real instrument yet; see "Hardware status" in the
+> **Status.** Nobion (the C++ rewrite of pychron) is in development.
+> Everything runs against the built-in simulator. No instrument driver has
+> been run against a real instrument yet; see "Hardware status" in the
 > [README](../../README.md). Until your lab has done the bring-up in
 > [the installation runbook](../installation_runbook.md), treat an instrument
 > install as a simulation.
@@ -16,7 +16,7 @@ Where to go next:
 
 | You want to | Read |
 |---|---|
-| Install Pychron on a lab computer | [Installation runbook](../installation_runbook.md) |
+| Install Nobion on a lab computer | [Installation runbook](../installation_runbook.md) |
 | Operate the valves, gauges and heaters | [02 Extraction line](02-extraction-line.md) |
 | Operate the mass spectrometer | [03 Spectrometer](03-spectrometer.md) |
 | Build and run queues of analyses | [04 Experiments](04-experiments.md) |
@@ -30,7 +30,7 @@ Where to go next:
 
 ## Quick start: a fresh install on the simulator
 
-Three commands take a computer with Pychron and nothing else to measured runs
+Three commands take a computer with Nobion and nothing else to measured runs
 in a database. No instrument is needed and nothing is typed in by hand.
 
 1. Make an instrument install. It is set up for simulation, with its own
@@ -40,20 +40,20 @@ in a database. No instrument is needed and nothing is typed in by hand.
    elctl init argus --yes
    ```
 
-   This writes the install to `~/Pychron/argus`: an example extraction line, a
-   simulated spectrometer, plans, scripts, a first queue (`experiment.toml`),
-   and a SQLite database (`data/pychron.db`) that already holds what the queue
+   This writes the install to `~/Nobion/argus`: an example extraction line, a
+   simulated spectrometer, plans, scripts, a first queue (`queues/experiment.toml`),
+   and a SQLite database (`data/nobion.db`) that already holds what the queue
    names. The output ends with a list of checks, each `[OK]`, among them
-   `[OK] database: sqlite:<install>/data/pychron.db (schema version N)`.
+   `[OK] database: sqlite:<install>/data/nobion.db (schema version N)`.
 
 2. Open it, with simulated time running 20 times faster than a clock:
 
    ```bash
-   pychron-ui --install argus --sim-speed 20
+   nobion --install argus --sim-speed 20
    ```
 
    Open the Experiment window (**View > Experiment**), load the install's
-   `experiment.toml` (**File > Open > Open Queue…**) and start it
+   `queues/experiment.toml` (**File > Open > Open Queue…**) and start it
    (**Experiment > Executor > Start**). The queue is three air shots between
    two blanks, about 19 minutes of simulated time, so about a minute here.
    (The `ETA` that `elctl exp run` prints is an estimate and reads lower for
@@ -72,10 +72,10 @@ in a database. No instrument is needed and nothing is typed in by hand.
 
    ```
    queue completed
-   5/5 run(s) succeeded; in sqlite:/home/you/Pychron/argus/data/pychron.db
+   5/5 run(s) succeeded; in sqlite:/home/you/Nobion/argus/data/nobion.db
    ```
 
-   The runs are in the install's database, and `pychron-ui --install argus`
+   The runs are in the install's database, and `nobion --install argus`
    shows them in its data window. `elctl` prints a run's aliquot as it is
    (`run 1 a-1: success`); the database and the data window show it with two
    digits (`a-01`).
@@ -95,16 +95,16 @@ irradiated sample, and the simulator does not have samples yet. Dated unknowns
 in the shipped queue come in a later version. Section 11 is a longer tour, on
 the example lab, which has no database and writes record files instead.
 
-## 1. What Pychron is
+## 1. What Nobion is
 
-Pychron is data acquisition and control software for noble-gas (Ar/Ar)
+Nobion is data acquisition and control software for noble-gas (Ar/Ar)
 geochronology labs. It drives the extraction line (valves, gauges, pumps,
 heaters), a mass spectrometer, and optionally a laser; it runs automated queues
 of analyses; and it stores and reduces the results.
 
 Two programs are installed:
 
-- **pychron-ui** (called **Pychron** on macOS) is the application you work in.
+- **nobion** (**Nobion.app** on macOS) is the application you work in.
   It has windows for the extraction line, the spectrometer, experiments, the
   laser and the data.
 - **elctl** is a command-line tool for checking configuration, driving the
@@ -114,13 +114,13 @@ Two programs are installed:
 ## 2. Key concepts
 
 **Extraction line.** The vacuum plumbing between the sample and the
-spectrometer: valves, gauges, pumps, heaters, a pipette and so on. Pychron
+spectrometer: valves, gauges, pumps, heaters, a pipette and so on. Nobion
 shows it as a drawing (the *canvas*) where each valve is a clickable symbol.
 It is described by two files, `extraction_line.toml` (what the hardware is and
 how it is wired) and `canvas.toml` (where things are drawn).
 
 **Spectrometer.** The mass spectrometer: magnet, detectors and source. Its
-configuration is a separate file (for example `spectrometer.toml`). Pychron
+configuration is a separate file (for example `spectrometer.toml`). Nobion
 opens it in its own window (View > Spectrometer) with a live strip chart and
 detector intensities.
 
@@ -131,7 +131,7 @@ a measurement (a *plan* that says which isotopes are measured and how), and a
 post-measurement script.
 
 **Queue.** An ordered list of runs, with delays between them. A queue is a
-file (for example `experiment.toml`). You open it in the Experiment window,
+file (for example `experiment.toml`), kept in the lab's `queues/` folder. You open it in the Experiment window,
 check it, and start it. The *executor* runs the rows in order and can be
 stopped, cancelled or aborted.
 
@@ -148,7 +148,7 @@ its own: the queues it runs are saved to it and its data window reads it. The
 store is also used by data-reduction installs, by Entry, by `elctl export` and
 `elctl import`, and by the UI when you pass `--db`. The example lab, and an
 install with no database, use the records folder. The store only exists if
-your Pychron was built with persistence; the release packages are.
+your Nobion was built with persistence; the release packages are.
 
 **Simulation mode.** Every hardware connection ("transport") can be replaced by
 a simulated one, so the same program runs with no instrument: a simulated line
@@ -165,7 +165,7 @@ against real hardware by mistake.
 that holds one set of settings and data: a line config, a canvas, a
 spectrometer config, scripts, plans, a data folder, and optionally a database
 URL. A **profile** is a template that creates an install by asking you a few
-questions. The profiles that ship with Pychron are:
+questions. The profiles that ship with Nobion are:
 
 | Profile | Kind | What it sets up |
 |---|---|---|
@@ -181,8 +181,8 @@ switch between installs from File > Installations.
 
 ## 3. First launch
 
-Start **Pychron** from Applications (macOS), the Start menu (Windows), or run
-`pychron-ui` from a terminal.
+Start **Nobion** from Applications (macOS), the Start menu (Windows), or run
+`nobion` from a terminal.
 
 What opens depends on what is installed on this computer:
 
@@ -192,7 +192,7 @@ What opens depends on what is installed on this computer:
 3. **Several installs and no default.** The **Installations** dialog opens so
    you can choose one (section 10).
 4. **Development shortcut.** With `--sim` and nothing installed, or with
-   `--examples`, the example lab shipped with Pychron opens instead of the
+   `--examples`, the example lab shipped with Nobion opens instead of the
    wizard.
 
 While it loads, a splash screen shows each step ("Loading the extraction line:
@@ -221,27 +221,27 @@ appear as a message box and on stderr.
 
 | What | Where |
 |---|---|
-| Site config (the list of installs, the default) | macOS `~/Library/Application Support/Pychron/site.toml`; Windows `%APPDATA%\Pychron\site.toml`; Linux `$XDG_CONFIG_HOME/pychron/site.toml` or `~/.config/pychron/site.toml`. The environment variable `PYCHRON_SITE_CONFIG` overrides the path. |
+| Site config (the list of installs, the default) | macOS `~/Library/Application Support/Nobion/site.toml`; Windows `%APPDATA%\Nobion\site.toml`; Linux `$XDG_CONFIG_HOME/nobion/site.toml` or `~/.config/nobion/site.toml`. The environment variable `NOBION_SITE_CONFIG` overrides the path. |
 | An install's files | the install's folder (shown in File > Installations) |
-| Preferences, window sizes and positions | the per-user settings store (Qt `QSettings`, organization "PychronLabs", application "pychron-ui") |
+| Preferences, window sizes and positions | the per-user settings store (Qt `QSettings`, organization "PychronLabs", application "nobion") |
 | Figure presets | the user's application config folder under `presets`, plus lab presets in `<lab>/figures` |
-| Finished runs | the install's database (by default `<install>/data/pychron.db`); with no database, `<data folder>/records` |
+| Finished runs | the install's database (by default `<install>/data/nobion.db`); with no database, `<data folder>/records` |
 | Runs waiting to be saved | `<data folder>/spool` |
-| Log file | the `dir` set in `[logging]` in `extraction_line.toml` (`pychron.log`); no file is written if `dir` is not set |
+| Log files | an install: `<install>/logs/nobion.log` (`elctl.log` for `elctl`); otherwise the log folder of your system (see Troubleshooting, Logs). Set in `logging.toml` in the install folder, or File > Preferences > Logging |
 
-## 4. Command-line flags of pychron-ui
+## 4. Command-line flags of nobion
 
 ```bash
-pychron-ui [--install NAME | --setup | --examples | extraction_line.toml [canvas.toml]]
+nobion [--install NAME | --setup | --examples | extraction_line.toml [canvas.toml]]
            [--sim] [--sim-speed X] [--spectrometer FILE] [--lab DIR] [--data DIR]
            [--queue FILE] [--db URL] [--sim-save] [--laser [--device NAME]]
-pychron-ui --version
-pychron-ui --self-test
-pychron-ui --write-icons DIR
+nobion --version
+nobion --self-test
+nobion --write-icons DIR
 ```
 
 On macOS the executable is inside the app bundle:
-`/Applications/Pychron.app/Contents/MacOS/pychron-ui` (the exact path may vary
+`/Applications/Nobion.app/Contents/MacOS/nobion` (the exact path may vary
 with the package).
 
 | Flag | Meaning |
@@ -249,26 +249,26 @@ with the package).
 | `extraction_line.toml [canvas.toml]` | Positional: open this line config, and optionally this canvas, instead of an install. |
 | `--install NAME` | Open the install of that name from the site config. An unknown name is a fatal error. |
 | `--setup` | Run the setup wizard even if installs exist. |
-| `--examples` | Open the example lab shipped with Pychron (for development and learning). |
+| `--examples` | Open the example lab shipped with Nobion (for development and learning). |
 | `--sim` | Force every extraction-line transport to be simulated. Also loads the example `spectrometer.sim-integrated.toml` if no spectrometer is given. A spectrometer config that is not fully simulated is refused. |
 | `--sim-speed X` | With `--sim`, or on an install set up for simulation: run the whole application on simulated time `X` times faster than real time (`X` must be a positive number). |
 | `--spectrometer FILE` | The spectrometer config to load for View > Spectrometer. |
 | `--lab DIR` | The lab directory the Experiment window runs queues against (plans, scripts, conditionals, patterns, trays). Default: the install's folder, or the folder holding the line config. |
 | `--data DIR` | The data folder: the spool, and with no database the records that are written and browsed (`DIR/records`). Default: the install's data folder, or `<lab>/data`. |
 | `--queue FILE` | A queue to open in the Experiment window when it is opened. |
-| `--db URL` | The database for the whole program, instead of the install's: the data browser reads it, the Entry and Fit menus work on it, and **the runs of a queue are saved to it**, so it must already hold the identifiers the queue names. A simulated session only reads a database given this way: its runs are written as record files unless `--sim-save` is given too (`pychron-ui --sim --db <url>` browses; `pychron-ui --sim --db <url> --sim-save` also saves). `postgresql://user:password@host/db` or `sqlite:/path/to/file.db`. The schema must already be current; it is never changed from here. Needs a build with persistence. |
+| `--db URL` | The database for the whole program, instead of the install's: the data browser reads it, the Entry and Fit menus work on it, and **the runs of a queue are saved to it**, so it must already hold the identifiers the queue names. A simulated session only reads a database given this way: its runs are written as record files unless `--sim-save` is given too (`nobion --sim --db <url>` browses; `nobion --sim --db <url> --sim-save` also saves). `postgresql://user:password@host/db` or `sqlite:/path/to/file.db`. The schema must already be current; it is never changed from here. Needs a build with persistence. |
 | `--sim-save` | Let a simulated session save its runs to the database. Without it simulated runs are saved to a database only when it is the install's own and a file on this computer (the default of an instrument install); for any other database they are record files under the data folder, and the Log dock says so once. Refused when there is no database. See [Experiments](04-experiments.md#9-simulation-and-simulated-speed). |
 | `--laser` | Open only the laser window of one extraction device, for a laser PC. Takes no `--queue` or `--spectrometer`. |
 | `--device NAME` | With `--laser`: which extraction device (a laser driver in the line config). Needed only when the line has more than one; with exactly one it is used automatically. |
-| `--version` | Print `pychron-ui <version>` and exit. Needs no display. |
+| `--version` | Print `nobion <version>` and exit. Needs no display. |
 | `--self-test` | Check that the Qt platform, the shipped profiles, the setup wizard and the database plug-in work; prints `OK` or `FAIL` lines, exits 0 if all pass, 1 otherwise. |
 | `--write-icons DIR` | Write the application icon files into `DIR` and exit (used for packaging). |
 
 Rules enforced when the flags are read (a violation prints
-`pychron-ui: <message>` and exits with status 2):
+`nobion: <message>` and exits with status 2):
 
 - `--sim-speed` needs a positive number, and either `--sim` or an install set
-  up for simulation (`pychron-ui: --sim-speed needs --sim` otherwise).
+  up for simulation (`nobion: --sim-speed needs --sim` otherwise).
 - `--device` needs `--laser`.
 - `--laser` cannot be combined with `--queue` or `--spectrometer`.
 - Positional config files, `--install`, `--setup` and `--examples` exclude each
@@ -276,7 +276,7 @@ Rules enforced when the flags are read (a violation prints
 - `--lab`, `--data`, `--spectrometer` and `--queue` each need a value, and the
   value must not start with `--`. `--db` and `--install` need a non-empty value.
 - `--sim-save` needs a database: `--db`, or an install that has one
-  (`pychron-ui: --sim-save: there is no database to save to ...` otherwise).
+  (`nobion: --sim-save: there is no database to save to ...` otherwise).
 - An unknown `--option` is an error.
 
 Exit status: 0 on a normal exit, 1 on a fatal load error (a message box is also
@@ -287,15 +287,16 @@ window you get".)
 ## 5. A tour of the main window
 
 The main window is the extraction line. Its title is
-`pychron — <system name>` (the `name` in `[system]` of the line config).
+`Nobion — <system name>` (the `name` in `[system]` of the line config).
 
 ```
 +--------------------------------------------------------------+
 | menu bar                                                     |
 +--------------------------------------------+-----------------+
-|                                            | Alarms          |
+| status band: mode, run, alarms, clock      | Alarms          |
+| alarm strip (only while alarms stand)      |                 |
 |   canvas: the drawing of the line          | Heaters (if any)|
-|   (click a valve to open or close it)      | Cryo (if any)   |
+|   (click a valve for its faceplate)        | Cryo (if any)   |
 |                                            |                 |
 +--------------------------------------------+-----------------+
 | Log dock                                                     |
@@ -307,15 +308,24 @@ The main window is the extraction line. Its title is
 ### The canvas
 
 The canvas draws the line from `canvas.toml`: valves, stages, pipettes, gauge
-readouts and labels.
+readouts and labels. **Legend**, at its top right, explains every symbol.
+Above it, the status band says whether the line is live or simulated, what
+the queue is doing, how many alarms stand, whether every connection is up,
+and the time on the line's clock; the alarm strip under it lists the most
+pressing alarms (details in
+[02 Extraction line](02-extraction-line.md#the-status-band-and-the-alarm-strip)).
 
-- **Click a valve** to open it if it is closed, or close it if it is open.
+- **Click a valve** to open its faceplate: its state, the interlocks its
+  opening waits on, its history, and the buttons **Open** / **Close** and
+  **Lock** / **Unlock**. Nothing moves until you press one.
+- **Option-click (Alt-click) a valve** to open it if it is closed, or close it
+  if it is open, at once.
   Commands go through the same lock and interlock checks as `elctl open` and
   `elctl close`; a refused command appears in the Log dock as
   `ERROR [ui] <valve> rejected: ...` and the valve flashes the reason.
-- **Right-click a valve** for *Lock valve* / *Unlock valve*. A locked valve
-  refuses open and close commands until it is unlocked; unlocking asks for
-  confirmation. Manual valves cannot be locked.
+- A locked valve refuses open and close commands until it is unlocked from
+  its faceplate; unlocking asks for confirmation. Manual valves cannot be
+  locked.
 - **Hover a valve** to see its state and how long it has been in it, whether it
   is locked or owned, when it was last actuated, and how many times it has
   opened, closed or failed.
@@ -330,7 +340,7 @@ Docks can be dragged, floated or closed. The main window has these:
 
 | Dock | Where | What it shows |
 |---|---|---|
-| **Log** | bottom | The program's log lines. Controls: a minimum level, a logger filter (prefix or glob), a "message contains" filter, **Pause**, **Autoscroll**, **Clear**, **Save...** (writes the visible lines to a text file) and **Set logger level...** (change a logger's level while running, for example `transport.*`, when the line has a log hub). A "+N new" badge counts lines that arrived while paused. On start it loads the tail of `pychron.log` if a log directory is configured. |
+| **Log** | bottom | The program's log lines. Controls: a minimum level, a logger filter (prefix or glob), a "text contains" filter (message, thread or run), **Pause**, **Autoscroll**, **Clear**, **Save...** (writes the visible lines to a text file) and **Set logger level...** (change a logger's level while running, for example `transport.*`, when the line has a log hub). A "+N new" badge counts lines that arrived while paused. On start it loads the tail of `nobion.log` (the lines at the panel's level and above) unless logging to a file is turned off. |
 | **Alarms** | right | One row per alarm source with severity (warning or critical), message and time. **Acknowledge** removes the selected rows, **Acknowledge all** clears the list. A new alarm from the same source replaces its row. |
 | **Heaters** | right | Only if the line config defines heaters. Per heater: an on/off button (it asks "Turn X on?"), a **Use PID** checkbox, a setpoint field (press Enter to send), the readback, and a strip chart. |
 | **Cryo** | right | Only if the line has a cryo controller. Temperature readbacks per input, setpoint fields per loop with a **Set** button, and a chart in kelvin. |
@@ -354,7 +364,7 @@ front. A menu with nothing to offer yet shows a greyed hint,
 | **New ▸** | **New Queue**, **New Script…**, **New Conditionals…**. Each works from any window and brings up the window it acts in: the Experiment window, the script editor, the conditionals editor. |
 | **Open ▸** | **Open Queue…**, **Open Script…**, **Open Conditionals…**, in the same way. |
 | **Save**, **Save As…** | Act on what the window in front edits, and say so: **Save Queue** in the Experiment window, **Save Script** in the script editor, **Save Conditionals** in the conditionals editor. Greyed in a window that edits no file. **Save As…** is for queues only. |
-| **Installations…** | Opens the Installations dialog (section 10). Shown only when the window was started from an install or can switch installs. Choosing another install closes this window (asking about unsaved queue edits) and starts Pychron again on it. |
+| **Installations…** | Opens the Installations dialog (section 10). Shown only when the window was started from an install or can switch installs. Choosing another install closes this window (asking about unsaved queue edits) and starts Nobion again on it. |
 | **Preferences…** | Opens the Preferences dialog (section 9). On macOS it appears in the application menu. |
 | **Quit** | Closes the window. In the main window this asks about unsaved queue edits. |
 
@@ -371,7 +381,7 @@ What New and Open do:
 
 They ask about unsaved changes first, where they would replace them. They
 are greyed when there is no experiment session (the extraction line did not
-start, or Pychron was opened for data only).
+start, or Nobion was opened for data only).
 
 **Ctrl+N** and **Ctrl+O** are New and Open for the window in front: a queue
 in the Experiment window, a script in the script editor, a conditionals file
@@ -412,7 +422,7 @@ was loaded, or the line failed to start).
 
 ### Entry
 
-Present only when Pychron has a database to enter into (started with `--db`, or
+Present only when Nobion has a database to enter into (started with `--db`, or
 a data-reduction install with a database; needs a build with persistence).
 
 | Item | Opens |
@@ -437,7 +447,9 @@ beside the one in front. Pick a window from the list to bring it forward.
 |---|---|
 | **Command Palette…** | Opens the command palette (next section). |
 | **Keyboard Shortcuts** | Opens a searchable list of every shortcut. |
-| **About pychron** | The about box (version and credits). |
+| **Canvas Legend** | Opens the key to every symbol on the main window's canvas, as the canvas's **Legend** button does. |
+| **About Nobion** | The about box (version and credits). |
+| **Check for Updates…** | Asks GitHub now whether a newer release exists and always answers in a dialog. Greyed while a check is out. See [Updates](#updates). |
 
 ## 7. The command palette
 
@@ -529,21 +541,37 @@ pages (below).
 | Appearance | **Interface font size** | 6 to 32 pt; "Default" uses the system's size | Text size of every window, open now and opened later. Window titles change in windows opened afterwards. |
 | Appearance | **Script editor font size** | 6 to 32 pt; "Default" follows the interface size | Font of the script editors. |
 | Data | **Browser page size** | 20 to 5000 analyses; default 200 (steps of 50) | How many analyses the data browser loads at a time; **Load more** fetches the next page. |
+| Plots | **Plot background** | Any color; default white | Background of the live plots: the spectrometer's scan, the experiment window's evolutions, peak centers, gauge history, the cryostat and heater docks, and the pattern maker's preview. Open plots change at once on OK or Apply. |
+| Plots | **Series colors** | 12 colors; default the figures' 12 group colors | Color of series 1 to 12 in the live plots, and of the projects in the sample holder view (a 13th series takes color 1 again). A detector given a color in the spectrometer's config keeps that color. Open plots change at once on OK or Apply. |
+| Plots | **Reset colors** | | Puts the background and the 12 series colors back to their defaults in the dialog; OK or Apply keeps it. |
 | Spectrometer | **Ask before moving the magnet more than** | 0 to 300 amu, steps of 0.5; 0 shows "Never ask" | A magnet move bigger than this change of mass on the reference detector asks for confirmation. A move from an unknown position always asks. Kept separately for each spectrometer. The page appears only when a spectrometer is loaded. |
+| Updates | **Check for updates at startup** | On by default | Once a day, at startup, asks api.github.com for the latest nobion release. See [Updates](#updates). |
+
+The Plots page does not change figures (ideogram, spectrum, isochron and the
+others): a figure keeps its own colors in its options and in the presets
+saved from them, so it looks the same on every computer. With nothing
+changed, a live plot and a figure draw series or group n in the same color,
+on white.
 
 **Logging** and **Metrics** are different in two ways. They belong to the
-extraction line, not to you: they are kept beside the line's config, in its
-local file (`extraction_line.local.toml`, see the configuration reference),
-so `elctl` on this computer follows them too, and another computer sharing
-the same config does not. And their default is whatever the shared
-`extraction_line.toml` says: **Restore Defaults** goes back to that, and the
-local file then holds nothing about them.
+install or the extraction line, not to you, and are kept in files so `elctl`
+on this computer follows them too, and another computer sharing the same
+config does not. For an install, Logging is kept in `logging.local.toml` in
+the install folder, over everything beneath it (the built-in defaults, the
+line's `[logging]` tables, `logging.toml`); Metrics, and Logging when there is
+no install, are kept in the line's local file (`extraction_line.local.toml`,
+see the configuration reference) over `extraction_line.toml`. **Restore
+Defaults** goes back to what is beneath, and the local file then holds
+nothing about them. If `logging.toml` or `logging.local.toml` cannot be read,
+the Logging page says why and shows the built-in defaults the program is
+running on; a broken `logging.local.toml` is not overwritten.
 
 | Page | Setting | Effect |
 |---|---|---|
 | Logging | **Everything else** | The level for any logger not listed below: `trace`, `debug`, `info`, `warn` or `error`. At once. |
+| Logging | **Shown in the Log panel** | The lowest level the Log panel receives (`dock_level`). The file still gets everything at its own levels. At once. |
 | Logging | **Logger / Level** table | A level for one logger or a family of them. A logger is named like `scheduler` or `transport.serial`; `*` stands for any part, so `*.wire` at `trace` shows every byte sent and received. **Add** and **Remove** change the list. At once. |
-| Logging | **Folder** | Where log files go; empty for no log file. Next start. |
+| Logging | **Folder** | Where log files go; empty for the default folder, or tick **No log file**. To return to the default after a folder was set in `logging.toml`, remove `dir` there. Next start. |
 | Logging | **Start a new file at**, **Files kept** | The size at which a log file rolls over, and how many old ones are kept. Next start. |
 | Logging | **Also print to the terminal** | Next start. |
 | Metrics | **Now** | What the endpoint is doing: listening and where, off, or why it could not start. |
@@ -551,20 +579,80 @@ local file then holds nothing about them.
 | Metrics | **Reachable from** | This computer only; every address of this computer; or one address, given in numbers. The monitoring box needs more than "this computer only". Next start. |
 | Metrics | **Port** | 1 to 65535. Next start. |
 
-A level set from the log panel's "Set logger level…" lasts until pychron
+A level set from the log panel's "Set logger level…" lasts until nobion
 closes; one set here is kept. If the local file cannot be written (the
 config is in a read-only folder), the dialog says so and changes nothing.
 The two pages appear only when a line is loaded.
+
+**Data source** is where the install reads and writes its data: its
+database and its data folder. It appears when Nobion runs on an install
+(not on the bundled examples), and it belongs to the install, not to you: it
+is kept in the install's files and the site config, which `elctl` reads too
+(`elctl data-source`, in the [elctl reference](08-elctl-reference.md#data-source)).
+
+| Setting | Effect |
+|---|---|
+| **Where is the data?** | **On this computer**: a database file. **My lab's database server**: the lab's PostgreSQL server. |
+| **Database file** | The file, relative to the install folder or a full path. **Browse…** picks an existing one; **New file…** names one that is not there yet, made when you apply. |
+| **Database server**, **Port**, **Database**, **User**, **Password** | The server. Leave **Password** blank to keep the one stored; it then reads "kept". |
+| **Data folder** | Where run records are kept, relative to the install folder or a full path. |
+| **Test connection** | Tries what the fields say without writing anything: opens the database and checks the folder, and says what it found (a file or folder that is not there yet is "will be made"). |
+
+On **OK** or **Apply** with this page changed, Nobion checks the new source
+first, as Test connection does, except that a new file and a missing folder
+are made. A file that already exists is only opened: one whose schema is
+behind is refused with the command that brings it up to date, and a server
+is never changed. If the check fails, the dialog says why, writes nothing,
+and offers **Save without checking** (for a server not reachable from here
+now). Nothing is copied or moved: the old database and the records in the
+old data folder stay where they are.
+
+Nobion opens its database once, when it starts, so a new source needs a
+restart: "Nobion must reopen to use the new data source." **Reopen now**
+closes the window, which still asks about unsaved queue edits, and opens the
+install again; **Later** keeps the old source until the next start.
+
+While a queue runs the page is read-only ("Stop the queue to change the data
+source"). Started with `--db`, Nobion uses that database for the session;
+the page says so and still changes the install's own.
 
 A saved value that is missing, unreadable or out of range silently reads as its
 default. The interface is always shown in the light theme; there is no dark
 mode setting.
 
+### Updates
+
+Nobion tells you when a newer release has been published. It
+only tells you: nothing is downloaded or installed, and a running queue is
+never touched.
+
+- **When.** At startup, at most once a day, while **Check for updates at
+  startup** (Preferences, Updates page) is on. It is on by default; turn it
+  off there to stop the check. `elctl` never checks on its own
+  (`elctl version --check` asks when you run it).
+- **What is asked, and of whom.** One request to `api.github.com` for the
+  latest release of `PychronLabsLLC/nobion`. It carries only the
+  program's version (as `User-Agent: nobion/<version>`): no lab, user,
+  computer name, path or configuration.
+- **What you see.** When the latest release is newer than the one running,
+  the status bar shows **Update available: v*x.y.z***. Click it for the
+  release notes and three buttons: **Download** opens the release's page in
+  your browser, **Skip this version** stops telling you about that release
+  (a later one is shown again), **Close**. A check that fails (no network,
+  for instance) shows nothing; the line window's log notes it.
+- **Help > Check for Updates…** asks at any time, whether or not a check is
+  due and even for a skipped version, and always answers in a dialog: up to
+  date, a newer release, or why it could not check ("Could not reach
+  GitHub" when the network is the trouble).
+
+What is kept, with your other settings: whether to check, when the last
+check was answered, and the version you skipped.
+
 ## 10. The setup wizard and the Installations dialog
 
 ### Setup wizard
 
-It opens on first launch, with `pychron-ui --setup`, and from **New…** in the
+It opens on first launch, with `nobion --setup`, and from **New…** in the
 Installations dialog. (`elctl init` does the same from a terminal; see
 [08 elctl reference](08-elctl-reference.md).)
 
@@ -604,7 +692,7 @@ and no default). It lists each install with its profile and folder, tagged
 | Button | What it does |
 |---|---|
 | **Open** | Switch to the selected install (not available for the one already open). |
-| **Open by default** | Make it the install that opens when Pychron starts without `--install`. |
+| **Open by default** | Make it the install that opens when Nobion starts without `--install`. |
 | **Remove from list** | Forget the install. Its folder and files are kept. Not available for the one that is open. |
 | **New…** | Run the setup wizard. |
 | **Close** | Dismiss the dialog. |
@@ -615,38 +703,44 @@ Double-clicking an install opens it. Run `elctl doctor` (or `elctl doctor
 ## 11. A 15-minute tour on the simulator
 
 This uses the example lab in `configs/examples`. Nothing here needs hardware.
-The example line is five valves (A, B, C, P1, P2), a manual valve (M1), a
-pump power switch, two gauges (IG1, PG1) and a pipette on simulated
-transports. The example queue has three runs: a blank (`bu`) and two
+The example line, all on simulated transports, is 13 valves, two rough
+valves (R1, R2), two manual valves (M1, M2), four gauges (IG1, IG2, PG1,
+CG1), 13 stages (among them a CO2 laser chamber, `stage1`, `prep`, two
+getters, a cryo trap and two tanks), two pipettes (`air` and `cocktail`), a
+pump power switch, a bakeout heater and a cryostat. Every valve starts
+closed and the example queue's scripts move only B, C, P1 and P2; the rest is there
+to look at and try. The example queue has three runs: a blank (`bu`) and two
 unknowns (`66001`) of the sample FC-2.
 
-You need a built `pychron-ui` (see [dev_setup.md](../dev_setup.md); the release
+You need a built `nobion` (see [dev_setup.md](../dev_setup.md); the release
 installer is not needed). From the repository root:
 
 ```bash
-mkdir -p ~/pychron-sim-data
-build/dev-ui/apps/pychron-ui/pychron-ui --examples --sim --sim-speed 50 \
-    --data ~/pychron-sim-data \
-    --queue configs/examples/experiment.toml
+mkdir -p ~/nobion-sim-data
+build/dev-ui/apps/nobion/nobion --examples --sim --sim-speed 50 \
+    --data ~/nobion-sim-data \
+    --queue configs/examples/queues/experiment.toml
 ```
 
 On macOS the program is inside the application bundle: write
-`build/dev-ui/apps/pychron-ui/Pychron.app/Contents/MacOS/Pychron` where the
-command says `build/dev-ui/apps/pychron-ui/pychron-ui`.
+`build/dev-ui/apps/nobion/Nobion.app/Contents/MacOS/Nobion` where the
+command says `build/dev-ui/apps/nobion/nobion`.
 
 `--data` keeps the records out of the repository. `--sim-speed 50` makes
 simulated time run 50 times faster than the clock on the wall.
 
 **Minutes 0 to 3: the line.**
 
-1. The main window opens, titled `pychron — example`, with "(Simulation)" shown
+1. The main window opens, titled `Nobion — example`, with "(Simulation)" shown
    on the splash screen. Look at the status bar: one health chip per
-   simulated transport (`valve_bus`, `gauge_net`, `laser_pc`).
-2. Click a valve, for example **P1**. It changes state (or is refused if an
-   interlock applies; the reason appears in the Log dock). Click it again.
-3. Right-click a valve and choose **Lock valve**, then try clicking it; the
-   command is refused. Right-click again and **Unlock valve** (confirm the
-   question).
+   simulated transport (`valve_bus`, `gauge_net`, `cg_controller`,
+   `laser_pc`, `cryostat`, `bakeout_plc`).
+2. Click a valve, for example **P1**: its faceplate opens. Press **Open**.
+   It changes state (or is refused if an interlock applies; the reason
+   appears on the faceplate and in the Log dock). Option-click (Alt-click)
+   it to close it again in one click.
+3. Click a valve and press **Lock**, then Option-click it; the command is
+   refused. Click it again and press **Unlock** (confirm the question).
 4. Hover a valve to read its history. In the Log dock, type `transport` in
    the logger filter, then clear it.
 
@@ -661,7 +755,7 @@ simulated time run 50 times faster than the clock on the wall.
 **Minutes 6 to 11: run the example queue.**
 
 6. Press **Ctrl+Shift+E** (or View > Experiment). The three rows of
-   `experiment.toml` are loaded. Use **Experiment > Queue > Revalidate** to re-check them
+   `queues/experiment.toml` are loaded. Use **Experiment > Queue > Revalidate** to re-check them
    against the lab's plans and scripts.
 7. Try **Experiment > Rows > Toggle Skip** (Ctrl+K) on the first row, then toggle it back.
 8. Start the queue: **Experiment > Executor > Start** (F5). Watch the rows change state, the
@@ -686,7 +780,7 @@ To do the same without the window, from the example folder:
 
 ```bash
 cd configs/examples
-../../build/dev/apps/elctl/elctl -c extraction_line.toml --sim exp run experiment.toml \
+../../build/dev/apps/elctl/elctl -c extraction_line.toml --sim exp run queues/experiment.toml \
     --spectrometer spectrometer.sim-integrated.toml --sim-speed 50
 ```
 

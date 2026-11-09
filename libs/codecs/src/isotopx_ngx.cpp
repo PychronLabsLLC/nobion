@@ -1,4 +1,4 @@
-#include "pychron/codecs/isotopx_ngx.hpp"
+#include "nobion/codecs/isotopx_ngx.hpp"
 
 #include <algorithm>
 #include <array>
@@ -6,7 +6,7 @@
 #include <cmath>
 #include <cstdlib>
 
-namespace pychron::codec::ngx {
+namespace nobion::codec::ngx {
 
 namespace {
 
@@ -440,4 +440,4 @@ std::vector<Result<Message>> Demultiplexer::feed(const Bytes& chunk) {
   return out;
 }
 
-}  // namespace pychron::codec::ngx
+}  // namespace nobion::codec::ngx

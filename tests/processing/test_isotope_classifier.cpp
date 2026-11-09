@@ -8,13 +8,13 @@
 #include <random>
 
 #include "fixtures.hpp"
-#include "pychron/processing/isotope_classifier.hpp"
-#include "pychron/processing/isotope_evolution_fit.hpp"
+#include "nobion/processing/isotope_classifier.hpp"
+#include "nobion/processing/isotope_evolution_fit.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 namespace {
 
-namespace r = pychron::reduction;
+namespace r = nobion::reduction;
 namespace fs = std::filesystem;
 
 RawData with_sniff(const std::string& key, std::vector<double> t, std::vector<double> v) {
@@ -108,7 +108,7 @@ TEST(IsotopeClassifier, TomlRoundTripAndFiles) {
   EXPECT_FALSE(IsotopeClassifier::from_toml("[[sample]]\nklass = 1\nbins = [12000]\nvalues = [1.0]\n"));
   EXPECT_FALSE(IsotopeClassifier::from_toml("not toml ="));
 
-  const fs::path dir = fs::temp_directory_path() / ("pychron_classifier_" + std::to_string(std::random_device{}()));
+  const fs::path dir = fs::temp_directory_path() / ("nobion_classifier_" + std::to_string(std::random_device{}()));
   const fs::path file = dir / "nested" / "isotope.toml";
   auto missing = IsotopeClassifier::load(file);
   ASSERT_TRUE(missing);
@@ -151,7 +151,7 @@ RefitFixture refit_fixture(bool noisy_sniff) {
   }
   raw.series.push_back(sniff);
   f.raw[a->uuid] = raw;
-  f.dataset.mutable_items().push_back(DatasetItem{reduce_analysis(a, {}), {}, {}});
+  f.dataset.mutable_items().push_back(DatasetItem{reduce_analysis(a), {}, {}});
   return f;
 }
 
@@ -188,7 +188,7 @@ TEST(IsotopeEvolutionFits, AutoNPicksTheFitByPointCount) {
 TEST(IsotopeEvolutionFits, ClassifierFlagsBadSniffs) {
   // Train on one good and one bad flat-vs-noisy sniff of each kind.
   const fs::path file =
-      fs::temp_directory_path() / ("pychron_iso_classifier_" + std::to_string(std::random_device{}()) + ".toml");
+      fs::temp_directory_path() / ("nobion_iso_classifier_" + std::to_string(std::random_device{}()) + ".toml");
   IsotopeClassifier c;
   for (bool noisy : {false, false, true, true}) {
     auto f = refit_fixture(noisy);
@@ -231,4 +231,4 @@ TEST(IsotopeEvolutionFits, ClassifierFlagsBadSniffs) {
 }
 
 }  // namespace
-}  // namespace pychron::processing
+}  // namespace nobion::processing

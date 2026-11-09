@@ -7,7 +7,7 @@
 #include "sql/statements.hpp"
 #include "store_impl.hpp"
 
-namespace pychron::persistence {
+namespace nobion::persistence {
 
 namespace {
 struct KindName {
@@ -441,4 +441,4 @@ Result<std::optional<std::string>> imported_head_blob_sha(Db& db, Uuid source, U
 }
 
 }  // namespace detail
-}  // namespace pychron::persistence
+}  // namespace nobion::persistence

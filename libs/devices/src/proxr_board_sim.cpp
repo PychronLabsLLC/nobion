@@ -1,8 +1,8 @@
 #include <utility>
 
-#include "pychron/devices/proxr_board_sim.hpp"
+#include "nobion/devices/proxr_board_sim.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace proxr = codec::proxr;
 
@@ -50,4 +50,4 @@ void ProxrBoardSim::set_energized(std::int64_t index, bool on) {
 
 int ProxrBoardSim::selected_bank() const { return bank_; }
 
-}  // namespace pychron
+}  // namespace nobion

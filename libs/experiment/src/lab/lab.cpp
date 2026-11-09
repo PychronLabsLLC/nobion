@@ -1,17 +1,20 @@
-#include "pychron/experiment/lab/lab.hpp"
+#include "nobion/experiment/lab/lab.hpp"
 
-#include "pychron/devices/driver_registry.hpp"
+#include "nobion/devices/driver_registry.hpp"
 
 #include <algorithm>
 #include <fstream>
+#include <iterator>
 #include <set>
 #include <sstream>
 #include <system_error>
 #include <utility>
 
-#include "pychron/core/config/loader.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/experiment/model/identifiers.hpp"
+#include "nobion/experiment/model/rules.hpp"
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 
 namespace fs = std::filesystem;
 
@@ -30,6 +33,10 @@ LabScripts::LabScripts(fs::path root) : root_(root), resolver_(std::move(root)) 
 
 std::vector<std::string> LabScripts::names(scripting::ScriptKind kind) const {
   std::vector<std::string> out;
+  if (kind == scripting::ScriptKind::SafeState) {  // one file, scripts/safe_state.py
+    if (resolver_.resolve({}, kind)) out.emplace_back(scripting::to_string(kind));
+    return out;
+  }
   const fs::path dir = root_ / std::string(scripting::to_string(kind));
   std::error_code ec;
   if (!fs::is_directory(dir, ec)) return out;
@@ -93,7 +100,7 @@ Lab load_lab(const LabPaths& paths) {
     }
   }
   if (!paths.spectrometer.empty()) {
-    auto data = spectrometer::cfg::load_spectrometer(paths.spectrometer);
+    auto data = spectrometer::cfg::load_spectrometer(paths.spectrometer, paths.spectrometer_tables);
     if (data) lab.spectrometer = std::move(*data);
     else lab.problems.push_back(data.error().what);
   }
@@ -103,17 +110,27 @@ Lab load_lab(const LabPaths& paths) {
   lab.trays = laser::TrayLibrary::load(dir / "tray_maps");
   lab.patterns = laser::PatternLibrary::load(dir / "patterns");  // as trays: a bad one stops only its runs
   lab.cameras = laser::CameraLibrary::load(dir / "cameras.toml");  // a bad table stops only its device's runs
-  lab.corrections = std::make_unique<laser::CorrectionStore>(dir / "stage_corrections");
+  lab.corrections = std::make_unique<laser::CorrectionStore>(paths.state() / "stage_corrections");
   lab.calibrations = std::make_unique<laser::CalibrationStore>(dir / "stage_calibrations");
-  lab.camera_scales = std::make_unique<laser::CameraScaleStore>(dir / "camera_scales");
+  lab.camera_scales = std::make_unique<laser::CameraScaleStore>(paths.state() / "camera_scales");
   if (lab.line) {
     for (const auto& [name, driver] : lab.line->drivers) {  // a map: sorted
       const DriverSchema* schema = DriverRegistry::global().schema(driver.kind);
       if (schema != nullptr && schema->extraction_device) lab.extract_devices.push_back(name);
     }
   }
-  if (lab.spectrometer) lab.catalog = std::make_unique<measurement::SpectrometerCatalog>(lab.spectrometer->config);
-  lab.plans = std::make_unique<plan::PlanLibrary>(plan::PlanResolvers{lab.aliases.get(), lab.catalog.get()});
+  if (lab.spectrometer)
+    lab.catalog = std::make_unique<measurement::SpectrometerCatalog>(
+        lab.spectrometer->config, lab.spectrometer->weights, measurement::table_names(*lab.spectrometer));
+  lab.scripts = std::make_unique<LabScripts>(dir / "scripts");
+  plan::PlanResolvers resolvers{lab.aliases.get(), lab.catalog.get()};
+  resolvers.scripts = lab.scripts.get();  // a gas's prepare script (spec 11.2)
+  // spec 3.7: a during_extraction segment needs a type that extracts.
+  resolvers.has_extraction = [](std::string_view type) {
+    const auto t = parse_analysis_type(type);
+    return !t || rules_for(*t).extraction;
+  };
+  lab.plans = std::make_unique<plan::PlanLibrary>(std::move(resolvers));
   if (fs::is_directory(dir / "plans", ec)) {
     std::vector<fs::path> files;
     for (const auto& e : fs::directory_iterator(dir / "plans", ec))
@@ -129,25 +146,26 @@ Lab load_lab(const LabPaths& paths) {
   lab.conditionals = std::make_unique<ConditionalLibrary>(*lab.condition_source);
   lab.condition_files = std::make_unique<ConditionalFiles>(dir / "conditionals");
   lab.condition_names = std::make_unique<LabConditionals>(*lab.condition_source);
-  lab.scripts = std::make_unique<LabScripts>(dir / "scripts");
-  if (fs::exists(dir / "peak_center.toml", ec)) {
-    auto pc = jobs::parse_peak_center_configs(read_text(dir / "peak_center.toml"), (dir / "peak_center.toml").string());
-    if (pc) lab.peak_centers = std::move(*pc);
-    else lab.problems.push_back(pc.error().what);
+  if (auto pc = read_peak_center_file(dir / "peak_center.toml")) lab.peak_centers = std::move(*pc);
+  else {
+    lab.problems.push_back(pc.error().what);
+    lab.peak_center_problem = pc.error().what;
   }
   if (fs::exists(dir / "defaults.toml", ec)) {
     auto d = DefaultsTable::load((dir / "defaults.toml").string());
     if (d) lab.defaults = std::move(*d);
     else lab.problems.push_back(d.error().what);
   }
+  if (auto e = ExecutorConfig::load(dir / "executor.toml"); e) lab.executor = *e;
+  else lab.problems.push_back(e.error().what);
   if (fs::exists(dir / "notifications.toml", ec)) {
     auto n = NotificationConfig::load(dir / "notifications.toml");
     if (n) lab.notifications = std::move(*n);
     else lab.problems.push_back(n.error().what);
   }
-  if (fs::is_directory(dir / "blocks", ec)) {
+  if (const auto blocks = paths.blocks(); fs::is_directory(blocks, ec)) {
     std::vector<fs::path> files;
-    for (const auto& e : fs::directory_iterator(dir / "blocks", ec))
+    for (const auto& e : fs::directory_iterator(blocks, ec))
       if (e.path().extension() == ".toml") files.push_back(e.path());
     std::sort(files.begin(), files.end());
     for (const auto& f : files) {
@@ -156,7 +174,28 @@ Lab load_lab(const LabPaths& paths) {
       else lab.problems.push_back(b.error().what);
     }
   }
+  auto step_heats = load_step_heats(paths.step_heats());
+  lab.step_heats = std::move(step_heats.templates);
+  lab.problems.insert(lab.problems.end(), std::make_move_iterator(step_heats.problems.begin()),
+                      std::make_move_iterator(step_heats.problems.end()));
   return lab;
+}
+
+std::filesystem::path lab_for_queue(const std::filesystem::path& queue) {
+  auto parent = queue.parent_path();
+  if (parent.empty()) return ".";
+  if (parent.filename() != "queues") return parent;
+  auto lab = parent.parent_path();
+  return lab.empty() ? std::filesystem::path(".") : lab;
+}
+
+std::filesystem::path find_queue(const std::filesystem::path& queue, const std::filesystem::path& lab) {
+  std::error_code ec;
+  if (queue.is_absolute() || lab.empty() || std::filesystem::exists(queue, ec)) return queue;
+  for (const auto& candidate : {lab / "queues" / queue, lab / queue}) {
+    if (std::filesystem::exists(candidate, ec)) return candidate;
+  }
+  return queue;
 }
 
 bool LabCheck::ok() const {
@@ -270,9 +309,21 @@ void check_extraction(const Lab& lab, const QueueSpec& queue, std::vector<Diagno
 
 }  // namespace
 
-LabCheck check_lab_queue(const Lab& lab, const QueueSpec& queue) {
+Result<std::map<std::string, jobs::PeakCenterConfig>> read_peak_center_file(const fs::path& file) {
+  std::error_code ec;
+  if (!fs::exists(file, ec)) return std::map<std::string, jobs::PeakCenterConfig>{};
+  return jobs::parse_peak_center_configs(read_text(file), file.string());
+}
+
+LabCheck check_lab_queue(const Lab& lab, const QueueSpec& queue,
+                         const std::map<std::string, jobs::PeakCenterConfig>* peak_centers) {
+  const auto& sets = peak_centers != nullptr ? *peak_centers : lab.peak_centers;
   LabCheck out;
-  for (const auto& p : lab.problems) out.extra.push_back({Severity::Error, -1, "lab", p});
+  for (const auto& p : lab.problems) {
+    // The file was read again for this check: its load-time error is stale.
+    if (peak_centers != nullptr && lab.peak_center_problem && p == *lab.peak_center_problem) continue;
+    out.extra.push_back({Severity::Error, -1, "lab", p});
+  }
   out.report = check_queue(queue, lab.ids, lab.resolvers());
   check_extraction(lab, queue, out.extra);
 
@@ -289,12 +340,16 @@ LabCheck check_lab_queue(const Lab& lab, const QueueSpec& queue) {
       out.extra.push_back({Severity::Error, row, "measurement", loaded.error().what});
       continue;
     }
-    const auto& pc = loaded->plan.peak_center;
-    if ((pc.before || pc.after) && pc.config != "default" && !lab.peak_centers.contains(pc.config)) {
-      if (reported.insert("peak_center:" + pc.config).second) {
-        out.extra.push_back({Severity::Error, row, "peak_center",
-                             "plan " + r.measurement.plan + " uses peak center config '" + pc.config +
-                                 "', which is not in " + (lab.paths.dir / "peak_center.toml").string()});
+    for (const auto& gas : loaded->plan.gases) {
+      for (const auto& seg : gas.segments) {
+        if (!seg.peak_center) continue;
+        const auto& config = seg.peak_center->config;
+        if (config == "default" || sets.contains(config)) continue;
+        if (reported.insert("peak_center:" + config).second) {
+          out.extra.push_back({Severity::Error, row, "peak_center",
+                               "plan " + r.measurement.plan + " uses peak center config '" + config +
+                                   "', which is not in " + (lab.paths.dir / "peak_center.toml").string()});
+        }
       }
     }
     auto set = lab.conditionals->for_run(queue, r, loaded->plan);
@@ -319,4 +374,4 @@ std::string describe(const Diagnostic& d) {
   return where + ": " + d.message;
 }
 
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

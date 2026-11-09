@@ -13,10 +13,10 @@
 #include <string>
 #include <vector>
 
-#include "pychron/devices/extraction/services.hpp"
-#include "pychron/scripting/script_host.hpp"
+#include "nobion/devices/extraction/services.hpp"
+#include "nobion/scripting/script_host.hpp"
 
-namespace pychron::scripting::testing {
+namespace nobion::scripting::testing {
 
 struct CallLog {
   std::mutex mutex;
@@ -239,6 +239,15 @@ class FakeMeasurementApi final : public IMeasurementApi {
   }
   Result<void> truncate(bool quick) override { return rec(quick ? "truncate quick" : "truncate"); }
   void log(std::string_view m) override { log_.add("log " + std::string(m)); }
+  Result<void> peak_center(std::string_view label, std::string_view det, std::string_view table) override {
+    return rec("peak_center " + std::string(label) + " " + std::string(det) + " " + std::string(table));
+  }
+  Result<void> set_deflection(std::string_view det, double value) override {
+    return rec("set_deflection " + std::string(det) + " " + num(value));
+  }
+  Result<void> set_integration(double s) override { return rec("set_integration " + num(s)); }
+  Result<void> with_table(std::string_view name) override { return rec("with_table " + std::string(name)); }
+  Result<void> apply_optics(std::string_view name) override { return rec("apply_optics " + std::string(name)); }
 
  private:
   Result<void> rec(std::string c) {
@@ -257,11 +266,11 @@ struct Rig {
   FakeResources resources;
   FakeIntensity intensity;
   FakeMeasurementApi api{log};
-  std::unique_ptr<IScriptResolver> resolver;
+  std::unique_ptr<IScriptResolver> resolver =
+      std::make_unique<DirectoryScriptResolver>(NOBION_SCRIPTING_TEST_SCRIPTS_DIR);
   ScriptEnvironment env;
 
   Rig() {
-    resolver = std::make_unique<DirectoryScriptResolver>(PYCHRON_SCRIPTING_TEST_SCRIPTS_DIR);
     env.line = extraction::ExtractionServices{&laser, &valves, &pressure};
     env.resources = &resources;
     env.intensity = &intensity;
@@ -273,4 +282,4 @@ struct Rig {
   }
 };
 
-}  // namespace pychron::scripting::testing
+}  // namespace nobion::scripting::testing

@@ -1,4 +1,4 @@
-#include "pychron/metrics/server.hpp"
+#include "nobion/metrics/server.hpp"
 
 #include <asio.hpp>
 #include <atomic>
@@ -7,7 +7,9 @@
 #include <unordered_set>
 #include <utility>
 
-namespace pychron::metrics {
+#include "nobion/core/log_context.hpp"
+
+namespace nobion::metrics {
 
 namespace {
 
@@ -62,9 +64,9 @@ struct MetricsServer::Impl {
       : registry(r),
         options(std::move(o)),
         acceptor(io),
-        scrape_seconds(r.gauge("pychron_metrics_scrape_duration_seconds",
+        scrape_seconds(r.gauge("nobion_metrics_scrape_duration_seconds",
                                "How long the last rendering of the registry took.")),
-        bad_requests(r.counter("pychron_metrics_bad_requests_total",
+        bad_requests(r.counter("nobion_metrics_bad_requests_total",
                                "Connections dropped: too slow, too large, or not HTTP.")) {}
 
   // One client. Kept alive by its own handlers; when the last one is done
@@ -204,7 +206,10 @@ Result<std::unique_ptr<MetricsServer>> MetricsServer::start(Registry& registry, 
 
   impl->accept();
   Impl* raw = impl.get();
-  impl->thread = std::thread([raw] { raw->serve(); });
+  impl->thread = std::thread([raw] {
+    const LogContext::Thread log_thread("metrics");
+    raw->serve();
+  });
   return std::unique_ptr<MetricsServer>(new MetricsServer(std::move(impl)));
 }
 
@@ -227,4 +232,4 @@ MetricsServer::~MetricsServer() {
 
 std::uint16_t MetricsServer::port() const noexcept { return impl_->port; }
 
-}  // namespace pychron::metrics
+}  // namespace nobion::metrics

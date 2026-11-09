@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <QCoreApplication>
@@ -12,17 +13,18 @@
 #include <utility>
 
 #include "failing_store.hpp"
-#include "pychron/experiment/persist/persister.hpp"
-#include "pychron/experiment/store/record_ingest.hpp"
-#include "pychron/experiment/store/store_persister.hpp"
+#include "log_capture.hpp"
+#include "nobion/experiment/persist/persister.hpp"
+#include "nobion/experiment/store/record_ingest.hpp"
+#include "nobion/experiment/store/store_persister.hpp"
 #include "store_fixture.hpp"
 #include "store_records.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment;
-using namespace pychron::experiment::testing;
-namespace ps = pychron::persistence;
-namespace pt = pychron::persistence::testing;
+using namespace nobion;
+using namespace nobion::experiment;
+using namespace nobion::experiment::testing;
+namespace ps = nobion::persistence;
+namespace pt = nobion::persistence::testing;
 namespace fs = std::filesystem;
 
 namespace {
@@ -36,7 +38,7 @@ ps::AnalysisQuery by_identifier(std::string identifier) {
 }
 
 fs::path scratch_dir() {
-  auto dir = fs::temp_directory_path() / ("pychron_persister_" + pt::TestDatabase::unique_tag());
+  auto dir = fs::temp_directory_path() / ("nobion_persister_" + pt::TestDatabase::unique_tag());
   fs::create_directories(dir);
   return dir;
 }
@@ -71,6 +73,15 @@ record::AnalysisRecord numbered(const std::string& identifier = "66573", int ali
                                 const std::string& mass_spectrometer = "jan") {
   auto r = sample_record(identifier, aliquot, mass_spectrometer);
   r.identity.uuid = ps::Uuid::v5(ps::Uuid{}, identifier + "/" + std::to_string(aliquot)).str();
+  return r;
+}
+
+// One step of a heating: its uuid includes the step, since numbered()'s does
+// not and two steps of one aliquot would otherwise be one analysis.
+record::AnalysisRecord stepped(const std::string& identifier, int aliquot, const std::string& step) {
+  auto r = numbered(identifier, aliquot);
+  r.identity.step = step;
+  r.identity.uuid = ps::Uuid::v5(ps::Uuid{}, identifier + "/" + std::to_string(aliquot) + step).str();
   return r;
 }
 
@@ -111,6 +122,7 @@ class StorePersisterTest : public pt::StoreTest {
     return saved ? "" : saved.error().what;
   }
 
+  nobion::testing::LogCapture log;  // before the persister: it takes its logger when made
   fs::path data_;
   std::unique_ptr<FailingStore> failing_;
   std::unique_ptr<store::StorePersister> persister_;
@@ -222,6 +234,56 @@ TEST_P(StorePersisterTest, AliquotsSurviveAnUnreadableStore) {
   EXPECT_FALSE(fresh.next_aliquot("66573").has_value());
   std::error_code ignored;
   fs::remove_all(other, ignored);
+}
+
+TEST_P(StorePersisterTest, LastRunFollowsTheStore) {
+  ASSERT_TRUE(persister_->save_analysis(stepped("66573", 2, "")));
+  ASSERT_TRUE(persister_->save_analysis(stepped("66573", 3, "A")));
+  ASSERT_TRUE(persister_->save_analysis(stepped("66573", 3, "B")));
+  EXPECT_EQ(persister_->last_run("66573").value(), (persist::LastRun{3, 1}));
+  EXPECT_FALSE(persister_->last_run("66574").value().has_value());
+}
+
+TEST_P(StorePersisterTest, LastRunCountsARecordWaitingInTheSpool) {
+  ASSERT_TRUE(persister_->save_analysis(stepped("66573", 3, "A")));
+  persist::Spool spool(data_ / "spool");
+  ASSERT_TRUE(spool.put(stepped("66573", 3, "B")));
+  ASSERT_TRUE(spool.put(stepped("66574", 9, "C")));  // another identifier's
+  EXPECT_EQ(persister_->last_run("66573").value(), (persist::LastRun{3, 1}));
+}
+
+TEST_P(StorePersisterTest, LastRunSurvivesAnUnreadableStore) {
+  ASSERT_TRUE(persister_->save_analysis(stepped("66573", 3, "A")));
+  ASSERT_EQ(persister_->last_run("66573").value(), (persist::LastRun{3, 0}));
+  failing_->fail_reads(true);
+  EXPECT_EQ(persister_->last_run("66573").value(), (persist::LastRun{3, 0}));  // the cached answer
+  const fs::path other = scratch_dir();
+  store::StorePersister fresh(*failing_, lab_.acquisition_client, other);
+  EXPECT_FALSE(fresh.last_run("66573"));  // nothing cached: the error
+  std::error_code ignored;
+  fs::remove_all(other, ignored);
+}
+
+TEST_P(StorePersisterTest, LastRunIssuesNothing) {
+  ASSERT_TRUE(persister_->save_analysis(stepped("66573", 3, "B")));
+  (void)persister_->last_run("66573");
+  EXPECT_EQ(persister_->next_aliquot("66573").value(), 4);
+}
+
+// Spec 5: the store and the files answer the same for the same runs.
+TEST_P(StorePersisterTest, LastRunIsTheSameFromTheStoreAndFromFiles) {
+  const fs::path files_dir = scratch_dir();
+  persist::FilePersister files(files_dir);
+  for (const auto& r : {stepped("66573", 2, ""), stepped("66573", 3, "A"), stepped("66573", 3, "C"),
+                        stepped("66573", 1, "D")}) {
+    ASSERT_TRUE(files.begin_run(RunIdentity{r.identity.identifier, r.identity.aliquot, r.identity.step}, {}));
+    ASSERT_TRUE(files.save_analysis(r));
+    ASSERT_TRUE(persister_->save_analysis(r));
+  }
+  EXPECT_EQ(files.last_run("66573").value(), persister_->last_run("66573").value());
+  EXPECT_EQ(files.last_run("66574").value(), persister_->last_run("66574").value());
+  std::error_code ignored;
+  fs::remove_all(files_dir, ignored);
 }
 
 TEST_P(StorePersisterTest, CheckQueueNamesExactlyWhatIsMissing) {
@@ -462,14 +524,22 @@ TEST_P(AcquisitionTest, ServesCallsFromOtherThreads) {
   EXPECT_EQ(analyses_of("66573"), 1U);
 }
 
+TEST_P(AcquisitionTest, ForwardsLastRun) {
+  auto acquisition = open();
+  ASSERT_TRUE(acquisition);
+  auto& persister = acquisition->persister();
+  ASSERT_TRUE(persister.save_analysis(stepped("66573", 1, "A")));
+  EXPECT_EQ(persister.last_run("66573").value(), (persist::LastRun{1, 0}));
+}
+
 namespace {
-using Clock = std::chrono::steady_clock;
+using RealClock = std::chrono::steady_clock;
 // A real-time upper bound: it only tells "done" from "stuck".
 constexpr auto kBound = std::chrono::seconds(30);
 }  // namespace
 
 TEST_P(AcquisitionTest, ServesTwoCallersAtOnce) {
-  const auto begin = Clock::now();
+  const auto begin = RealClock::now();
   auto acquisition = open();
   ASSERT_TRUE(acquisition);
   auto& persister = acquisition->persister();
@@ -484,7 +554,7 @@ TEST_P(AcquisitionTest, ServesTwoCallersAtOnce) {
   }
   EXPECT_EQ(failures.load(), 0);
   EXPECT_EQ(analyses_of("66573"), 40U);
-  EXPECT_LT(Clock::now() - begin, kBound);
+  EXPECT_LT(RealClock::now() - begin, kBound);
 }
 
 // A writer saves through the acquisition while another handle, on this
@@ -498,7 +568,7 @@ TEST_P(AcquisitionTest, AReaderDoesNotLockOutTheWriter) {
   std::atomic<bool> done{false};
   std::string write_error, read_error;
   int reads = 0;
-  const auto deadline = Clock::now() + kBound;
+  const auto deadline = RealClock::now() + kBound;
   {
     Joined writer(std::thread([&] {
       for (int i = 1; i <= kRuns; ++i)
@@ -509,7 +579,7 @@ TEST_P(AcquisitionTest, AReaderDoesNotLockOutTheWriter) {
       done = true;
     }));
     while (!done) {
-      if (Clock::now() > deadline) {
+      if (RealClock::now() > deadline) {
         read_error = "the writer was still not done after 30 s";
         break;
       }
@@ -529,7 +599,7 @@ TEST_P(AcquisitionTest, AReaderDoesNotLockOutTheWriter) {
 }
 
 TEST_P(AcquisitionTest, ServesManyCallersThenCloses) {
-  const auto begin = Clock::now();
+  const auto begin = RealClock::now();
   auto acquisition = open();
   ASSERT_TRUE(acquisition);
   std::atomic<int> failures{0};
@@ -545,7 +615,7 @@ TEST_P(AcquisitionTest, ServesManyCallersThenCloses) {
   acquisition.reset();
   EXPECT_EQ(failures.load(), 0);
   EXPECT_EQ(analyses_of("66573"), 60U);
-  EXPECT_LT(Clock::now() - begin, kBound);
+  EXPECT_LT(RealClock::now() - begin, kBound);
 }
 
 // The Qt application a store needs is made by the caller of open_acquisition,
@@ -573,7 +643,7 @@ TEST(OpenAcquisition, RefusesASchemaThatIsBehind) {
 TEST(OpenAcquisition, AFailureToOpenIsReturned) {
   const fs::path data = scratch_dir();
   const auto begin = std::chrono::steady_clock::now();
-  auto acquisition = store::open_acquisition("sqlite:/nonexistent-dir-for-pychron/none.db", data, "test");
+  auto acquisition = store::open_acquisition("sqlite:/nonexistent-dir-for-nobion/none.db", data, "test");
   EXPECT_FALSE(acquisition.has_value());
   EXPECT_LT(std::chrono::steady_clock::now() - begin, std::chrono::seconds(10));
   std::error_code ignored;
@@ -603,17 +673,17 @@ TEST_P(AcquisitionTest, IsOneClientPerHost) {
 TEST(SavesSimulatedRuns, OnlyToAnInstallsOwnLocalDatabaseUnlessAsked) {
   using store::saves_simulated_runs;
   // The install's own database (not --db), a file here.
-  EXPECT_TRUE(saves_simulated_runs("sqlite:/lab/data/pychron.db", false, false));
+  EXPECT_TRUE(saves_simulated_runs("sqlite:/lab/data/nobion.db", false, false));
   EXPECT_TRUE(saves_simulated_runs("sqlite::memory:", false, false));
   // The install's own, on a server: shared.
-  EXPECT_FALSE(saves_simulated_runs("postgresql://jross:pw@db.lab/pychron", false, false));
-  EXPECT_FALSE(saves_simulated_runs("postgres://db.lab/pychron", false, false));
+  EXPECT_FALSE(saves_simulated_runs("postgresql://jross:pw@db.lab/nobion", false, false));
+  EXPECT_FALSE(saves_simulated_runs("postgres://db.lab/nobion", false, false));
   // Given with --db: somebody else's until said otherwise, file or not.
-  EXPECT_FALSE(saves_simulated_runs("sqlite:/lab/data/pychron.db", true, false));
-  EXPECT_FALSE(saves_simulated_runs("postgresql://db.lab/pychron", true, false));
+  EXPECT_FALSE(saves_simulated_runs("sqlite:/lab/data/nobion.db", true, false));
+  EXPECT_FALSE(saves_simulated_runs("postgresql://db.lab/nobion", true, false));
   // --sim-save.
-  EXPECT_TRUE(saves_simulated_runs("postgresql://db.lab/pychron", false, true));
-  EXPECT_TRUE(saves_simulated_runs("postgresql://db.lab/pychron", true, true));
+  EXPECT_TRUE(saves_simulated_runs("postgresql://db.lab/nobion", false, true));
+  EXPECT_TRUE(saves_simulated_runs("postgresql://db.lab/nobion", true, true));
   EXPECT_TRUE(saves_simulated_runs("sqlite:/elsewhere.db", true, true));
   // Not a url this program writes to.
   EXPECT_FALSE(saves_simulated_runs("", false, false));
@@ -621,11 +691,11 @@ TEST(SavesSimulatedRuns, OnlyToAnInstallsOwnLocalDatabaseUnlessAsked) {
 }
 
 TEST(WithoutPassword, HidesOnlyThePassword) {
-  EXPECT_EQ(store::without_password("postgresql://jross:s3cret@db.lab:5432/pychron?sslmode=require"),
-            "postgresql://jross@db.lab:5432/pychron?sslmode=require");
-  EXPECT_EQ(store::without_password("postgresql://jross@db.lab/pychron"), "postgresql://jross@db.lab/pychron");
-  EXPECT_EQ(store::without_password("postgresql://db.lab/pychron"), "postgresql://db.lab/pychron");
-  EXPECT_EQ(store::without_password("postgres://jross:s3cret@db.lab/pychron"), "postgres://jross@db.lab/pychron");
+  EXPECT_EQ(store::without_password("postgresql://jross:s3cret@db.lab:5432/nobion?sslmode=require"),
+            "postgresql://jross@db.lab:5432/nobion?sslmode=require");
+  EXPECT_EQ(store::without_password("postgresql://jross@db.lab/nobion"), "postgresql://jross@db.lab/nobion");
+  EXPECT_EQ(store::without_password("postgresql://db.lab/nobion"), "postgresql://db.lab/nobion");
+  EXPECT_EQ(store::without_password("postgres://jross:s3cret@db.lab/nobion"), "postgres://jross@db.lab/nobion");
   EXPECT_EQ(store::without_password("sqlite:/data/a:b@c.db"), "sqlite:/data/a:b@c.db");
   EXPECT_EQ(store::without_password("sqlite::memory:"), "sqlite::memory:");
 }
@@ -633,29 +703,29 @@ TEST(WithoutPassword, HidesOnlyThePassword) {
 // A password may hold what ends a url's parts, written as it is or
 // percent-encoded: none of it is shown.
 TEST(WithoutPassword, HidesAPasswordThatHoldsUrlPunctuation) {
-  const std::string shown = "postgresql://jross@db.lab:5432/pychron";
+  const std::string shown = "postgresql://jross@db.lab:5432/nobion";
   for (const char* password : {"a/b", "a@b", "a:b", "a%2Fb", "a%40b", "a%3Ab", "p@ss/w:rd@x", "/", "@", ":", "a?b", "a#b"}) {
-    const std::string url = std::string("postgresql://jross:") + password + "@db.lab:5432/pychron";
+    const std::string url = std::string("postgresql://jross:") + password + "@db.lab:5432/nobion";
     EXPECT_EQ(store::without_password(url), shown) << password;
   }
   // An empty password, and an empty user.
-  EXPECT_EQ(store::without_password("postgresql://jross:@db.lab:5432/pychron"), shown);
-  EXPECT_EQ(store::without_password("postgresql://:s3cret@db.lab/pychron"), "postgresql://db.lab/pychron");
+  EXPECT_EQ(store::without_password("postgresql://jross:@db.lab:5432/nobion"), shown);
+  EXPECT_EQ(store::without_password("postgresql://:s3cret@db.lab/nobion"), "postgresql://db.lab/nobion");
 }
 
 // libpq also takes the password as a parameter.
 TEST(WithoutPassword, RemovesAPasswordParameter) {
-  EXPECT_EQ(store::without_password("postgresql://jross@db.lab/pychron?password=s3cret"),
-            "postgresql://jross@db.lab/pychron");
-  EXPECT_EQ(store::without_password("postgresql://jross@db.lab/pychron?sslmode=require&password=s3%26cret&connect_timeout=5"),
-            "postgresql://jross@db.lab/pychron?sslmode=require&connect_timeout=5");
-  EXPECT_EQ(store::without_password("postgresql://jross:one@db.lab/pychron?password=two&sslmode=require"),
-            "postgresql://jross@db.lab/pychron?sslmode=require");
-  EXPECT_EQ(store::without_password("postgresql://db.lab/pychron?PASSWORD=s3cret&sslpassword=k3y"),
-            "postgresql://db.lab/pychron");
+  EXPECT_EQ(store::without_password("postgresql://jross@db.lab/nobion?password=s3cret"),
+            "postgresql://jross@db.lab/nobion");
+  EXPECT_EQ(store::without_password("postgresql://jross@db.lab/nobion?sslmode=require&password=s3%26cret&connect_timeout=5"),
+            "postgresql://jross@db.lab/nobion?sslmode=require&connect_timeout=5");
+  EXPECT_EQ(store::without_password("postgresql://jross:one@db.lab/nobion?password=two&sslmode=require"),
+            "postgresql://jross@db.lab/nobion?sslmode=require");
+  EXPECT_EQ(store::without_password("postgresql://db.lab/nobion?PASSWORD=s3cret&sslpassword=k3y"),
+            "postgresql://db.lab/nobion");
   // Not a password: a parameter that only ends in the word is kept only if it is not one libpq reads as a secret.
-  EXPECT_EQ(store::without_password("postgresql://db.lab/pychron?application_name=password"),
-            "postgresql://db.lab/pychron?application_name=password");
+  EXPECT_EQ(store::without_password("postgresql://db.lab/nobion?application_name=password"),
+            "postgresql://db.lab/nobion?application_name=password");
 }
 
 // What it does not understand it does not show.
@@ -668,9 +738,9 @@ TEST(WithoutPassword, ShowsNothingOfAUrlItCannotRead) {
 
 // An error text that quotes the url, or the password, is shown without it.
 TEST(WithoutPassword, IsTakenOutOfATextThatQuotesTheUrl) {
-  const std::string url = "postgresql://jross:s3%20cret@db.lab:5432/pychron";
+  const std::string url = "postgresql://jross:s3%20cret@db.lab:5432/nobion";
   EXPECT_EQ(store::without_password_in("cannot connect to " + url + ": timeout", url),
-            "cannot connect to postgresql://jross@db.lab:5432/pychron: timeout");
+            "cannot connect to postgresql://jross@db.lab:5432/nobion: timeout");
   EXPECT_EQ(store::without_password_in("FATAL: password \"s3 cret\" rejected (s3%20cret)", url),
             "FATAL: password \"***\" rejected (***)");
   EXPECT_EQ(store::without_password_in("the database is locked", url), "the database is locked");
@@ -702,3 +772,39 @@ TEST_P(AcquisitionTest, ARecordWithTextThatIsNotUtf8IsSavedAndTheWorkerLives) {
   EXPECT_EQ(*next, 2);
 }
 
+
+TEST_P(StorePersisterTest, PersisterLogSaveWritesStartEndWithRunId) {
+  ASSERT_TRUE(log.ok());
+  ASSERT_TRUE(persister_->save_analysis(numbered()));
+  const std::string runid = "66573-01";  // the run= field's spelling (format_runid)
+  std::vector<std::string> mine;
+  for (const auto& l : log.lines())
+    if (l.find("] store: ") != std::string::npos) mine.push_back(l);
+  ASSERT_EQ(mine.size(), 2u) << ::testing::PrintToString(log.lines());
+  EXPECT_EQ(mine[0], "[debug] store: save " + runid + ": start");
+  EXPECT_EQ(mine[1].rfind("[debug] store: save " + runid + ": done in ", 0), 0u) << mine[1];
+}
+
+TEST_P(StorePersisterTest, PersisterLogStoreFailureIsErrorWithContext) {
+  ASSERT_TRUE(log.ok());
+  failing_->fail_ingest(10);
+  (void)save_error(numbered());
+  const std::string expected = "[error] store: save 66573-01: io: ingest failed (test)";
+  const auto lines = log.lines();
+  EXPECT_NE(std::find(lines.begin(), lines.end(), expected), lines.end()) << ::testing::PrintToString(lines);
+}
+
+TEST_P(StorePersisterTest, PersisterLogAFailedHandOffIsOneSpoolWarningAndOneStoreError) {
+  ASSERT_TRUE(log.ok());
+  persist::Spool spool(data_ / "spool");
+  persist::SavePipeline pipeline(spool, *persister_);
+  failing_->fail_ingest(10);
+  ASSERT_TRUE(pipeline.save(numbered()));
+  int spool_warns = 0, store_errors = 0;
+  for (const auto& l : log.lines()) {
+    if (l.starts_with("[warn] spool:")) ++spool_warns;
+    if (l.starts_with("[error] store:")) ++store_errors;
+  }
+  EXPECT_EQ(spool_warns, 1) << ::testing::PrintToString(log.lines());
+  EXPECT_EQ(store_errors, 1);
+}

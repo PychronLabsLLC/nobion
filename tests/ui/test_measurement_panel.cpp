@@ -11,10 +11,10 @@
 #include "measurement_panel.hpp"
 #include "queue_table_model.hpp"
 
-using pychron::experiment::ParamValue;
-using pychron::ui::MeasurementPanel;
-using pychron::ui::QueueTableModel;
-namespace lab = pychron::experiment::lab;
+using nobion::experiment::ParamValue;
+using nobion::ui::MeasurementPanel;
+using nobion::ui::QueueTableModel;
+namespace lab = nobion::experiment::lab;
 
 namespace {
 
@@ -55,7 +55,7 @@ class TestMeasurementPanel : public QObject {
   std::vector<std::size_t> selection_;
   std::unique_ptr<MeasurementPanel> panel_;
 
-  const pychron::experiment::MeasurementRef& measurement(std::size_t row) const {
+  const nobion::experiment::MeasurementRef& measurement(std::size_t row) const {
     return model_->queue().runs[row].measurement;
   }
   void select(std::vector<std::size_t> rows) {
@@ -65,9 +65,9 @@ class TestMeasurementPanel : public QObject {
 
  private slots:
   void initTestCase() {
-    dir_ = pychron::ui::test::scratch_lab();
+    dir_ = nobion::ui::test::scratch_lab();
     std::ofstream(dir_ / "plans" / "argus_hop.toml") << kArgusPlan;
-    lab_ = std::make_unique<lab::Lab>(lab::load_lab(pychron::ui::test::lab_paths(dir_)));
+    lab_ = std::make_unique<lab::Lab>(lab::load_lab(nobion::ui::test::lab_paths(dir_)));
     QVERIFY2(lab_->problems.empty(), lab_->problems.empty() ? "" : lab_->problems.front().c_str());
   }
   void cleanupTestCase() {
@@ -76,7 +76,7 @@ class TestMeasurementPanel : public QObject {
   }
   void init() {
     model_ = std::make_unique<QueueTableModel>(lab_->ids, [this](const auto& q) { return lab::check_lab_queue(*lab_, q); });
-    model_->set_queue(pychron::ui::test::example_queue(dir_, lab_->ids));
+    model_->set_queue(nobion::ui::test::example_queue(dir_, lab_->ids));
     selection_.clear();
     panel_ = std::make_unique<MeasurementPanel>(*lab_, *model_, [this] { return selection_; });
   }
@@ -103,7 +103,7 @@ class TestMeasurementPanel : public QObject {
     QCOMPARE(panel_->parameter_paths(),
              (QStringList{QStringLiteral("main.cycles"), QStringLiteral("main.hops[0].counts"),
                           QStringLiteral("main.hops[1].counts"), QStringLiteral("baseline.counts"),
-                          QStringLiteral("main.time_zero")}));
+                          QStringLiteral("main.time_zero"), QStringLiteral("peak_center.min_signal")}));
     QCOMPARE(panel_->parameter_text(QStringLiteral("main.cycles")), QStringLiteral("2"));
     QVERIFY(!panel_->overridden(QStringLiteral("main.cycles")));
     QVERIFY(panel_->status_ok());

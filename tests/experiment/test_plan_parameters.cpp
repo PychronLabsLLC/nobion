@@ -6,13 +6,13 @@
 #include <fstream>
 #include <sstream>
 
-#include "pychron/experiment/plan/parameters.hpp"
+#include "nobion/experiment/plan/parameters.hpp"
 
-namespace pychron::experiment::plan {
+namespace nobion::experiment::plan {
 namespace {
 
 PlanTemplate example() {
-  std::ifstream in(std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "plans" / "sim_multicollect.toml");
+  std::ifstream in(std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "plans" / "sim_multicollect.toml");
   std::stringstream ss;
   ss << in.rdbuf();
   auto t = parse_plan_template(ss.str(), "sim_multicollect.toml");
@@ -66,7 +66,7 @@ const PlanParameter* find(const std::vector<PlanParameter>& ps, const std::strin
 TEST(PlanParameters, ExposedInExposeOrderWithTypesAndDefaults) {
   auto ps = plan_parameters(example());
   ASSERT_TRUE(ps) << ps.error().what;
-  ASSERT_EQ(ps->size(), 5u);
+  ASSERT_EQ(ps->size(), 6u);
   EXPECT_EQ((*ps)[0].path, "main.cycles");
   EXPECT_EQ((*ps)[0].kind, ParamKind::Int);
   EXPECT_EQ((*ps)[0].value, ParamValue(std::int64_t{2}));
@@ -77,6 +77,10 @@ TEST(PlanParameters, ExposedInExposeOrderWithTypesAndDefaults) {
   EXPECT_EQ((*ps)[4].label, "Time zero");
   EXPECT_EQ((*ps)[4].kind, ParamKind::String);
   EXPECT_EQ((*ps)[4].value, ParamValue(std::string("on_inlet_close")));
+  EXPECT_EQ((*ps)[5].path, "peak_center.min_signal");
+  EXPECT_EQ((*ps)[5].label, "Peak center minimum signal");
+  EXPECT_EQ((*ps)[5].kind, ParamKind::Float);
+  EXPECT_EQ((*ps)[5].value, ParamValue(3.0));
 
   // An exposed table lists every value under it; labels come from expose.
   ps = plan_parameters(other());
@@ -148,7 +152,7 @@ TEST(PlanParameters, InfoFamiliesAndMatching) {
   EXPECT_EQ(matching_plans(lib, "", AnalysisType::Unknown), (std::vector<std::string>{"argus_hop", "sim_multicollect"}));
   EXPECT_EQ(matching_plans(lib, "argus", AnalysisType::Unknown), std::vector<std::string>{"argus_hop"});
   EXPECT_EQ(matching_plans(lib, "", AnalysisType::Air), std::vector<std::string>{"sim_multicollect"});
-  // The example's air queue (experiment.sim-air.toml) runs its blanks on it.
+  // The example's air queue (queues/experiment.sim-air.toml) runs its blanks on it.
   EXPECT_EQ(matching_plans(lib, "", AnalysisType::BlankAir), std::vector<std::string>{"sim_multicollect"});
   EXPECT_TRUE(matching_plans(lib, "", AnalysisType::Cocktail).empty());
 }
@@ -186,4 +190,64 @@ TEST(PlanParameters, OverridesThatSurviveAPlanChange) {
 }
 
 }  // namespace
-}  // namespace pychron::experiment::plan
+// A live edit that names a v1 path finds its v2 segment path (spec 4.1).
+TEST(PlanParameters, V1PathResolvesToSegmentPath) {
+  auto r = resolve_plan(R"(
+[plan]
+name = "v1"
+instrument_family = "argus"
+analysis_types = ["unknown"]
+
+[detectors]
+reference = "H1"
+
+[equilibration]
+inlet = "B"
+outlet = "C"
+time_s = 10
+
+[baseline]
+before = true
+counts = 5
+mass = 34.2
+
+[main]
+cycles = 2
+[[main.hops]]
+positions = { Ar40 = "H1" }
+counts = 10
+[[main.hops]]
+positions = { Ar39 = "H1" }
+counts = 5
+)", PlanResolvers{}, "v1");
+  ASSERT_TRUE(r) << r.error().what;
+  // The before baseline is segment 0; main is segment 1.
+  EXPECT_EQ(resolved_path(*r, "main.hops[1].counts"), "segment[1].positions[1].counts");
+  EXPECT_EQ(resolved_path(*r, "main.hops[0].settle_s"), "segment[1].positions[0].settle_s");
+  EXPECT_EQ(resolved_path(*r, "main.cycles"), "segment[1].cycles");
+  EXPECT_EQ(resolved_path(*r, "main.integration_s"), "segment[1].integration_s");
+  EXPECT_EQ(resolved_path(*r, "main.hops[2].counts"), std::nullopt);  // no such hop
+  EXPECT_EQ(resolved_path(*r, "main.hops[x].counts"), std::nullopt);
+  EXPECT_EQ(resolved_path(*r, "baseline.counts"), std::nullopt);
+}
+
+// A gas's prepare variable is a plan parameter (spec 11.2): a run in a queue
+// changes a release temperature without a new plan.
+TEST(PlanParameters, PrepareVariableIsExposable) {
+  std::ifstream in(std::filesystem::path(NOBION_PLAN_FIXTURES_DIR) / "valid" / "v2_staged_cryo_release.toml");
+  std::stringstream ss;
+  ss << in.rdbuf();
+  auto tmpl = parse_plan_template(ss.str(), "v2_staged_cryo_release.toml");
+  ASSERT_TRUE(tmpl) << tmpl.error().what;
+  auto params = plan_parameters(*tmpl);
+  ASSERT_TRUE(params) << params.error().what;
+  ASSERT_EQ(params->size(), 1u);
+  EXPECT_EQ((*params)[0].path, "gas[1].prepare.variables.cryo_temp");
+  auto effective = render_effective_plan(*tmpl, {{"gas[1].prepare.variables.cryo_temp", std::int64_t{80}}}, LoadOptions{false});
+  ASSERT_TRUE(effective) << effective.error().what;
+  // Valves and times are aliases the lab resolves; the variable is the override's.
+  EXPECT_NE(effective->find("cryo_temp = 80"), std::string::npos) << *effective;
+  EXPECT_NE(effective->find("cryo_temp = 35"), std::string::npos);  // He's, not exposed, as it was
+}
+
+}  // namespace nobion::experiment::plan

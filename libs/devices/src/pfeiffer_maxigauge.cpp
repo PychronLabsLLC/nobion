@@ -1,8 +1,8 @@
-#include "pychron/devices/pfeiffer_maxigauge.hpp"
+#include "nobion/devices/pfeiffer_maxigauge.hpp"
 
 #include <algorithm>
 
-namespace pychron {
+namespace nobion {
 
 namespace mg = codec::maxigauge;
 
@@ -42,8 +42,8 @@ Result<std::vector<int>> parse_channels(const toml::table& options) {
 }  // namespace
 
 PfeifferMaxiGauge::PfeifferMaxiGauge(std::string name, Transport& transport, std::vector<int> channels,
-                                     const Clock* clock)
-    : Device(std::move(name), DeviceOptions{clock}),
+                                     const Clock* clock, Link* link)
+    : Device(std::move(name), DeviceOptions{clock, DeviceOptions{}.fault_after, link}),
       transport_(transport),
       channels_(std::move(channels)),
       clock_(clock != nullptr ? clock : &steady_clock()) {}
@@ -58,32 +58,39 @@ DriverSchema PfeifferMaxiGauge::schema() {
 Result<std::unique_ptr<PfeifferMaxiGauge>> PfeifferMaxiGauge::create(const DriverArgs& args) {
   auto channels = parse_channels(args.options);
   if (!channels) return fail(std::move(channels).error());
-  return std::make_unique<PfeifferMaxiGauge>(args.name, args.transport, std::move(*channels), args.clock);
+  return std::make_unique<PfeifferMaxiGauge>(args.name, args.transport, std::move(*channels), args.clock, args.link);
 }
 
 Result<Bytes> PfeifferMaxiGauge::query(const codec::Command& mnemonic) {
-  return transact(transport_, [&]() -> Result<Bytes> {
-    auto ack = transport_.exchange(mnemonic.tx, *mnemonic.reply);
-    if (!ack) return fail(std::move(ack).error());
-    if (auto ok = mg::decode_ack(*ack); !ok) return fail(std::move(ok).error());
+  // A query's mnemonic and its ENQ change nothing on the controller: either
+  // may be sent again, and the pair is repeated whole.
+  return relay<Bytes>("query",
+      [&](Resend resend) {
+        return transact(transport_, [&]() -> Result<Bytes> {
+          auto ack = transport_.exchange(mnemonic.tx, *mnemonic.reply, Transport::kDefaultTimeout, resend);
+          if (!ack) return fail(std::move(ack).error());
+          if (auto ok = mg::decode_ack(*ack); !ok) return fail(std::move(ok).error());
 
-    const codec::Command enq = mg::enquiry();
-    return transport_.exchange(enq.tx, *enq.reply);
-  });
+          const codec::Command enq = mg::enquiry();
+          return transport_.exchange(enq.tx, *enq.reply, Transport::kDefaultTimeout, resend);
+        });
+      },
+      Repeat::Safe);
 }
 
 Result<double> PfeifferMaxiGauge::read_pressure() { return read_pressure(channels_.front()); }
 
 Result<double> PfeifferMaxiGauge::read_pressure(int channel) {
+  const Operation op = begin("read_pressure");
   if (std::ranges::find(channels_, channel) == channels_.end()) {
-    return observe(Result<double>(
+    return observe(op, Result<double>(
         fail(ErrorKind::Config, "channel " + std::to_string(channel) + " is not configured")));
   }
   auto cmd = mg::read_pressure(channel);
-  if (!cmd) return observe(Result<double>(fail(std::move(cmd).error())));
+  if (!cmd) return observe(op, Result<double>(fail(std::move(cmd).error())));
   auto reply = query(*cmd);
-  if (!reply) return observe(Result<double>(fail(std::move(reply).error())));
-  return observe(mg::decode_pressure(*reply));
+  if (!reply) return observe(op, Result<double>(fail(std::move(reply).error())));
+  return observe(op, mg::decode_pressure(*reply));
 }
 
 Result<Sample> PfeifferMaxiGauge::sample() {
@@ -93,15 +100,17 @@ Result<Sample> PfeifferMaxiGauge::sample() {
 }
 
 Result<std::vector<mg::Reading>> PfeifferMaxiGauge::read_all() {
+  const Operation op = begin("read_all");
   auto reply = query(mg::read_all_pressures());
-  if (!reply) return observe(Result<std::vector<mg::Reading>>(fail(std::move(reply).error())));
-  return observe(mg::decode_all_readings(*reply));
+  if (!reply) return observe(op, Result<std::vector<mg::Reading>>(fail(std::move(reply).error())));
+  return observe(op, mg::decode_all_readings(*reply));
 }
 
 Result<mg::Units> PfeifferMaxiGauge::read_units() {
+  const Operation op = begin("read_units");
   auto reply = query(mg::read_units());
-  if (!reply) return observe(Result<mg::Units>(fail(std::move(reply).error())));
-  return observe(mg::decode_units(*reply));
+  if (!reply) return observe(op, Result<mg::Units>(fail(std::move(reply).error())));
+  return observe(op, mg::decode_units(*reply));
 }
 
 REGISTER_DRIVER("pfeiffer_maxigauge", PfeifferMaxiGauge);
@@ -151,4 +160,4 @@ SimTransport::Hook maxigauge_sim_hook(MaxiGaugeSimModel model) {
   return [state](const Bytes& tx) { return state->respond(tx); };
 }
 
-}  // namespace pychron
+}  // namespace nobion

@@ -1,4 +1,4 @@
-add_executable(pychron_metrics_tests
+add_executable(nobion_metrics_tests
   test_registry.cpp
   test_render.cpp
   test_server.cpp
@@ -6,12 +6,12 @@ add_executable(pychron_metrics_tests
   test_core_exporter.cpp
 )
 
-target_link_libraries(pychron_metrics_tests PRIVATE pychron::metrics asio::asio GTest::gtest_main)
+target_link_libraries(nobion_metrics_tests PRIVATE nobion::metrics asio::asio GTest::gtest_main)
 # metrics_text.hpp is shared with the experiment and integration suites.
-target_include_directories(pychron_metrics_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/tests/support)
+target_include_directories(nobion_metrics_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/tests/support)
 if(WIN32)
-  target_compile_definitions(pychron_metrics_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+  target_compile_definitions(nobion_metrics_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
-pychron_set_warnings(pychron_metrics_tests)
+nobion_set_warnings(nobion_metrics_tests)
 
-gtest_discover_tests(pychron_metrics_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)
+gtest_discover_tests(nobion_metrics_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 60)

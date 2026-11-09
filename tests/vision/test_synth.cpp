@@ -2,11 +2,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 
-#include "pychron/vision/source.hpp"
-#include "pychron/vision/synth.hpp"
+#include "nobion/vision/finder.hpp"
+#include "nobion/vision/grain.hpp"
+#include "nobion/vision/source.hpp"
+#include "nobion/vision/synth.hpp"
 
-using namespace pychron::vision;
+using namespace nobion::vision;
 
 TEST(Synth, HoleAtCenterWhenStageOnHole) {
   HoleScene s;
@@ -118,7 +121,7 @@ TEST(Synth, CrosshairDrawnThroughCenter) {
 }
 
 TEST(SyntheticSource, GrabStampsFramesFromClockAndIncrementsSeq) {
-  pychron::TimePoint now{};
+  nobion::TimePoint now{};
   Vec2 stage{0, 0};
   HoleScene s;
   SyntheticSource src(s, [&] { return stage; }, [&] { return now; });
@@ -132,8 +135,8 @@ TEST(SyntheticSource, GrabStampsFramesFromClockAndIncrementsSeq) {
   auto b = src.grab();
   ASSERT_TRUE(b.has_value());
 
-  EXPECT_EQ(a->timestamp, pychron::TimePoint{} + std::chrono::milliseconds(5));
-  EXPECT_EQ(b->timestamp, pychron::TimePoint{} + std::chrono::milliseconds(38));
+  EXPECT_EQ(a->timestamp, nobion::TimePoint{} + std::chrono::milliseconds(5));
+  EXPECT_EQ(b->timestamp, nobion::TimePoint{} + std::chrono::milliseconds(38));
   EXPECT_EQ(b->seq, a->seq + 1);
   EXPECT_NEAR(src.last_truth().center_px.x - ta.center_px.x, -2.3, 1e-9);
   EXPECT_EQ(src.info().width, 200);
@@ -170,7 +173,7 @@ TEST(SyntheticSource, SuccessiveGrabsHaveIndependentNoiseButSourcesReplay) {
   HoleScene s;
   s.noise = 0.05;
   auto make = [&] {
-    return SyntheticSource(s, [] { return Vec2{}; }, [] { return pychron::TimePoint{}; });
+    return SyntheticSource(s, [] { return Vec2{}; }, [] { return nobion::TimePoint{}; });
   };
   auto a = make();
   auto b = make();
@@ -256,4 +259,285 @@ TEST(Synth, DarkenHoleDrawsOneMoreHoleWhereTheDarkerPixelWins) {
   darken_hole(same, other, {0.0, 0.0});
   darken_hole(same, s, {std::nan(""), 0.0});
   EXPECT_EQ(same.data, frame.data);
+}
+
+namespace {
+
+// Where a frame is brightest within a window around a pixel.
+Vec2 brightest_near(const Frame& f, Vec2 px, int r) {
+  Vec2 best = px;
+  int top = -1;
+  for (int y = static_cast<int>(px.y) - r; y <= static_cast<int>(px.y) + r; ++y)
+    for (int x = static_cast<int>(px.x) - r; x <= static_cast<int>(px.x) + r; ++x) {
+      const int v = f.view().at(x, y);
+      if (v > top) {
+        top = v;
+        best = {static_cast<double>(x), static_cast<double>(y)};
+      }
+    }
+  return best;
+}
+
+}  // namespace
+
+TEST(Synth, NoLobesIsTheOldGlowExactly) {
+  GlowScene s;
+  s.glow_mm = {0.1, -0.05};
+  s.sigma_mm = 0.25;
+  s.elongation = 1.5;
+  s.peak = 0.7;
+  ASSERT_TRUE(s.lobes.empty());
+  const auto [f, truth] = render(s, {0.02, 0.01});
+  const double cx = (s.width - 1) / 2.0 + (0.1 - 0.02) * s.px_per_mm;
+  const double cy = (s.height - 1) / 2.0 - (-0.05 - 0.01) * s.px_per_mm;
+  const double sy = 0.25 * s.px_per_mm, sx = 1.5 * sy;
+  for (int y = 0; y < f.height; ++y)
+    for (int x = 0; x < f.width; ++x) {
+      const double dx = x - cx, dy = y - cy;
+      const double level = s.background + s.peak * std::exp(-(dx * dx / (sx * sx) + dy * dy / (sy * sy)) / 2.0);
+      ASSERT_EQ(f.view().at(x, y), static_cast<int>(std::round(std::clamp(level, 0.0, 1.0) * s.pixel_depth)))
+          << x << ',' << y;
+    }
+  EXPECT_NEAR(truth.center_px.x, cx, 1e-9);
+}
+
+TEST(Synth, LobesDrawWhereTheySay) {
+  GlowScene s;
+  s.lobes = {{{-0.5, 0.2}, 0.1, 0.8}, {{0.4, -0.3}, 0.1, 0.4}};
+  s.background = 0;
+  const auto [f, truth] = render(s, {0, 0});
+  for (const GlowLobe& l : s.lobes) {
+    const Vec2 px{(s.width - 1) / 2.0 + l.at_mm.x * s.px_per_mm, (s.height - 1) / 2.0 - l.at_mm.y * s.px_per_mm};
+    const Vec2 got = brightest_near(f, px, 6);
+    EXPECT_NEAR(got.x, px.x, 0.5);
+    EXPECT_NEAR(got.y, px.y, 0.5);
+  }
+  const double w = 0.8 + 0.4;
+  const double ex = (s.width - 1) / 2.0 + (0.8 * -0.5 + 0.4 * 0.4) / w * s.px_per_mm;
+  const double ey = (s.height - 1) / 2.0 - (0.8 * 0.2 + 0.4 * -0.3) / w * s.px_per_mm;
+  EXPECT_NEAR(truth.center_px.x, ex, 0.5);
+  EXPECT_NEAR(truth.center_px.y, ey, 0.5);
+  EXPECT_TRUE(truth.visible);
+}
+
+TEST(Synth, LobesAboveDepthSaturate) {
+  GlowScene s;
+  s.lobes = {{{0, 0}, 0.2, 2.0}};
+  auto [f, truth] = render(s, {0, 0});
+  EXPECT_EQ(f.view().at(100, 100), s.pixel_depth);
+}
+
+TEST(Synth, LobeSizeIsOwn) {
+  GlowScene s;
+  s.background = 0;
+  s.lobes = {{{-1.2, 0}, 0.2, 0.9}, {{1.2, 0}, 0.4, 0.9}};
+  const auto f = render(s, {0, 0}).first;
+  auto half_width = [&](double mm) {
+    const int cx = static_cast<int>(std::lround((s.width - 1) / 2.0 + mm * s.px_per_mm)), cy = (s.height - 1) / 2;
+    const double half = f.view().at(cx, cy) / 2.0;
+    int n = 0;
+    for (int x = cx; x < s.width && f.view().at(x, cy) >= half; ++x) ++n;
+    for (int x = cx - 1; x >= 0 && f.view().at(x, cy) >= half; --x) ++n;
+    return n;
+  };
+  EXPECT_NEAR(static_cast<double>(half_width(1.2)) / half_width(-1.2), 2.0, 0.2);
+}
+
+// A grain's body: light that fills an outline and stops at it.
+namespace {
+
+GlowBody square_body(double half_mm, double peak) {
+  GlowBody b;
+  b.outline_mm = {{-half_mm, -half_mm}, {half_mm, -half_mm}, {half_mm, half_mm}, {-half_mm, half_mm}};
+  b.peak = peak;
+  return b;
+}
+
+}  // namespace
+
+TEST(GlowBody, ItFillsTheOutlineAndStopsAtIt) {
+  GlowScene s;
+  s.background = 0.1;
+  s.body = square_body(0.5, 0.6);  // 1 mm side
+  const auto [f, truth] = render(s, {0, 0});
+  EXPECT_NEAR(f.view().at(100, 100) / double(s.pixel_depth), 0.7, 0.01);
+  // 0.5 mm is 11.5 px from the center; a pixel 0.1 mm (2.3 px) past it is dark.
+  const int past = static_cast<int>(std::lround(99.5 + 0.6 * 23));
+  EXPECT_NEAR(f.view().at(past, 100) / double(s.pixel_depth), 0.1, 0.01);
+  EXPECT_NEAR(f.view().at(100, past) / double(s.pixel_depth), 0.1, 0.01);
+  EXPECT_NEAR(f.view().at(0, 0) / double(s.pixel_depth), 0.1, 0.01);
+  EXPECT_TRUE(truth.visible);
+}
+
+TEST(GlowBody, LobesAreCutAtTheOutline) {
+  GlowScene s;
+  s.background = 0.1;
+  s.lobes = {{{0, 0}, 1.0, 0.5}};
+  s.body = square_body(0.5, 0.0);
+  const auto f = render(s, {0, 0}).first;
+  const int past = static_cast<int>(std::lround(99.5 + 0.6 * 23));
+  EXPECT_NEAR(f.view().at(past, 100) / double(s.pixel_depth), 0.1, 0.01);
+  EXPECT_NEAR(f.view().at(100, past) / double(s.pixel_depth), 0.1, 0.01);
+  EXPECT_GT(f.view().at(100, 100) / double(s.pixel_depth), 0.5);
+}
+
+TEST(GlowBody, NoBodyRendersAsBefore) {
+  GlowScene s;
+  s.lobes = {{{-0.5, 0.2}, 0.1, 0.8}, {{0.4, -0.3}, 0.1, 0.4}};
+  s.noise = 0.02;
+  const auto a = render(s, {0.01, 0.02});
+  GlowScene t = s;
+  t.body.reset();
+  const auto b = render(t, {0.01, 0.02});
+  EXPECT_EQ(a.first.data, b.first.data);
+  EXPECT_EQ(a.second.center_px.x, b.second.center_px.x);
+  EXPECT_EQ(a.second.radius_px, b.second.radius_px);
+}
+
+namespace {
+
+// A hole in the middle of a frame of machined steel, with no noise.
+Frame machined_frame(Vec2 stage = {0, 0}, std::uint32_t seed = 3) {
+  HoleScene s;
+  s.noise = 0;
+  s.hole_radius_mm = 1.5;
+  const MachinedSurface steel = make_machined_surface(s.px_per_mm, seed);
+  Frame f = Frame::make(s.width, s.height, s.pixel_depth);
+  const std::vector<Vec2> holes{{0, 0}};
+  render_machined(f, s, steel, holes, stage);
+  return f;
+}
+
+}  // namespace
+
+TEST(MachinedTray, TheSameSeedIsTheSameSteel) {
+  const auto a = make_machined_surface(23, 7);
+  const auto b = make_machined_surface(23, 7);
+  const auto c = make_machined_surface(23, 8);
+  EXPECT_EQ(a.level, b.level);
+  EXPECT_NE(a.level, c.level);
+}
+
+TEST(MachinedTray, AHoleIsNeverBlack) {
+  Frame f = machined_frame();
+  const double r = 1.5 * 23;
+  int lowest = 255;
+  for (int y = 0; y < f.height; ++y) {
+    for (int x = 0; x < f.width; ++x) {
+      if (std::hypot(x - 99.5, y - 99.5) < r - 3) lowest = std::min<int>(lowest, f.at(x, y));
+    }
+  }
+  EXPECT_GT(lowest, 0.08 * 255);
+}
+
+TEST(MachinedTray, AThresholdLeavesACrescent) {
+  Frame f = machined_frame();
+  const double r = 1.5 * 23;
+  double dark = 0, sum_x = 0, sum_y = 0, area = 0;
+  for (int y = 0; y < f.height; ++y) {
+    for (int x = 0; x < f.width; ++x) {
+      if (std::hypot(x - 99.5, y - 99.5) >= r) continue;
+      area += 1;
+      if (f.at(x, y) >= 0.32 * 255) continue;
+      dark += 1;
+      sum_x += x - 99.5;
+      sum_y += y - 99.5;
+    }
+  }
+  ASSERT_GT(dark, 0);
+  EXPECT_LT(dark / area, 0.7);  // not the whole hole
+  EXPECT_GT(std::hypot(sum_x / dark, sum_y / dark), 0.2 * r);  // and to one side of it
+}
+
+TEST(MachinedTray, TheSteelBetweenHolesIsNotOneGrey) {
+  Frame f = machined_frame();
+  std::vector<double> levels;
+  for (int y = 0; y < 30; ++y) {
+    for (int x = 0; x < 30; ++x) levels.push_back(f.at(x, y));
+  }
+  double mean = 0;
+  for (const double v : levels) mean += v / static_cast<double>(levels.size());
+  double squares = 0;
+  for (const double v : levels) squares += (v - mean) * (v - mean) / static_cast<double>(levels.size());
+  EXPECT_GT(std::sqrt(squares), 0.015 * 255);
+}
+
+TEST(MachinedTray, TheSteelMovesWithTheStage) {
+  HoleScene s;
+  s.noise = 0;
+  const MachinedSurface steel = make_machined_surface(s.px_per_mm, 3);
+  Frame at = Frame::make(s.width, s.height, s.pixel_depth);
+  Frame moved = Frame::make(s.width, s.height, s.pixel_depth);
+  render_machined(at, s, steel, {}, {1, 0});
+  render_machined(moved, s, steel, {}, {1 + 10 / s.px_per_mm, 0});
+  double following = 0, staying = 0;
+  for (int y = 60; y < 140; ++y) {
+    for (int x = 60; x < 140; ++x) {
+      following += std::abs(static_cast<double>(moved.at(x, y)) - at.at(x + 10, y));
+      staying += std::abs(static_cast<double>(moved.at(x, y)) - at.at(x, y));
+    }
+  }
+  EXPECT_LT(following, 0.4 * staying);
+}
+
+TEST(ColdGrain, FillsItsOutlineAndNothingElse) {
+  HoleScene s;
+  Frame f = render(s, {0, 0}).first;
+  Frame before = f;
+  const std::vector<Vec2> square{{-0.25, -0.25}, {0.25, -0.25}, {0.25, 0.25}, {-0.25, 0.25}};
+  draw_grain(f, s, square, {0, 0}, 0.5);
+  EXPECT_EQ(f.at(100, 100), 128);  // inside, over the dark hole
+  EXPECT_EQ(f.at(0, 0), before.at(0, 0));  // the tray, away from it
+  const int edge = 100 + static_cast<int>(0.25 * s.px_per_mm) + 3;
+  EXPECT_EQ(f.at(edge, 100), before.at(edge, 100));  // the hole beside it
+}
+
+TEST(ColdGrain, IsCutAtTheFrame) {
+  HoleScene s;
+  Frame f = render(s, {0, 0}).first;
+  const std::vector<Vec2> beyond{{3.5, 3.5}, {30, 3.5}, {30, 30}, {3.5, 30}};
+  draw_grain(f, s, beyond, {0, 0}, 0.5);
+  EXPECT_EQ(f.at(199, 0), 128);
+  const std::vector<Vec2> too_few{{0, 0}, {1, 0}};
+  const Frame before = f;
+  draw_grain(f, s, too_few, {0, 0}, 0.9);
+  EXPECT_EQ(f.data, before.data);
+}
+
+TEST(GlowBody, TruthWeighsTheBody) {
+  GlowScene s;
+  s.lobes = {{{1.0, 0}, 0.1, 0.5}};
+  s.body = square_body(0.25, 0.5);
+  s.body->outline_mm = {{-0.25, -0.25}, {0.25, -0.25}, {0.25, 0.25}, {-0.25, 0.25}};
+  const auto truth = render(s, {0, 0}).second;
+  // Equal peaks: the center is halfway between the body (x 0) and the lobe (x 1 mm).
+  EXPECT_NEAR(truth.center_px.x, 99.5 + 0.5 * 23, 0.5);
+  EXPECT_NEAR(truth.center_px.y, 99.5, 0.5);
+}
+
+TEST(GlowBody, AHexagonIsFoundAsAGlow) {
+  GrainParams p;
+  p.grain_radius_mm = 0.5;
+  p.grain_sides = 6;
+  p.beam_radius_mm = 100;
+  GrainModel model(p, 7, 1.0, {0, 0});
+  for (int i = 0; i < 1000; ++i) model.advance(kGrainTick, {0, 0}, p.reference_output_percent);
+  ASSERT_NEAR(model.truth().heat, 1.0, 0.05);
+  const auto body = model.body();
+  ASSERT_TRUE(body.has_value());
+  GlowScene s;
+  s.body = body;
+  const auto frame = render(s, {0, 0}).first;
+  FinderParams fp;
+  fp.mode = FinderMode::Glow;
+  fp.expected_radius_px = 0.5 * s.px_per_mm;  // DragonflyParams::target_radius_mm default
+  fp.mask_radius_px = 1.05 * 2.0 * fp.expected_radius_px;
+  FinderDebug debug;
+  const auto found = SimpleFinder{}.find(frame.view(), fp, &debug);
+  ASSERT_EQ(found.size(), 1u) << "rejected radius " << debug.rejected_radius << " circularity "
+                              << debug.rejected_circularity << " edge " << debug.rejected_edge << " area "
+                              << debug.rejected_area << " threshold " << debug.threshold;
+  const double want = std::numbers::pi * 0.25 * s.px_per_mm * s.px_per_mm;
+  EXPECT_NEAR(found[0].area_px, want, 0.15 * want) << "radius " << found[0].radius_px << " circularity "
+                                                   << found[0].circularity;
 }

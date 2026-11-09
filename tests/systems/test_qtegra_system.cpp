@@ -20,21 +20,21 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/devices/spectrometer/thermo_qtegra_sim.hpp"
-#include "pychron/systems/spectrometer/assembler.hpp"
-#include "pychron/systems/spectrometer/bringup.hpp"
-#include "pychron/systems/spectrometer/scan_service.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/devices/spectrometer/thermo_qtegra_sim.hpp"
+#include "nobion/systems/spectrometer/assembler.hpp"
+#include "nobion/systems/spectrometer/bringup.hpp"
+#include "nobion/systems/spectrometer/scan_service.hpp"
+#include "nobion/transport/sim_transport.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace std::chrono_literals;
 
 namespace {
 
-const std::filesystem::path kDir(PYCHRON_EXAMPLE_CONFIGS_DIR);
+const std::filesystem::path kDir(NOBION_EXAMPLE_CONFIGS_DIR);
 const std::filesystem::path kQtegra = kDir / "spectrometer.qtegra.toml";
 const std::filesystem::path kSimIntegrated = kDir / "spectrometer.sim-integrated.toml";
 
@@ -98,7 +98,7 @@ class LinkTransport final : public Transport {
     return inner_->open();
   }
   void close() override { inner_->close(); }
-  Result<Bytes> exchange(Bytes tx, ReadSpec rs, Duration timeout) override {
+  Result<Bytes> exchange(Bytes tx, ReadSpec rs, Duration timeout, Resend resend) override {
     if (link_->down) return fail(ErrorKind::Io, "connection reset", inner_->name());
     if (to_string(tx).starts_with("GetData")) {
       std::unique_lock lock(link_->mutex);
@@ -109,7 +109,7 @@ class LinkTransport final : public Transport {
         link_->held = false;
       }
     }
-    return inner_->exchange(std::move(tx), std::move(rs), timeout);
+    return inner_->exchange(std::move(tx), std::move(rs), timeout, resend);
   }
   Result<void> write(Bytes tx) override { return inner_->write(std::move(tx)); }
   Result<Bytes> read(ReadSpec rs, Duration timeout) override { return inner_->read(std::move(rs), timeout); }
@@ -173,7 +173,7 @@ class Collector {
   SignalBus::Subscription sub_;
 };
 
-class QtegraSystem : public pychron::testing::VirtualTimeTest {
+class QtegraSystem : public nobion::testing::VirtualTimeTest {
  protected:
   void SetUp() override {
     scheduler_.start();
@@ -341,8 +341,8 @@ TEST_F(QtegraSystem, MoveProtocolProtectsAndBlanks) {
       sequence.push_back(c);
     }
   }
-  EXPECT_EQ(sequence, (std::vector<std::string>{"ProtectDetector CDD,On", "BlankBeam True", "SetMagnetDAC",
-                                                "BlankBeam False", "ProtectDetector CDD,Off"}));
+  EXPECT_EQ(sequence, (std::vector<std::string>{"ProtectDetector CDD,On", "BlankBeam true", "SetMagnetDAC",
+                                                "BlankBeam false", "ProtectDetector CDD,Off"}));
   std::lock_guard lock(model_->mutex);
   EXPECT_DOUBLE_EQ(model_->dac, 5.0);
   EXPECT_FALSE(model_->blank);
@@ -405,17 +405,17 @@ TEST_F(QtegraSystem, SetIntegrationWaitsForAReadInFlight) {
   // (Only EXPECTs from here until the gate is open: the service cannot stop,
   // nor the crew be joined, while the read is held.)
   const std::size_t crowd = clock_.participants();
-  EXPECT_TRUE(pychron::testing::eventually_real([&] { return clock_.waiters() == crowd - 2; }));
+  EXPECT_TRUE(nobion::testing::eventually_real([&] { return clock_.waiters() == crowd - 2; }));
   std::mutex m;
   std::optional<Result<void>> result;
-  pychron::testing::Crew crew(clock_);
+  nobion::testing::Crew crew(clock_);
   crew.start("set_integration", [&] {
     auto r = service.set_integration(500ms);
     std::lock_guard lock(m);
     result = std::move(r);
   });
   // One more takes part, and it is asleep too.
-  EXPECT_TRUE(pychron::testing::eventually_real(
+  EXPECT_TRUE(nobion::testing::eventually_real(
       [&] { return clock_.participants() == crowd + 1 && clock_.waiters() == crowd - 1; }))
       << "set_integration is not waiting for the read in flight";
   {

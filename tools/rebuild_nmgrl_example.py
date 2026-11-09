@@ -11,7 +11,7 @@ open_valve_color = "inherit", and draws Quad as a quadrupole (legacy has one
 import re, sys, pathlib, tomllib
 src = pathlib.Path(sys.argv[1]); dst = pathlib.Path("configs/examples/nmgrl")
 line = (src/"extraction_line.toml").read_text()
-line, n = re.subn(r"^(# legacy \w+) at [^\n]*?: pychron-cpp", r"\1: pychron-cpp", line, flags=re.M); assert n == 5
+line, n = re.subn(r"^(# legacy \w+) at [^\n]*?: nobion", r"\1: nobion", line, flags=re.M); assert n == 5
 line = line.replace('name = "valve"\n', 'name = "nmgrl_valve"\n', 1)
 old = (dst/"extraction_line.toml").read_text()
 (dst/"extraction_line.toml").write_text(old[:old.index("# Converted from a legacy")] + line)

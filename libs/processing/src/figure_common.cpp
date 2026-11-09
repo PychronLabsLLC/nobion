@@ -1,12 +1,15 @@
 #include "figure_common.hpp"
 
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <ctime>
+#include <set>
+#include <string_view>
 
 #include "schema_builder.hpp"
 
-namespace pychron::processing::detail {
+namespace nobion::processing::detail {
 
 namespace {
 
@@ -14,10 +17,20 @@ const std::vector<std::string> kCorners{"top_left", "top_right", "bottom_left", 
 
 }  // namespace
 
+const std::vector<std::string>& corner_choices() { return kCorners; }
+
+Result<reduction::Mean> group_mean(std::span<const double> values, std::span<const double> errors,
+                                   const Options& figure_options) {
+  const auto kind =
+      reduction::parse_mean_error_kind(figure_options.get_string("error_kind")).value_or(reduction::MeanErrorKind::Msem);
+  return figure_options.get_string("mean") == "weighted" ? reduction::weighted_mean(values, errors, kind)
+                                                          : reduction::arithmetic_mean(values, errors, kind);
+}
+
 std::string format_sig(double v, int sig) {
-  char buf[64];
-  std::snprintf(buf, sizeof buf, "%.*g", std::max(1, sig), v);
-  return buf;
+  std::array<char, 64> buf{};
+  std::snprintf(buf.data(), buf.size(), "%.*g", std::max(1, sig), v);
+  return buf.data();
 }
 
 std::string format_utc(double t) {
@@ -28,9 +41,9 @@ std::string format_utc(double t) {
 #else
   gmtime_r(&tt, &tm);
 #endif
-  char buf[32];
-  std::strftime(buf, sizeof buf, "%Y-%m-%d %H:%M:%S", &tm);
-  return std::string(buf) + "Z";
+  std::array<char, 32> buf{};
+  std::strftime(buf.data(), buf.size(), "%Y-%m-%d %H:%M:%S", &tm);
+  return std::string(buf.data()) + "Z";
 }
 
 Color with_alpha(Color c, std::uint8_t a) {
@@ -62,7 +75,21 @@ std::vector<FieldSpec> common_figure_fields() {
 }
 
 void apply_common_style(const Options& o, Scene& scene) {
+  apply_fit_style(o, scene);
   scene.columns = static_cast<int>(o.get_int("graph_columns"));
+  scene.style.graph_spacing = static_cast<int>(o.get_int("graph_spacing"));
+}
+
+std::vector<FieldSpec> fit_figure_fields() {
+  static const std::set<std::string_view> keys{
+      "panel_spacing", "font.family",     "font.title", "font.axis",   "font.tick",      "font.annotation",
+      "background",    "plot_background", "show_grid",  "show_legend", "legend_location"};
+  auto fields = common_figure_fields();
+  std::erase_if(fields, [](const FieldSpec& f) { return !keys.contains(f.key); });
+  return fields;
+}
+
+void apply_fit_style(const Options& o, Scene& scene) {
   scene.style.background = parse_color(o.get_string("background")).value_or(Color{255, 255, 255, 255});
   scene.style.plot_background = parse_color(o.get_string("plot_background")).value_or(Color{255, 255, 255, 255});
   scene.style.grid = o.get_bool("show_grid");
@@ -74,13 +101,12 @@ void apply_common_style(const Options& o, Scene& scene) {
   scene.style.legend = o.get_bool("show_legend");
   scene.style.legend_corner = parse_corner(o.get_string("legend_location")).value_or(Corner::TopRight);
   scene.style.panel_spacing = static_cast<int>(o.get_int("panel_spacing"));
-  scene.style.graph_spacing = static_cast<int>(o.get_int("graph_spacing"));
 }
 
 SchemaPtr group_row_schema(bool fixed_steps) {
   auto fields = [](bool fixed) {
     std::vector<FieldSpec> f{
-        optional_color("color", "Colour", "Group"),
+        optional_color("color", "Color", "Group"),
         choice("marker", "Marker", "Group", {"auto", "circle", "square", "diamond", "triangle", "cross", "plus", "star"}),
         text("label", "Legend label", "Group"), integer("fill_alpha", "Fill opacity (%)", "Group", 70, 0, 100)};
     if (fixed) {
@@ -104,14 +130,23 @@ ListSpec groups_list(bool fixed_steps) {
   return groups;
 }
 
+namespace {
+
+Color row_color(const Options* row, int group) {
+  if (row)
+    if (auto c = parse_color(row->get_string("color"))) return *c;
+  return palette_color(group);
+}
+
+}  // namespace
+
 GroupStyle group_style(const Dataset& d, int graph, int group, const std::vector<Options>& rows,
                        MarkerShape default_marker) {
   GroupStyle st;
-  st.color = palette_color(group);
   st.marker = default_marker;
   const Options* row = group >= 0 && static_cast<std::size_t>(group) < rows.size() ? &rows[group] : nullptr;
+  st.color = row_color(row, group);
   if (row) {
-    if (auto c = parse_color(row->get_string("color"))) st.color = *c;
     if (row->get_string("marker") != "auto") st.marker = parse_marker(row->get_string("marker")).value_or(default_marker);
     if (row->schema() && row->schema()->field("fill_alpha")) st.fill_alpha = static_cast<int>(row->get_int("fill_alpha"));
   }
@@ -139,4 +174,14 @@ std::string mean_text(const std::string& prefix, double value, double error, con
   return s;
 }
 
-}  // namespace pychron::processing::detail
+}  // namespace nobion::processing::detail
+
+namespace nobion::processing {
+
+Color group_color(const Options& figure, int group) {
+  if (!figure.schema() || !figure.schema()->list("groups")) return palette_color(group);
+  const auto rows = figure.rows("groups");
+  return detail::row_color(group >= 0 && static_cast<std::size_t>(group) < rows.size() ? &rows[group] : nullptr, group);
+}
+
+}  // namespace nobion::processing

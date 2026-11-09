@@ -4,9 +4,9 @@
 #include <string>
 #include <string_view>
 
-#include "pychron/systems/canvas/loader.hpp"
+#include "nobion/systems/canvas/loader.hpp"
 
-namespace pychron::canvas {
+namespace nobion::canvas {
 namespace {
 
 // Every element kind from spec section 6.
@@ -354,10 +354,20 @@ symbol = "getter"
 name = "f"
 pos = [0, 0]
 symbol = "ion_pump"
+[[stage]]
+name = "g"
+pos = [0, 0]
+symbol = "cryo"
+[[stage]]
+name = "h"
+pos = [0, 0]
+symbol = "roughing_pump"
 )toml",
                                          "canvas.toml");
   ASSERT_TRUE(r) << r.error().what;
-  ASSERT_EQ(r->stages.size(), 6u);
+  ASSERT_EQ(r->stages.size(), 8u);
+  EXPECT_EQ(r->stages[6].symbol, StageSymbol::Cryo);
+  EXPECT_EQ(r->stages[7].symbol, StageSymbol::RoughingPump);
   EXPECT_EQ(r->stages[5].symbol, StageSymbol::IonPump);
   EXPECT_EQ(r->stages[3].symbol, StageSymbol::Turbo);
   EXPECT_EQ(r->stages[4].symbol, StageSymbol::Getter);
@@ -469,5 +479,32 @@ TEST(CanvasLoader, BadOpenValveColorIsDiagnosticWithLine) {
   EXPECT_FALSE(wrong_type.ok());
 }
 
+TEST(CanvasLoader, ValveStyleDefaultsToHmi) {
+  auto r = load("[[stage]]\nname = \"bone\"\npos = [0, 0]\n");
+  ASSERT_TRUE(r.ok()) << config::to_error(r.diagnostics).what;
+  EXPECT_EQ(r.canvas->canvas.valve_style, ValveStyle::Hmi);
+}
+
+TEST(CanvasLoader, ValveStyleParsesHmiAndRedgreen) {
+  auto redgreen = load("[canvas]\nvalve_style = \"redgreen\"\n");
+  ASSERT_TRUE(redgreen.ok()) << config::to_error(redgreen.diagnostics).what;
+  EXPECT_EQ(redgreen.canvas->canvas.valve_style, ValveStyle::Redgreen);
+  auto hmi = load("[canvas]\nvalve_style = \"hmi\"\n");
+  ASSERT_TRUE(hmi.ok());
+  EXPECT_EQ(hmi.canvas->canvas.valve_style, ValveStyle::Hmi);
+}
+
+TEST(CanvasLoader, BadValveStyleIsDiagnosticWithLine) {
+  const std::string text = "[canvas]\nsize = [100, 100]\nvalve_style = \"blue\"\n";
+  auto r = load(text);
+  ASSERT_FALSE(r.ok());
+  ASSERT_TRUE(has_diag(r, "canvas.valve_style", "hmi | redgreen"));
+  for (const auto& d : r.diagnostics) {
+    if (d.field == "canvas.valve_style") {
+      EXPECT_EQ(d.loc.line, line_of(text, "valve_style"));
+    }
+  }
+}
+
 }  // namespace
-}  // namespace pychron::canvas
+}  // namespace nobion::canvas

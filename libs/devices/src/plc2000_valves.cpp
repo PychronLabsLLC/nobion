@@ -1,14 +1,14 @@
-#include "pychron/devices/plc2000_valves.hpp"
+#include "nobion/devices/plc2000_valves.hpp"
 
 #include <algorithm>
 #include <map>
 #include <optional>
 #include <set>
 
-#include "pychron/codecs/modbus.hpp"
-#include "pychron/devices/modbus_ids.hpp"
+#include "nobion/codecs/modbus.hpp"
+#include "nobion/devices/modbus_ids.hpp"
 
-namespace pychron {
+namespace nobion {
 
 namespace mb = codec::modbus;
 
@@ -35,7 +35,8 @@ Result<std::unique_ptr<Plc2000Valves>> Plc2000Valves::create(const DriverArgs& a
     return fail(ErrorKind::Config, "coil_offset: " + std::to_string(offset) + " is outside -65535..65535");
   }
   options.coil_offset = static_cast<int>(offset);
-  return std::make_unique<Plc2000Valves>(args.name, args.transport, options, DeviceOptions{args.clock});
+  return std::make_unique<Plc2000Valves>(args.name, args.transport, options,
+                                         DeviceOptions{args.clock, DeviceOptions{}.fault_after, args.link});
 }
 
 Result<std::uint16_t> Plc2000Valves::coil(const ValveAddress& address) const {
@@ -50,31 +51,33 @@ Result<std::uint16_t> Plc2000Valves::coil(const ValveAddress& address) const {
 }
 
 Result<void> Plc2000Valves::write(const ValveAddress& address, bool on) {
+  const Operation op = begin("write");
   auto c = coil(address);
   if (!c) return fail(std::move(c).error());
-  auto done = [&]() -> Result<void> {
+  auto done = relay<void>("write", [&](Resend resend) -> Result<void> {
     const auto tid = next_modbus_transaction_id();
     const auto cmd = mb::write_single_coil(tid, options_.unit, *c, on);
-    auto reply = transport_.exchange(cmd.tx, *cmd.reply);
+    auto reply = transport_.exchange(cmd.tx, *cmd.reply, Transport::kDefaultTimeout, resend);
     if (!reply) return fail(std::move(reply).error());
     return mb::decode_write_single_coil(tid, options_.unit, *c, on, *reply);
-  }();
-  return observe(std::move(done));
+  }, Repeat::Safe);
+  return observe(op, std::move(done));
 }
 
 Result<void> Plc2000Valves::open(const ValveAddress& address) { return write(address, true); }
 Result<void> Plc2000Valves::close(const ValveAddress& address) { return write(address, false); }
 
 Result<std::vector<bool>> Plc2000Valves::read_coils(std::uint16_t start, std::uint16_t count) {
-  auto coils = [&]() -> Result<std::vector<bool>> {
+  const Operation op = begin("read_coils");
+  auto coils = relay<std::vector<bool>>("read_coils", [&](Resend resend) -> Result<std::vector<bool>> {
     const auto tid = next_modbus_transaction_id();
     auto cmd = mb::read_coils(tid, options_.unit, start, count);
     if (!cmd) return fail(std::move(cmd).error());
-    auto reply = transport_.exchange(cmd->tx, *cmd->reply);
+    auto reply = transport_.exchange(cmd->tx, *cmd->reply, Transport::kDefaultTimeout, resend);
     if (!reply) return fail(std::move(reply).error());
     return mb::decode_coils(tid, options_.unit, count, *reply);
-  }();
-  return observe(std::move(coils));
+  }, Repeat::Safe);
+  return observe(op, std::move(coils));
 }
 
 Result<ValveState> Plc2000Valves::read(const ValveAddress& address) {
@@ -129,6 +132,6 @@ std::vector<Result<ValveState>> Plc2000Valves::read_many(const std::vector<Valve
   return out;
 }
 
-}  // namespace pychron
+}  // namespace nobion
 
-REGISTER_DRIVER("plc2000_valves", pychron::Plc2000Valves);
+REGISTER_DRIVER("plc2000_valves", nobion::Plc2000Valves);

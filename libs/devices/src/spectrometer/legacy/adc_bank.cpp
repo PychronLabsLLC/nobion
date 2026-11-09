@@ -1,17 +1,17 @@
-#include "pychron/devices/spectrometer/legacy/adc_bank.hpp"
+#include "nobion/devices/spectrometer/legacy/adc_bank.hpp"
 
 #include <cmath>
 #include <mutex>
 
-#include "pychron/codecs/modbus_adc.hpp"
+#include "nobion/codecs/modbus_adc.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 namespace mb = codec::modbus_adc;
 
 AdcBank::AdcBank(std::string name, Transport& transport, std::vector<ChannelId> channels, Options options,
-                 const Clock* clock)
-    : PolledAcquirer(std::move(name), std::move(channels), options.sample_hz, clock),
+                 const Clock* clock, Link* link)
+    : PolledAcquirer(std::move(name), std::move(channels), options.sample_hz, clock, link),
       transport_(transport),
       options_(options) {}
 
@@ -46,20 +46,25 @@ Result<std::unique_ptr<AdcBank>> AdcBank::create(const DriverArgs& args) {
   if (!std::isfinite(scale) || scale == 0.0) return fail(ErrorKind::Config, "scale must be finite and non-zero");
 
   Options options{*hz, static_cast<std::uint8_t>(unit), static_cast<std::uint16_t>(start), scale};
-  return std::make_unique<AdcBank>(args.name, args.transport, std::move(*channels), options, args.clock);
+  return std::make_unique<AdcBank>(args.name, args.transport, std::move(*channels), options, args.clock, args.link);
 }
 
 Result<std::vector<double>> AdcBank::sample() {
-  const auto tid = static_cast<std::uint16_t>(tid_.fetch_add(1) + 1);
-  const auto n = channels().size();
-  auto cmd = mb::read_channels(tid, options_.unit, options_.start_register, n);
-  if (!cmd) return fail(std::move(cmd).error());
-  auto reply = transport_.exchange(cmd->tx, *cmd->reply);
-  if (!reply) return fail(std::move(reply).error());
-  auto volts = mb::decode_channels(tid, options_.unit, n, *reply);
-  if (!volts) return fail(std::move(volts).error());
-  for (auto& v : *volts) v *= options_.scale;
-  return volts;
+  // A register read: Safe.
+  return relay<std::vector<double>>("sample",
+      [&](Resend resend) -> Result<std::vector<double>> {
+        const auto tid = static_cast<std::uint16_t>(tid_.fetch_add(1) + 1);
+        const auto n = channels().size();
+        auto cmd = mb::read_channels(tid, options_.unit, options_.start_register, n);
+        if (!cmd) return fail(std::move(cmd).error());
+        auto reply = transport_.exchange(cmd->tx, *cmd->reply, Transport::kDefaultTimeout, resend);
+        if (!reply) return fail(std::move(reply).error());
+        auto volts = mb::decode_channels(tid, options_.unit, n, *reply);
+        if (!volts) return fail(std::move(volts).error());
+        for (auto& v : *volts) v *= options_.scale;
+        return volts;
+      },
+      Repeat::Safe);
 }
 
 SimTransport::Hook adc_sim_hook(AdcSimModel model) {
@@ -96,4 +101,4 @@ SimTransport::Hook adc_sim_hook(AdcSimModel model) {
 
 REGISTER_DRIVER("adc_bank", AdcBank);
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

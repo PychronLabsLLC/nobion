@@ -4,7 +4,7 @@ Part of the agent guide: root `AGENTS.md` applies in full, this adds what is
 only this component's. Kept compressed, as that file is.
 
 - Persistence tests always run on SQLite. Set
-  `PYCHRON_TEST_PG_URL=postgresql://user:pw@host/db` to run them on
+  `NOBION_TEST_PG_URL=postgresql://user:pw@host/db` to run them on
   PostgreSQL as well (each test uses throwaway schema).
 - Schema source: `libs/persistence/migrations/pg/`. After editing it, run
   `python3 tools/ddl_sqlite.py` and commit regenerated SQLite file. Never
@@ -19,9 +19,9 @@ only this component's. Kept compressed, as that file is.
   column goes through `geom_read()` (`ST_AsEWKT` on PostgreSQL). Half a point
   is refused. PostgreSQL needs PostGIS; tests on it do too.
 - A program that registers a client with the store names its machine with
-  `pychron::host_name()` (`libs/core` `host_name.hpp`), never the `HOSTNAME`
+  `nobion::host_name()` (`libs/core` `host_name.hpp`), never the `HOSTNAME`
   variable.
-- ctest lists `pg` cases only when `PYCHRON_TEST_PG_URL` was set when the
+- ctest lists `pg` cases only when `NOBION_TEST_PG_URL` was set when the
   tests were built (`gtest_discover_tests` runs at build time): set it,
   rebuild, then run.
 
@@ -42,7 +42,7 @@ passes its test has told you nothing about its cost.
 
 ### Before adding a migration
 
-- Every migration locks every existing store out of `pychron-ui`, `export`,
+- Every migration locks every existing store out of `nobion`, `export`,
   `flux` and `entry` until someone runs `elctl db migrate --db <url>` on it
   (they open with `migrate = false` and refuse a schema that is behind). So:
   add one when it earns that step, put what belongs together into one
@@ -153,8 +153,8 @@ Reading a query does not tell its cost; the plan and a clock do.
   figure window runs and prints the time of each node. It does nothing
   unless told which store:
 
-      PYCHRON_BENCH_DB=sqlite:/path/to/store.db PYCHRON_BENCH_N=400 \
-        build/dev/tests/processing/pychron_processing_store_tests --gtest_filter='StoreLoadTiming.*'
+      NOBION_BENCH_DB=sqlite:/path/to/store.db NOBION_BENCH_N=400 \
+        build/dev/tests/processing/nobion_processing_store_tests --gtest_filter='StoreLoadTiming.*'
 
   Run it before and after any change to loading, to a query the loader uses,
   or to the schema, at 24, 400 and 2000 analyses, and put the numbers in the
@@ -166,6 +166,6 @@ Reading a query does not tell its cost; the plan and a clock do.
 - What goes in CI is the plan test, not the clock: a time limit fails on a
   loaded runner and passes on a fast one. Slow query has a shape (a scan, a
   subquery per row); assert the shape.
-- Persistence tests run on SQLite. Set `PYCHRON_TEST_PG_URL` and run them on
+- Persistence tests run on SQLite. Set `NOBION_TEST_PG_URL` and run them on
   PostgreSQL as well before a release that changes a query or adds a
   migration: the two planners do not make the same choices.

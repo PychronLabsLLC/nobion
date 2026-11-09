@@ -18,19 +18,19 @@
 #include <gtest/gtest.h>
 
 #include "extraction/conformance.hpp"
-#include "pychron/core/clock.hpp"
-#include "pychron/devices/extraction/chromium.hpp"
-#include "pychron/devices/extraction/chromium_sim.hpp"
-#include "pychron/laser/camera.hpp"
-#include "pychron/laser/correction_store.hpp"
-#include "pychron/laser/laser_system.hpp"
-#include "pychron/laser/pattern.hpp"
-#include "pychron/laser/tray_camera.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/devices/extraction/chromium.hpp"
+#include "nobion/devices/extraction/chromium_sim.hpp"
+#include "nobion/laser/camera.hpp"
+#include "nobion/laser/correction_store.hpp"
+#include "nobion/laser/laser_system.hpp"
+#include "nobion/laser/pattern.hpp"
+#include "nobion/laser/tray_camera.hpp"
+#include "nobion/transport/sim_transport.hpp"
 
-namespace pychron::laser::harness {
+namespace nobion::laser::harness {
 
-using namespace pychron::extraction;
+using namespace nobion::extraction;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
@@ -45,12 +45,14 @@ inline ChromiumOptions options(std::array<int, 3> signs = {1, 1, 1}) {
 // 3 (5,0), ...), calibrated for "co2" with the tray's origin at stage
 // (10, 20) and no rotation.
 struct LabDir {
-  fs::path dir;
-  LabDir() {
+  fs::path dir = unique_dir();
+  static fs::path unique_dir() {
     std::random_device rd;
-    dir = fs::temp_directory_path() / ("pychron_laser_" + std::to_string(rd()) + std::to_string(rd()));
+    return fs::temp_directory_path() / ("nobion_laser_" + std::to_string(rd()) + std::to_string(rd()));
+  }
+  LabDir() {
     fs::create_directories(dir / "tray_maps");
-    fs::copy_file(fs::path(PYCHRON_TEST_DATA_DIR) / "tray_maps" / "small.txt", dir / "tray_maps" / "small.txt");
+    fs::copy_file(fs::path(NOBION_TEST_DATA_DIR) / "tray_maps" / "small.txt", dir / "tray_maps" / "small.txt");
     std::ofstream(dir / "tray_maps" / "bare.txt") << "circle,1\n\n\n1,0,0\n2,1,0\n";  // never calibrated
     fs::create_directories(dir / "patterns");
     const auto pattern = [this](const char* name, const char* text) { std::ofstream(dir / "patterns" / name) << text; };
@@ -165,4 +167,4 @@ struct CameraHarness : LaserHarness {
   IExtractionDevice& device() { return system; }
 };
 
-}  // namespace pychron::laser::harness
+}  // namespace nobion::laser::harness

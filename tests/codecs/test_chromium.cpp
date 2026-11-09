@@ -1,11 +1,11 @@
-#include "pychron/codecs/chromium.hpp"
+#include "nobion/codecs/chromium.hpp"
 
 #include <cmath>
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-using namespace pychron::codec::chromium;
+using namespace nobion;
+using namespace nobion::codec::chromium;
 
 // Command strings are the vendor reference's (Chromium Software Command
 // Interface Reference, Photon Machines 2013): `<component>.<command>

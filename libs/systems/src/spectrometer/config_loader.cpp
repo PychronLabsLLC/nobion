@@ -1,14 +1,16 @@
-#include "pychron/systems/spectrometer/config_loader.hpp"
+#include "nobion/systems/spectrometer/config_loader.hpp"
 
 #include <algorithm>
+#include <cstdint>
+#include <sstream>
 #include <array>
 #include <cctype>
 #include <utility>
 
-#include "pychron/core/config/loader.hpp"
+#include "nobion/core/config/loader.hpp"
 #include "toml_reader.hpp"
 
-namespace pychron::spectrometer::cfg {
+namespace nobion::spectrometer::cfg {
 namespace {
 
 using detail::Obj;
@@ -49,8 +51,9 @@ constexpr std::array<std::string_view, 19> kSourceParams{
 // Keys a `*.local.toml` may set on an existing [transports.<name>].
 constexpr std::array<std::string_view, 4> kOverridable{"host", "port", "baud", "timeout_ms"};
 
-constexpr std::array<std::string_view, 8> kSections{"system", "transports", "drivers",          "magnet",
-                                                    "source", "acquisition", "detector_control", "detectors"};
+constexpr std::array<std::string_view, 10> kSections{"system",           "transports", "drivers",      "magnet",
+                                                     "source",           "acquisition", "detector_control",
+                                                     "detectors",        "optics",      "interferences"};
 
 template <class Arr>
 bool contains(const Arr& arr, std::string_view s) {
@@ -104,6 +107,8 @@ class Builder {
       }
     }
     parse_detectors(root, c.detectors);
+    each_named(top, "optics", [&](const std::string& name, const Obj& o) { c.optics[name] = parse_optics(o); });
+    if (const auto* n = root.get("interferences")) parse_interferences(*n, c.interferences);
     return c;
   }
 
@@ -126,6 +131,51 @@ class Builder {
     }
   }
 
+  // A preset's keys and values as text, in file order (a TOML table is not).
+  OpticsPreset parse_optics(const Obj& o) {
+    std::vector<std::pair<const toml::node*, std::string>> keyed;
+    for (auto&& [k, v] : o.t) keyed.emplace_back(&v, std::string(k.str()));
+    std::stable_sort(keyed.begin(), keyed.end(), [](const auto& a, const auto& b) {
+      const auto& x = a.first->source().begin;
+      const auto& y = b.first->source().begin;
+      return x.line != y.line ? x.line < y.line : x.column < y.column;
+    });
+    OpticsPreset preset;
+    for (const auto& [node, key] : keyed) {
+      std::string text;
+      if (const auto str = node->value_exact<std::string>()) {
+        text = *str;
+      } else if (const auto b = node->value_exact<bool>()) {
+        text = *b ? "true" : "false";
+      } else if (const auto i = node->value_exact<std::int64_t>()) {
+        text = std::to_string(*i);
+      } else if (const auto d = node->value_exact<double>()) {
+        std::ostringstream out;
+        out.precision(15);
+        out << *d;
+        text = out.str();
+      } else {
+        r_.error(r_.loc(*node), Reader::join(o.path, key), "expected a string, number or boolean");
+        continue;
+      }
+      preset.params.emplace_back(key, std::move(text));
+    }
+    return preset;
+  }
+
+  void parse_interferences(const toml::node& n, std::vector<Interference>& out) {
+    const auto* t = r_.table(n, "interferences");
+    if (t == nullptr) return;
+    for (auto&& [k, v] : *t) {
+      const auto corrects = v.value<std::string>();
+      if (!corrects || corrects->empty()) {
+        r_.error(r_.loc(v), Reader::join("interferences", k.str()), "expected the name it corrects");
+        continue;
+      }
+      out.push_back({std::string(k.str()), *corrects});
+    }
+  }
+
   static void record(const Obj& o, Located& e) {
     e.loc = o.loc;
     e.path = o.path;
@@ -142,7 +192,7 @@ class Builder {
   void parse_transport(Obj o, TransportConfig& t) {
     record(o, t);
     o.rec = &t;
-    r_.only(o, {"kind", "host", "port", "baud", "timeout_ms", "retries", "trace", "link"});
+    r_.only(o, {"kind", "host", "port", "baud", "timeout_ms", "retries", "trace", "link", "recovery"});
     const bool kind_ok = r_.choice(o, "kind", t.kind, choices(kTransportKinds), true) && o.t.get("kind") != nullptr;
     r_.str(o, "host", t.host, false);
     r_.integer(o, "baud", t.baud, false, 1);
@@ -153,6 +203,15 @@ class Builder {
     r_.str(o, "link", t.link, t.kind == TransportKind::Link);
     if (t.kind != TransportKind::Link && o.t.get("link") != nullptr)
       r_.error(o.loc, Reader::join(o.path, "link"), "only for kind \"link\"");
+    if (const auto* n = o.t.get("recovery")) {
+      if (t.kind == TransportKind::Link) {
+        // Recovered by the connection it names, under that one's policy.
+        r_.error(r_.loc(*n), Reader::join(o.path, "recovery"),
+                 "not on kind \"link\": transport '" + t.name + "' is recovered by the connection it names");
+      } else if (auto rec = r_.sub(o, "recovery", false)) {
+        parse_recovery(*rec, t.recovery);
+      }
+    }
 
     const bool network =
         t.kind == TransportKind::Tcp || t.kind == TransportKind::Udp || t.kind == TransportKind::ModbusTcp;
@@ -172,6 +231,20 @@ class Builder {
     if (network && t.host.empty()) r_.error(o.loc, Reader::join(o.path, "host"), "missing required field");
   }
 
+  // `[transports.<name>.recovery]`: reconnect, optional, call_window_s.
+  void parse_recovery(const Obj& o, config::RecoveryConfig& r) {
+    record(o, r);
+    r_.only(o, {"reconnect", "optional", "call_window_s"});
+    r_.boolean(o, "reconnect", r.reconnect);
+    r_.boolean(o, "optional", r.optional);
+    std::optional<double> window;
+    if (r_.number(o, "call_window_s", window) && window) {
+      const bool in_range = *window >= 0.0 && *window <= config::RecoveryConfig::kMaxCallWindowS;
+      r_.require(in_range, o, "call_window_s", "value out of range, must be in [0, 3600]");
+      if (in_range) r.call_window_s = *window;
+    }
+  }
+
   void parse_driver(Obj o, DriverConfig& d) {
     record(o, d);
     o.rec = &d;
@@ -185,7 +258,7 @@ class Builder {
           d.roles.push_back(*role);
         } else {
           r_.error(r_.loc(*o.t.get("roles")->as_array()->get(i)), Reader::join(o.path, "roles") + "[" + std::to_string(i) + "]",
-                   "unknown role '" + roles[i] + "' (expected positioner, source, acquirer, detector_control, beam_blank)");
+                   "unknown role '" + roles[i] + "' (expected positioner, source, acquirer, detector_control, beam_blank, optics)");
         }
       }
     }
@@ -305,7 +378,8 @@ class Builder {
 
   void parse_detector(const Obj& o, DetectorConfig& d) {
     r_.only(o, {"name", "kind", "channel", "units", "software_gain", "isotope", "color", "active", "deflection", "protection",
-                "saturation", "dead_time_ns", "cdd_voltage"});
+                "saturation", "dead_time_ns", "cdd_voltage", "large_beam_threshold", "settle_after_large_beam_s",
+                "collector", "mode", "mode_switch_s"});
     r_.str(o, "name", d.name, true);
     r_.choice(o, "kind", d.kind, choices(kDetectorKinds), true);
     if (r_.str(o, "channel", d.channel, true) && !d.channel.empty())
@@ -347,6 +421,15 @@ class Builder {
     if (r_.number(o, "dead_time_ns", d.dead_time_ns) && d.dead_time_ns)
       r_.require(*d.dead_time_ns >= 0.0, o, "dead_time_ns", "must be >= 0");
     r_.number(o, "cdd_voltage", d.cdd_voltage);
+    if (r_.number(o, "large_beam_threshold", d.large_beam_threshold) && d.large_beam_threshold)
+      r_.require(*d.large_beam_threshold > 0.0, o, "large_beam_threshold", "detector '" + d.name + "': must be > 0");
+    if (r_.number(o, "settle_after_large_beam_s", d.settle_after_large_beam_s, false))
+      r_.require(d.settle_after_large_beam_s >= 0.0, o, "settle_after_large_beam_s",
+                 "detector '" + d.name + "': must be >= 0");
+    r_.str(o, "collector", d.collector, false);
+    r_.str(o, "mode", d.mode, false);
+    if (r_.number(o, "mode_switch_s", d.mode_switch_s, false))
+      r_.require(d.mode_switch_s >= 0.0, o, "mode_switch_s", "detector '" + d.name + "': must be >= 0");
   }
 
   Reader r_;
@@ -452,4 +535,4 @@ ConfigLoadReport parse_config(const std::filesystem::path& path) {
   return parse_config_from_string(*text, main_name, *local_text, local_path.generic_string());
 }
 
-}  // namespace pychron::spectrometer::cfg
+}  // namespace nobion::spectrometer::cfg

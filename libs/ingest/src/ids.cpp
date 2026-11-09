@@ -1,13 +1,13 @@
-#include "pychron/ingest/ids.hpp"
+#include "nobion/ingest/ids.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
 #include <initializer_list>
 
-#include "pychron/core/path_text.hpp"
+#include "nobion/core/path_text.hpp"
 
-namespace pychron::ingest {
+namespace nobion::ingest {
 
 using persistence::Uuid;
 
@@ -110,4 +110,4 @@ Uuid bookmark_group_id(std::string_view url, std::string_view tag) { return deri
 
 Uuid interpreted_age_id(std::string_view url, std::string_view path) { return derive("interpreted_age", {url, path}); }
 
-}  // namespace pychron::ingest
+}  // namespace nobion::ingest

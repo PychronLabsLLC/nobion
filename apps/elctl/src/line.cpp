@@ -1,21 +1,27 @@
 #include "line.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <deque>
+#include <iostream>
 #include <memory>
 
-#include "pychron/devices/capabilities.hpp"
-#include "pychron/devices/channel_gauge.hpp"
-#include "pychron/devices/driver_registry.hpp"
-#include "pychron/devices/pfeiffer_maxigauge.hpp"
-#include "pychron/devices/plc2000_heater.hpp"
-#include "pychron/devices/proxr_board_sim.hpp"
-#include "pychron/transport/factory.hpp"
+#include "nobion/core/process_log.hpp"
+#include "process_log.hpp"
+#include "nobion/devices/capabilities.hpp"
+#include "nobion/devices/channel_gauge.hpp"
+#include "nobion/devices/driver_registry.hpp"
+#include "nobion/devices/gp_microion.hpp"
+#include "nobion/devices/pfeiffer_maxigauge.hpp"
+#include "nobion/devices/plc2000_heater.hpp"
+#include "nobion/devices/proxr_board_sim.hpp"
+#include "nobion/experiment/flight_recorder_wiring.hpp"
+#include "nobion/transport/factory.hpp"
 
 namespace elctl {
 
-using namespace pychron;
+using namespace nobion;
 
 // Device models behind sim transports. Deques keep addresses stable because
 // transport hooks borrow them.
@@ -45,6 +51,13 @@ struct Line::Sims {
       model.pressure = [](int channel) -> std::optional<double> { return channel * 1e-9; };
       return maxigauge_sim_hook(std::move(model));
     }
+    if (driver_kind == "gp_microion") {
+      // As the MaxiGauge: sensor n reads n * 1e-9, at the driver's address.
+      MicroIonSimModel model;
+      model.address = static_cast<int>(driver.options["address"].value<std::int64_t>().value_or(1));
+      model.pressure = [](int channel) -> std::optional<double> { return channel * 1e-9; };
+      return microion_sim_hook(std::move(model));
+    }
     return {};  // silent wire: the driver sees timeouts
   }
 };
@@ -60,11 +73,26 @@ Result<std::unique_ptr<Line>> Line::build(config::SystemConfig config, LineOptio
   std::unique_ptr<Line> line(new Line(std::move(config)));
   const auto& cfg = line->config_;
 
-  // Logging must never stop start-up: warn and carry on without a hub.
-  if (auto hub = LogHub::create(cfg.logging, line->clock_, &line->bus_)) {
+  // The process hub (made by main()) when there is one; the line's own bus
+  // is attached to it for the line's life. Logging must never stop start-up:
+  // warn and carry on without a hub.
+  if (auto process_hub = process_log_hub()) {
+    line->bus_attachment_.emplace(process_hub->attach_bus(line->bus_));
+    line->log_hub_ = std::move(process_hub);
+  } else if (auto hub = LogHub::create(cfg.logging, line->clock_, &line->bus_)) {
     line->log_hub_ = std::move(*hub);
+    say_previous_session(*line->log_hub_, std::cerr);
   } else {
     std::fprintf(stderr, "elctl: logging disabled: %s\n", hub.error().what.c_str());
+  }
+  line->core_events_.emplace(line->bus_);
+  line->systems_events_.emplace(line->bus_);
+  line->experiment_events_.emplace(line->bus_);
+  if (line->log_hub_) {
+    line->flight_recorder_.emplace(*line->log_hub_, line->bus_);
+    line->flight_recorder_subs_ = experiment::wire_flight_recorder(line->bus_, *line->flight_recorder_);
+    line->hang_monitor_.emplace();
+    line->hang_monitor_->attach(*line->log_hub_, *line->flight_recorder_, line->bus_, &line->clock_);
   }
 
   if (options.trace.enabled()) {
@@ -85,6 +113,8 @@ Result<std::unique_ptr<Line>> Line::build(config::SystemConfig config, LineOptio
     context.bus = &line->bus_;
     context.trace_dir = options.trace_dir.string();
     context.log_hub = line->log_hub_;
+    context.endpoints = options.sim_endpoints.get();
+    if (line->hang_monitor_) context.hang_monitor = &*line->hang_monitor_;
     if (tc.kind == config::TransportKind::Sim) {
       // The first driver on the wire decides which device model answers.
       auto driver = std::find_if(cfg.drivers.begin(), cfg.drivers.end(),
@@ -99,7 +129,7 @@ Result<std::unique_ptr<Line>> Line::build(config::SystemConfig config, LineOptio
   for (const auto& [name, dc] : cfg.drivers) {
     Transport* transport = line->transport(dc.transport);
     if (!transport) return fail(ErrorKind::Config, "unknown transport '" + dc.transport + "'", name);
-    auto device = DriverRegistry::global().create(dc, *transport, &line->clock_);
+    auto device = DriverRegistry::global().create(dc, *transport, &line->clock_, nullptr, &line->bus_);
     if (!device) return fail(device.error());
     line->devices_.emplace_back(name, std::move(*device));
   }
@@ -177,7 +207,7 @@ Result<double> Line::read_gauge(const std::string& name) {
 
 Result<void> Line::start_scan(Duration interval) {
   stop_scan();
-  // With the hub, scan failures also reach pychron.log.
+  // With the hub, scan failures also reach nobion.log.
   scheduler_ = std::make_unique<Scheduler>(clock_, &bus_, Scheduler::Options{}, log_hub_);
   scanner_ = std::make_unique<GaugeScanner>(*scheduler_, bus_, clock_);
   for (const auto& g : config_.gauges) {

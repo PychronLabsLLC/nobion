@@ -14,7 +14,7 @@
 // the store, another source's) has no place in the walk. The analysis is
 // then built from the chosen payloads by the function the Data browser uses
 // for the heads (processing::analysis_from_store) and reduced the same way
-// (processing::reduce_analysis), so nothing of the reduction is repeated here.
+// (arar::reduce_with_arar), so nothing of the reduction is repeated here.
 //
 // Reference data (flux, production, chronology, gains) comes from another
 // source, whose walk cannot be compared with this one; it is taken as of the
@@ -63,13 +63,17 @@
 #include <vector>
 
 #include "import_impl.hpp"
-#include "pychron/processing/reduced.hpp"
-#include "pychron/processing/store_source.hpp"
+#include "nobion/arar/analysis_data.hpp"
+#include "nobion/arar/reduce.hpp"
+#include "nobion/arar/store_loader.hpp"
+#include "nobion/processing/reduced.hpp"
+#include "nobion/processing/store_source.hpp"
 
 namespace elctl::import_detail {
 
-namespace ingest = pychron::ingest;
-namespace processing = pychron::processing;
+namespace ingest = nobion::ingest;
+namespace processing = nobion::processing;
+namespace arar = nobion::arar;
 
 namespace {
 
@@ -84,7 +88,7 @@ constexpr P::Kind kReductionKinds[] = {P::Kind::Intercepts, P::Kind::Baselines, 
 class AgeAsOf {
  public:
   AgeAsOf(P::IStore& store, P::Uuid source, ingest::ISourceAdapter& adapter,
-          pychron::reduction::ConstantsPreset constants)
+          nobion::reduction::ConstantsPreset constants)
       : store_(store), source_(source), adapter_(adapter), constants_(constants) {}
 
   Result<ParityAge> operator()(P::Uuid analysis, const ingest::AsOf& as_of) const {
@@ -187,27 +191,28 @@ class AgeAsOf {
       parts.refs.push_back(std::move(**production));
     }
 
-    auto built = processing::analysis_from_store(parts);
+    auto built = processing::analysis_from_store(parts, arar::store_extension_loader());
     if (!built) return no("not_reducible");
-    if (!built->context.flux) return no("no_j");
-    if (!built->context.production) return no("no_production");
-    if (built->context.chronology.empty()) return no("no_chronology");
-    processing::ReductionSettings reduction;
+    const arar::ArArAnalysisData* references = arar::analysis_data_of(*built);
+    if (references == nullptr || !references->flux) return no("no_j");
+    if (!references->production) return no("no_production");
+    if (references->chronology.empty()) return no("no_chronology");
+    arar::ArArSettings reduction;
     reduction.preset = constants_;
-    const auto reduced =
-        processing::reduce_analysis(std::make_shared<const processing::Analysis>(std::move(*built)), reduction);
-    if (!reduced || !reduced->arar) return no("not_reducible");
-    if (!reduced->arar->ages) return no("age_undefined");
+    const auto reduced = arar::reduce_with_arar(std::make_shared<const processing::Analysis>(std::move(*built)), reduction);
+    const arar::ArArReduced* ar = reduced ? arar::reduced_of(*reduced) : nullptr;
+    if (!ar) return no("not_reducible");
+    if (!ar->arar.ages) return no("age_undefined");
     // Both errors: the verifier compares the one the legacy file stored.
-    const auto& age = reduced->arar->ages->age;                // J without its error
-    const auto& with_j = reduced->arar->ages->age_w_j_err;
+    const auto& age = ar->arar.ages->age;                // J without its error
+    const auto& with_j = ar->arar.ages->age_w_j_err;
     if (!std::isfinite(age.nominal()) || !std::isfinite(age.std_dev()) || !std::isfinite(with_j.std_dev()))
       return no("age_undefined");
     ingest::ComputedAge computed;
     computed.age = age.nominal();
     computed.age_err = age.std_dev();
     computed.age_err_w_j = with_j.std_dev();
-    computed.basis = "constants=" + std::string(pychron::reduction::to_string(constants_));
+    computed.basis = "constants=" + std::string(nobion::reduction::to_string(constants_));
     return ParityAge{std::move(computed)};
   }
 
@@ -289,13 +294,13 @@ class AgeAsOf {
   // reference object -> its revisions in chain order; shared like places_
   std::shared_ptr<std::map<P::Uuid, std::vector<P::RevisionInfo>>> chains_ =
       std::make_shared<std::map<P::Uuid, std::vector<P::RevisionInfo>>>();
-  pychron::reduction::ConstantsPreset constants_;
+  nobion::reduction::ConstantsPreset constants_;
 };
 
 }  // namespace
 
 ingest::AgeFn make_age_fn(P::IStore& store, P::Uuid source, ingest::ISourceAdapter& adapter,
-                          pychron::reduction::ConstantsPreset constants) {
+                          nobion::reduction::ConstantsPreset constants) {
   return ingest::AgeFn(AgeAsOf(store, source, adapter, constants));
 }
 

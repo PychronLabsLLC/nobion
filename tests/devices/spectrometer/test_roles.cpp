@@ -1,12 +1,12 @@
 #include <gtest/gtest.h>
 
-#include "pychron/devices/spectrometer/roles.hpp"
+#include "nobion/devices/spectrometer/roles.hpp"
 #include "spectrometer/fakes.hpp"
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 
 TEST(Range, ContainsAndClamp) {
   Limits l{-1.0, 2.0};

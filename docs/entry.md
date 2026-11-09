@@ -1,7 +1,7 @@
 # Sample and package entry
 
 How to enter samples and packages (irradiations) in the DVC store, from
-`pychron-ui` or `elctl entry`. The design is
+`nobion` or `elctl entry`. The design is
 `superpowers/specs/2026-10-04-sample-irradiation-entry-design.md`.
 
 ## Before you start
@@ -58,9 +58,9 @@ search by name).
   is saved. The row turns yellow, and its tooltip shows their values.
   Reload, then edit again.
 - New sample: fill in the form above the table, then Add, then Save.
-  - The PI is "Last" or "Last, F". Names that do not fit that pattern, such as
-    a lab name, can be allowed in Entry Settings.
-  - A PI, project or material that does not exist yet is created with the
+  - The PI is chosen from the list, or made with New PI… (see
+    [Principal investigators](#principal-investigators)).
+  - A project or material that does not exist yet is created with the
     sample.
   - A warning appears when a similarly named sample exists in any project
     ("FC-2", "fc 2" and "FC_2" all count as the same name).
@@ -70,8 +70,9 @@ Entry > Import Samples… (or Import… in the Samples window) reads a CSV file,
 or rows pasted from a spreadsheet.
 
 1. Write Template… saves a CSV that has every column.
-2. Columns are matched by name, and common aliases work (`pi`, `latitude`,
-   `grain size`, ...). Change the match in the mapping table if needed.
+2. Columns are matched by name, and common aliases work (`pi`, `orcid`,
+   `latitude`, `grain size`, ...). Change the match in the mapping table if
+   needed.
 3. The preview gives each row a state:
 
    | State | Meaning |
@@ -83,9 +84,62 @@ or rows pasted from a spreadsheet.
 
 4. While any row is in error, nothing can be imported. Export Errors… saves
    those rows to fix them.
+5. A row whose PI has namesakes waits for an answer. Import asks once for each
+   name, and the answer is used for every row of that name.
 
 UTM coordinates (easting, northing, zone such as `13S`) are converted to
 latitude and longitude. A zone letter before N means the southern hemisphere.
+
+## Principal investigators
+
+A PI is a person or an organisation. A lab or a group is an organisation, not
+a person's name; there is no list of allowed names.
+
+- A person has a family name and a given name in full, as written ("María
+  José", "Ruiz García"), or what is known of the given name (an initial).
+  An organisation has its name and no given name.
+- ORCID (a person's, `0000-0002-1825-0097`) and ROR (the affiliation's, or the
+  organisation's own, `03yrm5c26`) are optional. A URL is cut down to the
+  identifier, and a value that is not well formed is refused, with the value
+  quoted. They are not looked up on the network. Two PIs cannot have one
+  ORCID.
+- Two PIs may have the same name. A PI is its uuid, not what it is called.
+- A person shows as "Jake Ross", or "J Ross" with an initial, or "Ross" with
+  no given name; an organisation as its name. Lists are sorted by family name,
+  then given name. Where two PIs show the same text, a list adds the
+  affiliation, or else the last four characters of the ORCID, in brackets:
+  "J Ross (NMT)". A store migrated from before this shows "J Ross" where it
+  showed "Ross, J".
+
+In the Samples window, New PI… asks for each part in its own field, and
+nothing is parsed. Edit PI… changes a stored one, its kind included.
+
+The columns of a sheet:
+
+| Column | Meaning |
+|---|---|
+| `principal_investigator` | A person as "Family, Given", the given name kept in full. Without a comma it is a family name alone, so "Jake Ross" is a family name of two words. An organisation's name when `principal_investigator_kind` says so. |
+| `principal_investigator_kind` | Optional. `person` (the default) or `organisation`. An organisation with an ORCID or a given name is refused. |
+| `principal_investigator_orcid` | Optional. Matched first: the row is that PI, whatever the name cell says, and a family name that differs from that PI's is an error naming both. |
+| `principal_investigator_uuid` | Optional. The PI itself, with no matching at all; a uuid that matches nothing is an error. |
+
+**Namesakes.** A person named without an ORCID or a uuid is not guessed.
+
+- One stored PI of exactly that family name and given name is that PI, so a
+  sheet imported twice adds nothing.
+- Otherwise, when stored PIs share the family name and the given initial (or
+  the cell gives no given name, and any person of that family name could be
+  meant), the row stops and asks. Which PI? lists each with its affiliation,
+  ORCID and projects: This One, or Another Person.
+- New PI… asks the same question when you add someone whose name is close to
+  a stored PI's, unless an ORCID you gave is already stored: then it is that PI.
+- `elctl entry samples import` cannot ask: it fails, lists the candidates (name,
+  affiliation, ORCID, uuid), and writes nothing. Add a
+  `principal_investigator_orcid` or `principal_investigator_uuid` column.
+
+A legacy import has nobody to ask. "Ross, J" becomes the stored Ross whose
+given name starts with J; with none, a new person; with several, the oldest,
+and the import report names the others.
 
 ## Packages
 
@@ -150,7 +204,6 @@ Entry > Holders… lists irradiation holders and imports legacy holder files
 Entry > Entry Settings… holds the lab's settings, which every client shares:
 
 - the package name prefix and the kind new packages start as
-- PI names allowed besides "Last, F"
 - the monitor sample and material
 - the estimated J per hour of dose
 - whether positions without an identifier need a packet
@@ -171,9 +224,9 @@ elctl entry positions import NM-301 positions.csv --db ...
 elctl entry identifiers generate NM-301 --dry-run --db ...
 elctl entry identifiers generate NM-301 --db ...
 elctl entry package show NM-301 --csv --db ...
-elctl entry settings set pi_names_allowed '["NMGRL Lab"]' --db ...
-elctl entry seed ~/Pychron/argus/seed.toml --dry-run --db ...
-elctl entry seed ~/Pychron/argus/seed.toml --db ...
+elctl entry settings set package_prefix NM- --db ...
+elctl entry seed ~/Nobion/argus/seed.toml --dry-run --db ...
+elctl entry seed ~/Nobion/argus/seed.toml --db ...
 ```
 
 Exit codes:

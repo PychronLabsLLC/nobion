@@ -1,6 +1,9 @@
 // Commands that never touch a transport: validate, canvas-check,
 // list-drivers, list, help and usage errors.
 
+#include <fstream>
+#include <iterator>
+
 #include "elctl_fixture.hpp"
 
 namespace elctl::testing {
@@ -177,7 +180,7 @@ TEST_F(ElctlTest, MissingArgumentIsUsageError) {
 }
 
 TEST_F(ElctlTest, ConditionalsCheckExampleSystemFile) {
-  const auto examples = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR);
+  const auto examples = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR);
   auto o = run({"conditionals-check", (examples / "conditionals" / "system.toml").string(), "--spectrometer",
                 (examples / "spectrometer.sim-integrated.toml").string()});
   EXPECT_EQ(o.code, 0) << o.err;
@@ -186,7 +189,7 @@ TEST_F(ElctlTest, ConditionalsCheckExampleSystemFile) {
 }
 
 TEST_F(ElctlTest, ConditionalsCheckReportsUnknownNamesAndBadSyntax) {
-  const auto examples = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR);
+  const auto examples = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR);
   write("bad.toml", "[[terminations]]\ncheck = \"gauge.nope.pressure > 1 or IC9.inactive or Ar99 > 1\"\n");
   auto o = run({"conditionals-check", path("bad.toml").string(), "--spectrometer",
                 (examples / "spectrometer.sim-integrated.toml").string()});
@@ -197,6 +200,47 @@ TEST_F(ElctlTest, ConditionalsCheckReportsUnknownNamesAndBadSyntax) {
   write("syntax.toml", "[[terminations]]\ncheck = \"Ar40 >\"\n");
   EXPECT_EQ(run({"conditionals-check", path("syntax.toml").string()}).code, 1);
   EXPECT_EQ(run({"conditionals-check"}).code, 2);
+}
+
+class Cli : public ElctlTest {};
+
+// The domain a command runs on: the install's `domain`, or --domain over it.
+// What a session's domain is shows in `flux`, which runs on arar only and
+// names the domain it was refused on.
+TEST_F(Cli, DomainFlagAndInstallEntry) {
+  // An id no domain has is a usage error that names the ones there are.
+  const Outcome unknown = run({"--domain", "u_pb", "list-drivers"});
+  EXPECT_EQ(unknown.code, kUsage);
+  EXPECT_TRUE(contains(unknown.err, "unknown domain 'u_pb'")) << unknown.err;
+  EXPECT_TRUE(contains(unknown.err, "known: arar, noble_gas")) << unknown.err;
+  EXPECT_EQ(run({"--domain"}).code, kUsage);
+
+  // A known one is accepted for a command that needs none.
+  EXPECT_EQ(run({"--domain", "noble_gas", "list-drivers"}).code, kOk);
+  EXPECT_EQ(run({"--domain", "arar", "list-drivers"}).code, kOk);
+
+#ifdef NOBION_ELCTL_HAS_STORE
+  const std::string refused = "elctl flux: needs domain arar (this install: ";
+  const Outcome flag = run_raw({"--domain", "noble_gas", "flux", "fit", "NM-300", "A", "--db", "sqlite::memory:"});
+  EXPECT_EQ(flag.code, kUsage);
+  EXPECT_TRUE(contains(flag.err, refused + "noble_gas)")) << flag.err;
+
+  // The install's entry names the domain; --domain overrides it.
+  ASSERT_EQ(run_raw({"init", "data-reduction", "--root", path("lab").string(), "--name", "lab", "--yes"}).code, kOk);
+  {
+    std::ifstream in(path("site.toml"));
+    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    const auto at = text.find("domain = ");
+    ASSERT_NE(at, std::string::npos) << text;
+    text.replace(at, text.find('\n', at) - at, "domain = 'noble_gas'");
+    std::ofstream(path("site.toml"), std::ios::trunc) << text;
+  }
+  const Outcome entry = run_raw({"flux", "fit", "NM-300", "A", "--db", "sqlite::memory:"});
+  EXPECT_EQ(entry.code, kUsage);
+  EXPECT_TRUE(contains(entry.err, refused + "noble_gas)")) << entry.err;
+  const Outcome overridden = run_raw({"--domain", "arar", "flux", "fit", "NM-300", "A", "--db", "sqlite::memory:"});
+  EXPECT_FALSE(contains(overridden.err, "needs domain arar")) << overridden.err;
+#endif
 }
 
 }  // namespace

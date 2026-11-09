@@ -1,9 +1,9 @@
 {
-  "uid": "pychron-run-operations",
-  "title": "Pychron / Run operations",
+  "uid": "nobion-run-operations",
+  "title": "Nobion / Run operations",
   "description": "What the queue is doing, how runs end and how long each phase takes.",
   "tags": [
-    "pychron"
+    "nobion"
   ],
   "schemaVersion": 39,
   "version": 1,
@@ -34,7 +34,7 @@
           "uid": "${datasource}"
         },
         "query": {
-          "query": "label_values(pychron_build_info, instrument)",
+          "query": "label_values(nobion_build_info, instrument)",
           "refId": "instrument"
         },
         "refresh": 2,
@@ -71,7 +71,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_queue_active{instrument=\"$instrument\"}",
+          "expr": "nobion_queue_active{instrument=\"$instrument\"}",
           "legendFormat": "",
           "instant": true
         }
@@ -133,7 +133,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_queue_runs{instrument=\"$instrument\",status=\"done\"} / ignoring(status) clamp_min(pychron_queue_runs{instrument=\"$instrument\",status=\"total\"}, 1)",
+          "expr": "nobion_queue_runs{instrument=\"$instrument\",status=\"done\"} / ignoring(status) clamp_min(nobion_queue_runs{instrument=\"$instrument\",status=\"total\"}, 1)",
           "legendFormat": "done",
           "instant": true
         }
@@ -191,7 +191,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_queue_runs{instrument=\"$instrument\",status=\"done\"}",
+          "expr": "nobion_queue_runs{instrument=\"$instrument\",status=\"done\"}",
           "legendFormat": "done",
           "instant": true
         },
@@ -201,7 +201,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_queue_runs{instrument=\"$instrument\",status=\"total\"}",
+          "expr": "nobion_queue_runs{instrument=\"$instrument\",status=\"total\"}",
           "legendFormat": "total",
           "instant": true
         }
@@ -247,7 +247,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_last_run_finished_age_seconds{instrument=\"$instrument\"}",
+          "expr": "nobion_last_run_finished_age_seconds{instrument=\"$instrument\"}",
           "legendFormat": "",
           "instant": true
         }
@@ -304,7 +304,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(increase(pychron_runs_started_total{instrument=\"$instrument\"}[$__range]))",
+          "expr": "sum(increase(nobion_runs_started_total{instrument=\"$instrument\"}[$__range]))",
           "legendFormat": "",
           "instant": true
         }
@@ -351,7 +351,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(increase(pychron_run_save_errors_total{instrument=\"$instrument\"}[$__range]))",
+          "expr": "sum(increase(nobion_run_save_errors_total{instrument=\"$instrument\"}[$__range]))",
           "legendFormat": "",
           "instant": true
         }
@@ -411,7 +411,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_executor_state{instrument=\"$instrument\"} == 1",
+          "expr": "nobion_executor_state{instrument=\"$instrument\"} == 1",
           "legendFormat": "{{state}}"
         }
       ],
@@ -469,7 +469,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (state, truncated) (increase(pychron_runs_finished_total{instrument=\"$instrument\"}[$__rate_interval]))",
+          "expr": "sum by (state, truncated) (increase(nobion_runs_finished_total{instrument=\"$instrument\"}[$__rate_interval]))",
           "legendFormat": "{{state}} (truncated: {{truncated}})"
         }
       ],
@@ -520,7 +520,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, state) (rate(pychron_run_state_duration_seconds_bucket{instrument=\"$instrument\"}[6h])))",
+          "expr": "histogram_quantile(0.5, sum by (le, state) (rate(nobion_run_state_duration_seconds_bucket{instrument=\"$instrument\"}[6h])))",
           "legendFormat": "{{state}} median"
         },
         {
@@ -529,7 +529,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, state) (rate(pychron_run_state_duration_seconds_bucket{instrument=\"$instrument\"}[6h])))",
+          "expr": "histogram_quantile(0.95, sum by (le, state) (rate(nobion_run_state_duration_seconds_bucket{instrument=\"$instrument\"}[6h])))",
           "legendFormat": "{{state}} 95%"
         }
       ],
@@ -577,7 +577,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (end) (increase(pychron_queues_ended_total{instrument=\"$instrument\"}[$__rate_interval]))",
+          "expr": "sum by (end) (increase(nobion_queues_ended_total{instrument=\"$instrument\"}[$__rate_interval]))",
           "legendFormat": "{{end}}"
         }
       ],
@@ -628,7 +628,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (kind, level) (increase(pychron_conditional_trips_total{instrument=\"$instrument\"}[$__rate_interval]))",
+          "expr": "sum by (kind, level) (increase(nobion_conditional_trips_total{instrument=\"$instrument\"}[$__rate_interval]))",
           "legendFormat": "{{kind}} ({{level}})"
         }
       ],
@@ -679,7 +679,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (block) (increase(pychron_measurement_blocks_total{instrument=\"$instrument\",ok=\"false\"}[$__rate_interval]))",
+          "expr": "sum by (block) (increase(nobion_measurement_blocks_total{instrument=\"$instrument\",ok=\"false\"}[$__rate_interval]))",
           "legendFormat": "{{block}}"
         }
       ],
@@ -730,7 +730,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (reason) (increase(pychron_executor_waits_total{instrument=\"$instrument\"}[$__rate_interval]))",
+          "expr": "sum by (reason) (increase(nobion_executor_waits_total{instrument=\"$instrument\"}[$__rate_interval]))",
           "legendFormat": "{{reason}}"
         }
       ],
@@ -781,7 +781,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (channel, event, ok) (increase(pychron_notifications_total{instrument=\"$instrument\"}[$__rate_interval]))",
+          "expr": "sum by (channel, event, ok) (increase(nobion_notifications_total{instrument=\"$instrument\"}[$__rate_interval]))",
           "legendFormat": "{{event}} via {{channel}} (delivered: {{ok}})"
         }
       ],
@@ -832,7 +832,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (kind, state) (increase(pychron_spectrometer_jobs_total{instrument=\"$instrument\"}[$__rate_interval]))",
+          "expr": "sum by (kind, state) (increase(nobion_spectrometer_jobs_total{instrument=\"$instrument\"}[$__rate_interval]))",
           "legendFormat": "{{kind}} {{state}}"
         }
       ],
@@ -884,7 +884,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_spectrometer_job_active{instrument=\"$instrument\"}",
+          "expr": "nobion_spectrometer_job_active{instrument=\"$instrument\"}",
           "legendFormat": "running"
         },
         {
@@ -893,7 +893,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "pychron_spectrometer_job_progress_ratio{instrument=\"$instrument\"}",
+          "expr": "nobion_spectrometer_job_progress_ratio{instrument=\"$instrument\"}",
           "legendFormat": "progress"
         }
       ],
@@ -943,7 +943,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, kind) (rate(pychron_spectrometer_job_duration_seconds_bucket{instrument=\"$instrument\"}[6h])))",
+          "expr": "histogram_quantile(0.5, sum by (le, kind) (rate(nobion_spectrometer_job_duration_seconds_bucket{instrument=\"$instrument\"}[6h])))",
           "legendFormat": "{{kind}} median"
         },
         {
@@ -952,7 +952,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, kind) (rate(pychron_spectrometer_job_duration_seconds_bucket{instrument=\"$instrument\"}[6h])))",
+          "expr": "histogram_quantile(0.95, sum by (le, kind) (rate(nobion_spectrometer_job_duration_seconds_bucket{instrument=\"$instrument\"}[6h])))",
           "legendFormat": "{{kind}} 95%"
         }
       ],
@@ -978,6 +978,220 @@
         }
       },
       "description": "Over the last six hours, on the line's clock. Buckets are coarse: read these as about, not exactly."
+    },
+    {
+      "id": 18,
+      "title": "Queue holding",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "nobion_executor_holding{instrument=\"$instrument\"}",
+          "legendFormat": "holding"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "fillOpacity": 30
+          },
+          "decimals": 0,
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "1 while the queue holds: it waits for a link the next run needs, or for the spool, before it starts that run."
+    },
+    {
+      "id": 19,
+      "title": "Why the queue held",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 42,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (reason) (increase(nobion_executor_holds_total{instrument=\"$instrument\"}[$__rate_interval]))",
+          "legendFormat": "{{reason}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "stacking": {
+              "mode": "normal"
+            }
+          },
+          "decimals": 0,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Holds, by why: a link the next run needs was down (link), the spool asked to wait (spool), or the run before failed for a link (run_failed)."
+    },
+    {
+      "id": 20,
+      "title": "Gaps in the readings",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 42,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(increase(nobion_measurement_gaps_total{instrument=\"$instrument\"}[$__rate_interval]))",
+          "legendFormat": "gaps"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "stacking": {
+              "mode": "normal"
+            }
+          },
+          "decimals": 0,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Silences of the spectrometer during a measurement, waited out or ending the run. The record of each run says where they were."
+    },
+    {
+      "id": 21,
+      "title": "Waiting to be sent",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 49,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "nobion_spool_pending{instrument=\"$instrument\"}",
+          "legendFormat": "records in the spool"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "nobion_notifications_outbox{instrument=\"$instrument\"}",
+          "legendFormat": "notifications in the outbox"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "fillOpacity": 10
+          },
+          "decimals": 0,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Records the store has not taken yet, and notifications no channel has taken yet. Both are sent again on their own; a line that keeps rising is a store or a mail server that is down."
     }
   ]
 }

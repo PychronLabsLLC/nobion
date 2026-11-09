@@ -5,15 +5,15 @@
 #include <string>
 #include <string_view>
 
-#include "pychron/systems/spectrometer/config_validate.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
+#include "nobion/systems/spectrometer/config_validate.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
 
-namespace pychron::spectrometer::cfg {
+namespace nobion::spectrometer::cfg {
 namespace {
 
 namespace fs = std::filesystem;
 
-const fs::path kExamples{PYCHRON_EXAMPLE_CONFIGS_DIR};
+const fs::path kExamples{NOBION_EXAMPLE_CONFIGS_DIR};
 
 std::string dump(const std::vector<config::Diagnostic>& ds) {
   std::string out;
@@ -37,7 +37,7 @@ class TempDir : public ::testing::Test {
  protected:
   void SetUp() override {
     root_ = fs::temp_directory_path() /
-            ("pychron_spec_cfg_" + std::string(::testing::UnitTest::GetInstance()->current_test_info()->name()));
+            ("nobion_spec_cfg_" + std::string(::testing::UnitTest::GetInstance()->current_test_info()->name()));
     fs::remove_all(root_);
     fs::create_directories(root_);
   }
@@ -227,4 +227,4 @@ TEST_F(SpectrometerDataDirFs, LocalOverrideIsMerged) {
 }
 
 }  // namespace
-}  // namespace pychron::spectrometer::cfg
+}  // namespace nobion::spectrometer::cfg

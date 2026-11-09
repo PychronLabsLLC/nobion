@@ -3,10 +3,10 @@
 #include <filesystem>
 #include <fstream>
 
-#include "pychron/experiment/model/queue_file.hpp"
-#include "pychron/experiment/model/queue_toml.hpp"
+#include "nobion/experiment/model/queue_file.hpp"
+#include "nobion/experiment/model/queue_toml.hpp"
 
-using namespace pychron::experiment;
+using namespace nobion::experiment;
 
 namespace {
 const IdentifierRules kIds = IdentifierRules::defaults();
@@ -139,7 +139,7 @@ TEST(QueueFile, ConditionalTablesParse) {
 }
 
 TEST(QueueFile, SaveAndLoadFile) {
-  const auto dir = std::filesystem::temp_directory_path() / "pychron_queue_file_test";
+  const auto dir = std::filesystem::temp_directory_path() / "nobion_queue_file_test";
   std::filesystem::create_directories(dir);
   const auto path = (dir / "experiment.toml").string();
   const QueueSpec q = sample_queue();
@@ -153,5 +153,5 @@ TEST(QueueFile, SaveAndLoadFile) {
 TEST(QueueFile, LoadMissingFileIsIoError) {
   auto r = load_queue_file("/nonexistent/dir/experiment.toml", kIds);
   ASSERT_FALSE(r);
-  EXPECT_EQ(r.error().kind, pychron::ErrorKind::Io);
+  EXPECT_EQ(r.error().kind, nobion::ErrorKind::Io);
 }

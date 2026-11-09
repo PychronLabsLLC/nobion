@@ -1,13 +1,13 @@
 # Publishing to EarthBank
 
-How to get 40Ar/39Ar results out of pychron and into EarthBank (AuScope's
-AusGeochem data platform), from `pychron-ui` or `elctl earthbank`: by
+How to get 40Ar/39Ar results out of nobion and into EarthBank (AuScope's
+AusGeochem data platform), from `nobion` or `elctl earthbank`: by
 uploading them, or by writing EarthBank's own import workbooks. The code is
 `libs/earthbank`; `elctl earthbank help` and the
 [elctl reference](user/08-elctl-reference.md#earthbank-workbooks) have every
 flag. The last part of this page is for whoever maintains the code.
 
-Pychron cannot change or remove a record on EarthBank. Everything below
+Nobion cannot change or remove a record on EarthBank. Everything below
 follows from that: it shows what it will send before it sends it, it never
 sends a record twice, and when it cannot tell whether a record arrived it
 stops and asks you.
@@ -19,7 +19,7 @@ stops and asks you.
 - **A data package you may write to.** Everything on EarthBank (samples,
   data points, ages) is kept in a data package. Your account must be an
   editor or supervisor of the one you upload to. A package you make from
-  pychron is yours, so it can always be written to.
+  nobion is yours, so it can always be written to.
 - **Your institution's id on EarthBank**, a number. It is used to list your
   institution's packages and to make new ones under it. Ask your EarthBank
   administrator if you do not know it.
@@ -27,7 +27,7 @@ stops and asks you.
   data point refers to one, and it must already exist there.
 
 To write the workbooks and import them on the website you need none of these
-in pychron, only a login on the website.
+in nobion, only a login on the website.
 
 ## Set up once
 
@@ -57,9 +57,9 @@ elctl earthbank packages --create "Ar-Ar results 2031"
 ```
 
 The profiles are one file, written when you press OK or Apply:
-`~/Library/Application Support/Pychron/earthbank/profiles.toml` on macOS,
-`%APPDATA%\Pychron\earthbank\profiles.toml` on Windows,
-`~/.config/pychron/earthbank/profiles.toml` on Linux. **A password is never
+`~/Library/Application Support/Nobion/earthbank/profiles.toml` on macOS,
+`%APPDATA%\Nobion\earthbank\profiles.toml` on Windows,
+`~/.config/nobion/earthbank/profiles.toml` on Linux. **A password is never
 in it.** The operating system keeps it: the login keychain on macOS, the
 Credential Manager on Windows, the secret service on Linux. The page says
 which under the password field. Where there is none it says `Passwords are
@@ -69,18 +69,34 @@ profile and pressing OK removes its password too.
 Profiles from legacy Pychron are brought over, without their passwords, with
 `elctl earthbank import-profiles <its preferences file>`.
 
-## Publish from the data browser
+## Publish from the Publish dialog
 
-1. **View > Data**. Filter to the analyses you want and select them. Publish
-   acts on what is selected and nothing else.
-2. Press **Publish** on the toolbar. The dialog lists one row for each
-   sample.
-3. Read the rows (next section) and fill in **Analytical set-up**.
-4. Choose the **Action** and press **Run**:
-   - **Pre-flight** signs in and asks EarthBank whether it knows every term
-     the upload would send. Nothing is written. Do this first.
-   - **Export xlsx** writes the workbooks into a folder. No account needed.
-   - **Upload** sends the records.
+EarthBank is a tab of the Publish dialog, which works on a release. Two ways in:
+
+1. **View > Data**. Filter to the analyses you want, select them and press
+   **Publish** on the toolbar. The dialog opens on a new release made of
+   exactly those analyses. Publish acts on what is selected and nothing else.
+   The button is off on an install without a database.
+2. **View > Publish…**, select a release, press **Publish…**. The dialog opens
+   on that release.
+
+In the dialog tick **EarthBank** under Destinations; its tab holds the
+account, the package, the action, the Analytical set-up and one row for each
+sample. Choose the action and press **Run**:
+
+- **Pre-flight** signs in and asks EarthBank whether it knows every term the
+  upload would send. Nothing is written. Do this first.
+- **Export xlsx** writes the workbooks into a folder. No account needed.
+- **Upload** sends the records. It is offered only for a release that is
+  published, public and not under embargo: EarthBank has no embargo or
+  versioning, so a release is the citable unit and EarthBank one more place
+  it is listed. When Store is ticked in the same run, the release is
+  published first and the upload checked again after.
+
+For a new release the per-sample table fills while the run is under way, from
+what you chose before for each sample name, or from the rule's defaults. To
+review the choices first, make the release (a run with no destination
+ticked), then open the dialog on it.
 
 ### The rows
 
@@ -88,9 +104,9 @@ Profiles from legacy Pychron are brought over, without their passwords, with
 |---|---|
 | Sample, Analyses | The sample's name and how many of the selected analyses are its. |
 | Interpretation | What the age dates, by EarthBank's name for it (`Eruption age`, ...). Empty is sent as `Unknown`. Pre-flight says if EarthBank does not know the name. |
-| Preferred age | The one age reported for the sample. The first choice is the rule's, with the age it gives; under it is each kind pychron can compute for the sample, with its age and one-sigma uncertainty in Ma. A kind that cannot be computed is greyed, and hovering says why. |
+| Preferred age | The one age reported for the sample. The first choice is the rule's, with the age it gives; under it is each kind nobion can compute for the sample, with its age and one-sigma uncertainty in Ma. A kind that cannot be computed is greyed, and hovering says why. |
 | Flux monitor | The monitor found on the analyses. Type another to replace it. |
-| Notes | After a pre-flight, the terms of this sample EarthBank does not know. Hover for what pychron noted while building the sample. |
+| Notes | After a pre-flight, the terms of this sample EarthBank does not know. Hover for what nobion noted while building the sample. |
 
 **The rule for the age**: a sample with heating steps reports its plateau
 when it has one and its total gas (integrated) age when it has not; a sample
@@ -139,7 +155,7 @@ gave, and at the end one line for each sample:
 during an upload does the same.
 
 **In doubt.** A record sent twice is there twice and cannot be removed, so
-pychron does not guess. Two buttons appear under the run line. Open the data
+nobion does not guess. Two buttons appear under the run line. Open the data
 package on EarthBank's website and look for the record the message names:
 
 - it is there: type its id and press **It is there, with this id**;
@@ -171,13 +187,13 @@ not delete it, and finish an upload on the computer it was begun on.
 
 ```bash
 # what would be sent, and whether EarthBank knows every term
-elctl earthbank preflight --db sqlite:$HOME/pychron/data.db --sample MB-12
+elctl earthbank preflight --db sqlite:$HOME/nobion/data.db --sample MB-12
 
 # shows the account, the package and the records, and stops
-elctl earthbank upload --db sqlite:$HOME/pychron/data.db --sample MB-12 --overrides earthbank.toml
+elctl earthbank upload --db sqlite:$HOME/nobion/data.db --sample MB-12 --overrides earthbank.toml
 
 # the same, sent
-elctl earthbank upload --db sqlite:$HOME/pychron/data.db --sample MB-12 --overrides earthbank.toml --yes
+elctl earthbank upload --db sqlite:$HOME/nobion/data.db --sample MB-12 --overrides earthbank.toml --yes
 ```
 
 The overrides file says what the rows of the dialog say (interpretation,
@@ -225,7 +241,7 @@ analysis's apparent age is analytical, with its J sent beside it.
 The same values, with the same flags, are those of
 `elctl export --group-by sample --sigma 1`: see [export](export.md).
 
-**Left empty**, because pychron has nothing to fill it from: grain size,
+**Left empty**, because nobion has nothing to fill it from: grain size,
 K content, funding and literature, the kind of sample and how it was
 collected, the analysis scale, comments, and the beam size (it is recorded
 without a unit). An analysis without an age, or without all five argon
@@ -233,7 +249,7 @@ isotopes measured, is left out of its sample and counted in the sample's
 notes. A number that is not finite is not sent and is named there.
 
 **Names.** EarthBank keeps lists of what it knows: minerals, methods, decay
-constants, air ratios, flux monitors, interpretations. Pychron sends a term
+constants, air ratios, flux monitors, interpretations. Nobion sends a term
 as the id of its row in the list, looked up by name. The decay constant and
 air ratio are found from the values the reduction used; a flux monitor is
 found by its name together with its age or its paper (`FC-2 28.201 Ma`
@@ -293,12 +309,12 @@ skipped unless a person sets all four variables, and no build or CI job
 does:
 
 ```bash
-export PYCHRON_TEST_EARTHBANK_URL=https://...       # the service
-export PYCHRON_TEST_EARTHBANK_USER=...
-export PYCHRON_TEST_EARTHBANK_PASSWORD=...
-export PYCHRON_TEST_EARTHBANK_INSTITUTION=...        # the institution's id
-cmake --build --preset dev --target pychron_earthbank_live_tests
-build/dev/tests/earthbank_qt/pychron_earthbank_live_tests
+export NOBION_TEST_EARTHBANK_URL=https://...       # the service
+export NOBION_TEST_EARTHBANK_USER=...
+export NOBION_TEST_EARTHBANK_PASSWORD=...
+export NOBION_TEST_EARTHBANK_INSTITUTION=...        # the institution's id
+cmake --build --preset dev --target nobion_earthbank_live_tests
+build/dev/tests/earthbank_qt/nobion_earthbank_live_tests
 ```
 
 Run it before a release that touches `libs/earthbank` or `libs/earthbank_qt`,
@@ -311,7 +327,7 @@ skipped, saying which variables it wants.
 What it does, in order:
 
 1. Signs in and prints who the account is.
-2. Makes a data package `pychron-test-<UTC date-time>` and **prints its name
+2. Makes a data package `nobion-test-<UTC date-time>` and **prints its name
    and id before anything else**. If the process dies after this, that is
    the package to remove by hand on the website.
 3. Builds the two fixture samples (`tests/earthbank/analyses.hpp`: a
@@ -349,12 +365,12 @@ Not yet done. It is the owner's, with real credentials, and its outcome is
 written here (date, what differed, what was fixed).
 
 1. `elctl earthbank login`, then `elctl earthbank packages --create
-   "pychron check A"` and note the id.
+   "nobion check A"` and note the id.
 2. `elctl earthbank preflight` on one real sample. Correct `vocab.cpp` where
    a name differs and add the case to its test.
 3. `elctl earthbank export-xlsx` of that sample, and import the workbooks
    through the website into package A.
-4. `elctl earthbank packages --create "pychron check B"`, then
+4. `elctl earthbank packages --create "nobion check B"`, then
    `elctl earthbank upload ... --package <B> --yes` of the same sample.
 5. Compare the two data points on the website, field by field. They were
    made from one `Submission` by two routes and should agree.
@@ -363,7 +379,7 @@ written here (date, what differed, what was fixed).
 
 Also still the owner's: reading the API licence linked from legacy's README
 for any condition on clients (identification, rate limits). The client
-identifies itself as `pychron-cpp/<version>`.
+identifies itself as `nobion/<version>`.
 
 ## Replacing the fake's fixtures with captures
 
@@ -382,11 +398,11 @@ people and ids. To replace one with what the service really returns:
 ## A newer template from EarthBank
 
 The two workbooks in `libs/earthbank/templates/` are EarthBank's files and
-ship with pychron's installers. They are never edited, opened and saved, or
+ship with nobion's installers. They are never edited, opened and saved, or
 regenerated: the exporter copies one and fills rows, and everything else in
 the copy is the template's, byte for byte. A newer template replaces a file
 whole. Update its SHA-256 in `libs/earthbank/templates/README.md`, then run
 `ctest --preset dev -R 'Xlsx|Ooxml'`: the exporter finds columns by the
 field names in row 4 and lists by the template's own data validations, so a
-template that keeps both needs no code. `PYCHRON_EARTHBANK_TEMPLATES` names
+template that keeps both needs no code. `NOBION_EARTHBANK_TEMPLATES` names
 another folder of templates for a program that is already installed.

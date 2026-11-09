@@ -18,17 +18,17 @@
 #include <nlohmann/json.hpp>
 
 #include "fake_earthbank.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/http.hpp"
-#include "pychron/earthbank/journal.hpp"
-#include "pychron/earthbank/lookup.hpp"
-#include "pychron/earthbank/model.hpp"
-#include "pychron/earthbank/session.hpp"
-#include "pychron/earthbank/uploader.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/http.hpp"
+#include "nobion/earthbank/journal.hpp"
+#include "nobion/earthbank/lookup.hpp"
+#include "nobion/earthbank/model.hpp"
+#include "nobion/earthbank/session.hpp"
+#include "nobion/earthbank/uploader.hpp"
 #include "session_support.hpp"
 #include "upload_support.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 namespace fs = std::filesystem;
@@ -1144,4 +1144,4 @@ TEST(Uploader, TokenExpiryMidRunIsInvisible) {
 }
 
 }  // namespace
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

@@ -1,6 +1,6 @@
-#include "pychron/experiment/factory/special_runs.hpp"
+#include "nobion/experiment/factory/special_runs.hpp"
 
-namespace pychron::experiment {
+namespace nobion::experiment {
 
 std::vector<RunSpec> insert_frequency(const std::vector<RunSpec>& runs, const RunSpec& special, const Frequency& freq) {
   auto counts = [&](std::size_t i) {
@@ -30,4 +30,4 @@ std::vector<RunSpec> insert_frequency(const std::vector<RunSpec>& runs, const Ru
   return out;
 }
 
-}  // namespace pychron::experiment
+}  // namespace nobion::experiment

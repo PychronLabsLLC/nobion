@@ -1,20 +1,20 @@
-#include "pychron/setup/doctor.hpp"
-#include "pychron/setup/connection.hpp"
-#include "pychron/setup/installer.hpp"
+#include "nobion/setup/doctor.hpp"
+#include "nobion/setup/connection.hpp"
+#include "nobion/setup/installer.hpp"
 
 #include <fstream>
 #include <sstream>
 
 #include <toml++/toml.hpp>
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/process.hpp"
-#include "pychron/experiment/lab/lab.hpp"
-#include "pychron/systems/canvas/loader.hpp"
-#include "pychron/systems/spectrometer/data_dir.hpp"
-#include "pychron/transport/tcp_transport.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/process.hpp"
+#include "nobion/experiment/lab/lab.hpp"
+#include "nobion/systems/canvas/loader.hpp"
+#include "nobion/systems/spectrometer/data_dir.hpp"
+#include "nobion/transport/tcp_transport.hpp"
 
-namespace pychron::setup {
+namespace nobion::setup {
 
 namespace fs = std::filesystem;
 
@@ -42,7 +42,7 @@ std::string reconfigure_hint(const SiteInstall& i) { return "elctl init --reconf
 void check_writable(std::vector<Check>& out, const std::string& name, const fs::path& dir) {
   std::error_code ec;
   fs::create_directories(dir, ec);
-  const fs::path probe = dir / ".pychron-doctor-probe";
+  const fs::path probe = dir / ".nobion-doctor-probe";
   {
     std::ofstream f(probe);
     f << "x";
@@ -130,7 +130,7 @@ void check_instrument(std::vector<Check>& out, const SiteInstall& install, const
   // A password or key variable that is not set here fails every message.
   for (const auto& [channel, variable] : experiment::lab::unset_secrets(lab.notifications))
     out.push_back(warn("notifications " + channel, variable + " is not set",
-                       "set it for the account that runs pychron (docs/notifications.md), then: elctl exp notify"));
+                       "set it for the account that runs nobion (docs/notifications.md), then: elctl exp notify"));
 }
 
 // An instrument measures without its database (the catalog: samples,
@@ -147,7 +147,7 @@ void check_instrument_database(std::vector<Check>& out, const SiteInstall& insta
   out.push_back(opened ? ok("database", install.database + " (" + *opened + ")")
                        : warn("database", install.database + ": " + first_line(opened.error().what),
                               install.database.starts_with("postgresql")
-                                  ? "check the server, the user and the password in .pychron/credentials.toml"
+                                  ? "check the server, the user and the password in .nobion/credentials.toml"
                                   : reconfigure_hint(install) + " makes a missing local database"));
 }
 
@@ -229,6 +229,15 @@ std::vector<Check> doctor(const SiteInstall& install, const DoctorOptions& optio
     }
   }
 
+  const auto& known = known_domains();
+  if (std::find(known.begin(), known.end(), install.domain) == known.end()) {
+    std::string list;
+    for (const auto& d : known) list += (list.empty() ? "" : ", ") + d;
+    out.push_back(failed("domain", "unknown domain '" + install.domain + "'; known: " + list, reconfigure_hint(install)));
+  } else {
+    out.push_back(ok("domain", install.domain));
+  }
+
   if (install.kind == "data_reduction") {
     check_data_reduction(out, install, options);
     check_writable(out, "data folder", install.path(install.data.empty() ? "data" : install.data));
@@ -244,12 +253,15 @@ SiteInstall site_install(const InstallPlan& plan, const std::string& name) {
   SiteInstall s;
   s.name = name;
   s.profile = plan.profile.top.name;
+  s.domain = plan.profile.top.domain;
   s.root = plan.root;
-  s.data = "data";
   auto text = [&](const char* id) {
     auto it = plan.answers.find(id);
     return it == plan.answers.end() ? std::string{} : to_text(it->second);
   };
+  if (const std::string domain = text("domain"); !domain.empty()) s.domain = domain;
+  s.data = text("data_folder");
+  if (s.data.empty()) s.data = "data";
   // Every install has a database: the catalog (samples, packages) and, for
   // data reduction, the analyses.
   s.database = database_url_for(plan.answers, plan.root, false);
@@ -265,19 +277,26 @@ SiteInstall site_install(const InstallPlan& plan, const std::string& name) {
   return s;
 }
 
+Result<std::optional<std::string>> read_kept_password(const fs::path& root) {
+  const fs::path creds = root / ".nobion" / "credentials.toml";
+  std::error_code ec;
+  if (!fs::exists(creds, ec)) return std::optional<std::string>{};
+  auto parsed = toml::parse(read_file(creds), creds.string());
+  if (!parsed) return fail(ErrorKind::Config, creds.string() + ": " + std::string(parsed.error().description()));
+  if (auto password = parsed.table()["database"]["password"].value<std::string>()) return password;
+  return std::optional<std::string>{};
+}
+
 Result<std::string> database_url(const SiteInstall& install) {
   const std::string& url = install.database;
   if (!url.starts_with("postgresql://")) return url;
-  const fs::path creds = install.root / ".pychron" / "credentials.toml";
-  std::error_code ec;
-  if (!fs::exists(creds, ec)) return url;  // a server that needs no password
-  auto parsed = toml::parse(read_file(creds), creds.string());
-  if (!parsed) return fail(ErrorKind::Config, creds.string() + ": " + std::string(parsed.error().description()));
-  const auto password = parsed.table()["database"]["password"].value_or(std::string{});
-  if (password.empty()) return url;
+  auto kept = read_kept_password(install.root);
+  if (!kept) return fail(std::move(kept).error());
+  // No file, no key or an empty one: a server that needs no password.
+  if (!*kept || (*kept)->empty()) return url;
   const auto at = url.find('@');
   if (at == std::string::npos) return fail(ErrorKind::Config, "database URL has no user: " + url);
-  return url.substr(0, at) + ":" + percent_encode(password) + url.substr(at);
+  return url.substr(0, at) + ":" + percent_encode(**kept) + url.substr(at);
 }
 
-}  // namespace pychron::setup
+}  // namespace nobion::setup

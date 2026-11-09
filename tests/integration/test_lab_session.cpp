@@ -26,30 +26,33 @@
 #include <cstdint>
 #include <cstddef>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/devices/extraction/chromium_sim.hpp"
-#include "pychron/experiment/lab/session.hpp"
-#include "pychron/experiment/model/queue_file.hpp"
-#include "pychron/experiment/record/serialize.hpp"
-#include "pychron/scripting/script_host.hpp"
-#include "pychron/experiment/lab/lasers.hpp"
-#include "pychron/sim/sim_system.hpp"
-#include "pychron/vision/fixture.hpp"
-#include "pychron/vision/synth.hpp"
-#include "pychron/sim/spectrometer/beam_model.hpp"
-#include "pychron/systems/extraction_line.hpp"
-#include "pychron/systems/spectrometer/bringup.hpp"
-#include "pychron/systems/spectrometer/scan_service.hpp"
+#include "example_lab.hpp"
+#include "nobion/core/build_info.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/devices/extraction/chromium_sim.hpp"
+#include "nobion/devices/link.hpp"
+#include "nobion/experiment/lab/session.hpp"
+#include "nobion/experiment/model/queue_file.hpp"
+#include "nobion/experiment/record/serialize.hpp"
+#include "nobion/scripting/script_host.hpp"
+#include "nobion/experiment/lab/lasers.hpp"
+#include "nobion/sim/sim_system.hpp"
+#include "nobion/vision/fixture.hpp"
+#include "nobion/vision/synth.hpp"
+#include "nobion/sim/spectrometer/beam_model.hpp"
+#include "nobion/systems/extraction_line.hpp"
+#include "nobion/systems/spectrometer/bringup.hpp"
+#include "nobion/systems/spectrometer/scan_service.hpp"
 #include "virtual_time.hpp"
-#ifdef PYCHRON_EXPERIMENT_HAS_METRICS
+#ifdef NOBION_EXPERIMENT_HAS_METRICS
 #include "http_client.hpp"
 #include "metrics_text.hpp"
-#include "pychron/core/config/metrics_config.hpp"
-#include "pychron/experiment/metrics/service.hpp"
+#include "nobion/core/config/metrics_config.hpp"
+#include "nobion/experiment/metrics/service.hpp"
 #include "temp_path.hpp"
 #endif
 
-namespace pychron::experiment::lab {
+namespace nobion::experiment::lab {
 namespace {
 
 namespace fs = std::filesystem;
@@ -123,7 +126,7 @@ class RecordingPersister final : public persist::IAnalysisPersister {
   std::vector<QueueSpec> checked_;
 };
 
-class LabSessionTest : public pychron::testing::VirtualTimeTest {
+class LabSessionTest : public nobion::testing::VirtualTimeTest {
  protected:
   // A dragonfly's twelve seconds are some four hundred pictures made and
   // searched: under the thread sanitizer that alone is nearly twenty seconds.
@@ -142,9 +145,8 @@ class LabSessionTest : public pychron::testing::VirtualTimeTest {
   }
 
   void SetUp() override {
-    dir_ = pychron::testing::unique_temp_path("pychron-session-");
-    fs::copy(fs::path(PYCHRON_EXAMPLE_CONFIGS_DIR), dir_, fs::copy_options::recursive);
-    fs::remove_all(dir_ / "data");
+    dir_ = nobion::testing::unique_temp_path("nobion-session-");
+    nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_);
     prepare_lab();
 
     systems::ExtractionLine::Options options;
@@ -166,8 +168,10 @@ class LabSessionTest : public pychron::testing::VirtualTimeTest {
     scan_ = std::make_unique<spectrometer::ScanService>(*spec_, line_->bus(), clock_);
 
     lab_ = load_lab({dir_, dir_ / "extraction_line.toml", dir_ / "spectrometer.sim-integrated.toml"});
-    ASSERT_TRUE(lab_.problems.empty()) << lab_.problems.front();
-    auto q = load_queue_file((dir_ / "experiment.toml").string(), lab_.ids);
+    if (lab_loads_clean()) {
+      ASSERT_TRUE(lab_.problems.empty()) << lab_.problems.front();
+    }
+    auto q = load_queue_file((dir_ / "queues" / "experiment.toml").string(), lab_.ids);
     ASSERT_TRUE(q) << q.error().what;
     queue_ = *q;
     // Without embedded Python the example scripts cannot run.
@@ -187,10 +191,12 @@ class LabSessionTest : public pychron::testing::VirtualTimeTest {
 
   // Changes to the scratch lab before anything is loaded from it.
   virtual void prepare_lab() {}
+  // False for a test that loads the lab with a file it means to be bad.
+  virtual bool lab_loads_clean() { return true; }
   virtual SessionHardware hardware() { return SessionHardware{*line_, spec_.get(), scan_.get(), {}}; }
 
   QueueSpec laser_queue() {
-    auto q = load_queue_file((dir_ / "experiment.laser.toml").string(), lab_.ids);
+    auto q = load_queue_file((dir_ / "queues" / "experiment.laser.toml").string(), lab_.ids);
     EXPECT_TRUE(q) << q.error().what;
     return q ? *q : QueueSpec{};
   }
@@ -275,6 +281,60 @@ TEST_F(LabSessionTest, RunsTheExampleQueueAndPausesTheScan) {
   EXPECT_FALSE(scan_->paused());
 }
 
+// The session checks the links each run needs before it starts (executor
+// hardening, 4.3 and 4.6): one down holds the queue, which probes it back
+// and goes on.
+TEST_F(LabSessionTest, ALinkTheRunNeedsIsHeldForBeforeItStarts) {
+  // A spectrometer transport: nothing calls it before the first run (the
+  // scan is not started here), so closed it stays down until the check.
+  auto links = spec_->links();
+  ASSERT_FALSE(links.empty());
+  const std::string name = links.front()->transport().name();
+  links.front()->transport().close();
+  std::vector<executor::ExecutorHolding> held;
+  std::mutex m;
+  auto sub = line_->bus().subscribe<executor::ExecutorHolding>([&](const executor::ExecutorHolding& h) {
+    std::lock_guard lock(m);
+    held.push_back(h);
+  });
+  ASSERT_TRUE(session_->start(queue_));
+  const auto result = session_->wait();
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->end, executor::QueueEnd::Completed) << result->reason;
+  EXPECT_EQ(result->runs.size(), 3u);
+  std::lock_guard lock(m);
+  ASSERT_EQ(held.size(), 1u);
+  EXPECT_EQ(held[0].links, std::vector<std::string>{name});
+  EXPECT_EQ(held[0].row, std::optional<std::size_t>(0));
+}
+
+// Resume and skip reach a held queue's executor; without a queue, resume
+// does nothing and skip is refused.
+TEST_F(LabSessionTest, AHeldRowIsSkippedThroughTheSession) {
+  session_->resume();
+  const auto idle = session_->skip();
+  ASSERT_FALSE(idle);
+  EXPECT_EQ(idle.error().kind, ErrorKind::Config);
+
+  auto links = spec_->links();
+  ASSERT_FALSE(links.empty());
+  links.front()->transport().close();  // nothing reopens it before the first run's check
+  std::atomic<int> held{0};
+  auto sub = line_->bus().subscribe<executor::ExecutorHolding>([&](const executor::ExecutorHolding& h) {
+    if (h.row == std::optional<std::size_t>(0) && held.fetch_add(1) == 0) {
+      EXPECT_TRUE(session_->skip());
+    }
+  });
+  ASSERT_TRUE(session_->start(queue_));
+  const auto result = session_->wait();
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->end, executor::QueueEnd::Completed) << result->reason;
+  EXPECT_EQ(held.load(), 1);
+  // Row 0 dropped before it started: the other two ran.
+  ASSERT_EQ(result->runs.size(), 2u);
+  EXPECT_EQ(result->runs[0].row, 1u);
+}
+
 TEST_F(LabSessionTest, AQueueThePersisterRefusesIsNotStarted) {
   session_.reset();
   persister_ = std::make_unique<RecordingPersister>(dir_ / "elsewhere",
@@ -350,6 +410,28 @@ TEST_F(LabSessionTest, ASimulatedSessionMarksItsRecords) {
   ASSERT_TRUE(session_->start(queue_));
   ASSERT_TRUE(session_->wait().has_value());
   EXPECT_EQ(simulated_of(dir_ / "sim-data"), std::vector<bool>{true});
+}
+
+TEST_F(LabSessionTest, ARecordNamesTheBuildThatMadeIt) {
+  queue_.runs.resize(1);
+  ASSERT_TRUE(session_->start(queue_));
+  ASSERT_TRUE(session_->wait().has_value());
+  int seen = 0;
+  for (const auto& dir : fs::directory_iterator(dir_ / "data" / "records")) {
+    if (!dir.is_directory()) continue;
+    for (const auto& f : fs::directory_iterator(dir.path())) {
+      const std::string name = f.path().filename().string();
+      if (!name.ends_with(".json") || name.ends_with(".extraction.json")) continue;
+      std::ifstream in(f.path());
+      const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+      auto rec = record::from_json(text);
+      ASSERT_TRUE(rec.has_value());
+      EXPECT_EQ(rec->instrument.software_git_sha, std::string(nobion::build_info().git_sha));
+      EXPECT_EQ(rec->instrument.software_version, std::string(nobion::build_info().version));
+      ++seen;
+    }
+  }
+  EXPECT_EQ(seen, 1);
 }
 
 // The check is of what will run. Row 0 names something the database lacks:
@@ -519,9 +601,33 @@ TEST_F(LabSessionTest, TheQueuesStartIsAnnouncedBeforeItsFirstRun) {
   EXPECT_EQ(order.size(), 1u + result->runs.size());
 }
 
+// A running queue holds the field table (field table editor spec, section 5):
+// the editor's Save and Make Current are refused while it runs, and free
+// again once the queue has ended.
+TEST_F(LabSessionTest, TheQueueHoldsTheFieldTableWhileItRuns) {
+  std::mutex m;
+  std::vector<std::optional<std::string>> held;
+  auto sub = line_->bus().subscribe<executor::RunStarted>([&](const executor::RunStarted&) {
+    const auto who = spec_->table_held();
+    std::lock_guard lock(m);
+    held.push_back(who);
+  });
+  ASSERT_FALSE(spec_->table_held().has_value());
+  ASSERT_TRUE(session_->start(queue_));
+  const auto result = session_->wait();
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->end, executor::QueueEnd::Completed) << result->reason;
+  ASSERT_FALSE(ended().empty());
+
+  std::lock_guard lock(m);
+  ASSERT_FALSE(held.empty());
+  for (const auto& who : held) EXPECT_EQ(who, std::optional<std::string>("queue"));
+  EXPECT_FALSE(spec_->table_held().has_value());
+}
+
 // --- the metrics endpoint over a whole queue (observability design, 6) --------
 
-#ifdef PYCHRON_EXPERIMENT_HAS_METRICS
+#ifdef NOBION_EXPERIMENT_HAS_METRICS
 
 // The session's line with `[metrics]` on, at a loopback port the OS picks.
 class MetricsSessionTest : public LabSessionTest {
@@ -569,28 +675,28 @@ TEST_F(MetricsSessionTest, ASimulatedQueueIsCountedAndNamesNoRun) {
 
   const std::string body = scrape();
   using metrics_text::value;
-  EXPECT_DOUBLE_EQ(value(body, "pychron_runs_started_total"), runs);
-  EXPECT_DOUBLE_EQ(value(body, "pychron_runs_finished_total{state=\"success\",truncated=\"false\"}"), runs);
-  EXPECT_DOUBLE_EQ(value(body, "pychron_queues_ended_total{end=\"completed\"}"), 1.0);
-  EXPECT_DOUBLE_EQ(value(body, "pychron_queue_active"), 0.0);
-  EXPECT_DOUBLE_EQ(value(body, "pychron_executor_state{state=\"idle\"}"), 1.0);
-  EXPECT_DOUBLE_EQ(value(body, "pychron_queue_runs{status=\"total\"}"), runs);
-  EXPECT_DOUBLE_EQ(value(body, "pychron_queue_runs{status=\"done\"}"), runs);
-  EXPECT_DOUBLE_EQ(value(body, "pychron_run_save_errors_total"), 0.0);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_runs_started_total"), runs);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_runs_finished_total{state=\"success\",truncated=\"false\"}"), runs);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_queues_ended_total{end=\"completed\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_queue_active"), 0.0);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_executor_state{state=\"idle\"}"), 1.0);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_queue_runs{status=\"total\"}"), runs);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_queue_runs{status=\"done\"}"), runs);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_run_save_errors_total"), 0.0);
   // Every run went through each phase once, and the phases took simulated time.
   for (const char* state : {"preparing", "extracting", "equilibrating", "measuring", "post_measuring", "saving"}) {
-    EXPECT_DOUBLE_EQ(value(body, std::string("pychron_run_state_duration_seconds_count{state=\"") + state + "\"}"), runs)
+    EXPECT_DOUBLE_EQ(value(body, std::string("nobion_run_state_duration_seconds_count{state=\"") + state + "\"}"), runs)
         << state;
   }
-  EXPECT_GT(value(body, "pychron_run_state_duration_seconds_sum{state=\"measuring\"}"), 1.0);
-  EXPECT_GT(value(body, "pychron_measurement_blocks_total{block=\"main\",ok=\"true\"}"), 0.0);
-  EXPECT_TRUE(metrics_text::has(body, "pychron_last_run_finished_age_seconds"));
-  EXPECT_GE(value(body, "pychron_scheduler_heartbeat_age_seconds"), 0.0);
-  EXPECT_LT(value(body, "pychron_scheduler_heartbeat_age_seconds"), 60.0);
+  EXPECT_GT(value(body, "nobion_run_state_duration_seconds_sum{state=\"measuring\"}"), 1.0);
+  EXPECT_GT(value(body, "nobion_measurement_blocks_total{block=\"main\",ok=\"true\"}"), 0.0);
+  EXPECT_TRUE(metrics_text::has(body, "nobion_last_run_finished_age_seconds"));
+  EXPECT_GE(value(body, "nobion_scheduler_heartbeat_age_seconds"), 0.0);
+  EXPECT_LT(value(body, "nobion_scheduler_heartbeat_age_seconds"), 60.0);
   // The line was read while the queue ran.
-  EXPECT_NE(body.find("\npychron_pressure{"), std::string::npos);
-  EXPECT_GT(value(body, "pychron_scheduler_job_runs_total{job=\"metrics.heartbeat\"}"), 0.0);
-  EXPECT_DOUBLE_EQ(value(body, "pychron_metrics_dropped_series_total"), 0.0);
+  EXPECT_NE(body.find("\nnobion_pressure{"), std::string::npos);
+  EXPECT_GT(value(body, "nobion_scheduler_job_runs_total{job=\"metrics.heartbeat\"}"), 0.0);
+  EXPECT_DOUBLE_EQ(value(body, "nobion_metrics_dropped_series_total"), 0.0);
 
   // No run is named: neither its id nor its sample's identifier.
   std::lock_guard lock(mutex_);
@@ -599,6 +705,26 @@ TEST_F(MetricsSessionTest, ASimulatedQueueIsCountedAndNamesNoRun) {
     ASSERT_FALSE(name.empty());
     // As a label's whole value: an identifier may be as short as "bu".
     EXPECT_EQ(body.find("\"" + name + "\""), std::string::npos) << "the scrape names " << name;
+  }
+}
+
+// Every link of the line and of the spectrometer is counted from zero, by
+// its transport's name, before it has reconnected or repeated anything.
+TEST_F(MetricsSessionTest, EveryLinkIsCountedFromZero) {
+  std::vector<Link*> links = line_->links();
+  if (spec_) {
+    const std::vector<Link*> more = spec_->links();
+    links.insert(links.end(), more.begin(), more.end());
+  }
+  ASSERT_FALSE(links.empty());
+  metrics_->watch_links(links);
+  const std::string body = scrape();
+  for (const Link* l : links) {
+    const std::string labels = "{transport=\"" + l->transport().name() + "\"}";
+    EXPECT_TRUE(metrics_text::has(body, "nobion_link_reconnects_total" + labels)) << labels;
+    EXPECT_DOUBLE_EQ(metrics_text::value(body, "nobion_link_reconnects_total" + labels), 0.0) << labels;
+    EXPECT_TRUE(metrics_text::has(body, "nobion_link_repeats_total" + labels)) << labels;
+    EXPECT_DOUBLE_EQ(metrics_text::value(body, "nobion_link_repeats_total" + labels), 0.0) << labels;
   }
 }
 
@@ -623,7 +749,7 @@ TEST_F(MetricsSessionTest, ScrapingDuringAQueueDoesNotDisturbIt) {
   EXPECT_EQ(bad.load(), 0);
 }
 
-#endif  // PYCHRON_EXPERIMENT_HAS_METRICS
+#endif  // NOBION_EXPERIMENT_HAS_METRICS
 
 // --- lasers shared with whoever else drives them (laser window design, 2) -----
 
@@ -659,6 +785,9 @@ TEST_F(SharedLasersSessionTest, ACameraThatCannotBeUsedHereIsAProblem) {
   ASSERT_NE(real.problem_of("co2"), nullptr);
   EXPECT_EQ(real.problems().size(), 1u);
   EXPECT_FALSE(real.find("co2")->has_camera());
+  EXPECT_FALSE(real.simulated("co2"));
+  EXPECT_TRUE(lasers_->simulated("co2"));
+  EXPECT_FALSE(lasers_->simulated("bone_gauge")) << "not a laser here";
 }
 
 TEST_F(SharedLasersSessionTest, OnlyOneDrivesAtATime) {
@@ -1056,6 +1185,151 @@ TEST_F(LabSessionTest, ADragonflyRunFollowsTheGrainAndLeavesTheLaserOff) {
   EXPECT_DOUBLE_EQ(sim.output(), 0);
 }
 
+// A plan that names a peak center config the lab file lacks at load time. The
+// session reads peak_center.toml again when a queue starts, so a set saved
+// meanwhile (the spectrometer window's) is the one the plan gets.
+class NamedPeakCenterSessionTest : public LabSessionTest {
+ protected:
+  void prepare_lab() override {
+    const fs::path plan = dir_ / "plans" / "sim_multicollect.toml";
+    std::ifstream in(plan);
+    std::stringstream text;
+    text << in.rdbuf();
+    std::string s = text.str();
+    const auto at = s.find("config = \"default\"");
+    ASSERT_NE(at, std::string::npos);
+    s.replace(at, std::string_view("config = \"default\"").size(), "config = \"tuned\"");
+    std::ofstream(plan, std::ios::trunc) << s;
+  }
+  // Added to the lab's file, or in its place.
+  void write_peak_centers(std::string_view text, bool replace = false) {
+    std::ofstream(dir_ / "peak_center.toml", replace ? std::ios::trunc : std::ios::app) << text;
+  }
+};
+
+TEST_F(NamedPeakCenterSessionTest, ASetAddedAfterLoadIsUsedAtTheNextStart) {
+  write_peak_centers("\n[tuned]\nisotope = \"Ar40\"\ndetector = \"H1\"\nwindow = 0.07\nstep = 0.002\n"
+                     "integration_s = 1.0\nn_tries = 1\nupdate_table = false\n");
+  std::mutex m;
+  std::vector<jobs::PeakCenterConfig> used;
+  auto sub = line_->bus().subscribe<jobs::PeakCenterDone>([&](const jobs::PeakCenterDone& d) {
+    std::lock_guard lock(m);
+    used.push_back(d.result.config);
+  });
+  const auto started = session_->start(queue_);
+  ASSERT_TRUE(started) << started.error().what;
+  const auto result = session_->wait();
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->end, executor::QueueEnd::Completed) << result->reason;
+  std::lock_guard lock(m);
+  ASSERT_FALSE(used.empty());
+  for (const auto& c : used) {
+    EXPECT_EQ(c.name, "tuned");
+    EXPECT_DOUBLE_EQ(c.window, 0.07);
+  }
+}
+
+TEST_F(NamedPeakCenterSessionTest, ABadPeakCenterFileRefusesTheStart) {
+  write_peak_centers("\n[x]\nwindow = -1\n");
+  const auto started = session_->start(queue_);
+  ASSERT_FALSE(started);
+  EXPECT_EQ(started.error().kind, ErrorKind::Config);
+  EXPECT_NE(started.error().what.find("peak_center.toml"), std::string::npos) << started.error().what;
+  // The file's own error, not the plan's missing set.
+  EXPECT_EQ(started.error().what.find("uses peak center config"), std::string::npos) << started.error().what;
+  EXPECT_FALSE(session_->running());
+
+  // Put right, the file starts the queue; nothing of the bad one is kept.
+  write_peak_centers("\n[tuned]\nisotope = \"Ar40\"\ndetector = \"H1\"\nwindow = 0.07\nstep = 0.002\n"
+                     "integration_s = 1.0\nn_tries = 1\nupdate_table = false\n", true);
+  const auto again = session_->start(queue_);
+  ASSERT_TRUE(again) << again.error().what;
+  const auto result = session_->wait();
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->end, executor::QueueEnd::Completed) << result->reason;
+}
+
+// The check a window shows before Start (LabSession::check_queue) reads the
+// file as start() will: a set saved after the lab was loaded makes the queue
+// good without a restart.
+TEST_F(NamedPeakCenterSessionTest, TheCheckReadsTheFileAsItIsNow) {
+  const auto before = session_->check_queue(queue_);
+  ASSERT_FALSE(before.ok());
+  bool missing = false;
+  for (const auto& d : before.all()) missing = missing || d.message.find("uses peak center config 'tuned'") != std::string::npos;
+  EXPECT_TRUE(missing);
+
+  write_peak_centers("\n[tuned]\nisotope = \"Ar40\"\ndetector = \"H1\"\nwindow = 0.07\nstep = 0.002\n"
+                     "integration_s = 1.0\nn_tries = 1\nupdate_table = false\n");
+  const auto after = session_->check_queue(queue_);
+  EXPECT_TRUE(after.ok()) << (after.all().empty() ? std::string() : describe(after.all().front()));
+}
+
+// While a queue runs its sets stay those it started with, so the check agrees
+// with what edit() will take: a set dropped from the file meanwhile is still
+// there for it.
+TEST_F(NamedPeakCenterSessionTest, WhileAQueueRunsTheCheckIsTheRunningQueues) {
+  write_peak_centers("\n[tuned]\nisotope = \"Ar40\"\ndetector = \"H1\"\nwindow = 0.07\nstep = 0.002\n"
+                     "integration_s = 1.0\nn_tries = 1\nupdate_table = false\n");
+  ASSERT_TRUE(session_->start(queue_));
+  write_peak_centers("", true);
+  EXPECT_TRUE(session_->check_queue(queue_).ok());
+  session_->abort();
+  ASSERT_TRUE(session_->wait().has_value());
+  EXPECT_FALSE(session_->check_queue(queue_).ok());  // ended: the file as it is now
+}
+
+// A file that does not parse when the check is made is an error naming the
+// file, with the text start() refuses with.
+TEST_F(NamedPeakCenterSessionTest, TheCheckNamesABadFile) {
+  write_peak_centers("\n[x]\nwindow = -1\n");
+  const auto started = session_->start(queue_);
+  ASSERT_FALSE(started);
+  const auto c = session_->check_queue(queue_);
+  ASSERT_FALSE(c.ok());
+  bool named = false;
+  for (const auto& d : c.all()) {
+    if (d.severity == Severity::Error && d.field == "lab" && d.message == started.error().what) named = true;
+  }
+  EXPECT_TRUE(named) << started.error().what;
+}
+
+// A lab loaded while peak_center.toml was bad carries its error in
+// Lab::problems; the file read at the start decides, so a fixed file starts
+// the queue without a new load.
+class BadPeakCenterAtLoadSessionTest : public NamedPeakCenterSessionTest {
+ protected:
+  void prepare_lab() override {
+    NamedPeakCenterSessionTest::prepare_lab();
+    write_peak_centers("\n[tuned]\nwindow = -1\n");
+  }
+  bool lab_loads_clean() override { return false; }
+};
+
+TEST_F(BadPeakCenterAtLoadSessionTest, AFixedFileStartsWithoutANewLoad) {
+  ASSERT_FALSE(lab_.problems.empty());
+  EXPECT_FALSE(session_->start(queue_));
+  EXPECT_FALSE(session_->check_queue(queue_).ok());
+  write_peak_centers("[tuned]\nisotope = \"Ar40\"\ndetector = \"H1\"\nwindow = 0.07\nstep = 0.002\n"
+                     "integration_s = 1.0\nn_tries = 1\nupdate_table = false\n", true);
+  // The load-time error is stale once the file is read again.
+  EXPECT_TRUE(session_->check_queue(queue_).ok());
+  std::mutex m;
+  std::vector<double> windows;
+  auto sub = line_->bus().subscribe<jobs::PeakCenterDone>([&](const jobs::PeakCenterDone& d) {
+    std::lock_guard lock(m);
+    windows.push_back(d.result.config.window);
+  });
+  const auto started = session_->start(queue_);
+  ASSERT_TRUE(started) << started.error().what;
+  const auto result = session_->wait();
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->end, executor::QueueEnd::Completed) << result->reason;
+  std::lock_guard lock(m);
+  ASSERT_FALSE(windows.empty());
+  for (const double w : windows) EXPECT_DOUBLE_EQ(w, 0.07);
+}
+
 // A dragonfly that cannot run (here: a look of less than a pixel) is refused
 // when the script starts it, with the beam already on: the run fails and the
 // laser does not stay on.
@@ -1411,7 +1685,7 @@ TEST_F(LabSessionTest, TheQueueEndIsNotified) {
   EXPECT_TRUE(sent[0].ok) << sent[0].error;
   EXPECT_EQ(sent[0].channel, "log");
   ASSERT_EQ(inputs.size(), 1u);
-  EXPECT_EQ(inputs[0].rfind("pychron: queue q-notify " + std::string(executor::to_string(result->end)), 0), 0u)
+  EXPECT_EQ(inputs[0].rfind("nobion: queue q-notify " + std::string(executor::to_string(result->end)), 0), 0u)
       << inputs[0];
 }
 
@@ -1528,4 +1802,4 @@ TEST_F(LabSessionTest, DestroyingARunningSessionAbortsIt) {
 }
 
 }  // namespace
-}  // namespace pychron::experiment::lab
+}  // namespace nobion::experiment::lab

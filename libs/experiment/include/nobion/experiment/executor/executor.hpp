@@ -1,0 +1,370 @@
+#pragma once
+
+// Executor (experiment spec 3.2, 3.3): runs an ExperimentQueue.
+//
+//   Idle -> Preparing -> Running -> [StoppingAtBoundary | Cancelling | Aborting] -> Finalizing -> Idle
+//
+// Per row: skipped rows are passed over; a pause row waits its extraction
+// duration; otherwise the delay policy, the pre-run checks (IPreRunCheck
+// plugins, then the queue's pre_run conditionals), then the run.
+//
+// Delay before a run: the previous run's delay_after if set, else
+// delays.after_blank after a blank, else delays.between_analyses;
+// delays.before_analyses before the first run. No delay while the previous
+// run is still measuring (overlap).
+//
+// After a run:
+//   - the spool is flushed (ExecutorContext::flusher, a scheduler job: no run
+//     waits on it);
+//   - modification trips' queue actions and post_run conditionals are
+//     applied to the queue (after the last started row);
+//   - a cancelation trip, a pre_run trip, a post_run cancel, a cancelled or
+//     aborted run end the queue; a failed run ends it unless the failure was
+//     only a save error (the record is in the spool) or continue_on_failure;
+//   - end_after ends it after this run.
+//
+// Overlap: an unknown run with overlap.duration > 0 that is not the last
+// runnable row lets the next run start overlap.duration after its inlet
+// closes. At most two runs are in flight. The extraction device and the
+// spectrometer are resources: the next run's extraction waits for the
+// device, its measurement for the spectrometer and for overlap.min_delay of
+// pump time since the previous run's post-measurement started.
+//
+// Editing a running queue: rows the executor has reached are frozen (a run
+// that started, a pause being waited, a skipped row passed over); edit()
+// replaces the rows after them. A row whose delay is still running is not
+// yet frozen: the executor re-reads it when the delay ends. Every change to
+// the queue (an edit, a queue action, a post-run conditional) bumps the
+// queue version; an edit made against an older version is refused, so it
+// never silently drops a conditional's insertion.
+//
+// executor_state.json is rewritten on every transition and run start; a row
+// counts as consumed when its run starts, so resume_row() never re-runs a
+// partially measured run.
+
+#include <atomic>
+#include <cstdint>
+#include <condition_variable>
+#include <filesystem>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <thread>
+#include <vector>
+
+#include "nobion/core/clock.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/devices/link.hpp"
+#include "nobion/experiment/conditionals/library.hpp"
+#include "nobion/experiment/model/experiment_queue.hpp"
+#include "nobion/experiment/run/run.hpp"
+#include "nobion/scripting/cancel_token.hpp"
+
+namespace nobion::spectrometer {
+class Spectrometer;
+}  // namespace nobion::spectrometer
+
+namespace nobion::experiment::executor {
+
+enum class ExecutorState { Idle, Preparing, Running, Holding, StoppingAtBoundary, Cancelling, Aborting, Finalizing };
+std::string_view to_string(ExecutorState s) noexcept;
+// Whether the executor may go from `from` to `to`:
+//
+//   Idle -> Preparing -> Running -> Finalizing -> Idle
+//   Running <-> Holding (a link the next run needs is down: spec 4.6)
+//   Preparing | Running | Holding -> StoppingAtBoundary -> Cancelling -> Aborting -> Finalizing
+//
+// A request only ever strengthens (a stop does not replace a cancel, nor a
+// cancel an abort), none is taken back, and none moves an idle executor.
+// Preparing may also go straight to Finalizing (the queue's conditionals did
+// not load), and Idle is reached only from there.
+bool can_transition(ExecutorState from, ExecutorState to) noexcept;
+
+// A pluggable check before every run (managers healthy, disk space, ...).
+// What it finds wrong either ends the queue (Refuse, as a check always did)
+// or holds it until the check passes (Wait: a link down, a full spool;
+// executor hardening spec 4.6).
+enum class CheckKind { Refuse, Wait };
+struct CheckFailure {
+  CheckKind kind = CheckKind::Refuse;
+  Error error;
+  std::vector<std::string> links;  // the links it waits for, when it is about links
+};
+class IPreRunCheck {
+ public:
+  virtual ~IPreRunCheck() = default;
+  virtual std::string name() const = 0;
+  // Nothing: the run may start.
+  virtual std::optional<CheckFailure> check(const RunSpec& run) = 0;
+};
+
+struct ExecutorStateChanged {
+  ExecutorState from = ExecutorState::Idle, to = ExecutorState::Idle;
+  std::string reason;
+};
+struct RunStarted {
+  std::size_t row = 0;
+  std::string run_id, identifier;
+  std::string name;  // `<identifier>-<aliquot:02><step>`: what the run's log records carry as run=
+  TimePoint ts{};  // the services clock when the run started
+};
+struct RunSummary {
+  std::size_t row = 0;
+  std::string identifier, run_id;
+  int aliquot = 0;
+  std::string step;
+  run::RunState state = run::RunState::Pending;
+  bool truncated = false, save_error = false;
+  // How the run's record says it ended, and why it failed (spec 4.5). A run
+  // that saved no record is Complete here; go by `state`.
+  record::RecordStatus status = record::RecordStatus::Complete;
+  std::string failure;
+  std::optional<std::string> error;
+  std::vector<std::string> queue_changes;  // descriptions of applied queue actions
+  std::vector<std::string> messages;       // what the run said (run::RunNote), in order
+};
+struct RunFinished {
+  RunSummary summary;
+};
+// A run's queue actions or post-run conditionals changed the queue.
+// Published before that run's RunFinished, with a copy of the whole queue.
+// Also published after an accepted edit().
+struct QueueEdited {
+  QueueSpec queue;
+  std::vector<std::string> changes;  // as RunSummary::queue_changes
+  std::uint64_t version = 0;         // the queue version after the change
+  std::size_t frozen = 0;            // rows an edit may no longer change
+};
+// More rows are frozen (the executor reached them).
+struct QueueFrontier {
+  std::size_t frozen = 0;
+  std::uint64_t version = 0;
+};
+// The executor is waiting: a delay, a scheduled start, a resource, pump time.
+struct ExecutorWaiting {
+  std::string reason;
+  Duration duration{};  // zero: until a resource is free (it ends when the run moves on)
+  TimePoint ts{};       // when the wait started
+  std::string run_id;   // the run waiting (extraction device, pump time); empty: the queue
+};
+
+// Why the queue holds, as an enumeration (metrics count holds by it; the
+// reason's text is for people). `Link`: before a run starts, a link it needs
+// is down. `Spool`: a pre-run check that names no link asked to wait (the
+// spool's, SpoolWritable, is the one that ships). `RunFailed`: a run failed
+// for a link, whether past its point of no return (the queue goes on with
+// the next row) or before it (the same row is started again). A wait that is
+// both a link's and the spool's is `Link`.
+enum class HoldReason { Link, Spool, RunFailed };
+std::string_view to_string(HoldReason r) noexcept;  // "link", "spool", "run_failed"
+
+// The queue holds (spec 4.6): it waits for the links the next run needs, and
+// for any other pre-run check that asked it to wait, before it goes on.
+struct ExecutorHolding {
+  std::string reason;
+  std::vector<std::string> links;  // the links it waits for, when it is about links
+  TimePoint since{};
+  TimePoint until{};  // when the hold limit ends the queue
+  std::optional<std::size_t> row;  // the row held back, when it has not started
+  HoldReason kind = HoldReason::Link;
+};
+
+enum class QueueEnd { Completed, Stopped, Cancelled, Aborted, Failed };
+std::string_view to_string(QueueEnd e) noexcept;
+
+// QueueResult::code of a queue ended because a failed run left the line
+// unsafe (spec 4.7): the executor neither holds nor goes on.
+inline constexpr const char* kUnsafe = "unsafe";
+
+struct QueueResult {
+  QueueEnd end = QueueEnd::Completed;
+  std::string reason;
+  std::vector<RunSummary> runs;
+  std::string code;  // kUnsafe, or empty
+};
+
+// One run as the executor's state file records it.
+struct ExecutorStateRun {
+  std::size_t row = 0;
+  std::string identifier, run_id, state;  // state: run::to_string of the run's state
+};
+
+// The executor's state file (Executor::read_state).
+struct ExecutorStateFile {
+  std::string queue;  // "" when absent
+  std::string state;  // to_string(ExecutorState) as written; "" when absent
+  std::size_t next_row = 0;
+  std::vector<ExecutorStateRun> runs;
+};
+
+struct ExecutorContext {
+  run::RunServices services;                         // copied into every run
+  const MetricContext* pre_run_metrics = nullptr;    // instrument metrics for pre_run conditionals
+  std::vector<IPreRunCheck*> checks;
+  // The links a run needs (spec 4.3): probed while the queue holds, and
+  // waited for to be up and stable. None: a hold waits on the checks alone.
+  std::function<std::vector<Link*>(const RunSpec&)> links;
+  BlankFactory blank = default_blank_factory(IdentifierRules::defaults());
+  // Flushes services.save off the executor's thread (spec 4.8): asked for a
+  // flush as a queue starts and after every run. None: the queue's start
+  // re-sends what an earlier session left (services.save->recover()) inline.
+  persist::SpoolFlusher* flusher = nullptr;
+  // Held for the whole of execute() (Spectrometer::hold_table("queue")), so
+  // the field table editor cannot replace or restore the table while a queue
+  // runs (field table editor spec, section 5). None: nothing is held.
+  spectrometer::Spectrometer* spectrometer = nullptr;
+};
+
+struct ExecutorOptions {
+  std::filesystem::path state_file;  // executor_state.json; empty: not written
+  // Timed waits (delays, overlap, pump time, scheduled start). Default: wait
+  // on the services clock, cut short by cancel/abort. Tests advance a ManualClock.
+  std::function<void(Duration)> sleep;
+  std::optional<TimePoint> start_at;  // wait before the first run
+  std::optional<TimePoint> stop_at;   // stop at the first run boundary after it
+  bool allow_overlap = true;
+  // After a run that failed for a reason of its own (a definite error): go on
+  // with the next row. A failure for a link holds instead (spec 4.6).
+  bool continue_on_failure = false;
+  // How the queue holds (executor.toml [hold]).
+  struct Hold {
+    nobion::Duration settle = std::chrono::seconds(30);          // up this long, a link is back
+    nobion::Duration probe_interval = std::chrono::seconds(15);  // each link down is asked this often
+    nobion::Duration limit = std::chrono::hours(2);              // a hold this long ends the queue
+    bool end_after_link_failure = false;                          // after_link_failure = "end"
+  } hold;
+};
+
+class Executor {
+ public:
+  Executor(ExecutorContext context, ExecutorOptions options = {});
+  ~Executor();
+  Executor(const Executor&) = delete;
+  Executor& operator=(const Executor&) = delete;
+
+  // Runs `queue` from `from_row` on the calling thread until it ends.
+  QueueResult execute(ExperimentQueue& queue, std::size_t from_row = 0);
+
+  // Thread-safe controls. One made while no queue is running is kept for the
+  // next execute(), which ends before its first run: the thread that is to
+  // call execute() may not have got there yet. A queue's end clears them.
+  void stop();                       // finish the current run(s), start no more
+  void cancel();                     // cancel the active run(s) and end the queue
+  void abort();                      // abort the active run(s) and end the queue
+  void truncate(bool quick = false); // the run currently measuring
+  // While holding: try now, without waiting for the links to settle.
+  void resume();
+  // While holding for a row that has not started: drop it and go on. Config
+  // error otherwise.
+  Result<void> skip();
+  ExecutorState state() const;
+
+  // Replaces the running queue's rows with `runs`, which must keep the
+  // frozen rows unchanged; `base` is the version the edit was made against
+  // (0 when execute() starts). Returns the new version. Config error when no
+  // queue is running, the version is stale or a frozen row would change.
+  // Thread-safe; publishes QueueEdited{..., {description}}.
+  Result<std::uint64_t> edit(std::uint64_t base, std::vector<RunSpec> runs, std::string description = "edited");
+  std::uint64_t queue_version() const;
+  std::size_t frozen_rows() const;
+
+  // What write_state() wrote: Io error when the file cannot be read, Config
+  // error when it is not JSON or has no unsigned next_row. Other fields are
+  // read when present and of the right type (an older file has next_row only).
+  static Result<ExecutorStateFile> read_state(const std::filesystem::path& state_file);
+  // The row to resume from after a restart (one past the last started run):
+  // read_state(state_file)->next_row.
+  static Result<std::size_t> resume_row(const std::filesystem::path& state_file);
+
+ private:
+  struct Slot;
+  class Resource;
+
+  // Moves to `to` and publishes ExecutorStateChanged; an illegal move
+  // (can_transition) is left out, and so is one to the present state.
+  void set_state(ExecutorState to, std::string reason = {});
+  // The state the request already made asks for (under mutex_).
+  std::optional<ExecutorState> requested_locked() const;
+  bool wait(Duration d, const std::string& reason, const std::string& run_id = {});  // false when cancelled/aborted
+  bool ending() const;
+  bool overlaps(const ExperimentQueue& queue, std::size_t row) const;
+  std::unique_ptr<Slot> launch(std::size_t row, RunSpec spec, QueueSpec header, int index);
+  void freeze(std::size_t rows);  // caller holds queue_mutex_
+  void finish(ExperimentQueue& queue, Slot& slot, QueueResult& out);
+
+  // Holding (spec 4.6).
+  enum class HoldEnd { Back, Resumed, Skipped, Ended };
+  // Holds before `next` (row `row`, when it has not started) until every
+  // pre-run check passes and every link it needs has been up for settle, or
+  // the operator resumes, skips or stops, or the limit passes.
+  // `until`: the limit of a hold the operator resumed while the links were
+  // still down, kept for the one that follows.
+  HoldEnd hold(const std::string& reason, HoldReason kind, const RunSpec& next, std::optional<std::size_t> row,
+               const ExperimentQueue& queue, const QueueResult& out, std::optional<TimePoint> until = std::nullopt);
+  // Whether `next` may start: nothing when it may; else why, and the links
+  // it waits for. A Refuse ends the queue (end_ is set).
+  std::optional<CheckFailure> ready(const RunSpec& next);
+  void write_state(const ExperimentQueue& queue, std::size_t next_row, const QueueResult& out);
+  // The queue is over: its end is read into `out` (when `read`) and the
+  // requests that ended it are cleared, in one step under mutex_, so a
+  // request is either this queue's or the next one's.
+  void ended(QueueResult& out, bool read);
+
+  ExecutorContext ctx_;
+  ExecutorOptions options_;
+  const Clock& clock_;
+
+  mutable std::mutex mutex_;
+  std::condition_variable cv_;
+  ExecutorState state_ = ExecutorState::Idle;
+  bool stop_ = false;
+  std::optional<QueueEnd> end_;  // why the queue is ending early
+  std::string end_reason_;
+  scripting::CancelToken queue_token_;  // cuts executor waits short; changed under mutex_
+  std::vector<Slot*> active_;
+
+  std::unique_ptr<Resource> extraction_, spectrometer_;
+  std::optional<TimePoint> pump_started_;
+  // The run that has let the spectrometer go and not yet said when it began
+  // to pump. Under mutex_, notified on cv_ through the clock.
+  Slot* pump_owed_ = nullptr;
+  std::optional<RunChecks> run_checks_;
+  std::size_t last_started_row_ = 0;
+  // Holding: what the operator asked for, and what the state file says.
+  // Under mutex_; a request notifies cv_ through the clock.
+  bool resume_ = false, skip_ = false;
+  struct Held {
+    std::string reason;
+    TimePoint since{};
+    WallTime since_wall{};  // for the state file
+    std::optional<std::size_t> row;
+  };
+  std::optional<Held> holding_;
+  TimePoint last_hold_until_{};  // of the last hold (executor thread only)
+  std::optional<std::size_t> last_failed_row_;
+  bool unsafe_ = false;  // a run left the line unsafe: QueueResult::code
+  // Set by finish() for the run loop: hold before the next row, or start the
+  // same row again (it failed for a link before its point of no return:
+  // spec 4.4), with the aliquot and step it was given.
+  std::optional<std::string> hold_next_;
+  struct Retry {
+    std::size_t row = 0;
+    int aliquot = 0;
+    std::string step;
+    std::string reason;
+  };
+  std::optional<Retry> retry_;
+  std::optional<RunSpec> previous_spec_;  // last run that ran (for the delay policy)
+
+  // The queue being executed. The executor thread reads and changes it only
+  // under queue_mutex_ (taken before mutex_ when both are held).
+  mutable std::mutex queue_mutex_;
+  ExperimentQueue* queue_ = nullptr;
+  std::size_t frozen_ = 0;
+  std::uint64_t version_ = 0;
+};
+
+}  // namespace nobion::experiment::executor

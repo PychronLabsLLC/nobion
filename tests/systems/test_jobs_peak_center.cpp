@@ -8,22 +8,28 @@
 #include <filesystem>
 #include <fstream>
 #include <future>
+#include <mutex>
+#include <optional>
 #include <sstream>
+#include <string>
+#include <vector>
 
 #include <toml++/toml.hpp>
 
 #include "jobs_fakes.hpp"
-#include "pychron/systems/jobs/job_runner.hpp"
-#include "pychron/systems/jobs/peak_center.hpp"
+#include "temp_path.hpp"
+#include "nobion/systems/jobs/job_runner.hpp"
+#include "nobion/systems/jobs/peak_center.hpp"
+#include "nobion/systems/spectrometer/field_table_store.hpp"
 
-using namespace pychron;
-using namespace pychron::jobs;
-using namespace pychron::spectrometer::testing;
+using namespace nobion;
+using namespace nobion::jobs;
+using namespace nobion::spectrometer::testing;
 using namespace std::chrono_literals;
 
 namespace {
 
-const std::filesystem::path kScans = std::filesystem::path(PYCHRON_TEST_DATA_DIR) / "scans";
+const std::filesystem::path kScans = std::filesystem::path(NOBION_TEST_DATA_DIR) / "scans";
 
 std::vector<std::pair<double, double>> load_scan(const std::string& name) {
   std::ifstream in(kScans / (name + ".csv"));
@@ -154,8 +160,14 @@ detector = "CDD"
 
 // The rig's H1 signal is a flat-topped peak at `true_center` (native units) on
 // whatever the magnet is set to; AX sees the same peak shifted by `ax_shift`.
+// The spectrometer's data root is a fresh directory per test.
 class PeakCenterRun : public ::testing::Test {
  protected:
+  void TearDown() override {
+    std::error_code ec;
+    std::filesystem::remove_all(root_, ec);
+  }
+
   void SetUp() override {
     ASSERT_TRUE(rig_.spec);
     auto initial = rig_.spec->native_for(*rig_.spec->mass_of(spectrometer::PositionTarget{
@@ -164,21 +176,30 @@ class PeakCenterRun : public ::testing::Test {
     ASSERT_TRUE(initial);
     initial_ = *initial;
     true_center_ = initial_ + 0.004;
-    rig_.acquirer.signal = [this](const spectrometer::ChannelId& ch) {
+    wire(rig_);
+  }
+
+  // The simulated beam: a trapezoid peak at true_center_ on H1 (AX shifted).
+  void wire(JobRig& rig) {
+    rig.acquirer.signal = [this, &rig](const spectrometer::ChannelId& ch) {
       double c = true_center_;
       if (ch == "AX") c += ax_shift_;
       else if (ch != "H1") return 0.0;
-      const double d = std::fabs(rig_.positioner.value - c);
+      const double d = std::fabs(rig.positioner.value - c);
       if (d <= 0.002) return height_;
       if (d <= 0.0035) return height_ * (1 - (d - 0.002) / 0.0015);
       return 0.0;
     };
   }
 
-  Result<PeakCenterResult> run(PeakCenterConfig cfg, PeakCenterOptions options = {}) {
-    if (!options.sweep.sleep) options.sweep.sleep = rig_.sweep_sleep();
-    auto fut = std::async(std::launch::async, [&] { return run_peak_center(*rig_.spec, cfg, progress_, cancel_, options); });
-    return rig_.drive(fut);
+  Result<PeakCenterResult> run(const PeakCenterConfig& cfg, PeakCenterOptions options = {}) {
+    return run_on(rig_, cfg, std::move(options));
+  }
+
+  Result<PeakCenterResult> run_on(JobRig& rig, const PeakCenterConfig& cfg, PeakCenterOptions options = {}) {
+    if (!options.sweep.sleep) options.sweep.sleep = rig.sweep_sleep();
+    auto fut = std::async(std::launch::async, [&] { return run_peak_center(*rig.spec, cfg, progress_, cancel_, options); });
+    return rig.drive(fut);
   }
 
   PeakCenterConfig config() {
@@ -189,7 +210,9 @@ class PeakCenterRun : public ::testing::Test {
     return c;
   }
 
-  JobRig rig_;
+  std::filesystem::path root_ = nobion::testing::unique_temp_path("nobion_peak_center_");
+  JobRig rig_{root_};
+  JobRig other_{root_ / "other"};  // a second, identical spectrometer
   Progress progress_;
   CancelToken cancel_;
   double initial_ = 0, true_center_ = 0, ax_shift_ = 0.001, height_ = 1000;
@@ -212,6 +235,23 @@ TEST_F(PeakCenterRun, WaitsOnTheSpectrometersClockByDefault) {
   ASSERT_FALSE(r->tries.empty());
   EXPECT_GE(rig_.clock.now() - before, 30s * static_cast<int>(r->tries.front().points.size()));
   EXPECT_TRUE(rig_.sleeps.empty());
+}
+
+TEST_F(PeakCenterRun, ApplyAfterwardsGivesTheSameTableAsUpdateTable) {
+  wire(other_);
+  auto with = config();  // update_table = true, propagate = true
+  auto a = run(with);
+  ASSERT_TRUE(a && a->ok && a->table_updated);
+  const auto table_a = rig_.spec->field_table();
+
+  auto without = config();
+  without.update_table = false;
+  auto b = run_on(other_, without);
+  ASSERT_TRUE(b && b->ok && !b->table_updated && b->table_value);
+  auto w = write_peak_center_to_table(*other_.spec, b->detector, without.isotope, *b->table_value, true, true);
+  ASSERT_TRUE(w) << w.error().what;
+  EXPECT_TRUE(w->empty());
+  EXPECT_EQ(other_.spec->field_table(), table_a);
 }
 
 TEST_F(PeakCenterRun, CentersUpdatesTheTableAndRepositions) {
@@ -321,4 +361,243 @@ TEST_F(PeakCenterRun, AsAJobPublishesTheResult) {
   EXPECT_TRUE(job->before && job->after);
 }
 
+TEST_F(PeakCenterRun, PublishesEachTryAndEachPointInOrder) {
+  true_center_ = initial_ + 0.018;  // two tries, as RetriesAroundTheMaximum...
+  std::vector<std::string> order;
+  std::vector<PeakCenterTryStarted> started;
+  std::vector<std::vector<SweepPoint>> points(2);
+  auto s1 = rig_.bus.subscribe<PeakCenterTryStarted>([&](const PeakCenterTryStarted& e) {
+    order.push_back("try" + std::to_string(e.try_index));
+    started.push_back(e);
+  });
+  auto s2 = rig_.bus.subscribe<PeakCenterPoint>([&](const PeakCenterPoint& e) {
+    if (order.empty() || order.back() != "points") order.emplace_back("points");
+    points.at(static_cast<std::size_t>(e.try_index)).push_back(e.point);
+  });
+  auto s3 = rig_.bus.subscribe<PeakCenterDone>([&](const PeakCenterDone&) { order.emplace_back("done"); });
+  PeakCenterOptions options;
+  options.sweep.sleep = rig_.sweep_sleep();
+  options.bus = &rig_.bus;
+  const auto r = run(config(), options);
+  ASSERT_TRUE(r) << r.error().what;
+  ASSERT_EQ(r->tries.size(), 2U);
+  EXPECT_EQ(order, (std::vector<std::string>{"try0", "points", "try1", "points", "done"}));
+  ASSERT_EQ(started.size(), 2U);
+  for (std::size_t i = 0; i < 2; ++i) {
+    EXPECT_EQ(started[i].n_tries, 2);
+    EXPECT_EQ(started[i].start, r->tries[i].start);
+    EXPECT_EQ(started[i].end, r->tries[i].end);
+    ASSERT_EQ(points[i].size(), r->tries[i].points.size());
+    for (std::size_t k = 0; k < points[i].size(); ++k) {
+      EXPECT_EQ(points[i][k].x, r->tries[i].points[k].x);
+      EXPECT_EQ(points[i][k].y, r->tries[i].points[k].y);
+    }
+  }
+  EXPECT_EQ(started[0].detector, r->detector);
+  EXPECT_EQ(started[0].isotope, r->isotope);
+  EXPECT_EQ(started[0].initial_center, r->initial_center);
+  EXPECT_TRUE(started[0].additional.empty());
+}
+
+TEST_F(PeakCenterRun, TryStartedNamesTheAdditionalDetectors) {
+  std::vector<PeakCenterTryStarted> started;
+  std::vector<SweepPoint> points;
+  auto s1 = rig_.bus.subscribe<PeakCenterTryStarted>([&](const PeakCenterTryStarted& e) { started.push_back(e); });
+  auto s2 = rig_.bus.subscribe<PeakCenterPoint>([&](const PeakCenterPoint& e) { points.push_back(e.point); });
+  auto cfg = config();
+  cfg.additional_detectors = {"AX", "H2"};
+  PeakCenterOptions options;
+  options.bus = &rig_.bus;
+  const auto r = run(cfg, options);
+  ASSERT_TRUE(r) << r.error().what;
+  ASSERT_EQ(started.size(), 1U);
+  EXPECT_EQ(started[0].additional, (std::vector<DetectorId>{"AX", "H2"}));
+  ASSERT_FALSE(points.empty());
+  EXPECT_TRUE(points.front().y.contains("H1"));
+  EXPECT_TRUE(points.front().y.contains("AX"));
+  EXPECT_TRUE(points.front().y.contains("H2"));
+}
+
+TEST_F(PeakCenterRun, WithoutABusNothingIsPublished) {
+  int events = 0;
+  auto s1 = rig_.bus.subscribe<PeakCenterTryStarted>([&](const PeakCenterTryStarted&) { ++events; });
+  auto s2 = rig_.bus.subscribe<PeakCenterPoint>([&](const PeakCenterPoint&) { ++events; });
+  auto s3 = rig_.bus.subscribe<PeakCenterDone>([&](const PeakCenterDone&) { ++events; });
+  const auto r = run(config());  // options.bus is null
+  ASSERT_TRUE(r) << r.error().what;
+  EXPECT_TRUE(r->ok) << r->message;
+  EXPECT_EQ(events, 0);
+}
+
+// The sweep of a try reports through a Progress of the runner's own, which
+// publishes the point and hands the update on: what the job's Progress is
+// told, and what it is left holding, do not depend on the bus.
+TEST_F(PeakCenterRun, TheJobsOwnProgressIsUnchanged) {
+  auto cfg = config();
+  cfg.update_table = false;  // the first run would move the table under the second
+
+  struct Seen {
+    std::size_t reports = 0;
+    ProgressUpdate last;
+    PeakCenterResult result;
+  };
+  const auto observe = [&](SignalBus* bus) -> std::optional<Seen> {
+    Seen seen;
+    Progress progress([&seen](const ProgressUpdate&) { ++seen.reports; });
+    PeakCenterOptions options;
+    options.sweep.sleep = rig_.sweep_sleep();
+    options.bus = bus;
+    auto fut = std::async(std::launch::async,
+                          [&] { return run_peak_center(*rig_.spec, cfg, progress, cancel_, options); });
+    auto r = rig_.drive(fut);
+    if (!r) {
+      ADD_FAILURE() << r.error().what;
+      return std::nullopt;
+    }
+    seen.last = progress.last();
+    seen.result = *r;
+    return seen;
+  };
+
+  const auto without = observe(nullptr);
+  const auto with = observe(&rig_.bus);
+  ASSERT_TRUE(without && with);
+  EXPECT_GT(without->reports, 61U);  // the try's line and a report a point
+  EXPECT_EQ(with->reports, without->reports);
+  EXPECT_EQ(with->last.done, without->last.done);
+  EXPECT_EQ(with->last.total, without->last.total);
+  EXPECT_EQ(with->last.message, without->last.message);
+  ASSERT_TRUE(with->last.point && without->last.point);
+  EXPECT_EQ(with->last.point->x, without->last.point->x);
+  EXPECT_EQ(with->last.point->y, without->last.point->y);
+  EXPECT_EQ(with->result.ok, without->result.ok);
+  EXPECT_EQ(with->result.center, without->result.center);
+  ASSERT_EQ(with->result.tries.size(), without->result.tries.size());
+  EXPECT_EQ(with->result.tries[0].points.size(), without->result.tries[0].points.size());
+}
+
+TEST_F(PeakCenterRun, AnAdditionalDetectorWithoutAPeakDoesNotFailThePeakCenter) {
+  ax_shift_ = 1.0;  // AX's peak is nowhere near the window: it reads zero throughout
+  auto cfg = config();
+  cfg.additional_detectors = {"AX"};
+  PeakCenterOptions options;
+  options.bus = &rig_.bus;
+  const auto r = run(cfg, options);
+  ASSERT_TRUE(r) << r.error().what;
+  EXPECT_TRUE(r->ok) << r->message;
+  ASSERT_EQ(r->additional.size(), 1U);
+  EXPECT_EQ(r->additional[0].detector, "AX");
+  EXPECT_FALSE(r->additional[0].shape);
+  EXPECT_FALSE(r->additional[0].error.empty());
+}
+
 }  // namespace
+
+// D2 (field table editor spec, section 6): the peak center's table update is
+// saved as a new version, stamped from the spectrometer's clock.
+TEST_F(PeakCenterRun, UpdateTableWritesANewVersionStampedFromTheClock) {
+  const std::string name = rig_.spec->active_table();
+  auto first = rig_.spec->save_table(rig_.clock.wall_now());
+  ASSERT_TRUE(first) << first.error().what;
+  std::mutex m;
+  std::vector<std::string> saved_at;  // format_version of the clock at each save
+  auto sub = rig_.bus.subscribe<spectrometer::FieldTableChanged>([&](const spectrometer::FieldTableChanged&) {
+    std::lock_guard lock(m);
+    saved_at.push_back(spectrometer::format_version(rig_.clock.wall_now()));
+  });
+  auto r = run(config());
+  ASSERT_TRUE(r) << r.error().what;
+  ASSERT_TRUE(r->ok) << r->message;
+  EXPECT_TRUE(r->table_updated);
+  EXPECT_TRUE(r->notes.empty());
+  auto current = rig_.spec->table_version(name);
+  ASSERT_TRUE(current) << current.error().what;
+  EXPECT_NE(*current, *first);
+  ASSERT_EQ(saved_at.size(), 1u);
+  EXPECT_EQ(*current, saved_at.front());
+  // The saved version is the updated table.
+  auto stored = spectrometer::FieldTableStore(root_ / "tables", name).load(*current);
+  ASSERT_TRUE(stored) << stored.error().what;
+  EXPECT_EQ(*stored, rig_.spec->field_table());
+}
+
+// A save that fails does not fail the peak center: the update stays in
+// memory and the result says it was not saved.
+TEST_F(PeakCenterRun, SaveFailureLeavesSuccessWithANote) {
+  // The table's store directory is a regular file: no version can be written
+  // into it (on every platform and for every user, unlike a read-only
+  // directory, which Windows and root write into all the same).
+  const std::string name = rig_.spec->active_table();
+  const auto store = root_ / "tables" / name;
+  std::filesystem::create_directories(store.parent_path());
+  std::ofstream(store) << "not a directory\n";
+  const auto before = rig_.spec->field_table();
+  auto r = run(config());
+  ASSERT_TRUE(r) << r.error().what;
+  ASSERT_TRUE(r->ok) << r->message;
+  EXPECT_TRUE(r->table_updated);
+  ASSERT_EQ(r->notes.size(), 1u);
+  EXPECT_EQ(r->notes.front().rfind("field table not saved", 0), 0u) << r->notes.front();
+  EXPECT_NE(rig_.spec->field_table(), before);
+  auto again = rig_.spec->native_for(
+      *rig_.spec->mass_of(spectrometer::PositionTarget{spectrometer::Isotope{"Ar40"}, "H1"}), "H1");
+  ASSERT_TRUE(again);
+  EXPECT_NEAR(*again, *r->center, 1e-9);
+  EXPECT_TRUE(std::filesystem::is_regular_file(store));
+}
+
+// The table is held for the whole run (field table editor spec, section 5);
+// the sweep inside takes its own hold, behind this one.
+TEST_F(PeakCenterRun, HoldsTheTableWhileRunning) {
+  std::mutex m;
+  std::vector<std::optional<std::string>> seen;
+  auto signal = rig_.acquirer.signal;
+  rig_.acquirer.signal = [&, signal](const spectrometer::ChannelId& ch) {
+    {
+      std::lock_guard lock(m);
+      seen.push_back(rig_.spec->table_held());
+    }
+    return signal(ch);
+  };
+  EXPECT_EQ(rig_.spec->table_held(), std::nullopt);
+  auto r = run(config());
+  ASSERT_TRUE(r) << r.error().what;
+  ASSERT_TRUE(r->ok) << r->message;
+  ASSERT_FALSE(seen.empty());
+  for (const auto& held : seen) EXPECT_EQ(held, std::optional<std::string>("peak_center"));
+  EXPECT_EQ(rig_.spec->table_held(), std::nullopt);
+}
+
+TEST(PeakCenterConfig, FormatRoundTripsEveryKey) {
+  PeakCenterConfig c;
+  c.name = "tuned"; c.detector = "H1"; c.isotope = "Ar39";
+  c.additional_detectors = {"AX", "L1"}; c.center = 5.25;
+  c.window = 0.02; c.step = 0.0007; c.percent = 75; c.min_peak_height = 2.5;
+  c.test_peak_flat = false; c.n_tries = 3; c.increase = false;
+  c.integration = std::chrono::milliseconds(1500); c.settle = std::chrono::milliseconds(250);
+  c.baseline_timeout = std::chrono::seconds(7); c.dac_offset = -0.0003;
+  c.peak_shift_threshold = 0.01; c.update_table = false; c.propagate = false;
+  auto parsed = parse_peak_center_configs("[tuned]\n" + format_peak_center_config(c));
+  ASSERT_TRUE(parsed) << parsed.error().what;
+  auto back = parsed->at("tuned");
+  back.save_table = c.save_table;
+  EXPECT_EQ(back, c);
+}
+
+TEST(PeakCenterConfig, FormatOfDefaultsRoundTripsAndOmitsCenter) {
+  PeakCenterConfig c;
+  const auto body = format_peak_center_config(c);
+  EXPECT_EQ(body.find("center ="), std::string::npos);
+  auto parsed = parse_peak_center_configs("[default]\n" + body);
+  ASSERT_TRUE(parsed);
+  EXPECT_EQ(parsed->at("default"), c);
+  EXPECT_FALSE(parsed->at("default").center.has_value());
+}
+
+TEST(PeakCenterConfig, ValidateIsPublic) {
+  PeakCenterConfig c;
+  c.step = c.window;
+  auto v = validate_peak_center_config(c);
+  ASSERT_FALSE(v);
+  EXPECT_NE(v.error().what.find("step must be positive and smaller than window"), std::string::npos);
+}

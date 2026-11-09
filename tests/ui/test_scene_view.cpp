@@ -1,5 +1,6 @@
 // SceneView draws what a scene says; here, the layers with nothing else to test them.
 
+#include <array>
 #include <cmath>
 #include <memory>
 
@@ -7,11 +8,12 @@
 
 #include <qcustomplot.h>
 
-#include "pychron/processing/scene.hpp"
+#include "nobion/processing/scene.hpp"
+#include "nobion/processing/scene_draw.hpp"
 #include "scene_view.hpp"
 
-namespace pp = pychron::processing;
-using pychron::ui::SceneView;
+namespace pp = nobion::processing;
+using nobion::ui::SceneView;
 
 class TestSceneView : public QObject {
   Q_OBJECT
@@ -269,6 +271,158 @@ class TestSceneView : public QObject {
 
     view.reset_view();
     QCOMPARE(y->range().lower, 0.0);
+  }
+  // A corner text whose lines have markers draws each marker before its
+  // line, inside the text's box; its lines are the view's texts as a plain
+  // corner text's are.
+  void cornerTextMarkersAreDrawnBeforeTheirLines() {
+    pp::Scene scene;
+    pp::Graph g;
+    pp::Panel panel;
+    pp::PointLayer pts;
+    pts.x = {1.0, 2.0};
+    pts.y = {1.0, 2.0};
+    pp::TextLayer stats;
+    stats.lines = {"a: wtd mean 28.2", "b: wtd mean 28.4"};
+    pp::MarkerStyle red;
+    red.color = {255, 0, 0, 255};
+    pp::MarkerStyle blue = red;
+    blue.color = {0, 0, 255, 255};
+    stats.markers = {red, blue};
+    panel.layers = {pts, stats};
+    g.panels = {panel};
+    scene.graphs.push_back(g);
+    scene.style.legend = false;
+
+    SceneView view;
+    view.resize(400, 300);
+    view.set_scene(std::make_shared<const pp::Scene>(scene));
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    view.plot()->replot();
+    QCOMPARE(view.texts(0), (QStringList{QStringLiteral("a: wtd mean 28.2"), QStringLiteral("b: wtd mean 28.4")}));
+    QCPItemText* text = nullptr;
+    for (int k = 0; k < view.plot()->itemCount(); ++k)
+      if (auto* t = qobject_cast<QCPItemText*>(view.plot()->item(k))) text = t;
+    QVERIFY(text);
+    QVERIFY(text->padding().left() > text->padding().right());  // room for the markers
+
+    // Red above blue, both at the box's left, left of the text.
+    const QImage image = view.plot()->toPixmap().toImage();
+    // The first pixel strongly of one channel (antialiased edges are not pure).
+    const auto find = [&image](int channel) {
+      for (int y = 0; y < image.height(); ++y)
+        for (int x = 0; x < image.width(); ++x) {
+          const QColor c = image.pixelColor(x, y);
+          const std::array<int, 3> v{c.red(), c.green(), c.blue()};
+          const auto at = [&v](int i) { return v.at(static_cast<std::size_t>(i % 3)); };
+          if (at(channel) > 200 && at(channel + 1) < 80 && at(channel + 2) < 80) return QPoint(x, y);
+        }
+      return QPoint(-1, -1);
+    };
+    const QPoint r = find(0), b = find(2);
+    QVERIFY(r.x() >= 0 && b.x() >= 0);
+    QVERIFY(r.y() < b.y());
+    QVERIFY(std::abs(r.x() - b.x()) <= 1);
+    const QRectF box(text->topLeft->pixelPosition(), text->bottomRight->pixelPosition());
+    for (const QPoint& p : {r, b}) QVERIFY2(box.contains(p), qPrintable(QStringLiteral("%1,%2").arg(p.x()).arg(p.y())));
+    QVERIFY(r.x() < box.left() + text->padding().left());
+  }
+
+  // The view and a release's SVG and PDF (the draw list both serialize) show
+  // a scene over the same axis ranges and place the same points, step boxes,
+  // ellipses and corner texts.
+  void placesWhatTheDrawListPlaces() {
+    pp::Scene scene;
+    pp::Graph g;
+    pp::Panel top;
+    top.id = "p0";
+    pp::BandLayer band;
+    band.x = {0.0, 5.0, 10.0};
+    band.low = {1.0, 2.0, 3.0};
+    band.high = {2.0, 3.0, 4.5};
+    band.fill = {100, 100, 200, 60};
+    pp::LineLayer line;
+    line.x = {0.0, 10.0};
+    line.y = {1.5, 3.5};
+    pp::PointLayer pts;
+    pts.x = {1.0, 4.0, 8.0};
+    pts.y = {1.6, 2.4, 3.9};
+    pts.y_err = {0.3, 0.2, 0.4};
+    pts.x_err = {0.5, 0.5, 0.5};
+    pts.refs = {pp::PointRef{"a"}, pp::PointRef{"b"}, pp::PointRef{"c"}};
+    pts.excluded = {false, true, false};
+    pts.label = "FC-1";
+    pp::TextLayer stats;
+    stats.lines = {"Mean 28.2 ± 0.1 Ma", "MSWD 1.2"};
+    pp::TextLayer other;
+    other.corner = pp::Corner::BottomRight;
+    other.lines = {"n 3/3"};
+    top.layers = {band, line, pts, stats, other};
+    pp::Panel bottom;
+    bottom.id = "p1";
+    pp::StepLayer steps;
+    steps.x0 = {0.0, 2.0, 6.0};
+    steps.x1 = {2.0, 6.0, 9.5};
+    steps.y = {28.0, 28.3, 28.1};
+    steps.y_err = {0.4, 0.2, 0.3};
+    steps.labels = {"A", "B", "C"};
+    pp::SpanLayer span;
+    span.x0 = 2.0;
+    span.x1 = 9.5;
+    pp::EllipseLayer el;
+    el.x = {3.0, 7.0};
+    el.y = {28.0, 28.5};
+    el.sx = {0.5, 0.4};
+    el.sy = {0.2, 0.3};
+    el.rho = {0.3, -0.6};
+    el.scale = 2.4477;
+    bottom.layers = {steps, span, el};
+    g.panels = {top, bottom};
+    scene.graphs.push_back(g);
+
+    SceneView view;
+    view.resize(600, 500);
+    view.set_scene(std::make_shared<const pp::Scene>(scene));
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    view.plot()->replot();
+
+    const pp::DrawList list = pp::draw_scene(scene);
+    const auto count = [&](pp::DrawRole role, int clip) {
+      int n = 0;
+      for (const auto& item : list.items)
+        if (const auto* p = std::get_if<pp::DrawPath>(&item); p && p->role == role && p->clip == clip) ++n;
+      return n;
+    };
+    const auto annotations = [&](int clip) {
+      QStringList out;
+      for (const auto& item : list.items)
+        if (const auto* t = std::get_if<pp::DrawText>(&item); t && t->role == pp::TextRole::Annotation && t->clip == clip)
+          out << QString::fromStdString(t->text);
+      return out;
+    };
+    QCOMPARE(view.panel_count(), 2);
+    for (int i = 0; i < 2; ++i) {
+      const pp::Panel& panel = scene.graphs[0].panels[static_cast<std::size_t>(i)];
+      QCPAxisRect* rect = view.plot()->axisRect(i);
+      const QCPRange x = rect->axis(QCPAxis::atBottom)->range(), y = rect->axis(QCPAxis::atLeft)->range();
+      const pp::Range lx = pp::graph_x_range(scene.graphs[0]), ly = pp::panel_y_range(panel);
+      QCOMPARE(x.lower, lx.min);
+      QCOMPARE(x.upper, lx.max);
+      QCOMPARE(y.lower, ly.min);
+      QCOMPARE(y.upper, ly.max);
+
+      QCOMPARE(view.points_in(rect->rect()).size(), count(pp::DrawRole::Marker, i));
+      int boxes = 0, curves = 0;
+      for (int k = 0; k < view.plot()->itemCount(); ++k)
+        if (auto* r = qobject_cast<QCPItemRect*>(view.plot()->item(k)); r && r->clipAxisRect() == rect) ++boxes;
+      for (QCPAbstractPlottable* p : rect->plottables())
+        if (qobject_cast<QCPCurve*>(p)) ++curves;
+      QCOMPARE(boxes - static_cast<int>(view.span_rects(i).size()), count(pp::DrawRole::Step, i));
+      QCOMPARE(curves, count(pp::DrawRole::Ellipse, i));
+      QCOMPARE(view.texts(i), annotations(i));
+    }
   }
 };
 

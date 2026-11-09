@@ -12,16 +12,16 @@
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/experiment/persist/persister.hpp"
-#include "pychron/experiment/record/serialize.hpp"
-#include "pychron/experiment/store/record_ingest.hpp"
-#include "pychron/persistence/blob.hpp"
+#include "nobion/experiment/persist/persister.hpp"
+#include "nobion/experiment/record/serialize.hpp"
+#include "nobion/experiment/store/record_ingest.hpp"
+#include "nobion/persistence/blob.hpp"
 #include "store_records.hpp"
 
-using namespace pychron;
-using namespace pychron::experiment;
-using namespace pychron::experiment::testing;
-namespace ps = pychron::persistence;
+using namespace nobion;
+using namespace nobion::experiment;
+using namespace nobion::experiment::testing;
+namespace ps = nobion::persistence;
 using nlohmann::json;
 
 namespace {
@@ -317,7 +317,7 @@ TEST(RecordIngest, IdentityInstrumentAndExtractionAreCarried) {
   EXPECT_EQ(a.laboratory, "lab");
   EXPECT_EQ(a.analyst, "jdoe");
   EXPECT_EQ(a.extract_device, "co2");
-  EXPECT_EQ(a.record_schema_version, record::kRecordSchemaVersion);
+  EXPECT_EQ(a.record_schema_version, record::kRecordSchemaV2);  // an ordinary run needs nothing of v3
   EXPECT_FALSE(a.queue);
   EXPECT_FALSE(a.load_name);
   EXPECT_TRUE(a.peak_centers.empty());
@@ -464,7 +464,7 @@ TEST(RecordIngest, ASimulatedRecordIsStoredAsSimulated) {
 // spool is read back and sent, by whatever session comes next, as simulated.
 TEST(RecordIngest, ASpooledSimulatedRecordIsStillSimulatedWhenSentLater) {
   namespace fs = std::filesystem;
-  const fs::path dir = fs::temp_directory_path() / ("pychron_spooled_sim_" + std::string(kSampleUuid));
+  const fs::path dir = fs::temp_directory_path() / ("nobion_spooled_sim_" + std::string(kSampleUuid));
   fs::remove_all(dir);
   auto b = sample_builder();
   auto meta = b.draft().instrument;
@@ -830,4 +830,132 @@ TEST(RecordIngest, ASeriesOfMismatchedLengthsIsRefused) {
   auto rec = sample_record();  // a hand-made record can hold what the builder refuses
   rec.data.series[0].trace.v.pop_back();
   EXPECT_NE(error_of(rec).find("mismatched"), std::string::npos);
+}
+
+// How the run ended (spec 4.5, owner 2026-10-13): a failed run is stored as
+// any other and tagged invalid, with what ended it as the tag's note, so the
+// browser and figures leave it out by default and recall can still open it.
+// A truncated run is stored as a run always was, tagged ok.
+TEST(RecordIngest, AFailedRecordIsStoredTaggedInvalid) {
+  auto b = sample_builder();
+  b.set_status(record::RecordStatus::Failed, "spectrometer link down");
+  const auto out = convert(finalized(b));
+  EXPECT_EQ(body_of(out).roots.tag, (ps::TagValue{"invalid", "spectrometer link down", std::nullopt}));
+
+  b.set_status(record::RecordStatus::Failed);
+  EXPECT_EQ(body_of(convert(finalized(b))).roots.tag, (ps::TagValue{"invalid", std::nullopt, std::nullopt}));
+}
+
+TEST(RecordIngest, ATruncatedRecordIsStoredAsAnyRun) {
+  auto b = sample_builder();
+  const auto plain = convert(finalized(b));
+  b.set_status(record::RecordStatus::Truncated);
+  const auto truncated = convert(finalized(b));
+  EXPECT_EQ(body_of(truncated).roots.tag, (ps::TagValue{"ok", std::nullopt, std::nullopt}));
+  // Everything stored is the same but the item's payload sha: the record's
+  // own bytes say truncated.
+  const auto after_item = [](const std::string& d) { return d.substr(d.find('\n')); };
+  EXPECT_EQ(after_item(describe(truncated)), after_item(describe(plain)));
+  EXPECT_NE(describe(truncated), describe(plain));
+}
+
+// A detector read at several baseline positions (v3) keeps one stored value,
+// the record's; every position and each signal's choice go in the row's
+// extra. A detector with one position has none (the ordinary run's rows).
+TEST(RecordIngest, SeveralBaselinePositionsGoToExtra) {
+  auto rec = sample_record();
+  ASSERT_EQ(rec.results.baseline_positions.size(), 1u);  // the v2 record's one
+  EXPECT_FALSE(body_of(convert(rec)).roots.baselines_rows[0].extra_json);
+
+  rec.provenance.schema_version = record::kRecordSchemaVersion;
+  rec.results.baseline_positions = {{"H1", "", 0, 0, "before_inlet", 34.2, {}, {0.04, 0.004, {}}},
+                                    {"H1", "", 2, 0, "after_main", {}, 110.0, {0.05, 0.005, {}}}};
+  rec.results.baseline_choices["Ar40@H1"] = {"bracketing_average", {0, 1}, 0.045, 0.0032};
+  rec.results.baseline_choices["Ar36@CDD"] = {"nearest", {0}, 0.0, 0.0};  // another detector's
+  const auto out = convert(rec);
+  const auto& rows = body_of(out).roots.baselines_rows;
+  ASSERT_EQ(rows.size(), 1u);
+  EXPECT_EQ(rows[0].value, 0.045);  // Results::baselines, unchanged
+  ASSERT_TRUE(rows[0].extra_json);
+  const auto extra = json::parse(*rows[0].extra_json);
+  ASSERT_EQ(extra.at("positions").size(), 2u);
+  EXPECT_EQ(extra.at("positions")[0].at("when"), "before_inlet");
+  EXPECT_EQ(extra.at("positions")[0].at("magnet"), 34.2);
+  EXPECT_EQ(extra.at("positions")[1].at("segment"), 2);
+  EXPECT_EQ(extra.at("positions")[1].at("deflection"), 110.0);
+  ASSERT_EQ(extra.at("choices").size(), 1u);
+  EXPECT_EQ(extra.at("choices").at("Ar40@H1").at("rule"), "bracketing_average");
+  EXPECT_EQ(extra.at("choices").at("Ar40@H1").at("baselines"), json::array({0, 1}));
+}
+
+// Baseline modifiers (measurement plan v2 spec 3.5) have a producer: the
+// detector's row carries the modifier's value and error, the analysis's
+// meta every modifier.
+TEST(RecordIngest, BaselineModifiersHaveAProducer) {
+  auto rec = sample_record();
+  EXPECT_FALSE(body_of(convert(rec)).meta->baseline_modifiers_json);
+  rec.provenance.schema_version = record::kRecordSchemaVersion;
+  rec.results.baseline_modifiers["H1"] = {"Ar40+Ar36", "0.01*x", "counting_statistics", 11.0, 0.5};
+  const auto out = convert(rec);
+  const auto& a = body_of(out);
+  ASSERT_EQ(a.roots.baselines_rows.size(), 1u);
+  EXPECT_EQ(a.roots.baselines_rows[0].modifier_value, 11.0);
+  EXPECT_EQ(a.roots.baselines_rows[0].modifier_error, 0.5);
+  ASSERT_TRUE(a.meta && a.meta->baseline_modifiers_json);
+  const auto mods = json::parse(*a.meta->baseline_modifiers_json);
+  EXPECT_EQ(mods.at("H1").at("variable"), "Ar40+Ar36");
+  EXPECT_EQ(mods.at("H1").at("model"), "0.01*x");
+  EXPECT_EQ(mods.at("H1").at("value"), 11.0);
+}
+
+// Worked plan 7.6's shape: three gases with labels apart, every series stored.
+TEST(RecordIngest, MultiGasRecordStores) {
+  auto b = sample_builder();
+  b.add_series({"He4", "H1", "signal", {{1.f, 2.f}, {5.f, 5.f}, {}}, "He", 0, 0, 0});
+  b.add_series({"Ne20", "CDD", "signal", {{1.f, 2.f}, {3.f, 3.f}, {}}, "Ne", 0, 0, 0});
+  b.add_series({"Ne22", "CDD", "signal", {{1.f, 2.f}, {1.f, 1.f}, {}}, "Ne", 0, 1, 0});
+  b.add_gas({"He", 10.0, {{{}, 1.0, "", ""}}, std::nullopt, std::nullopt, {}});
+  b.add_gas({"Ne", 50.0, {{{}, 2.0, "", ""}}, std::nullopt, std::nullopt, {}});
+  record::InterceptResult ir;
+  ir.intercept.value = 5;
+  ir.intercept.n_used = 2;
+  b.set_intercept("He4@H1", ir);
+  b.set_intercept("Ne20@CDD", ir);
+  b.set_intercept("Ne22@CDD", ir);
+  const auto rec = finalized(b);
+  EXPECT_EQ(rec.provenance.schema_version, record::kRecordSchemaVersion);
+  const auto out = convert(rec);
+  const auto& a = body_of(out);
+  std::set<std::string> keys;
+  for (const auto& ref : a.roots.signal_refs) keys.insert(ref.series_kind + " " + ref.series_key);
+  for (const char* k : {"signal Ar40", "signal Ar36", "signal He4", "signal Ne20", "signal Ne22"})
+    EXPECT_TRUE(keys.contains(k)) << k;
+  std::set<std::string> intercepts;
+  for (const auto& row : a.roots.intercepts_rows) intercepts.insert(row.isotope);
+  EXPECT_EQ(intercepts, (std::set<std::string>{"Ar36", "Ar40", "He4", "Ne20", "Ne22"}));
+}
+
+// A gas's prepare and pump-out (staged release, spec 11.5) are the record's:
+// the store keeps no row of them, and a record with them converts as one
+// without (the e2e spec's not-stored list).
+TEST(RecordIngest, PrepareRecordIsNotStored) {
+  auto b = sample_builder();
+  b.add_series({"He4", "H1", "signal", {{1.f, 2.f}, {5.f, 5.f}, {}}, "He", 0, 0, 0});
+  record::InterceptResult ir;
+  ir.intercept.value = 5;
+  ir.intercept.n_used = 2;
+  b.set_intercept("He4@H1", ir);
+  const auto plain = finalized(b);
+  b.add_gas({"He", 10.0, {{{}, 1.0, "", ""}},
+             record::PrepareRec{"cryo:release", {{"cryo_temp", "35"}}, "2026-10-10T12:31:00Z", "2026-10-10T12:36:00Z"},
+             record::PumpOutRec{"IP", 120}, {}});
+  const auto staged = finalized(b);
+  auto rows = body_of(convert(staged));
+  auto without = body_of(convert(plain));
+  EXPECT_EQ(rows.roots.signal_refs.size(), without.roots.signal_refs.size());
+  EXPECT_EQ(rows.roots.intercepts_rows, without.roots.intercepts_rows);
+  EXPECT_EQ(rows.roots.baselines_rows, without.roots.baselines_rows);
+  ASSERT_TRUE(rows.meta && without.meta);
+  EXPECT_EQ(rows.meta->software_json, without.meta->software_json);
+  EXPECT_EQ(rows.meta->baseline_modifiers_json, without.meta->baseline_modifiers_json);
 }

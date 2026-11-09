@@ -14,14 +14,14 @@
 #include <thread>
 #include <vector>
 
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/sim/spectrometer/sim_drivers.hpp"
-#include "pychron/systems/spectrometer/acquisition.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/sim/spectrometer/sim_drivers.hpp"
+#include "nobion/systems/spectrometer/acquisition.hpp"
 #include "spectrometer_fakes.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace std::chrono_literals;
 
 namespace {
@@ -449,7 +449,7 @@ TEST(AcquisitionEngine, AcquireFailsWithTimeoutWhenAcquirerStalls) {
 
 namespace {
 
-namespace fakes = pychron::spectrometer::testing;
+namespace fakes = nobion::spectrometer::testing;
 
 struct Gate {
   void open() {
@@ -838,8 +838,8 @@ TEST(AcquisitionEngine, FailedStartDoesNotBlockLaterStartOrStop) {
 
 namespace {
 
-struct IntensityStreamVirtual : pychron::testing::VirtualTimeTest {};
-struct AcquisitionEngineVirtual : pychron::testing::VirtualTimeTest {};
+struct IntensityStreamVirtual : nobion::testing::VirtualTimeTest {};
+struct AcquisitionEngineVirtual : nobion::testing::VirtualTimeTest {};
 
 }  // namespace
 
@@ -859,7 +859,7 @@ TEST_F(IntensityStreamVirtual, NextWakesOnAPush) {
 
   Result<std::optional<Reading>> got = std::optional<Reading>{};
   TimePoint returned{};
-  pychron::testing::Crew crew(clock);
+  nobion::testing::Crew crew(clock);
   crew.start("consumer", [&] {
     got = stream->next(10s);
     returned = clock.now();

@@ -1,4 +1,5 @@
-#include "pychron/laser/pattern.hpp"
+#include "nobion/laser/pattern.hpp"
+#include "nobion/core/atomic_file.hpp"
 
 #include <algorithm>
 #include <array>
@@ -14,7 +15,7 @@
 
 #include <toml++/toml.hpp>
 
-namespace pychron::laser {
+namespace nobion::laser {
 
 namespace {
 
@@ -517,23 +518,8 @@ Result<fs::path> save_pattern(const fs::path& dir, const Pattern& pattern) {
   std::error_code ec;
   fs::create_directories(dir, ec);
   if (ec) return cannot(ec.message());
-  // Beside the target, then renamed: a reader never sees a torn file.
-  const fs::path tmp = fs::path(path).concat(".tmp");
-  {
-    std::ofstream out(tmp, std::ios::out | std::ios::trunc | std::ios::binary);
-    if (out) out << text;
-    out.flush();
-    if (!out) {
-      fs::remove(tmp, ec);
-      return cannot("");
-    }
-  }
-  fs::rename(tmp, path, ec);
-  if (ec) {
-    const std::string why = ec.message();
-    fs::remove(tmp, ec);
-    return cannot(why);
-  }
+  if (auto written = write_file_atomic(path, text, Durability::Power); !written)
+    return cannot(written.error().what);
   return path;
 }
 
@@ -602,4 +588,4 @@ void PatternLibrary::put(Pattern pattern) {
   patterns_.insert_or_assign(std::move(name), std::move(made));
 }
 
-}  // namespace pychron::laser
+}  // namespace nobion::laser

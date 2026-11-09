@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -9,32 +10,35 @@
 #include <mutex>
 #include <optional>
 #include <random>
+#include <regex>
 #include <stdexcept>
 #include <string>
 #include <system_error>
 #include <thread>
 #include <vector>
 
-#include "pychron/core/config/logging_config.hpp"
-#include "pychron/core/log_hub.hpp"
-#include "pychron/core/scheduler.hpp"
-#include "pychron/core/signal_bus.hpp"
-#include "pychron/core/virtual_clock.hpp"
+#include "nobion/core/config/logging_config.hpp"
+#include "log_capture.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/process_log.hpp"
+#include "nobion/core/scheduler.hpp"
+#include "nobion/core/signal_bus.hpp"
+#include "nobion/core/virtual_clock.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 namespace {
 // threads = 0: jobs run inline inside run_pending(), fully deterministic.
 Scheduler::Options inline_pool() { return Scheduler::Options{0}; }
 
-using pychron::testing::await_waiters;
+using nobion::testing::await_waiters;
 
 // A scheduler that waits past the clock leaves time standing and the test
 // asleep in it. Each test on a VirtualClock runs under a real-time bound: when
 // it is exceeded the process says so and aborts, well inside the ctest timeout.
-class SchedulerVirtual : public pychron::testing::VirtualTimeTest {
+class SchedulerVirtual : public nobion::testing::VirtualTimeTest {
  protected:
   // Appended to by jobs on worker threads.
   void record(TimePoint t) {
@@ -318,11 +322,14 @@ std::filesystem::path unique_log_dir(const char* tag) {
   return std::filesystem::temp_directory_path() / (std::string(tag) + std::to_string(std::mt19937_64(rd())()));
 }
 
+// Lines of `p` holding `needle`, read without their thread field and run id
+// (`[warn] [t3] run=X core: m` is matched as `[warn] core: m`).
 std::size_t lines_containing(const std::filesystem::path& p, const std::string& needle) {
+  static const std::regex context(R"((\[(?:trace|debug|info|warn|error)\]) \[[^\]]*\] (?:run=\S+ )?)");
   std::ifstream in(p);
   std::size_t n = 0;
   for (std::string line; std::getline(in, line);)
-    if (line.find(needle) != std::string::npos) ++n;
+    if (std::regex_replace(line, context, "$1 ").find(needle) != std::string::npos) ++n;
   return n;
 }
 
@@ -333,7 +340,7 @@ TEST(Scheduler, ScanErrorGoesThroughHubToFileAndBusOnce) {
   SignalBus bus;
   std::vector<Log> logs;
   auto sub = bus.subscribe<Log>([&](const Log& e) { logs.push_back(e); });
-  const auto dir = unique_log_dir("pychron_sched_hub_");
+  const auto dir = unique_log_dir("nobion_sched_hub_");
   config::LoggingConfig lc;
   lc.dir = dir;
   auto hub = LogHub::create(lc, clock, &bus);
@@ -348,7 +355,7 @@ TEST(Scheduler, ScanErrorGoesThroughHubToFileAndBusOnce) {
   ASSERT_EQ(logs.size(), 1u);  // via the hub only, not also published directly
   EXPECT_EQ(logs[0].logger, "scheduler");
   EXPECT_EQ(logs[0].level, LogLevel::Warn);
-  EXPECT_EQ(lines_containing(dir / "pychron.log", "[warn] scheduler: scan IG1 failed"), 1u);
+  EXPECT_EQ(lines_containing(dir / "nobion.log", "[warn] scheduler: scan IG1 failed"), 1u);
   hub->reset();
   std::filesystem::remove_all(dir);
 }
@@ -358,7 +365,7 @@ TEST(Scheduler, SchedulerLevelRuleGatesItsRecords) {
   SignalBus bus;
   std::vector<Log> logs;
   auto sub = bus.subscribe<Log>([&](const Log& e) { logs.push_back(e); });
-  const auto dir = unique_log_dir("pychron_sched_rule_");
+  const auto dir = unique_log_dir("nobion_sched_rule_");
   config::LoggingConfig lc;
   lc.dir = dir;
   lc.default_level = LogLevel::Trace;
@@ -376,8 +383,8 @@ TEST(Scheduler, SchedulerLevelRuleGatesItsRecords) {
   // The warn (failed scan) is below the rule; the error (throwing job) is not.
   ASSERT_EQ(logs.size(), 1u);
   EXPECT_EQ(logs[0].level, LogLevel::Error);
-  EXPECT_EQ(lines_containing(dir / "pychron.log", "scheduler: scan IG1 failed"), 0u);
-  EXPECT_EQ(lines_containing(dir / "pychron.log", "[error] scheduler: job boom threw"), 1u);
+  EXPECT_EQ(lines_containing(dir / "nobion.log", "scheduler: scan IG1 failed"), 0u);
+  EXPECT_EQ(lines_containing(dir / "nobion.log", "[error] scheduler: job boom threw"), 1u);
   hub->reset();
   std::filesystem::remove_all(dir);
 }
@@ -523,6 +530,26 @@ TEST_F(SchedulerVirtual, PeriodicJobRunsAtExactTimes) {
   for (int i = 1; i <= 10; ++i) expected.push_back(kStart + i * 1s);
   EXPECT_EQ(recorded(), expected);
   EXPECT_EQ(clock.now(), kStart + 10s + 1ms);
+}
+
+// A job writes to the log with its thread named: the scheduler's.
+TEST_F(SchedulerVirtual, JobsRunTaggedScheduler) {
+  nobion::testing::LogCapture log;  // before the scheduler: its threads end first
+  ASSERT_TRUE(log.ok());
+  VirtualClock clock;
+  Clock::Participant main(clock, "test");
+  Scheduler s(clock);
+  s.start();
+  ASSERT_TRUE(s.after("once", 1s, [] { process_logger("t").info("from a job"); }));
+
+  clock.sleep_for(2s);
+  s.wait_idle();
+
+  const auto lines = log.raw_lines();
+  const auto it = std::find_if(lines.begin(), lines.end(),
+                               [](const std::string& l) { return l.find(" t: from a job") != std::string::npos; });
+  ASSERT_NE(it, lines.end());
+  EXPECT_NE(it->find(" [info] [scheduler] "), std::string::npos) << *it;
 }
 
 TEST_F(SchedulerVirtual, AfterRunsOnceAtItsDelay) {

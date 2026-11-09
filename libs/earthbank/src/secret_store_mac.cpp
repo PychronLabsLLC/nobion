@@ -22,11 +22,11 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <Security/Security.h>
 
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/secret_store.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/secret_store.hpp"
 #include "secret_store_detail.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 constexpr std::string_view kBackend = "keychain";
@@ -131,7 +131,7 @@ class KeychainSecretStore final : public ISecretStore {
   // that returns nothing of them. It unlocks nothing and asks the user
   // nothing.
   bool usable() const {
-    const auto query = item("pychron.probe");
+    const auto query = item("nobion.probe");
     if (!query) return false;
     const OSStatus status = SecItemCopyMatching(query.get(), nullptr);
     return status == errSecSuccess || status == errSecItemNotFound;
@@ -168,4 +168,4 @@ std::unique_ptr<ISecretStore> detail::make_system_secret_store(std::string_view 
   return store;
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert legacy pychron conditionals YAML to pychron-cpp TOML.
+"""Convert legacy pychron conditionals YAML to nobion TOML.
 
 Conditionals spec (docs/superpowers/specs/2026-10-02-conditionals-design.md)
 section 7. Handles system files (setupfiles/spectrometer/*conditionals.yaml),
@@ -70,7 +70,7 @@ class Result:
 
 
 def convert_check(teststr: str) -> tuple[str, list[str]]:
-    """Legacy check string -> pychron-cpp grammar, with notes on each rewrite."""
+    """Legacy check string -> nobion grammar, with notes on each rewrite."""
     notes = []
     check = " ".join(str(teststr).split())
 

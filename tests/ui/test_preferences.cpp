@@ -5,17 +5,22 @@
 // threshold goes to its window when one is open, else to its saved settings.
 // Settings live in temp ini files.
 //
-// The EarthBank page is always there, last (test_earthbank_preferences.cpp).
+// The Updates page and the EarthBank page are always there, last
+// (test_earthbank_preferences.cpp).
 //
 // With a line, two more pages: Logging and Metrics. Theirs are not QSettings
 // but the line's local override file (extraction_line.local.toml), written
 // here beside a config in a temp folder.
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <sstream>
 
+#include <QAbstractButton>
+#include <QLayout>
 #include <QApplication>
 #include <QFontMetrics>
 #include <QCheckBox>
@@ -33,32 +38,44 @@
 #include <QtTest/QtTest>
 
 #include "code_editor.hpp"
+#include "log_capture.hpp"
 #include "data_browser_window.hpp"
 #include "data_main_window.hpp"
 #include "line_settings.hpp"
 #include "logging_page.hpp"
 #include "main_window.hpp"
 #include "metrics_page.hpp"
+#include "plot_style.hpp"
 #include "preferences.hpp"
 #include "preferences_dialog.hpp"
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/log_hub.hpp"
-#include "pychron/processing/source.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/config/logging_file.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/arar/domain.hpp"
+#include "nobion/processing/domain.hpp"
+#include "nobion/processing/source.hpp"
 #include "spectrometer_bridge.hpp"
 #include "spectrometer_fixture.hpp"
 #include "spectrometer_window.hpp"
 #include "theme.hpp"
+#include "update_checker.hpp"
 #include "settings_guard.hpp"
 #include "ui_fixture.hpp"
 
-using namespace pychron;
-namespace pp = pychron::processing;
-using pychron::ui::DataBrowserWindow;
-using pychron::ui::Preferences;
-using pychron::ui::PreferencesDialog;
-using pychron::ui::SpectrometerWindow;
+using namespace nobion;
+namespace pp = nobion::processing;
+using nobion::ui::DataBrowserWindow;
+using nobion::ui::Preferences;
+using nobion::ui::PreferencesDialog;
+using nobion::ui::SpectrometerWindow;
 
 namespace {
+
+// The Ar-Ar domain: what a browser's toolbar is built from.
+const pp::Domain& arar_domain() {
+  static const std::unique_ptr<pp::Domain> domain = nobion::arar::make_domain();
+  return *domain;
+}
 
 std::unique_ptr<pp::MemorySource> make_source(int n) {
   auto src = std::make_unique<pp::MemorySource>();
@@ -78,7 +95,7 @@ std::unique_ptr<pp::MemorySource> make_source(int n) {
 void click(QDialogButtonBox* box, QDialogButtonBox::StandardButton which) { box->button(which)->click(); }
 
 namespace fs = std::filesystem;
-using pychron::ui::LineSettings;
+using nobion::ui::LineSettings;
 
 void write_file(const fs::path& p, const std::string& text) {
   std::ofstream out(p, std::ios::binary);
@@ -111,7 +128,7 @@ class TestPreferences : public QObject {
 
  private:
   QTemporaryDir dir_;
-  pychron::ui::test::ApplicationSettingsGuard app_settings_;
+  nobion::ui::test::ApplicationSettingsGuard app_settings_;
   int file_ = 0;
   QString path_;
   fs::path config_dir_, main_file_, local_file_;
@@ -165,6 +182,35 @@ class TestPreferences : public QObject {
     QCOMPARE(ui::load_preferences(*settings()), p);
   }
 
+  // The update check's switch is kept where the check reads it
+  // (update_checker.hpp), not under preferences/.
+  void check_for_updates_round_trips_through_its_own_key() {
+    QCOMPARE(ui::load_preferences(*settings()).check_for_updates, true);  // missing: on
+    Preferences p;
+    p.check_for_updates = false;
+    ui::save_preferences(*settings(), p);
+    QCOMPARE(settings()->value(QStringLiteral("updates/check_on_startup")).toBool(), false);
+    QVERIFY(!settings()->contains(QStringLiteral("preferences/check_for_updates")));
+    QCOMPARE(ui::load_preferences(*settings()), p);
+    QCOMPARE(ui::load_update_policy(*settings()).enabled, false);
+    p.check_for_updates = true;
+    ui::save_preferences(*settings(), p);
+    QCOMPARE(ui::load_update_policy(*settings()).enabled, true);
+  }
+
+  void the_dialog_shows_check_for_updates() {
+    Preferences p;
+    p.check_for_updates = false;
+    PreferencesDialog d({p, std::nullopt}, {});
+    QVERIFY(d.check_for_updates() != nullptr);
+    QVERIFY(!d.check_for_updates()->isChecked());
+    QVERIFY(d.check_for_updates()->toolTip().contains(QStringLiteral("api.github.com")));
+    d.check_for_updates()->setChecked(true);
+    QCOMPARE(d.values().preferences.check_for_updates, true);
+    d.restore_defaults();
+    QVERIFY(d.check_for_updates()->isChecked());
+  }
+
   void invalid_saved_values_read_as_their_defaults() {
     {
       auto s = settings();
@@ -178,12 +224,66 @@ class TestPreferences : public QObject {
     QCOMPARE(ui::load_preferences(*settings()), Preferences{});
   }
 
+  // Plot palette spec 4.3: the live plots' colours, kept where they differ
+  // from the default.
+  void plot_colors_round_trip() {
+    Preferences p;
+    p.plot_background = "#202020";
+    p.plot_series_colors = {{1, "#abcdef"}, {12, "#123456"}};
+    ui::save_preferences(*settings(), p);
+    QCOMPARE(ui::load_preferences(*settings()), p);
+    // A slot given back to the default is no longer kept.
+    p.plot_series_colors.erase(12);
+    ui::save_preferences(*settings(), p);
+    QCOMPARE(ui::load_preferences(*settings()), p);
+    QVERIFY(!settings()->contains(QStringLiteral("preferences/plot_series/12")));
+  }
+
+  void a_default_color_is_not_written() {
+    ui::PlotStyle s = ui::default_plot_style();
+    s.series[2] = QColor(QStringLiteral("#010203"));
+    Preferences p;
+    ui::store_plot_style(s, p);
+    QCOMPARE(p.plot_series_colors, (std::map<int, std::string>{{3, "#010203"}}));
+    QVERIFY(p.plot_background.empty());
+    ui::save_preferences(*settings(), p);
+    auto saved = settings();
+    QVERIFY(!saved->contains(QStringLiteral("preferences/plot_background")));
+    saved->beginGroup(QStringLiteral("preferences/plot_series"));
+    QCOMPARE(saved->childKeys(), QStringList{QStringLiteral("3")});
+    saved->endGroup();
+  }
+
+  void bad_plot_values_read_as_default() {
+    {
+      auto s = settings();
+      s->setValue(QStringLiteral("preferences/plot_background"), QStringLiteral("pink"));
+      s->setValue(QStringLiteral("preferences/plot_series/1"), QStringLiteral("#12345"));
+      s->setValue(QStringLiteral("preferences/plot_series/0"), QStringLiteral("#000000"));
+      s->setValue(QStringLiteral("preferences/plot_series/13"), QStringLiteral("#000000"));
+      s->setValue(QStringLiteral("preferences/plot_series/2"), QStringLiteral("#ABCDEF"));
+    }
+    const Preferences p = ui::load_preferences(*settings());
+    QVERIFY(p.plot_background.empty());
+    QCOMPARE(p.plot_series_colors, (std::map<int, std::string>{{2, "#abcdef"}}));
+  }
+
+  void dialog_opens_with_room_and_a_margin() {
+    PreferencesDialog d({Preferences{}, std::nullopt}, {});
+    QVERIFY2(d.width() >= 860 && d.height() >= 640,
+             qPrintable(QStringLiteral("%1 x %2").arg(d.width()).arg(d.height())));
+    const QMargins m = d.layout()->contentsMargins();
+    for (const int edge : {m.left(), m.top(), m.right(), m.bottom()}) QVERIFY2(edge >= 20, qPrintable(QString::number(edge)));
+    // And the pages keep clear of the list beside them.
+    QVERIFY(d.layout()->itemAt(0)->layout()->spacing() >= 16);
+  }
+
   void dialog_shows_the_values_and_restores_defaults() {
     Preferences p;
     p.font_pt = 13;
     p.browser_page_size = 300;
     PreferencesDialog d({p, std::nullopt}, {});
-    QCOMPARE(d.pages()->count(), 3);  // no spectrometer page without one
+    QCOMPARE(d.pages()->count(), 5);  // no spectrometer page without one
     QVERIFY(d.confirm_move() == nullptr);
     QCOMPARE(d.font_size()->value(), 13);
     QCOMPARE(d.code_font_size()->text(), QStringLiteral("Default"));
@@ -215,15 +315,87 @@ class TestPreferences : public QObject {
     d.pages()->setCurrentRow(1);
     QCOMPARE(d.stack()->currentIndex(), 1);
 
+    d.plot_series(5)->set_color(QColor(QStringLiteral("#010101")));
+    d.plot_background()->set_color(QColor(QStringLiteral("#020202")));
     click(d.buttons(), QDialogButtonBox::RestoreDefaults);
     QCOMPARE(d.values().preferences, Preferences{});
     QCOMPARE(d.font_size()->text(), QStringLiteral("Default"));
+    QCOMPARE(d.plot_series(5)->color(), ui::default_plot_style().series[5]);
+    QCOMPARE(d.plot_background()->color(), ui::default_plot_style().plot_background);
+  }
+
+  // ---- Plots: the live plots' colours (plot palette spec 4.3) -------------------
+
+  void plots_page_comes_after_the_data_page() {
+    PreferencesDialog d({Preferences{}, std::nullopt}, {});
+    QCOMPARE(d.pages()->item(2)->text(), QStringLiteral("Plots"));
+    QCOMPARE(d.pages()->count(), 5);
+    bool noted = false;
+    for (const auto* l : d.stack()->widget(2)->findChildren<QLabel*>())
+      noted = noted || l->text() == QStringLiteral("Used by the live plots (scan, evolutions, cryostat, heaters). "
+                                                   "A figure has its own colors in its options.");
+    QVERIFY(noted);
+  }
+
+  void plots_page_shows_and_gives_back_the_colors() {
+    Preferences p;
+    p.plot_series_colors = {{4, "#445566"}};
+    p.plot_background = "#eeeeee";
+    PreferencesDialog d({p, std::nullopt}, {});
+    QCOMPARE(d.plot_series(3)->color().name(), QStringLiteral("#445566"));
+    QCOMPARE(d.plot_background()->color().name(), QStringLiteral("#eeeeee"));
+    QCOMPARE(d.plot_series(0)->color(), ui::default_plot_style().series[0]);
+    // A plot colour is never "no colour".
+    QVERIFY(d.plot_series(0)->none()->isHidden());
+    QVERIFY(d.plot_background()->none()->isHidden());
+    QVERIFY(d.plot_series(11) != nullptr);
+    QVERIFY(d.plot_series(12) == nullptr);
+    QCOMPARE(d.values().preferences, p);
+
+    d.plot_series(0)->ask = [](const QColor&) { return QColor(QStringLiteral("#000001")); };
+    d.plot_series(0)->button()->click();
+    QCOMPARE(d.values().preferences.plot_series_colors,
+             (std::map<int, std::string>{{1, "#000001"}, {4, "#445566"}}));
+    QCOMPARE(d.values().preferences.plot_background, std::string("#eeeeee"));
+  }
+
+  void reset_plot_colors_gives_the_default_palette() {
+    Preferences p;
+    p.plot_series_colors = {{1, "#000001"}, {12, "#000012"}};
+    p.plot_background = "#202020";
+    p.browser_type_colors = {{"air", "#102030"}};
+    PreferencesDialog d({p, std::nullopt}, {});
+    d.reset_plot_colors()->click();
+    const ui::PlotStyle defaults = ui::default_plot_style();
+    for (std::size_t i = 0; i < defaults.series.size(); ++i) QCOMPARE(d.plot_series(i)->color(), defaults.series[i]);
+    QCOMPARE(d.plot_background()->color(), QColor(Qt::white));
+    QVERIFY(d.values().preferences.plot_series_colors.empty());
+    QVERIFY(d.values().preferences.plot_background.empty());
+    // The Data page's colours are another button's.
+    QCOMPARE(d.values().preferences.browser_type_colors, p.browser_type_colors);
+  }
+
+  // Reset colors, as Restore Defaults, changes the fields only: Cancel leaves
+  // the plots as last applied.
+  void reset_changes_fields_only_until_applied() {
+    auto line = ui::test::make_example_line();
+    ui::MainWindow window(*line);
+    window.set_preferences_settings(factory());
+    PreferencesDialog* d = window.open_preferences();
+    d->plot_background()->set_color(QColor(QStringLiteral("#303030")));
+    click(d->buttons(), QDialogButtonBox::Apply);
+    QCOMPARE(ui::plot_style().plot_background.name(), QStringLiteral("#303030"));
+    d->reset_plot_colors()->click();
+    QCOMPARE(d->plot_background()->color(), QColor(Qt::white));
+    click(d->buttons(), QDialogButtonBox::Cancel);
+    QCOMPARE(ui::plot_style().plot_background.name(), QStringLiteral("#303030"));
+    QCOMPARE(ui::load_preferences(*settings()).plot_background, std::string("#303030"));
   }
 
   void spectrometer_page_holds_the_move_threshold() {
     PreferencesDialog d({Preferences{}, 2.5}, {});
-    QCOMPARE(d.pages()->count(), 4);
-    QCOMPARE(d.pages()->item(2)->text(), QStringLiteral("Spectrometer"));
+    QCOMPARE(d.pages()->count(), 6);
+    QCOMPARE(d.pages()->item(3)->text(), QStringLiteral("Spectrometer"));
     QVERIFY(d.confirm_move() != nullptr);
     QCOMPARE(d.confirm_move()->value(), 2.5);
     d.confirm_move()->setValue(0.0);
@@ -258,6 +430,32 @@ class TestPreferences : public QObject {
     }
   }
 
+  // A commit names the pages that changed on ui.action, never a value.
+  void a_commit_logs_the_pages_that_changed() {
+    const nobion::testing::LogCapture capture;
+    QVERIFY(capture.ok());
+    const auto actions = [&] {
+      std::vector<std::string> out;
+      for (auto& l : capture.lines())
+        if (l.find("ui.action") != std::string::npos) out.push_back(std::move(l));
+      return out;
+    };
+    PreferencesDialog d({Preferences{}, std::nullopt}, [](const PreferencesDialog::Values&) {});
+    click(d.buttons(), QDialogButtonBox::Apply);  // nothing changed: nothing said
+    QVERIFY(actions().empty());
+    d.page_size()->setValue(137);
+    click(d.buttons(), QDialogButtonBox::Apply);
+    QCOMPARE(actions(), std::vector<std::string>{"[info] ui.action: preferences changed: Data"});
+    d.font_size()->setValue(15);
+    d.page_size()->setValue(138);
+    click(d.buttons(), QDialogButtonBox::Ok);
+    const auto said = actions();
+    QCOMPARE(said.size(), std::size_t{2});
+    QCOMPARE(said.back(), std::string("[info] ui.action: preferences changed: Appearance, Data"));
+    for (const auto& line : said)  // no value: not 137, 138 or 15
+      QVERIFY2(std::ranges::none_of(line, [](char c) { return c >= '0' && c <= '9'; }), line.c_str());
+  }
+
   void fonts_reach_the_application_and_the_script_editor() {
     const double platform = QApplication::font().pointSizeF();
     ui::CodeEditor editor;
@@ -284,7 +482,7 @@ class TestPreferences : public QObject {
 
   void the_browser_pages_by_the_preference() {
     auto src = make_source(260);
-    DataBrowserWindow w(*src);
+    DataBrowserWindow w(*src, arar_domain());
     QCOMPARE(w.model()->rowCount(), Preferences::kDefaultPageSize);
     w.set_page_size(50);
     QCOMPARE(w.page_size(), 50);
@@ -300,7 +498,7 @@ class TestPreferences : public QObject {
     QTemporaryDir presets_dir;
     pp::PresetStore presets(presets_dir.path().toStdString());
     ui::MainWindow window(*line);
-    window.set_data(src.get(), &presets);
+    window.set_data(src.get(), &presets, &arar_domain());
     window.set_preferences_settings(factory());
     QCOMPARE(window.preferences_action()->menuRole(), QAction::PreferencesRole);
     QCOMPARE(window.preferences_action()->shortcut(), QKeySequence(QKeySequence::Preferences));
@@ -312,7 +510,7 @@ class TestPreferences : public QObject {
     PreferencesDialog* d = window.open_preferences();  // the open one again
     QVERIFY(d != nullptr);
     QCOMPARE(window.findChildren<PreferencesDialog*>().size(), 1);
-    QCOMPARE(d->pages()->count(), 3);  // no spectrometer
+    QCOMPARE(d->pages()->count(), 5);  // no spectrometer
     d->page_size()->setValue(120);
     click(d->buttons(), QDialogButtonBox::Ok);
 
@@ -332,7 +530,7 @@ class TestPreferences : public QObject {
 
       // No spectrometer window yet: straight to its saved settings.
       PreferencesDialog* d = window.open_preferences();
-      QCOMPARE(d->pages()->count(), 4);
+      QCOMPARE(d->pages()->count(), 6);
       QCOMPARE(d->confirm_move()->value(), SpectrometerWindow::kDefaultConfirmMoveAmu);
       d->confirm_move()->setValue(2.5);
       click(d->buttons(), QDialogButtonBox::Ok);
@@ -372,12 +570,12 @@ class TestPreferences : public QObject {
     auto src = make_source(260);
     QTemporaryDir presets_dir;
     pp::PresetStore presets(presets_dir.path().toStdString());
-    ui::DataMainWindow window(*src, presets, QStringLiteral("data-reduction"));
+    ui::DataMainWindow window(*src, presets, arar_domain(), QStringLiteral("data-reduction"));
     window.set_preferences_settings(factory());
     QVERIFY(window.preferences_action()->isVisible());
     QCOMPARE(window.browser()->model()->rowCount(), Preferences::kDefaultPageSize);
     PreferencesDialog* d = window.open_preferences();
-    QCOMPARE(d->pages()->count(), 3);
+    QCOMPARE(d->pages()->count(), 5);
     d->page_size()->setValue(60);
     click(d->buttons(), QDialogButtonBox::Ok);
     QCOMPARE(ui::load_preferences(*settings()).browser_page_size, 60);
@@ -385,6 +583,29 @@ class TestPreferences : public QObject {
   }
 
   // ---- Logging and Metrics: the line's local override file ----------------------
+
+  // The program writes "color", as the data browser's "Color by" does.
+  void no_text_of_the_dialog_says_colour() {
+    PreferencesDialog d({Preferences{}, std::nullopt, line_settings()}, {});
+    int texts = 0;
+    for (const auto* b : d.findChildren<QAbstractButton*>()) {
+      ++texts;
+      QVERIFY2(!b->text().contains(QStringLiteral("olour")), qPrintable(b->text()));
+    }
+    for (const auto* l : d.findChildren<QLabel*>()) {
+      ++texts;
+      QVERIFY2(!l->text().contains(QStringLiteral("olour")), qPrintable(l->text()));
+    }
+    QVERIFY(texts > 10);
+    bool reset = false;
+    bool none = false;
+    for (const auto* b : d.findChildren<QAbstractButton*>()) {
+      reset = reset || b->text() == QStringLiteral("Reset colors");
+      none = none || b->text() == QStringLiteral("No color");
+    }
+    QVERIFY(reset);
+    QVERIFY(none);
+  }
 
   // The page list is a list of places to go: rows with room around the
   // words, the one in view a bar of the accent from edge to edge.
@@ -410,7 +631,7 @@ class TestPreferences : public QObject {
     pages->setCurrentRow(1);
     const QRect row = pages->visualItemRect(pages->item(1));
     const QImage image = pages->viewport()->grab().toImage();
-    const QColor accent = pychron::ui::theme().accent;
+    const QColor accent = nobion::ui::theme().accent;
     QCOMPARE(image.pixelColor(row.left() + 1, row.center().y()), accent);
     QCOMPARE(image.pixelColor(row.right() - 1, row.center().y()), accent);
     QCOMPARE(image.pixelColor(row.left() + 1, row.top() + 1), accent);  // the bar is the whole row
@@ -418,16 +639,57 @@ class TestPreferences : public QObject {
 
   void line_pages_are_there_only_with_a_line() {
     PreferencesDialog without({Preferences{}, std::nullopt, std::nullopt}, {});
-    QCOMPARE(without.pages()->count(), 3);
+    QCOMPARE(without.pages()->count(), 5);
     QVERIFY(without.logging_page() == nullptr);
     QVERIFY(without.metrics_page() == nullptr);
 
     PreferencesDialog with({Preferences{}, std::nullopt, line_settings()}, {});
-    QCOMPARE(with.pages()->count(), 5);
-    QCOMPARE(with.pages()->item(2)->text(), QStringLiteral("Logging"));
-    QCOMPARE(with.pages()->item(3)->text(), QStringLiteral("Metrics"));
+    QCOMPARE(with.pages()->count(), 7);
+    QCOMPARE(with.pages()->item(3)->text(), QStringLiteral("Logging"));
+    QCOMPARE(with.pages()->item(4)->text(), QStringLiteral("Metrics"));
     QVERIFY(with.logging_page() != nullptr);
     QVERIFY(with.metrics_page() != nullptr);
+  }
+
+  // Preferences > Data source is added by a window that runs on an install
+  // (test_data_source_page.cpp); without one there is no such page.
+  // A dialog raised again keeps its page; the window does not read the site
+  // file for a page it does not add (review finding 4).
+  void theDataSourceDepsAreReadOncePerDialog() {
+    auto src = make_source(10);
+    QTemporaryDir presets_dir;
+    pp::PresetStore presets(presets_dir.path().toStdString());
+    ui::DataMainWindow window(*src, presets, arar_domain(), QStringLiteral("data-reduction"));
+    window.set_preferences_settings(factory());
+    int read = 0;
+    const fs::path root = config_dir_;
+    window.set_data_source(
+        [&read, root]() -> std::optional<ui::DataSourcePageDeps> {
+          ++read;
+          ui::DataSourcePageDeps deps;
+          deps.install.name = "lab";
+          deps.install.root = root;
+          deps.install.database = "sqlite:" + (root / "p.db").generic_string();
+          deps.site_path = root / "site.toml";
+          return deps;
+        },
+        [] {});
+    PreferencesDialog* first = window.open_preferences();
+    QVERIFY(first->data_source_page() != nullptr);
+    PreferencesDialog* again = window.open_preferences();
+    QCOMPARE(again, first);
+    QCOMPARE(read, 1);
+    first->close();
+  }
+
+  void noDataSourcePageWithoutAnInstall() {
+    QWidget window;
+    QPointer<PreferencesDialog> open;
+    PreferencesDialog* d = PreferencesDialog::show_for(&window, open, factory(), std::nullopt, {});
+    for (int i = 0; i < d->pages()->count(); ++i) QVERIFY(d->pages()->item(i)->text() != QStringLiteral("Data source"));
+    QVERIFY(d->data_source_page() == nullptr);
+    QVERIFY(d->save_without_checking()->isHidden());
+    d->close();
   }
 
   void line_settings_load_what_is_in_force_and_what_is_shared() {
@@ -453,17 +715,19 @@ class TestPreferences : public QObject {
     QCOMPARE(page->levels()->item(0, 0)->text(), QStringLiteral("scheduler"));
     QCOMPARE(page->level_at(0)->currentText(), QStringLiteral("debug"));
     QCOMPARE(page->max_files()->value(), 3);
-    QCOMPARE(page->max_size()->value(), 10);
+    QCOMPARE(page->max_size()->value(), 50);
     QVERIFY(page->folder()->text().isEmpty());
+    // An unset folder stays unset when nothing is typed: a plain save must not turn the file off.
+    QVERIFY(!page->value().dir.has_value());
     QVERIFY(!page->echo()->isChecked());
 
     page->default_level()->setCurrentText(QStringLiteral("debug"));
-    page->folder()->setText(QStringLiteral("/tmp/pychron-logs"));
+    page->folder()->setText(QStringLiteral("/tmp/nobion-logs"));
     page->max_size()->setValue(25);
     page->echo()->setChecked(true);
     const config::LoggingConfig got = d.values().line->logging;
     QCOMPARE(got.default_level, LogLevel::Debug);
-    QCOMPARE(got.dir, fs::path("/tmp/pychron-logs"));
+    QCOMPARE(got.dir, fs::path("/tmp/nobion-logs"));
     QCOMPARE(got.max_size_mb, std::int64_t{25});
     QCOMPARE(got.max_files, std::int64_t{3});
     QVERIFY(got.echo_stderr);
@@ -630,7 +894,7 @@ class TestPreferences : public QObject {
     LineSettings s = line_settings();
     s.logging.default_level = LogLevel::Error;
     s.logging.levels = {{"*.wire", LogLevel::Trace}};
-    s.logging.dir = "/tmp/pychron \"logs\"";
+    s.logging.dir = "/tmp/nobion \"logs\"";
     s.metrics.enabled = true;
     s.metrics.bind = "127.0.0.1";
     QCOMPARE(ui::save_line_settings(main_file_, s), QString());
@@ -638,7 +902,7 @@ class TestPreferences : public QObject {
     QVERIFY2(cfg.has_value(), cfg ? "" : cfg.error().what.c_str());
     QCOMPARE(cfg->logging.default_level, LogLevel::Error);
     QCOMPARE(cfg->logging.levels.size(), std::size_t{1});
-    QCOMPARE(cfg->logging.dir, fs::path("/tmp/pychron \"logs\""));
+    QCOMPARE(cfg->logging.dir, fs::path("/tmp/nobion \"logs\""));
     QCOMPARE(cfg->logging.max_files, std::int64_t{3});
     QVERIFY(cfg->metrics.enabled);
     QCOMPARE(cfg->metrics.bind, std::string("127.0.0.1"));
@@ -659,7 +923,7 @@ class TestPreferences : public QObject {
     ui::MainWindow window(*line);
     window.set_preferences_settings(factory());
     PreferencesDialog* d = window.open_preferences();
-    QCOMPARE(d->pages()->count(), 3);
+    QCOMPARE(d->pages()->count(), 5);
     d->close();
   }
 
@@ -667,16 +931,20 @@ class TestPreferences : public QObject {
     auto line = ui::test::make_example_line();
     const std::shared_ptr<LogHub> hub = line->log_hub();
     QVERIFY(hub != nullptr);
+    // The example line starts at the built-in default (debug). This test is about a change from a
+    // quieter level, so it starts the session at info, as the test needs, whatever the default is.
+    hub->set_levels(LogLevel::Info, {});
     Logger scheduler = hub->logger("scheduler");
     Logger other = hub->logger("other");
-    QVERIFY(!other.enabled(LogLevel::Debug));
+    // The file level: enabled() would also count the recorder, which keeps debug.
+    QVERIFY(other.level() > LogLevel::Debug);
 
     ui::MainWindow window(*line);
     window.set_preferences_settings(factory());
     window.set_line_config_file(main_file_);
     window.set_metrics_status(QStringLiteral("Off"));
     PreferencesDialog* d = window.open_preferences();
-    QCOMPARE(d->pages()->count(), 5);
+    QCOMPARE(d->pages()->count(), 7);
     QVERIFY(d->metrics_page()->status()->text().contains(QStringLiteral("Off")));
 
     d->logging_page()->default_level()->setCurrentText(QStringLiteral("debug"));
@@ -692,8 +960,8 @@ class TestPreferences : public QObject {
     QCOMPARE(level_of(cfg->logging, "scheduler"), LogLevel::Error);
     QVERIFY(cfg->metrics.enabled);
     // ...and the levels in force now.
-    QVERIFY(other.enabled(LogLevel::Debug));
-    QVERIFY(!scheduler.enabled(LogLevel::Warn));
+    QVERIFY(other.level() <= LogLevel::Debug);
+    QVERIFY(scheduler.level() > LogLevel::Warn);
 
     // Opened again, the dialog shows what was saved.
     click(d->buttons(), QDialogButtonBox::Cancel);
@@ -706,8 +974,8 @@ class TestPreferences : public QObject {
     click(again->buttons(), QDialogButtonBox::RestoreDefaults);
     click(again->buttons(), QDialogButtonBox::Ok);
     QVERIFY(!fs::exists(local_file_));
-    QVERIFY(!other.enabled(LogLevel::Debug));
-    QVERIFY(scheduler.enabled(LogLevel::Debug));
+    QVERIFY(other.level() > LogLevel::Debug);
+    QVERIFY(scheduler.level() <= LogLevel::Debug);
   }
 
 
@@ -719,7 +987,7 @@ class TestPreferences : public QObject {
     QVERIFY(hub != nullptr);
     hub->set_level("transport", LogLevel::Trace);  // as "Set logger level…" does
     Logger transport = hub->logger("transport");
-    QVERIFY(transport.enabled(LogLevel::Trace));
+    QVERIFY(transport.level() <= LogLevel::Trace);
 
     ui::MainWindow window(*line);
     window.set_preferences_settings(factory());
@@ -729,12 +997,209 @@ class TestPreferences : public QObject {
     d->metrics_page()->port()->setValue(9600);
     click(d->buttons(), QDialogButtonBox::Apply);
     QVERIFY(!d->problem()->isVisibleTo(d));
-    QVERIFY(transport.enabled(LogLevel::Trace));
+    QVERIFY(transport.level() <= LogLevel::Trace);
 
     // A change to the levels is the user saying what they are to be.
     d->logging_page()->default_level()->setCurrentText(QStringLiteral("error"));
     click(d->buttons(), QDialogButtonBox::Ok);
-    QVERIFY(!transport.enabled(LogLevel::Trace));
+    QVERIFY(transport.level() > LogLevel::Trace);
+  }
+
+  // ---- an install keeps its logging in <root>/logging.local.toml -------------------
+
+  fs::path make_install_root() {
+    const fs::path root = config_dir_ / "install";
+    fs::create_directories(root);
+    return root;
+  }
+
+  void logging_saved_to_install_local_file() {
+    const fs::path root = make_install_root();
+    write_file(root / "logging.toml", "default_level = \"warn\"\nmax_files = 7\n");
+    write_file(local_file_, "# untouched\n[metrics]\nport = 9600\n");
+
+    auto s = ui::load_line_settings(main_file_, root);
+    QVERIFY(s.has_value());
+    QCOMPARE(s->logging.default_level, LogLevel::Warn);
+    QCOMPARE(s->logging.max_files, std::int64_t{7});
+    PreferencesDialog d({Preferences{}, std::nullopt, *s}, {});
+    ui::LoggingPage* page = d.logging_page();
+    QCOMPARE(page->dock_level()->currentText(), QStringLiteral("info"));
+    page->dock_level()->setCurrentText(QStringLiteral("warn"));
+    const LineSettings wanted = *d.values().line;
+    QCOMPARE(ui::save_line_settings(main_file_, wanted), QString());
+
+    // only what the user changed: the line's legacy [logging] (scheduler level, max_files) stays where it is
+    QCOMPARE(read_file(root / "logging.local.toml"), std::string("dock_level = \"warn\"\n"));
+    // the line's own local file gets no [logging]
+    QVERIFY(!QString::fromStdString(read_file(local_file_)).contains(QStringLiteral("logging")));
+    QVERIFY(QString::fromStdString(read_file(local_file_)).contains(QStringLiteral("9600")));
+    const auto sources = config::load_logging_config(root, main_file_);
+    QVERIFY(sources.has_value());
+    QCOMPARE(sources->config.dock_level, LogLevel::Warn);
+  }
+
+  void restore_defaults_goes_to_logging_toml() {
+    const fs::path root = make_install_root();
+    write_file(root / "logging.toml", "default_level = \"error\"\n");
+    write_file(root / "logging.local.toml", "default_level = \"debug\"\n");
+    auto s = ui::load_line_settings(main_file_, root);
+    QVERIFY(s.has_value());
+    QCOMPARE(s->logging.default_level, LogLevel::Debug);
+    QCOMPARE(s->shared_logging.default_level, LogLevel::Error);
+    PreferencesDialog d({Preferences{}, std::nullopt, *s}, {});
+    QCOMPARE(d.logging_page()->default_level()->currentText(), QStringLiteral("debug"));
+    click(d.buttons(), QDialogButtonBox::RestoreDefaults);
+    QCOMPARE(d.logging_page()->default_level()->currentText(), QStringLiteral("error"));
+    QCOMPARE(ui::save_line_settings(main_file_, *d.values().line), QString());
+    QVERIFY(!fs::exists(root / "logging.local.toml"));
+  }
+
+  void restore_defaults_goes_to_the_legacy_table_without_logging_toml() {
+    const fs::path root = make_install_root();
+    write_file(root / "logging.local.toml", "default_level = \"error\"\n");
+    auto s = ui::load_line_settings(main_file_, root);  // the line's [logging] says warn
+    QVERIFY(s.has_value());
+    PreferencesDialog d({Preferences{}, std::nullopt, *s}, {});
+    click(d.buttons(), QDialogButtonBox::RestoreDefaults);
+    QCOMPARE(d.logging_page()->default_level()->currentText(), QStringLiteral("warn"));
+  }
+
+  void restore_defaults_with_nothing_beneath_is_the_built_in_defaults() {
+    const fs::path root = make_install_root();
+    write_file(main_file_, "[system]\nname = \"t\"\n");
+    write_file(root / "logging.local.toml", "default_level = \"error\"\n");
+    auto s = ui::load_line_settings(main_file_, root);
+    QVERIFY(s.has_value());
+    PreferencesDialog d({Preferences{}, std::nullopt, *s}, {});
+    click(d.buttons(), QDialogButtonBox::RestoreDefaults);
+    QCOMPARE(d.logging_page()->default_level()->currentText(), QStringLiteral("debug"));
+  }
+
+  // The line's legacy table alone: a change of dock_level writes dock_level and nothing it
+  // merely inherits, so a later edit of the legacy table still takes effect.
+  void changing_only_dock_level_writes_only_dock_level() {
+    const fs::path root = make_install_root();
+    auto s = ui::load_line_settings(main_file_, root);
+    QVERIFY(s.has_value());
+    PreferencesDialog d({Preferences{}, std::nullopt, *s}, {});
+    d.logging_page()->dock_level()->setCurrentText(QStringLiteral("error"));
+    QCOMPARE(ui::save_line_settings(main_file_, *d.values().line), QString());
+    QCOMPARE(read_file(root / "logging.local.toml"), std::string("dock_level = \"error\"\n"));
+    // the legacy table changes later: the install follows it
+    write_file(main_file_, "[system]\nname = \"t\"\n\n[logging]\ndefault_level = \"trace\"\n");
+    const auto again = config::load_logging_config(root, main_file_);
+    QVERIFY(again.has_value());
+    QCOMPARE(again->config.default_level, LogLevel::Trace);
+    QCOMPARE(again->config.dock_level, LogLevel::Error);
+  }
+
+  void no_log_file_checkbox_is_an_empty_dir() {
+    PreferencesDialog d({Preferences{}, std::nullopt, line_settings()}, {});
+    ui::LoggingPage* page = d.logging_page();
+    QVERIFY(!page->no_file()->isChecked());
+    QVERIFY(!page->value().dir.has_value());
+
+    page->no_file()->setChecked(true);
+    QVERIFY(!page->folder()->isEnabled());
+    QVERIFY(page->value().dir.has_value());
+    QVERIFY(page->value().dir->empty());
+
+    page->no_file()->setChecked(false);
+    QVERIFY(page->folder()->isEnabled());
+    QVERIFY(!page->value().dir.has_value());  // unchecked and empty: the default folder
+    page->folder()->setText(QStringLiteral("/tmp/x"));
+    QCOMPARE(page->value().dir, fs::path("/tmp/x"));
+
+    config::LoggingConfig off;
+    off.dir = fs::path{};
+    page->set(off);
+    QVERIFY(page->no_file()->isChecked());
+    QVERIFY(page->folder()->text().isEmpty());
+    config::LoggingConfig dflt;
+    page->set(dflt);
+    QVERIFY(!page->no_file()->isChecked());
+    QVERIFY(page->folder()->text().isEmpty());
+  }
+
+  // The Log panel's level is in force from Apply, as the levels are.
+  void main_window_applies_the_dock_level_at_once() {
+    auto line = ui::test::make_example_line();
+    const std::shared_ptr<LogHub> hub = line->log_hub();
+    QVERIFY(hub != nullptr);
+    hub->set_dock_level(LogLevel::Info);
+    hub->set_level("transport", LogLevel::Trace);  // a level set for the session stays
+
+    ui::MainWindow window(*line);
+    window.set_preferences_settings(factory());
+    window.set_line_config_file(main_file_);
+    PreferencesDialog* d = window.open_preferences();
+    d->logging_page()->dock_level()->setCurrentText(QStringLiteral("warn"));
+    click(d->buttons(), QDialogButtonBox::Apply);
+    QVERIFY(!d->problem()->isVisibleTo(d));
+    QCOMPARE(hub->dock_level(), LogLevel::Warn);
+    QVERIFY(hub->logger("transport").level() <= LogLevel::Trace);
+    click(d->buttons(), QDialogButtonBox::Cancel);
+  }
+
+  // A logging.toml that does not load: the page is there, on the built-in
+  // defaults (what the program runs on), says why, and a save leaves
+  // logging.toml and logging.local.toml as they are.
+  void a_broken_logging_toml_shows_the_built_in_defaults() {
+    const fs::path root = make_install_root();
+    write_file(root / "logging.toml", "colour = 1\n");
+    auto s = ui::load_line_settings(main_file_, root);
+    QVERIFY(s.has_value());
+    QCOMPARE(s->logging.default_level, LogLevel::Debug);  // not the line's legacy warn
+    QCOMPARE(s->shared_logging.default_level, LogLevel::Debug);
+    QVERIFY(s->logging.levels.empty());
+    QVERIFY2(s->logging_problem.contains(QStringLiteral("colour")), qPrintable(s->logging_problem));
+
+    PreferencesDialog d({Preferences{}, std::nullopt, *s}, {});
+    ui::LoggingPage* page = d.logging_page();
+    QVERIFY(page->problem()->isVisibleTo(page));
+    QVERIFY(page->problem()->text().contains(QStringLiteral("colour")));
+    page->dock_level()->setCurrentText(QStringLiteral("warn"));
+    QCOMPARE(ui::save_line_settings(main_file_, *d.values().line), QString());
+    QCOMPARE(read_file(root / "logging.toml"), std::string("colour = 1\n"));
+    QVERIFY(!fs::exists(root / "logging.local.toml"));  // nothing is written while a file is broken
+
+    // A broken logging.local.toml: the same, and the save leaves it for the user to mend.
+    write_file(root / "logging.toml", "default_level = \"error\"\n");
+    write_file(root / "logging.local.toml", "default_level = 3\n");
+    auto broken_local = ui::load_line_settings(main_file_, root);
+    QVERIFY(broken_local.has_value());
+    QCOMPARE(broken_local->logging.default_level, LogLevel::Debug);
+    QVERIFY(broken_local->logging_problem.contains(QStringLiteral("logging.local.toml")));
+    QVERIFY(!broken_local->logging_writable);
+    QCOMPARE(ui::save_line_settings(main_file_, *broken_local), QString());
+    QCOMPARE(read_file(root / "logging.local.toml"), std::string("default_level = 3\n"));
+    QCOMPARE(read_file(root / "logging.toml"), std::string("default_level = \"error\"\n"));
+
+    // Nothing wrong: no problem shown.
+    auto fine = ui::load_line_settings(main_file_, std::nullopt);
+    QVERIFY(fine.has_value());
+    QVERIFY(fine->logging_problem.isEmpty());
+    PreferencesDialog ok({Preferences{}, std::nullopt, *fine}, {});
+    QVERIFY(!ok.logging_page()->problem()->isVisibleTo(ok.logging_page()));
+  }
+
+  // A broken logging.toml beside a valid logging.local.toml: the page is on the
+  // defaults, so an Apply of anything must not rewrite the user's local file.
+  void a_broken_logging_toml_never_lets_a_save_rewrite_the_local_file() {
+    const fs::path root = make_install_root();
+    write_file(root / "logging.toml", "colour = 1\n");
+    const std::string local = "# mine\ndock_level = \"warn\"\n";
+    write_file(root / "logging.local.toml", local);
+    auto s = ui::load_line_settings(main_file_, root);
+    QVERIFY(s.has_value());
+    QVERIFY(!s->logging_problem.isEmpty());
+    QVERIFY(!s->logging_writable);
+
+    PreferencesDialog d({Preferences{}, std::nullopt, *s}, {});
+    QVERIFY(!d.values().line->logging_writable);
+    QCOMPARE(ui::save_line_settings(main_file_, *d.values().line), QString());
+    QCOMPARE(read_file(root / "logging.local.toml"), local);
   }
 
   // Every window here was given its settings: none fell back to the application's.

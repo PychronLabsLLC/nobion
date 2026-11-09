@@ -1,6 +1,6 @@
-#include "pychron/experiment/run/state.hpp"
+#include "nobion/experiment/run/state.hpp"
 
-namespace pychron::experiment::run {
+namespace nobion::experiment::run {
 
 std::string_view to_string(RunState s) noexcept {
   switch (s) {
@@ -35,6 +35,14 @@ std::string_view to_string(RunEvent e) noexcept {
     case RunEvent::Abort: return "abort";
   }
   return "?";
+}
+
+std::optional<RunState> run_state_from(std::string_view text) noexcept {
+  for (int i = static_cast<int>(RunState::Pending); i <= static_cast<int>(RunState::Aborted); ++i) {
+    const auto s = static_cast<RunState>(i);
+    if (to_string(s) == text) return s;
+  }
+  return std::nullopt;
 }
 
 bool is_terminal(RunState s) noexcept {
@@ -89,4 +97,4 @@ std::vector<RunStateChanged> RunStateMachine::history() const {
   return history_;
 }
 
-}  // namespace pychron::experiment::run
+}  // namespace nobion::experiment::run

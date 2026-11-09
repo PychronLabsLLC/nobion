@@ -1,8 +1,8 @@
 // StoreSource (data browsing and visualization design, section 9.2): browse,
-// facets and loads over a real store, reference data in the reduction
-// context, raw series from blobs, change-log refresh, and the pure mappings.
-// SQLite in a temp file, so the test's store and the source's worker
-// connections share one database.
+// facets and loads over a real store, raw series from blobs, change-log
+// refresh, saved edits, and the pure mappings. The store is
+// store_source_fixture.hpp's. What the Ar-Ar loader reads of the references,
+// the age cache and the backfill are tests/arar test_store_loader.cpp's.
 
 #include <gtest/gtest.h>
 
@@ -10,211 +10,62 @@
 #include <atomic>
 #include <cmath>
 #include <filesystem>
-#include <random>
 #include <thread>
 
-#include "pychron/processing/quantity.hpp"
-#include "pychron/processing/recall.hpp"
-#include "pychron/processing/reduced.hpp"
-#include "pychron/processing/store_source.hpp"
+#include "nobion/processing/store_source.hpp"
+#include "store_source_fixture.hpp"
 
-namespace pychron::processing {
+namespace nobion::processing {
 namespace {
 
-namespace ps = pychron::persistence;
+namespace ps = nobion::persistence;
 namespace fs = std::filesystem;
 
-ps::Bytes tv(float offset, int n = 5) {
-  std::vector<ps::TvPoint> p;
-  for (int i = 0; i < n; ++i) p.push_back({static_cast<float>(i), offset + static_cast<float>(i)});
-  return ps::encode_tv(p);
+using StoreSourceTest = test::StoreSourceFixture;
+using test::argon_parts;
+using test::tv;
+
+TEST_F(StoreSourceTest, LoadAtBookmarkReproducesTheOldIntercept) {
+  StoreSource& src = source();
+  auto before = src.load(unknown_.str());
+  ASSERT_TRUE(before) << to_string(before.error());
+  const double original = (*before)->find_isotope("Ar40")->intercept.value;
+  const std::string old_head = (*before)->heads.at("intercepts");
+  const ps::Uuid group = *store_->create_group(reducer(), "release:r@v1", {unknown_});
+  // As a release pins: every head and every resolved reference at its revision.
+  ps::BookmarkSpec spec{"release r v1", std::nullopt, std::nullopt, group};
+  std::vector<ps::HeadInfo> entries = *store_->heads(unknown_);
+  auto refs = store_->resolve_refs(unknown_, ps::RefPolicy{});
+  ASSERT_TRUE(refs) << to_string(refs.error());
+  ASSERT_EQ(refs->refs.size(), 5u);
+  for (const auto& ref : refs->refs)
+    entries.push_back(ps::HeadInfo{ref.ref_object, ps::Kind::RefValue, ref.revision, 1});
+  spec.entries = entries;
+  const ps::Uuid bookmark = *store_->create_bookmark(reducer(), spec);
+
+  auto uow = *store_->begin(reducer());
+  ps::InterceptRow row;
+  row.isotope = "Ar40";
+  row.detector = "H1";
+  row.value = original + 50.0;
+  ASSERT_TRUE(uow->add_revision(unknown_, ps::Kind::Intercepts, ps::Intercepts{row},
+                                *store_->head(unknown_, ps::Kind::Intercepts)));
+  auto outcome = uow->commit(ps::ChangesetKind::Reduction, "refit");
+  ASSERT_TRUE(outcome && std::holds_alternative<ps::Committed>(*outcome));
+  ASSERT_TRUE(src.refresh());
+
+  auto now = src.load(unknown_.str());
+  ASSERT_TRUE(now);
+  EXPECT_NEAR((*now)->find_isotope("Ar40")->intercept.value, original + 50.0, 1e-9);
+  auto at = src.load_at(unknown_.str(), bookmark.str());
+  ASSERT_TRUE(at) << to_string(at.error());
+  EXPECT_NEAR((*at)->find_isotope("Ar40")->intercept.value, original, 1e-9);
+  EXPECT_EQ((*at)->heads.at("intercepts"), old_head);
+  EXPECT_NE((*at)->input_fingerprint, (*now)->input_fingerprint);
+  EXPECT_EQ((*at)->input_fingerprint, (*before)->input_fingerprint);
+  auto none = src.load_at(unknown_.str(), ps::Uuid::v7().str());
+  EXPECT_FALSE(none) << "a bookmark that does not pin the analysis";
 }
-
-class StoreSourceTest : public ::testing::Test {
- protected:
-  void SetUp() override {
-    static std::atomic<int> counter{0};
-    path_ = fs::temp_directory_path() /
-            ("pychron_store_source_" + std::to_string(std::random_device{}() % 1000000) + "_" +
-             std::to_string(counter.fetch_add(1)) + ".sqlite");
-    fs::remove(path_);
-    url_ = "sqlite:" + path_.string();
-    auto store = ps::open_store(ps::StoreConfig{url_, true});
-    ASSERT_TRUE(store) << to_string(store.error());
-    store_ = std::move(*store);
-    seed();
-  }
-
-  void TearDown() override {
-    source_.reset();
-    store_.reset();
-    std::error_code ec;
-    for (const char* suffix : {"", "-wal", "-shm"}) fs::remove(path_.string() + suffix, ec);
-  }
-
-  ps::Actor reducer() const { return ps::Actor{reducer_, red_}; }
-
-  void publish(ps::Uuid object, ps::RefPayload payload) {
-    auto uow = *store_->begin(reducer());
-    ASSERT_TRUE(uow->add_revision(object, ps::Kind::RefValue, ps::RevisionPayload{std::move(payload)},
-                                  *store_->head(object, ps::Kind::RefValue)));
-    auto outcome = uow->commit(ps::ChangesetKind::Reference, "<META> update");
-    ASSERT_TRUE(outcome && std::holds_alternative<ps::Committed>(*outcome));
-  }
-
-  ps::Uuid ref_object(ps::RefType type, const std::string& key, ps::RefObjectSpec scope) {
-    scope.type = type;
-    scope.key = key;
-    return *store_->add_ref_object(red_, scope);
-  }
-
-  void seed() {
-    acq_ = *store_->register_client({"acq-1", "acquisition", std::nullopt, "test"});
-    red_ = *store_->register_client({"red-1", "reduction", std::nullopt, "test"});
-    reducer_ = *store_->ensure_user(red_, "jsmith");
-    ms_ = *store_->add_mass_spectrometer(acq_, {"jan", "argus", "j", std::nullopt});
-    irr_ = *store_->add_irradiation(acq_, "NM-300");
-    level_ = *store_->add_level(acq_, {irr_, "A", std::nullopt, 0.5, std::nullopt, std::nullopt});
-    const auto pi = *store_->add_principal_investigator(acq_, {"Ross", "J", std::nullopt, std::nullopt, std::nullopt});
-    const auto project = *store_->add_project(acq_, {"Fish Canyon", pi, std::nullopt});
-    const auto material = *store_->add_material(acq_, {"sanidine", "60-80", std::nullopt});
-    project_ = project;
-    material_ = material;
-    const auto sample = *store_->add_sample(acq_, {.name = "FC-2",
-                                                   .project = project,
-                                                   .material = material,
-                                                   .igsn = "IEFC20001",
-                                                   .lat = 37.75,
-                                                   .lon = -106.9,
-                                                   .elevation = 2850.0,
-                                                   .lithology = "ash-flow tuff"});
-    ASSERT_TRUE(store_->add_extract_device(acq_, "co2"));
-    position_ = *store_->add_irradiation_position(acq_, {level_, 3, sample, std::nullopt, {}, {}, std::nullopt});
-    ASSERT_TRUE(store_->add_identifier(acq_, {"77000", "unknown", std::nullopt, std::nullopt, position_, std::nullopt, std::nullopt}));
-    ASSERT_TRUE(store_->add_identifier(acq_, {"66574", "special", "air", std::nullopt, std::nullopt, std::nullopt, std::nullopt}));
-
-    ps::RefObjectSpec pos, lvl, irr, ms;
-    pos.position = position_;
-    lvl.level = level_;
-    irr.irradiation = irr_;
-    ms.mass_spectrometer = ms_;
-    ps::FluxValue flux;
-    flux.j = 0.001;
-    flux.j_err = 1e-6;
-    flux.position_jerr = 2e-7;
-    flux.monitor_name = "FC-2";
-    flux.monitor_material = "sanidine";
-    flux.monitor_age = 28.201;
-    flux.monitor_age_err = 0.023;
-    publish(ref_object(ps::RefType::FluxPosition, "NM-300/A/3", pos), flux);
-    const auto prod = ref_object(ps::RefType::Production, "NM-300/Triga", {});
-    publish(prod, ps::ProductionValue{"Triga", std::nullopt, {{"K4039", 0.0008, 5e-5}, {"Ca3937", 0.0007, 1e-5}}});
-    publish(ref_object(ps::RefType::LevelProduction, "NM-300/A", lvl), ps::LevelProductionValue{prod, std::nullopt});
-    publish(ref_object(ps::RefType::Chronology, "NM-300", irr),
-            ps::ChronologyValue{{{0, 1.0, *ps::UtcTime::parse("2026-01-01T00:00:00Z"),
-                                  *ps::UtcTime::parse("2026-01-01T10:00:00Z")}}});
-    publish(ref_object(ps::RefType::Gains, "jan", ms), ps::GainsValue{{{"AX", 1.0}, {"H1", 1.5}, {"L2", 0.98}}});
-
-    unknown_ = ingest("77000", 1, "unknown", "2026-10-02T10:00:00Z");
-    air_ = ingest("66574", 1, "air", "2026-10-02T11:00:00Z");
-  }
-
-  // An analysis with five argon isotopes on two detectors. Only the Ar40
-  // signal and the H1 baseline have blobs; the Ar40 one is uploaded.
-  ps::Uuid ingest(const std::string& identifier, int aliquot, const std::string& type, const std::string& ts) {
-    ps::AnalysisIngest a;
-    a.analysis = ps::Uuid::v7();
-    a.changeset = ps::Uuid::v7();
-    a.created = ps::UtcTime::now();
-    a.identifier = identifier;
-    a.aliquot = aliquot;
-    a.analysis_type = type;
-    a.timestamp = *ps::UtcTime::parse(ts);
-    a.mass_spectrometer = "jan";
-    a.extract_device = "co2";
-    a.extraction.extract_value = 4.5;
-    a.extraction.extract_units = "W";
-    a.extraction.extract_duration = 30;
-    a.analyst = "jross";
-    a.load_name = "load-1";
-    for (const char* iso : {"Ar40", "Ar39", "Ar38", "Ar37", "Ar36"})
-      a.isotopes.push_back({iso, std::string(iso) == "Ar40" ? "H1" : "AX", "fA", std::nullopt, std::nullopt, std::nullopt});
-    a.detectors = {{"H1", 12.0, 1.02}, {"AX", 0.0, std::nullopt}};
-    a.meta = ps::AnalysisMetaRow{};
-    a.meta->environmental_json = R"({"lab_temperature": 21.5, "lab_humidity": 33, "note": "x", "nested": {"a": 1}})";
-    ps::PeakCenterRow pc;
-    pc.detector = "H1";
-    pc.center_dac = 5.123;
-    pc.resolution = 450;
-    a.peak_centers = {pc};
-    auto& r = a.roots;
-    r.signals = ps::Uuid::v7();
-    r.intercepts = ps::Uuid::v7();
-    r.baselines = ps::Uuid::v7();
-    r.blanks = ps::Uuid::v7();
-    r.icfactors = ps::Uuid::v7();
-    r.tags = ps::Uuid::v7();
-    signal_ = tv(100);
-    r.signal_refs = {{"baseline", "H1", "H1", ps::blob_sha256(ps::kCodecTv, tv(0)), 5, std::nullopt, std::nullopt},
-                     {"signal", "Ar40", "H1", ps::blob_sha256(ps::kCodecTv, signal_), 5, 1, 4}};
-    auto intercept = [](const char* iso, const char* det, double v, double e) {
-      ps::InterceptRow row;
-      row.isotope = iso;
-      row.detector = det;
-      row.value = v;
-      row.error = e;
-      row.fit = "Linear";
-      row.error_type = "SD";
-      row.n = 100;
-      row.filter_outliers_json = R"({"filter_outliers": true, "iterations": 2, "std_devs": 2.5})";
-      return row;
-    };
-    r.intercepts_rows = {intercept("Ar40", "H1", 1000.0, 0.5), intercept("Ar39", "AX", 100.0, 0.1),
-                         intercept("Ar38", "AX", 2.0, 0.01), intercept("Ar37", "AX", 0.5, 0.01),
-                         intercept("Ar36", "AX", 0.5, 0.01)};
-    r.intercepts_rows[4].manual.use_value = true;  // a manual Ar36 value wins
-    r.intercepts_rows[4].manual.value = 0.4;
-    ps::BaselineRow h1;
-    h1.detector = "H1";
-    h1.value = 0.01;
-    h1.error = 0.001;
-    h1.fit = "average";
-    r.baselines_rows = {h1};
-    ps::BlankRow blank;
-    blank.isotope = "Ar40";
-    blank.value = 0.5;
-    blank.error = 0.05;
-    blank.fit = "preceding";
-    r.blanks_rows = {blank};
-    ps::IcFactorRow ic;
-    ic.detector = "AX";
-    ic.value = 1.02;
-    ic.error = 0.001;
-    r.icfactors_rows = {ic};
-    const ps::Uuid id = a.analysis;
-    auto ok = store_->ingest(ps::IngestItem{id, sha256(std::string_view{"payload-" + id.str()}), acq_, std::move(a)});
-    EXPECT_TRUE(ok) << (ok ? "" : to_string(ok.error()));
-    auto blob = store_->ingest(ps::IngestItem{ps::Uuid::v7(), {}, acq_, ps::BlobIngest{"f32le-tv/1", signal_, 5}});
-    EXPECT_TRUE(blob) << (blob ? "" : to_string(blob.error()));
-    return id;
-  }
-
-  StoreSource& source() {
-    if (!source_) {
-      auto s = StoreSource::open(ps::StoreConfig{url_, false}, StoreSourceOptions{2, "tester", "test-host"});
-      EXPECT_TRUE(s) << (s ? "" : to_string(s.error()));
-      if (s) source_ = std::move(*s);
-    }
-    return *source_;
-  }
-
-  fs::path path_;
-  std::string url_;
-  std::unique_ptr<ps::IStore> store_;
-  std::unique_ptr<StoreSource> source_;
-  ps::Uuid acq_, red_, reducer_, ms_, irr_, level_, position_, unknown_, air_, project_, material_;
-  ps::Bytes signal_;
-};
 
 TEST_F(StoreSourceTest, BrowsePagesNewestFirstWithCatalogColumns) {
   BrowseQuery q;
@@ -234,7 +85,7 @@ TEST_F(StoreSourceTest, BrowsePagesNewestFirstWithCatalogColumns) {
   EXPECT_EQ(s.runid, "77000-01");
   EXPECT_EQ(s.sample, "FC-2");
   EXPECT_EQ(s.project, "Fish Canyon");
-  EXPECT_EQ(s.principal_investigator, "Ross, J");
+  EXPECT_EQ(s.principal_investigator, "J Ross");
   EXPECT_EQ(s.irradiation, "NM-300");
   EXPECT_EQ(s.level, "A");
   EXPECT_EQ(s.load, "load-1");
@@ -252,13 +103,144 @@ TEST_F(StoreSourceTest, BrowsePagesNewestFirstWithCatalogColumns) {
   EXPECT_EQ(airs->rows[0].analysis_type, "air");
   auto facet = source().facet(Facet::AnalysisType, types);
   ASSERT_TRUE(facet) << to_string(facet.error());
-  EXPECT_EQ(*facet, (std::vector<std::string>{"air", "unknown"}));
-  EXPECT_EQ(*source().facet(Facet::Sample, {}), (std::vector<std::string>{"FC-2"}));
+  EXPECT_EQ(*facet, (std::vector<FacetValue>{{"air", "air"}, {"unknown", "unknown"}}));
+  EXPECT_EQ(*source().facet(Facet::Sample, {}), (std::vector<FacetValue>{{"FC-2", "FC-2"}}));
   q.limit = 0;
   EXPECT_FALSE(source().browse(q));
 }
 
-TEST_F(StoreSourceTest, LoadAssemblesTheAnalysisAndItsReductionContext) {
+TEST_F(StoreSourceTest, BrowsesByUuid) {
+  BrowseQuery q;
+  q.uuids = {unknown_.str(), air_.str()};
+  q.exclude_tags = {};
+  auto page = source().browse(q);
+  ASSERT_TRUE(page) << to_string(page.error());
+  ASSERT_EQ(page->rows.size(), 2u);
+  EXPECT_EQ(page->rows[0].uuid, air_.str());
+  EXPECT_EQ(page->rows[1].uuid, unknown_.str());
+  EXPECT_EQ(page->total, 2u);
+
+  q.uuids = {unknown_.str()};
+  auto one = source().browse(q);
+  ASSERT_TRUE(one) << to_string(one.error());
+  ASSERT_EQ(one->rows.size(), 1u);
+  EXPECT_EQ(one->rows[0].uuid, unknown_.str());
+  auto types = source().facet(Facet::AnalysisType, q);
+  ASSERT_TRUE(types) << to_string(types.error());
+  EXPECT_EQ(*types, (std::vector<FacetValue>{{"unknown", "unknown"}}));
+
+  q.uuids = {"not-a-uuid"};
+  auto bad = source().browse(q);
+  ASSERT_FALSE(bad);
+  EXPECT_EQ(bad.error().kind, ErrorKind::Config);
+  EXPECT_FALSE(source().facet(Facet::AnalysisType, q));
+}
+
+TEST_F(StoreSourceTest, PositionsCarryUuidKeys) {
+  auto rows = source().positions({});
+  ASSERT_TRUE(rows) << to_string(rows.error());
+  ASSERT_EQ(rows->size(), 2u);
+  EXPECT_EQ((*rows)[0].identifier, "77000");
+  EXPECT_EQ((*rows)[0].irradiation_key, irr_.str());
+  EXPECT_EQ((*rows)[0].level_key, level_.str());
+  EXPECT_EQ((*rows)[0].irradiation, "NM-300");
+  EXPECT_EQ((*rows)[0].level, "A");
+  EXPECT_EQ((*rows)[1].identifier, "66574");
+  EXPECT_TRUE((*rows)[1].irradiation_key.empty());
+
+  BrowseQuery q;
+  q.positions = PositionSelection{.levels = {level_.str()}};
+  auto page = source().browse(q);
+  ASSERT_TRUE(page) << to_string(page.error());
+  ASSERT_EQ(page->rows.size(), 1u);
+  EXPECT_EQ(page->rows[0].uuid, unknown_.str());
+  EXPECT_EQ(page->rows[0].irradiation_uuid, irr_.str());
+  EXPECT_EQ(page->rows[0].level_uuid, level_.str());
+  EXPECT_EQ(irradiation_key(page->rows[0]), irr_.str());
+  q.positions = PositionSelection{.not_irradiated = true};
+  page = source().browse(q);
+  ASSERT_TRUE(page);
+  ASSERT_EQ(page->rows.size(), 1u);
+  EXPECT_EQ(page->rows[0].uuid, air_.str());
+  EXPECT_TRUE(page->rows[0].level_uuid.empty());
+}
+
+TEST_F(StoreSourceTest, ANameKeyIsAnError) {
+  BrowseQuery q;
+  q.positions = PositionSelection{.levels = {"NM-300/A"}};
+  auto page = source().browse(q);
+  ASSERT_FALSE(page);
+  EXPECT_EQ(page.error().kind, ErrorKind::Protocol);
+  EXPECT_NE(page.error().what.find("NM-300/A"), std::string::npos);
+  EXPECT_FALSE(source().facet(Facet::AnalysisType, q));
+  EXPECT_FALSE(source().positions(q));
+}
+
+// What the experiment window's References dock asks after each saved run: the
+// newest blanks (of every kind), or airs, of the session's spectrometer since
+// a time.
+TEST_F(StoreSourceTest, TheNewestReferencesOfOneSpectrometerSinceATime) {
+  ASSERT_TRUE(store_->add_mass_spectrometer(acq_, {"felix", "helix", "f", std::nullopt}));
+  const std::vector<std::pair<std::string, std::string>> specials{
+      {"66601", "blank_unknown"}, {"66602", "blank_air"}, {"66603", "blank_cocktail"}, {"66604", "cocktail"}};
+  for (const auto& [identifier, type] : specials) {
+    ASSERT_TRUE(store_->add_identifier(
+        acq_, {identifier, "special", type, std::nullopt, std::nullopt, std::nullopt, std::nullopt}));
+  }
+  const auto at = [](const std::string& ts) { return static_cast<double>(ps::UtcTime::parse(ts)->micros) / 1e6; };
+  // jan, oldest first; the fixture's unknown (10:00 on the 2nd) and air (11:00) are before all of these
+  const ps::Uuid b1 = ingest("66601", 1, "blank_unknown", "2026-10-03T01:00:00Z");
+  const ps::Uuid a1 = ingest("66574", 2, "air", "2026-10-03T02:00:00Z");
+  const ps::Uuid b2 = ingest("66602", 1, "blank_air", "2026-10-03T03:00:00Z");
+  ingest("77000", 2, "unknown", "2026-10-03T04:00:00Z");
+  const ps::Uuid b3 = ingest("66603", 1, "blank_cocktail", "2026-10-03T05:00:00Z");
+  ingest("66604", 1, "cocktail", "2026-10-03T06:00:00Z");
+  const ps::Uuid b4 = ingest("66601", 2, "blank_unknown", "2026-10-03T07:00:00Z");
+  const ps::Uuid a2 = ingest("66574", 3, "air", "2026-10-03T08:00:00Z");
+  const ps::Uuid b5 = ingest("66602", 2, "blank_air", "2026-10-03T09:00:00Z");
+  // the other spectrometer's, newer than all of jan's
+  ingest("66601", 3, "blank_unknown", "2026-10-03T10:00:00Z", "felix");
+  ingest("66574", 4, "air", "2026-10-03T10:30:00Z", "felix");
+
+  const auto uuids = [](const BrowsePage& page) {
+    std::vector<std::string> out;
+    out.reserve(page.rows.size());
+    for (const auto& r : page.rows) out.push_back(r.uuid);
+    return out;
+  };
+
+  BrowseQuery blanks;
+  blanks.analysis_types = {"blank_unknown", "blank_air", "blank_cocktail", "blank_extraction_line", "blank_laser"};
+  blanks.mass_spectrometers = {"jan"};
+  blanks.from = at("2026-10-03T03:00:00Z");  // b2's own time: the edge is in
+  blanks.limit = 3;
+  auto page = source().browse(blanks);
+  ASSERT_TRUE(page) << to_string(page.error());
+  EXPECT_EQ(uuids(*page), (std::vector<std::string>{b5.str(), b4.str(), b3.str()}));
+  for (const auto& r : page->rows) EXPECT_EQ(r.mass_spectrometer, "jan");
+  ASSERT_TRUE(page->next);  // b2 is still to come
+  blanks.limit = 50;
+  page = source().browse(blanks);
+  ASSERT_TRUE(page) << to_string(page.error());
+  EXPECT_EQ(uuids(*page), (std::vector<std::string>{b5.str(), b4.str(), b3.str(), b2.str()}));
+  EXPECT_FALSE(page->next);
+  blanks.from.reset();
+  page = source().browse(blanks);
+  ASSERT_TRUE(page) << to_string(page.error());
+  EXPECT_EQ(uuids(*page), (std::vector<std::string>{b5.str(), b4.str(), b3.str(), b2.str(), b1.str()}));
+
+  BrowseQuery airs;
+  airs.analysis_types = {"air"};
+  airs.mass_spectrometers = {"jan"};
+  airs.from = at("2026-10-03T00:00:00Z");
+  airs.limit = 3;
+  page = source().browse(airs);
+  ASSERT_TRUE(page) << to_string(page.error());
+  EXPECT_EQ(uuids(*page), (std::vector<std::string>{a2.str(), a1.str()}));
+  EXPECT_FALSE(page->next);
+}
+
+TEST_F(StoreSourceTest, LoadAssemblesTheAnalysis) {
   auto loaded = source().load(unknown_.str());
   ASSERT_TRUE(loaded) << to_string(loaded.error());
   const Analysis& a = **loaded;
@@ -298,16 +280,10 @@ TEST_F(StoreSourceTest, LoadAssemblesTheAnalysisAndItsReductionContext) {
   ASSERT_EQ(a.peak_centers.size(), 1u);
   EXPECT_EQ(a.peak_centers[0].center, 5.123);
 
-  ASSERT_TRUE(a.context.flux);
-  EXPECT_EQ(a.context.flux->j.value, 0.001);
-  EXPECT_EQ(a.context.flux->j.error, 1e-6);
-  EXPECT_EQ(a.context.flux->position_jerr, 2e-7);
-  ASSERT_TRUE(a.context.production);
-  EXPECT_EQ(a.context.production->k4039.value, 0.0008);
-  EXPECT_EQ(a.context.production->ca3937.value, 0.0007);
-  ASSERT_EQ(a.context.chronology.size(), 1u);
-  EXPECT_EQ(a.context.chronology[0].end_utc_s - a.context.chronology[0].start_utc_s, 36000);
-  // Report metadata: the sample's catalog row, the flux monitor, the reactor.
+  // Without a loader the analysis is neutral: no domain data.
+  EXPECT_FALSE(a.extension);
+  // Report metadata: the sample's catalog row, the flux monitor (the reactor
+  // is the Ar-Ar loader's: tests/arar test_store_loader.cpp).
   EXPECT_EQ(a.sample_info.latitude, 37.75);
   EXPECT_EQ(a.sample_info.longitude, -106.9);
   EXPECT_EQ(a.sample_info.elevation, 2850.0);
@@ -316,17 +292,10 @@ TEST_F(StoreSourceTest, LoadAssemblesTheAnalysisAndItsReductionContext) {
   EXPECT_EQ(a.monitor.name, "FC-2");
   EXPECT_EQ(a.monitor.material, "sanidine");
   EXPECT_EQ(a.monitor.age, (Value{28.201, 0.023}));
-  EXPECT_EQ(a.context.reactor, "Triga");
 
-  const auto reduced = reduce_analysis(*loaded, ReductionSettings{});
-  ASSERT_TRUE(reduced->arar) << reduced->reduction_error;
-  ASSERT_TRUE(reduced->arar->ages);
-
-  // The air has no irradiation position, hence no flux and no age.
+  // The air has no irradiation position, hence no catalog sample or monitor.
   auto air = source().load(air_.str());
   ASSERT_TRUE(air) << to_string(air.error());
-  EXPECT_FALSE((*air)->context.flux);
-  EXPECT_FALSE((*air)->context.production);
   EXPECT_FALSE((*air)->sample_info.latitude);  // "air" is no catalog sample
   EXPECT_TRUE((*air)->monitor.name.empty());
 
@@ -375,21 +344,6 @@ TEST_F(StoreSourceTest, TheSampleIsItsOwnAmongNamesakes) {
   EXPECT_EQ((*loaded)->sample_info.lithology, "ash-flow tuff");
 }
 
-TEST_F(StoreSourceTest, ReferenceValuesWithoutContentAreNoValues) {
-  // What an import leaves at the head of reference data the source removed:
-  // a value with nothing in it. It must not be read as numbers.
-  publish(ref_object(ps::RefType::FluxPosition, "NM-300/A/3", {}), ps::FluxValue{});
-  publish(ref_object(ps::RefType::Production, "NM-300/Triga", {}), ps::ProductionValue{});
-  publish(ref_object(ps::RefType::Chronology, "NM-300", {}), ps::ChronologyValue{});
-  auto loaded = source().load(unknown_.str());
-  ASSERT_TRUE(loaded) << to_string(loaded.error());
-  EXPECT_FALSE((*loaded)->context.flux);
-  EXPECT_FALSE((*loaded)->context.production);  // not nine ratios of zero
-  EXPECT_TRUE((*loaded)->context.chronology.empty());
-  const auto reduced = reduce_analysis(*loaded, ReductionSettings{});
-  EXPECT_FALSE(reduced->arar && reduced->arar->ages);
-}
-
 TEST_F(StoreSourceTest, LoadRawDecodesUploadedBlobsAndSlicesWindows) {
   auto raw = source().load_raw(unknown_.str());
   ASSERT_TRUE(raw) << to_string(raw.error());
@@ -401,6 +355,32 @@ TEST_F(StoreSourceTest, LoadRawDecodesUploadedBlobsAndSlicesWindows) {
   EXPECT_EQ(s->t, (std::vector<double>{1, 2, 3}));  // [1, 4) of 0..4
   EXPECT_EQ(s->v, (std::vector<double>{101, 102, 103}));
   EXPECT_FALSE(source().load_raw(ps::Uuid::v7().str()));
+}
+
+TEST_F(StoreSourceTest, LoadCarriesTheInputFingerprint) {
+  const std::string version = "arar-1";  // the fixture's StoreSourceOptions::reduction_version
+  auto& src = source();
+  auto loaded = src.load(unknown_.str());
+  ASSERT_TRUE(loaded) << to_string(loaded.error());
+  const std::string first = (*loaded)->input_fingerprint;
+  EXPECT_EQ(first.size(), 64u);
+  EXPECT_EQ(first, to_hex(*store_->input_fingerprint(unknown_, version)));
+
+  // A new head is a new input.
+  auto uow = *store_->begin(reducer());
+  ASSERT_TRUE(uow->add_revision(unknown_, ps::Kind::Tags, ps::TagValue{"invalid", std::nullopt, std::nullopt},
+                                *store_->head(unknown_, ps::Kind::Tags)));
+  ASSERT_TRUE(uow->commit(ps::ChangesetKind::Reduction, "tag"));
+  ASSERT_TRUE(src.refresh());
+  auto again = src.load(unknown_.str());
+  ASSERT_TRUE(again);
+  EXPECT_NE((*again)->input_fingerprint, first);
+  EXPECT_EQ((*again)->input_fingerprint, to_hex(*store_->input_fingerprint(unknown_, version)));
+
+  // Another analysis has its own.
+  auto air = src.load(air_.str());
+  ASSERT_TRUE(air);
+  EXPECT_NE((*air)->input_fingerprint, (*again)->input_fingerprint);
 }
 
 TEST_F(StoreSourceTest, RefreshSeesNewAnalysesAndNewRevisions) {
@@ -451,12 +431,44 @@ TEST_F(StoreSourceTest, ConcurrentLoadsFromManyThreads) {
   EXPECT_EQ(ok.load(), 40);
 }
 
+// The processing bridge refreshes the source on its worker while a window's
+// job may still load on another thread: refresh is safe against both.
+TEST_F(StoreSourceTest, ARefreshWhileOtherThreadsReadIsSafe) {
+  auto& src = source();
+  const auto g0 = src.generation();
+  std::atomic<bool> go{false};
+  std::atomic<int> failed{0};
+  std::vector<std::thread> readers;
+  readers.reserve(4);
+  for (int i = 0; i < 4; ++i)
+    readers.emplace_back([&, i] {
+      while (!go) std::this_thread::yield();
+      for (int k = 0; k < 10; ++k) {
+        if (!src.load((i + k) % 2 ? unknown_.str() : air_.str())) ++failed;
+        if (!src.browse(BrowseQuery{})) ++failed;
+      }
+    });
+  std::thread refresher([&] {
+    while (!go) std::this_thread::yield();
+    for (int k = 0; k < 10; ++k)
+      if (!src.refresh()) ++failed;
+  });
+  (void)ingest("77000", 2, "unknown", "2026-10-02T13:00:00Z");  // something for a refresh to find
+  go = true;
+  for (auto& t : readers) t.join();
+  refresher.join();
+  EXPECT_EQ(failed.load(), 0);
+  ASSERT_TRUE(src.refresh());
+  EXPECT_GT(src.generation(), g0);
+  EXPECT_EQ(src.browse(BrowseQuery{})->rows.size(), 3u);
+}
+
 TEST_F(StoreSourceTest, OpenFailsForABadUrlAndHidesPasswords) {
   EXPECT_FALSE(StoreSource::open(ps::StoreConfig{"mysql://nope", false}));
   EXPECT_EQ(source().name(), "store:" + url_);
-  EXPECT_EQ(redact_password("postgresql://me:s3cret@db:5432/pychron?sslmode=require"),
-            "postgresql://me:***@db:5432/pychron?sslmode=require");
-  EXPECT_EQ(redact_password("postgresql://me@db/pychron"), "postgresql://me@db/pychron");
+  EXPECT_EQ(redact_password("postgresql://me:s3cret@db:5432/nobion?sslmode=require"),
+            "postgresql://me:***@db:5432/nobion?sslmode=require");
+  EXPECT_EQ(redact_password("postgresql://me@db/nobion"), "postgresql://me@db/nobion");
   EXPECT_EQ(redact_password("postgresql://db:5432/x@y"), "postgresql://db:5432/x@y");
 }
 
@@ -760,7 +772,7 @@ TEST_F(StoreSourceTest, BatchIsotopeRefitsSaveInOneChangeset) {
   auto& src = source();
   Dataset d;
   for (const auto& id : {unknown_, air_})
-    d.mutable_items().push_back(DatasetItem{reduce_analysis(*src.load(id.str()), {}), {}, {}});
+    d.mutable_items().push_back(DatasetItem{reduce_analysis(*src.load(id.str())), {}, {}});
   Options o(isotope_evolution_fit_schema());
   auto rows = o.rows("isotopes");
   ASSERT_TRUE(rows[0].set("fit", std::string("average")));
@@ -801,7 +813,7 @@ TEST_F(StoreSourceTest, BatchBaselineRefitsSaveBaselinesRevisions) {
   ASSERT_TRUE(store_->ingest(ps::IngestItem{ps::Uuid::v7(), {}, acq_, ps::BlobIngest{"f32le-tv/1", tv(0), 5}}));
   auto& src = source();
   Dataset d;
-  d.mutable_items().push_back(DatasetItem{reduce_analysis(*src.load(unknown_.str()), {}), {}, {}});
+  d.mutable_items().push_back(DatasetItem{reduce_analysis(*src.load(unknown_.str())), {}, {}});
   Options o(isotope_evolution_fit_schema());
   auto rows = o.rows("isotopes");
   rows.resize(2);
@@ -898,426 +910,99 @@ TEST(StoreSourceMapping, IndexListsAndInterceptEdits) {
   EXPECT_FALSE(apply_intercept_edits({row}, {e}));
 }
 
-// Five argon isotopes on H1 with a baseline, an Ar40 blank and an IC factor.
-StoreAnalysisParts argon_parts() {
-  StoreAnalysisParts parts;
-  parts.detail.row.summary.analysis_type = "unknown";
-  parts.detail.row.summary.timestamp = *ps::UtcTime::parse("2026-10-02T10:00:00Z");
-  ps::Intercepts intercepts;
-  for (const char* iso : {"Ar40", "Ar39", "Ar38", "Ar37", "Ar36"}) {
-    ps::InterceptRow row;
-    row.isotope = iso;
-    row.detector = "H1";
-    row.value = 100.0;
-    row.error = 0.1;
-    intercepts.push_back(row);
-  }
-  ps::BaselineRow baseline;
-  baseline.detector = "H1";
-  baseline.value = 0.01;
-  baseline.error = 0.001;
-  ps::BlankRow blank;
-  blank.isotope = "Ar40";
-  blank.value = 0.5;
-  blank.error = 0.05;
-  ps::IcFactorRow ic;
-  ic.detector = "H1";
-  ic.value = 1.02;
-  ic.error = 0.001;
-  parts.heads[ps::Kind::Intercepts] = std::move(intercepts);
-  parts.heads[ps::Kind::Baselines] = ps::Baselines{baseline};
-  parts.heads[ps::Kind::Blanks] = ps::Blanks{blank};
-  parts.heads[ps::Kind::IcFactors] = ps::IcFactors{ic};
-  return parts;
+// Legacy pychron writes no point count with a run's intercepts until the run
+// is refitted, so most imported analyses have neither `n` nor `fn`. The
+// series are in the store all the same, each with its length.
+TEST(StoreSourceMapping, AnInterceptWithoutACountTakesItsSeriesLength) {
+  const auto n_of = [](const StoreAnalysisParts& parts, const std::string& isotope) {
+    const auto a = analysis_from_store(parts);
+    EXPECT_TRUE(a) << (a ? "" : a.error().what);
+    if (!a) return -1;
+    for (const auto& iso : a->isotopes)
+      if (iso.isotope == isotope) return iso.n;
+    return -1;
+  };
+  const auto signal = [](const char* kind, const char* key, const char* detector, std::optional<int> n) {
+    ps::SignalRefRow ref;
+    ref.series_kind = kind;
+    ref.series_key = key;
+    ref.detector = detector;
+    ref.n_points = n;
+    return ref;
+  };
+  auto parts = argon_parts();
+  EXPECT_EQ(n_of(parts, "Ar40"), 0);  // nothing known: no signals head at all
+
+  parts.heads[ps::Kind::Signals] =
+      ps::SignalRefs{signal("sniff", "Ar40", "H1", 12), signal("baseline", "H1", "H1", 90),
+                     signal("signal", "Ar40", "H1", 340), signal("signal", "Ar39", "H1", std::nullopt)};
+  EXPECT_EQ(n_of(parts, "Ar40"), 340);  // the signal series, not the sniff or the baseline
+  EXPECT_EQ(n_of(parts, "Ar39"), 0);    // a series of unknown length
+  EXPECT_EQ(n_of(parts, "Ar36"), 0);    // no series
+
+  // A series that is a window of its blob has the window's length.
+  auto& refs = std::get<ps::SignalRefs>(parts.heads[ps::Kind::Signals]);
+  refs[2].start_index = 40;
+  EXPECT_EQ(n_of(parts, "Ar40"), 300);
+  refs[2].end_index = 140;
+  EXPECT_EQ(n_of(parts, "Ar40"), 100);
+  refs[2].end_index = 1000;  // past the end: as series_from_blob clamps it
+  EXPECT_EQ(n_of(parts, "Ar40"), 300);
+
+  // A stored count is the fit's own and wins: `fn` (after the outlier
+  // filter) before `n`.
+  auto& intercepts = std::get<ps::Intercepts>(parts.heads[ps::Kind::Intercepts]);
+  intercepts[0].n = 330;
+  EXPECT_EQ(n_of(parts, "Ar40"), 330);
+  intercepts[0].fn = 323;
+  EXPECT_EQ(n_of(parts, "Ar40"), 323);
 }
 
-template <class Rows>
-auto& first_row(StoreAnalysisParts& parts, ps::Kind kind) {
-  return std::get<Rows>(parts.heads.at(kind)).front();
-}
-
-// The production and chronology an irradiated unknown reduces with.
-ps::ProductionValue production_ref() { return ps::ProductionValue{"Triga", std::nullopt, {{"K4039", 0.0008, 5e-5}}}; }
-ps::ChronologyValue chronology_ref() {
-  return ps::ChronologyValue{
-      {{0, 1.0, *ps::UtcTime::parse("2026-01-01T00:00:00Z"), *ps::UtcTime::parse("2026-01-01T10:00:00Z")}}};
-}
-
-ReducedPtr reduce_parts(const StoreAnalysisParts& parts) {
-  auto a = analysis_from_store(parts);
-  EXPECT_TRUE(a) << (a ? "" : to_string(a.error()));
-  if (!a) return nullptr;
-  return reduce_analysis(std::make_shared<const Analysis>(std::move(*a)), ReductionSettings{});
-}
-
-// A NULL value or error in a stored row is unknown, not 0: it reaches the
-// model as NaN and the analysis does not reduce.
-TEST(StoreSourceMapping, MissingStoredNumbersAreUnknownNotZero) {
-  {
-    const auto reduced = reduce_parts(argon_parts());
-    ASSERT_TRUE(reduced);
-    EXPECT_TRUE(reduced->arar) << reduced->reduction_error;
-    for (const auto& iso : reduced->analysis->isotopes) {
-      EXPECT_TRUE(iso.intercept.known());
-      EXPECT_TRUE(iso.baseline.known());
-      EXPECT_TRUE(iso.blank.known());
-      EXPECT_TRUE(iso.ic_factor.known());
+// One isotope on two detectors: each intercept takes its own detector's series.
+TEST(StoreSourceMapping, ASeriesLengthIsTakenFromTheInterceptsOwnDetector) {
+  auto parts = argon_parts();
+  auto& intercepts = std::get<ps::Intercepts>(parts.heads[ps::Kind::Intercepts]);
+  intercepts[0].isotope = "H1:Ar40";
+  ps::InterceptRow second = intercepts[0];
+  second.isotope = "CDD:Ar40";
+  second.detector = "CDD";
+  intercepts.push_back(second);
+  ps::SignalRefRow h1;
+  h1.series_kind = "signal";
+  h1.series_key = "H1:Ar40";
+  h1.detector = "H1";
+  h1.n_points = 200;
+  ps::SignalRefRow cdd = h1;
+  cdd.series_key = "CDD:Ar40";
+  cdd.detector = "CDD";
+  cdd.n_points = 60;
+  parts.heads[ps::Kind::Signals] = ps::SignalRefs{h1, cdd};
+  const auto a = analysis_from_store(parts);
+  ASSERT_TRUE(a) << a.error().what;
+  int seen = 0;
+  for (const auto& iso : a->isotopes) {
+    if (iso.key == "H1:Ar40") {
+      EXPECT_EQ(iso.n, 200);
+      ++seen;
+    }
+    if (iso.key == "CDD:Ar40") {
+      EXPECT_EQ(iso.n, 60);
+      ++seen;
     }
   }
-
-  struct Case {
-    const char* what;  // as reduction_error names it
-    std::optional<double>& (*field)(StoreAnalysisParts&);
-    const Value& (*mapped)(const IsotopeData&);
-    bool is_error;
-    double other;  // the number left in place
-    Stage stage;
-  };
-  const Case cases[] = {
-      {"Ar40 intercept value", [](StoreAnalysisParts& p) -> auto& { return first_row<ps::Intercepts>(p, ps::Kind::Intercepts).value; },
-       [](const IsotopeData& i) -> const Value& { return i.intercept; }, false, 0.1, Stage::Intercept},
-      {"Ar40 intercept error", [](StoreAnalysisParts& p) -> auto& { return first_row<ps::Intercepts>(p, ps::Kind::Intercepts).error; },
-       [](const IsotopeData& i) -> const Value& { return i.intercept; }, true, 100.0, Stage::Intercept},
-      {"Ar40 baseline value", [](StoreAnalysisParts& p) -> auto& { return first_row<ps::Baselines>(p, ps::Kind::Baselines).value; },
-       [](const IsotopeData& i) -> const Value& { return i.baseline; }, false, 0.001, Stage::Baseline},
-      {"Ar40 baseline error", [](StoreAnalysisParts& p) -> auto& { return first_row<ps::Baselines>(p, ps::Kind::Baselines).error; },
-       [](const IsotopeData& i) -> const Value& { return i.baseline; }, true, 0.01, Stage::Baseline},
-      {"Ar40 blank value", [](StoreAnalysisParts& p) -> auto& { return first_row<ps::Blanks>(p, ps::Kind::Blanks).value; },
-       [](const IsotopeData& i) -> const Value& { return i.blank; }, false, 0.05, Stage::Blank},
-      {"Ar40 blank error", [](StoreAnalysisParts& p) -> auto& { return first_row<ps::Blanks>(p, ps::Kind::Blanks).error; },
-       [](const IsotopeData& i) -> const Value& { return i.blank; }, true, 0.5, Stage::Blank},
-      {"Ar40 IC factor value", [](StoreAnalysisParts& p) -> auto& { return first_row<ps::IcFactors>(p, ps::Kind::IcFactors).value; },
-       [](const IsotopeData& i) -> const Value& { return i.ic_factor; }, false, 0.001, Stage::IcFactor},
-      {"Ar40 IC factor error", [](StoreAnalysisParts& p) -> auto& { return first_row<ps::IcFactors>(p, ps::Kind::IcFactors).error; },
-       [](const IsotopeData& i) -> const Value& { return i.ic_factor; }, true, 1.02, Stage::IcFactor},
-  };
-  for (const auto& c : cases) {
-    SCOPED_TRACE(c.what);
-    auto parts = argon_parts();
-    c.field(parts).reset();
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    const IsotopeData* ar40 = reduced->analysis->find_isotope("Ar40");
-    ASSERT_TRUE(ar40);
-    const Value& v = c.mapped(*ar40);
-    EXPECT_FALSE(v.known());
-    EXPECT_TRUE(std::isnan(c.is_error ? v.error : v.value));
-    EXPECT_EQ(c.is_error ? v.value : v.error, c.other);  // the stored half survives
-
-    EXPECT_FALSE(reduced->arar);
-    EXPECT_NE(reduced->reduction_error.find("not reducible"), std::string::npos) << reduced->reduction_error;
-    EXPECT_NE(reduced->reduction_error.find(c.what), std::string::npos) << reduced->reduction_error;
-    // The stage is not a number either, whichever half is missing.
-    const auto stage = reduced->stage("Ar40", c.stage);
-    ASSERT_TRUE(stage);
-    EXPECT_FALSE(std::isfinite(stage->nominal()) && std::isfinite(stage->std_dev()));
-    const auto corrected = reduced->stage("Ar40", Stage::IcCorrected);
-    ASSERT_TRUE(corrected);
-    EXPECT_FALSE(std::isfinite(corrected->nominal()) && std::isfinite(corrected->std_dev()));
-  }
-}
-
-TEST(StoreSourceMapping, MissingStoredNumbersOverridesAndScope) {
-  // A manual override supplies the missing number.
-  {
-    auto parts = argon_parts();
-    auto& row = first_row<ps::Intercepts>(parts, ps::Kind::Intercepts);
-    row.value.reset();
-    row.error.reset();
-    row.manual = ps::ManualOverride{true, 90.0, true, 0.2};
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    EXPECT_EQ(reduced->analysis->find_isotope("Ar40")->intercept, (Value{90.0, 0.2}));
-    EXPECT_TRUE(reduced->arar) << reduced->reduction_error;
-  }
-  // A flagged override that holds no number does not.
-  {
-    auto parts = argon_parts();
-    auto& row = first_row<ps::Intercepts>(parts, ps::Kind::Intercepts);
-    row.value.reset();
-    row.manual.use_value = true;
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    EXPECT_FALSE(reduced->analysis->find_isotope("Ar40")->intercept.known());
-    EXPECT_FALSE(reduced->arar);
-  }
-  // No row at all is still "none": blank 0, IC factor 1.
-  {
-    auto parts = argon_parts();
-    parts.heads.erase(ps::Kind::Blanks);
-    parts.heads.erase(ps::Kind::IcFactors);
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    EXPECT_EQ(reduced->analysis->find_isotope("Ar40")->blank, (Value{0.0, 0.0}));
-    EXPECT_EQ(reduced->analysis->find_isotope("Ar40")->ic_factor, (Value{1.0, 0.0}));
-    EXPECT_TRUE(reduced->arar) << reduced->reduction_error;
-  }
-  // Nor is an IC factor stub row, with neither a value nor an error.
-  {
-    auto parts = argon_parts();
-    auto& ic = first_row<ps::IcFactors>(parts, ps::Kind::IcFactors);
-    ic.value.reset();
-    ic.error.reset();
-    ic.reviewed = true;
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    EXPECT_EQ(reduced->analysis->find_isotope("Ar40")->ic_factor, (Value{1.0, 0.0}));
-    EXPECT_FALSE(reduced->analysis->find_isotope("Ar40")->ic_reviewed);
-    EXPECT_TRUE(reduced->arar) << reduced->reduction_error;
-  }
-  // Unless the importer noted that its value or error was not finite: then
-  // the factor is unknown.
-  for (const char* extra : {R"({"nonfinite": {"/value": "NaN", "/error": "Infinity"}})",
-                            R"({"note": "x", "nonfinite": {"/value": "NaN"}})",
-                            R"({"nonfinite": {"/error": "NaN"}})"}) {
-    SCOPED_TRACE(extra);
-    auto parts = argon_parts();
-    auto& ic = first_row<ps::IcFactors>(parts, ps::Kind::IcFactors);
-    ic.value.reset();
-    ic.error.reset();
-    ic.extra_json = extra;
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    EXPECT_FALSE(reduced->analysis->find_isotope("Ar40")->ic_factor.known());
-    EXPECT_FALSE(reduced->arar);
-    EXPECT_NE(reduced->reduction_error.find("Ar40 IC factor value"), std::string::npos) << reduced->reduction_error;
-  }
-  // A note about some other field leaves it a stub.
-  {
-    auto parts = argon_parts();
-    auto& ic = first_row<ps::IcFactors>(parts, ps::Kind::IcFactors);
-    ic.value.reset();
-    ic.error.reset();
-    ic.extra_json = R"({"nonfinite": {"/standard_ratio": "NaN"}, "value": "/value"})";
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    EXPECT_EQ(reduced->analysis->find_isotope("Ar40")->ic_factor, (Value{1.0, 0.0}));
-    EXPECT_TRUE(reduced->arar) << reduced->reduction_error;
-  }
-  // An isotope reduce() never sees does not stop it.
-  {
-    auto parts = argon_parts();
-    ps::InterceptRow extra;
-    extra.isotope = "Ar41";
-    extra.detector = "CDD";
-    std::get<ps::Intercepts>(parts.heads.at(ps::Kind::Intercepts)).push_back(extra);
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    EXPECT_FALSE(reduced->analysis->find_isotope("Ar41")->intercept.known());
-    EXPECT_TRUE(reduced->arar) << reduced->reduction_error;
-    EXPECT_TRUE(std::isnan(reduced->stage("Ar41", Stage::Intercept)->nominal()));
-  }
-}
-
-// A flux with a J and a NULL error: the error is unknown, not 0.
-TEST(StoreSourceMapping, MissingFluxErrorsAreUnknownNotZero) {
-  auto flux = [] {
-    ps::FluxValue f;
-    f.j = 0.001;
-    f.j_err = 1e-6;
-    f.position_jerr = 2e-7;
-    f.lambda_k_total = 5.5e-10;
-    f.lambda_k_total_err = 1e-12;
-    return f;
-  };
-  {
-    auto parts = argon_parts();
-    parts.refs = {flux(), production_ref(), chronology_ref()};
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    ASSERT_TRUE(reduced->arar) << reduced->reduction_error;
-    EXPECT_TRUE(reduced->arar->ages);
-    EXPECT_TRUE(reduced->j);
-  }
-
-  struct Case {
-    const char* what;
-    std::optional<double> ps::FluxValue::* field;
-    double (*mapped)(const reduction::Flux&);
-  };
-  const Case cases[] = {
-      {"J error", &ps::FluxValue::j_err, [](const reduction::Flux& f) { return f.j.error; }},
-      {"lambda_k_total error", &ps::FluxValue::lambda_k_total_err,
-       [](const reduction::Flux& f) { return f.lambda_k_total->error; }},
-  };
-  for (const auto& c : cases) {
-    SCOPED_TRACE(c.what);
-    auto f = flux();
-    (f.*c.field).reset();
-    auto parts = argon_parts();
-    parts.refs = {f};
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    ASSERT_TRUE(reduced->analysis->context.flux);
-    EXPECT_TRUE(std::isnan(c.mapped(*reduced->analysis->context.flux)));
-    EXPECT_EQ(reduced->analysis->context.flux->j.value, 0.001);
-    EXPECT_FALSE(reduced->arar);
-    EXPECT_FALSE(reduced->j);
-    EXPECT_NE(reduced->reduction_error.find(std::string("no stored ") + c.what), std::string::npos)
-        << reduced->reduction_error;
-  }
-
-  // The J quantity of an unknown J error is not a number.
-  {
-    auto f = flux();
-    f.j_err.reset();
-    auto parts = argon_parts();
-    parts.refs = {f};
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    auto q = Quantity::parse("j");
-    ASSERT_TRUE(q) << to_string(q.error());
-    const auto j = q->eval(*reduced);
-    EXPECT_TRUE(!j || !j->known());
-  }
-
-  // No position error is none (0), and the ages stand.
-  {
-    auto f = flux();
-    f.position_jerr.reset();
-    auto parts = argon_parts();
-    parts.refs = {f, production_ref(), chronology_ref()};
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    EXPECT_EQ(reduced->analysis->context.flux->position_jerr, 0.0);
-    ASSERT_TRUE(reduced->arar) << reduced->reduction_error;
-    EXPECT_TRUE(reduced->arar->ages);
-  }
-
-  // No J is no flux: reduced, without ages. No lambda_k_total is no override.
-  {
-    auto f = flux();
-    f.j.reset();
-    auto parts = argon_parts();
-    parts.refs = {f};
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    EXPECT_FALSE(reduced->analysis->context.flux);
-    ASSERT_TRUE(reduced->arar) << reduced->reduction_error;
-    EXPECT_FALSE(reduced->arar->ages);
-  }
-  {
-    auto f = flux();
-    f.lambda_k_total.reset();
-    f.lambda_k_total_err.reset();
-    auto parts = argon_parts();
-    parts.refs = {f};
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    EXPECT_FALSE(reduced->analysis->context.flux->lambda_k_total);
-    EXPECT_TRUE(reduced->arar) << reduced->reduction_error;
-  }
-}
-
-// An irradiated unknown whose production or chronology is missing (removed in
-// the reference-data history) is not given an age from zero interference
-// corrections or no decay correction: its ratios stand, it has no J and no
-// age, and reduction_error names what is missing.
-TEST(StoreSourceMapping, UnknownWithoutProductionOrChronologyHasNoAge) {
-  ps::FluxValue flux;
-  flux.j = 0.001;
-  flux.j_err = 1e-6;
-  {
-    auto parts = argon_parts();
-    parts.refs = {flux, production_ref(), chronology_ref()};
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    ASSERT_TRUE(reduced->arar) << reduced->reduction_error;
-    EXPECT_TRUE(reduced->arar->ages);
-    EXPECT_TRUE(reduced->j);
-    EXPECT_EQ(reduced->reduction_error, "");
-    EXPECT_NE(reduced->arar->decay.df39, 1.0);
-  }
-
-  struct Case {
-    const char* what;
-    std::vector<ps::RefPayload> refs;
-    const char* error;
-  };
-  const Case cases[] = {
-      {"no production", {flux, chronology_ref()}, "no age: no production ratios"},
-      {"no chronology", {flux, production_ref()}, "no age: no chronology"},
-      {"neither", {flux}, "no age: no production ratios, no chronology"},
-  };
-  for (const auto& c : cases) {
-    SCOPED_TRACE(c.what);
-    auto parts = argon_parts();
-    parts.refs = c.refs;
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    ASSERT_TRUE(reduced->analysis->context.flux);
-    ASSERT_TRUE(reduced->arar) << reduced->reduction_error;
-    EXPECT_FALSE(reduced->arar->ages);
-    EXPECT_FALSE(reduced->j);
-    EXPECT_EQ(reduced->reduction_error, c.error);
-    EXPECT_TRUE(reduced->arar->f.f);
-    EXPECT_FALSE(Quantity::parse("age")->eval(*reduced));
-
-    // Recall says why there is no age.
-    const auto recall = make_recall_model(*reduced);
-    EXPECT_EQ(recall.reduction_note, c.error);
-  }
-
-  // A stored number the source does not have still wins: nothing reduces.
-  {
-    auto parts = argon_parts();
-    first_row<ps::Intercepts>(parts, ps::Kind::Intercepts).error.reset();
-    parts.refs = {flux};
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    EXPECT_FALSE(reduced->arar);
-    EXPECT_NE(reduced->reduction_error.find("not reducible"), std::string::npos) << reduced->reduction_error;
-  }
-}
-
-// Airs, blanks and cocktails are not irradiated: no flux, production or
-// chronology is no reduction error.
-TEST(StoreSourceMapping, UnirradiatedTypesNeedNoProductionOrChronology) {
-  for (const char* type : {"air", "cocktail", "blank_unknown", "blank_air", "blank_cocktail"}) {
-    SCOPED_TRACE(type);
-    auto parts = argon_parts();
-    parts.detail.row.summary.analysis_type = type;
-    const auto reduced = reduce_parts(parts);
-    ASSERT_TRUE(reduced);
-    EXPECT_FALSE(reduced->analysis->context.flux);
-    EXPECT_FALSE(reduced->analysis->context.production);
-    EXPECT_TRUE(reduced->analysis->context.chronology.empty());
-    ASSERT_TRUE(reduced->arar) << reduced->reduction_error;
-    EXPECT_EQ(reduced->reduction_error, "");
-    EXPECT_EQ(reduced->arar->decay.df39, 1.0);
-  }
-}
-
-// The same through a real store: a NULL column comes back unknown.
-TEST_F(StoreSourceTest, NullInterceptLoadsAsUnknownAndDoesNotReduce) {
-  const auto head = *store_->head(unknown_, ps::Kind::Intercepts);
-  auto rows = std::get<ps::Intercepts>(**store_->load_payload(*head));
-  auto ar40 = std::find_if(rows.begin(), rows.end(), [](const ps::InterceptRow& r) { return r.isotope == "Ar40"; });
-  ASSERT_NE(ar40, rows.end());
-  ar40->value.reset();
-  auto uow = *store_->begin(reducer());
-  ASSERT_TRUE(uow->add_revision(unknown_, ps::Kind::Intercepts, ps::RevisionPayload{std::move(rows)}, *head));
-  auto outcome = uow->commit(ps::ChangesetKind::Reduction, "legacy NaN");
-  ASSERT_TRUE(outcome && std::holds_alternative<ps::Committed>(*outcome));
-
-  auto loaded = source().load(unknown_.str());
-  ASSERT_TRUE(loaded) << to_string(loaded.error());
-  const IsotopeData* iso = (*loaded)->find_isotope("Ar40");
-  ASSERT_TRUE(iso);
-  EXPECT_TRUE(std::isnan(iso->intercept.value));
-  EXPECT_EQ(iso->intercept.error, 0.5);
-  const auto reduced = reduce_analysis(*loaded, ReductionSettings{});
-  EXPECT_FALSE(reduced->arar);
-  EXPECT_NE(reduced->reduction_error.find("Ar40 intercept value"), std::string::npos) << reduced->reduction_error;
+  EXPECT_EQ(seen, 2);
 }
 
 TEST(StoreSourceMapping, NonfinitePointers) {
   using V = std::vector<std::string>;
-  EXPECT_EQ(nonfinite_pointers(R"({"nonfinite": {"/value": "NaN", "/error": "Infinity"}})"), (V{"/value", "/error"}));
-  EXPECT_EQ(nonfinite_pointers(R"({"a": [1, {"nonfinite": {"/x": "NaN"}}], "s": "}\"{", "n": -1.5e3, "b": true,
-                                  "nonfinite" : { "/value" : "-Infinity" } , "z": null})"),
-            (V{"/value"}));
-  EXPECT_TRUE(nonfinite_pointers(R"({"nested": {"nonfinite": {"/value": "NaN"}}})").empty());  // top level only
+  // Raw strings outside the gtest macros: MSVC cannot take one as a macro argument (C2017).
+  const std::string both = R"({"nonfinite": {"/value": "NaN", "/error": "Infinity"}})";
+  const std::string busy = R"({"a": [1, {"nonfinite": {"/x": "NaN"}}], "s": "}\"{", "n": -1.5e3, "b": true,
+                                  "nonfinite" : { "/value" : "-Infinity" } , "z": null})";
+  const std::string nested = R"({"nested": {"nonfinite": {"/value": "NaN"}}})";
+  EXPECT_EQ(nonfinite_pointers(both), (V{"/value", "/error"}));
+  EXPECT_EQ(nonfinite_pointers(busy), (V{"/value"}));
+  EXPECT_TRUE(nonfinite_pointers(nested).empty());  // top level only
   EXPECT_TRUE(nonfinite_pointers(R"({"nonfinite": "/value"})").empty());
   EXPECT_TRUE(nonfinite_pointers(R"({"nonfinite": {}})").empty());
   EXPECT_TRUE(nonfinite_pointers("{}").empty());
@@ -1348,6 +1033,34 @@ TEST(StoreSourceMapping, SeriesFromBlob) {
   EXPECT_FALSE(series_from_blob(ref, ps::BlobData{"f32le-tvs/1", bytes, 3}));
 }
 
+// PI spec 7: through a source a PI is its uuid, and the name is only shown.
+TEST_F(StoreSourceTest, APiIsFilteredByItsUuid) {
+  const auto pis = store_->principal_investigators();
+  ASSERT_TRUE(pis) << to_string(pis.error());
+  ASSERT_EQ(pis->size(), 1u);
+  const std::string ross = pis->front().uuid.str();
+
+  auto facet = source().facet(Facet::PrincipalInvestigator, {});
+  ASSERT_TRUE(facet) << to_string(facet.error());
+  EXPECT_EQ(*facet, (std::vector<FacetValue>{{ross, "J Ross"}}));
+
+  BrowseQuery q;
+  q.principal_investigators = {ross};
+  auto page = source().browse(q);
+  ASSERT_TRUE(page) << to_string(page.error());
+  ASSERT_EQ(page->rows.size(), 1u);
+  EXPECT_EQ(page->rows[0].uuid, unknown_.str());
+  EXPECT_EQ(page->rows[0].principal_investigator_uuid, ross);
+  EXPECT_EQ(page->rows[0].principal_investigator, "J Ross");
+
+  q.principal_investigators = {ps::Uuid::v7().str()};  // a PI with no analyses
+  EXPECT_TRUE(source().browse(q)->rows.empty());
+
+  q.principal_investigators = {"J Ross"};  // a name is refused, not matched
+  EXPECT_FALSE(source().browse(q));
+  EXPECT_FALSE(source().facet(Facet::Sample, q));
+}
+
 TEST(StoreSourceMapping, QueryAndCursorRoundTrip) {
   BrowseQuery q;
   q.from = 1'700'000'000.25;
@@ -1356,9 +1069,25 @@ TEST(StoreSourceMapping, QueryAndCursorRoundTrip) {
   EXPECT_EQ(f.from->micros, 1'700'000'000'250'000);
   EXPECT_EQ(f.samples, q.samples);
   EXPECT_EQ(f.exclude_tags, (std::vector<std::string>{"invalid"}));
+  EXPECT_FALSE(f.age_min);
+  EXPECT_FALSE(f.age_max);
+  q.age_min = 1.5;
+  q.age_max = 28.2;
+  const auto aged = to_store_filter(q);
+  EXPECT_EQ(aged.age_min, 1.5);
+  EXPECT_EQ(aged.age_max, 28.2);
   EXPECT_EQ(to_store_facet(Facet::Repository), ps::BrowseFacet::Repository);
   EXPECT_EQ(to_store_facet(Facet::Load), ps::BrowseFacet::Load);
+
+  ps::BrowseRow row;
+  row.summary.uuid = ps::Uuid::v7();
+  row.age = 28.2;
+  row.age_err = 0.05;
+  const auto s = summary_from_row(row);
+  EXPECT_EQ(s.age, 28.2);
+  EXPECT_EQ(s.age_err, 0.05);
+  EXPECT_FALSE(summary_from_row(ps::BrowseRow{}).age);
 }
 
 }  // namespace
-}  // namespace pychron::processing
+}  // namespace nobion::processing

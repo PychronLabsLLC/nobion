@@ -1,4 +1,4 @@
-#include "pychron/systems/spectrometer/bringup.hpp"
+#include "nobion/systems/spectrometer/bringup.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -11,10 +11,10 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/sim/sim_system.hpp"
-#include "pychron/systems/spectrometer/assembler.hpp"
+#include "nobion/sim/sim_system.hpp"
+#include "nobion/systems/spectrometer/assembler.hpp"
 
-namespace pychron::spectrometer {
+namespace nobion::spectrometer {
 
 sim::BeamSettings beam_settings_from_config(const cfg::SpectrometerData& data) {
   sim::BeamSettings settings;
@@ -114,7 +114,10 @@ Result<std::unique_ptr<Spectrometer>> load_spectrometer_for_app(cfg::Spectromete
     beam = std::make_shared<sim::BeamModel>(ctx.clock, beam_settings_from_config(data));
     sim::BeamModelRegistry::global().set("default", beam);
   }
-  auto spec = SpectrometerAssembler::assemble(std::move(data), ctx);
+  SpectrometerAssembler::Options assembly;
+  assembly.link_defaults = options.link_defaults;
+  assembly.sim_endpoints = options.sim_endpoints;
+  auto spec = SpectrometerAssembler::assemble(std::move(data), ctx, std::move(assembly));
   // The line's gas and baselines, now that the drivers have given the beam
   // its detectors.
   if (spec && beam && options.line_sim != nullptr) {
@@ -125,4 +128,4 @@ Result<std::unique_ptr<Spectrometer>> load_spectrometer_for_app(cfg::Spectromete
   return spec;
 }
 
-}  // namespace pychron::spectrometer
+}  // namespace nobion::spectrometer

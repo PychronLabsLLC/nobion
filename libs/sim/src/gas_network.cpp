@@ -1,4 +1,4 @@
-#include "pychron/sim/gas_network.hpp"
+#include "nobion/sim/gas_network.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -11,11 +11,11 @@
 #include <utility>
 #include <vector>
 
-#include "pychron/core/error.hpp"
-#include "pychron/sim/gas.hpp"
-#include "pychron/sim/linear_flow.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/sim/gas.hpp"
+#include "nobion/sim/linear_flow.hpp"
 
-namespace pychron::sim {
+namespace nobion::sim {
 namespace {
 
 bool amount(double value) { return std::isfinite(value) && value >= 0.0; }
@@ -269,7 +269,9 @@ Result<void> GasNetwork::rebuild() {
   for (std::size_t s = 0; s < kSpeciesCount; ++s) {
     terms.links.clear();
     for (const Valve& valve : valves_) {
-      if (valve.open && valve.linked) terms.links.push_back({valve.a, valve.b, valve.conductance * flow_factor(s)});
+      if (!valve.open || !valve.linked) continue;
+      if (volumes_[valve.a].held[s] || volumes_[valve.b].held[s]) continue;  // frozen where it is
+      terms.links.push_back({valve.a, valve.b, valve.conductance * flow_factor(s)});
     }
     for (std::size_t i = 0; i < volumes_.size(); ++i) {
       terms.loss[i] = volumes_[i].loss[s];
@@ -300,6 +302,26 @@ void GasNetwork::set_valve(std::string_view name, bool open) {
   const auto built = rebuild();
   assert(built.has_value());
   if (!built) valve.open = !open;
+}
+
+Result<void> GasNetwork::set_held(std::string_view volume, const Held& held) {
+  const std::size_t i = find_volume(volume);
+  if (i == volumes_.size()) return fail(ErrorKind::Config, "gas network: no volume " + quoted(volume));
+  if (volumes_[i].held == held) return {};
+  const Held before = volumes_[i].held;
+  volumes_[i].held = held;
+  // As for a valve: nothing new comes in, so this cannot be refused.
+  if (auto built = rebuild(); !built) {
+    volumes_[i].held = before;
+    return fail(built.error());
+  }
+  return {};
+}
+
+Result<GasNetwork::Held> GasNetwork::held(std::string_view volume) const {
+  const std::size_t i = find_volume(volume);
+  if (i == volumes_.size()) return fail(ErrorKind::Config, "gas network: no volume " + quoted(volume));
+  return volumes_[i].held;
 }
 
 bool GasNetwork::valve_open(std::string_view name) const {
@@ -390,4 +412,4 @@ Result<void> GasNetwork::add_volume(GasVolume volume, const std::vector<GasPump>
   return {};
 }
 
-}  // namespace pychron::sim
+}  // namespace nobion::sim

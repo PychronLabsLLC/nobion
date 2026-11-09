@@ -7,15 +7,18 @@
 
 #include "sql/statements.hpp"
 
-namespace pychron::persistence::detail::sql {
+namespace nobion::persistence::detail::sql {
 
 // Every browse column an analysis row needs. %1: the timestamp expression.
+// Reads `dv`: follow kBrowseFrom with kBrowseAgeJoin or kBrowseAgeRangeJoin.
 inline const QString kBrowseSelect = QStringLiteral(
     "SELECT a.uuid, a.runid_text, i.identifier, a.aliquot, a.increment, a.provisional, a.analysis_type, "
     "%1 AS ts, m.name AS mass_spectrometer, a.signals_state, "
     "s.name AS sample, s.uuid AS sample_uuid, p.name AS project, mt.name AS material, pi.display_name AS principal_investigator, "
+    "p.pi_uuid AS principal_investigator_uuid, ir.uuid AS irradiation_uuid, lv.uuid AS level_uuid, "
     "ed.name AS extract_device, ld.name AS load_name, ir.name AS irradiation, lv.name AS level, "
     "ip.position AS position, a.extract_value, a.extract_units, tv.name AS tag, "
+    "dv.value AS age, dv.error AS age_err, "
     "(SELECT MIN(r.name) FROM repository_member rm JOIN repository r ON r.uuid = rm.repository_uuid "
     "WHERE rm.analysis_uuid = a.uuid) AS repository ");
 
@@ -35,19 +38,70 @@ inline const QString kBrowseFrom = QStringLiteral(
     "LEFT JOIN head th ON th.subject_uuid = a.uuid AND th.kind = 'tags' "
     "LEFT JOIN tag_value tv ON tv.revision_uuid = th.revision_uuid ");
 
+// The cached age of each analysis (derived_value keeps one fingerprint per
+// analysis, so this is one row or none). Two forms, for two plans:
+// - kBrowseAgeJoin, for a page with no age bound: the name is written
+//   `dv.name || ''` so that SQLite reaches the row by the primary key
+//   (analysis_uuid, ...). Written `dv.name = 'age'`, with no statistics it
+//   searched derived_value_name_ix and read every cached age for each row of
+//   the page (0.5 s a page on a store of 8.7 thousand analyses, against 1 ms).
+// - kBrowseAgeRangeJoin, whenever an age bound is set (page, count, facet):
+//   `dv.name = 'age'` lets the bound be a range on derived_value_name_ix
+//   (name, value), which then drives the statement; each match finds its
+//   analysis by primary key.
+// A count or facet with no age bound has no join at all: it runs over every
+// matching analysis and must not pay a probe per row for a filter that is off.
+inline const QString kBrowseAgeJoin =
+    QStringLiteral("LEFT JOIN derived_value dv ON dv.analysis_uuid = a.uuid AND dv.name || '' = 'age' ");
+inline const QString kBrowseAgeRangeJoin =
+    QStringLiteral("LEFT JOIN derived_value dv ON dv.analysis_uuid = a.uuid AND dv.name = 'age' ");
+// Inclusive bounds, in Ma. An analysis cached as having no age (a null
+// value), or with no row, matches neither.
+inline const QString kBrowseAgeMin = QStringLiteral("dv.value >= ?");
+inline const QString kBrowseAgeMax = QStringLiteral("dv.value <= ?");
+
 // Columns a list filter or facet applies to. Repository is filtered through
 // kBrowseRepositoryIn instead.
 inline const QString kColAnalysisType = QStringLiteral("a.analysis_type");
 inline const QString kColMassSpectrometer = QStringLiteral("m.name");
 inline const QString kColExtractDevice = QStringLiteral("ed.name");
 inline const QString kColProject = QStringLiteral("p.name");
-inline const QString kColPrincipalInvestigator = QStringLiteral("pi.display_name");
+// A PI by its uuid: two PIs may show one name.
+inline const QString kColPrincipalInvestigator = QStringLiteral("p.pi_uuid");
 inline const QString kColSample = QStringLiteral("s.name");
 inline const QString kColMaterial = QStringLiteral("mt.name");
 inline const QString kColIdentifier = QStringLiteral("i.identifier");
 inline const QString kColIrradiation = QStringLiteral("ir.name");
 inline const QString kColLevel = QStringLiteral("lv.name");
 inline const QString kColLoad = QStringLiteral("ld.name");
+
+// The irradiation tree (spec 5.1): the analysis's identifier is one of the
+// identifiers chosen by any branch. A branch per non-empty part, joined by
+// UNION (never an OR across tables); each reaches its rows by an index.
+// %1: placeholders.
+inline const QString kPositionByIrradiation = QStringLiteral(
+    "SELECT i.uuid FROM identifier i JOIN irradiation_position ip ON ip.uuid = i.position_uuid "
+    "JOIN level lv ON lv.uuid = ip.level_uuid WHERE lv.irradiation_uuid IN (%1)");
+inline const QString kPositionByLevel = QStringLiteral(
+    "SELECT i.uuid FROM identifier i JOIN irradiation_position ip ON ip.uuid = i.position_uuid "
+    "WHERE ip.level_uuid IN (%1)");
+inline const QString kPositionByIdentifier = QStringLiteral("SELECT uuid FROM identifier WHERE identifier IN (%1)");
+inline const QString kPositionNotIrradiated = QStringLiteral("SELECT uuid FROM identifier WHERE position_uuid IS NULL");
+// %1: the branches, joined by UNION.
+inline const QString kPositionIn = QStringLiteral("a.identifier_uuid IN (%1)");
+// A selection with nothing in it.
+inline const QString kPositionNone = QStringLiteral("1 = 0");
+
+// The positions listing (spec 5.2). Follow with kBrowseFrom, the where clause
+// and kPositionsOrder. `unplaced` is in the list only because PostgreSQL
+// requires an ORDER BY expression of a SELECT DISTINCT to be selected.
+inline const QString kPositionsSelect = QStringLiteral(
+    "SELECT DISTINCT ir.uuid AS irradiation_uuid, ir.name AS irradiation, lv.uuid AS level_uuid, lv.name AS level, "
+    "i.identifier AS identifier, s.name AS sample, p.name AS project, (ir.name IS NULL) AS unplaced ");
+inline const QString kPositionsOrder = QStringLiteral(" ORDER BY (ir.name IS NULL), ir.name, lv.name, i.identifier");
+
+// %1: placeholders.
+inline const QString kBrowseUuidIn = QStringLiteral("a.uuid IN (%1)");
 
 // %1: column, %2: placeholders.
 inline const QString kBrowseIn = QStringLiteral("%1 IN (%2)");
@@ -71,6 +125,9 @@ inline const QString kBrowseCount = QStringLiteral("SELECT COUNT(*) AS n ");
 inline const QString kFacetSelect = QStringLiteral("SELECT DISTINCT %1 AS v ");
 inline const QString kFacetTail = QStringLiteral(" ORDER BY 1");
 inline const QString kFacetNotNull = QStringLiteral("%1 IS NOT NULL AND %1 <> ''");
+// A uuid column: PostgreSQL will not compare one with ''.
+inline const QString kFacetUuidNotNull = QStringLiteral("%1 IS NOT NULL");
+// %1: kBrowseFrom (and an age join), %2: where clause.
 inline const QString kRepositoryFacet = QStringLiteral(
     "SELECT DISTINCT r.name AS v FROM repository r JOIN repository_member rm ON rm.repository_uuid = r.uuid "
     "WHERE rm.analysis_uuid IN (SELECT a.uuid %1 %2) ORDER BY 1");
@@ -99,4 +156,4 @@ inline const QString kLatestChangeSeq = QStringLiteral("SELECT COALESCE(MAX(chan
 inline const QString kBlobByShaFull =
     QStringLiteral("SELECT codec, n_points, bytes FROM signal_blob WHERE sha256 = ?");
 
-}  // namespace pychron::persistence::detail::sql
+}  // namespace nobion::persistence::detail::sql

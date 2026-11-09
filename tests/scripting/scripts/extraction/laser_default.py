@@ -1,4 +1,4 @@
-#! pychron: eqtime=20, label="CO2 default"
+#! nobion: eqtime=20, label="CO2 default"
 # Ported from pychron's felix_laser extraction script: docstring metadata
 # moved to the header line above; ex/mx globals are gone.
 

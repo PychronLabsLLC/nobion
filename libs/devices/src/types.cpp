@@ -1,8 +1,8 @@
-#include "pychron/devices/types.hpp"
+#include "nobion/devices/types.hpp"
 
 #include <charconv>
 
-namespace pychron {
+namespace nobion {
 
 std::string_view to_string(ValveState state) noexcept {
   switch (state) {
@@ -28,4 +28,4 @@ Result<std::int64_t> ValveAddress::as_index() const {
   return index;
 }
 
-}  // namespace pychron
+}  // namespace nobion

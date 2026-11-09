@@ -16,7 +16,7 @@
 
 #include <qcustomplot.h>
 
-#ifndef PYCHRON_UI_HAS_STORE
+#ifndef NOBION_UI_HAS_STORE
 
 class FluxWindowTest : public QObject {
   Q_OBJECT
@@ -65,30 +65,31 @@ class FluxWindowTest : public QObject {
 #include "options_editor.hpp"
 #include "packages_window.hpp"
 #include "preset_bar.hpp"
-#include "pychron/processing/flux_view.hpp"
-#include "pychron/processing/options.hpp"
+#include "nobion/arar/flux_view.hpp"
+#include "nobion/processing/options.hpp"
 #include "scene_view.hpp"
 
 // Qt's `signals` keyword macro would rewrite persistence::CollectionRoots::signals.
 #pragma push_macro("signals")
 #undef signals
 #include "flux_seed.hpp"
-#include "pychron/processing/flux_store.hpp"
-#include "pychron/processing/store_source.hpp"
+#include "nobion/arar/flux_store.hpp"
+#include "nobion/arar/store_loader.hpp"
+#include "nobion/processing/store_source.hpp"
 #pragma pop_macro("signals")
 
-using namespace pychron;
-namespace ps = pychron::persistence;
-namespace pp = pychron::processing;
-namespace pt = pychron::processing::testing;
-using pychron::ui::EntryActions;
-using pychron::ui::EntryBridge;
-using pychron::ui::FitActions;
-using pychron::ui::MenuHub;
-using pychron::ui::PackagesWindow;
-using pychron::ui::FluxAnalysisModel;
-using pychron::ui::FluxMonitorModel;
-using pychron::ui::FluxWindow;
+using namespace nobion;
+namespace ps = nobion::persistence;
+namespace pp = nobion::processing;
+namespace pt = nobion::processing::testing;
+using nobion::ui::EntryActions;
+using nobion::ui::EntryBridge;
+using nobion::ui::FitActions;
+using nobion::ui::MenuHub;
+using nobion::ui::PackagesWindow;
+using nobion::ui::FluxAnalysisModel;
+using nobion::ui::FluxMonitorModel;
+using nobion::ui::FluxWindow;
 
 namespace {
 
@@ -164,7 +165,7 @@ class FluxWindowTest : public QObject {
 
   // Opened after everything a test seeds, so the source sees it.
   Rig rig() {
-    auto source = pp::StoreSource::open(ps::StoreConfig{url_, false}, {});
+    auto source = pp::StoreSource::open(ps::StoreConfig{url_, false}, arar::store_source_options());
     if (!source) qFatal("source: %s", to_string(source.error()).c_str());
     auto bridge = EntryBridge::open({url_, "tester", "test-host"});
     if (!bridge) qFatal("bridge: %s", to_string(bridge.error()).c_str());
@@ -475,9 +476,9 @@ class FluxWindowTest : public QObject {
     QVERIFY(w.warnings().isEmpty());
     QCOMPARE(w.monitors()->rowCount(), 0);
     QCOMPARE(w.unknowns()->rowCount(), 1);
-    QCOMPARE(w.unknowns()->index(0, pychron::ui::FluxUnknownModel::Identifier).data().toString(),
+    QCOMPARE(w.unknowns()->index(0, nobion::ui::FluxUnknownModel::Identifier).data().toString(),
              QStringLiteral("66201"));
-    QVERIFY(w.unknowns()->index(0, pychron::ui::FluxUnknownModel::PredJ).data().toString().isEmpty());
+    QVERIFY(w.unknowns()->index(0, nobion::ui::FluxUnknownModel::PredJ).data().toString().isEmpty());
     QCOMPARE(w.windowTitle(), QStringLiteral("Flux — NM-300 B"));
 
     // A level that is not there cannot be read at all: nothing is left on show.
@@ -528,7 +529,7 @@ class FluxWindowTest : public QObject {
     for (int row = 0; row < 8; ++row)
       QCOMPARE(w.monitors()->index(row, FluxMonitorModel::Identifier).data().toString(),
                QString::number(67001 + row));
-    QCOMPARE(w.unknowns()->index(0, pychron::ui::FluxUnknownModel::Identifier).data().toString(),
+    QCOMPARE(w.unknowns()->index(0, nobion::ui::FluxUnknownModel::Identifier).data().toString(),
              QStringLiteral("67101"));
     QCOMPARE(points_labelled(*w.view()->scene(), "Analyses")->x.size(), std::size_t{24});
     QCOMPARE(w.tree()->currentItem(), level_item(w, QStringLiteral("NM-300"), QStringLiteral("C")));
@@ -599,12 +600,12 @@ class FluxWindowTest : public QObject {
     QVERIFY(w.edited());
     QVERIFY(!w.busy());
     QVERIFY2(w.status().endsWith(QStringLiteral(" · edited (not saved)")), qPrintable(w.status()));
-    QVERIFY(w.unknowns()->setData(w.unknowns()->index(0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked,
+    QVERIFY(w.unknowns()->setData(w.unknowns()->index(0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked,
                                   Qt::CheckStateRole));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
     QVERIFY(w.monitors()->setData(w.monitors()->index(row, FluxMonitorModel::Save), Qt::Checked, Qt::CheckStateRole));
     QVERIFY(w.edited());  // the unknown's is still unticked
-    QVERIFY(w.unknowns()->setData(w.unknowns()->index(0, pychron::ui::FluxUnknownModel::Save), Qt::Checked,
+    QVERIFY(w.unknowns()->setData(w.unknowns()->index(0, nobion::ui::FluxUnknownModel::Save), Qt::Checked,
                                   Qt::CheckStateRole));
     QVERIFY(!w.edited());
 
@@ -813,7 +814,9 @@ class FluxWindowTest : public QObject {
     QVERIFY(dock);
     QCOMPARE(dock->windowTitle(), QStringLiteral("Fit"));
     QCOMPARE(w.dockWidgetArea(dock), Qt::RightDockWidgetArea);
-    QCOMPARE(w.options_editor()->sections(), QStringList({QStringLiteral("Model"), QStringLiteral("Errors")}));
+    QCOMPARE(w.options_editor()->sections(),
+             QStringList({QStringLiteral("Model"), QStringLiteral("Errors"), QStringLiteral("Layout"),
+                          QStringLiteral("Appearance"), QStringLiteral("Legend")}));
     // No saved fit: the level opens on the preset in use.
     QCOMPARE(w.preset_bar()->current_name(), QStringLiteral("Default"));
     QCOMPARE(w.preset_bar()->combo()->findText(QStringLiteral("(saved fit)")), -1);
@@ -935,6 +938,109 @@ class FluxWindowTest : public QObject {
     QCOMPARE(w.options(), pp::FluxOptions{});
     QVERIFY(settle(w));
     QCOMPARE(w.options(), nearest3());
+  }
+
+  // W13, R21: the plot's style is the preset's. A change of it is no edit and
+  // reaches the plot; the level's reads, (saved fit) and Revert keep it; a
+  // preset brings its own.
+  void the_style_is_the_presets_not_the_fits() {
+    for (int hole = 1; hole <= 8; ++hole) save_fit(hole, nearest3());
+    auto r = rig();
+    auto wp = opened(r);
+    FluxWindow& w = *wp;
+    QVERIFY2(w.fit(), qPrintable(w.status()));
+    QVERIFY(w.preset_bar()->pinned_selected());
+    QVERIFY(w.view()->scene());
+    QVERIFY(w.view()->scene()->style.grid);
+
+    const auto grid_shown = [&w] { return w.view()->scene() && w.view()->scene()->style.grid; };
+    QVERIFY(w.options_editor()->apply(QStringLiteral("show_grid"), false));
+    QVERIFY(!w.options_editor()->options().get_bool("show_grid"));
+    QVERIFY(!w.busy());  // redrawn at once: no refit is asked for
+    QVERIFY(settle(w));
+    QVERIFY(!grid_shown());
+    QVERIFY(!w.edited());
+    QVERIFY(!w.status().contains(QStringLiteral("edited")));
+    QCOMPARE(w.options(), nearest3());
+
+    // (saved fit) chosen again: the saved model, the style as it is.
+    QVERIFY(w.options_editor()->apply(QStringLiteral("model.neighbors"), std::int64_t{2}));
+    QVERIFY(w.edited());
+    Q_EMIT w.preset_bar()->combo()->activated(0);
+    QCOMPARE(w.options(), nearest3());
+    QVERIFY(!w.edited());
+    QVERIFY(settle(w));
+    QVERIFY(!grid_shown());
+
+    // Revert drops the edits and keeps the style.
+    QVERIFY(w.options_editor()->apply(QStringLiteral("model.neighbors"), std::int64_t{2}));
+    QVERIFY(settle(w));
+    w.revert();
+    QCOMPARE(w.options(), nearest3());
+    QVERIFY(!w.edited());
+    QVERIFY(settle(w));
+    QVERIFY(!grid_shown());
+    QVERIFY(!w.options_editor()->options().get_bool("show_grid"));
+
+    // A Reload reads the level again and keeps the style too.
+    w.reload();
+    QVERIFY(settle(w));
+    QCOMPARE(w.options(), nearest3());
+    QVERIFY(!w.edited());
+    QVERIFY(!grid_shown());
+
+    // With a model edit pending, Reload puts it back (R19), with the style.
+    QVERIFY(w.options_editor()->apply(QStringLiteral("model.neighbors"), std::int64_t{2}));
+    QVERIFY(w.options_editor()->apply(QStringLiteral("show_legend"), false));
+    QVERIFY(settle(w));
+    w.reload();
+    QVERIFY(settle(w));
+    QCOMPARE(w.options().fit.n_neighbors, 2);
+    QVERIFY(w.edited());
+    QVERIFY(!grid_shown());
+    QVERIFY(!w.view()->scene()->style.legend);
+    // Revert drops the model edit and keeps both style changes.
+    w.revert();
+    QVERIFY(settle(w));
+    QCOMPARE(w.options(), nearest3());
+    QVERIFY(!w.edited());
+    QVERIFY(!grid_shown());
+    QVERIFY(!w.view()->scene()->style.legend);
+
+    // A save writes the fit alone, and keeps the style; saved again with
+    // another style there is nothing to write: the style is no part of it.
+    w.save();
+    QVERIFY(settle(w));
+    QVERIFY2(w.status().startsWith(QStringLiteral("Saved")), qPrintable(w.status()));
+    QVERIFY(!grid_shown());
+    QVERIFY(w.options_editor()->apply(QStringLiteral("font.title"), 20.0));
+    QVERIFY(!w.edited());
+    w.save();
+    QVERIFY(settle(w));
+    QVERIFY2(w.status().startsWith(QStringLiteral("Nothing to save")), qPrintable(w.status()));
+    QVERIFY(!grid_shown());
+    QCOMPARE(w.view()->scene()->style.fonts.title, 20.0);
+
+    // A preset chosen brings its own style with its model.
+    QVERIFY(w.preset_bar()->select(QStringLiteral("Default")));
+    QCOMPARE(w.options(), pp::FluxOptions{});
+    QVERIFY(w.options_editor()->options().get_bool("show_grid"));
+    QVERIFY(settle(w));
+    QVERIFY(grid_shown());
+
+    // A preset saved with a style brings it back.
+    QVERIFY(w.options_editor()->apply(QStringLiteral("show_grid"), false));
+    w.preset_bar()->ask_name = [] { return QStringLiteral("No grid"); };
+    QVERIFY(w.preset_bar()->save(true));
+    auto saved = r.presets.load(pp::flux_options_schema(), "No grid");
+    QVERIFY(saved.has_value());
+    QVERIFY(!saved->options.get_bool("show_grid"));
+    QVERIFY(w.preset_bar()->select(QStringLiteral("Default")));
+    QVERIFY(settle(w));
+    QVERIFY(grid_shown());
+    QVERIFY(w.preset_bar()->select(QStringLiteral("No grid")));
+    QVERIFY(settle(w));
+    QVERIFY(!grid_shown());
   }
 
   void a_model_the_monitors_cannot_fit() {
@@ -1093,7 +1199,7 @@ class FluxWindowTest : public QObject {
       QVERIFY(w.monitors()->index(row, FluxMonitorModel::PredJ).data().toString().isEmpty());
       QVERIFY(w.monitors()->index(row, FluxMonitorModel::Dev).data().toString().isEmpty());
     }
-    QVERIFY(w.unknowns()->index(0, pychron::ui::FluxUnknownModel::PredJ).data().toString().isEmpty());
+    QVERIFY(w.unknowns()->index(0, nobion::ui::FluxUnknownModel::PredJ).data().toString().isEmpty());
     // An analysis omitted meanwhile shows in its monitor's N.
     w.toggle_analyses({QString::fromStdString(seeded_.analyses.at("66007-01").str())});
     QVERIFY(settle(w));
@@ -1799,7 +1905,8 @@ class FluxWindowTest : public QObject {
     w.save();  // again while it runs: nothing more
     QVERIFY(settle(w));
 
-    QCOMPARE(w.status(), QStringLiteral("Saved 12 positions (0 unchanged)"));
+    QCOMPARE(w.status(), QStringLiteral("Saved 12 positions (0 unchanged)"
+                                        "; cached ages of 24 analyses are now out of date; run elctl db derive"));
     QVERIFY(!w.status_is_error());
     QVERIFY(change_seq() > before);
     for (int hole = 1; hole <= 12; ++hole) {
@@ -1809,7 +1916,7 @@ class FluxWindowTest : public QObject {
       QVERIFY(value->j.has_value());
       QCOMPARE(*value->j, predicted.at(hole));
       QVERIFY(value->options_json.has_value());
-      QVERIFY2(QString::fromStdString(*value->options_json).contains(QStringLiteral("pychron-ui")),
+      QVERIFY2(QString::fromStdString(*value->options_json).contains(QStringLiteral("nobion")),
                value->options_json->c_str());
     }
     // The level was read again, once: it shows what was saved, and nothing is pending.
@@ -1842,7 +1949,8 @@ class FluxWindowTest : public QObject {
     FluxWindow& w = *wp;
     w.save();
     QVERIFY(settle(w));
-    QCOMPARE(w.status(), QStringLiteral("Saved 12 positions (0 unchanged)"));
+    QCOMPARE(w.status(), QStringLiteral("Saved 12 positions (0 unchanged)"
+                                        "; cached ages of 24 analyses are now out of date; run elctl db derive"));
 
     QSignalSpy saved(&w, &FluxWindow::saved);
     QSignalSpy changed(r.bridge.get(), &EntryBridge::changed);
@@ -1883,12 +1991,13 @@ class FluxWindowTest : public QObject {
 
     w.set_in_fit(3, false);  // another J everywhere
     w.set_save(9, false);
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
     QVERIFY(settle(w));
     w.save();
     QVERIFY(settle(w));
     QVERIFY2(w.status().contains(QStringLiteral("1 not saved")), qPrintable(w.status()));
-    QCOMPARE(w.status(), QStringLiteral("Saved 11 positions (0 unchanged), 1 not saved"));
+    QCOMPARE(w.status(), QStringLiteral("Saved 11 positions (0 unchanged), 1 not saved"
+                                        "; cached ages of 24 analyses are now out of date; run elctl db derive"));
     const auto after = heads();
     QCOMPARE(after.at(9), before.at(9));
     for (int hole = 1; hole <= 12; ++hole)
@@ -1897,18 +2006,19 @@ class FluxWindowTest : public QObject {
 
     // R11: read again after that save, the box is still unticked, and that is
     // no edit: nothing differs from what was saved but the choice.
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
-    QCOMPARE(check(w.unknowns(), 1, pychron::ui::FluxUnknownModel::Save), Qt::Checked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 1, nobion::ui::FluxUnknownModel::Save), Qt::Checked);
     QVERIFY(!w.edited());
     // So a second save leaves hole 9's head alone again.
     w.set_in_fit(3, true);
     w.save();
     QVERIFY(settle(w));
-    QCOMPARE(w.status(), QStringLiteral("Saved 11 positions (0 unchanged), 1 not saved"));
+    QCOMPARE(w.status(), QStringLiteral("Saved 11 positions (0 unchanged), 1 not saved"
+                                        "; cached ages of 24 analyses are now out of date; run elctl db derive"));
     QCOMPARE(heads().at(9), before.at(9));
     QVERIFY(heads().at(10) != after.at(10));
     QCOMPARE(saved_excluded(3), std::optional<bool>(false));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
     QVERIFY(!w.edited());
     // Ticked back, it is an edit until saved.
     w.set_save(9, true);
@@ -1919,15 +2029,15 @@ class FluxWindowTest : public QObject {
     // A manual Reload keeps the box as it is (R19, R20): unticked, and still no edit.
     w.reload();
     QVERIFY(settle(w));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
     QVERIFY(!w.edited());
     // One unticked since the save is an edit before the Reload and after it.
     w.set_save(10, false);
     QVERIFY(w.edited());
     w.reload();
     QVERIFY(settle(w));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
-    QCOMPARE(check(w.unknowns(), 1, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 1, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
     QVERIFY(w.edited());
     w.set_save(10, true);
     QVERIFY(!w.edited());
@@ -1935,9 +2045,9 @@ class FluxWindowTest : public QObject {
     w.set_in_fit(3, false);
     w.save();
     QVERIFY(settle(w));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
     w.revert();
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Checked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Checked);
     QVERIFY(!w.edited());
   }
 
@@ -2216,7 +2326,8 @@ class FluxWindowTest : public QObject {
     QVERIFY(settle(w));
     drain(*r.bridge);
     QVERIFY(settle(w));
-    QCOMPARE(w.status(), QStringLiteral("Saved 12 positions (0 unchanged)"));
+    QCOMPARE(w.status(), QStringLiteral("Saved 12 positions (0 unchanged)"
+                                        "; cached ages of 24 analyses are now out of date; run elctl db derive"));
     QCOMPARE(saved.count(), 1);
     QCOMPARE(w.loads_started(), loads + 1);
     QVERIFY(w.fit());
@@ -2344,6 +2455,12 @@ class FluxWindowTest : public QObject {
     outcome.unchanged = 3;
     outcome.skipped = 2;
     QCOMPARE(FluxWindow::save_text(outcome, "", ""), QStringLiteral("Saved 7 positions (3 unchanged), 2 not saved"));
+    // Age cache spec 4.5, item 4: the analyses of the positions written.
+    outcome.outdated_ages = 21;
+    QCOMPARE(FluxWindow::save_text(outcome, "", ""),
+             QStringLiteral("Saved 7 positions (3 unchanged), 2 not saved; cached ages of 21 analyses are now out of "
+                            "date; run elctl db derive"));
+    outcome.outdated_ages = 0;
     outcome.written = 0;
     outcome.unchanged = 12;
     outcome.skipped = 0;
@@ -2390,7 +2507,8 @@ class FluxWindowTest : public QObject {
     QVERIFY(fitted_at(*w.fit(), 3).excluded);  // fitted first
     const double j1 = fitted_at(*w.fit(), 1).j;
     QVERIFY(settle(w));
-    QCOMPARE(w.status(), QStringLiteral("Saved 12 positions (0 unchanged)"));
+    QCOMPARE(w.status(), QStringLiteral("Saved 12 positions (0 unchanged)"
+                                        "; cached ages of 24 analyses are now out of date; run elctl db derive"));
     QCOMPARE(saved_excluded(3), std::optional<bool>(true));
     QCOMPARE(saved_excluded(4), std::optional<bool>(false));
     QCOMPARE(*head_value(1)->j, j1);
@@ -2515,8 +2633,8 @@ class FluxWindowTest : public QObject {
     QVERIFY(w.edits().include.empty());
     QVERIFY(w.options().fit.weighted);
     QVERIFY(w.options_editor()->options().get_bool("model.weighted"));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
-    QCOMPARE(check(w.unknowns(), 1, pychron::ui::FluxUnknownModel::Save), Qt::Checked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 1, nobion::ui::FluxUnknownModel::Save), Qt::Checked);
     QCOMPARE(check(w.monitors(), w.monitors()->row_of(3), FluxMonitorModel::Fit), Qt::Unchecked);
     QVERIFY2(w.fit(), qPrintable(w.status()));
     QVERIFY(w.fit()->options.fit.weighted);
@@ -2537,7 +2655,8 @@ class FluxWindowTest : public QObject {
     // Save succeeds now, and writes them.
     w.save();
     QVERIFY(settle(w));
-    QCOMPARE(w.status(), QStringLiteral("Saved 11 positions (0 unchanged), 1 not saved"));
+    QCOMPARE(w.status(), QStringLiteral("Saved 11 positions (0 unchanged), 1 not saved"
+                                        "; cached ages of 24 analyses are now out of date; run elctl db derive"));
     QVERIFY(!w.status_is_error());
     QVERIFY(!head(9).has_value());
     QCOMPARE(saved_excluded(3), std::optional<bool>(true));
@@ -2656,8 +2775,8 @@ class FluxWindowTest : public QObject {
     drain(*r.bridge);
     QVERIFY(settle(w));
     QVERIFY2(w.fit(), qPrintable(w.status()));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
-    QCOMPARE(check(w.unknowns(), 1, pychron::ui::FluxUnknownModel::Save), Qt::Checked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 1, nobion::ui::FluxUnknownModel::Save), Qt::Checked);
     QVERIFY(!w.edited());
     // And over a change that comes later, with nothing edited.
     save_fit(1, pp::FluxOptions{}, false, 2.0e-3);
@@ -2665,7 +2784,7 @@ class FluxWindowTest : public QObject {
     QVERIFY(settle(w));
     QCOMPARE(w.monitors()->index(w.monitors()->row_of(1), FluxMonitorModel::SavedJ).data().toString(),
              QStringLiteral("2.0000e-03"));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Unchecked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Unchecked);
     QVERIFY(!w.edited());
     // Another level and back: every box is ticked.
     auto second = pt::seed_second_flux_level(*store_, actor_, seeded_, "C");
@@ -2674,7 +2793,7 @@ class FluxWindowTest : public QObject {
     QVERIFY(settle(w));
     w.open_level(QStringLiteral("NM-300"), QStringLiteral("A"));
     QVERIFY(settle(w));
-    QCOMPARE(check(w.unknowns(), 0, pychron::ui::FluxUnknownModel::Save), Qt::Checked);
+    QCOMPARE(check(w.unknowns(), 0, nobion::ui::FluxUnknownModel::Save), Qt::Checked);
     QVERIFY(!w.edited());
   }
 
@@ -2761,7 +2880,9 @@ class FluxWindowTest : public QObject {
     QVERIFY(!w.status_is_error());
     QVERIFY2(w.status().startsWith(QStringLiteral("plane, unweighted · fit MSWD")), qPrintable(w.status()));
     // What became of A is said after it, in the label, until the next change.
-    QVERIFY2(w.status().endsWith(QStringLiteral(" · Saved 12 positions (0 unchanged)")), qPrintable(w.status()));
+    QVERIFY2(w.status().endsWith(QStringLiteral(" · Saved 12 positions (0 unchanged)"
+                                                "; cached ages of 24 analyses are now out of date; run elctl db derive")),
+             qPrintable(w.status()));
     QVERIFY(w.statusBar()->currentMessage().isEmpty());
     QVERIFY(!head(1, "C").has_value());
 
@@ -2828,7 +2949,9 @@ class FluxWindowTest : public QObject {
     QCOMPARE(w.tree()->currentItem(), item("C"));
     QCOMPARE(w.loads_started(), 2);
     QVERIFY(!w.edited());
-    QVERIFY2(w.status().endsWith(QStringLiteral(" · Saved 12 positions (0 unchanged)")), qPrintable(w.status()));
+    QVERIFY2(w.status().endsWith(QStringLiteral(" · Saved 12 positions (0 unchanged)"
+                                                "; cached ages of 24 analyses are now out of date; run elctl db derive")),
+             qPrintable(w.status()));
 
     // A save that fails: the level picked meanwhile is not gone to.
     w.tree()->setCurrentItem(item("A"));
@@ -3031,7 +3154,7 @@ class FluxWindowTest : public QObject {
     QCOMPARE(o.fit->flux_action()->text(), QStringLiteral("Flux…"));
     QStringList commands;
     for (const MenuHub::Command& c : MenuHub::instance().commands())
-      commands << pychron::ui::CommandPalette::label(c.action, MenuHub::title(c.menu));
+      commands << nobion::ui::CommandPalette::label(c.action, MenuHub::title(c.menu));
     QVERIFY2(commands.contains(QStringLiteral("Fit › Flux")), qPrintable(commands.join(QStringLiteral(", "))));
     // The bar shows Fit, after Entry.
     QStringList titles;
@@ -3141,7 +3264,7 @@ class FluxWindowTest : public QObject {
     QVERIFY(p != nullptr);
     p->show_level(QStringLiteral("NM-300"), QStringLiteral("A"));
     QTRY_VERIFY_WITH_TIMEOUT(!p->busy() && p->grid()->has_edit(), kWaitMs);
-    using Grid = pychron::ui::LevelGridModel;
+    using Grid = nobion::ui::LevelGridModel;
     const auto j_of = [p](int hole) -> std::optional<QString> {
       for (int row = 0; row < p->grid()->rowCount(); ++row)
         if (p->grid()->index(row, Grid::Position).data().toInt() == hole)
@@ -3159,7 +3282,8 @@ class FluxWindowTest : public QObject {
     QVERIFY(predicted > 0.0);
     w->save();
     QVERIFY(settle(*w));
-    QCOMPARE(w->status(), QStringLiteral("Saved 12 positions (0 unchanged)"));
+    QCOMPARE(w->status(), QStringLiteral("Saved 12 positions (0 unchanged)"
+                                         "; cached ages of 24 analyses are now out of date; run elctl db derive"));
 
     // The Packages window was told through the bridge, and read the level again.
     QTRY_VERIFY_WITH_TIMEOUT(!p->busy() && p->grid()->has_edit(), kWaitMs);
@@ -3173,7 +3297,7 @@ class FluxWindowTest : public QObject {
       PackagesWindow p(*r.bridge);
       p.show_level(QStringLiteral("NM-300"), QStringLiteral("A"));
       QTRY_VERIFY_WITH_TIMEOUT(!p.busy() && p.grid()->has_edit(), kWaitMs);
-      using Grid = pychron::ui::LevelGridModel;
+      using Grid = nobion::ui::LevelGridModel;
       const auto j_of = [&p](int hole) { return p.grid()->index(p.grid()->row_of(hole), Grid::J).data().toString(); };
       QVERIFY(p.grid()->row_of(9) >= 0);
       QCOMPARE(j_of(9), QString());
@@ -3195,7 +3319,7 @@ class FluxWindowTest : public QObject {
       PackagesWindow p(*r.bridge);
       p.show_level(QStringLiteral("NM-300"), QStringLiteral("A"));
       QTRY_VERIFY_WITH_TIMEOUT(!p.busy() && p.grid()->has_edit(), kWaitMs);
-      using Grid = pychron::ui::LevelGridModel;
+      using Grid = nobion::ui::LevelGridModel;
       const auto j_of = [&p](int hole) { return p.grid()->index(p.grid()->row_of(hole), Grid::J).data().toString(); };
       auto* doses = p.findChild<QTableWidget*>(QStringLiteral("packages_doses"));
       auto* z = p.findChild<QLineEdit*>(QStringLiteral("packages_z"));

@@ -10,17 +10,17 @@
 
 #include "timeline.hpp"
 
-using pychron::TimePoint;
-using pychron::experiment::run::RunState;
-using pychron::experiment::run::RunStateChanged;
-using pychron::ui::TimelineModel;
-using pychron::ui::TimelineSegment;
-using pychron::ui::TimelineView;
+using nobion::TimePoint;
+using nobion::experiment::run::RunState;
+using nobion::experiment::run::RunStateChanged;
+using nobion::ui::TimelineModel;
+using nobion::ui::TimelineSegment;
+using nobion::ui::TimelineView;
 
 namespace {
 
 const TimePoint kT0 = TimePoint{} + std::chrono::hours(1);
-TimePoint at(double s) { return kT0 + std::chrono::duration_cast<pychron::Duration>(std::chrono::duration<double>(s)); }
+TimePoint at(double s) { return kT0 + std::chrono::duration_cast<nobion::Duration>(std::chrono::duration<double>(s)); }
 
 RunStateChanged state(const char* id, RunState from, RunState to, double t) { return {id, from, to, {}, at(t)}; }
 
@@ -39,18 +39,18 @@ class TestTimeline : public QObject {
   // A queue wait, run A, run B overlapping A, then run C reusing A's lane.
   static void feed(TimelineModel& m) {
     m.on_waiting({"delay before 66001", std::chrono::duration<double>(5), at(0), {}});
-    m.on_run_started({0, "A", "66001", at(5)});
+    m.on_run_started({0, "A", "66001", "66001-01", at(5)});
     m.on_state(state("A", RunState::Pending, RunState::Preparing, 5));
     m.on_state(state("A", RunState::Preparing, RunState::Extracting, 6));
     m.on_state(state("A", RunState::Extracting, RunState::Measuring, 20));
     // B starts while A measures (overlap) and waits for the extraction device.
-    m.on_run_started({1, "B", "66002", at(30)});
+    m.on_run_started({1, "B", "66002", "66002-01", at(30)});
     m.on_state(state("B", RunState::Pending, RunState::Preparing, 30));
     m.on_waiting({"extraction device", {}, at(31), "B"});
     m.on_state(state("B", RunState::Preparing, RunState::Extracting, 33));
     m.on_state(state("A", RunState::Measuring, RunState::PostMeasuring, 40));
     m.on_state(state("A", RunState::PostMeasuring, RunState::Success, 45));
-    m.on_run_started({2, "C", "66003", at(70)});
+    m.on_run_started({2, "C", "66003", "66003-01", at(70)});
     m.on_state(state("C", RunState::Pending, RunState::Preparing, 70));
   }
 
@@ -61,7 +61,7 @@ class TestTimeline : public QObject {
       const double b = i * 1500.0;
       const std::string id = "r" + std::to_string(i);
       m.on_waiting({"delay between analyses", std::chrono::duration<double>(10), at(b), {}});
-      m.on_run_started({static_cast<std::size_t>(i), id, "66001", at(b + 10)});
+      m.on_run_started({static_cast<std::size_t>(i), id, "66001", "66001-01", at(b + 10)});
       m.on_state(state(id.c_str(), RunState::Pending, RunState::Preparing, b + 10));
       m.on_state(state(id.c_str(), RunState::Preparing, RunState::Extracting, b + 20));
       m.on_waiting({"minimum pump time", std::chrono::duration<double>(30), at(b + 100), id});
@@ -137,7 +137,7 @@ class TestTimeline : public QObject {
   // Events that arrive out of order are still found.
   void visibleSurvivesAStartThatGoesBackwards() {
     TimelineModel m;
-    m.on_run_started({0, "A", "66001", at(50)});
+    m.on_run_started({0, "A", "66001", "66001-01", at(50)});
     m.on_state(state("A", RunState::Pending, RunState::Preparing, 50));
     m.on_waiting({"late", std::chrono::duration<double>(5), at(10), {}});
     m.on_queue_ended(at(100));
@@ -219,14 +219,39 @@ class TestTimeline : public QObject {
     QTest::qWait(10);  // paints without trouble
   }
 
-  // A view starts following: the last six runs fill it, labelled, however
-  // long the queue.
+  // A view starts following the runs in progress: from the start of the one
+  // that began first. With overlap that is two runs; between runs, the last.
+  void followsTheActiveRunsByDefault() {
+    TimelineModel m;
+    const TimelineView v(m);
+    QCOMPARE(v.mode(), TimelineView::Mode::Follow);
+    QCOMPARE(v.follow_runs(), TimelineView::kFollowActive);
+    QCOMPARE(v.time_window().first, 0.0);  // nothing has started
+    feed(m);                               // A is over; B (from 30) and C (from 70) are in progress
+    QCOMPARE(m.active_since(), std::optional<double>(30.0));
+    QCOMPARE(v.time_window().first, 30.0);
+    QCOMPARE(v.time_window().second, m.now());
+    m.on_state(state("B", RunState::Extracting, RunState::Success, 80));
+    QCOMPARE(v.time_window().first, 70.0);
+    m.on_state(state("C", RunState::Preparing, RunState::Failed, 90));
+    QCOMPARE(m.active_since(), std::optional<double>());
+    QCOMPARE(v.time_window().first, 70.0);  // nothing in progress: the run that started last
+    m.on_run_started({3, "D", "66004", "66004-01", at(120)});
+    m.on_queue_ended(at(130));
+    QCOMPARE(m.active_since(), std::optional<double>());
+    m.clear();
+    QCOMPARE(v.time_window().first, 0.0);
+  }
+
+  // Following the last six runs: they fill the view, labelled, however long
+  // the queue.
   void followShowsTheLastRuns() {
     TimelineModel m;
     feed_long(m, 1000);
     TimelineView v(m);
     v.resize(1200, v.sizeHint().height());
     QCOMPARE(v.mode(), TimelineView::Mode::Follow);
+    v.set_follow_runs(6);
     QCOMPARE(v.follow_runs(), 6);
     QCOMPARE(v.time_window().first, m.run_starts()[994]);
     QCOMPARE(v.time_window().second, m.now());
@@ -249,7 +274,8 @@ class TestTimeline : public QObject {
   void followIncludesTheLeadingWaitEarlyOn() {
     TimelineModel m;
     feed_long(m, 3);
-    const TimelineView v(m);
+    TimelineView v(m);
+    v.set_follow_runs(6);
     QCOMPARE(v.time_window(), std::make_pair(0.0, m.now()));
   }
 
@@ -379,19 +405,26 @@ class TestTimeline : public QObject {
     TimelineView v(m);
     QStringList names;
     for (const QAction* a : v.context_actions()) names << a->text();
-    QCOMPARE(names, (QStringList{QStringLiteral("Follow last 3 runs"), QStringLiteral("Follow last 6 runs"),
-                                 QStringLiteral("Follow last 12 runs"), QStringLiteral("Whole queue")}));
+    QCOMPARE(names, (QStringList{QStringLiteral("Follow the active run"), QStringLiteral("Follow last 3 runs"),
+                                 QStringLiteral("Follow last 6 runs"), QStringLiteral("Follow last 12 runs"),
+                                 QStringLiteral("Whole queue")}));
     QSignalSpy changed(&v, &TimelineView::follow_runs_changed);
     v.set_time_window(0, 5000);
-    v.context_actions()[0]->trigger();
+    v.context_actions()[1]->trigger();
     QCOMPARE(v.mode(), TimelineView::Mode::Follow);
     QCOMPARE(v.follow_runs(), 3);
     QCOMPARE(changed.count(), 1);
     QCOMPARE(changed.front().front().toInt(), 3);
     QCOMPARE(v.time_window().first, m.run_starts()[997]);
-    v.context_actions()[3]->trigger();
+    v.context_actions()[4]->trigger();
     QCOMPARE(v.mode(), TimelineView::Mode::WholeQueue);
     QCOMPARE(changed.count(), 1);
+    v.context_actions()[0]->trigger();
+    QCOMPARE(v.mode(), TimelineView::Mode::Follow);
+    QCOMPARE(v.follow_runs(), TimelineView::kFollowActive);
+    QCOMPARE(changed.count(), 2);
+    QCOMPARE(changed.back().front().toInt(), TimelineView::kFollowActive);
+    QCOMPARE(v.time_window().first, m.run_starts()[999]);
   }
 
   void aWaitsPlannedEndBeyondTheWindowIsCut() {

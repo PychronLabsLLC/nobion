@@ -2,7 +2,7 @@
 // quarantine attribute afterwards. Off macOS there is nothing to clear; the
 // call still says so and tells a missing file apart.
 
-#include "pychron/core/user_file.hpp"
+#include "nobion/core/user_file.hpp"
 
 #include <gtest/gtest.h>
 
@@ -12,13 +12,13 @@
 namespace fs = std::filesystem;
 
 TEST(UserFile, AFileWithoutTheAttributeIsFineAndAMissingOneIsNot) {
-  const fs::path dir = fs::temp_directory_path() / "pychron_user_file_test";
+  const fs::path dir = fs::temp_directory_path() / "nobion_user_file_test";
   fs::create_directories(dir);
   const fs::path file = dir / "report.csv";
   std::ofstream(file) << "# a report\n";
-  EXPECT_TRUE(pychron::mark_as_user_file(file));
-  EXPECT_TRUE(pychron::mark_as_user_file(file));  // idempotent
-  EXPECT_FALSE(pychron::mark_as_user_file(dir / "never-written.csv"));
+  EXPECT_TRUE(nobion::mark_as_user_file(file));
+  EXPECT_TRUE(nobion::mark_as_user_file(file));  // idempotent
+  EXPECT_FALSE(nobion::mark_as_user_file(dir / "never-written.csv"));
   // The file is untouched.
   std::string line;
   {

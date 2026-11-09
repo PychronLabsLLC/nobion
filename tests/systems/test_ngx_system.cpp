@@ -19,21 +19,21 @@
 #include <string>
 #include <vector>
 
-#include "pychron/core/config/loader.hpp"
-#include "pychron/core/virtual_clock.hpp"
-#include "pychron/devices/spectrometer/ngx_sim.hpp"
-#include "pychron/systems/extraction_line.hpp"
-#include "pychron/systems/spectrometer/assembler.hpp"
-#include "pychron/transport/sim_transport.hpp"
+#include "nobion/core/config/loader.hpp"
+#include "nobion/core/virtual_clock.hpp"
+#include "nobion/devices/spectrometer/ngx_sim.hpp"
+#include "nobion/systems/extraction_line.hpp"
+#include "nobion/systems/spectrometer/assembler.hpp"
+#include "nobion/transport/sim_transport.hpp"
 #include "virtual_time.hpp"
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 using namespace std::chrono_literals;
 
 namespace {
 
-const std::filesystem::path kNgx = std::filesystem::path(PYCHRON_EXAMPLE_CONFIGS_DIR) / "spectrometer.ngx.toml";
+const std::filesystem::path kNgx = std::filesystem::path(NOBION_EXAMPLE_CONFIGS_DIR) / "spectrometer.ngx.toml";
 
 }  // namespace
 
@@ -52,7 +52,7 @@ TEST(NgxExampleConfig, LoadsAndValidates) {
 // transport is a link to it.
 TEST(NgxExampleConfig, ALinkTransportLoads) {
   namespace fs = std::filesystem;
-  const fs::path dir = fs::temp_directory_path() / ("pychron-ngx-link-" + std::to_string(::testing::UnitTest::GetInstance()->random_seed()));
+  const fs::path dir = fs::temp_directory_path() / ("nobion-ngx-link-" + std::to_string(::testing::UnitTest::GetInstance()->random_seed()));
   fs::remove_all(dir);
   fs::create_directories(dir / "tables");
   fs::copy(kNgx.parent_path() / "tables" / "ngx_argon", dir / "tables" / "ngx_argon", fs::copy_options::recursive);
@@ -69,7 +69,7 @@ TEST(NgxExampleConfig, ALinkTransportLoads) {
   fs::remove_all(dir);
 }
 
-class NgxSystem : public pychron::testing::VirtualTimeTest {
+class NgxSystem : public nobion::testing::VirtualTimeTest {
  protected:
   // Ten simulated minutes cost some twenty seconds under the thread sanitizer,
   // and 44 were seen under AddressSanitizer on a four-core CI runner with
@@ -217,7 +217,7 @@ systems::ExtractionLine::Options line_options(const Clock& clock, bool sim) {
 }
 
 // A line stuck in the clock fails with a message; it does not hang.
-struct NgxLine : pychron::testing::VirtualTimeTest {};
+struct NgxLine : nobion::testing::VirtualTimeTest {};
 
 }  // namespace
 

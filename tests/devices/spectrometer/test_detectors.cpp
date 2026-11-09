@@ -1,11 +1,11 @@
 #include <gtest/gtest.h>
 
-#include "pychron/devices/spectrometer/detectors.hpp"
+#include "nobion/devices/spectrometer/detectors.hpp"
 
 namespace {
 
-using namespace pychron;
-using namespace pychron::spectrometer;
+using namespace nobion;
+using namespace nobion::spectrometer;
 
 DetectorConfig faraday(std::string name, std::string channel) {
   DetectorConfig c;

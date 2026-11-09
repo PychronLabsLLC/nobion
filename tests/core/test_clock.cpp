@@ -6,9 +6,9 @@
 #include <mutex>
 #include <thread>
 
-#include "pychron/core/clock.hpp"
+#include "nobion/core/clock.hpp"
 
-using namespace pychron;
+using namespace nobion;
 using namespace std::chrono_literals;
 
 TEST(ManualClock, OnlyMovesWhenAdvanced) {

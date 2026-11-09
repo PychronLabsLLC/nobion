@@ -10,18 +10,18 @@
 #include <thread>
 
 #include "fakes.hpp"
-#include "pychron/scripting/script_host.hpp"
-#include "pychron/scripting/vocabulary.hpp"
+#include "nobion/scripting/script_host.hpp"
+#include "nobion/scripting/vocabulary.hpp"
 
-using namespace pychron;
-using namespace pychron::scripting;
-using namespace pychron::scripting::testing;
+using namespace nobion;
+using namespace nobion::scripting;
+using namespace nobion::scripting::testing;
 using namespace std::chrono_literals;
 
 namespace {
 
 [[maybe_unused]] Script load(const std::string& rel, ScriptKind kind) {
-  std::ifstream in(std::string(PYCHRON_SCRIPTING_TEST_SCRIPTS_DIR) + "/" + rel);
+  std::ifstream in(std::string(NOBION_SCRIPTING_TEST_SCRIPTS_DIR) + "/" + rel);
   std::ostringstream text;
   text << in.rdbuf();
   return Script{rel, text.str(), kind};
@@ -40,7 +40,7 @@ namespace {
 class ScriptHostTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    if (!scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+    if (!scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
     host = make_script_host();
   }
   Rig rig;
@@ -50,7 +50,7 @@ class ScriptHostTest : public ::testing::Test {
 
 }  // namespace
 
-#if PYCHRON_SCRIPTING_ENABLED
+#if NOBION_SCRIPTING_ENABLED
 
 TEST_F(ScriptHostTest, BoundCommandsMatchVocabulary) {
   auto bound = bound_commands();
@@ -91,6 +91,46 @@ TEST_F(ScriptHostTest, SameHostServesAllScriptKinds) {
   EXPECT_TRUE(rig.log.contains("open A"));
 }
 
+// A gas's prepare script (measurement plan v2 spec 11.6) is an extraction
+// script: the measurement calls are the hook API's (`api`, handed only to a
+// measurement hook) and not in the extraction vocabulary, so the host refuses
+// a script that makes them before it moves anything. (In an extraction
+// script `position` is the run's hole and `acquire` takes a resource.)
+TEST_F(ScriptHostTest, ExtractionScriptCannotMakeMeasurementCalls) {
+  for (const char* call : {"api.position('Ar40', 'H1')", "add_conditional('Ar40 > 1 -> truncate')", "truncate()"}) {
+    SCOPED_TRACE(call);
+    auto r = host->run(inline_script(std::string("def main():\n    close('A')\n    ") + call + "\n",
+                                     ScriptKind::Extraction),
+                       rig.env, token);
+    ASSERT_FALSE(r);
+    EXPECT_EQ(r.error().kind, nobion::ErrorKind::Config);
+    const std::string name = std::string(call).substr(0, std::string(call).find_first_of(".("));
+    EXPECT_NE(to_string(r.error()).find(name), std::string::npos) << to_string(r.error());
+    EXPECT_TRUE(rig.log.snapshot().empty()) << ::testing::PrintToString(rig.log.snapshot());
+  }
+  // Through a measurement hook the same calls reach the API.
+  auto hook = inline_script("def before_main(api):\n"
+                            "    api.position('Ar40', 'H1')\n"
+                            "    api.acquire(5, 1.0)\n",
+                            ScriptKind::MeasurementHook);
+  auto h = host->call_hook(hook, "before_main", {}, rig.env, token);
+  ASSERT_TRUE(h) << to_string(h.error());
+  EXPECT_TRUE(rig.log.contains("position Ar40 H1"));
+  EXPECT_TRUE(rig.log.contains("acquire 5 1"));
+}
+
+// A safe_state script works the line and has no acquisition verbs: a call to
+// one fails it, naming the verb (spec 4.7).
+TEST_F(ScriptHostTest, ASafeStateScriptHasTheLineAndNoAcquisition) {
+  auto ok = host->run(inline_script("def main():\n    close('A')\n", ScriptKind::SafeState), rig.env, token);
+  ASSERT_TRUE(ok) << to_string(ok.error());
+  EXPECT_TRUE(rig.log.contains("close A"));
+  auto bad = host->run(inline_script("def main():\n    get_intensity('Ar40')\n", ScriptKind::SafeState), rig.env,
+                       token);
+  ASSERT_FALSE(bad);
+  EXPECT_NE(to_string(bad.error()).find("get_intensity"), std::string::npos) << to_string(bad.error());
+}
+
 TEST_F(ScriptHostTest, MeasurementHookGetsTypedApi) {
   auto hook = load("measurement_hooks/whiff.py", ScriptKind::MeasurementHook);
   auto r = host->call_hook(hook, "before_main", {}, rig.env, token);
@@ -104,6 +144,23 @@ TEST_F(ScriptHostTest, MeasurementHookGetsTypedApi) {
   std::vector<std::string> expected = {"position Ar40 H1", "add_conditional Ar40 > 1000 -> truncate",
                                        "log hook ready", "truncate quick", "acquire 5 1.048576"};
   EXPECT_EQ(rig.log.snapshot(), expected);
+}
+
+// A hook reaches what the plan's steps do (measurement plan v2 spec 5.5).
+TEST_F(ScriptHostTest, MeasurementHookReachesThePlansCalls) {
+  auto hook = inline_script("def before_main(api):\n"
+                            "    api.set_deflection('CDD', 110)\n"
+                            "    api.peak_center('Ar40', 'H1')\n"
+                            "    api.peak_center('Ar40', 'AX', write_table='ic_run')\n"
+                            "    api.set_integration(2.5)\n"
+                            "    api.with_table('ic_run')\n"
+                            "    api.apply_optics('ar_config_a')\n",
+                            ScriptKind::MeasurementHook);
+  auto r = host->call_hook(hook, "before_main", {}, rig.env, token);
+  ASSERT_TRUE(r) << to_string(r.error());
+  EXPECT_EQ(rig.log.snapshot(),
+            (std::vector<std::string>{"set_deflection CDD 110", "peak_center Ar40 H1 ", "peak_center Ar40 AX ic_run",
+                                      "set_integration 2.5", "with_table ic_run", "apply_optics ar_config_a"}));
 }
 
 TEST_F(ScriptHostTest, ContextGlobalsAndOptionsAreReadable) {
@@ -643,7 +700,7 @@ TEST_F(ScriptHostTest, NoCryostatAnywhereIsNotSupported) {
   EXPECT_NE(r.error().what.find("not supported"), std::string::npos) << r.error().what;
 }
 
-#endif  // PYCHRON_SCRIPTING_ENABLED
+#endif  // NOBION_SCRIPTING_ENABLED
 
 TEST(StubHost, ReportsAvailability) {
   auto host = make_script_host();

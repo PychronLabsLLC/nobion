@@ -1,4 +1,4 @@
-#include "pychron/codecs/lakeshore.hpp"
+#include "nobion/codecs/lakeshore.hpp"
 
 #include <array>
 #include <cctype>
@@ -6,7 +6,7 @@
 #include <cmath>
 #include <vector>
 
-namespace pychron::codec::lakeshore {
+namespace nobion::codec::lakeshore {
 
 namespace {
 
@@ -124,4 +124,4 @@ Bytes encode_number(double value) {
 
 Bytes encode_line(std::string_view text) { return to_bytes(std::string(text) + "\r\n"); }
 
-}  // namespace pychron::codec::lakeshore
+}  // namespace nobion::codec::lakeshore

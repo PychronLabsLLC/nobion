@@ -1,6 +1,6 @@
 # Developer setup (macOS)
 
-How to set up a machine to build, test and continue developing pychron-cpp,
+How to set up a machine to build, test and continue developing nobion,
 including the spec-router agent workflow. CI (`.github/workflows/ci.yml`)
 covers Linux and Windows builds as well; this page is the macOS dev setup.
 
@@ -18,8 +18,8 @@ brew install ccache
 ```
 
 Homebrew `cmake`/`ninja` work equally well. The `dev` presets use Ninja, and
-compile through ccache when it is installed (`cmake/PychronCcache.cmake`;
-`-DPYCHRON_CCACHE=OFF` turns it off). The cache is keyed relative to the
+compile through ccache when it is installed (`cmake/NobionCcache.cmake`;
+`-DNOBION_CCACHE=OFF` turns it off). The cache is keyed relative to the
 source tree, so a fresh build directory or a new git worktree reuses objects
 any checkout on the machine already compiled.
 
@@ -35,7 +35,7 @@ Without a suitable Python, CMake builds the stub host instead.
 The python.org 3.14 installer (`/Library/Frameworks/Python.framework`) is
 known to work.
 
-### Qt 6 (`apps/pychron-ui` and `libs/persistence`)
+### Qt 6 (`apps/nobion` and `libs/persistence`)
 
 ```bash
 brew install qt
@@ -57,12 +57,12 @@ not search Homebrew's Qt, so use `dev-ui` or pass
 `-DCMAKE_PREFIX_PATH=$(brew --prefix qt)`. Persistence tests always run on
 SQLite. To also run them on PostgreSQL (this needs Qt's QPSQL driver plugin
 and PostGIS, which the schema uses for sample locations), point
-`PYCHRON_TEST_PG_URL` at an empty database:
+`NOBION_TEST_PG_URL` at an empty database:
 
 ```bash
 brew install postgresql@16 postgis && brew services start postgresql@16
-createdb pychron_test
-export PYCHRON_TEST_PG_URL=postgresql://$USER@localhost/pychron_test
+createdb nobion_test
+export NOBION_TEST_PG_URL=postgresql://$USER@localhost/nobion_test
 ```
 
 On Ubuntu the PostGIS package is `postgresql-16-postgis-3`. The first
@@ -81,14 +81,21 @@ brew install opencv          # macOS
 sudo apt install libopencv-dev   # Ubuntu
 ```
 
-`-DPYCHRON_VISION_OPENCV=AUTO|ON|OFF`: `AUTO` (default) uses OpenCV when CMake
+`-DNOBION_VISION_OPENCV=AUTO|ON|OFF`: `AUTO` (default) uses OpenCV when CMake
 finds it, `ON` fails the configure if it does not, `OFF` never looks. Built
 and tested with OpenCV 5.0; the 4.x path is written but untested. Configure prints one line saying which was chosen.
+
+`-DNOBION_PUBLISH=AUTO|ON|OFF`: Apache Arrow with Parquet, for the GeoParquet
+tables of a release directory (`libs/publish`, `elctl publish`). `AUTO`
+(default) uses it when CMake finds it (`brew install apache-arrow`; Ubuntu:
+`libarrow-dev libparquet-dev` from Apache's apt repository; vcpkg: the
+`publish` feature), `ON` fails the configure without it, `OFF` never looks.
+Without it a release is built without `data/*.parquet` and says so.
 
 ## 2. Code
 
 ```bash
-git clone https://github.com/PychronLabsLLC/pychron-cpp.git ~/Programming/pychron-cpp
+git clone https://github.com/PychronLabsLLC/nobion.git ~/Programming/nobion
 git clone https://github.com/PychronLabsLLC/pychron.git ~/Programming/pychron
 ```
 
@@ -101,7 +108,7 @@ legacy behaviour.
 ## 3. Build and test
 
 ```bash
-cd ~/Programming/pychron-cpp
+cd ~/Programming/nobion
 cmake --preset dev
 cmake --build --preset dev --parallel
 ctest --preset dev
@@ -112,8 +119,8 @@ dev-quick` skips the slow importer suites, and a single suite is quickest run
 from its binary directly:
 
 ```bash
-cmake --build --preset dev --target pychron_core_tests
-build/dev/tests/core/pychron_core_tests --gtest_filter='Clock*'
+cmake --build --preset dev --target nobion_core_tests
+build/dev/tests/core/nobion_core_tests --gtest_filter='Clock*'
 ```
 
 With the UI:
@@ -124,13 +131,70 @@ cmake --build --preset dev-ui --parallel
 ctest --preset dev-ui
 ```
 
+Test times: before and after a change meant to make tests cheaper (or one
+that removes or merges tests), record each test's own time with
+`tools/test_times.py`. `run` calls ctest one test at a time (`-j1`), so a time
+is not the share of a busy machine, and writes ctest's JUnit file; `show`
+prints count, sum, median, min and max per GoogleTest suite and the slowest
+tests; `compare` gives each suite's sum before and after, and the tests found
+in one file only. A full `-j1` run of `dev` takes 15 to 30 minutes, by load; pass
+`--tests-regex` to time one suite. Times include starting the test binary
+once per test, so they read a few percent above GoogleTest's own.
+
+```bash
+python3 tools/test_times.py run --preset dev --tests-regex 'ProjectImportTest' --out before.xml
+python3 tools/test_times.py show before.xml --top 15
+python3 tools/test_times.py compare before.xml after.xml
+```
+
+Coverage: a change that removes or merges tests shows that the lines and
+branches of `libs/` the tests reach did not go down. The `coverage` presets
+build with clang's source-based coverage (`-DNOBION_COVERAGE=ON`; Clang or
+AppleClang only, and refused together with `NOBION_SANITIZE`) into
+`build/coverage`, and every test process merges its counters into
+`build/coverage/profiles` (`LLVM_PROFILE_FILE=...%4m.profraw`: a pool of four
+files per binary, not one per process, which for the whole tree would be tens
+of GB). `tools/coverage_report.py report` merges them with `llvm-profdata`,
+summarizes them with `llvm-cov export -summary-only` over every executable
+under `build/coverage/tests` and `build/coverage/apps`, keeps the files under
+`libs/`, writes per-file and total line and branch counts as JSON and prints
+the totals; `compare` lists every file whose covered lines or branches went
+down and exits 1 when one did. On macOS the LLVM tools come from `xcrun`
+(they must match Apple clang); elsewhere from `PATH`. Not in CI.
+
+```bash
+cmake --preset coverage
+cmake --build --preset coverage --parallel
+python3 tools/coverage_report.py clean --build-dir build/coverage
+ctest --preset coverage
+python3 tools/coverage_report.py report --build-dir build/coverage --out before.json
+# ... change the tests, build, clean, ctest again ...
+python3 tools/coverage_report.py report --build-dir build/coverage --out after.json
+python3 tools/coverage_report.py compare before.json after.json
+```
+
+To measure one suite, build its target and pass `--tests-regex` to ctest; the
+report then covers only the binaries that were built. A coverage-built
+binary run by hand, outside the preset, writes `default.profraw` in its
+working directory (ignored by git) unless `LLVM_PROFILE_FILE` is set. Run on `nobion_core_tests`
+alone (2026-10-16): configure 38 s, build 14 s with a warm ccache, tests 3 s,
+report under 1 s; `libs/` lines 86.94% (2643/3040), branches 77.39%
+(1188/1535) over the 31 files that binary reaches. On the whole tree
+(2026-11-02, other builds running): configure 43 s, build 8 min, tests 6 min,
+report 2 s; `libs/` lines 95.33% (88300/92622), branches 82.31% (46708/56744)
+over 637 files. Two runs of the same tree differ: 3 lines and 2 branches
+between two runs, and four runs spanned 9 lines and 22 branches, so `compare`
+lists counts down in files with threads or timing (`scheduler`, `live_feed`,
+`persister`, `plan_parse`). The gate is that no file the change can reach goes
+down; when a total dips, a second run of the same tree shows the spread.
+
 To try the spectrometer window in simulation, run the app with `--sim` and
 open View > Spectrometer (Ctrl+Shift+S); the example
 `spectrometer.sim-integrated.toml` is loaded with a beam that follows its
 field table, and the window starts the scan when it opens:
 
 ```bash
-build/dev-ui/apps/pychron-ui/pychron-ui --sim
+build/dev-ui/apps/nobion/nobion --sim
 ```
 
 Use `--spectrometer <file>` to load another spectrometer config (the menu
@@ -147,7 +211,7 @@ records go to `--data <dir>` (default: `<lab>/data`), or to the database when
 there is one (`--db`, or an instrument install's own). The Run Factory dock
 adds runs: fill in an identifier and position (a range such as `1-4` gives one
 run per hole), check the preview, then Add (Ctrl+Return); new runs start from
-the lab's `defaults.toml`, and `blocks/*.toml` are reusable sequences. The
+the lab's `defaults.toml`, and `queues/blocks/*.toml` are reusable sequences. The
 Measurement tab beside it edits the selected row's plan and its exposed
 parameters (overridden values are bold with a ● badge; Advanced allows any
 value of the plan). Experiment > Scripts > Script Editor (Ctrl+Shift+K) edits the lab's
@@ -157,7 +221,7 @@ up for simulation), `--sim-speed <x>` runs the whole app on simulated time x tim
 real time:
 
 ```bash
-build/dev-ui/apps/pychron-ui/pychron-ui --sim --sim-speed 50 --queue configs/examples/experiment.toml
+build/dev-ui/apps/nobion/nobion --sim --sim-speed 50 --queue configs/examples/queues/experiment.toml
 ```
 
 View > Data browses the records under `<data>/records`. With
@@ -179,7 +243,7 @@ saves blanks and IC factors from reference analyses; saves are recorded under
 `$USER` on this host's client:
 
 ```bash
-build/dev-ui/apps/pychron-ui/pychron-ui --sim --db postgresql://me@labdb/pychron
+build/dev-ui/apps/nobion/nobion --sim --db postgresql://me@labdb/nobion
 ```
 
 On Ubuntu 24.04, `apt install qt6-base-dev libqt6sql6-sqlite` is enough for
@@ -224,7 +288,7 @@ missing). A push that changes no C++ is not slowed. CI does not run on
   `cmake --build build/dev-ui --target $(cmake --build build/dev-ui --target help | grep -oE '[A-Za-z0-9_-]+_autogen$')`.
 - The `*_stub.cpp` files are compiled only when persistence or scripting is
   off. To have them analysed too, configure such a build beside the other:
-  `cmake -S . -B build/dev-min -DCMAKE_BUILD_TYPE=Debug -DPYCHRON_PERSISTENCE=OFF -DPYCHRON_SCRIPTING=OFF`.
+  `cmake -S . -B build/dev-min -DCMAKE_BUILD_TYPE=Debug -DNOBION_PERSISTENCE=OFF -DNOBION_SCRIPTING=OFF`.
 - A changed header is analysed through up to two sources that include it,
   directly or through one other header.
 - `python3 tools/quality_check.py <files or directories>` checks those on
@@ -237,14 +301,14 @@ missing). A push that changes no C++ is not slowed. CI does not run on
 - The checks are listed in `.clang-tidy`, each one that is off with its
   reason, and cppcheck's suppressions in `cmake/cppcheck.supp`. A directory
   whose code makes one check meaningless has its own `.clang-tidy` that
-  inherits the rest (`apps/pychron-ui` and `tests/ui`: Qt's parents own what
+  inherits the rest (`apps/nobion` and `tests/ui`: Qt's parents own what
   is `new`'d; `tests`: a test may dereference an optional unguarded). One finding
   that is wrong is silenced on its line, with the reason:
   `// NOLINT(<check>): <why>` or `// cppcheck-suppress <id>`.
 - `CLANG_TIDY` and `CPPCHECK` name the programs when they are not on `PATH`.
 
 Static analysis does not replace the sanitizers. `dev` and `dev-ui` build
-without them; add `-DPYCHRON_SANITIZE=address,undefined` to the configure (CI
+without them; add `-DNOBION_SANITIZE=address,undefined` to the configure (CI
 does, on clang) and run the tests of what you changed under them. A sanitizer
 build also turns on the standard library's own checks (`_GLIBCXX_ASSERTIONS`,
 libc++'s hardening): an empty `std::optional` dereferenced or a container
@@ -265,6 +329,13 @@ brew install gcc
 python3 tools/compiler_sweep.py                 # Homebrew's newest g++
 python3 tools/compiler_sweep.py --build-dir build/dev-ui
 ```
+
+The pre-push hook (`tools/githooks/pre-push`) runs it on `build/dev` after
+the static analysis, when the branch changes C++ and both a `g++-NN` and a
+configured `build/dev` are there, and refuses the push while it reports a
+warning. Without the compiler or the build directory the hook leaves the
+sweep out and says nothing. It does not sweep `build/dev-ui`: run that by
+hand after changing `apps/nobion` or `tests/ui`.
 
 It is not CI: Homebrew's gcc is newer than CI's and has let a gcc 14 warning
 through, and it says nothing of MSVC. `AGENTS.md` lists what CI has caught
@@ -290,15 +361,28 @@ lack it) on every platform path.
 
 The `thermo_qtegra` driver (Argus, Helix, through Qtegra's
 RemoteControlServer) has never been run against an instrument. Every wire
-detail comes from reading pychron's Python, and the tests run against a
-simulated wire only. Expect the first contact to find differences, and treat
-magnet moves, HV and detector protection as untested until you have watched
-them work.
+detail comes from `PROTOCOL.md` and `protocol.json` in the qtegra repository,
+and the tests run against a simulated wire only. Expect the first contact to
+find differences, and treat magnet moves, HV and detector protection as
+untested until you have watched them work.
+
+The driver talks to RemoteControlServer over TCP only, on one connection that
+starts with `KeepAlive`, and needs the current `RemoteControlServer.cs`
+(protocol 1): an older one is refused at connect. That script serves either UDP
+or TCP, so set `Config.use_udp = false` in it first. While it is set, clients
+that use UDP (Mass Spec, legacy pychron) cannot reach it. UDP is not supported
+here, because its replies have no line ending: a `thermo_qtegra`, `qtegra_valves`
+or `qtegra_gauges` driver on a `kind = "udp"` transport is refused.
 
 1. Copy `configs/examples/spectrometer.qtegra.toml`, `molecular_weights.toml`
    and `tables/` into a directory of your own, and copy
    `spectrometer.qtegra.local.toml.example` there as
    `spectrometer.qtegra.local.toml` (`*.local.toml` is git-ignored).
+
+   Set `channels` under `[drivers.qtegra]` to detector names the server reports
+   (`Describe`, `detectors[].name`; on an Argus a CDD may be `L2(CDD)`): a
+   channel it does not list is refused at connect, with the names it does list
+   in the error.
 
    The copied field tables, the detectors' deflection coefficients,
    `cdd_voltage`, `nominal_hv` and the protection and saturation thresholds
@@ -326,7 +410,7 @@ them work.
 4. Run the app on that config and open View > Spectrometer:
 
    ```bash
-   build/dev-ui/apps/pychron-ui/pychron-ui --spectrometer <dir>/spectrometer.qtegra.toml
+   build/dev-ui/apps/nobion/nobion --spectrometer <dir>/spectrometer.qtegra.toml
    ```
 
    Opening the spectrometer window starts a scan, which sends
@@ -336,16 +420,16 @@ them work.
    loads, so an instrument that cannot be reached is a load failure (the
    error goes to the log dock).
 5. Work through the bring-up checklist in section 8 of
-   `docs/superpowers/specs/2026-10-01-qtegra-driver-design.md`. Its first
-   item is what Qtegra replies to each setter: a setter that gets no reply
-   fails with a timeout.
+   `docs/superpowers/specs/2026-10-01-qtegra-driver-design.md`. Section 5.4 of
+   it says what the driver expects of RemoteControlServer. A setter that gets
+   no reply fails with a timeout.
 
 Build trees are 0.5-0.7 GB each; keep a few GB free, more when running
 parallel agent waves (each agent worktree builds its own tree).
 
 ### Regenerating the Ar-Ar reduction golden vectors
 
-The JSON under `tests/reduction/golden/` is produced by calling the read-only
+The JSON under `tests/arar/golden/` is produced by calling the read-only
 legacy pychron checkout (`~/Programming/pychron`), never edited by hand. To
 regenerate it, run the spec 9.1 command from the repo root (see the docstring
 of `tools/reduction_golden/generate.py`):
@@ -355,7 +439,7 @@ uv run --no-project --python 3.12 \
   --with numpy==2.4.4 --with scipy==1.17.1 --with statsmodels==0.14.6 \
   --with uncertainties==3.2.3 --with traits==7.1.0 --with pyyaml==6.0.3 \
   python tools/reduction_golden/generate.py \
-    --legacy ~/Programming/pychron --out tests/reduction/golden
+    --legacy ~/Programming/pychron --out tests/arar/golden
 ```
 
 Add `--check` to regenerate into a temporary directory and exit 1 if any
@@ -370,7 +454,7 @@ agent's report with TypeSafe (Jev) and merges.
 1. Python venv:
 
    ```bash
-   cd ~/Programming/pychron-cpp/tools/spec_router
+   cd ~/Programming/nobion/tools/spec_router
    uv venv .venv
    uv pip install -e '.[dev]'
    .venv/bin/python -m pytest -q
@@ -390,7 +474,7 @@ agent's report with TypeSafe (Jev) and merges.
 Usage:
 
 ```bash
-cd ~/Programming/pychron-cpp
+cd ~/Programming/nobion
 tools/spec_router/.venv/bin/spec-router status
 tools/spec_router/.venv/bin/spec-router run --wave <N> --parallel 3
 tools/spec_router/.venv/bin/spec-router verify <unit> [--accept-judgment | --without-report]
@@ -403,14 +487,14 @@ to resume it.
 ## 5. Run the example experiment
 
 `configs/examples` doubles as an example lab: `plans/`, `scripts/`,
-`conditionals/` and a three-run `experiment.toml` for the simulated line and
-spectrometer.
+`conditionals/` and, under `queues/`, a three-run `experiment.toml` for the
+simulated line and spectrometer.
 
 ```bash
 cd configs/examples
-../../build/dev/apps/elctl/elctl -c extraction_line.toml exp validate experiment.toml \
+../../build/dev/apps/elctl/elctl -c extraction_line.toml exp validate queues/experiment.toml \
     --spectrometer spectrometer.sim-integrated.toml
-../../build/dev/apps/elctl/elctl -c extraction_line.toml --sim exp run experiment.toml \
+../../build/dev/apps/elctl/elctl -c extraction_line.toml --sim exp run queues/experiment.toml \
     --spectrometer spectrometer.sim-integrated.toml --sim-speed 50
 ```
 
@@ -504,11 +588,11 @@ calibrated for the device. A calibration made before the tray map file was
 edited is stale and must be made again. A fitted scale more than 2% from 1 is
 refused (stage and map are both millimetres, so it means a wrong hole).
 
-`configs/examples` has a simulated laser: `experiment.laser.toml` heats two
+`configs/examples` has a simulated laser: `queues/experiment.laser.toml` heats two
 holes of `tray_maps/example-9.txt` with `scripts/extraction/laser_extract.py`.
 
 ```bash
-elctl -c configs/examples/extraction_line.toml --sim exp run configs/examples/experiment.laser.toml --spectrometer configs/examples/spectrometer.sim-integrated.toml --sim-speed 50
+elctl -c configs/examples/extraction_line.toml --sim exp run configs/examples/queues/experiment.laser.toml --spectrometer configs/examples/spectrometer.sim-integrated.toml --sim-speed 50
 ```
 
 `elctl laser goto` stops the stage on Ctrl-C and when `--timeout` runs out. A
@@ -603,7 +687,7 @@ forgets them; `look` says what the finder sees and moves nothing.
 
 A pattern is a path the beam is moved along while it heats. A run names one
 (`pattern = "hexagon"` in its extraction) and its script runs it with
-`execute_pattern()`; `configs/examples/experiment.laser.toml` does so on its
+`execute_pattern()`; `configs/examples/queues/experiment.laser.toml` does so on its
 second run. Patterns are files in the lab, `patterns/<name>.toml`:
 
 ```toml
@@ -686,7 +770,13 @@ the run's log) or the run fails. `elctl laser pattern` does not run a
 dragonfly (it never fires the laser, so there is no glow). As with autocenter,
 there is no live camera yet: this runs on the simulator, whose camera shows a
 glow at the sample while the simulated laser fires (`grain_offset_mm` and
-`glow_drift_mm_per_s` in `cameras.toml`).
+`glow_drift_mm_per_s` in `cameras.toml`, or a grain that heats under the beam
+and moves, `[co2.sim.grain]`). `elctl laser track <scenario.toml>` runs the
+dragonfly against such a grain and scores it, with no line, lab or device
+(`configs/examples/track/`, `docs/user/05-laser.md` section 8.3). To watch one
+instead, `nobion --sim` has **Follow (simulated)** in the laser window's
+Patterns tab, with a cross at the grain's true center (section 8.5). It is
+offered only when the driver is simulated and the camera's `source` is `sim`.
 
 Legacy patterns are Python pickles (`setupfiles/patterns/*.lp`). Export them
 once per lab; nothing in a pickle is run:
@@ -713,13 +803,13 @@ a pattern maker and on-screen calibration, watts and temperature.
 
 ### The laser window
 
-`pychron-ui` has a window for each extraction device: View ▸ Laser
+`nobion` has a window for each extraction device: View ▸ Laser
 (Ctrl+Shift+B), a submenu when the line has several. A laser PC that runs no
 experiments can open that window alone:
 
 ```sh
-pychron-ui --examples --sim --laser              # the only extraction device
-pychron-ui --sim --laser --device co2 line.toml  # one of several
+nobion --examples --sim --laser              # the only extraction device
+nobion --sim --laser --device co2 line.toml  # one of several
 ```
 
 What it shows is what the device says now, four times a second: where the
@@ -778,7 +868,7 @@ device = 0            # `elctl laser cameras` lists what there is
 ```
 
 - `opencv` is any camera OpenCV opens (this computer's own, a USB camera) or
-  a video file. It needs a build with OpenCV (`-DPYCHRON_VISION_OPENCV`).
+  a video file. It needs a build with OpenCV (`-DNOBION_VISION_OPENCV`).
 - `pylon` is a Basler GigE or USB3 camera. Its table (`serial`,
   `exposure_us`, `gain_db`, `pixel_format`, `packet_size`) is read and
   checked, but the driver is not written yet: opening one says "built
@@ -792,10 +882,10 @@ device = 0            # `elctl laser cameras` lists what there is
   computer's own camera:
 
 ```sh
-pychron-ui --examples --sim --laser    # after setting source and use as above
+nobion --examples --sim --laser    # after setting source and use as above
 ```
 
-  macOS asks once whether Pychron may use the camera. From a terminal it is
+  macOS asks once whether Nobion may use the camera. From a terminal it is
   the terminal that is asked (`elctl laser look co2`).
 
 The picture is video: up to 25 frames a second (the camera's own rate
@@ -834,25 +924,25 @@ picture that is there.
 To check a real camera through the same code the window uses:
 
 ```sh
-PYCHRON_TEST_CAMERA=0 ctest --test-dir build/dev -R RealCamera
+NOBION_TEST_CAMERA=0 ctest --test-dir build/dev -R RealCamera
 ```
 
 ## 6. Set up an install
 
 `elctl init` installs a setup profile (`profiles/`: `argus`, `helix`, `ngx`,
 `data-reduction`) into a folder and records it in your site config
-(`~/.config/pychron/site.toml` on Linux; `$PYCHRON_SITE_CONFIG` overrides):
+(`~/.config/nobion/site.toml` on Linux; `$NOBION_SITE_CONFIG` overrides):
 
 ```bash
 elctl init --list
-elctl init argus --root ~/Pychron/argus     # asks; Enter accepts [defaults]
+elctl init argus --root ~/Nobion/argus     # asks; Enter accepts [defaults]
 elctl doctor                                # checks the default install
 elctl --install argus exp run experiment.toml --sim-speed 50   # runs go to the install's database
 elctl init --reconfigure --set simulation=no --set qtegra_host=10.0.0.5
 elctl doctor --probe                        # connects: the drivers' connect step
-elctl init helix --root ~/Pychron/helix --set line_source=import \
+elctl init helix --root ~/Nobion/helix --set line_source=import \
   --set line_file=old/extraction_line.toml --set canvas_file=old/canvas.toml
-elctl init helix --root ~/Pychron/helix --set line_source=legacy \
+elctl init helix --root ~/Nobion/helix --set line_source=legacy \
   --set legacy_folder=~/Pychron/setupfiles   # converts a legacy Pychron line
 elctl import-line ~/Pychron/setupfiles       # prints the conversion; --out DIR writes it
 ```
@@ -860,22 +950,22 @@ elctl import-line ~/Pychron/setupfiles       # prints the conversion; --out DIR 
 A legacy Pychron line (`extractionline/valves.yaml` or `valves.xml`,
 `canvas2D/`, `devices/`) is converted to `extraction_line.toml` and
 `canvas.toml`. NGX valve controllers keep their address; controllers with no
-pychron-cpp driver yet are simulated (`sim_valves`), and the report lists
+nobion driver yet are simulated (`sim_valves`), and the report lists
 what was not carried over (legacy extraction-line survey,
 `docs/superpowers/specs/2026-10-03-legacy-extraction-line-survey.md`).
 
-An instrument install has a database (`data/pychron.db` unless the lab's
+An instrument install has a database (`data/nobion.db` unless the lab's
 server was named), seeded from the install's `seed.toml` with the reference
 samples and their identifiers, the mass spectrometer and a reactor. Its
-shipped `experiment.toml` is three air shots between two blanks (`ba`, `a`,
+shipped `queues/experiment.toml` is three air shots between two blanks (`ba`, `a`,
 `a`, `a`, `ba`; about 19 minutes of simulated time, though `exp run`'s `ETA`
 line, an estimate, reads `0:08:50`), and names only what the
-seed made. `exp run` and `pychron-ui` write each finished run to that
+seed made. `exp run` and `nobion` write each finished run to that
 database, and refuse a queue that names an identifier, mass spectrometer or
 extract device it lacks; with no database (the example lab of section 5) runs
 are record files as before. `--db <url>` names another database. An install
 on the example line also gets the example lab's `sim.toml`. The end-to-end
-test of this path is `pychron_install_e2e_tests`
+test of this path is `nobion_install_e2e_tests`
 (`tests/integration/test_install_e2e.cpp`).
 
 Instrument installs start in simulation; `CALIBRATE.md` in the install lists
@@ -884,38 +974,38 @@ and `--set id=value` answer without prompts. A re-run never overwrites a file;
 `--reconfigure` rewrites only files nobody edited and leaves `<file>.new`
 beside edited ones.
 
-`pychron-ui` does the same with a setup wizard. Started with nothing
+`nobion` does the same with a setup wizard. Started with nothing
 installed, it opens the wizard: pick data reduction or an instrument, a
 folder, and answer one page per question group; Install writes the files,
 creates a local database, records the install and shows the doctor's checks.
-After that `pychron-ui` opens the default install (`--install NAME` another;
+After that `nobion` opens the default install (`--install NAME` another;
 File > Installations switches, sets the default or forgets one). An
 instrument install's data window reads its database and shows each run when
 it ends; `--sim-speed N` needs no `--sim` beside it when the install is set
 up for simulation. A
-data-reduction install opens the data browser alone. `pychron-ui --setup`
+data-reduction install opens the data browser alone. `nobion --setup`
 runs the wizard again; `--examples` (or `--sim` with nothing installed) opens
 the example line in `configs/examples` as before.
 
 ## 7. Build the installers
 
 `cpack` packages the programs, the profiles and the example configs
-(`cmake/PychronInstall.cmake`, `cmake/PychronPackaging.cmake`): a `.deb` and
+(`cmake/NobionInstall.cmake`, `cmake/NobionPackaging.cmake`): a `.deb` and
 `.tar.gz` on Linux, a `.dmg` on macOS, an NSIS installer and `.zip` on Windows.
 
 ```bash
 cmake -S . -B build/pkg -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_UI=ON -DBUILD_TESTS=OFF
 cmake --build build/pkg
 (cd build/pkg && cpack)
-sudo apt install ./build/pkg/pychron_*.deb
+sudo apt install ./build/pkg/nobion_*.deb
 elctl --version                                   # shows where the profiles were found
-QT_QPA_PLATFORM=offscreen pychron-ui --self-test  # profiles, wizard, database plugin
+QT_QPA_PLATFORM=offscreen nobion --self-test  # profiles, wizard, database plugin
 ```
 
 To ship Python with the package (scripted extractions without a system
 Python), unpack a python-build-standalone `install_only` archive and pass it
-twice: `-DPython_ROOT_DIR=<dir> -DPYCHRON_BUNDLE_PYTHON=<dir>`. On macOS and
-Windows the Qt runtime is copied in (`PYCHRON_DEPLOY_QT`). The `release`
+twice: `-DPython_ROOT_DIR=<dir> -DNOBION_BUNDLE_PYTHON=<dir>`. On macOS and
+Windows the Qt runtime is copied in (`NOBION_DEPLOY_QT`). The `release`
 workflow does all of this for each release and attaches the packages to the
 GitHub release; it also runs on pull requests into `main` that touch
 packaging. Releases are cut by release-please when `develop` is merged into

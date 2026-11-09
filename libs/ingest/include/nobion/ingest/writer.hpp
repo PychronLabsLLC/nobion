@@ -1,0 +1,97 @@
+#pragma once
+
+// Writes import batches to the store (legacy ingestion spec, section 2.1).
+// A batch is written in two steps: first the idempotent writes (catalog rows,
+// blobs, analyses, repository membership), then one transaction holding the
+// changesets, revisions, provenance, conflicts and the progress token. Ids
+// are derived from source keys, so a batch written again changes nothing.
+
+#include <functional>
+#include <map>
+#include <memory>
+#include <optional>
+#include <string>
+
+#include "nobion/core/error.hpp"
+#include "nobion/ingest/adapter.hpp"
+#include "nobion/ingest/batch.hpp"
+#include "nobion/persistence/store.hpp"
+
+namespace nobion::ingest {
+
+struct WriterConfig {
+  std::string importer_version;
+  std::string lab_time_zone;                      // IANA; recorded on the import source
+  std::map<std::string, std::string> author_map;  // git email -> app_user name
+  // Write nothing; count in RunStats::would_write what a real run would add.
+  bool dry_run = false;
+  // Walk the whole source again instead of resuming from the stored token.
+  // Everything already imported is a no-op; analyses refused earlier for a
+  // missing catalog row, and their later revisions, are written in order and
+  // their conflicts become `superseded`. The stored token never moves back.
+  // The stored token is still checked against the source first
+  // (ISourceAdapter::check_token): a rewritten history is an error here too.
+  bool replay = false;
+};
+
+// In every run of a source that already has something stored, a revision that
+// is not stored is written only when it comes after what is: no revision of
+// its subject and kind that this source stored is from a commit later in the
+// adapter's walk order, and the head of that subject and kind is this
+// source's (a head made elsewhere keeps nothing back until the source has
+// finished a run once: an interrupted first import stores what an
+// uninterrupted one does). Otherwise the head stays and the revision is kept in a pending
+// identity_clash conflict with reason `late_revision_not_applied` and its
+// content in the detail (spec 10.31, 10.34, 10.35). It is marked
+// "late": true, a warning, unless what it is behind is a stored revision from
+// a commit the walk no longer has: that one is blocking.
+
+// Items handled in this run, whether or not they were already stored.
+struct RunStats {
+  int batches = 0;
+  int analyses = 0;    // ingested or already present
+  int changesets = 0;  // import and reference changesets, not collections
+  int revisions = 0;   // of those changesets
+  // From the adapter and from the writer, pending only: a conflict stored as
+  // resolved is not counted, nor one this run wrote and superseded (spec 10.37).
+  int conflicts = 0;
+  // Dry run only: analyses, blobs, memberships, changesets, revisions,
+  // conflicts and bookmarks that are not in the store, and stored pending
+  // conflicts a run would supersede. An analysis or revision
+  // with a pending unknown_analysis conflict is recorded, not missing. Catalog
+  // rows are not counted: the store has no read that could tell.
+  int would_write = 0;
+  bool finished = false;  // the adapter reached the end of its stream
+};
+
+class BatchWriter {
+ public:
+  // `store` must outlive the writer. `client` is the registered importer client.
+  BatchWriter(persistence::IStore& store, persistence::Uuid client, WriterConfig config);
+  ~BatchWriter();
+  BatchWriter(const BatchWriter&) = delete;
+  BatchWriter& operator=(const BatchWriter&) = delete;
+
+  // Registers the source the adapter describes, or finds it, and returns the
+  // stored row with its resume token. A dry run registers nothing.
+  Result<persistence::ImportSourceInfo> open(ISourceAdapter& adapter);
+
+  // Plans the adapter from the stored token (from the start with
+  // WriterConfig::replay) and writes its batches. Stops,
+  // leaving the source `paused`, once `max_batches` are written or
+  // `keep_going` returns false after a batch; `finished` at end of stream;
+  // `failed` on an error, which is returned. `on_batch` runs after each batch
+  // is committed. Either function may be empty. Opens the source if needed.
+  Result<RunStats> run(ISourceAdapter& adapter, std::optional<int> max_batches,
+                       const std::function<bool()>& keep_going,
+                       const std::function<void(const RunStats&, const ImportBatch&)>& on_batch);
+
+  // Valid for the writer's lifetime; reads fail until a source is open.
+  IImportState& state();
+
+ private:
+  class Impl;
+  std::unique_ptr<Impl> impl_;
+};
+
+}  // namespace nobion::ingest

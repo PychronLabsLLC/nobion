@@ -1,9 +1,9 @@
-#include "pychron/devices/driver_registry.hpp"
+#include "nobion/devices/driver_registry.hpp"
 
 #include <algorithm>
 #include <sstream>
 
-namespace pychron {
+namespace nobion {
 
 namespace {
 
@@ -162,15 +162,16 @@ Result<std::unique_ptr<Device>> DriverRegistry::create(std::string_view kind, Tr
   if (auto ok = validate(kind, options); !ok) return attributed(ok.error());
 
   const Entry& entry = entries_.find(kind)->second;
-  auto made = entry.factory(DriverArgs{name, transport, options, context.clock});
+  auto made = entry.factory(DriverArgs{name, transport, options, context.clock, context.link});
   if (!made) return attributed(std::move(made).error());
   if (!*made) return attributed(Error{ErrorKind::Config, "driver factory returned no device", {}});
+  (*made)->set_health_bus(context.bus, transport.name());
   return made;
 }
 
 Result<std::unique_ptr<Device>> DriverRegistry::create(const config::DriverConfig& config, Transport& transport,
-                                                       const Clock* clock) const {
-  return create(config.kind, transport, config.options, DriverContext{config.name, clock});
+                                                       const Clock* clock, Link* link, SignalBus* bus) const {
+  return create(config.kind, transport, config.options, DriverContext{config.name, clock, link, bus});
 }
 
 std::string describe(const DriverSchema& schema) {
@@ -195,4 +196,4 @@ std::string describe(const DriverSchema& schema) {
   return out.str();
 }
 
-}  // namespace pychron
+}  // namespace nobion

@@ -1,4 +1,4 @@
-#include "pychron/core/process.hpp"
+#include "nobion/core/process.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -7,6 +7,8 @@
 #include <iterator>
 #include <system_error>
 #include <thread>
+
+#include "nobion/core/log_context.hpp"
 
 #if defined(__APPLE__)
 #include <pthread.h>
@@ -41,7 +43,7 @@ extern char** environ;
 #include <vector>
 #endif
 
-namespace pychron {
+namespace nobion {
 
 namespace {
 
@@ -73,7 +75,7 @@ std::string errno_text(int e) { return std::generic_category().message(e); }
 // The input as an unlinked temporary file: the child reads it as stdin, so
 // no pipe can raise SIGPIPE in this process if the child exits early.
 Result<int> input_file(const std::string& input) {
-  std::string path = (std::filesystem::temp_directory_path() / "pychron-in-XXXXXX").string();
+  std::string path = (std::filesystem::temp_directory_path() / "nobion-in-XXXXXX").string();
   const int fd = mkstemp(path.data());
   if (fd < 0) return fail(ErrorKind::Io, "cannot create a temporary file: " + errno_text(errno));
   unlink(path.c_str());
@@ -359,6 +361,7 @@ Result<ProcessResult> run_process(const ProcessSpec& spec) {
 
   ProcessResult result;
   std::thread reader([&] {
+    const LogContext::Thread log_thread("process." + spec.argv.front());
     char buf[4096];
     DWORD n = 0;
     while (ReadFile(out_r, buf, sizeof buf, &n, nullptr) && n > 0) keep(result.output, buf, n);
@@ -410,4 +413,4 @@ std::filesystem::path executable_dir() {
 #endif
 }
 
-}  // namespace pychron
+}  // namespace nobion

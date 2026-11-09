@@ -1,14 +1,14 @@
-#include "pychron/core/host_name.hpp"
+#include "nobion/core/host_name.hpp"
 
 #ifdef _WIN32
-#include "pychron/core/env.hpp"
+#include "nobion/core/env.hpp"
 #else
 #include <array>
 
 #include <unistd.h>
 #endif
 
-namespace pychron {
+namespace nobion {
 
 std::string host_name() {
 #ifdef _WIN32
@@ -24,4 +24,4 @@ std::string host_name() {
   return name.empty() ? "localhost" : name;
 }
 
-}  // namespace pychron
+}  // namespace nobion

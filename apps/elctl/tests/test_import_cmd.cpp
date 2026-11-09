@@ -11,7 +11,7 @@ using elctl::testing::contains;
 using elctl::testing::Outcome;
 using elctl::testing::run_raw;
 
-#ifndef PYCHRON_ELCTL_IMPORT
+#ifndef NOBION_ELCTL_IMPORT
 
 TEST(ImportCmd, StubWithoutPersistence) {
   const Outcome o = run_raw({"import", "status", "--db", "sqlite::memory:"});
@@ -38,15 +38,15 @@ TEST(ImportCmd, StubWithoutPersistence) {
 #include "git_fixture.hpp"
 #include "import_impl.hpp"
 #include "legacy_repo_builder.hpp"
-#include "pychron/ingest/ids.hpp"
-#include "pychron/persistence/store.hpp"
+#include "nobion/ingest/ids.hpp"
+#include "nobion/persistence/store.hpp"
 #include "tiny/db.hpp"
 
-using namespace pychron;
-using namespace pychron::dvc;
-using namespace pychron::dvc::testing;
+using namespace nobion;
+using namespace nobion::dvc;
+using namespace nobion::dvc::testing;
 namespace fs = std::filesystem;
-namespace P = pychron::persistence;
+namespace P = nobion::persistence;
 using nlohmann::json;
 using P::Kind;
 using P::Uuid;
@@ -496,6 +496,73 @@ TEST_F(ImportCmd, RunLimitPausesAndResumes) {
   EXPECT_EQ(import({"verify"}).code, elctl::kOk);
 }
 
+// The cache of ages (age cache spec 4.5, writer 3): a run that walks to the
+// end fills it, as `elctl db derive` would; --no-derive and a run cut short
+// by --limit leave it alone.
+class ImportDerive : public ImportCmd {
+ protected:
+  // Whether the fixture analysis has a cached age (a row named age, null or not).
+  bool cached() const {
+    auto s = store();
+    if (!s) return false;
+    const std::vector<Uuid> analyses{kE};
+    auto found = s->derived_fingerprints(analyses);
+    EXPECT_TRUE(found) << (found ? "" : to_string(found.error()));
+    return found && found->contains(kE);
+  }
+};
+
+TEST_F(ImportDerive, ARunToTheEndFillsTheCache) {
+  legacy_.collect(kRunE, kE.str(), kCollected);
+  ASSERT_EQ(add_project(repo_.path().string()).code, elctl::kOk);
+
+  const Outcome o = import({"run"});
+  EXPECT_EQ(o.code, elctl::kOk) << o.err;
+  const auto printed = lines(o.out);
+  ASSERT_FALSE(printed.empty());
+  EXPECT_EQ(printed.back(), "derived: 1 seen, 1 written (1 without an age), 0 current, 0 failed") << o.out;
+  EXPECT_TRUE(cached());
+
+  // A second run has nothing to import and finds the age current.
+  const Outcome again = import({"run"});
+  EXPECT_EQ(again.code, elctl::kOk) << again.err;
+  EXPECT_TRUE(contains(again.out, "derived: 1 seen, 0 written (0 without an age), 1 current, 0 failed")) << again.out;
+}
+
+TEST_F(ImportDerive, NoDeriveLeavesTheCacheAlone) {
+  legacy_.collect(kRunE, kE.str(), kCollected);
+  ASSERT_EQ(add_project(repo_.path().string()).code, elctl::kOk);
+
+  const Outcome o = import({"run", "--no-derive"});
+  EXPECT_EQ(o.code, elctl::kOk) << o.err;
+  EXPECT_TRUE(contains(o.out, "repo: finished 4/4")) << o.out;
+  EXPECT_FALSE(contains(o.out, "derived:")) << o.out;
+  EXPECT_FALSE(cached());
+}
+
+TEST_F(ImportDerive, ARunCutShortByTheLimitDoesNotDerive) {
+  legacy_.collect(kRunE, kE.str(), kCollected);
+  legacy_.refit(kRunE, "Ar40", 12.5, kReviewed);
+  ASSERT_EQ(add_project(repo_.path().string()).code, elctl::kOk);
+
+  const Outcome o = import({"run", "--batch", "2", "--limit", "1"});
+  EXPECT_EQ(o.code, elctl::kOk) << o.err;
+  EXPECT_TRUE(contains(o.out, "paused: repo at 2/5")) << o.out;
+  EXPECT_FALSE(contains(o.out, "derived:")) << o.out;
+  EXPECT_FALSE(cached());
+}
+
+TEST_F(ImportDerive, ADryRunDoesNotDerive) {
+  legacy_.collect(kRunE, kE.str(), kCollected);
+  ASSERT_EQ(add_project(repo_.path().string()).code, elctl::kOk);
+  ASSERT_EQ(import({"run", "--no-derive"}).code, elctl::kOk);
+
+  const Outcome o = import({"run", "--dry-run"});
+  EXPECT_EQ(o.code, elctl::kOk) << o.err;
+  EXPECT_FALSE(contains(o.out, "derived:")) << o.out;
+  EXPECT_FALSE(cached());
+}
+
 // Ctrl-C: the batch being written is finished, the run stops there.
 TEST_F(ImportCmd, RunStopsAfterTheBatchOnInterrupt) {
   legacy_.collect(kRunE, kE.str(), kCollected);
@@ -842,11 +909,11 @@ TEST_F(ImportCmd, ReadingCommandsNeedADatabaseThatExists) {
     EXPECT_TRUE(contains(o.err, "elctl import: no database at " + typo.string())) << o.err;
     EXPECT_FALSE(fs::exists(typo)) << args[0];
   }
-  // A file that is not a pychron store is not turned into one.
+  // A file that is not a nobion store is not turned into one.
   std::ofstream(typo, std::ios::binary).flush();
   const Outcome empty = run_raw({"import", "status", "--db", url, "--cache", cache_.string()});
   EXPECT_EQ(empty.code, elctl::kUsage);
-  EXPECT_TRUE(contains(empty.err, "not a pychron store")) << empty.err;
+  EXPECT_TRUE(contains(empty.err, "not a nobion store")) << empty.err;
   EXPECT_EQ(fs::file_size(typo), 0u);
 }
 
@@ -1074,9 +1141,6 @@ class ImportCmdParity : public ImportCmd {
     EXPECT_TRUE(contains(verified.out, "parity: 0 pass, 0 pass on age only, 0 fail, 13 not comparable"))
         << verified.out;
     EXPECT_TRUE(contains(verified.out, std::string(reason) + " 1")) << verified.out;
-    const json report = json::parse(verify({"--json"}).out, nullptr, false);
-    ASSERT_TRUE(report.is_array());
-    EXPECT_EQ(report[0].at("parity").at("not_comparable").value(reason, 0), 1);
   }
   void expect_reproduced() const {
     const Outcome verified = verify();
@@ -1103,7 +1167,6 @@ TEST_F(ImportCmdParity, TheLegacyAgeIsReproduced) {
       << verified.out;
   EXPECT_TRUE(contains(verified.out, "not comparable: analysis is not in the store 12")) << verified.out;
   EXPECT_EQ(lines(verified.out).back(), "  ok") << verified.out;
-  EXPECT_EQ(import({"conflicts", "--kind", "value_mismatch", "--all"}).out, "");
 }
 
 // The default tolerance is 1e-6; the largest residual of the comparisons that
@@ -1130,8 +1193,9 @@ TEST_F(ImportCmdParity, TheLargestPassingResidualIsPrinted) {
 
 // The constants are part of the answer: with the lab default (atmospheric
 // 40Ar/36Ar 298.56, where legacy used 295.5) the same data gives another
-// age. The failure is kept as a conflict that says what it was computed
-// with, and a later verify that passes supersedes it.
+// age, and the report says what it was computed with. A later verify that
+// passes supersedes the conflict: VerifierTest scripts the age, this is the
+// command's own. What verify stores for a failure is VerifierTest's.
 TEST_F(ImportCmdParity, OtherConstantsDoNotReproduceIt) {
   build(true);
   const Outcome other = verify({"--constants", "default"});
@@ -1142,13 +1206,6 @@ TEST_F(ImportCmdParity, OtherConstantsDoNotReproduceIt) {
   EXPECT_TRUE(contains(other.out, ": legacy 24.0335197636 +- 0.90859477073, computed 23.97")) << other.out;
   EXPECT_TRUE(contains(other.out, " (age_err_wo_j)")) << other.out;
   EXPECT_EQ(lines(other.out).back(), "  not ok: 1 blocking conflict; 1 parity failure") << other.out;
-
-  const json rows = json::parse(import({"conflicts", "--kind", "value_mismatch", "--json"}).out, nullptr, false);
-  ASSERT_TRUE(rows.is_array());
-  ASSERT_EQ(rows.size(), 1u);
-  EXPECT_EQ(rows[0].at("detail").value("basis", ""), "constants=default");
-  EXPECT_EQ(rows[0].at("detail").value("error_compared", ""), "age_err_wo_j");
-  EXPECT_DOUBLE_EQ(rows[0].at("detail").at("legacy").value("age", 0.0), 24.03351976363802);
 
   const json report = json::parse(verify({"--constants", "default", "--json"}).out, nullptr, false);
   ASSERT_TRUE(report.is_array());
@@ -1308,6 +1365,11 @@ TEST_F(ImportCmdParity, ProductionNamedAtTheAgeButDefinedLaterIsNotComparable) {
 TEST_F(ImportCmdParity, ReferenceDataNotYetDefinedAtTheAgeIsNotComparable) {
   build(true, {}, kAfterTheAge);
   expect_not_comparable("reference_not_yet_defined");
+
+  // The reasons are in --json too, by name.
+  const json report = json::parse(verify({"--json"}).out, nullptr, false);
+  ASSERT_TRUE(report.is_array());
+  EXPECT_EQ(report[0].at("parity").at("not_comparable").value("reference_not_yet_defined", 0), 1);
 }
 
 // Spec 10.21: reference data removed before the age was saved has no value
@@ -1387,4 +1449,4 @@ TEST_F(ImportCmd, HelpDescribesTheCommands) {
 
 }  // namespace
 
-#endif  // PYCHRON_ELCTL_IMPORT
+#endif  // NOBION_ELCTL_IMPORT

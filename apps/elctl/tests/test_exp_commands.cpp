@@ -1,5 +1,5 @@
 // elctl exp validate / run against a scratch copy of configs/examples, which
-// doubles as an example lab (plans/, scripts/, conditionals/, experiment.toml).
+// doubles as an example lab (plans/, scripts/, conditionals/, queues/experiment.toml).
 
 #include <atomic>
 #include <chrono>
@@ -8,24 +8,36 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <optional>
+#include <regex>
 #include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "elctl_fixture.hpp"
+#include "example_lab.hpp"
 #include "exp.hpp"
-#include "pychron/scripting/script_host.hpp"
+#include "log_capture.hpp"
+#include "nobion/core/clock.hpp"
+#include "nobion/core/env.hpp"
+#include "nobion/core/events.hpp"
+#include "nobion/core/log_dir.hpp"
+#include "nobion/core/log_hub.hpp"
+#include "nobion/core/process_log.hpp"
+#include "nobion/experiment/executor/executor.hpp"
+#include "nobion/experiment/measurement/engine.hpp"
+#include "nobion/scripting/script_host.hpp"
 
-#ifdef PYCHRON_ELCTL_HAS_STORE
+#ifdef NOBION_ELCTL_HAS_STORE
 #include <algorithm>
 
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QString>
 
-#include "pychron/persistence/store.hpp"
+#include "nobion/persistence/store.hpp"
 #endif
 
 namespace elctl::testing {
@@ -37,18 +49,7 @@ class ElctlExpTest : public ElctlTest {
  protected:
   void SetUp() override {
     ElctlTest::SetUp();
-    fs::copy(fs::path(PYCHRON_EXAMPLE_CONFIGS_DIR), dir_ / "lab",
-             fs::copy_options::recursive | fs::copy_options::overwrite_existing);
-    fs::remove_all(dir_ / "lab" / "data");
-    // Runtime state a local session left beside the examples (a locked valve,
-    // say) is not part of them.
-    std::vector<fs::path> state;
-    for (const auto& entry : fs::recursive_directory_iterator(dir_ / "lab")) {
-      if (entry.is_regular_file() && entry.path().filename().string().ends_with(".state.toml")) {
-        state.push_back(entry.path());
-      }
-    }
-    for (const auto& file : state) fs::remove(file);
+    nobion::testing::copy_lab(NOBION_EXAMPLE_CONFIGS_DIR, dir_ / "lab");
   }
   std::string lab(const std::string& f) const { return (dir_ / "lab" / f).string(); }
 
@@ -62,7 +63,7 @@ class ElctlExpTest : public ElctlTest {
 
   // The example queue on the sim at unlimited speed, records under <dir>/out.
   Outcome run_example_queue() const {
-    return exp({"run", lab("experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"), "--data",
+    return exp({"run", lab("queues/experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"), "--data",
                 (dir_ / "out").string(), "--sim-speed", "max"},
                true);
   }
@@ -89,7 +90,7 @@ class ElctlExpTest : public ElctlTest {
 };
 
 TEST_F(ElctlExpTest, ValidateTheExampleQueue) {
-  auto o = exp({"validate", lab("experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml")});
+  auto o = exp({"validate", lab("queues/experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml")});
   EXPECT_EQ(o.code, 0) << o.err;
   EXPECT_TRUE(contains(o.out, "queue sim-example: 3 run(s), ETA")) << o.out;
   EXPECT_TRUE(contains(o.out, "blank_unknown")) << o.out;
@@ -116,11 +117,34 @@ conditionals = ["broken"]
   EXPECT_TRUE(contains(o.err, "unknown detector 'IC9'")) << o.err;
 }
 
+TEST_F(ElctlExpTest, RunLogsToTheProcessHub) {
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
+  nobion::SteadyClock clock;
+  nobion::config::LoggingConfig lc;
+  lc.dir = dir_ / "plogs";
+  lc.file_name = "elctl.log";
+  auto made = nobion::LogHub::create(lc, clock);
+  ASSERT_TRUE(made);
+  std::string text;
+  {
+    const nobion::ProcessLogScope scope(*made);
+    auto o = exp({"run", lab("queues/experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"),
+                  "--data", (dir_ / "out").string(), "--sim-speed", "max"},
+                 true);
+    ASSERT_EQ(o.code, 0) << o.out << o.err;
+    (*made)->flush();
+    std::ifstream in(dir_ / "plogs" / "elctl.log");
+    text.assign(std::istreambuf_iterator<char>(in), {});
+  }
+  EXPECT_TRUE(contains(text, "clock virtual max")) << text.substr(0, 3000);
+  EXPECT_TRUE(contains(text, "] extraction_line")) << text.substr(0, 3000);
+}
+
 TEST_F(ElctlExpTest, RunTheExampleQueueOnTheSim) {
   // The example queue names extraction scripts, which only the CPython host runs.
-  if (!pychron::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const auto data = (dir_ / "out").string();
-  auto o = exp({"run", lab("experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"), "--data",
+  auto o = exp({"run", lab("queues/experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"), "--data",
                 data, "--sim-speed", "max"},
                true);
   ASSERT_EQ(o.code, 0) << o.out << o.err;
@@ -138,14 +162,14 @@ TEST_F(ElctlExpTest, RunTheExampleQueueOnTheSim) {
   }
 
   // Everything ran, so a resume has nothing left to do.
-  auto again = exp({"run", lab("experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"),
+  auto again = exp({"run", lab("queues/experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"),
                     "--data", data, "--sim-speed", "max", "--resume"},
                    true);
   EXPECT_EQ(again.code, 0) << again.err;
   EXPECT_TRUE(contains(again.out, "0/0 run(s)")) << again.out;
 
   // --from skips rows.
-  auto from = exp({"run", lab("experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"),
+  auto from = exp({"run", lab("queues/experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"),
                    "--data", data, "--sim-speed", "max", "--from", "2"},
                   true);
   EXPECT_EQ(from.code, 0) << from.err;
@@ -153,12 +177,138 @@ TEST_F(ElctlExpTest, RunTheExampleQueueOnTheSim) {
   EXPECT_FALSE(contains(from.out, "run 0 ")) << from.out;
 }
 
+// The example queue on the sim leaves its execution sequence in the process
+// log, in order, and every line the run thread wrote while a run was on names
+// that run.
+TEST_F(ElctlExpTest, ExecutionSequenceIsLogged) {
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
+  const nobion::testing::LogCapture capture;
+  ASSERT_TRUE(capture.ok());
+  const auto o = run_example_queue();
+  ASSERT_EQ(o.code, 0) << o.out << o.err;
+  const auto lines = capture.raw_lines();
+  std::string all;
+  for (const auto& l : lines) all += l + '\n';
+
+  // `<stamp> [level] [thread] run=<id> logger: message`
+  static const std::regex shape(R"(^\S+Z \[\w+\] \[([^\]]*)\] (?:run=(\S+) )?(\S+): (.*)$)");
+  struct Line {
+    std::string thread, run, logger, message;
+  };
+  std::vector<Line> parsed;
+  for (const auto& l : lines) {
+    std::smatch m;
+    if (std::regex_match(l, m, shape)) parsed.push_back({m[1].str(), m[2].str(), m[3].str(), m[4].str()});
+  }
+  const auto find = [&](std::size_t from, const auto& pred) {
+    for (std::size_t i = from; i < parsed.size(); ++i) {
+      if (pred(parsed[i])) return i;
+    }
+    return parsed.size();
+  };
+  const auto logger_is = [](const std::string& name) { return [name](const Line& l) { return l.logger == name; }; };
+
+  const auto queue_started = find(0, logger_is("trace.QueueStarted"));
+  ASSERT_LT(queue_started, parsed.size()) << all;
+  const auto run_started = find(queue_started, logger_is("trace.RunStarted"));
+  ASSERT_LT(run_started, parsed.size()) << all;
+  const auto script_start = find(run_started, [](const Line& l) {
+    return l.logger.starts_with("script.") && l.message.starts_with("start");
+  });
+  ASSERT_LT(script_start, parsed.size()) << all;
+  const auto& script = parsed[script_start].logger;
+  const auto host_call = find(script_start + 1, [&](const Line& l) {
+    return l.logger == script && !l.message.starts_with("start") && !l.message.starts_with("end");
+  });
+  ASSERT_LT(host_call, parsed.size()) << all;
+  const auto measured = find(host_call, [](const Line& l) {
+    return l.logger == "trace.RunStateChanged" && l.message.find("to=measuring") != std::string::npos;
+  });
+  ASSERT_LT(measured, parsed.size()) << all;
+  // The records folder (--data) is this process's store.
+  const auto saved = find(measured, [](const Line& l) {
+    return l.logger == "store" && l.message.starts_with("save ") && l.message.find(": wrote ") != std::string::npos;
+  });
+  ASSERT_LT(saved, parsed.size()) << all;
+  const auto run_finished = find(saved, logger_is("trace.RunFinished"));
+  ASSERT_LT(run_finished, parsed.size()) << all;
+  const auto queue_ended = find(run_finished, logger_is("trace.QueueEnded"));
+  ASSERT_LT(queue_ended, parsed.size()) << all;
+
+  // Every line the run's threads (run, run.post-eq, run.phase) wrote while the
+  // run was on names the run as trace.RunStarted names it: run=<identifier>-<aliquot><step>.
+  const auto& started = parsed[run_started].message;
+  static const std::regex named(R"(\brun=([^,]+),)");
+  std::smatch m;
+  ASSERT_TRUE(std::regex_search(started, m, named)) << started;
+  const std::string name = m[1].str();
+  EXPECT_EQ(name, "bu-01") << started;
+  EXPECT_EQ(parsed[script_start].run, name) << all;
+  // The save is named as the run= field names the run (the file keeps its own name).
+  EXPECT_TRUE(parsed[saved].message.starts_with("save " + name + ": wrote ")) << lines[saved];
+  const auto first_finished = find(run_started, logger_is("trace.RunFinished"));
+  for (std::size_t i = run_started; i < first_finished; ++i) {
+    if (parsed[i].thread.starts_with("run")) {
+      EXPECT_EQ(parsed[i].run, name) << lines[i] << "\n" << all;
+    }
+  }
+}
+
+// A step heat stopped after its first step and resumed by a new process (a
+// new aliquot allocator) keeps the aliquot its first step was saved at.
+TEST_F(ElctlExpTest, AResumedStepHeatKeepsItsAliquot) {
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
+  const auto write_queue = [this](const std::vector<std::string>& steps) {
+    std::ofstream out(dir_ / "lab" / "steps.toml");
+    out << R"([queue]
+name = "sim-example"
+mass_spectrometer = "sim"
+username = "example"
+
+[queue.delays]
+before_analyses = 5
+between_analyses = 10
+after_blank = 10
+)";
+    for (const auto& s : steps) {
+      out << R"(
+[[runs]]
+identifier = "66001"
+step = ")" << s << R"("
+extraction = { script = "sim_extract", value = 5, units = "w", duration = 10 }
+measurement = { plan = "sim_multicollect" }
+post_measurement = "sim_pump"
+sample = { sample = "FC-2", material = "sanidine", project = "examples" }
+)";
+    }
+  };
+  const auto data = (dir_ / "out").string();
+  const std::vector<std::string> args{"run",  lab("steps.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"),
+                                      "--data", data,             "--sim-speed",    "max"};
+
+  write_queue({"A"});
+  auto first = exp(args, true);
+  ASSERT_EQ(first.code, 0) << first.out << first.err;
+
+  write_queue({"A", "B", "C"});
+  auto resume_args = args;
+  resume_args.emplace_back("--resume");
+  auto again = exp(resume_args, true);
+  ASSERT_EQ(again.code, 0) << again.out << again.err;
+  EXPECT_TRUE(contains(again.out, "2/2 run(s)")) << again.out;
+  const auto records = dir_ / "out" / "records" / "66001";
+  EXPECT_TRUE(fs::exists(records / "66001-1A.json"));
+  EXPECT_TRUE(fs::exists(records / "66001-1B.json"));
+  EXPECT_TRUE(fs::exists(records / "66001-1C.json"));
+  EXPECT_FALSE(fs::exists(records / "66001-2B.json"));
+}
+
 // The queue is some eight minutes of delays, extraction and counting; on the
 // virtual clock at unlimited speed nothing waits for real time. The bound is
 // for the whole command, interpreter start-up included, on a slow machine:
 // thirty real seconds are still far short of the simulated minutes.
 TEST_F(ElctlExpTest, SimulatedQueueTakesNoRealTime) {
-  if (!pychron::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const auto began = std::chrono::steady_clock::now();
   auto o = run_example_queue();
   const auto took = std::chrono::steady_clock::now() - began;
@@ -172,7 +322,7 @@ TEST_F(ElctlExpTest, SimulatedQueueTakesNoRealTime) {
 // before spent counting its main block (sim_multicollect: 2 cycles of two
 // hops of 15 one-second counts).
 TEST_F(ElctlExpTest, SimulatedAnalysesAreStampedInSimulatedTime) {
-  if (!pychron::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const auto began = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now());
   auto o = run_example_queue();
   const auto ended = std::chrono::system_clock::now();
@@ -195,7 +345,7 @@ TEST_F(ElctlExpTest, SimulatedAnalysesAreStampedInSimulatedTime) {
 // seconds allow the command its start-up on a slow machine and are nothing
 // beside the days the queue would take at that speed.
 TEST_F(ElctlExpTest, AnInterruptStopsAPacedQueueInRealTime) {
-  if (!pychron::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   std::atomic<bool> done{false};
   std::thread operator_([&] {
     while (!done) {
@@ -206,7 +356,7 @@ TEST_F(ElctlExpTest, AnInterruptStopsAPacedQueueInRealTime) {
     }
   });
   const auto began = std::chrono::steady_clock::now();
-  auto o = exp({"run", lab("experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"), "--data",
+  auto o = exp({"run", lab("queues/experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"), "--data",
                 (dir_ / "out").string(), "--sim-speed", "0.001"},
                true);
   const auto took = std::chrono::steady_clock::now() - began;
@@ -252,18 +402,49 @@ TEST(ElctlExpInterrupts, TheStrongestOfThoseThatArriveTogetherIsTheOneAsked) {
   EXPECT_EQ(asked, (std::vector<std::string>{"stop", "cancel", "abort"}));
 }
 
+// What `exp run` prints of an outage: the hold with its links and the time
+// the hold limit ends the queue, a gap in the readings, a link back.
+TEST(ElctlExpLines, AHoldAGapAndAReconnectAreOneLineEach) {
+  using namespace std::chrono_literals;
+  nobion::experiment::executor::ExecutorHolding hold;
+  hold.reason = "link down: spec, valves";
+  hold.links = {"spec", "valves"};
+  // 2026-10-16 14:05:09 UTC.
+  const std::chrono::system_clock::time_point until =
+      std::chrono::sys_days{std::chrono::year{2026} / 10 / 16} + 14h + 5min + 9s + 400ms;
+  EXPECT_EQ(elctl::holding_line(hold, until), "holding: link down: spec, valves (spec, valves) until 2026-10-16 14:05:09 UTC");
+  hold.links.clear();
+  hold.reason = "pre-run check 'spool': full";
+  EXPECT_EQ(elctl::holding_line(hold, until), "holding: pre-run check 'spool': full until 2026-10-16 14:05:09 UTC");
+
+  nobion::experiment::measurement::MeasurementGap gap;
+  gap.block = nobion::experiment::measurement::Block::Main;
+  gap.from = 30.0;
+  gap.to = 51.2;
+  EXPECT_EQ(elctl::gap_line(gap), "gap in main: 21 s");
+  gap.to = 30.4;
+  EXPECT_EQ(elctl::gap_line(gap), "gap in main: 0.4 s");
+
+  nobion::LinkReconnected back;
+  back.transport = "spec";
+  back.down_for = std::chrono::duration_cast<nobion::Duration>(12.6s);
+  EXPECT_EQ(elctl::reconnected_line(back), "reconnected spec after 13 s");
+  back.down_for = std::chrono::duration_cast<nobion::Duration>(1500ms);
+  EXPECT_EQ(elctl::reconnected_line(back), "reconnected spec after 1.5 s");
+}
+
 // A run that gives up after the simulated beam is in place leaves nothing
 // behind that refers to its clock: the next run in the same process is whole.
 TEST_F(ElctlExpTest, ARunThatFailsEarlyLeavesTheNextOneClean) {
-  if (!pychron::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const auto data = (dir_ / "out").string();
   // Nothing has run into this directory, so there is nothing to resume.
-  auto failed = exp({"run", lab("experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"),
+  auto failed = exp({"run", lab("queues/experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"),
                      "--data", data, "--sim-speed", "max", "--resume"},
                     true);
   EXPECT_EQ(failed.code, 1) << failed.out;
   EXPECT_TRUE(contains(failed.err, "error: --resume: ")) << failed.err;
-  auto o = exp({"run", lab("experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"), "--data",
+  auto o = exp({"run", lab("queues/experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"), "--data",
                 data, "--sim-speed", "max"},
                true);
   ASSERT_EQ(o.code, 0) << o.out << o.err;
@@ -273,8 +454,8 @@ TEST_F(ElctlExpTest, ARunThatFailsEarlyLeavesTheNextOneClean) {
 // What a run says is printed under its state lines: here, that each hole of
 // the example laser queue was centered, and by how much.
 TEST_F(ElctlExpTest, ARunsLogIsPrinted) {
-  if (!pychron::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
-  auto o = exp({"run", lab("experiment.laser.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"),
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
+  auto o = exp({"run", lab("queues/experiment.laser.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"),
                 "--data", (dir_ / "out").string(), "--sim-speed", "max"},
                true);
   ASSERT_EQ(o.code, 0) << o.out << o.err;
@@ -294,7 +475,7 @@ TEST_F(ElctlExpTest, ARunsLogIsPrinted) {
 }
 
 TEST_F(ElctlExpTest, DryRunTouchesNothing) {
-  auto o = exp({"run", lab("experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"), "--dry-run"},
+  auto o = exp({"run", lab("queues/experiment.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"), "--dry-run"},
                true);
   EXPECT_EQ(o.code, 0) << o.err;
   EXPECT_TRUE(contains(o.out, "ok: ")) << o.out;
@@ -316,7 +497,7 @@ TEST_F(ElctlExpTest, ASimTomlDetectorTheSpectrometerLacksStopsTheRun) {
   // One it has is that detector's baseline: 50 fA, where the fixed beam the
   // spectrometer has on its own reads nothing off the peaks. (The example
   // queue names scripts, which only the CPython host runs.)
-  if (!pychron::scripting::scripting_enabled()) return;
+  if (!nobion::scripting::scripting_enabled()) return;
   std::ofstream(dir_ / "lab" / "sim.toml") << "[detectors.H1]\nbaseline = 50\n";
   auto ok = run_example_queue();
   ASSERT_EQ(ok.code, 0) << ok.out << ok.err;
@@ -454,36 +635,140 @@ TEST_F(ElctlExpTest, NotifySendsATestOnEachChannel) {
   auto broken = exp({"notify", "--lab", (dir_ / "lab").string()});
   EXPECT_EQ(broken.code, 1);
   EXPECT_TRUE(contains(broken.err, "command[0].argv")) << broken.err;
-  EXPECT_EQ(exp({"notify", lab("experiment.toml")}).code, 2);
+  EXPECT_EQ(exp({"notify", lab("queues/experiment.toml")}).code, 2);
 }
 
 TEST_F(ElctlExpTest, UsageErrors) {
   EXPECT_EQ(exp({}).code, 2);
-  EXPECT_EQ(exp({"launch", lab("experiment.toml")}).code, 2);
+  EXPECT_EQ(exp({"launch", lab("queues/experiment.toml")}).code, 2);
   EXPECT_EQ(exp({"run"}).code, 2);
-  EXPECT_EQ(exp({"run", lab("experiment.toml"), "--sim-speed", "10"}).code, 2);  // needs --sim
-  EXPECT_EQ(exp({"run", lab("experiment.toml"), "--sim-speed", "max"}).code, 2);  // so does max
+  EXPECT_EQ(exp({"run", lab("queues/experiment.toml"), "--sim-speed", "10"}).code, 2);  // needs --sim
+  EXPECT_EQ(exp({"run", lab("queues/experiment.toml"), "--sim-speed", "max"}).code, 2);  // so does max
   for (const char* bad : {"fast", "nan", "inf", "infinity", "4x", "maximum", ""}) {
-    auto o = exp({"run", lab("experiment.toml"), "--sim-speed", bad}, true);
+    auto o = exp({"run", lab("queues/experiment.toml"), "--sim-speed", bad}, true);
     EXPECT_EQ(o.code, 2) << bad;
     EXPECT_TRUE(contains(o.err, "--sim-speed needs a number")) << bad << ": " << o.err;
   }
   for (const char* bad : {"0", "-2"}) {
-    auto o = exp({"run", lab("experiment.toml"), "--sim-speed", bad}, true);
+    auto o = exp({"run", lab("queues/experiment.toml"), "--sim-speed", bad}, true);
     EXPECT_EQ(o.code, 2) << bad;
     EXPECT_TRUE(contains(o.err, "--sim-speed must be positive")) << bad << ": " << o.err;
   }
-  EXPECT_EQ(exp({"run", lab("experiment.toml"), "--from", "1", "--resume"}).code, 2);
-  EXPECT_EQ(exp({"run", lab("experiment.toml"), "--from", "x"}).code, 2);
+  EXPECT_EQ(exp({"run", lab("queues/experiment.toml"), "--from", "1", "--resume"}).code, 2);
+  EXPECT_EQ(exp({"run", lab("queues/experiment.toml"), "--from", "x"}).code, 2);
   auto missing = exp({"validate", lab("nope.toml")});
   EXPECT_EQ(missing.code, 1);
 }
 
 
-#ifndef PYCHRON_ELCTL_HAS_STORE
+TEST_F(ElctlExpTest, ALabDefaultsToTheParentOfItsQueuesDirectory) {
+  const auto q = dir_ / "lab";
+  // Plans and scripts are found only when the lab is q, not q/queues.
+  auto o = run_raw({"-c", (q / "extraction_line.toml").string(), "exp", "validate",
+                    (q / "queues" / "experiment.toml").string(), "--spectrometer",
+                    (q / "spectrometer.sim-integrated.toml").string()});
+  EXPECT_EQ(o.code, 0) << o.out << o.err;
+}
+
+TEST_F(ElctlExpTest, ItsDataGoesToTheLabNotTheQueuesDirectory) {
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
+  const auto q = dir_ / "lab";
+  auto o = run_raw({"-c", (q / "extraction_line.toml").string(), "--sim", "exp", "run",
+                    (q / "queues" / "experiment.toml").string(), "--spectrometer",
+                    (q / "spectrometer.sim-integrated.toml").string(), "--sim-speed", "max"});
+  ASSERT_EQ(o.code, 0) << o.out << o.err;
+  EXPECT_TRUE(fs::exists(q / "data" / "records"));
+  EXPECT_FALSE(fs::exists(q / "queues" / "data"));
+}
+
+// An environment variable set for one test, as it was afterwards.
+class ScopedEnv {
+ public:
+  ScopedEnv(std::string name, const std::string& value) : name_(std::move(name)) {
+    old_ = nobion::env_var(name_.c_str());
+    set(value);
+  }
+  ~ScopedEnv() { set(old_.value_or("")); }
+  ScopedEnv(const ScopedEnv&) = delete;
+  ScopedEnv& operator=(const ScopedEnv&) = delete;
+  ScopedEnv(ScopedEnv&&) = delete;
+  ScopedEnv& operator=(ScopedEnv&&) = delete;
+
+ private:
+  void set(const std::string& value) const {
+#ifdef _WIN32
+    _putenv_s(name_.c_str(), value.c_str());
+#else
+    if (value.empty() && !old_) unsetenv(name_.c_str());
+    else setenv(name_.c_str(), value.c_str(), 1);
+#endif
+  }
+  std::string name_;
+  std::optional<std::string> old_;
+};
+
+// Every file under `dir` and what it holds.
+std::map<fs::path, std::string> files_under(const fs::path& dir) {
+  std::map<fs::path, std::string> files;
+  for (const auto& e : fs::recursive_directory_iterator(dir)) {
+    if (!e.is_regular_file()) continue;
+    std::ifstream in(e.path(), std::ios::binary);
+    files[fs::relative(e.path(), dir)] = std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+  }
+  return files;
+}
+
+// The shipped examples are never written to: run on them, the line's state,
+// the holes autocenter found and the records go to the user's examples folder.
+TEST_F(ElctlExpTest, TheShippedExamplesAreLeftAsTheyAre) {
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
+  const fs::path examples = dir_ / "lab";
+  const fs::path user = dir_ / "user";
+  const ScopedEnv shipped("NOBION_EXAMPLES_DIR", examples.string());
+  const ScopedEnv home("HOME", user.string());
+  const ScopedEnv xdg("XDG_STATE_HOME", (user / "state").string());
+  const ScopedEnv local("LOCALAPPDATA", user.string());
+  const fs::path state = nobion::default_examples_state_dir(nobion::host_os(), nobion::process_env());
+  ASSERT_FALSE(state.empty());
+  const auto before = files_under(examples);
+
+  auto o = exp({"run", lab("queues/experiment.laser.toml"), "--spectrometer", lab("spectrometer.sim-integrated.toml"),
+                "--sim-speed", "max"},
+               true);
+  ASSERT_EQ(o.code, 0) << o.out << o.err;
+  const auto after = files_under(examples);
+  std::string changed;
+  for (const auto& [file, text] : after) {
+    const auto was = before.find(file);
+    if (was == before.end() || was->second != text) changed += " " + file.generic_string();
+  }
+  for (const auto& [file, text] : before)
+    if (!after.contains(file)) changed += " -" + file.generic_string();
+  EXPECT_EQ(changed, "") << "written to in the examples";
+  EXPECT_TRUE(fs::exists(state / "extraction_line.state.toml")) << state;
+  EXPECT_TRUE(fs::exists(state / "stage_corrections" / "co2.example-9.toml")) << state;
+  EXPECT_TRUE(fs::exists(state / "data" / "records" / "66001" / "66001-1.json")) << state;
+  // The field table peak centering saved, beside the copy of what was shipped.
+  EXPECT_TRUE(fs::exists(state / "tables" / "argon" / "2026-09-30T000000.toml")) << state;
+  EXPECT_NE(files_under(state / "tables" / "argon").size(), 2U) << state;
+}
+
+// An install's queue named by its file name alone is found at the install's
+// root when it is not in <install>/queues/. (The shipped queue, in queues/, is
+// covered by ElctlSetupTest.AnInstrumentInstallsChecksAndRunsByName.)
+TEST_F(ElctlExpTest, AQueueByNameIsFoundAtTheInstallsRoot) {
+  const auto root = path("install");
+  const auto made = run_raw({"init", "argus", "--root", root.string(), "--name", "lab", "--yes"});
+  ASSERT_EQ(made.code, 0) << made.out << made.err;
+  fs::rename(root / "queues" / "experiment.toml", root / "experiment.toml");
+  const auto o = run_raw({"--install", "lab", "--sim", "exp", "validate", "experiment.toml"});
+  EXPECT_EQ(o.code, 0) << o.out << o.err;
+}
+
+#ifndef NOBION_ELCTL_HAS_STORE
 
 TEST_F(ElctlExpTest, WithoutPersistenceADatabaseIsRefused) {
-  auto o = exp({"run", lab("experiment.toml"), "--db", "sqlite:" + path("x.db").string()}, true);
+  auto o = exp({"run", lab("queues/experiment.toml"), "--db", "sqlite:" + path("x.db").string()}, true);
   EXPECT_NE(o.code, 0);
   EXPECT_TRUE(contains(o.err, "built without the DVC store")) << o.err;
 }
@@ -494,13 +779,13 @@ TEST_F(ElctlExpTest, WithoutPersistenceAnInstallsRunsAreFilesAndItSaysSo) {
   const auto root = path("install");
   const auto made = run_raw({"init", "argus", "--root", root.string(), "--name", "lab", "--yes"});
   ASSERT_EQ(made.code, 0) << made.out << made.err;
-  const auto o = run_raw({"--install", "lab", "--sim", "exp", "run", (root / "experiment.toml").string(), "--dry-run"});
+  const auto o = run_raw({"--install", "lab", "--sim", "exp", "run", (root / "queues" / "experiment.toml").string(), "--dry-run"});
   EXPECT_EQ(o.code, 0) << o.out << o.err;
   EXPECT_TRUE(contains(o.err, "warning: built without the DVC store: runs are written to " +
                                   (root / "data" / "records").string() + ", not to the installation's database\n"))
       << o.err;
   // Only exp run says it.
-  const auto v = run_raw({"--install", "lab", "--sim", "exp", "validate", (root / "experiment.toml").string()});
+  const auto v = run_raw({"--install", "lab", "--sim", "exp", "validate", (root / "queues" / "experiment.toml").string()});
   EXPECT_FALSE(contains(v.err, "built without")) << v.err;
 }
 
@@ -523,11 +808,11 @@ class ElctlExpStoreTest : public ElctlTest {
     return run_raw(args);
   }
 
-  std::string install_db() const { return "sqlite:" + (root_ / "data" / "pychron.db").string(); }
+  std::string install_db() const { return "sqlite:" + (root_ / "data" / "nobion.db").string(); }
 
   // The queue file with `from` (first occurrence) replaced by `to`.
   fs::path queue_with(const std::string& from, const std::string& to) const {
-    std::ifstream in(root_ / "experiment.toml");
+    std::ifstream in(root_ / "queues" / "experiment.toml");
     std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     const auto at = text.find(from);
     EXPECT_NE(at, std::string::npos);
@@ -538,7 +823,7 @@ class ElctlExpStoreTest : public ElctlTest {
   }
 
   std::vector<std::string> runids(const std::string& url) const {
-    auto store = pychron::persistence::open_store(pychron::persistence::StoreConfig{url, false});
+    auto store = nobion::persistence::open_store(nobion::persistence::StoreConfig{url, false});
     EXPECT_TRUE(store);
     std::vector<std::string> ids;
     if (!store) return ids;
@@ -573,9 +858,9 @@ class ElctlExpStoreTest : public ElctlTest {
 };
 
 TEST_F(ElctlExpStoreTest, AnInstallsQueueGoesToItsDatabase) {
-  if (!pychron::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const auto began = std::chrono::steady_clock::now();
-  const auto o = run_queue(root_ / "experiment.toml");
+  const auto o = run_queue(root_ / "queues" / "experiment.toml");
   ASSERT_EQ(o.code, 0) << o.out << o.err;
   EXPECT_LT(std::chrono::steady_clock::now() - began, std::chrono::seconds(60));
   EXPECT_TRUE(contains(o.out, "5/5 run(s) succeeded; in " + install_db() + "\n")) << o.out;
@@ -587,7 +872,7 @@ TEST_F(ElctlExpStoreTest, AnInstallsQueueGoesToItsDatabase) {
   // The install simulates and the database is its own file: saved there, and
   // each analysis says what made it.
   EXPECT_FALSE(contains(o.err, "note: simulated runs")) << o.err;
-  const auto software = software_meta(root_ / "data" / "pychron.db");
+  const auto software = software_meta(root_ / "data" / "nobion.db");
   ASSERT_EQ(software.size(), 5U);
   for (const auto& text : software) EXPECT_TRUE(contains(text, "\"simulated\":true")) << text;
 }
@@ -596,10 +881,10 @@ TEST_F(ElctlExpStoreTest, AnInstallsQueueGoesToItsDatabase) {
 // every run is measured, says that it was not saved and why, and the last
 // lines say how many are waiting, where, and why.
 TEST_F(ElctlExpStoreTest, RunsTheDatabaseDidNotTakeAreSaidWithTheReason) {
-  if (!pychron::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   {
     QSqlDatabase d = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("exp-refuse-test"));
-    d.setDatabaseName(QString::fromStdString((root_ / "data" / "pychron.db").string()));
+    d.setDatabaseName(QString::fromStdString((root_ / "data" / "nobion.db").string()));
     ASSERT_TRUE(d.open());
     QSqlQuery q(d);
     ASSERT_TRUE(q.exec(QStringLiteral(
@@ -608,7 +893,7 @@ TEST_F(ElctlExpStoreTest, RunsTheDatabaseDidNotTakeAreSaidWithTheReason) {
   }
   QSqlDatabase::removeDatabase(QStringLiteral("exp-refuse-test"));
 
-  const auto o = run_queue(root_ / "experiment.toml");
+  const auto o = run_queue(root_ / "queues" / "experiment.toml");
   EXPECT_EQ(o.code, 0) << o.out << o.err;  // the queue ran and every record is kept
   EXPECT_TRUE(contains(o.out, "run 0 ba-1: success (not saved)")) << o.out;
   EXPECT_TRUE(contains(o.out, "  ba: not saved to the data store, kept in the spool: ")) << o.out;
@@ -626,13 +911,13 @@ TEST_F(ElctlExpStoreTest, RunsTheDatabaseDidNotTakeAreSaidWithTheReason) {
 // the runs are record files, as before there was a database, and it says so
 // once. With --sim-save they go there (and not to the install's).
 TEST_F(ElctlExpStoreTest, ASimulatedSessionSavesToADatabaseGivenByDbOnlyWhenAsked) {
-  if (!pychron::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const std::string other = "sqlite:" + path("other.db").string();
-  ASSERT_TRUE(pychron::persistence::open_store(pychron::persistence::StoreConfig{other, true}));
+  ASSERT_TRUE(nobion::persistence::open_store(nobion::persistence::StoreConfig{other, true}));
   const auto seeded = run_raw({"entry", "seed", (root_ / "seed.toml").string(), "--db", other});
   ASSERT_EQ(seeded.code, 0) << seeded.out << seeded.err;
 
-  const auto kept_out = run_queue(root_ / "experiment.toml", {"--db", other});
+  const auto kept_out = run_queue(root_ / "queues" / "experiment.toml", {"--db", other});
   ASSERT_EQ(kept_out.code, 0) << kept_out.out << kept_out.err;
   const std::string note = "note: simulated runs are written to " + (root_ / "data" / "records").string() +
                            ", not to " + other + "; pass --sim-save to save them there\n";
@@ -649,7 +934,7 @@ TEST_F(ElctlExpStoreTest, ASimulatedSessionSavesToADatabaseGivenByDbOnlyWhenAske
     EXPECT_TRUE(contains(record, "\"simulated\" : true")) << record.substr(0, 600);  // the file says so too
   }
 
-  const auto asked = run_queue(root_ / "experiment.toml", {"--db", other, "--sim-save"});
+  const auto asked = run_queue(root_ / "queues" / "experiment.toml", {"--db", other, "--sim-save"});
   ASSERT_EQ(asked.code, 0) << asked.out << asked.err;
   EXPECT_FALSE(contains(asked.err, "note: simulated runs")) << asked.err;
   EXPECT_TRUE(contains(asked.out, "; in " + other + "\n")) << asked.out;
@@ -665,7 +950,7 @@ TEST_F(ElctlExpStoreTest, ASimulatedSessionSavesToADatabaseGivenByDbOnlyWhenAske
 // --sim-save asks for a database to save to.
 TEST_F(ElctlExpStoreTest, SimSaveWithoutADatabaseIsRefused) {
   const auto o = run_raw({"-c", (root_ / "extraction_line.toml").string(), "--sim", "exp", "run",
-                          (root_ / "experiment.toml").string(), "--sim-save", "--dry-run"});
+                          (root_ / "queues" / "experiment.toml").string(), "--sim-save", "--dry-run"});
   EXPECT_NE(o.code, 0) << o.out;
   EXPECT_TRUE(contains(o.err, "error: --sim-save: there is no database to save to")) << o.err;
 }
@@ -686,7 +971,7 @@ TEST_F(ElctlExpStoreTest, DryRunSaysWhatTheDatabaseLacks) {
   EXPECT_TRUE(contains(o.err, "error: identifier 'zz9' is not in the database")) << o.err;
   EXPECT_TRUE(runids(install_db()).empty());
   // A queue the database can take is just checked.
-  const auto fine = run_queue(root_ / "experiment.toml", {"--dry-run"});
+  const auto fine = run_queue(root_ / "queues" / "experiment.toml", {"--dry-run"});
   EXPECT_EQ(fine.code, 0) << fine.out << fine.err;
 }
 
@@ -694,7 +979,7 @@ TEST_F(ElctlExpStoreTest, DryRunSaysWhatTheDatabaseLacks) {
 // database cannot take is refused from the top, and checked and run from
 // the second row.
 TEST_F(ElctlExpStoreTest, TheCheckIsOfTheRowsThatWillRun) {
-  if (!pychron::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const auto queue = queue_with("identifier = \"ba\"", "identifier = \"zz9\"");  // row 0
   const auto whole = run_queue(queue, {"--dry-run"});
   EXPECT_NE(whole.code, 0) << whole.out;
@@ -713,7 +998,7 @@ TEST_F(ElctlExpStoreTest, TheCheckIsOfTheRowsThatWillRun) {
 
 TEST_F(ElctlExpStoreTest, ADatabaseThatCannotBeOpenedIsFatal) {
   // --sim-save: without it a simulated session would not open a database given with --db at all.
-  const auto o = run_queue(root_ / "experiment.toml", {"--db", "sqlite:/nonexistent/dir/x.db", "--sim-save"});
+  const auto o = run_queue(root_ / "queues" / "experiment.toml", {"--db", "sqlite:/nonexistent/dir/x.db", "--sim-save"});
   EXPECT_TRUE(contains(o.err, "x.db") || contains(o.err, "unable to open database")) << o.err;
   EXPECT_NE(o.code, 0);
   EXPECT_FALSE(contains(o.out, "queue ")) << o.out;
@@ -732,16 +1017,16 @@ class ElctlExpUnreadableDatabaseTest : public ElctlExpStoreTest {
     const auto at = site.find("database = '");
     ASSERT_NE(at, std::string::npos) << site;
     const auto end = site.find('\n', at);
-    site.replace(at, end - at, "database = 'postgresql://jross@db.lab/pychron'");
+    site.replace(at, end - at, "database = 'postgresql://jross@db.lab/nobion'");
     std::ofstream(path("site.toml")) << site;
-    fs::create_directories(root_ / ".pychron");
-    std::ofstream(root_ / ".pychron" / "credentials.toml") << "[database\npassword = \"s3cret\n";
+    fs::create_directories(root_ / ".nobion");
+    std::ofstream(root_ / ".nobion" / "credentials.toml") << "[database\npassword = \"s3cret\n";
   }
 };
 
 TEST_F(ElctlExpUnreadableDatabaseTest, AnInstallWhosePasswordCannotBeReadIsNotRun) {
   for (const char* extra : {"", "--dry-run"}) {
-    const auto o = run_queue(root_ / "experiment.toml", extra[0] != '\0' ? std::vector<std::string>{extra} : std::vector<std::string>{});
+    const auto o = run_queue(root_ / "queues" / "experiment.toml", extra[0] != '\0' ? std::vector<std::string>{extra} : std::vector<std::string>{});
     EXPECT_NE(o.code, 0) << o.out;
     EXPECT_TRUE(contains(o.err, "error: the installation's database:")) << o.err;
     EXPECT_FALSE(contains(o.err, "s3cret")) << o.err;
@@ -749,37 +1034,37 @@ TEST_F(ElctlExpUnreadableDatabaseTest, AnInstallWhosePasswordCannotBeReadIsNotRu
   }
   EXPECT_FALSE(fs::exists(root_ / "data" / "records"));
   // Only exp run minds.
-  const auto v = run_raw({"--install", "lab", "--sim", "exp", "validate", (root_ / "experiment.toml").string()});
+  const auto v = run_raw({"--install", "lab", "--sim", "exp", "validate", (root_ / "queues" / "experiment.toml").string()});
   EXPECT_EQ(v.code, 0) << v.out << v.err;
   EXPECT_FALSE(contains(v.err, "installation's database")) << v.err;
 }
 
 TEST_F(ElctlExpUnreadableDatabaseTest, DbOverridesAnUnreadableInstallDatabase) {
-  if (!pychron::scripting::scripting_enabled()) GTEST_SKIP() << "built without PYCHRON_SCRIPTING";
+  if (!nobion::scripting::scripting_enabled()) GTEST_SKIP() << "built without NOBION_SCRIPTING";
   const std::string other = "sqlite:" + path("other.db").string();
-  ASSERT_TRUE(pychron::persistence::open_store(pychron::persistence::StoreConfig{other, true}));
+  ASSERT_TRUE(nobion::persistence::open_store(nobion::persistence::StoreConfig{other, true}));
   const auto seeded = run_raw({"entry", "seed", (root_ / "seed.toml").string(), "--db", other});
   ASSERT_EQ(seeded.code, 0) << seeded.out << seeded.err;
-  const auto o = run_queue(root_ / "experiment.toml", {"--db", other, "--sim-save"});
+  const auto o = run_queue(root_ / "queues" / "experiment.toml", {"--db", other, "--sim-save"});
   ASSERT_EQ(o.code, 0) << o.out << o.err;
   EXPECT_EQ(runids(other).size(), 5U);
 }
 
 TEST_F(ElctlExpStoreTest, ASchemaThatIsBehindSaysWhatToRun) {
   {
-    auto store = pychron::persistence::open_store(pychron::persistence::StoreConfig{install_db(), false});
+    auto store = nobion::persistence::open_store(nobion::persistence::StoreConfig{install_db(), false});
     ASSERT_TRUE(store);
   }
   {
     QSqlDatabase d = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("exp-store-test"));
-    d.setDatabaseName(QString::fromStdString((root_ / "data" / "pychron.db").string()));
+    d.setDatabaseName(QString::fromStdString((root_ / "data" / "nobion.db").string()));
     ASSERT_TRUE(d.open());
     QSqlQuery q(d);
     ASSERT_TRUE(q.exec(QStringLiteral("DELETE FROM schema_version WHERE version = (SELECT max(version) FROM schema_version)")));
     d.close();
   }
   QSqlDatabase::removeDatabase(QStringLiteral("exp-store-test"));
-  const auto o = run_queue(root_ / "experiment.toml");
+  const auto o = run_queue(root_ / "queues" / "experiment.toml");
   EXPECT_NE(o.code, 0);
   EXPECT_TRUE(contains(o.err, "elctl db migrate --db")) << o.err;
   EXPECT_FALSE(contains(o.out, "queue ")) << o.out;

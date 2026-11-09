@@ -1,6 +1,6 @@
 # The extraction line
 
-The extraction-line window is the first window Pychron opens and the one the
+The extraction-line window is the first window Nobion opens and the one the
 other windows hang off. It shows your gas-handling line as a drawing: valves,
 gauges, pumps, pipettes and the stages (volumes) between them, with the
 state of each one live. Around the drawing are docks for alarms, the log, and
@@ -17,9 +17,9 @@ Related pages: [getting started](01-getting-started.md),
 
 ## Opening the window
 
-- It opens when Pychron starts. The title bar reads `pychron - <system name>`,
+- It opens when Nobion starts. The title bar reads `Nobion — <system name>`,
   where the name is `[system] name` in `extraction_line.toml`.
-- From any other Pychron window, choose **View > Extraction Line**
+- From any other Nobion window, choose **View > Extraction Line**
   (Ctrl+Shift+L, Cmd+Shift+L on a Mac) to bring it back to the front.
 - The other **View** entries (Spectrometer, Experiment, Data, Laser) are
   greyed out until the thing they open has loaded. The spectrometer, for
@@ -30,54 +30,113 @@ Related pages: [getting started](01-getting-started.md),
   preferences (on a Mac the platform may move it to the application menu). **Help > Command palette** (Ctrl+Shift+P) and
   **Help > Keyboard shortcuts** list everything else.
 
+## The status band and the alarm strip
+
+A light grey band runs across the top of the canvas. Left to right:
+
+| Field | What it says |
+|---|---|
+| Mode | `LIVE` (grey) on real hardware; `SIMULATED` (teal), or `SIMULATED x50` with `--sim-speed 50`, in a simulation. |
+| Line | The line's name. |
+| Executor | `No experiment session`, `Idle`, `Preparing queue`, `Running 66120-01A`, `Holding: <why>` (amber), `Stopping after …`, `Cancelling`, `Aborting` (amber), `Finishing queue`. |
+| Alarms | `No alarms`, or the count of standing alarms: `1 critical · 2 warning` (red while any is critical, amber for warnings only). Click it for the Alarms dock. |
+| Connections | `Connections ok (6)`, or what is wrong: `1 down · 1 degraded` (red while one is down, amber while one is degraded). The status bar at the bottom has a chip for each. |
+| Clock | The time on the line's clock: simulated time in a simulation. |
+
+Normal states are plain text; colour means something needs looking at.
+
+Under the band, the **alarm strip** shows the three most pressing standing
+alarms, critical before warning and newest first, then `+N more`. It is
+there only while a warning or critical alarm stands (`info` alarms stay in
+the dock). Click it for the Alarms dock; alarms are acknowledged there.
+
 ## Reading the canvas
+
+The **Legend** button at the top right of the canvas opens a key to every
+symbol below, drawn as this canvas draws it (in its valve style and
+colours), with one row for each source colour of this line. It stays open
+while you work; press the button again, or Esc, to close it.
 
 | What you see | What it means |
 |---|---|
-| A rounded square labelled with a name | An actuated valve (`[[valve]]` / `[[rough_valve]]` in the canvas). |
-| A rounded square with a small handwheel in the corner | A manual valve: nobody can drive it, you tell Pychron what you did (see below). |
-| A circle | A switch (`[[switch]]`): pump power, a heater relay, a shutter. |
-| Green valve | Open. |
-| Red valve | Closed. |
-| Grey valve | State unknown (not read yet, or the last command or read-back failed). |
+| A box holding a bow-tie (two triangles tip to tip) with a small dome on a stem | An actuated valve (`[[valve]]` / `[[rough_valve]]` in the canvas). It lies along its pipe; one whose pipes leave only above and below stands upright, its stem to the left. Its name is written beside it, on a side no pipe leaves by. |
+| A box holding a bow-tie with a T bar on its stem | A manual valve: nobody can drive it, you tell Nobion what you did (see below). |
+| A box holding a circle | A switch (`[[switch]]`): pump power, a heater relay, a shutter. |
+| Box in a section's colour, white glyph | Open: the box takes the colour of the gas it joins (see [Colors](#colors-show-where-gas-can-go)); light grey when that section has no source. With `valve_style = "redgreen"` in `[canvas]`: a green box. |
+| Grey box, black glyph | Closed. With `valve_style = "redgreen"`: a red box. |
+| White hatched box, grey glyph | State unknown (not read yet, or the last command or read-back failed). |
 | Dashed outline around a valve | A command is in flight (waiting on the controller, the settle time and the read-back). |
-| Thick coloured border on a valve | The valve is **locked** in software. |
+| Accent outline around a valve | Its faceplate is open (or, in a rehearsal, the last step changed it). |
+| Blue padlock on a valve's corner | The valve is **locked** in software. |
 | Valve flashes yellow | The last command was refused or failed. Hover for the reason. |
-| A rounded chip with a small dial and `IG1: 1.20e-08 torr` | A gauge and its latest reading. The chip text turns red while the reading is outside `alarm_high` / `alarm_low`. |
-| A gauge chip that shows only its name | The canvas draws a gauge that `extraction_line.toml` does not define; it is decoration and never shows a reading. |
-| Boxes (stages) | Volumes: prep line, bone, turbo, spectrometer, tanks. Some carry a glyph (turbo, ion pump, getter, spectrometer, laser, quadrupole). |
+| A rounded chip with a small dial and `IG1: 1.20e-08 torr` | A gauge and its latest reading. The chip text turns red while the reading is outside `alarm_high` / `alarm_low`. Rest the pointer on it for a moment (under a second) and a small chart of its last 10 minutes appears beside it (it goes when the pointer moves off, the canvas scrolls or a button is pressed). Click it to open the gauge's own window (see [Gauges](#gauges)). |
+| A grey gauge chip with a dashed outline and an age, `CG1: 1.00e-09 torr · 45 s` | No new reading for three scans (3 s at the default `scan_interval_ms`): the value is old, and so is any alarm it showed (grey wins over red). `no reading` when the gauge has not answered since the window opened. The next reading clears it. |
+| A gauge chip that shows only its name | The canvas draws a gauge that `extraction_line.toml` does not define; it is decoration and never shows a reading. Resting on it or clicking it does nothing. |
+| Boxes (stages) | Volumes: prep line, stage1, turbo, spectrometer, tanks. Some carry a glyph (turbo, ion pump, roughing pump, cryo, getter, spectrometer, laser, quadrupole). |
 | Pipes | Connections between boxes and valves. |
 
 The canvas is a fixed drawing; it does not zoom. Its size and scale come from
 `[canvas] size` in `canvas.toml`.
 
-### Colours show where gas can go
+### Colors show where gas can go
 
-Boxes and pipes are not one fixed colour. Pychron works out which volumes are
+Boxes and pipes are not one fixed color. Nobion works out which volumes are
 connected through open valves and paints each connected region with the
-colour of the most important source attached to it:
+color of the most important source attached to it:
 
 1. a pump (turbo, ion pump, rough pump) wins over
-2. a tank (each tank has its own colour), which wins over
+2. a tank (each tank has its own color), which wins over
 3. a pipette or a laser, which wins over
 4. a spectrometer, which wins over
 5. a getter.
 
 A region with no source stays neutral grey. So opening a valve between the
-prep line and a pumped turbo visibly turns the prep line the pump colour, and
-opening a pipette shows whose gas it holds. A pipette wears the colour of the
-tank across its valve unless the canvas gives it a colour of its own.
+prep line and a pumped turbo visibly turns the prep line the pump color, and
+opening a pipette shows whose gas it holds. A pipette wears the color of the
+tank across its valve unless the canvas gives it a color of its own.
 
-If `open_valve_color = "inherit"` is set in `[canvas]`, open valves take the
-colour of the region they join instead of green. By default they stay green.
+An open valve's box takes the color of the region it joins. With
+`valve_style = "redgreen"` open valves are green instead, unless
+`open_valve_color = "inherit"` is also set in `[canvas]`.
+
+### A tour of the example line
+
+The example line in `configs/examples` (what `--examples` and `--sim` open
+with nothing installed) has one of nearly everything this page describes,
+so each can be tried on the simulator:
+
+- **Main row**, left to right: the CO2 laser chamber (`laser`), valve `L`,
+  `stage1`, valve `A`, the prep line (`prep`), the inlet `B`, the
+  spectrometer (`spec`), valve `I` and the ion pump (`ion`).
+- **Cleanup**, above: `getter1` behind `G1` (on `stage1`), `getter2` behind
+  `G2` and the cryo trap (`cryo`) behind `Y` (both on `prep`). Gauge `IG2`
+  sits on `stage1` with no valve between them.
+- **Pipettes**, below `prep`: `air` between `P1` and `P2`, filled from
+  `air_tank`, and `cocktail` between `Q1` and `Q2`, filled from
+  `cocktail_tank`. Each pair is interlocked.
+- **Pumping and roughing**: `C` joins `prep` to `turbo` (gauges `IG1` and
+  `PG1`), and `D` joins `stage1` to `turbo2`. Their forelines go through the
+  rough valves `R1` and `R2` and the manual valves `M1` and `M2` to the
+  roughing pump (`rough`, gauge `CG1`, on a second gauge controller).
+- **Elsewhere**: the `pump_power` switch, a heater named `bakeout` in the
+  [heaters dock](#heaters-dock) and a cryostat in the
+  [cryo dock](#cryo-dock) with the setpoints `Ar_freeze` and `Ar_release`.
+
+Its 13 stages are `laser`, `stage1`, `prep`, `spec`, `ion`, `getter1`,
+`getter2`, `cryo`, `turbo`, `turbo2`, `rough`, `air_tank` and
+`cocktail_tank`. Every valve starts closed and the example queues' scripts
+move only B, C, P1 and P2, so the getters, the cryo trap, the second turbo
+and the cocktail pipette leave the queue's gas alone until you open them.
+The extraction script `sim_cocktail.py` (not in any shipped queue) takes a
+shot from the cocktail pipette.
 
 ## Working a valve
 
 | Action | What happens |
 |---|---|
-| **Left-click** a valve | Toggles it: closed or unknown opens it, open closes it. A second click while the first is still pending is ignored. |
-| **Right-click** a valve | Menu with **Lock valve** or **Unlock valve**. Unlocking asks "Unlock X? It will accept open and close commands again." |
-| **Hover** a valve | Tooltip: name, description, state and since when, whether it is locked or owned, last actuation time, counts of opens / closes / failures, total time open, and the last failure message. |
+| **Left-click** a valve | Opens its faceplate beside it: what it is, its state and since when, the valves its opening waits on (each *met* or *not met*), its history, the last failure, and the buttons **Open** / **Close** and **Lock** / **Unlock**. Nothing moves until you press one. Unlocking asks "Unlock X? It will accept open and close commands again." A locked valve's Open and Close are greyed out. Esc or a click elsewhere closes the faceplate. A manual valve's faceplate, and any in a rehearsal, has no buttons. |
+| **Option-click** (Alt-click) a valve | Toggles it at once: closed or unknown opens it, open closes it. A second click while the first is still pending is ignored. |
+| **Hover** a valve | Tooltip: name and description, then one row each for state and since when (and whether it is locked), owner, last actuation time, counts of opens / closes / failures / refusals, total time open, and the last failure message. |
 
 The tooltip history (counts, time open) is kept between runs.
 
@@ -90,7 +149,7 @@ running experiment, goes through one gatekeeper in this order:
    Refusal text: `'X' is software locked`.
 2. **Owner.** A valve can be claimed by one user of the line; a claimed valve
    accepts commands only from its owner (`'X' is owned by 'a', not 'b'`).
-   The tooltip shows `owned by ...`. Pychron's own windows act as `ui` and do
+   The tooltip shows it on its **Owner** row. Nobion's own windows act as `ui` and do
    not claim valves, so you will normally never meet an owner. Ownership is
    not saved: it is gone after a restart.
 3. **Interlocks**, only when **opening** (closing is never interlocked):
@@ -102,7 +161,7 @@ running experiment, goes through one gatekeeper in this order:
    - *Required valves* (`positive_interlocks = ["B"]`): every listed valve
      must be open first. Refusal text: `cannot open 'A': requires 'B' open,
      it is closed`. Closing a prerequisite later is allowed.
-4. **Command, settle, read-back.** The command is sent, Pychron waits the
+4. **Command, settle, read-back.** The command is sent, Nobion waits the
    valve's `settle_ms`, then asks the hardware what state it is really in.
    If the answer is not the state commanded, the valve is recorded as what
    the hardware said and the error is `'X' read back closed after open`.
@@ -119,10 +178,10 @@ Important consequences:
   the health bar.
 - Operations are one at a time. Two people (or a script and a person) cannot
   open interlocked valves at the same instant.
-- Interlocks look at the state Pychron has *recorded*. For a valve with
+- Interlocks look at the state Nobion has *recorded*. For a valve with
   `verify = false` (no read-back) that is the state last commanded, not
   measured.
-- Interlocks rest on what Pychron has recorded. Actuated valves are read back
+- Interlocks rest on what Nobion has recorded. Actuated valves are read back
   from the hardware when the line starts and after each command; a valve
   moved by hand at the hardware afterwards is not noticed until then.
 
@@ -131,7 +190,7 @@ Important consequences:
 A lock is written to a state file beside `extraction_line.toml`
 (`<config name>.state.toml`, for example `extraction_line.state.toml`) and is
 restored the next time the line starts. If a valve refuses everything and you
-do not know why, it is probably locked: right-click it. Manual valves cannot
+do not know why, it is probably locked: click it and look at its faceplate. Manual valves cannot
 be locked.
 
 The state file also holds each valve's history, and the last state of
@@ -143,8 +202,8 @@ truth.
 
 A manual valve (a handwheel on the line) has no actuator. Clicking it does not
 move anything; it records your report that you opened or closed it, so
-interlocks and the colours know the truth. Click it after you turn the
-wheel. Its state is whatever someone last told Pychron.
+interlocks and the colors know the truth. Click it after you turn the
+wheel. Its state is whatever someone last told Nobion.
 
 ### Pipettes
 
@@ -154,10 +213,30 @@ also interlocks the two valves so they can never both be open.
 
 ## Gauges
 
-Gauges are drawn as chips on the canvas. Pychron reads each gauge every
-`scan_interval_ms` (default 1000 ms) in the background; there is no separate
-gauge window. Readings are in the gauge's configured units (`torr`, `mbar` or
-`pa`) in scientific notation.
+Gauges are drawn as chips on the canvas. Nobion reads each gauge every
+`scan_interval_ms` (default 1000 ms) in the background. Readings are in the
+gauge's configured units (`torr`, `mbar` or `pa`) in scientific notation.
+
+Clicking a gauge's chip opens a window of that gauge's readings over time:
+
+- **Range**: the last 10 minutes (the default), 30 minutes, 1 hour, 6 hours
+  or 24 hours (`10 min` to `24 h`).
+- **Log**: a pressure that moves over decades reads better on a log
+  axis; off, the axis is linear.
+- The gauge's `alarm_high` and `alarm_low`, when set, are drawn as
+  horizontal lines whenever they fall inside the view.
+- A header with the latest reading and the lowest and highest of the range.
+- **Copy** puts the points shown on the clipboard as text, a time and a value
+  a line separated by a tab, for a spreadsheet.
+
+The range, the scale and where the window sits are remembered for each gauge.
+Clicking the chip again brings the open window to the front.
+
+The history begins when the program starts and holds the last 24 hours; it is
+not kept when the program closes. When the range asked for is longer than what
+is held, the header says since when the readings go back. For longer records,
+and across restarts, use the observability dashboards
+([observability](../observability.md)).
 
 Alarm limits are optional, per gauge: `alarm_high` and `alarm_low`.
 
@@ -172,10 +251,13 @@ From a terminal, `elctl read <gauge>` takes one reading and
 
 ## Pumps
 
-Pychron has no "pump" widget. A pump appears in two ways:
+Nobion has no "pump" widget. A pump appears in two ways:
 
 - as a **stage** in the canvas with `kind = "pump"` (or a turbo, ion pump
-  glyph): it only colours the region it is connected to, as described above;
+  or roughing pump glyph): it only colors the region it is connected to, as
+  described above. A `cryo` glyph draws a cold head and says nothing about
+  the gas, since a cryo trap and a cryopump look alike: give a cryopump
+  `kind = "pump"`;
 - as a **switch** (`[[switches]]` in the line, `[[switch]]` in the canvas),
   such as `pump_power`. Switches are clicked like valves (circle, no
   interlocks of their own).
@@ -195,7 +277,7 @@ or more `[[heaters]]`. Each row has:
 Under the rows is a message line and a strip chart of every heater's
 readback. A control is disabled while its command is pending, and permanently
 greyed out when the heater's driver does not support it (for example a PLC
-heater configured without a `use_pid` coil). After each command Pychron reads
+heater configured without a `use_pid` coil). After each command Nobion reads
 the same field back; a mismatch is reported as an error and the row snaps
 back to what the heater actually says. Errors go to the status line and to
 the log dock as `ERROR [heater] ...`. Heaters are scanned like gauges; one
@@ -246,6 +328,9 @@ cryostat and the spectrometer have raised: columns Source, Severity
   press **Acknowledge**, or press **Acknowledge all**. Acknowledging only
   removes the row; it does not silence the hardware.
 - The gauge chip's red text follows the live reading, independent of the dock.
+- The status band counts the standing warning and critical rows, and the
+  alarm strip under it shows the three most pressing; both follow the dock
+  (see [The status band and the alarm strip](#the-status-band-and-the-alarm-strip)).
 
 ## Log dock
 
@@ -258,12 +343,12 @@ Controls on its toolbar:
 |---|---|
 | Level box | Hide everything below this level (trace, debug, info, warn, error). |
 | `logger (prefix or glob)` | Show only matching loggers. `valve_bus` also matches `valve_bus.wire`; `*.wire` matches every wire log. |
-| `message contains` | Case-insensitive text filter on the message. |
+| `text contains` | Case-insensitive text filter on the message, the thread and the run. |
 | **Pause** | Stop adding lines so you can read; a `+N new` badge counts what you are missing. Un-pause to catch up. |
 | **Clear** | Empties the dock (not the log file). |
 | **Autoscroll** | Follow the newest line while you are at the bottom. |
-| **Save...** | Writes the lines currently visible (after filters) to a text file. |
-| **Set logger level...** | Asks for a logger name or glob and a level and applies it now (for example `valve_bus.wire` at `trace` to watch bytes). Only shown when logging could be started. |
+| **Save...** | Writes the lines currently visible (after filters) to a text file, one per line: `time LEVEL [thread] [logger] message` (with `run=<id>` after the thread when the line has one). |
+| **Set logger level...** | Asks for a logger name or glob and a level and applies it now (for example `valve_bus.wire` at `trace` to watch bytes). When the level is below what the panel shows (`dock_level`, normally `info`), the panel is lowered to it for this session too, and says so. Only shown when logging could be started. |
 
 Logger names to know: `extraction_line`, `switches` (every valve actuation,
 failure and lock change), `scheduler`, and `<transport name>.wire` (the raw
@@ -276,17 +361,57 @@ here too (`ERROR [ui] spectrometer not loaded: ...`).
 
 ### The log file
 
-If `extraction_line.toml` has `[logging] dir = "..."`, every record is also
-written to `pychron.log` in that folder, rotated at `max_size_mb` (default
-10) keeping `max_files` files (default 5). Lines look like
-`2026-10-01T14:03:22.481Z [warn] valve_bus: message`. When the program
-starts it reads the tail of that file back into the dock (up to 10 000
-lines), so you see what happened before the last restart. With no `dir`
-there is no file and the dock starts empty.
+Every record is also written to a log file, `nobion.log` for the window and
+`elctl.log` for `elctl`, whether or not a line is open. The file is kept by
+default: for an install it is `<install>/logs`; without one it is
+`~/Library/Logs/nobion` on macOS, `$XDG_STATE_HOME/nobion/logs` (or
+`~/.local/state/nobion/logs`) on Linux and `%LOCALAPPDATA%\nobion\logs` on
+Windows.
 
-For hardware faults, set `"*.wire" = "trace"` under `[logging.levels]` or
-use **Set logger level...** and send the log (or a `trace` capture,
-below) along with the problem report.
+How it is kept is set in `logging.toml` in the install folder, and
+`logging.local.toml` beside it for this computer only. File > Preferences >
+Logging writes the second. Both hold plain keys at the top level:
+
+```toml
+default_level = "debug"   # everything not named below; debug when not set
+dock_level = "info"       # what the Log panel shows
+max_size_mb = 50          # start a new file at this size
+max_files = 10            # files kept
+dir = "D:/nobion-logs"   # another folder; dir = "" writes no file
+echo_stderr = false       # also print to the terminal
+
+[levels]
+"*.wire" = "trace"        # per logger, * stands for any part
+```
+
+The file records at `default_level`, which is `debug` unless you change it;
+the Log panel shows only `dock_level` and above. A `[logging]` table in
+`extraction_line.toml` (and its `.local.toml`) is still read, with
+`logging.toml` over it, so an older install keeps working until you move it.
+Layers are read in this order, the later one winning: the built-in defaults,
+`extraction_line.toml`'s `[logging]`, its `.local.toml`'s `[logging]`,
+`logging.toml`, `logging.local.toml`. The Logging page writes only what you
+changed into `logging.local.toml`, so editing a lower file later still
+takes effect. There is no way to say "unset" in a file: to go back to the
+default folder after a lower layer set `dir`, remove `dir` from that file.
+
+Lines look like
+`2026-10-23T10:21:20.317Z [debug] [run] run=bu-01 device.actuator1: close ok in 0 ms`:
+time (UTC), level, the thread that wrote it, the run in progress, and the
+logger. The run is named as the queue shows it (`bu-01`: identifier,
+aliquot, step). Threads have names (`run` for the thread that carries out a run,
+`queue`, `scheduler`, `ui`, `transport.<name>` and so on); a thread without
+one shows as a number (`t3`). The `run=<id>` field is there only on lines
+written while a run is in progress. The Log panel has the thread in its
+Thread column and the run in its Run column. The troubleshooting chapter
+("Logs") shows what a whole run looks like and how to pick out one run.
+When the program starts it reads the tail of the file back into the panel
+(the last 1000 lines at `dock_level` and above), old lines in the earlier
+format too, so you see what happened before the last restart.
+
+For hardware faults, set `"*.wire" = "trace"` under `[levels]` or use
+**Set logger level...** and send the log (or a `trace` capture, below) along
+with the problem report.
 
 ## Panels and arrangements
 
@@ -325,10 +450,10 @@ panels go back to the installed layout and the log shows
   through at the valve's conductance, so the pressures the simulated gauges
   report change over a moment, not at once; pumped volumes pump down, static
   ones rise, and gauges have a little noise.
-- `pychron-ui --sim` forces **every** transport to `sim`, whatever the config
+- `nobion --sim` forces **every** transport to `sim`, whatever the config
   says. An installation set up "for simulation" does this automatically. With
   nothing installed, `--sim` (or `--examples`) opens the example line shipped
-  with Pychron.
+  with Nobion.
 - The splash screen shows a **SIMULATION** badge; the spectrometer, experiment
   and laser windows say `(Simulation)` in their titles. The extraction-line
   window's own title does **not**, so check the health bar chip names or the
@@ -350,7 +475,7 @@ panels go back to the installed layout and the log shows
 To move from simulation to a real line, change each transport from
 `kind = "sim"` to `serial` or `tcp` with a port or host (see below), run
 `elctl validate` and `elctl probe`, and start with `elctl state` before
-opening anything. Run the setup wizard again (`pychron-ui --setup`, or
+opening anything. Run the setup wizard again (`nobion --setup`, or
 `elctl init --reconfigure`) to switch an installation out of simulation; see
 [getting started](01-getting-started.md) and the
 [installation runbook](../installation_runbook.md).
@@ -412,8 +537,8 @@ The file has one section per kind of thing. Here is the shipped example
 name = "example"            # shown in the window title
 scan_interval_ms = 1000     # how often gauges/heaters/cryo are read
 
-[logging]                   # optional
-# dir = "~/pychron-logs"    # no dir = no log file
+[logging]                   # optional; older place, see "The log file"
+# dir = "~/nobion-logs"    # no dir = the default log folder; dir = "" = no file
 default_level = "info"      # trace|debug|info|warn|error
 # [logging.levels]
 # "*.wire" = "trace"        # per-logger overrides, glob on logger name
@@ -433,14 +558,14 @@ transport = "valve_bus"
 [drivers.ig_controller]
 kind = "pfeiffer_maxigauge"
 transport = "gauge_net"
-channels = [1, 2]
+channels = [1, 2, 3]
 
 [[valves]]                  # an actuated valve
 name = "A"
-description = "Furnace to prep"
+description = "Stage 1 to prep"
 actuator = "actuator1"      # which driver moves it
 address = "1"               # the driver's own address (relay number, coil, ...)
-interlocks = ["C"]          # cannot open while C is open or unknown (both ways)
+interlocks = ["C", "D"]     # cannot open while C or D is open or unknown (both ways)
 settle_ms = 500             # wait this long before reading it back
 
 [[valves]]
@@ -471,6 +596,21 @@ name = "air"
 inner = "P1"
 outer = "P2"
 
+[cryo]                      # the cryo trap's temperature controller
+driver = "cryostat"         # a [drivers.cryostat] of kind "lakeshore"
+tolerance_k = 1.0           # "at setpoint" band for a blocking set_cryo
+timeout_s = 600             # a blocking set_cryo not there by then fails
+
+[cryo.setpoints]            # names a script's set_cryo may use
+Ar_freeze = [70.0, 0.0]     # kelvin for outputs 1 and 2
+Ar_release = [300.0, 0.0]
+
+[[heaters]]                 # a row in the Heaters dock
+name = "bakeout"
+driver = "bakeout_plc"      # a [drivers.bakeout_plc] of kind "plc2000_heater"
+description = "Line bakeout tape"
+units = "C"                 # shown beside the readback
+
 # Names that measurement plans use as '@valves.inlet', '@extraction.eqtime'.
 [aliases]
 valves.inlet = "B"
@@ -482,7 +622,7 @@ Other things a valve or switch may carry:
 | Key | Use |
 |---|---|
 | `positive_interlocks` | valves that must be **open** before this one opens |
-| `inverted = true` | the channel is wired backwards; Pychron still shows the valve's real state |
+| `inverted = true` | the channel is wired backwards; Nobion still shows the valve's real state |
 | `state_source = { driver = "...", address = "...", inverted = false }` | read the state from another device (some labs read autovalve states from a second unit) |
 | `verify = false` | do not read back; trust the command (legacy `query_state = false`). Interlocks then rest on the commanded state. Cannot be combined with `state_source`. |
 
@@ -515,7 +655,8 @@ is plumbed to what. Positions are pixels in a box of `[canvas] size`.
 origin = [0, 0]
 size = [1000, 700]               # the drawing area
 connection_width = 6             # pipe thickness
-# open_valve_color = "inherit"   # open valves wear the region colour
+# valve_style = "redgreen"        # legacy boxes: open green, closed red (default "hmi": open in the region color, closed grey)
+# open_valve_color = "inherit"   # with "redgreen": open valves wear the region color
 
 [colors]
 # background = "#f4f6f8"        # behind the drawing; left out: the application's own
@@ -538,15 +679,15 @@ name = "turbo"
 pos = [650, 300]                 # the box's CENTRE
 size = [60, 40]
 kind = "pump"                    # pump | tank | spectrometer | getter | laser | pipette
-# symbol = "turbo"               # glyph: spectrometer quadrupole laser turbo getter ion_pump
+# symbol = "turbo"               # glyph: spectrometer quadrupole laser turbo getter ion_pump cryo roughing_pump
 # display_name = "Turbo"         # label ("" for none)
-# color = "#8fd3ff"              # override region colour
-# precedence = 120               # override who wins a shared region (0: colours nothing)
+# color = "#8fd3ff"              # override region color
+# precedence = 120               # override who wins a shared region (0: colors nothing)
 
 [[pipette]]                      # must match a [[pipettes]] entry in the line
 name = "air"
 pos = [400, 420]
-# tank = "air_tank"              # whose gas it holds (colour); "" = its own colour
+# tank = "air_tank"              # whose gas it holds (color); "" = its own color
 
 [[connection]]                   # a pipe between two named things
 start = "prep"
@@ -571,7 +712,7 @@ pos = [100, 50]
 Other sections the loader accepts: `[colors]`, `[[rough_valve]]` (drawn as a
 valve), `[[switch]]`, `[[cross]]`, `[[image]]` and `[legend]`.
 
-The line and the canvas are checked against each other when Pychron starts:
+The line and the canvas are checked against each other when Nobion starts:
 
 - A canvas valve, manual valve, switch or pipette whose name is not defined
   in `extraction_line.toml` is an **error**; the line will not load. The
@@ -615,7 +756,7 @@ elctl doctor                                 # check an installation
   code that draws them in the window. Treat as not working.
 - **`[colors] valve`** and the stage `fill` / `volume` keys are read but not
   used by the window as far as the source shows (`stage`, `pipette` and
-  `background` colours are used). The simulated line does use `volume`: it is the
+  `background` colors are used). The simulated line does use `volume`: it is the
   stage's size in cc.
 - **Claiming valves** (owner semantics) exists in the line software but the
   window never claims or releases; there is no button for it.

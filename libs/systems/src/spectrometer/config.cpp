@@ -1,10 +1,10 @@
-#include "pychron/systems/spectrometer/config.hpp"
+#include "nobion/systems/spectrometer/config.hpp"
 
 #include <algorithm>
 #include <array>
 #include <utility>
 
-namespace pychron::spectrometer::cfg {
+namespace nobion::spectrometer::cfg {
 namespace {
 
 constexpr std::array kRoles{
@@ -13,6 +13,7 @@ constexpr std::array kRoles{
     std::pair<std::string_view, Role>{"acquirer", Role::Acquirer},
     std::pair<std::string_view, Role>{"detector_control", Role::DetectorControl},
     std::pair<std::string_view, Role>{"beam_blank", Role::BeamBlank},
+    std::pair<std::string_view, Role>{"optics", Role::Optics},
 };
 
 constexpr std::array kAxes{
@@ -75,4 +76,4 @@ std::optional<ChannelRef> parse_channel_ref(std::string_view text) {
   return ChannelRef{std::string(text.substr(0, colon)), std::string(text.substr(colon + 1))};
 }
 
-}  // namespace pychron::spectrometer::cfg
+}  // namespace nobion::spectrometer::cfg

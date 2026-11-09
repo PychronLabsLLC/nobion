@@ -1,7 +1,7 @@
 // cameras.toml: the camera of each extraction device (laser autocenter
 // design, section 3).
 
-#include "pychron/laser/camera.hpp"
+#include "nobion/laser/camera.hpp"
 
 #include <chrono>
 #include <filesystem>
@@ -12,8 +12,8 @@
 
 #include <gtest/gtest.h>
 
-using namespace pychron;
-using namespace pychron::laser;
+using namespace nobion;
+using namespace nobion::laser;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
@@ -196,7 +196,7 @@ TEST(CameraLibrary, OneBadTableDoesNotHideTheOthers) {
 }
 
 TEST(CameraLibrary, MissingFileIsEmpty) {
-  const auto lib = CameraLibrary::load(fs::temp_directory_path() / "pychron_no_such_cameras.toml");
+  const auto lib = CameraLibrary::load(fs::temp_directory_path() / "nobion_no_such_cameras.toml");
   EXPECT_TRUE(lib.devices().empty());
   EXPECT_TRUE(lib.problems().empty());
 }
@@ -213,7 +213,7 @@ TEST(CameraLibrary, NotTomlIsEveryDevicesProblem) {
 
 TEST(CameraLibrary, LoadsAFile) {
   std::random_device rd;
-  const auto file = fs::temp_directory_path() / ("pychron_cameras_" + std::to_string(rd()) + ".toml");
+  const auto file = fs::temp_directory_path() / ("nobion_cameras_" + std::to_string(rd()) + ".toml");
   std::ofstream(file) << "[co2]\npx_per_mm = 31\n";
   const auto lib = CameraLibrary::load(file);
   ASSERT_NE(lib.find("co2"), nullptr);
@@ -384,4 +384,173 @@ TEST(CameraUse, ACameraForLookingNeverClosesTheLoop) {
       EXPECT_NE(r.error().what.find("looking"), std::string::npos) << r.error().what;
     }
   }
+}
+
+TEST(CameraLibrary, ReadsSimGrain) {
+  const auto lib = parse(R"toml(
+[co2.sim.grain]
+flares_per_s = 1
+lobes = 5
+creep_mm_per_s = [0.01, -0.02]
+lobe_life_s = 4
+jump_mm = 0.2
+)toml");
+  ASSERT_TRUE(lib.problems().empty()) << lib.problems().front();
+  const CameraConfig* c = lib.find("co2");
+  ASSERT_NE(c, nullptr);
+  ASSERT_TRUE(c->sim_grain);
+  EXPECT_DOUBLE_EQ(c->sim_grain->flares_per_s, 1);
+  EXPECT_EQ(c->sim_grain->lobes, 5);
+  EXPECT_DOUBLE_EQ(c->sim_grain->creep_mm_per_s.x, 0.01);
+  EXPECT_DOUBLE_EQ(c->sim_grain->creep_mm_per_s.y, -0.02);
+  EXPECT_DOUBLE_EQ(c->sim_grain->lobe_life_s, 4);
+  EXPECT_DOUBLE_EQ(c->sim_grain->jump_mm, 0.2);
+  EXPECT_DOUBLE_EQ(c->sim_grain->heat_tau_s, 0.5);  // a default stays
+
+  const auto none = parse("[co2]\n[co2.sim]\nnoise = 0.02\n");
+  ASSERT_NE(none.find("co2"), nullptr);
+  EXPECT_FALSE(none.find("co2")->sim_grain);
+  const auto empty = parse("[co2.sim.grain]\n");  // a table with no keys is still a grain
+  ASSERT_NE(empty.find("co2"), nullptr);
+  EXPECT_TRUE(empty.find("co2")->sim_grain);
+}
+
+TEST(HoleFence, TheBeamGoesAThirdOfItsDiameterPastTheEdge) {
+  EXPECT_DOUBLE_EQ(hole_fence_mm(0.5, 0.6), 0.5 - 0.3 + 0.2);
+  // There the beam's far edge is 0.2 mm, a third of 0.6, past the hole's.
+  EXPECT_DOUBLE_EQ(hole_fence_mm(0.5, 0.6) + 0.3 - 0.5, 0.6 / 3);
+  EXPECT_DOUBLE_EQ(hole_fence_mm(0.5, 0), 0.5);   // not known: its center in the hole
+  EXPECT_DOUBLE_EQ(hole_fence_mm(0.5, -1), 0.5);
+  EXPECT_GT(hole_fence_mm(0.1, 50), 0);           // a perimeter is above 0
+}
+
+TEST(CameraLibrary, ReadsTheBeamDiameter) {
+  const auto lib = parse("[co2]\nbeam_diameter_mm = 0.6\n[co2.sim.grain]\nbeam_radius_mm = 0.4\n");
+  ASSERT_TRUE(lib.problems().empty()) << lib.problems().front();
+  EXPECT_DOUBLE_EQ(lib.find("co2")->beam_mm(), 0.6);  // what is said wins
+  const auto grain = parse("[co2.sim.grain]\nbeam_radius_mm = 0.4\n");
+  ASSERT_TRUE(grain.problems().empty()) << grain.problems().front();
+  EXPECT_DOUBLE_EQ(grain.find("co2")->beam_mm(), 0.8);
+  EXPECT_DOUBLE_EQ(CameraConfig{}.beam_mm(), 0);
+  EXPECT_FALSE(parse("[co2]\nbeam_diameter_mm = -1\n").problems().empty());
+}
+
+TEST(CameraLibrary, ReadsTheSimSurface) {
+  const auto machined = parse("[co2.sim]\nsurface = \"machined\"\n");
+  ASSERT_TRUE(machined.problems().empty()) << machined.problems().front();
+  EXPECT_TRUE(machined.find("co2")->sim_machined);
+  const auto plain = parse("[co2.sim]\nsurface = \"plain\"\n");
+  ASSERT_TRUE(plain.problems().empty()) << plain.problems().front();
+  EXPECT_FALSE(plain.find("co2")->sim_machined);
+  EXPECT_FALSE(parse("[co2.sim]\nsurface = \"glass\"\n").problems().empty());
+}
+
+TEST(CameraLibrary, SimGrainRangesAndUnknownKeys) {
+  struct Bad {
+    const char* text;
+    const char* key;
+  };
+  const std::vector<Bad> bad = {
+      {"[co2.sim.grain]\nlobes = 17\n", "co2.sim.grain.lobes"},
+      {"[co2.sim.grain]\nlobes = 0\n", "co2.sim.grain.lobes"},
+      {"[co2.sim.grain]\nlobes = 2.5\n", "co2.sim.grain.lobes"},
+      {"[co2.sim.grain]\nbeam_radius_mm = 0\n", "co2.sim.grain.beam_radius_mm"},
+      {"[co2.sim.grain]\nheat_tau_s = 0.001\n", "co2.sim.grain.heat_tau_s"},
+      {"[co2.sim.grain]\nglow_exponent = 0.5\n", "co2.sim.grain.glow_exponent"},
+      {"[co2.sim.grain]\nlobe_life_s = 0.05\n", "co2.sim.grain.lobe_life_s"},
+      {"[co2.sim.grain]\nlobe_life_s = 601\n", "co2.sim.grain.lobe_life_s"},
+      {"[co2.sim.grain]\nlobe_life_s = -1\n", "co2.sim.grain.lobe_life_s"},
+      {"[co2.sim.grain]\nflicker = 1.5\n", "co2.sim.grain.flicker"},
+      {"[co2.sim.grain]\nflares_per_s = 51\n", "co2.sim.grain.flares_per_s"},
+      {"[co2.sim.grain]\ncreep_mm_per_s = [1]\n", "co2.sim.grain.creep_mm_per_s"},
+      {"[co2.sim.grain]\nwander_mm_per_rt_s = 11\n", "co2.sim.grain.wander_mm_per_rt_s"},
+      {"[co2.sim.grain]\njump_mm = 0\n", "co2.sim.grain.jump_mm"},
+      {"[co2.sim.grain]\nwobble = 1\n", "co2.sim.grain.wobble"},
+      {"[co2.sim]\ngrain = 3\n", "co2.sim.grain"},
+  };
+  for (const auto& b : bad) {
+    const auto lib = parse(b.text);
+    ASSERT_EQ(lib.problems().size(), 1u) << b.text;
+    EXPECT_NE(lib.problems().front().find(b.key), std::string::npos) << lib.problems().front();
+    EXPECT_EQ(lib.find("co2"), nullptr) << b.text;
+  }
+  // 0 is the other value lobe_life_s may take; 0.1 and 600 are its ends
+  for (const char* life : {"0", "0.1", "600"}) {
+    const auto lib = parse(std::string("[co2.sim.grain]\nlobe_life_s = ") + life + "\n");
+    EXPECT_TRUE(lib.problems().empty()) << life;
+  }
+}
+
+TEST(CameraLibrary, GrainAndOldGlowKeysConflict) {
+  for (const char* old : {"glow_sigma_mm = 0.3", "glow_drift_mm_per_s = [0.01, 0]"}) {
+    const auto lib = parse(std::string("[co2.sim]\n") + old + "\n[co2.sim.grain]\nflares_per_s = 1\n");
+    ASSERT_EQ(lib.problems().size(), 1u) << old;
+    const std::string& why = lib.problems().front();
+    EXPECT_NE(why.find("grain"), std::string::npos) << why;
+    EXPECT_NE(why.find(std::string(old).substr(0, std::string(old).find(' '))), std::string::npos) << why;
+    EXPECT_EQ(lib.find("co2"), nullptr);
+  }
+  // grain_offset_mm still places the grain
+  const auto ok = parse("[co2.sim]\ngrain_offset_mm = [0.2, 0.1]\n[co2.sim.grain]\n");
+  EXPECT_TRUE(ok.problems().empty());
+}
+
+namespace {
+// The problems of a camera whose grain table is `body`; empty: it loads.
+std::string grain_problem(const std::string& body) {
+  const auto lib = parse("[co2.sim.grain]\n" + body);
+  return lib.problems().empty() ? std::string() : lib.problems().front();
+}
+}  // namespace
+
+TEST(CameraConfig, ReadsTheGrainsSize) {
+  const auto lib = parse(R"toml(
+[co2.sim.grain]
+grain_radius_mm = 0.5
+grain_sides = 8
+grain_irregularity = 0.2
+body_glow = 0.7
+melt_mm_per_s = 0.03
+min_radius_mm = 0.2
+)toml");
+  ASSERT_TRUE(lib.problems().empty()) << lib.problems().front();
+  const CameraConfig* c = lib.find("co2");
+  ASSERT_NE(c, nullptr);
+  ASSERT_TRUE(c->sim_grain);
+  EXPECT_DOUBLE_EQ(c->sim_grain->grain_radius_mm, 0.5);
+  EXPECT_EQ(c->sim_grain->grain_sides, 8);
+  EXPECT_DOUBLE_EQ(c->sim_grain->grain_irregularity, 0.2);
+  EXPECT_DOUBLE_EQ(c->sim_grain->body_glow, 0.7);
+  EXPECT_DOUBLE_EQ(c->sim_grain->melt_mm_per_s, 0.03);
+  EXPECT_DOUBLE_EQ(c->sim_grain->min_radius_mm, 0.2);
+}
+
+TEST(CameraConfig, RefusesAGrainOutOfRange) {
+  for (const char* key : {"grain_sides = 2", "grain_sides = 17", "grain_irregularity = 0.7", "body_glow = 1.5",
+                          "grain_radius_mm = 101", "melt_mm_per_s = 11", "min_radius_mm = -1"}) {
+    const std::string why = grain_problem(std::string(key) + "\n");
+    const std::string name = std::string(key).substr(0, std::string(key).find(' '));
+    ASSERT_FALSE(why.empty()) << key;
+    EXPECT_NE(why.find("co2.sim.grain." + name), std::string::npos) << why;
+  }
+}
+
+TEST(CameraConfig, RefusesMeltingNothing) {
+  const std::string why = grain_problem("melt_mm_per_s = 0.1\ngrain_radius_mm = 0\n");
+  ASSERT_FALSE(why.empty());
+  EXPECT_NE(why.find("melt_mm_per_s"), std::string::npos) << why;
+}
+
+TEST(CameraConfig, RefusesMeltingToNothing) {
+  const std::string why = grain_problem("melt_mm_per_s = 0.1\ngrain_radius_mm = 0.5\nmin_radius_mm = 0\n");
+  ASSERT_FALSE(why.empty());
+  EXPECT_NE(why.find("min_radius_mm"), std::string::npos) << why;
+}
+
+TEST(CameraConfig, RefusesAFloorAboveTheGrain) {
+  const std::string why = grain_problem("melt_mm_per_s = 0.1\ngrain_radius_mm = 0.5\nmin_radius_mm = 0.5\n");
+  ASSERT_FALSE(why.empty());
+  EXPECT_NE(why.find("min_radius_mm"), std::string::npos) << why;
+  // without melting the floor is not used
+  EXPECT_TRUE(grain_problem("grain_radius_mm = 0.5\nmin_radius_mm = 0.5\n").empty());
 }

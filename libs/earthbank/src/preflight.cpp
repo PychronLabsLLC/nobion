@@ -1,4 +1,4 @@
-#include "pychron/earthbank/preflight.hpp"
+#include "nobion/earthbank/preflight.hpp"
 
 #include <algorithm>
 #include <array>
@@ -12,25 +12,25 @@
 
 #include <nlohmann/json.hpp>
 
-#include "pychron/earthbank/vocab.hpp"
+#include "nobion/earthbank/vocab.hpp"
 #include "text_detail.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 using namespace std::string_view_literals;
 
 // The names of a record's fields, from the list the struct and to_json are
 // made from (model.hpp).
-#define PYCHRON_EARTHBANK_FIELD_NAME(kind, name) std::string_view(#name),
-constexpr std::array kSampleFields = {PYCHRON_EARTHBANK_SAMPLE_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)};
-constexpr std::array kLocationFields = {PYCHRON_EARTHBANK_LOCATION_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)};
-constexpr std::array kDataPointFields = {PYCHRON_EARTHBANK_DATA_POINT_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)};
-constexpr std::array kAliquotFields = {PYCHRON_EARTHBANK_ALIQUOT_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)};
-constexpr std::array kMeasurementFields = {PYCHRON_EARTHBANK_MEASUREMENT_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)};
-constexpr std::array kAgeCalcFields = {PYCHRON_EARTHBANK_AGE_CALC_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)};
-constexpr std::array kAgeSummaryFields = {PYCHRON_EARTHBANK_AGE_SUMMARY_FIELDS(PYCHRON_EARTHBANK_FIELD_NAME)};
-#undef PYCHRON_EARTHBANK_FIELD_NAME
+#define NOBION_EARTHBANK_FIELD_NAME(kind, name) std::string_view(#name),
+constexpr std::array kSampleFields = {NOBION_EARTHBANK_SAMPLE_FIELDS(NOBION_EARTHBANK_FIELD_NAME)};
+constexpr std::array kLocationFields = {NOBION_EARTHBANK_LOCATION_FIELDS(NOBION_EARTHBANK_FIELD_NAME)};
+constexpr std::array kDataPointFields = {NOBION_EARTHBANK_DATA_POINT_FIELDS(NOBION_EARTHBANK_FIELD_NAME)};
+constexpr std::array kAliquotFields = {NOBION_EARTHBANK_ALIQUOT_FIELDS(NOBION_EARTHBANK_FIELD_NAME)};
+constexpr std::array kMeasurementFields = {NOBION_EARTHBANK_MEASUREMENT_FIELDS(NOBION_EARTHBANK_FIELD_NAME)};
+constexpr std::array kAgeCalcFields = {NOBION_EARTHBANK_AGE_CALC_FIELDS(NOBION_EARTHBANK_FIELD_NAME)};
+constexpr std::array kAgeSummaryFields = {NOBION_EARTHBANK_AGE_SUMMARY_FIELDS(NOBION_EARTHBANK_FIELD_NAME)};
+#undef NOBION_EARTHBANK_FIELD_NAME
 
 constexpr std::string_view kSample = "Sample";
 constexpr std::string_view kLocation = "Location";
@@ -116,7 +116,7 @@ class Walk {
         // Never a silent pass: the field is new to the model and nobody has
         // said where it is looked up.
         miss.outcome = LookupOutcome::CouldNotAsk;
-        miss.detail = "pychron-cpp does not know which list of EarthBank's this field is of.";
+        miss.detail = "nobion does not know which list of EarthBank's this field is of.";
       } else {
         const LookupResult result = resolver_.resolve(term.name_field, value);
         if (result.outcome == LookupOutcome::Found) found(record, term.name_field, value, result);
@@ -213,4 +213,4 @@ PreflightReport preflight(const std::vector<Submission>& submissions, LookupReso
   return report;
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

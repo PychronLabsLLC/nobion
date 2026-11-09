@@ -1,8 +1,10 @@
-#include "pychron/systems/gauge_scanner.hpp"
+#include "nobion/systems/gauge_scanner.hpp"
 
 #include <sstream>
 
-namespace pychron {
+#include "nobion/core/log_context.hpp"
+
+namespace nobion {
 
 namespace {
 const char* unit_name(config::PressureUnits u) {
@@ -48,6 +50,7 @@ Result<void> GaugeScanner::add_gauge(const config::GaugeConfig& gauge, Reader re
 
   // Scheduler guarantees non-overlap per job, so State needs no lock.
   auto task = [this, state] {
+    const LogContext::Polling polling;
     const auto& cfg = state->cfg;
     const TimePoint ts = clock_.now();
     auto r = state->reader();
@@ -99,4 +102,4 @@ std::size_t GaugeScanner::gauge_count() const {
   return states_.size();
 }
 
-}  // namespace pychron
+}  // namespace nobion

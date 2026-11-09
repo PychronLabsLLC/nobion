@@ -1,0 +1,37 @@
+#pragma once
+
+// What the app's setup paths share: opening a database for the setup wizard
+// and doctor, and switching to another install.
+
+#include <filesystem>
+#include <ostream>
+#include <string>
+
+#include "setup_wizard.hpp"
+
+namespace nobion::ui {
+
+// Opens a DVC store URL (create: migrating it) and describes its schema;
+// empty when built without the store.
+SetupWizard::OpenDatabase database_opener();
+
+// Puts a seed file into a DVC store (migrate: made or brought up to date
+// first), as `elctl entry seed` does; empty when built without the store.
+SetupWizard::SeedDatabase database_seeder();
+
+// Starts nobion again on install `name` (detached). False when it could
+// not be started.
+bool start_install(const std::string& name);
+
+// nobion --self-test: what an installed copy needs, checked without a
+// window: the shipped profiles load and resolve, the setup wizard builds, and
+// (with the store) an in-memory database opens through the Qt SQL plugin.
+// One line per check on `out`; 0 when all pass.
+int self_test(std::ostream& out);
+
+// nobion --write-icons: the application icon as nobion-<size>.png for
+// the sizes the installers' icon files need (tools/make_icons.py packs them
+// into .icns and .ico). 0 when every file was written.
+int write_icons(const std::filesystem::path& dir, std::ostream& out);
+
+}  // namespace nobion::ui

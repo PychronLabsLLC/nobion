@@ -1,69 +1,25 @@
-#include "pychron/processing/record_source.hpp"
+#include "nobion/processing/record_source.hpp"
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <filesystem>
 #include <fstream>
+#include <thread>
+#include <vector>
 
-#include "pychron/experiment/persist/persister.hpp"
-#include "pychron/experiment/record/serialize.hpp"
-#include "pychron/processing/quantity.hpp"
-#include "pychron/processing/reduced.hpp"
+#include "nobion/experiment/record/serialize.hpp"
+#include "record_fixtures.hpp"
 
-namespace pp = pychron::processing;
-namespace rec = pychron::experiment::record;
+namespace pp = nobion::processing;
+namespace rec = nobion::experiment::record;
 namespace fs = std::filesystem;
 
 namespace {
 
-struct TempDir {
-  fs::path path;
-  TempDir() {
-    path = fs::temp_directory_path() /
-           ("pp_records_" + std::string(::testing::UnitTest::GetInstance()->current_test_info()->name()));
-    fs::remove_all(path);
-    fs::create_directories(path);
-  }
-  ~TempDir() { fs::remove_all(path); }
-};
-
-rec::AnalysisRecord record(const std::string& uuid, const std::string& identifier, int aliquot,
-                           const std::string& step, const std::string& type, const std::string& ts,
-                           double ar40 = 3000.0, double ar36 = 10.0) {
-  rec::AnalysisRecord r;
-  r.identity = {uuid, identifier, aliquot, step, type, ts, 1, "q-1"};
-  r.sample = {"FC-2", "proj", "sanidine", "NM-300", "A", "5", "Doe", ""};
-  r.instrument = {"jan", "co2", "lab", "me", "0.1.0", "abc"};
-  r.extraction.spec = {10.0, 30, 60, "W", "", {1}, 77.0};
-  r.extraction.actuals.cryo_measured = {{"A", 77.2}};
-  r.extraction.actuals.value = 9.5;
-  r.spectrometer.gains = {{"H1", 1.002}};
-  r.spectrometer.deflections = {{"H1", 10.0}};
-  auto add = [&](const char* iso, const char* det, double v, double e) {
-    rec::DataSeries s{iso, det, "signal", {{0.f, 1.f, 2.f}, {static_cast<float>(v), static_cast<float>(v), static_cast<float>(v)}, {}}};
-    r.data.series.push_back(s);
-    rec::InterceptResult ir;
-    ir.intercept.value = v;
-    ir.intercept.error = e;
-    ir.intercept.n_used = 3;
-    r.results.intercepts[iso] = ir;
-  };
-  add("Ar40", "H1", ar40, 0.5);
-  add("Ar39", "AX", 100.0, 0.1);
-  add("Ar38", "L1", 2.0, 0.01);
-  add("Ar37", "L2", 0.5, 0.01);
-  add("Ar36", "CDD", ar36, 0.02);
-  r.data.series.push_back({"", "H1", "baseline", {{0.f, 1.f}, {0.01f, 0.01f}, {}}});
-  r.results.baselines["H1"] = rec::BaselineResult{0.01, 0.001, {}};
-  r.results.icfactors["CDD"] = 1.05;
-  return r;
-}
-
-void write(const fs::path& root, const rec::AnalysisRecord& r) {
-  pychron::experiment::persist::FilePersister p(root);
-  ASSERT_TRUE(p.save_analysis(r));
-  ASSERT_TRUE(p.save_extraction(r));  // extraction files are ignored by the source
-}
+using pp::test::record;
+using pp::test::TempDir;
+using pp::test::write;
 
 TEST(RecordSource, ParsesTimestampsAndSteps) {
   EXPECT_DOUBLE_EQ(*pp::parse_utc("1970-01-01T00:00:00Z"), 0.0);
@@ -98,6 +54,18 @@ TEST(RecordSource, MapsARecord) {
   ASSERT_NE(raw.find(pp::SeriesKind::Signal, "Ar40"), nullptr);
   ASSERT_NE(raw.find(pp::SeriesKind::Baseline, "H1"), nullptr);
   EXPECT_EQ(raw.find(pp::SeriesKind::Signal, "Ar40")->t.size(), 3u);
+}
+
+// A failed run's record (spec 4.5) is an invalid analysis, as the store
+// gives it; truncated and complete are ok.
+TEST(RecordSource, AFailedRecordIsAnInvalidAnalysis) {
+  auto r = record("u1", "66001", 2, "B", "unknown", "2026-09-30T12:00:00Z");
+  EXPECT_EQ(pp::analysis_from_record(r).tag, "ok");
+  r.provenance.status = rec::RecordStatus::Truncated;
+  EXPECT_EQ(pp::analysis_from_record(r).tag, "ok");
+  r.provenance.status = rec::RecordStatus::Failed;
+  r.provenance.failure = "spectrometer link down";
+  EXPECT_EQ(pp::analysis_from_record(r).tag, "invalid");
 }
 
 // A detector intercalibration: Ar40 hopped onto H1 and AX. The record keeps
@@ -203,10 +171,47 @@ TEST(RecordSource, BrowsesNewestFirstWithPaging) {
   // Facets ignore their own filter.
   auto f = src.facet(pp::Facet::AnalysisType, types);
   ASSERT_TRUE(f);
-  EXPECT_EQ(*f, (std::vector<std::string>{"air", "unknown"}));
+  EXPECT_EQ(*f, (std::vector<pp::FacetValue>{{"air", "air"}, {"unknown", "unknown"}}));
   pp::BrowseQuery only_air = types;
   auto ids = src.facet(pp::Facet::Identifier, only_air);
-  EXPECT_EQ(*ids, (std::vector<std::string>{"air"}));
+  EXPECT_EQ(*ids, (std::vector<pp::FacetValue>{{"air", "air"}}));
+}
+
+// A record folder keeps no irradiation rows: the keys are names.
+TEST(RecordSource, PositionsUseNameKeys) {
+  TempDir dir;
+  write(dir.path, record("u1", "66001", 1, "", "unknown", "2026-09-30T10:00:00Z"));
+  write(dir.path, record("u2", "66001", 2, "", "unknown", "2026-09-30T11:00:00Z"));
+  pp::RecordDirectorySource src(dir.path);
+  auto rows = src.positions({});
+  ASSERT_TRUE(rows) << rows.error().what;
+  ASSERT_EQ(rows->size(), 1u);
+  EXPECT_EQ((*rows)[0].identifier, "66001");
+  EXPECT_EQ((*rows)[0].irradiation_key, "NM-300");
+  EXPECT_EQ((*rows)[0].level_key, "NM-300/A");
+  EXPECT_EQ((*rows)[0].level, "A");
+}
+
+// A record names its PI and keeps no PI rows: the name is value and label,
+// and what the filter takes (PI spec 7).
+TEST(RecordSource, APiIsItsName) {
+  TempDir dir;
+  auto ross = record("u1", "66001", 1, "", "unknown", "2026-09-30T10:00:00Z");
+  ross.sample.pi = "J Ross";
+  auto smith = record("u2", "66002", 1, "", "unknown", "2026-09-30T11:00:00Z");
+  smith.sample.pi = "A Smith";
+  write(dir.path, ross);
+  write(dir.path, smith);
+  pp::RecordDirectorySource src(dir.path);
+  auto facet = src.facet(pp::Facet::PrincipalInvestigator, {});
+  ASSERT_TRUE(facet);
+  EXPECT_EQ(*facet, (std::vector<pp::FacetValue>{{"A Smith", "A Smith"}, {"J Ross", "J Ross"}}));
+  pp::BrowseQuery q;
+  q.principal_investigators = {"J Ross"};
+  auto page = src.browse(q);
+  ASSERT_TRUE(page);
+  ASSERT_EQ(page->rows.size(), 1u);
+  EXPECT_EQ(page->rows[0].uuid, "u1");
 }
 
 TEST(RecordSource, RefreshPicksUpNewFilesAndBumpsGeneration) {
@@ -228,34 +233,50 @@ TEST(RecordSource, RefreshPicksUpNewFilesAndBumpsGeneration) {
   EXPECT_EQ(src.browse({})->rows.size(), 2u);
 }
 
-TEST(RecordSource, LoadsAnalysesAndRawAndAppliesReferences) {
+// The processing bridge refreshes the source on its worker while a window's
+// job may still load on another thread: refresh is safe against both.
+TEST(RecordSource, ARefreshWhileOtherThreadsReadIsSafe) {
+  TempDir dir;
+  write(dir.path, record("u1", "66001", 1, "", "unknown", "2026-09-30T10:00:00Z"));
+  write(dir.path, record("u2", "66001", 2, "", "unknown", "2026-09-30T11:00:00Z"));
+  pp::RecordDirectorySource src(dir.path);
+  ASSERT_TRUE(src.refresh());
+  const auto g0 = src.generation();
+  std::atomic<bool> go{false};
+  std::atomic<int> failed{0};
+  std::vector<std::thread> readers;
+  readers.reserve(4);
+  for (int i = 0; i < 4; ++i)
+    readers.emplace_back([&, i] {
+      while (!go) std::this_thread::yield();
+      for (int k = 0; k < 10; ++k) {
+        if (!src.load((i + k) % 2 ? "u1" : "u2")) ++failed;
+        if (!src.browse({})) ++failed;
+      }
+    });
+  std::thread refresher([&] {
+    while (!go) std::this_thread::yield();
+    for (int k = 0; k < 10; ++k)
+      if (!src.refresh()) ++failed;
+  });
+  write(dir.path, record("u3", "66001", 3, "", "unknown", "2026-09-30T12:00:00Z"));
+  go = true;
+  for (auto& t : readers) t.join();
+  refresher.join();
+  EXPECT_EQ(failed.load(), 0);
+  ASSERT_TRUE(src.refresh());
+  EXPECT_GT(src.generation(), g0);
+  EXPECT_EQ(src.browse({})->rows.size(), 3u);
+}
+
+TEST(RecordSource, LoadsAnalysesAndRaw) {
   TempDir dir;
   write(dir.path, record("u1", "66001", 1, "", "unknown", "2026-09-30T10:00:00Z", 1000.0, 0.5));
-  std::ofstream(dir.path / "references.toml") << R"(
-[flux."66001"]
-j = 0.001
-j_err = 1e-6
-
-[production."NM-300"]
-K4039 = [0.0002, 0.00001]
-Ca3937 = [0.0007, 0.00001]
-
-[[chronology."NM-300"]]
-power = 1.0
-start = "2026-01-01T00:00:00Z"
-end = "2026-01-01T10:00:00Z"
-)";
   pp::RecordDirectorySource src(dir.path);
   auto a = src.load("u1");
   ASSERT_TRUE(a) << a.error().what;
-  ASSERT_TRUE((*a)->context.flux);
-  EXPECT_DOUBLE_EQ((*a)->context.flux->j.value, 0.001);
-  ASSERT_TRUE((*a)->context.production);
-  EXPECT_EQ((*a)->context.chronology.size(), 1u);
-  auto ra = pp::reduce_analysis(*a, {});
-  auto age = pp::Quantity::parse("age")->eval(*ra);
-  ASSERT_TRUE(age) << ra->reduction_error;
-  EXPECT_GT(age->value, 0.0);
+  EXPECT_EQ((*a)->identifier, "66001");
+  EXPECT_FALSE((*a)->extension);  // no loader: no domain data (tests/arar test_record_loader.cpp)
 
   auto raw = src.load_raw("u1");
   ASSERT_TRUE(raw);
@@ -263,4 +284,59 @@ end = "2026-01-01T10:00:00Z"
   EXPECT_FALSE(src.load("missing"));
 }
 
+// Each isotope carries the optics of the state its signal was measured
+// under (measurement plan v2 spec 6.1): what a same-run IC factor keeps.
+TEST(RecordSource, V3IsotopesCarryTheirStatesOptics) {
+  auto r = record("u-op", "ic", 1, "", "detector_ic", "2026-01-01T00:00:00Z");
+  r.provenance.schema_version = rec::kRecordSchemaVersion;
+  r.results.intercepts.clear();
+  r.data.series.clear();
+  rec::GasRec gas;
+  gas.name = "ar";
+  gas.states = {{{}, 1.0, "ar_config_a", ""}, {{}, 1.0, "ar_config_b", ""}};
+  r.data.gases = {gas};
+  auto add = [&](const char* det, int state, float v) {
+    r.data.series.push_back({"Ar40", det, "signal", {{0.f, 1.f}, {v, v}, {}}, "ar", 0, state, state});
+    rec::InterceptResult ir;
+    ir.intercept.value = v;
+    r.results.intercepts[std::string("Ar40@") + det] = ir;
+  };
+  add("H1", 0, 100.f);
+  add("AX", 1, 98.f);
+  const auto a = pp::analysis_from_record(r);
+  ASSERT_NE(a.find_isotope("H1:Ar40"), nullptr);
+  EXPECT_EQ(a.find_isotope("H1:Ar40")->optics, "ar_config_a");
+  ASSERT_NE(a.find_isotope("AX:Ar40"), nullptr);
+  EXPECT_EQ(a.find_isotope("AX:Ar40")->optics, "ar_config_b");
+}
+
 }  // namespace
+
+// A v3 record says which baseline each signal was corrected with: the
+// records path reads that, not the detector's one stored value.
+TEST(RecordSource, V3RecordReadsWithPerSeriesBaselines) {
+  auto r = record("u-v3", "66002", 1, "", "unknown", "2026-01-01T00:00:00Z");
+  r.provenance.schema_version = rec::kRecordSchemaVersion;
+  r.results.intercepts.clear();
+  r.data.series.clear();
+  auto add = [&](const char* iso, float v) {
+    r.data.series.push_back({iso, "H1", "signal", {{0.f, 1.f, 2.f}, {v, v, v}, {}}});
+    rec::InterceptResult ir;
+    ir.intercept.value = v;
+    r.results.intercepts[std::string(iso) + "@H1"] = ir;
+  };
+  add("Ar40", 3000.f);
+  add("Ar39", 100.f);
+  r.results.baseline_positions = {{"H1", "", 0, 0, "before_inlet", {}, {}, {0.01, 0.001, {}}},
+                                  {"H1", "", 2, 0, "after_main", {}, {}, {0.03, 0.003, {}}}};
+  r.results.baselines["H1"] = {0.02, 0.0016, {}};  // the store's: Ar39's, the detector's first signal
+  r.results.baseline_choices["Ar40@H1"] = {"nearest", {1}, 0.03, 0.003};
+  r.results.baseline_choices["Ar39@H1"] = {"bracketing_average", {0, 1}, 0.02, 0.0016};
+  const auto a = pp::analysis_from_record(r);
+  ASSERT_EQ(a.isotopes.size(), 2u);
+  for (const auto& iso : a.isotopes) {
+    EXPECT_EQ(iso.detector, "H1");
+    const double want = iso.isotope == "Ar40" ? 0.03 : 0.02;
+    EXPECT_DOUBLE_EQ(iso.baseline.value, want) << iso.isotope;
+  }
+}

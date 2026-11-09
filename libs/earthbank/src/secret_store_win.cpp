@@ -24,11 +24,11 @@
 
 #include <wincred.h>
 
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/secret_store.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/secret_store.hpp"
 #include "secret_store_detail.hpp"
 
-namespace pychron::earthbank {
+namespace nobion::earthbank {
 namespace {
 
 constexpr std::string_view kBackend = "credential-manager";
@@ -115,7 +115,7 @@ class CredentialSecretStore final : public ISecretStore {
   // Whether this logon session has a credential set at all: a service
   // account or a network logon may have none.
   bool usable() const {
-    const std::wstring name = target("pychron.probe");
+    const std::wstring name = target("nobion.probe");
     if (name.empty()) return false;
     PCREDENTIALW found = nullptr;
     if (CredReadW(name.c_str(), CRED_TYPE_GENERIC, 0, &found)) {
@@ -139,4 +139,4 @@ std::unique_ptr<ISecretStore> detail::make_system_secret_store(std::string_view 
   return store;
 }
 
-}  // namespace pychron::earthbank
+}  // namespace nobion::earthbank

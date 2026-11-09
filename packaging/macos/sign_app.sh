@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Signs Pychron.app for distribution: every piece of code inside out, with the
+# Signs Nobion.app for distribution: every piece of code inside out, with the
 # hardened runtime (notarization requires it), the programs with
 # packaging/macos/entitlements.plist.
 #
-#   sign_app.sh <Pychron.app> <identity> <entitlements.plist>
+#   sign_app.sh <Nobion.app> <identity> <entitlements.plist>
 #
 # <identity> is a "Developer ID Application: ..." certificate in a keychain,
 # or "-" to sign ad hoc (no certificate: a build that is not distributed, and

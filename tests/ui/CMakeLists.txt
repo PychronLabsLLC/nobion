@@ -1,33 +1,57 @@
-# Qt Test smoke suites for apps/pychron-ui (BUILD_UI only). Each test_*.cpp is
+# Qt Test smoke suites for apps/nobion (BUILD_UI only). Each test_*.cpp is
 # one QTEST_MAIN executable run headless on the offscreen platform against the
 # example line with every transport simulated.
 find_package(Qt6 REQUIRED COMPONENTS Test Widgets)
 
 set(CMAKE_AUTOMOC ON)
 
-file(GLOB PYCHRON_UI_TESTS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp")
+file(GLOB NOBION_UI_TESTS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp")
+# The Publish window exists only with the store (apps/nobion, NOBION_UI_HAS_STORE).
+if(NOT TARGET nobion_publish OR NOT TARGET nobion_processing_store)
+  list(FILTER NOBION_UI_TESTS EXCLUDE REGEX "test_publish[^/]*\\.cpp$")
+endif()
 
-foreach(src IN LISTS PYCHRON_UI_TESTS)
+foreach(src IN LISTS NOBION_UI_TESTS)
   get_filename_component(name ${src} NAME_WE)
-  set(target pychron_ui_${name})
+  set(target nobion_ui_${name})
   add_executable(${target} ${src} ui_fixture.hpp)
-  # tests/processing: flux_seed.hpp, the seeded level of the flux tests;
+  # tests/processing: fixtures.hpp, the analyses of the processing tests;
+  # tests/arar: arar_fixtures.hpp, the same with their Ar-Ar data, and
+  # flux_seed.hpp, the seeded level of the flux tests;
   # tests/support: temp_path.hpp, the fixtures' scratch names
   target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/tests/processing
-    ${PROJECT_SOURCE_DIR}/tests/support)
-  target_link_libraries(${target} PRIVATE pychron::ui Qt6::Test)
-  # the EarthBank suites talk to the service in memory (tests/earthbank)
-  if(name MATCHES "^test_earthbank")
-    target_link_libraries(${target} PRIVATE pychron::earthbank_fake)
-    # tests/earthbank/analyses.hpp builds on "processing/fixtures.hpp"
+    ${PROJECT_SOURCE_DIR}/tests/arar ${PROJECT_SOURCE_DIR}/tests/support)
+  target_link_libraries(${target} PRIVATE nobion::ui Qt6::Test)
+  # the EarthBank suites, and the Publish dialog's EarthBank step, talk to the
+  # service in memory (tests/earthbank)
+  if(name MATCHES "^test_earthbank" OR name STREQUAL "test_publish_dialog")
+    target_link_libraries(${target} PRIVATE nobion::earthbank_fake)
+    # tests/earthbank/analyses.hpp builds on "arar/arar_fixtures.hpp"
     target_include_directories(${target} PRIVATE ${PROJECT_SOURCE_DIR}/tests)
   endif()
+  # Collect Diagnostics reads the bundle back (tests/support zip_entries.hpp)
+  if(name STREQUAL "test_collect_diagnostics")
+    target_link_libraries(${target} PRIVATE miniz::miniz)
+  endif()
+  # the update check's suites fake GitHub (tests/update fake_http.hpp)
+  if(name MATCHES "^test_update_")
+    target_link_libraries(${target} PRIVATE nobion::update_testing)
+  endif()
+  # the Publish window's suite seeds a store as the release tests do
+  # (tests/publish/release_seed.hpp, over tests/persistence/store_fixture.hpp)
+  if(name MATCHES "^test_publish")
+    target_include_directories(${target} PRIVATE ${PROJECT_SOURCE_DIR}/tests ${PROJECT_SOURCE_DIR}/tests/publish
+      "${PROJECT_SOURCE_DIR}/libs/persistence/src")
+    target_compile_definitions(${target} PRIVATE QT_NO_KEYWORDS)
+    target_link_libraries(${target} PRIVATE TinyOrm::TinyOrm Qt6::Sql GTest::gtest)
+  endif()
   target_compile_definitions(${target} PRIVATE
-    PYCHRON_EXAMPLE_CONFIGS_DIR="${PROJECT_SOURCE_DIR}/configs/examples"
-    PYCHRON_UI_SOURCE_DIR="${PROJECT_SOURCE_DIR}/apps/pychron-ui/src")
+    NOBION_EXAMPLE_CONFIGS_DIR="${PROJECT_SOURCE_DIR}/configs/examples"
+    NOBION_SYSTEMS_TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/systems/data"
+    NOBION_UI_SOURCE_DIR="${PROJECT_SOURCE_DIR}/apps/nobion/src")
   # spectrometer sim drivers register from static initializers nothing references
-  pychron_link_drivers(${target} pychron_sim)
-  pychron_set_warnings(${target})
+  nobion_link_drivers(${target} nobion_sim)
+  nobion_set_warnings(${target})
   add_test(NAME ui.${name} COMMAND ${target})
   # The longest (the experiment window's) runs its queues in simulated time
   # paced at 400x (VirtualClock), which holds whatever a sleep costs on the

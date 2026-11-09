@@ -1,10 +1,10 @@
-#include "pychron/devices/lakeshore.hpp"
+#include "nobion/devices/lakeshore.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <set>
 
-namespace pychron {
+namespace nobion {
 
 namespace ls = codec::lakeshore;
 
@@ -22,8 +22,8 @@ std::string allowed_inputs(const std::string& model) { return model == "336" ? "
 
 }  // namespace
 
-Lakeshore::Lakeshore(std::string name, Transport& transport, LakeshoreOptions options, const Clock* clock)
-    : Device(std::move(name), DeviceOptions{clock}),
+Lakeshore::Lakeshore(std::string name, Transport& transport, LakeshoreOptions options, const Clock* clock, Link* link)
+    : Device(std::move(name), DeviceOptions{clock, DeviceOptions{}.fault_after, link}),
       transport_(transport),
       options_(std::move(options)),
       clock_(clock != nullptr ? clock : &steady_clock()) {}
@@ -96,7 +96,7 @@ Result<std::unique_ptr<Lakeshore>> Lakeshore::create(const DriverArgs& args) {
         return fail(ErrorKind::Config, "ranges: bands for output " + std::to_string(sorted[i].output) + " overlap");
     }
   }
-  return std::make_unique<Lakeshore>(args.name, args.transport, std::move(options), args.clock);
+  return std::make_unique<Lakeshore>(args.name, args.transport, std::move(options), args.clock, args.link);
 }
 
 int Lakeshore::outputs() const { return outputs_of(options_.model); }
@@ -115,40 +115,46 @@ double Lakeshore::from_wire(double value) const {
   return options_.units == ls::Units::Kelvin ? value : value + kZeroCelsius;
 }
 
-Result<Bytes> Lakeshore::ask(const codec::Command& command) {
-  return transport_.exchange(command.tx, *command.reply);
+Result<Bytes> Lakeshore::ask(const codec::Command& command, Resend resend) {
+  return transport_.exchange(command.tx, *command.reply, Transport::kDefaultTimeout, resend);
 }
 
 Result<void> Lakeshore::connect() {
-  return observe(transact(transport_, [&]() -> Result<void> {
-    if (auto sent = transport_.write(ls::clear_status().tx); !sent) return fail(std::move(sent).error());
-    auto reply = ask(ls::identify());
-    if (!reply) return fail(std::move(reply).error());
-    auto id = ls::decode_identity(*reply);
-    if (!id) return fail(std::move(id).error());
-    if (id->manufacturer != "LSCI" || id->model.find(options_.model) == std::string::npos) {
-      return fail(ErrorKind::Config, "lakeshore: \"" + id->manufacturer + "," + id->model +
-                                         "\" answered, not a Lake Shore model " + options_.model);
-    }
-    return {};
-  }));
+  // *CLS and *IDN?, repeated together.
+  return call<void>("connect",
+      [&](Resend resend) {
+        return transact(transport_, [&]() -> Result<void> {
+          if (auto sent = transport_.write(ls::clear_status().tx); !sent) return fail(std::move(sent).error());
+          auto reply = ask(ls::identify(), resend);
+          if (!reply) return fail(std::move(reply).error());
+          auto id = ls::decode_identity(*reply);
+          if (!id) return fail(std::move(id).error());
+          if (id->manufacturer != "LSCI" || id->model.find(options_.model) == std::string::npos) {
+            return fail(ErrorKind::Config, "lakeshore: \"" + id->manufacturer + "," + id->model +
+                                               "\" answered, not a Lake Shore model " + options_.model);
+          }
+          return {};
+        });
+      },
+      Repeat::Safe);
 }
 
 Result<double> Lakeshore::read_temperature(std::string_view input) {
-  auto value = [&]() -> Result<double> {
+  const Operation op = begin("read_temperature");
+  auto value = relay<double>("read_temperature", [&](Resend resend) -> Result<double> {
     if (std::find(options_.inputs.begin(), options_.inputs.end(), input) == options_.inputs.end())
       return fail(ErrorKind::Config, "input \"" + std::string(input) + "\" is not configured");
     auto cmd = ls::read_input(input[0], options_.units);
     if (!cmd) return fail(std::move(cmd).error());
-    auto reply = ask(*cmd);
+    auto reply = ask(*cmd, resend);
     if (!reply) return fail(std::move(reply).error());
     auto v = ls::decode_number(*reply);
     if (!v) return fail(std::move(v).error());
     const double kelvin = from_wire(*v);
     if (kelvin < 0) return codec::protocol_error("lakeshore: below absolute zero", *reply);
     return kelvin;
-  }();
-  return observe(std::move(value));
+  }, Repeat::Safe);
+  return observe(op, std::move(value));
 }
 
 Result<std::optional<int>> Lakeshore::range_for(int output, double kelvin) const {
@@ -167,7 +173,8 @@ Result<std::optional<int>> Lakeshore::range_for(int output, double kelvin) const
 }
 
 Result<void> Lakeshore::set_setpoint(int output, double kelvin) {
-  auto done = [&]() -> Result<void> {
+  const Operation op = begin("set_setpoint");
+  auto done = relay<void>("set_setpoint", [&](Resend resend) -> Result<void> {
     if (auto ok = check_output(output); !ok) return ok;
     auto range = range_for(output, kelvin);
     if (!range) return fail(std::move(range).error());
@@ -184,7 +191,7 @@ Result<void> Lakeshore::set_setpoint(int output, double kelvin) {
       double last = 0.0;
       for (int attempt = 0; attempt <= options_.verify_retries; ++attempt) {
         if (auto sent = transport_.write(setp->tx); !sent) return fail(std::move(sent).error());
-        auto reply = ask(*query);
+        auto reply = ask(*query, resend);
         if (!reply) return fail(std::move(reply).error());
         auto read = ls::decode_number(*reply);
         if (!read) return fail(std::move(read).error());
@@ -194,22 +201,23 @@ Result<void> Lakeshore::set_setpoint(int output, double kelvin) {
       return fail(ErrorKind::Protocol, "lakeshore: output " + std::to_string(output) + " setpoint read back " +
                                            std::to_string(last) + " K, not " + std::to_string(kelvin) + " K");
     });
-  }();
-  return observe(std::move(done));
+  }, Repeat::Safe);
+  return observe(op, std::move(done));
 }
 
 Result<double> Lakeshore::setpoint(int output) {
-  auto value = [&]() -> Result<double> {
+  const Operation op = begin("setpoint");
+  auto value = relay<double>("setpoint", [&](Resend resend) -> Result<double> {
     if (auto ok = check_output(output); !ok) return fail(std::move(ok).error());
     auto cmd = ls::query_setpoint(output);
     if (!cmd) return fail(std::move(cmd).error());
-    auto reply = ask(*cmd);
+    auto reply = ask(*cmd, resend);
     if (!reply) return fail(std::move(reply).error());
     auto v = ls::decode_number(*reply);
     if (!v) return fail(std::move(v).error());
     return from_wire(*v);
-  }();
-  return observe(std::move(value));
+  }, Repeat::Safe);
+  return observe(op, std::move(value));
 }
 
 Result<Sample> Lakeshore::sample() {
@@ -285,8 +293,30 @@ double LakeshoreSim::temperature(char input) const {
   return it == temps_.end() ? 0.0 : it->second;
 }
 
+double LakeshoreSim::current_temperature(char input) {
+  std::lock_guard lock(mutex_);
+  advance_locked();
+  auto it = temps_.find(input);
+  return it == temps_.end() ? 0.0 : it->second;
+}
+
+double LakeshoreSim::temperature_at(char input, TimePoint t) const {
+  std::lock_guard lock(mutex_);
+  const auto it = temps_.find(input);
+  if (it == temps_.end()) return 0.0;
+  const double dt = std::chrono::duration<double>(t - last_).count();
+  if (dt <= 0) return it->second;
+  const int output = input - 'A' + 1;
+  const auto sp = setpoints_.find(output);
+  const auto r = ranges_.find(output);
+  const bool heating = sp != setpoints_.end() && r != ranges_.end() && r->second > 0;
+  const double target = heating ? sp->second : base_k_;
+  return it->second + (target - it->second) * (1.0 - std::exp(-dt / std::chrono::duration<double>(tau_).count()));
+}
+
 void LakeshoreSim::set_temperature(char input, double kelvin) {
   std::lock_guard lock(mutex_);
+  advance_locked();  // the others' lag up to now; this one reads `kelvin` from now
   temps_[input] = kelvin;
 }
 
@@ -307,6 +337,6 @@ void LakeshoreSim::set_setpoint_error(double kelvin) {
   setpoint_error_ = kelvin;
 }
 
-}  // namespace pychron
+}  // namespace nobion
 
-REGISTER_DRIVER("lakeshore", pychron::Lakeshore);
+REGISTER_DRIVER("lakeshore", nobion::Lakeshore);

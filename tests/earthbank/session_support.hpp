@@ -13,10 +13,10 @@
 #include <nlohmann/json.hpp>
 
 #include "fake_earthbank.hpp"
-#include "pychron/core/error.hpp"
-#include "pychron/earthbank/http.hpp"
+#include "nobion/core/error.hpp"
+#include "nobion/earthbank/http.hpp"
 
-namespace pychron::earthbank::testing {
+namespace nobion::earthbank::testing {
 
 // Passes every request on to the fake. Keeps the value of each Authorization
 // header it saw, the token inside it, and every token a login was answered
@@ -64,4 +64,4 @@ inline std::vector<std::string> lines(const std::vector<LoggedRequest>& log, std
   return out;
 }
 
-}  // namespace pychron::earthbank::testing
+}  // namespace nobion::earthbank::testing

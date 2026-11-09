@@ -1,9 +1,9 @@
-#include "pychron/vision/camera_backend.hpp"
+#include "nobion/vision/camera_backend.hpp"
 
 #include <algorithm>
 #include <mutex>
 
-namespace pychron::vision {
+namespace nobion::vision {
 
 namespace {
 
@@ -21,7 +21,7 @@ CameraBackend opencv_backend() {
   CameraBackend b;
   b.name = "opencv";
   b.available = opencv_built();
-  if (!b.available) b.unavailable_why = "built without OpenCV (-DPYCHRON_VISION_OPENCV=ON)";
+  if (!b.available) b.unavailable_why = "built without OpenCV (-DNOBION_VISION_OPENCV=ON)";
   b.open = [](const CameraRequest& request, ClockFn clock) { return open_opencv_camera(request, std::move(clock)); };
   b.list = [] { return list_opencv_cameras(); };
   return b;
@@ -78,4 +78,4 @@ Result<std::unique_ptr<IFrameSource>> open_camera(const CameraRequest& request, 
   return fail(ErrorKind::Config, "unknown camera backend '" + request.backend + "' (there is: " + known + ")");
 }
 
-}  // namespace pychron::vision
+}  // namespace nobion::vision
