@@ -1,7 +1,15 @@
-# Build and test on main only: every pull request into main (develop, or
-# release-please's release) and every push to it. develop and the work
-# branches are not built here; they are tested where they are written
-# (AGENTS.md).
+# Build and test every pull request into main from develop. Nothing else:
+# - develop and the work branches are tested where they are written
+#   (AGENTS.md).
+# - A push to main is not built. main changes only by pull request, and the
+#   pull request's run already built the merge result.
+# - release-please's pull request is not built: it changes only the version
+#   and CHANGELOG.md, and release.yml builds and smoke-tests every package
+#   from the tag it makes.
+# One thing is lost: a push to main saved ccache in main's scope, which every
+# later pull request can read (a pull request cannot read another's cache).
+# Releases are weeks apart and GitHub evicts a cache unused for 7 days, so the
+# next release mostly started cold anyway.
 #
 # Core jobs use the `dev` configure preset: dependencies come from
 # find_package() or the pinned FetchContent fallbacks in
@@ -18,8 +26,6 @@
 name: ci
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -34,6 +40,7 @@ permissions:
 jobs:
   core:
     name: core (${{ matrix.name }})
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -144,6 +151,7 @@ jobs:
 
   windows:
     name: core (windows-msvc)
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -160,6 +168,7 @@ jobs:
 
   ui:
     name: ui (macos-qt6)
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     runs-on: macos-15
     env:
       QT_QPA_PLATFORM: offscreen

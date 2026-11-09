@@ -26,8 +26,11 @@ Day to day:
   merge into `develop`, push. No pull request needed for `develop`. If
   `origin/develop` moves again before the push, that is another rebase and
   another run: what is pushed is what was tested.
-- CI does not run on `develop` or work branches, only on `main` and pull
-  requests into it. Local tests are the only ones before a release: run them.
+- CI runs only on pull request from `develop` into `main`: not on `develop`,
+  work branches, pushes to `main` (pull request already built merge result)
+  or release-please's pull request (version and changelog only; tag's
+  package build smoke-tests release). Local tests are the only ones before a
+  release: run them.
   While a pull request from `develop` into `main` is open, every push to
   `develop` runs CI on it: read that run (`gh pr checks <n>`). A red run is
   fixed before other work lands on top of it.
